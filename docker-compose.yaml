@@ -10,12 +10,21 @@ services:
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_USER=${MYSQL_USER}
     volumes:
-      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
       - back-end
-
-
+  nosql-db:
+    image: mongo:latest
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    volumes:
+      - ./database/mongodb/mongodb-data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - back-end
 networks:
   front-end:
   back-end:
