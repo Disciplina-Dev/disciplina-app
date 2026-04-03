@@ -25,6 +25,14 @@ services:
       - ./database/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
       - back-end
+  frontend:
+    build:
+      context: ./front/disciplina-front
+      dockerfile: Dockerfile
+    networks:
+      - front-end
+    ports:
+      - "5173:5173"
 networks:
   front-end:
   back-end:
