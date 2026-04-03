@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  sql-db:
+    image: mysql:8.4.8
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+    volumes:
+      - ./database/mysql/mysql-data:/var/lib/mysql
+    networks:
+      - back-end
+
+
+networks:
+  front-end:
+  back-end:
