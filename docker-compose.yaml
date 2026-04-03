@@ -6,10 +6,11 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_DATABASE=listing
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_USER=${MYSQL_USER}
     volumes:
+      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
       - back-end
