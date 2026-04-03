@@ -1,0 +1,55 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", sans-serif;
+
+  --color-background: #FAF9F5;
+  --color-blue:       #1130A7;
+  --color-purple:     #60207E;
+  --color-pink:       #B10F55;
+
+  --color-blue-light:   #E8EBFA;
+  --color-blue-dark:    #0C2180;
+  --color-purple-light: #F0E6F6;
+  --color-purple-dark:  #451760;
+  --color-pink-light:   #FAE4ED;
+  --color-pink-dark:    #870A3F;
+
+  --color-black:    #0D0D0D;
+  --color-gray-900: #1A1A1A;
+  --color-gray-700: #3D3D3D;
+  --color-gray-500: #6B6B6B;
+  --color-gray-300: #B0B0B0;
+  --color-gray-100: #E8E8E4;
+  --color-gray-50:  #F4F3EF;
+
+  --color-success:    #1A7A4A;
+  --color-success-bg: #E6F4ED;
+  --color-warning:    #A65C00;
+  --color-warning-bg: #FEF3E2;
+  --color-danger:     #C0152A;
+  --color-danger-bg:  #FDEAEC;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--color-background);
+    color: var(--color-gray-900);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1 { font-size: var(--text-3xl); font-weight: 800; color: var(--color-black); }
+  h2 { font-size: var(--text-2xl); font-weight: 700; color: var(--color-black); }
+  h3 { font-size: var(--text-xl);  font-weight: 700; color: var(--color-gray-900); }
+  h4 { font-size: var(--text-lg);  font-weight: 500; color: var(--color-gray-900); }
+  p  { font-size: var(--text-base); font-weight: 400; color: var(--color-gray-700); }
+  a  { color: var(--color-blue); transition: color 0.2s; }
+  a:hover { color: var(--color-blue-dark); }
+}
