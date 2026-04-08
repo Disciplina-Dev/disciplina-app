@@ -1,16 +1,17 @@
-version: '3.9'
-
 services:
   sql-db:
     image: mysql:8.4.8
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=listing
+      - MYSQL_DATABASE=disciplina-ab
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_USER=${MYSQL_USER}
+    ports:
+      # 3306 est souvent pris par MySQL local — hôte:conteneur (modifiable via .env)
+      - "${MYSQL_PUBLISH_PORT:-3307}:3306"
     volumes:
-      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./schema-ab.sql:/docker-entrypoint-initdb.d/01-schema-ab.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
       - back-end
