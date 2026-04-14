@@ -3,6 +3,10 @@ import { createBrowserRouter } from "react-router-dom";
 import SelectProfil from "@/pages/SelectProfil";
 import NotFound from "@/pages/NotFound";
 
+import AuthLayout from "@/components/layout/AuthLayout";
+import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
+
 import CommercialLayout from "@/components/layout/CommercialLayout";
 import DashboardCommercial from "@/pages/commercial/DashboardCommercial";
 import ListeAB from "@/pages/commercial/ListeAB";
@@ -29,6 +33,13 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <SelectProfil />,
+  },
+  {
+    element: <AuthLayout />,
+    children: [
+      { path: "/login", element: <LoginPage /> },
+      { path: "/register", element: <RegisterPage /> },
+    ],
   },
   {
     path: "/commercial",
