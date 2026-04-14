@@ -6,7 +6,7 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=listing
+      - MYSQL_DATABASE=sales_service
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_USER=${MYSQL_USER}
     volumes:
@@ -14,17 +14,19 @@ services:
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
       - back-end
-  nosql-db:
-    image: mongo:latest
-    restart: always
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
-    volumes:
-      - ./database/mongodb/mongodb-data:/data/db
-      - ./database/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
-    networks:
-      - back-end
+    ports:
+      - 5000:3306
+  # nosql-db:
+  #   image: mongo:latest
+  #   restart: always
+  #   environment:
+  #     - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+  #     - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+  #   volumes:
+  #     - ./database/mongodb/mongodb-data:/data/db
+  #     - ./database/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+  #   networks:
+  #     - back-end
   frontend:
     build:
       context: ./front/disciplina-front
