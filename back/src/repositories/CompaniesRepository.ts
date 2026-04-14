@@ -1,0 +1,66 @@
+import { query, getConnection } from '../db/connection';
+import { CompaniesRow } from './interfaces';
+
+export class CompaniesRepository {
+  async findAll(): Promise<CompaniesRow[]> {
+    return query<CompaniesRow[]>('SELECT * FROM companies');
+  }
+
+  async findByCommercial(commercial: string): Promise<CompaniesRow[]> {
+    return query<CompaniesRow[]>(
+      'SELECT * FROM companies WHERE commercial = ?',
+      [commercial]
+    );
+  }
+
+  async findBySiret(siret: string): Promise<CompaniesRow | null> {
+    const results = await query<CompaniesRow[]>(
+      'SELECT * FROM companies WHERE siret = ?',
+      [siret]
+    );
+    return results.length > 0 ? results[0] : null;
+  }
+
+  async create(data: Partial<CompaniesRow>): Promise<number> {
+    const conn = await getConnection();
+    try {
+      const fields = Object.keys(data).join(', ');
+      const placeholders = Object.keys(data).map(() => '?').join(', ');
+      const values = Object.values(data);
+
+      const result = await conn.execute(
+        `INSERT INTO companies (${fields}) VALUES (${placeholders})`,
+        values
+      );
+      return (result[0] as any).insertId;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async update(id: number, data: Partial<CompaniesRow>): Promise<boolean> {
+    const conn = await getConnection();
+    try {
+      const sets = Object.keys(data).map(key => `${key} = ?`).join(', ');
+      const values = [...Object.values(data), id];
+
+      const result = await conn.execute(
+        `UPDATE companies SET ${sets} WHERE id = ?`,
+        values
+      );
+      return (result[0] as any).affectedRows > 0;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async delete(id: number): Promise<boolean> {
+    const conn = await getConnection();
+    try {
+      const result = await conn.execute('DELETE FROM companies WHERE id = ?', [id]);
+      return (result[0] as any).affectedRows > 0;
+    } finally {
+      conn.release();
+    }
+  }
+}

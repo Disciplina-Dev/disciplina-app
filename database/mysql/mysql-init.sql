@@ -14,3 +14,17 @@ CREATE TABLE IF NOT EXISTS companies (
     notes TEXT,
     conclusion TEXT
 );
+
+CreateUser {
+  createUser(input: {
+    name: "Sophie Martin"
+    email: "sophie@example.com"
+    role: USER
+  }) {
+    id
+    name
+    email
+    role
+    createdAt
+  }
+}
