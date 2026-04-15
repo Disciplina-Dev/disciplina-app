@@ -1,15 +1,15 @@
 export interface CompaniesRow {
   id: number;
-  owner: string | null;
-  commercial: string | null;
-  contact_name: string | null;
+  sale_person_id: number | null;
+  name: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
   sector: string | null;
-  job_description: string | null;
+  main_activity: string | null;
   siret: string | null;
   idcc: string | null;
+  ape: string | null;
   notes: string | null;
   conclusion: string | null;
 }

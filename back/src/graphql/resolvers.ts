@@ -4,30 +4,30 @@ import { CompaniesRow } from '../repositories/interfaces';
 const companiesService = new CompaniesService();
 
 interface CompanyInput {
-  owner?: string | null;
-  commercial?: string | null;
-  contactName?: string | null;
+  salePersonID?: number | null;
+  legalReferent?: string | null;
+  name?: string | null;
   phone?: string | null;
   email?: string | null;
   address?: string | null;
   sector?: string | null;
-  jobDescription?: string | null;
+  mainActivity?: string | null;
   siret?: string | null;
   idcc?: string | null;
+  ape?: string | null;
   notes?: string | null;
   conclusion?: string | null;
 }
 
 function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
   return {
-    owner: input.owner || null,
-    commercial: input.commercial || null,
-    contact_name: input.contactName || null,
+    sale_person_id: input.salePersonID || null,
+    name: input.name || null,
     phone: input.phone || null,
     email: input.email || null,
     address: input.address || null,
     sector: input.sector || null,
-    job_description: input.jobDescription || null,
+    main_activity: input.mainActivity || null,
     siret: input.siret || null,
     idcc: input.idcc || null,
     notes: input.notes || null,
@@ -40,8 +40,8 @@ export const resolvers = {
     companies: async () => {
       return companiesService.findAll();
     },
-    companyByCommercial: async (_: unknown, { commercial }: { commercial: string }) => {
-      return companiesService.findByCommercial(commercial);
+    companyByCommercial: async (_: unknown, { salePersonID }: { salePersonID: number }) => {
+      return companiesService.findByCommercial(salePersonID);
     },
     companyBySiret: async (_: unknown, { siret }: { siret: string }) => {
       return companiesService.findBySiret(siret);

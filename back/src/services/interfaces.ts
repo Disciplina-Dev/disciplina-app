@@ -1,15 +1,15 @@
 export interface Companies {
   id: number;
-  owner: string | null;
-  commercial: string | null;
-  contactName: string | null;
+  salePersonID: number | null;
+  name: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
   sector: string | null;
-  jobDescription: string | null;
+  mainActivity: string | null;
   siret: string | null;
   idcc: string | null;
+  ape: string | null;
   notes: string | null;
   conclusion: string | null;
 }

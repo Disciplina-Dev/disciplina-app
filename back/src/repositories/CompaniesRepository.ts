@@ -6,10 +6,10 @@ export class CompaniesRepository {
     return query<CompaniesRow[]>('SELECT * FROM companies');
   }
 
-  async findByCommercial(commercial: string): Promise<CompaniesRow[]> {
+  async findByCommercial(salePersonID: number): Promise<CompaniesRow[]> {
     return query<CompaniesRow[]>(
-      'SELECT * FROM companies WHERE commercial = ?',
-      [commercial]
+      'SELECT * FROM companies WHERE sale_person_id = ?',
+      [salePersonID]
     );
   }
 

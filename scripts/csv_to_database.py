@@ -29,7 +29,7 @@ def import_csv_to_db(csv_path: str):
     insert_query = """
         INSERT IGNORE INTO companies (
             sale_person_id, legal_referent, name, phone, email,
-            address, sector, main_activity, SIRET, IDCC,
+            address, sector, main_activity, siret, idcc,
             notes, conclusion
         ) VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
