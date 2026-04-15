@@ -9,9 +9,10 @@ CREATE TABLE IF NOT EXISTS sale_persons (
 
 INSERT INTO sale_persons (id, email, name)
 VALUES
-    (1, 'sinaman.commercial@disciplina.re', 'Amanda'),
-    (2, 'galmar.commercial@disciplina.re', 'Brandon'),
-    (3, 'lebon.commercial@disciplina.re', 'Emile');
+    (1, '', 'pas de commerciaux'),
+    (2, 'sinaman.commercial@disciplina.re', 'Amanda'),
+    (3, 'galmar.commercial@disciplina.re', 'Brandon'),
+    (4, 'lebon.commercial@disciplina.re', 'Emile');
 
 CREATE TABLE IF NOT EXISTS companies (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS companies (
     SIRET CHAR(14) UNIQUE NOT NULL,
     IDCC CHAR(4) DEFAULT NULL,
     APE CHAR(5) DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
     conclusion VARCHAR(255) NOT NULL,
     FOREIGN KEY (sale_person_id) REFERENCES sale_persons(id) ON UPDATE CASCADE
 );

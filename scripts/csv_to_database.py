@@ -15,6 +15,12 @@ def get_db_connection():
         database="sales_service",
     )
 
+def select_salers(name: str, email: str) -> int:
+    if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re': return 2
+    if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re': return 3
+    if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re': return 4
+    return 1
+
 
 def import_csv_to_db(csv_path: str):
     conn = get_db_connection()
@@ -22,11 +28,11 @@ def import_csv_to_db(csv_path: str):
 
     insert_query = """
         INSERT IGNORE INTO companies (
-            owner, commercial, legal_referent, contact_name, phone, email,
-            address, sector, job_description, siret, idcc,
+            sale_person_id, legal_referent, name, phone, email,
+            address, sector, main_activity, SIRET, IDCC,
             notes, conclusion
         ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
     """
 
@@ -38,8 +44,7 @@ def import_csv_to_db(csv_path: str):
         for row in reader:
             try:
                 cursor.execute(insert_query, (
-                    row.get("Propriétaire du contact"),
-                    row.get("Commercial"),
+                    select_salers(row.get("Commercial"), row.get('Propriétaire du contact')),
                     row.get("Représentant légale"),
                     row.get("Nom commercial"),
                     row.get("Numéro de téléphone"),
