@@ -15,7 +15,7 @@ services:
     networks:
       - back-end
     ports:
-      - 5000:3306
+      - 5001:3306
   # nosql-db:
   #   image: mongo:latest
   #   restart: always

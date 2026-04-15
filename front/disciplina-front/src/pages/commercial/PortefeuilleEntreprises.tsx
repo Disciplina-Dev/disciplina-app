@@ -17,6 +17,7 @@ import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import DetailModal from '@/features/portefeuille/components/DetailModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
+import CreateABModal from '@/features/portefeuille/components/CreateABModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
 
@@ -277,6 +278,7 @@ export default function PortefeuilleEntreprises() {
   const [detailEntry, setDetailEntry] = useState<Entreprise | null>(null)
   const [editEntry, setEditEntry] = useState<Entreprise | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [abEntry, setAbEntry] = useState<Entreprise | null>(null)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
   const [showSearch, setShowSearch] = useState(false)
 
@@ -475,12 +477,23 @@ export default function PortefeuilleEntreprises() {
       </div>
 
       {/* ─── Modals ──────────────────────────────────────────────── */}
-      {detailEntry && !editEntry && (
+      {detailEntry && !editEntry && !abEntry && (
         <DetailModal
           entreprise={detailEntry}
           currentUser={currentUser}
           onClose={() => setDetailEntry(null)}
           onEdit={() => setEditEntry(detailEntry)}
+          onCreateAB={() => setAbEntry(detailEntry)}
+        />
+      )}
+      {abEntry && (
+        <CreateABModal
+          entreprise={abEntry}
+          onClose={() => setAbEntry(null)}
+          onSubmit={(_data) => {
+            // TODO: POST /api/ab
+            setAbEntry(null)
+          }}
         />
       )}
       {editEntry && (

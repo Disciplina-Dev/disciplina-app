@@ -9,7 +9,7 @@ load_dotenv()
 def get_db_connection():
     return mysql.connector.connect(
         host=os.getenv("MYSQL_HOST", "localhost"),
-        port=int(os.getenv("MYSQL_PORT", "5000")),
+        port=int(os.getenv("MYSQL_PORT", "5001")),
         user=os.getenv("MYSQL_USER", "mysql-user"),
         password=os.getenv("MYSQL_PASSWORD", "mysql-user-secret-pw"),
         database=os.getenv("MYSQL_DATABASE", "sales_service"),
