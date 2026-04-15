@@ -1,30 +1,33 @@
-CREATE TABLE IF NOT EXISTS companies (
+CREATE DATABASE IF NOT EXISTS sales_service;
+USE sales_service;
+
+CREATE TABLE IF NOT EXISTS sale_persons (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    owner VARCHAR(255),
-    commercial VARCHAR(255),
-    legal_referent VARCHAR(255),
-    contact_name VARCHAR(255),
-    phone VARCHAR(50),
-    email VARCHAR(255),
-    address VARCHAR(500),
-    sector VARCHAR(255),
-    job_description VARCHAR(500),
-    siret CHAR(14) UNIQUE,
-    idcc VARCHAR(50),
-    notes TEXT,
-    conclusion TEXT
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL
 );
 
-CreateUser {
-  createUser(input: {
-    name: "Sophie Martin"
-    email: "sophie@example.com"
-    role: USER
-  }) {
-    id
-    name
-    email
-    role
-    createdAt
-  }
-}
+INSERT INTO sale_persons (id, email, name)
+VALUES
+    (1, '', 'pas de commerciaux'),
+    (2, 'sinaman.commercial@disciplina.re', 'Amanda'),
+    (3, 'galmar.commercial@disciplina.re', 'Brandon'),
+    (4, 'lebon.commercial@disciplina.re', 'Emile');
+
+CREATE TABLE IF NOT EXISTS companies (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sale_person_id INT,
+    legal_referent VARCHAR(255) DEFAULT NULL,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) DEFAULT NULL,
+    email VARCHAR(255) DEFAULT NULL,
+    address VARCHAR(255) NOT NULL,
+    sector VARCHAR(255) NOT NULL,
+    main_activity VARCHAR(255) DEFAULT NULL,
+    siret CHAR(14) UNIQUE NOT NULL,
+    idcc CHAR(4) DEFAULT NULL,
+    ape CHAR(5) DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    conclusion VARCHAR(255) NOT NULL,
+    FOREIGN KEY (sale_person_id) REFERENCES sale_persons(id) ON UPDATE CASCADE
+);

@@ -1,7 +1,7 @@
 import requests
 import json
 
-GRAPHQL_URL = 'http://localhost:7080/api/graphql/companies'
+GRAPHQL_URL = 'http://localhost:4000/api/graphql/companies'
 
 def run_query(query: str, variables: dict = None):
     response = requests.post(
@@ -24,24 +24,24 @@ run_query('''
 query {
   companies {
     id
-    contactName
-    commercial
+    name
+    salePersonID
     siret
   }
 }
 ''')
 
-# 2. Get companies by commercial
-print('2. Get companies by commercial (companyByCommercial)')
+# 2. Get companies by salePersonID
+print('2. Get companies by salePersonID (companyByCommercial)')
 run_query('''
-query($commercial: String!) {
-  companyByCommercial(commercial: $commercial) {
+query($salePersonID: String!) {
+  companyByCommercial(salePersonID: $salePersonID) {
     id
-    contactName
-    commercial
+    name
+    salePersonID
   }
 }
-''', {'commercial': 'Emile'})
+''', {'salePersonID': '1'})
 
 # 3. Get company by SIRET
 print('3. Get company by SIRET (companyBySiret)')
@@ -49,7 +49,8 @@ run_query('''
 query($siret: String!) {
   companyBySiret(siret: $siret) {
     id
-    contactName
+    salePersonID
+    name
     siret
   }
 }
@@ -61,15 +62,19 @@ create_result = run_query('''
 mutation($input: CompanyInput!) {
   createCompany(input: $input) {
     id
-    contactName
+    name
     siret
+    salePersonID
   }
 }
 ''', {
     'input': {
-        'contactName': 'Test Company',
-        'commercial': 'Test Commercial',
-        'siret': '12345678901234'
+        'name': 'Test Company',
+        'salePersonID': '1',
+        'siret': '12345678901234',
+        'address': 'toto',
+        'conclusion': 'je sais pas',
+        'sector': 'Sainte-Marie'
     }
 })
 
@@ -88,15 +93,19 @@ if created_id:
     mutation($id: Int!, $input: CompanyInput!) {
       updateCompany(id: $id, input: $input) {
         id
-        contactName
-        commercial
+        name
+        salePersonID
       }
     }
     ''', {
         'id': created_id,
         'input': {
-            'contactName': 'Updated Company',
-            'commercial': 'Updated Commercial'
+            'name': 'Updated Company',
+            'salePersonID': '2',
+            'address': 'toto',
+            'conclusion': 'je sais pas',
+            'sector': 'Sainte-Marie',
+            'siret': '12345678912345'
         }
     })
 

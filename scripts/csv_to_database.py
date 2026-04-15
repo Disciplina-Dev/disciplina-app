@@ -8,12 +8,18 @@ load_dotenv()
 
 def get_db_connection():
     return mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST", "localhost"),
-        port=int(os.getenv("MYSQL_PORT", "5000")),
-        user=os.getenv("MYSQL_USER", "mysql-user"),
-        password=os.getenv("MYSQL_PASSWORD", "mysql-user-secret-pw"),
-        database=os.getenv("MYSQL_DATABASE", "sales_service"),
+        host='localhost',
+        port=5000,
+        user='root',
+        password=os.getenv("MYSQL_ROOT_PASSWORD"),
+        database="sales_service",
     )
+
+def select_salers(name: str, email: str) -> int:
+    if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re': return 2
+    if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re': return 3
+    if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re': return 4
+    return 1
 
 
 def import_csv_to_db(csv_path: str):
@@ -22,11 +28,11 @@ def import_csv_to_db(csv_path: str):
 
     insert_query = """
         INSERT IGNORE INTO companies (
-            owner, commercial, legal_referent, contact_name, phone, email,
-            address, sector, job_description, siret, idcc,
+            sale_person_id, legal_referent, name, phone, email,
+            address, sector, main_activity, siret, idcc,
             notes, conclusion
         ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
     """
 
@@ -38,8 +44,7 @@ def import_csv_to_db(csv_path: str):
         for row in reader:
             try:
                 cursor.execute(insert_query, (
-                    row.get("Propriétaire du contact"),
-                    row.get("Commercial"),
+                    select_salers(row.get("Commercial"), row.get('Propriétaire du contact')),
                     row.get("Représentant légale"),
                     row.get("Nom commercial"),
                     row.get("Numéro de téléphone"),

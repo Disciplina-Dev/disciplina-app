@@ -4,16 +4,16 @@ import { Companies } from './interfaces';
 export function toCompanies(row: CompaniesRow): Companies {
   return {
     id: row.id,
-    owner: row.owner,
-    commercial: row.commercial,
-    contactName: row.contact_name,
+    salePersonID: row.sale_person_id,
+    name: row.name,
     phone: row.phone,
     email: row.email,
     address: row.address,
     sector: row.sector,
-    jobDescription: row.job_description,
+    mainActivity: row.main_activity,
     siret: row.siret,
     idcc: row.idcc,
+    ape: row.ape,
     notes: row.notes,
     conclusion: row.conclusion,
   };

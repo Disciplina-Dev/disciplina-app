@@ -15,11 +15,8 @@ export class CompaniesService {
     return rows.map(toCompanies);
   }
 
-  async findByCommercial(commercial: string): Promise<Companies[]> {
-    if (!commercial || commercial.trim() === '') {
-      throw new Error('Commercial name is required');
-    }
-    const rows = await this.repository.findByCommercial(commercial);
+  async findByCommercial(salePersonID: number): Promise<Companies[]> {
+    const rows = await this.repository.findByCommercial(salePersonID);
     return rows.map(toCompanies);
   }
 
