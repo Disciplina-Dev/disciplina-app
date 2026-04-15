@@ -8,7 +8,7 @@ dotenv.config();
 
 async function startServer() {
   const app: any = express();
-  const PORT = 7080;
+  const PORT = process.env.API_PORT;
 
   const server = new ApolloServer({
     typeDefs,

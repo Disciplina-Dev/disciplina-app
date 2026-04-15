@@ -1,7 +1,7 @@
 import requests
 import json
 
-GRAPHQL_URL = 'http://localhost:7080/api/graphql/companies'
+GRAPHQL_URL = 'http://localhost:4000/api/graphql/companies'
 
 def run_query(query: str, variables: dict = None):
     response = requests.post(
