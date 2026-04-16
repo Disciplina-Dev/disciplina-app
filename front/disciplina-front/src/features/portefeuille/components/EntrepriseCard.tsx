@@ -45,6 +45,7 @@ const STATUS_CONFIG = {
 } as const
 
 export default function EntrepriseCard({ entreprise, currentUser, onClick, onClaim }: Props) {
+  console.log(entreprise);
   const [copied, setCopied] = useState(false)
 
   const s = STATUS_CONFIG[entreprise.status] ?? STATUS_CONFIG['Non']

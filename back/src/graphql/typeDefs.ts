@@ -44,7 +44,7 @@ export const typeDefs = gql`
   }
 
   type Query {
-    companies: [Company!]!
+    companies: [CompanyWithSalePerson]!
     salePersons: [SalePerson!]!
     salePerson(id: Int!): SalePerson
     companyByCommercial(salePersonID: Int!): [CompanyWithSalePerson!]!
