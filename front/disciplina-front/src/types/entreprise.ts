@@ -1,6 +1,40 @@
 export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir'
 
-export type UserId = 'brandon' | 'emile' | 'amanda' | 'lorenzo'
+const saleUserData = [
+  { id: 1, name: 'Pas de commerciaux' },
+  { id: 2, name: 'Amanda' },
+  { id: 3, name: 'Emile' },
+  { id: 4, name: 'Brandon' }
+] as const;
+
+export type UserId = typeof saleUserData[number]['name'];
+
+export interface SalePerson {
+  id: number
+  email: string
+  name: string
+}
+
+export interface Company {
+  id: number
+  salePersonID: number | null
+  name: string | null
+  phone: string | null
+  email: string | null
+  address: string | null
+  sector: string | null
+  mainActivity: string | null
+  siret: string | null
+  idcc: string | null
+  ape: string | null
+  notes: string | null
+  conclusion: string | null
+}
+
+export interface CompanyWithSalePerson {
+  company: Company
+  salePerson: SalePerson | null
+}
 
 export interface Entreprise {
   id: string

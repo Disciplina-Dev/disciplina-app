@@ -21,6 +21,14 @@ export class CompaniesRepository {
     return results.length > 0 ? results[0] : null;
   }
 
+  async findById(id: number): Promise<CompaniesRow | null> {
+    const results = await query<CompaniesRow[]>(
+      'SELECT * FROM companies WHERE id = ?',
+      [id]
+    );
+    return results.length > 0 ? results[0] : null;
+  }
+
   async create(data: Partial<CompaniesRow>): Promise<number> {
     const conn = await getConnection();
     try {

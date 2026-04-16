@@ -1,3 +1,9 @@
+export interface SalePersonsRow {
+  id: number;
+  email: string;
+  name: string;
+}
+
 export interface CompaniesRow {
   id: number;
   sale_person_id: number | null;

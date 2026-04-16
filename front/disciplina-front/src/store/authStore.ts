@@ -38,6 +38,14 @@ export const USERS: Record<UserId, AppUser> = {
     initials: 'AM',
     color: '#B10F55',
   },
+  'pas de commerciaux': {
+    id: 'pas de commerciaux',
+    name: 'Pas de commerciaux',
+    role: 'commercial',
+    email: '',
+    initials: 'NC',
+    color: '#6B7280',
+  },
   lorenzo: {
     id: 'lorenzo',
     name: 'Lorenzo',

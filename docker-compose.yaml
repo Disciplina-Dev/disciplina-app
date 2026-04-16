@@ -24,7 +24,7 @@ services:
       - back-end
       - front-end
     ports:
-      - 4000:4000
+      - "4000:4000"
   frontend:
     build:
       context: ./front/disciplina-front
