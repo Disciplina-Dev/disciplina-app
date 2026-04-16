@@ -10,10 +10,10 @@ import {
 } from 'lucide-react'
 import { useState, useMemo, useCallback } from 'react'
 import { isSameDay, parseISO } from 'date-fns'
-import type { Entreprise, EntrepriseFilters } from '@/types/entreprise'
+import type { Entreprise, EntrepriseFilters, UserId } from '@/types/entreprise'
 import { useAuthStore, useCurrentUser, USERS } from '@/store/authStore'
-import type { UserId } from '@/types/entreprise'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
+import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import DetailModal from '@/features/portefeuille/components/DetailModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
@@ -73,12 +73,12 @@ function SiretSearch({ onFound, onNotFound }: SiretSearchProps) {
   const [value, setValue] = useState('')
   const [result, setResult] = useState<'found' | 'not_found' | null>(null)
   const [foundEntry, setFoundEntry] = useState<Entreprise | null>(null)
-  const getBySiret = usePortefeuilleStore((s) => s.getBySiret)
+  const getCompanyBySiret = usePortefeuilleStore((s) => s.getCompanyBySiret)
 
   const handleSearch = useCallback(() => {
     const trimmed = value.trim()
     if (!trimmed) return
-    const entry = getBySiret(trimmed)
+    const entry = getCompanyBySiret(trimmed)
     if (entry) {
       setResult('found')
       setFoundEntry(entry)
@@ -86,7 +86,7 @@ function SiretSearch({ onFound, onNotFound }: SiretSearchProps) {
       setResult('not_found')
       setFoundEntry(null)
     }
-  }, [value, getBySiret])
+  }, [value, getCompanyBySiret])
 
   const clear = () => {
     setValue('')
@@ -270,7 +270,11 @@ function normalise(s: string) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PortefeuilleEntreprises() {
   const currentUser = useCurrentUser()
-  const { getAll, updateEntreprise, createEntreprise, claimEntreprise } = usePortefeuilleStore()
+  const companies = usePortefeuilleStore((s) => s.companies)
+  const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
+  const addCompany = usePortefeuilleStore((s) => s.addCompany)
+
+  const { loading } = useInitializePortfolio()
 
   const [filters, setFilters] = useState<EntrepriseFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(1)
@@ -280,7 +284,7 @@ export default function PortefeuilleEntreprises() {
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
   const [showSearch, setShowSearch] = useState(false)
 
-  const allEntreprises = getAll()
+  const allEntreprises = companies
 
   const secteurs = useMemo(() => {
     const raw = new Set(allEntreprises.map((e) => e.secteur).filter(Boolean) as string[])
@@ -323,15 +327,25 @@ export default function PortefeuilleEntreprises() {
 
   const handleSaveEdit = (data: Partial<Entreprise>) => {
     if (!editEntry) return
-    updateEntreprise(editEntry.id, data)
+    updateCompany(editEntry.id, data)
     setEditEntry(null)
     if (detailEntry?.id === editEntry.id) setDetailEntry({ ...detailEntry, ...data } as Entreprise)
   }
 
   const handleCreate = (data: Partial<Entreprise>) => {
-    createEntreprise(data as Omit<Entreprise, 'id'>)
+    addCompany({
+      ...data,
+      id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    } as Entreprise)
     setCreateOpen(false)
     setPrefillSiret(undefined)
+  }
+
+  const handleClaim = (id: string, userId: UserId, userName: string) => {
+    updateCompany(id, {
+      proprietaire_id: userId,
+      commercial: userName,
+    })
   }
 
   const openCreate = (siret?: string) => {
@@ -340,6 +354,17 @@ export default function PortefeuilleEntreprises() {
   }
 
   const activeFilterCount = countActiveFilters(filters)
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-blue border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm">Chargement des données...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
@@ -452,7 +477,7 @@ export default function PortefeuilleEntreprises() {
                 entreprise={e}
                 currentUser={currentUser}
                 onClick={() => setDetailEntry(e)}
-                onClaim={() => claimEntreprise(e.id, currentUser.id, currentUser.name)}
+                onClaim={() => handleClaim(e.id, currentUser.id, currentUser.name)}
               />
             ))}
           </div>

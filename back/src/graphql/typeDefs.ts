@@ -1,9 +1,15 @@
 import gql from 'graphql-tag';
 
 export const typeDefs = gql`
+  type SalePerson {
+    id: Int!
+    email: String!
+    name: String!
+  }
+
   type Company {
     id: Int!
-    salePersonID: String
+    salePersonID: Int
     name: String
     phone: String
     email: String
@@ -17,8 +23,13 @@ export const typeDefs = gql`
     conclusion: String
   }
 
+  type CompanyWithSalePerson {
+    company: Company!
+    salePerson: SalePerson
+  }
+
   input CompanyInput {
-    salePersonID: String
+    salePersonID: Int
     name: String
     phone: String
     email: String
@@ -34,7 +45,9 @@ export const typeDefs = gql`
 
   type Query {
     companies: [Company!]!
-    companyByCommercial(salePersonID: String!): [Company!]!
+    salePersons: [SalePerson!]!
+    salePerson(id: Int!): SalePerson
+    companyByCommercial(salePersonID: Int!): [CompanyWithSalePerson!]!
     companyBySiret(siret: String!): Company
   }
 

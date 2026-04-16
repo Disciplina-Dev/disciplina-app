@@ -1,96 +1,58 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import type { Entreprise, UserId } from '@/types/entreprise'
-import rawData from '@/data/entreprises.json'
+import type { Entreprise, SalePerson } from '@/types/entreprise'
 
-const baseData = rawData as Entreprise[]
+interface PortefeuilleState {
+  companies: Entreprise[]
+  salePersons: SalePerson[]
+  loading: boolean
+  error: string | null
 
-interface PortefeuilleStore {
-  // Delta persistence: only store changes to keep localStorage light
-  overrides: Record<string, Partial<Entreprise>>
-  additions: Entreprise[]
+  setCompanies: (companies: Entreprise[]) => void
+  setSalePersons: (salePersons: SalePerson[]) => void
+  setLoading: (loading: boolean) => void
+  setError: (error: string | null) => void
 
-  // Derived reads
-  getAll: () => Entreprise[]
-  getById: (id: string) => Entreprise | undefined
-  getBySiret: (siret: string) => Entreprise | undefined
-
-  // Mutations
-  updateEntreprise: (id: string, updates: Partial<Entreprise>) => void
-  createEntreprise: (data: Omit<Entreprise, 'id'>) => Entreprise
-  claimEntreprise: (id: string, userId: UserId, userName: string) => void
+  addCompany: (company: Entreprise) => void
+  updateCompany: (id: string, updates: Partial<Entreprise>) => void
+  removeCompany: (id: string) => void
+  getCompanyById: (id: string) => Entreprise | undefined
+  getCompanyBySiret: (siret: string) => Entreprise | undefined
 }
 
-export const usePortefeuilleStore = create<PortefeuilleStore>()(
-  persist(
-    (set, get) => ({
-      overrides: {},
-      additions: [],
+export const usePortefeuilleStore = create<PortefeuilleState>((set, get) => ({
+  companies: [],
+  salePersons: [],
+  loading: false,
+  error: null,
 
-      getAll: () => {
-        const { overrides, additions } = get()
-        const merged = baseData.map((e) =>
-          overrides[e.id] ? { ...e, ...overrides[e.id] } : e
-        )
-        return [...merged, ...additions]
-      },
+  setCompanies: (companies) => set({ companies }),
+  setSalePersons: (salePersons) => set({ salePersons }),
+  setLoading: (loading) => set({ loading }),
+  setError: (error) => set({ error }),
 
-      getById: (id) => {
-        const { overrides, additions } = get()
-        const fromBase = baseData.find((e) => e.id === id)
-        if (fromBase) return overrides[id] ? { ...fromBase, ...overrides[id] } : fromBase
-        return additions.find((e) => e.id === id)
-      },
+  addCompany: (company) => set((state) => ({
+    companies: [...state.companies, company]
+  })),
 
-      getBySiret: (siret) => {
-        if (!siret) return undefined
-        const normalised = siret.replace(/\s/g, '')
-        return get().getAll().find(
-          (e) => e.siret?.replace(/\s/g, '') === normalised
-        )
-      },
+  updateCompany: (id, updates) => set((state) => ({
+    companies: state.companies.map((e) =>
+      e.id === id ? { ...e, ...updates } : e
+    )
+  })),
 
-      updateEntreprise: (id, updates) => {
-        set((state) => {
-          const isBase = baseData.some((e) => e.id === id)
-          if (isBase) {
-            return {
-              overrides: {
-                ...state.overrides,
-                [id]: { ...(state.overrides[id] ?? {}), ...updates },
-              },
-            }
-          }
-          return {
-            additions: state.additions.map((e) =>
-              e.id === id ? { ...e, ...updates } : e
-            ),
-          }
-        })
-      },
+  removeCompany: (id) => set((state) => ({
+    companies: state.companies.filter((e) => e.id !== id)
+  })),
 
-      createEntreprise: (data) => {
-        const newEntry: Entreprise = {
-          ...data,
-          id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        }
-        set((state) => ({ additions: [...state.additions, newEntry] }))
-        return newEntry
-      },
+  getCompanyById: (id) => {
+    return get().companies.find((e) => e.id === id)
+  },
 
-      claimEntreprise: (id, userId, userName) => {
-        get().updateEntreprise(id, {
-          proprietaire_id: userId,
-          commercial: userName,
-        })
-      },
-    }),
-    {
-      name: 'disciplina-portefeuille',
-      partialize: (state) => ({
-        overrides: state.overrides,
-        additions: state.additions,
-      }),
-    }
-  )
-)
+  getCompanyBySiret: (siret) => {
+    if (!siret) return undefined
+    const normalised = siret.replace(/\s/g, '')
+    return get().companies.find(
+      (e) => e.siret?.replace(/\s/g, '') === normalised
+    )
+  },
+}))

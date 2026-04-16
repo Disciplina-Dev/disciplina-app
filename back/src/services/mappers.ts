@@ -1,5 +1,13 @@
-import { CompaniesRow } from '../repositories/interfaces';
-import { Companies } from './interfaces';
+import { CompaniesRow, SalePersonsRow } from '../repositories/interfaces';
+import { Companies, SalePerson } from './interfaces';
+
+export function toSalePerson(row: SalePersonsRow): SalePerson {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+  };
+}
 
 export function toCompanies(row: CompaniesRow): Companies {
   return {

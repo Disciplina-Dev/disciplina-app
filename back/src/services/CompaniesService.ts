@@ -28,10 +28,15 @@ export class CompaniesService {
     return row ? toCompanies(row) : null;
   }
 
+  async findById(id: number): Promise<Companies | null> {
+    const row = await this.repository.findById(id);
+    return row ? toCompanies(row) : null;
+  }
+
   async create(data: Partial<CompaniesRow>): Promise<Companies> {
     this.validateCreateData(data);
     const id = await this.repository.create(data);
-    const created = await this.repository.findBySiret(data.siret || '');
+    const created = await this.repository.findById(id);
     if (!created) {
       throw new Error('Failed to retrieve created company');
     }
@@ -42,25 +47,16 @@ export class CompaniesService {
     if (!id || id <= 0) {
       throw new Error('Valid company ID is required');
     }
-    const existing = await this.repository.findBySiret('');
-    if (!existing && id) {
-      const all = await this.repository.findAll();
-      const found = all.find(c => c.id === id);
-      if (!found) {
-        throw new Error('Company not found');
-      }
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      throw new Error('Company not found');
     }
     await this.repository.update(id, data);
-    const updated = await this.repository.findBySiret('');
-    if (updated && updated.id === id) {
-      return toCompanies(updated);
-    }
-    const rows = await this.repository.findAll();
-    const result = rows.find(c => c.id === id);
-    if (!result) {
+    const updated = await this.repository.findById(id);
+    if (!updated) {
       throw new Error('Company not found after update');
     }
-    return toCompanies(result);
+    return toCompanies(updated);
   }
 
   async delete(id: number): Promise<boolean> {
