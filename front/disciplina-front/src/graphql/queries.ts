@@ -23,19 +23,27 @@ export const GET_SALE_PERSON = gql`
 export const GET_COMPANIES = gql`
   query GetCompanies {
     companies {
-      id
-      salePersonID
-      name
-      phone
-      email
-      address
-      sector
-      mainActivity
-      siret
-      idcc
-      ape
-      notes
-      conclusion
+      company {
+        id
+        salePersonID
+        legalReferent
+        name
+        phone
+        email
+        address
+        sector
+        mainActivity
+        siret
+        idcc
+        ape
+        notes
+        conclusion
+      }
+      salePerson {
+        id
+        email
+        name
+      }
     }
   }
 `

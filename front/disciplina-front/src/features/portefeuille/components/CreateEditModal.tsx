@@ -19,7 +19,7 @@ type FormValues = {
   note: string
   conclusion: string
   status: EntrepriseStatus
-  proprietaire_id: string
+  proprietaire_id: number
   date_relance: string
 }
 
@@ -64,7 +64,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
   })
 
   const onSubmit = (values: FormValues) => {
-    const owner = USERS[values.proprietaire_id as keyof typeof USERS]
+    const owner = USERS[values.proprietaire_id]
     onSave({
       nom_commercial: values.nom_commercial || null,
       siret: values.siret || null,

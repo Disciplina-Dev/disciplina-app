@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { useState, useMemo, useCallback } from 'react'
 import { isSameDay, parseISO } from 'date-fns'
-import type { Entreprise, EntrepriseFilters, UserId } from '@/types/entreprise'
+import type { Entreprise, EntrepriseFilters } from '@/types/entreprise'
 import { useAuthStore, useCurrentUser, USERS } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
@@ -27,6 +27,7 @@ function UserSwitcher() {
   const currentUserId = useAuthStore((s) => s.currentUserId)
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser)
   const user = USERS[currentUserId]
+  console.log(currentUserId);
 
   return (
     <div className="flex items-center gap-2.5">
@@ -37,7 +38,7 @@ function UserSwitcher() {
         {Object.values(USERS).map((u) => (
           <button
             key={u.id}
-            onClick={() => setCurrentUser(u.id as UserId)}
+            onClick={() => setCurrentUser(u.id)}
             title={`${u.name} — ${u.role}`}
             className={[
               'relative flex items-center gap-2 px-3.5 py-2.5 text-[12px] font-medium transition-all duration-150',
@@ -341,7 +342,7 @@ export default function PortefeuilleEntreprises() {
     setPrefillSiret(undefined)
   }
 
-  const handleClaim = (id: string, userId: UserId, userName: string) => {
+  const handleClaim = (id: string, userId: number, userName: string) => {
     updateCompany(id, {
       proprietaire_id: userId,
       commercial: userName,

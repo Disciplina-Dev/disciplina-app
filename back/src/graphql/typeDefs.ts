@@ -10,6 +10,7 @@ export const typeDefs = gql`
   type Company {
     id: Int!
     salePersonID: Int
+    legalReferent: String
     name: String
     phone: String
     email: String
@@ -44,7 +45,7 @@ export const typeDefs = gql`
   }
 
   type Query {
-    companies: [Company!]!
+    companies: [CompanyWithSalePerson]!
     salePersons: [SalePerson!]!
     salePerson(id: Int!): SalePerson
     companyByCommercial(salePersonID: Int!): [CompanyWithSalePerson!]!

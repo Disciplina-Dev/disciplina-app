@@ -4,7 +4,8 @@ const saleUserData = [
   { id: 1, name: 'Pas de commerciaux' },
   { id: 2, name: 'Amanda' },
   { id: 3, name: 'Emile' },
-  { id: 4, name: 'Brandon' }
+  { id: 4, name: 'Brandon' },
+  { id: 5, name: 'Lorenzo' }
 ] as const;
 
 export type UserId = typeof saleUserData[number]['name'];
@@ -41,7 +42,7 @@ export interface Entreprise {
   nom_commercial: string | null
   proprietaire_contact: string | null
   commercial: string | null
-  proprietaire_id: UserId | null
+  proprietaire_id: number | null
   representant_legal: string | null
   telephone: string | null
   email: string | null

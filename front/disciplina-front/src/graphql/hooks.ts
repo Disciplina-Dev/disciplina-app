@@ -15,7 +15,6 @@ export function useCompanies() {
   const setError = usePortefeuilleStore((s) => s.setError)
 
   const [result] = useQuery({ query: GET_COMPANIES })
-
   useEffect(() => {
     setLoading(result.fetching)
     if (result.error) {

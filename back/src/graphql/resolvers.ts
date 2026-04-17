@@ -48,10 +48,18 @@ export const resolvers = {
   Query: {
     companies: async () => {
       const companies = await companiesService.findAll();
-      return companies.map((c) => ({
-        ...c,
-        salePerson: null,
-      }));
+      const result = [];
+      for (const company of companies) {
+        const salePerson = await salePersonsService.findById(company.salePersonID ?? 0);
+        result.push({
+          company: {
+            ...company,
+            salePerson: salePerson ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name } as any) : null,
+          },
+          salePerson: salePerson ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name } as any) : null,
+        });
+      }
+      return result;
     },
     salePersons: async () => {
       return salePersonsService.findAll();
