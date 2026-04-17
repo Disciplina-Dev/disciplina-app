@@ -19,6 +19,8 @@ import DetailModal from '@/features/portefeuille/components/DetailModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
+import { useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
+import { toCompany } from '@/types/companyMapper'
 
 const PAGE_SIZE = 25
 
@@ -272,7 +274,8 @@ function normalise(s: string) {
 export default function PortefeuilleEntreprises() {
   const currentUser = useCurrentUser()
   const companies = usePortefeuilleStore((s) => s.companies)
-  const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
+  const { update } = useUpdateCompany();
+  const { createCompany } = useCreateCompany();
   const addCompany = usePortefeuilleStore((s) => s.addCompany)
 
   const { loading } = useInitializePortfolio()
@@ -328,16 +331,22 @@ export default function PortefeuilleEntreprises() {
 
   const handleSaveEdit = (data: Partial<Entreprise>) => {
     if (!editEntry) return
-    updateCompany(editEntry.id, data)
+    const company = toCompany(data);
+    console.log('data: ', data);
+    console.log('company: ', company);
+    update(Number(data.id), company)
     setEditEntry(null)
     if (detailEntry?.id === editEntry.id) setDetailEntry({ ...detailEntry, ...data } as Entreprise)
   }
 
   const handleCreate = (data: Partial<Entreprise>) => {
-    addCompany({
-      ...data,
-      id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    } as Entreprise)
+    const company = toCompany(data);
+    console.log(company);
+    createCompany(company);
+    // addCompany({
+      // ...data,
+      // id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    // } as Entreprise)
     setCreateOpen(false)
     setPrefillSiret(undefined)
   }

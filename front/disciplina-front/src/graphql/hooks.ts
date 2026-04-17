@@ -106,7 +106,7 @@ export function useUpdateCompany() {
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
   const [result, executeMutation] = useMutation(UPDATE_COMPANY)
 
-  const update = (id: number, input: any) => {
+  const update = async (id: number, input: any) => {
     return executeMutation({ id, input }).then((response) => {
       if (response.data?.updateCompany) {
         updateCompany(String(id), {
@@ -122,6 +122,7 @@ export function useUpdateCompany() {
           conclusion: response.data.updateCompany.conclusion,
         })
       }
+      console.log(response);
       return response
     })
   }
