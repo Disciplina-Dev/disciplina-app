@@ -1,4 +1,4 @@
-import type { Company, CompanyWithSalePerson, SalePerson, Entreprise, EntrepriseStatus } from '@/types/entreprise'
+import type { Company, CompanyWithSalePerson, SalePerson, Entreprise, EntrepriseStatus, CompanyInput } from '@/types/entreprise'
 
 export function toEntreprise(company: Company, salePerson: SalePerson | null): Entreprise {
   return {
@@ -26,3 +26,20 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
 export function toEntrepriseFromCompanyWithSalePerson(data: CompanyWithSalePerson): Entreprise {
   return toEntreprise(data.company, data.salePerson)
 }
+
+export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
+  return {
+    salePersonID: entreprise.proprietaire_id || 1,
+    name: entreprise.nom_commercial || null,
+    phone: entreprise.telephone || null,
+    email: entreprise.email || null,
+    address: entreprise.adresse || null,
+    sector: entreprise.secteur || null,
+    mainActivity: entreprise.metier || null,
+    siret: entreprise.siret || null,
+    idcc: entreprise.idcc || null,
+    ape: null,
+    notes: entreprise.note || null,
+    conclusion: entreprise.conclusion || null
+  };
+};
