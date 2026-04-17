@@ -28,7 +28,7 @@ export function useInitializePortfolio() {
         proprietaire_contact: c.salePerson?.email || null,
         commercial:  c.salePerson?.name || null,
         proprietaire_id: c.salePerson?.id || null,
-        representant_legal: null,
+        representant_legal: c.company?.legalReferent || null,
         telephone: c.company.phone,
         email: c.company.email,
         adresse: c.company.address,

@@ -26,6 +26,7 @@ export const GET_COMPANIES = gql`
       company {
         id
         salePersonID
+        legalReferent
         name
         phone
         email

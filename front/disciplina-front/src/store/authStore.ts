@@ -1,11 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { UserId } from '@/types/entreprise'
+// import type { UserId } from '@/types/entreprise'
 
 export type UserRole = 'commercial' | 'responsable' | 'admin'
 
 export interface AppUser {
-  id: UserId
+  id: number
   name: string
   role: UserRole
   email: string
@@ -13,41 +13,50 @@ export interface AppUser {
   color: string
 }
 
-export const USERS: Record<UserId, AppUser> = {
-  brandon: {
-    id: 'brandon',
+// export interface AppUser {
+  // id: UserId
+  // name: string
+  // role: UserRole
+  // email: string
+  // initials: string
+  // color: string
+// }
+
+export const USERS: Record<number, AppUser> = {
+  3: {
+    id: 3,
     name: 'Brandon',
     role: 'commercial',
     email: 'galmar.commercial@disciplina.re',
     initials: 'BR',
     color: '#1130A7',
   },
-  emile: {
-    id: 'emile',
+  4: {
+    id: 4,
     name: 'Emile',
     role: 'commercial',
     email: 'lebon.commercial@disciplina.re',
     initials: 'EM',
     color: '#60207E',
   },
-  amanda: {
-    id: 'amanda',
+  2: {
+    id: 2,
     name: 'Amanda',
     role: 'responsable',
     email: 'sinaman.commercial@disciplina.re',
     initials: 'AM',
     color: '#B10F55',
   },
-  'pas de commerciaux': {
-    id: 'pas de commerciaux',
+  1: {
+    id: 1,
     name: 'Pas de commerciaux',
     role: 'commercial',
     email: '',
     initials: 'NC',
     color: '#6B7280',
   },
-  lorenzo: {
-    id: 'lorenzo',
+  5: {
+    id: 5,
     name: 'Lorenzo',
     role: 'admin',
     email: 'lorenzo@disciplina.re',
@@ -57,14 +66,14 @@ export const USERS: Record<UserId, AppUser> = {
 }
 
 interface AuthStore {
-  currentUserId: UserId
-  setCurrentUser: (id: UserId) => void
+  currentUserId: number
+  setCurrentUser: (id: number) => void
 }
 
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set) => ({
-      currentUserId: 'brandon',
+      currentUserId: 3,
       setCurrentUser: (id) => set({ currentUserId: id }),
     }),
     { name: 'disciplina-auth' }

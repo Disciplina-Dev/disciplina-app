@@ -13,6 +13,7 @@ export function toCompanies(row: CompaniesRow): Companies {
   return {
     id: row.id,
     salePersonID: row.sale_person_id,
+    legalReferent: row.legal_referent,
     name: row.name,
     phone: row.phone,
     email: row.email,

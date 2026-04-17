@@ -10,6 +10,7 @@ export const typeDefs = gql`
   type Company {
     id: Int!
     salePersonID: Int
+    legalReferent: String
     name: String
     phone: String
     email: String
