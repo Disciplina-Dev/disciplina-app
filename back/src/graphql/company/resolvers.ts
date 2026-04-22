@@ -1,7 +1,7 @@
-import { CompaniesService } from '../services/CompaniesService';
-import { SalePersonsService } from '../services/SalePersonsService';
-import { CompaniesRow } from '../repositories/interfaces';
-import { toCompanies, toSalePerson } from '../services/mappers';
+import { CompaniesService } from '../../services/CompaniesService';
+import { SalePersonsService } from '../../services/SalePersonsService';
+import { CompaniesRow } from '../../repositories/interfaces';
+import { toCompanies, toSalePerson } from '../../services/mappers';
 
 const companiesService = new CompaniesService();
 const salePersonsService = new SalePersonsService();
