@@ -7,64 +7,6 @@ db.auth(ROOT, PASSWORD)
 db = db.getSiblingDB('human_ressources');
 
 // =========================
-// Collection: companies
-// =========================
-db.createCollection('companies', {
-  validator: {
-    $jsonSchema: {
-      bsonType: "object",
-      required: ["_id", "created_at", "status", "company_snapshot"],
-      properties: {
-        _id: { bsonType: "string" },
-        created_at: { bsonType: "date" },
-        created_by: { bsonType: "string" },
-        status: {
-          enum: ["DRAFT", "SUBMITTED", "MATCHED", "CLOSED"]
-        },
-
-        company_snapshot: {
-          bsonType: "object",
-          required: ["company_id", "name"],
-          properties: {
-            company_id: { bsonType: "string" },
-            name: { bsonType: "string" },
-            siret: { bsonType: "string" },
-            main_activity: { bsonType: "string" },
-
-            sector: {
-              bsonType: "object",
-              properties: {
-                id: { bsonType: "string" },
-                name: { bsonType: "string" },
-                code: { bsonType: "string" }
-              }
-            },
-
-            referents: {
-              bsonType: "array",
-              items: {
-                bsonType: "object",
-                properties: {
-                  referent_id: { bsonType: "string" },
-                  first_name: { bsonType: "string" },
-                  last_name: { bsonType: "string" },
-                  function: { bsonType: "string" },
-                  phone: { bsonType: "string" },
-                  email: { bsonType: "string" },
-                  type: {
-                    enum: ["LEGAL_REP", "RECRUITMENT_MANAGER"]
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-});
-
-// =========================
 // Collection: candidates
 // =========================
 db.createCollection('candidates', {
@@ -74,7 +16,6 @@ db.createCollection('candidates', {
       required: ["_id", "candidate_id", "status", "tp_type"],
       properties: {
         _id: { bsonType: "string" },
-        candidate_id: { bsonType: "string" },
         created_at: { bsonType: "date" },
         created_by: { bsonType: "string" },
         status: {
