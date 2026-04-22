@@ -1,5 +1,10 @@
 // Sélection / création de la DB
-db = db.getSiblingDB('needs_analysis');
+const ROOT = process.env.MONGO_INITDB_ROOT_USERNAME;
+const PASSWORD = process.env.MONGO_INITDB_ROOT_PASSWORD;
+db = db.getSiblingDB('admin')
+db.auth(ROOT, PASSWORD)
+
+db = db.getSiblingDB('human_ressources');
 
 // =========================
 // Collection: companies
