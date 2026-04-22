@@ -9,7 +9,7 @@ load_dotenv()
 def get_db_connection():
     return mysql.connector.connect(
         host='localhost',
-        port=5000,
+        port=5001,
         user='root',
         password=os.getenv("MYSQL_ROOT_PASSWORD"),
         database="sales_service",
@@ -74,4 +74,6 @@ if __name__ == "__main__":
         os.path.dirname(__file__), "..", "ressources", "suivi_client-contact.csv"
     )
     csv_path = os.path.abspath(csv_path)
+    print(1)
     import_csv_to_db(csv_path)
+    print(2)

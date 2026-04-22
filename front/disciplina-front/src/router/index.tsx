@@ -42,6 +42,10 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    path: "/ab/:token",
+    element: <FormulaireAB />,
+  },
+  {
     path: "/commercial",
     element: <CommercialLayout />,
     children: [

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 20mm 18mm;
+  }
+  @page :first {
+    margin-top: 0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 9.5pt;
+    color: #1a1a2e;
+    line-height: 1.45;
+  }
+
+  /* ── Header (première page) ── */
+  .doc-header {
+    background: #1130A7;
+    color: white;
+    padding: 22mm 18mm 16mm;
+    margin: 0 -18mm;
+  }
+  .doc-header .meta {
+    font-size: 7pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    margin-bottom: 5pt;
+  }
+  .doc-header h1 {
+    font-size: 20pt;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 10pt;
+  }
+  .doc-header .pills {
+    display: flex;
+    gap: 6pt;
+    flex-wrap: wrap;
+  }
+  .doc-header .pill {
+    background: rgba(255,255,255,0.2);
+    border-radius: 20pt;
+    padding: 3pt 9pt;
+    font-size: 7.5pt;
+    font-weight: 500;
+  }
+
+  /* ── Body ── */
+  .doc-body {
+    padding-top: 16pt;
+  }
+
+  /* ── Section ── */
+  .section {
+    margin-bottom: 18pt;
+  }
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 7pt;
+    margin-bottom: 10pt;
+  }
+  .section-num {
+    width: 18pt;
+    height: 18pt;
+    background: #1130A7;
+    color: white;
+    border-radius: 50%;
+    font-size: 8pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .section-title h2 {
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #1a1a2e;
+  }
+
+  /* ── Grid fields ── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6pt 20pt;
+  }
+  .field {
+    margin-bottom: 5pt;
+  }
+  .field-label {
+    font-size: 7pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 1.5pt;
+  }
+  .field-value {
+    font-size: 9pt;
+    color: #1a1a2e;
+    font-weight: 400;
+  }
+  .field-value.bold { font-weight: 600; }
+  .field-full {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Subsection title ── */
+  .sub-title {
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #aaa;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 3pt;
+    margin: 10pt 0 6pt;
+  }
+
+  /* ── Missions list ── */
+  .missions-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3pt 20pt;
+  }
+  .missions-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 5pt;
+    font-size: 8.5pt;
+    color: #333;
+    line-height: 1.35;
+  }
+  .check-dot {
+    width: 10pt;
+    height: 10pt;
+    background: #1130A7;
+    border-radius: 2pt;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1pt;
+  }
+  .check-dot::after {
+    content: '✓';
+    color: white;
+    font-size: 6pt;
+    font-weight: 700;
+  }
+  .autres-missions {
+    font-size: 8.5pt;
+    color: #333;
+    background: #f8f8fb;
+    border-left: 2pt solid #1130A7;
+    padding: 5pt 8pt;
+    margin-top: 6pt;
+    border-radius: 0 4pt 4pt 0;
+  }
+
+  /* ── Jours table ── */
+  .jours-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    margin-top: 5pt;
+  }
+  .jours-table th {
+    background: #f4f4f8;
+    font-size: 7pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #888;
+    padding: 4pt 8pt;
+    text-align: center;
+    border: 1px solid #e8e8f0;
+  }
+  .jours-table th:first-child { text-align: left; }
+  .jours-table td {
+    padding: 4pt 8pt;
+    border: 1px solid #e8e8f0;
+    text-align: center;
+    font-size: 8.5pt;
+  }
+  .jours-table td:first-child {
+    text-align: left;
+    font-weight: 500;
+    text-transform: capitalize;
+    background: #fafafe;
+  }
+  .badge-oui    { background: #d1fae5; color: #065f46; border-radius: 3pt; padding: 1pt 5pt; font-size: 7.5pt; font-weight: 600; }
+  .badge-non    { background: #f3f4f6; color: #6b7280; border-radius: 3pt; padding: 1pt 5pt; font-size: 7.5pt; font-weight: 600; }
+  .badge-prefere { background: #dbeafe; color: #1130A7; border-radius: 3pt; padding: 1pt 5pt; font-size: 7.5pt; font-weight: 600; }
+
+  /* ── Engagement list ── */
+  .engagement-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5pt;
+  }
+  .engagement-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6pt;
+    font-size: 8.5pt;
+    color: #333;
+  }
+  .check-circle {
+    width: 12pt;
+    height: 12pt;
+    background: #1130A7;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 0.5pt;
+  }
+  .check-circle::after {
+    content: '✓';
+    color: white;
+    font-size: 6pt;
+    font-weight: 700;
+  }
+
+  /* ── Separator ── */
+  .sep {
+    border: none;
+    border-top: 1px solid #e8e8f0;
+    margin: 14pt 0;
+  }
+
+  /* ── Highlight box ── */
+  .highlight-box {
+    background: #f4f6ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 5pt;
+    padding: 8pt 10pt;
+    font-size: 8.5pt;
+    color: #333;
+  }
+  .highlight-box .hl-label {
+    font-size: 7pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #1130A7;
+    margin-bottom: 2pt;
+  }
+
+  /* ── Page break ── */
+  .page-break { page-break-before: always; }
+
+  /* ── Signature page ── */
+  .signature-page {
+    page-break-before: always;
+    height: 257mm; /* A4 height - margins */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .signature-page .sig-header {
+    background: #1130A7;
+    color: white;
+    padding: 12pt 16pt;
+    border-radius: 6pt;
+    margin-bottom: 20pt;
+  }
+  .signature-page .sig-header p {
+    font-size: 7.5pt;
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 3pt;
+  }
+  .signature-page .sig-header h3 {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+  .sig-fait {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20pt;
+    margin-bottom: 30pt;
+  }
+  .sig-fait .sig-field {
+    border-bottom: 1.5px solid #aaa;
+    padding-bottom: 20pt;
+  }
+  .sig-fait .sig-field-label {
+    font-size: 8pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 3pt;
+  }
+  .sig-blocks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30pt;
+    margin-top: auto;
+  }
+  .sig-block {
+    border: 1.5px dashed #bbb;
+    border-radius: 6pt;
+    padding: 12pt;
+    min-height: 80pt;
+  }
+  .sig-block-label {
+    font-size: 7.5pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 4pt;
+  }
+  .sig-block-name {
+    font-size: 8.5pt;
+    color: #333;
+    font-style: italic;
+  }
+
+  /* ── Footer ── */
+  @page {
+    @bottom-center {
+      content: "Disciplina — Analyse de Besoin — Page " counter(page) " / " counter(pages);
+      font-size: 7pt;
+      color: #aaa;
+      font-family: Arial, sans-serif;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     EN-TÊTE DOCUMENT
+════════════════════════════════════════════════ -->
+<div class="doc-header">
+  <p class="meta">Analyse de Besoin — Disciplina</p>
+  <h1>{{ raison_sociale or '—' }}</h1>
+  <div class="pills">
+    {% if domaine %}<span class="pill">{{ domaine }}</span>{% endif %}
+    {% if intitule_poste %}<span class="pill">{{ intitule_poste }}</span>{% endif %}
+    {% if campus %}<span class="pill">Campus {{ campus }}</span>{% endif %}
+  </div>
+</div>
+
+<div class="doc-body">
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 1 — IDENTITÉ DE L'ENTREPRISE
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <div class="section-num">1</div>
+    <h2>Identité de l'entreprise</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="field">
+      <div class="field-label">Raison sociale</div>
+      <div class="field-value bold">{{ raison_sociale or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Numéro SIRET</div>
+      <div class="field-value">{{ siret or '—' }}</div>
+    </div>
+    <div class="field field-full">
+      <div class="field-label">Adresse du siège social</div>
+      <div class="field-value">{{ adresse_siege or '—' }}{% if code_postal %}, {{ code_postal }}{% endif %}{% if commune %} {{ commune }}{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="sub-title">Représentant légal</div>
+  <div class="grid-2">
+    <div class="field">
+      <div class="field-label">Nom et prénom</div>
+      <div class="field-value bold">{{ rl_nom or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Fonction</div>
+      <div class="field-value">{{ rl_fonction or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Téléphone</div>
+      <div class="field-value">{{ rl_telephone or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Courriel</div>
+      <div class="field-value">{{ rl_email or '—' }}</div>
+    </div>
+  </div>
+
+  {% set rr_nom_val = rl_nom if rr_same_as_rl else rr_nom %}
+  {% set rr_fonction_val = rl_fonction if rr_same_as_rl else rr_fonction %}
+  {% set rr_telephone_val = rl_telephone if rr_same_as_rl else rr_telephone %}
+  {% set rr_email_val = rl_email if rr_same_as_rl else rr_email %}
+
+  <div class="sub-title">Responsable de recrutement</div>
+  {% if rr_same_as_rl %}
+  <div class="field-value" style="color:#888; font-style:italic; font-size:8.5pt;">Même personne que le représentant légal</div>
+  {% else %}
+  <div class="grid-2">
+    <div class="field">
+      <div class="field-label">Nom et prénom</div>
+      <div class="field-value bold">{{ rr_nom or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Fonction</div>
+      <div class="field-value">{{ rr_fonction or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Téléphone</div>
+      <div class="field-value">{{ rr_telephone or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Courriel</div>
+      <div class="field-value">{{ rr_email or '—' }}</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<hr class="sep" />
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 2 — POSTE + MISSIONS
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <div class="section-num">2</div>
+    <h2>À propos de l'entreprise et exigences du poste</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="field">
+      <div class="field-label">Nombre de postes</div>
+      <div class="field-value bold">{{ nb_postes or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Localisation du poste</div>
+      <div class="field-value">{{ localisation_poste or '—' }}</div>
+    </div>
+    {% if presentation_activite %}
+    <div class="field field-full">
+      <div class="field-label">Présentation de l'activité</div>
+      <div class="field-value">{{ presentation_activite }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="sub-title">Poste</div>
+  <div class="grid-2">
+    <div class="field">
+      <div class="field-label">Domaine</div>
+      <div class="field-value bold">{{ domaine or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Intitulé du métier</div>
+      <div class="field-value bold">{{ intitule_poste or '—' }}</div>
+    </div>
+  </div>
+
+  {% if missions and missions|length > 0 %}
+  <div class="sub-title">Missions sélectionnées</div>
+  <ul class="missions-list">
+    {% for m in missions %}
+    <li><div class="check-dot"></div><span>{{ m }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if autres_missions %}
+  <div class="autres-missions">
+    <strong>Autres missions :</strong> {{ autres_missions }}
+  </div>
+  {% endif %}
+
+  {% if profils_recherches or competences %}
+  <div class="sub-title">Profil et compétences</div>
+  <div class="grid-2">
+    {% if profils_recherches %}
+    <div class="field field-full">
+      <div class="field-label">Profils recherchés</div>
+      <div class="field-value">{{ profils_recherches }}</div>
+    </div>
+    {% endif %}
+    {% if competences %}
+    <div class="field field-full">
+      <div class="field-label">Compétences et savoir-être</div>
+      <div class="field-value">{{ competences }}</div>
+    </div>
+    {% endif %}
+    {% if commentaires %}
+    <div class="field field-full">
+      <div class="field-label">Commentaires</div>
+      <div class="field-value">{{ commentaires }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<hr class="sep" />
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 3 — EXIGENCES DE L'APPRENTI
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <div class="section-num">3</div>
+    <h2>Exigences de l'apprenti</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="field">
+      <div class="field-label">Niveau de formation</div>
+      <div class="field-value">{{ niveau_formation or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Permis de conduire</div>
+      <div class="field-value">{{ permis or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Expérience requise</div>
+      <div class="field-value">{{ experience or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Âge exigé</div>
+      <div class="field-value">{{ age_exige or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Période d'immersion PMSMP</div>
+      <div class="field-value">{{ pmsmp or '—' }}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Méthode de recrutement</div>
+      <div class="field-value">{{ methode_recrutement or '—' }}</div>
+    </div>
+  </div>
+
+  {% if jours_formation %}
+  <div class="sub-title">Jours de formation possibles</div>
+  <table class="jours-table">
+    <thead>
+      <tr>
+        <th>Jour</th>
+        <th>Oui</th>
+        <th>Non</th>
+        <th>Préféré</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for jour, val in jours_formation.items() %}
+      <tr>
+        <td>{{ jour | capitalize }}</td>
+        <td>{% if val == 'Oui' %}<span class="badge-oui">✓ Oui</span>{% else %}—{% endif %}</td>
+        <td>{% if val == 'Non' %}<span class="badge-non">Non</span>{% else %}—{% endif %}</td>
+        <td>{% if val == 'Préféré' %}<span class="badge-prefere">★ Préféré</span>{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+<hr class="sep" />
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 4 — ENGAGEMENT SUR LES MISSIONS
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <div class="section-num">4</div>
+    <h2>Engagement sur l'évolution des missions</h2>
+  </div>
+  <p style="font-size:8.5pt; color:#555; margin-bottom:8pt;">Les missions confiées à l'apprenti s'engagent à :</p>
+  <ul class="engagement-list">
+    <li><div class="check-circle"></div><span>Évoluer progressivement en fonction de la montée en compétences</span></li>
+    <li><div class="check-circle"></div><span>Être adaptées pour rester en cohérence avec le parcours de formation</span></li>
+    <li><div class="check-circle"></div><span>Faire l'objet de réajustements en accord avec le CFA</span></li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE SIGNATURE (page dédiée, coordonnées fixes)
+════════════════════════════════════════════════ -->
+<div class="signature-page">
+  <div>
+    <div class="sig-header">
+      <p>Analyse de Besoin — Disciplina</p>
+      <h3>{{ raison_sociale or '—' }}</h3>
+    </div>
+
+    <div class="sig-fait">
+      <div class="sig-field">
+        <div class="sig-field-label">Fait à</div>
+      </div>
+      <div class="sig-field">
+        <div class="sig-field-label">Le</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sig-blocks">
+    <div class="sig-block">
+      <div class="sig-block-label">Signature et cachet de l'entreprise</div>
+      <div class="sig-block-name">{{ rl_nom or '' }}</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-block-label">Signature Disciplina</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /doc-body -->
+</body>
+</html>

@@ -13,6 +13,7 @@ const pool: Pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  charset: 'UTF8MB4_UNICODE_CI',
 });
 
 export async function getConnection(): Promise<PoolConnection> {

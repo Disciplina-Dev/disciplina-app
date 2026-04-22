@@ -9,6 +9,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { isSameDay, parseISO } from 'date-fns'
 import type { Entreprise, EntrepriseFilters, UserId } from '@/types/entreprise'
 import { useAuthStore, useCurrentUser, USERS } from '@/store/authStore'
@@ -269,6 +270,7 @@ function normalise(s: string) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PortefeuilleEntreprises() {
+  const navigate = useNavigate()
   const currentUser = useCurrentUser()
   const companies = usePortefeuilleStore((s) => s.companies)
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
@@ -339,6 +341,11 @@ export default function PortefeuilleEntreprises() {
     } as Entreprise)
     setCreateOpen(false)
     setPrefillSiret(undefined)
+  }
+
+  const handleCreateAB = (entreprise: Entreprise) => {
+    setDetailEntry(null)
+    navigate('/commercial/analyses-besoin/nouvelle', { state: { entreprise } })
   }
 
   const handleClaim = (id: string, userId: UserId, userName: string) => {
@@ -506,6 +513,7 @@ export default function PortefeuilleEntreprises() {
           currentUser={currentUser}
           onClose={() => setDetailEntry(null)}
           onEdit={() => setEditEntry(detailEntry)}
+          onCreateAB={() => handleCreateAB(detailEntry)}
         />
       )}
       {editEntry && (

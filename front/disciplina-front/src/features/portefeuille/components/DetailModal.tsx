@@ -14,6 +14,7 @@ import {
   Pencil,
   Copy,
   Check,
+  ClipboardList,
 } from 'lucide-react'
 import { useState } from 'react'
 import { format } from 'date-fns'
@@ -34,6 +35,7 @@ interface Props {
   currentUser: AppUser
   onClose: () => void
   onEdit: () => void
+  onCreateAB: () => void
 }
 
 function Field({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | null | undefined }) {
@@ -93,7 +95,7 @@ function formatDate(iso: string | null | undefined) {
   }
 }
 
-export default function DetailModal({ entreprise, currentUser, onClose, onEdit }: Props) {
+export default function DetailModal({ entreprise, currentUser, onClose, onEdit, onCreateAB }: Props) {
   const status = STATUS_CONFIG[entreprise.status] ?? STATUS_CONFIG['Non']
   const owner = entreprise.proprietaire_id ? USERS[entreprise.proprietaire_id] : null
 
@@ -137,6 +139,13 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit }
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              leftIcon={<ClipboardList className="h-3.5 w-3.5" />}
+              onClick={onCreateAB}
+            >
+              Créer une AB
+            </Button>
             {canEdit && (
               <Button
                 size="sm"

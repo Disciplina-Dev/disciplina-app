@@ -12,7 +12,7 @@ services:
     networks:
       - back-end
     ports:
-      - 5000:3306
+      - 5001:3306
   backend:
     build:
       context: ./back/
