@@ -26,6 +26,7 @@ async function startServer() {
   // REST routes
   app.use('/api/ab', abRouter);
   app.use('/api/webhooks', webhooksRouter);
+  app.use('/api/ressources', express.static('/ressources'));
 
   // GraphQL
   const server = new ApolloServer({ typeDefs, resolvers });

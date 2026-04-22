@@ -52,3 +52,49 @@ export async function sendAbLink(params: {
     throw new Error(`Brevo sendAbLink ${res.status}: ${body}`);
   }
 }
+
+export async function sendSignedPdfEmail(params: {
+  raisonSociale: string;
+  pdfBuffer: Buffer;
+}): Promise<void> {
+  const { raisonSociale, pdfBuffer } = params;
+
+  const payload = {
+    sender: { name: 'Disciplina', email: 'epitechdisciplina.dev@gmail.com' },
+    to: [{ email: 'epitechdisciplina.dev@gmail.com', name: 'Disciplina Admin' }],
+    subject: `Analyse de Besoin Signée — ${raisonSociale}`,
+    htmlContent: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a2e;">
+        <div style="padding: 20px;">
+          <p style="font-size: 15px; margin: 0 0 16px;">Bonjour,</p>
+          <p style="font-size: 14px; color: #444; line-height: 1.6;">
+            L'entreprise <strong>${raisonSociale}</strong> vient de signer son Analyse de Besoin via YouSign.
+          </p>
+          <p style="font-size: 14px; color: #444; line-height: 1.6;">
+            Veuillez trouver le document final signé en pièce jointe de cet email.
+          </p>
+        </div>
+      </div>
+    `,
+    attachment: [
+      {
+        name: 'AB_Signee_' + raisonSociale.replace(/\s+/g, '_') + '.pdf',
+        content: pdfBuffer.toString('base64'),
+      }
+    ]
+  };
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error('Brevo sendSignedPdfEmail ' + res.status + ': ' + body);
+  }
+}

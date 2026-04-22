@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { AnalyseBesoinRepository } from '../repositories/AnalyseBesoinRepository';
 import { getSignedDocument } from '../services/yousign';
+import { sendSignedPdfEmail } from '../services/brevo';
 
 const router = Router();
 const repo = new AnalyseBesoinRepository();
@@ -33,16 +34,21 @@ router.post('/yousign', async (req: Request, res: Response) => {
       // Récupérer le PDF signé
       const pdfBuffer = await getSignedDocument(signatureRequestId);
 
-      // TODO: uploader pdfBuffer dans Supabase Storage et obtenir l'URL publique
-      // const pdfUrl = await uploadToSupabase(pdfBuffer, `ab_signed_${signatureRequestId}.pdf`);
-      const pdfUrl: string | null = null; // placeholder jusqu'à intégration Supabase
+      // Récupérer les infos de l'entreprise
+      const row = await repo.findByYousignId(signatureRequestId);
+      const raisonSociale = row?.raison_sociale || 'Entreprise Inconnue';
+
+      // Envoi du PDF par email via Brevo au lieu de le sauvegarder sur le serveur
+      await sendSignedPdfEmail({
+        raisonSociale,
+        pdfBuffer,
+      });
 
       // Mettre à jour le statut en base via yousign_procedure_id
-      // On cherche l'AB par yousign_procedure_id pour mettre à jour
       await repo.updateByYousignId(signatureRequestId, {
         statut: 'signee',
         is_signed: 1,
-        pdf_url: pdfUrl,
+        pdf_url: null,
       });
 
       console.log(`[webhook/yousign] AB ${signatureRequestId} → statut=signée`);

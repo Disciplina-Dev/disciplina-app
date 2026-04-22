@@ -152,6 +152,12 @@ export default function FormulaireAB() {
       })
       if (!validerRes.ok) throw new Error()
 
+      const validerData = await validerRes.json();
+      if (validerData.redirectUrl) {
+        window.location.href = validerData.redirectUrl;
+        return;
+      }
+
       setDone(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch {

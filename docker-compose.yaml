@@ -20,6 +20,10 @@ services:
     env_file:
       - ./.env
       - ./back/.env
+    volumes:
+      - ./services:/services
+      - ./templates:/templates
+      - ./ressources:/ressources
     networks:
       - back-end
       - front-end

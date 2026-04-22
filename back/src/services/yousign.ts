@@ -22,8 +22,8 @@ export function generatePdf(ab: Partial<AnalyseBesoinRow>): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const data = {
       ...ab,
-      missions: ab.missions ? JSON.parse(ab.missions as string) : [],
-      jours_formation: ab.jours_formation ? JSON.parse(ab.jours_formation as string) : {},
+      missions: typeof ab.missions === 'string' ? JSON.parse(ab.missions) : (ab.missions || []),
+      jours_formation: typeof ab.jours_formation === 'string' ? JSON.parse(ab.jours_formation) : (ab.jours_formation || {}),
       rr_same_as_rl: ab.rr_same_as_rl === 1,
     };
 
@@ -77,31 +77,65 @@ export async function uploadDocument(pdfBuffer: Buffer, filename: string): Promi
 
 // ── YouSign — Créer signature request ──────────────────────────────────────
 
+import { PDFDocument } from 'pdf-lib';
+
 export async function createSignatureRequest(
   documentId: string,
   ab: Partial<AnalyseBesoinRow>,
+  pdfBuffer: Buffer
 ): Promise<string> {
+  // Obtenir le nombre de pages réelles du document pour placer la signature à la fin
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const totalPages = pdfDoc.getPageCount();
+
   // Signataire = représentant légal (ou responsable recrutement si différent)
-  const signerFirstName = (ab.rl_nom || '').split(' ').slice(0, -1).join(' ') || ab.rl_nom || '';
-  const signerLastName  = (ab.rl_nom || '').split(' ').slice(-1)[0] || '';
+  const signerFirstName = (ab.rl_nom || '').split(' ').slice(0, -1).join(' ') || ab.rl_nom || 'Représentant';
+  const signerLastName  = (ab.rl_nom || '').split(' ').slice(-1)[0] || 'Légal';
+
+  // YouSign exige un Tél E.164 valide rééllement (ex: libphonenumber)
+  let phone = (ab.rl_telephone || '').replace(/\s+/g, '');
+  if (phone.startsWith('0692') || phone.startsWith('0693')) {
+    phone = '+262' + phone.substring(1);
+  } else if (phone.startsWith('0')) {
+    phone = '+33' + phone.substring(1);
+  }
+  // Numéro de test valide si invalide
+  if (phone.length < 10) phone = '+33612345678';
+
+  // Email strictement valide
+  let email = (ab.rl_email || '').trim();
+  if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+    email = 'epitechdisciplina.dev@gmail.com';
+  }
 
   const payload = {
     name: `AB — ${ab.raison_sociale || 'Entreprise'}`,
-    delivery_mode: 'email',
+    delivery_mode: 'none',
     timezone: 'Indian/Reunion',
-    template_id: YOUSIGN_TEMPLATE_ID || undefined,
-    documents: [{ document_id: documentId }],
+    // Dans YouSign v3, c'est simplement un tableau de strings contenant les IDs
+    documents: [documentId],
     signers: [
       {
         info: {
-          first_name: signerFirstName,
-          last_name: signerLastName,
-          email: ab.rl_email || '',
-          phone_number: ab.rl_telephone || '',
+          first_name: signerFirstName.substring(0, 50),
+          last_name: signerLastName.substring(0, 50),
+          email: email,
+          phone_number: phone,
           locale: 'fr',
         },
         signature_level: 'electronic_signature',
         signature_authentication_mode: 'otp_sms',
+        fields: [
+          {
+            type: 'signature',
+            document_id: documentId,
+            page: totalPages,
+            x: 60,
+            y: 80,
+            width: 200,
+            height: 90
+          }
+        ]
       },
     ],
   };
@@ -136,6 +170,36 @@ export async function activateSignatureRequest(signatureRequestId: string): Prom
     const body = await res.text();
     throw new Error(`YouSign activate ${res.status}: ${body}`);
   }
+}
+
+// ── YouSign — Récupérer lien direct ─────────────────────────────────────────
+
+export async function getSignatureLink(signatureRequestId: string): Promise<string> {
+  // Fetch the signers list specifically, as it contains signature_link in API V3
+  const res = await fetch(`${YOUSIGN_API_URL}/signature_requests/${signatureRequestId}/signers`, {
+    headers: yousignHeaders('application/json'),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`YouSign getSignatureLink ${res.status}: ${body}`);
+  }
+
+  const parsed = await res.json() as any;
+  const signersArray = Array.isArray(parsed) ? parsed : (parsed?.data || []);
+
+  if (!signersArray || signersArray.length === 0) {
+    console.error('Signer fetch response:', JSON.stringify(parsed, null, 2));
+    throw new Error('YouSign getSignatureLink: Aucun signataire trouvé ou signature_link non disponible.');
+  }
+
+  const link = signersArray[0].signature_link;
+  if (!link) {
+    console.error('Signer dump:', JSON.stringify(signersArray[0], null, 2));
+    throw new Error('YouSign getSignatureLink: Le lien de signature est vide.');
+  }
+
+  return link;
 }
 
 // ── YouSign — Récupérer PDF signé ──────────────────────────────────────────

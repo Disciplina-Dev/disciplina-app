@@ -112,15 +112,16 @@ export class AnalyseBesoinService {
     return this.repo.updateByToken(token, data);
   }
 
-  async valider(token: string): Promise<boolean> {
+  async valider(token: string): Promise<string | null> {
     // 1. Récupérer les données de l'AB
     const row = await this.repo.findByToken(token);
-    if (!row) return false;
+    if (!row) return null;
 
     // 2. Sauvegarder statut "validée" en base
     await this.repo.updateByToken(token, { statut: 'validee' });
 
     // 3. Générer le PDF
+    const { generatePdf, uploadDocument, createSignatureRequest, activateSignatureRequest, getSignatureLink } = require('./yousign');
     const pdfBuffer = await generatePdf(row);
     const filename = `AB_${row.raison_sociale || 'entreprise'}_${token.slice(0, 8)}.pdf`
       .replace(/\s+/g, '_')
@@ -129,16 +130,18 @@ export class AnalyseBesoinService {
     // 4. Upload du PDF sur YouSign
     const documentId = await uploadDocument(pdfBuffer, filename);
 
-    // 5. Créer la signature request
-    const signatureRequestId = await createSignatureRequest(documentId, row);
+    // 5. Créer la signature request avec le document PDF pour connaître son nombre de pages
+    const signatureRequestId = await createSignatureRequest(documentId, row, pdfBuffer);
 
-    // 6. Activer la signature request (déclenche l'envoi de l'email)
+    // 6. Activer la signature request (déclenche la génération du lien et validation globale)
     await activateSignatureRequest(signatureRequestId);
 
     // 7. Sauvegarder le yousign_procedure_id
     await this.repo.updateByToken(token, { yousign_procedure_id: signatureRequestId });
 
-    return true;
+    // 8. Récupérer le lien direct pour le frontend
+    const link = await getSignatureLink(signatureRequestId);
+    return link;
   }
 
   async findAll(filters: { statut?: string; campus?: string }) {

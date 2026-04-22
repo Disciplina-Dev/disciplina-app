@@ -26,6 +26,14 @@ export class AnalyseBesoinRepository {
     return results.length > 0 ? results[0] : null;
   }
 
+  async findByYousignId(yousignId: string): Promise<AnalyseBesoinRow | null> {
+    const results = await query<AnalyseBesoinRow[]>(
+      'SELECT * FROM analyse_besoin WHERE yousign_procedure_id = ?',
+      [yousignId]
+    );
+    return results.length > 0 ? results[0] : null;
+  }
+
   async findAll(filters: { statut?: string; campus?: string }): Promise<AnalyseBesoinRow[]> {
     let sql = 'SELECT * FROM analyse_besoin WHERE 1=1';
     const params: any[] = [];

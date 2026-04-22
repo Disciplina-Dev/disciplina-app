@@ -55,15 +55,15 @@ router.put('/:token', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/ab/:token/valider — valider + générer PDF + déclencher YouSign
+// POST /api/ab/:token/valider — valider + générer PDF + récupérer lien YouSign
 router.post('/:token/valider', async (req: Request, res: Response) => {
   try {
-    const ok = await service.valider(req.params.token);
-    if (!ok) return res.status(404).json({ error: 'AB introuvable' });
-    res.json({ success: true, message: 'Email de signature envoyé' });
+    const signatureLink = await service.valider(req.params.token);
+    if (!signatureLink) return res.status(404).json({ error: 'AB introuvable' });
+    res.json({ success: true, redirectUrl: signatureLink });
   } catch (err) {
     console.error('[POST /api/ab/:token/valider]', err);
-    res.status(500).json({ error: 'Erreur lors de la génération PDF ou de l\'envoi YouSign' });
+    res.status(500).json({ error: 'Erreur lors de la génération PDF ou de YouSign' });
   }
 });
 
