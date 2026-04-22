@@ -12,7 +12,7 @@ export enum CandidateStatus {
     NOT_SEEKING = "Ne recherche pas", // le candidat est indisponible
     CANCELLED = "Rupture",       // Profil en cours de remplissage
     MATCHED = "Immersion",   // Associé à une entreprise
-    CONTRACTED = "Contart",      // Dossier sous contrat
+    CONTRACTED = "Contrat",      // Dossier sous contrat
     BANNED = "Banni" // Banni
 }
 
