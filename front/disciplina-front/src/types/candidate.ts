@@ -1,4 +1,3 @@
-
 export enum TitleProfessionalType {
     AD = "AD",       // Administrateur
     CC = "CC",       // Chef de projet
@@ -52,7 +51,7 @@ export enum DiscoverySource {
 
 export interface Identity {
     full_name: string;                    // Nom complet du candidat
-    date_of_birth?: Date;                 // Date de naissance (optionnel)
+    date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
     age?: number;                         // Âge actuel (calculé ou fourni)
     postal_code?: string;                 // Code postal
@@ -62,6 +61,7 @@ export interface Identity {
     driving_license_b?: boolean;          // Permis de conduire catégorie B
     transport_means?: string;             // Moyens de transport habituels
     psh_referral_request?: boolean;       // Demande d'accompagnement PSH
+    avatar_url?: string;
 }
 
 export interface Education {
@@ -116,7 +116,7 @@ export interface SkillsAssessment {
 export interface JobInfo {
     domain_motivation?: string;
     questions_concerns?: string;
-    availability_date?: Date;
+    availability_date?: string;
     geographic_mobility?: string;
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
@@ -142,7 +142,7 @@ export interface Synthesis {
     pedagogical_recommendations?: PedagogicalRecommendations;
     other_recommendations?: string;
     location?: string;
-    date?: Date;
+    date?: string;
     recruiter_signature?: string;
     candidate_signature?: string;
 }
@@ -152,8 +152,6 @@ export interface Candidate {
     tp_type: TitleProfessionalType;
     identity: Identity;
     status: CandidateStatus;
-    // created_at: Date;
-    // created_by: string;
     training_site?: TrainingSite;
     immersion_agreement?: boolean;
     desired_sectors?: string[];
