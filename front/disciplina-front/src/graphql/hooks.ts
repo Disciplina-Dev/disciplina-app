@@ -8,10 +8,12 @@ import {
   UPDATE_COMPANY,
   DELETE_COMPANY,
   GET_CANDIDATES,
-  CREATE_CANDIDATE,
+  UPDATE_CANDIDATE
+  // CREATE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
-import { CandidateStatus, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
+import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
+import { candidateGraphqlClient } from './client'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -153,17 +155,30 @@ export function useDeleteCompany() {
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
 /** Maps backend status enum (English) → frontend enum (French labels) */
-function mapStatus(raw: string): CandidateStatus {
+function gqlStatusToFront(raw: string): CandidateStatus {
   const map: Record<string, CandidateStatus> = {
     SEEKING: CandidateStatus.SEEKING,
     NOT_SEEKING: CandidateStatus.NOT_SEEKING,
     CANCELLED: CandidateStatus.CANCELLED,
     MATCHED: CandidateStatus.MATCHED,
     CONTRACTED: CandidateStatus.CONTRACTED,
-    IMMERSING: CandidateStatus.MATCHED, // IMMERSING → Immersion (same label)
+    IMMERSING: CandidateStatus.MATCHED,
     BANNED: CandidateStatus.BANNED,
   }
   return map[raw] ?? CandidateStatus.SEEKING
+}
+
+/** Maps frontend status (French labels) → backend enum (English) */
+function frontStatusToGql(s: CandidateStatus): string {
+  const map: Record<CandidateStatus, string> = {
+    [CandidateStatus.SEEKING]: 'SEEKING',
+    [CandidateStatus.NOT_SEEKING]: 'NOT_SEEKING',
+    [CandidateStatus.CANCELLED]: 'CANCELLED',
+    [CandidateStatus.MATCHED]: 'IMMERSING',
+    [CandidateStatus.CONTRACTED]: 'CONTRACTED',
+    [CandidateStatus.BANNED]: 'BANNED',
+  }
+  return map[s] ?? 'SEEKING'
 }
 
 function mapTpType(raw: string): TitleProfessionalType {
@@ -173,6 +188,155 @@ function mapTpType(raw: string): TitleProfessionalType {
 function mapSchoolLevel(raw: string | null | undefined): SchoolLevel | undefined {
   if (!raw) return undefined
   return (SchoolLevel as any)[raw] ?? undefined
+}
+
+/** Maps GraphQL response (camelCase) → frontend Candidate (snake_case) */
+function fromGql(c: any): Candidate {
+  return {
+    _id: c.id,
+    tp_type: mapTpType(c.tpType),
+    status: gqlStatusToFront(c.status),
+    training_site: c.trainingSite,
+    immersion_agreement: c.immersionAgreement,
+    desired_sectors: c.desiredSectors,
+    expected_company_skills: c.expectedCompanySkills,
+    identity: {
+      full_name: c.identity.fullName,
+      email: c.identity.email,
+      phone: c.identity.phone,
+      date_of_birth: c.identity.dateOfBirth,
+      place_of_birth: c.identity.placeOfBirth,
+      age: c.identity.age,
+      postal_code: c.identity.postalCode,
+      city: c.identity.city,
+      driving_license_b: c.identity.drivingLicenseB,
+      transport_means: c.identity.transportMeans,
+      psh_referral_request: c.identity.pshReferralRequest,
+    },
+    education: c.education
+      ? {
+          school_level: mapSchoolLevel(c.education.schoolLevel),
+          justification: c.education.justification,
+        }
+      : undefined,
+    support: c.support
+      ? {
+          france_travail_registered: c.support.franceTravailRegistered,
+          france_travail_agency: c.support.franceTravailAgency,
+          mission_locale_registered: c.support.missionLocaleRegistered,
+          mission_locale_city: c.support.missionLocaleCity,
+        }
+      : undefined,
+    background: c.background
+      ? {
+          last_diploma: c.background.lastDiploma,
+          previous_trainings: c.background.previousTrainings,
+          professional_experiences: c.background.professionalExperiences?.map((e: any) => ({
+            position: e.position,
+            duration: e.duration,
+            responsibilities: e.responsibilities,
+            company: e.company,
+          })),
+        }
+      : undefined,
+    profile: c.profile
+      ? {
+          french_level: c.profile.frenchLevel,
+          english_level: c.profile.englishLevel,
+          other_languages: c.profile.otherLanguages,
+          strengths_and_improvements: c.profile.strengthsAndImprovements,
+          qualities: c.profile.qualities,
+          defects: c.profile.defects,
+          digital_skills: c.profile.digitalSkills,
+          ready_for_challenges: c.profile.readyForChallenges,
+          hobbies: c.profile.hobbies,
+        }
+      : undefined,
+    professional_projects: c.professionalProjects
+      ? {
+          career_objectives: c.professionalProjects.careerObjectives,
+          desired_skills: c.professionalProjects.desiredSkills,
+          apprenticeship_motivation: c.professionalProjects.apprenticeshipMotivation,
+          training_expectations: c.professionalProjects.trainingExpectations,
+        }
+      : undefined,
+    skills_assessment: c.skillsAssessment?.map((s: any) => ({ competence: s.competence, level: s.level })),
+    job_info: c.jobInfo
+      ? {
+          domain_motivation: c.jobInfo.domainMotivation,
+          questions_concerns: c.jobInfo.questionsConcerns,
+          availability_date: c.jobInfo.availabilityDate,
+          geographic_mobility: c.jobInfo.geographicMobility,
+          weekend_work: c.jobInfo.weekendWork,
+          discovery_source: c.jobInfo.discoverySource,
+        }
+      : undefined,
+    synthesis: c.synthesis
+      ? {
+          feasibility_conclusion: c.synthesis.feasibilityConclusion,
+          pathway_relevance: c.synthesis.pathwayRelevance,
+          special_needs: c.synthesis.specialNeeds,
+          pedagogical_recommendations: c.synthesis.pedagogicalRecommendations
+            ? {
+                office_tools_reinforcement: c.synthesis.pedagogicalRecommendations.officeToolsReinforcement,
+                written_communication_support: c.synthesis.pedagogicalRecommendations.writtenCommunicationSupport,
+                oral_confidence_development: c.synthesis.pedagogicalRecommendations.oralConfidenceDevelopment,
+                time_management_support: c.synthesis.pedagogicalRecommendations.timeManagementSupport,
+                professional_posture_work: c.synthesis.pedagogicalRecommendations.professionalPostureWork,
+                enhanced_company_immersion: c.synthesis.pedagogicalRecommendations.enhancedCompanyImmersion,
+                psh_specific_support: c.synthesis.pedagogicalRecommendations.pshSpecificSupport,
+                individual_follow_up: c.synthesis.pedagogicalRecommendations.individualFollowUp,
+                language_training: c.synthesis.pedagogicalRecommendations.languageTraining,
+                stress_management_follow_up: c.synthesis.pedagogicalRecommendations.stressManagementFollowUp,
+              }
+            : undefined,
+          other_recommendations: c.synthesis.otherRecommendations,
+          location: c.synthesis.location,
+          date: c.synthesis.date,
+          recruiter_signature: c.synthesis.recruiterSignature,
+          candidate_signature: c.synthesis.candidateSignature,
+        }
+      : undefined,
+  }
+}
+
+/** Maps frontend Candidate (snake_case) → GraphQL UpdateCandidateInput (camelCase) for mutation */
+function toGqlUpdateInput(c: Candidate): any {
+  return {
+    tpType: c.tp_type,
+    status: frontStatusToGql(c.status),
+    ...(c.training_site !== undefined && { trainingSite: c.training_site }),
+    identity: {
+      fullName: c.identity.full_name,
+      email: c.identity.email,
+      phone: c.identity.phone,
+      ...(c.identity.driving_license_b !== undefined && { drivingLicenseB: c.identity.driving_license_b }),
+      ...(c.identity.age !== undefined && { age: c.identity.age }),
+      ...(c.identity.city !== undefined && { city: c.identity.city }),
+    },
+    ...(c.education && {
+      education: {
+        ...(c.education.school_level !== undefined && { schoolLevel: c.education.school_level }),
+      },
+    }),
+    ...(c.profile && {
+      profile: {
+        ...(c.profile.french_level !== undefined && { frenchLevel: c.profile.french_level }),
+        ...(c.profile.english_level !== undefined && { englishLevel: c.profile.english_level }),
+        ...(c.profile.qualities !== undefined && { qualities: c.profile.qualities }),
+      },
+    }),
+    ...(c.professional_projects && {
+      professionalProjects: {
+        ...(c.professional_projects.career_objectives !== undefined && {
+          careerObjectives: c.professional_projects.career_objectives,
+        }),
+        ...(c.professional_projects.apprenticeship_motivation !== undefined && {
+          apprenticeshipMotivation: c.professional_projects.apprenticeship_motivation,
+        }),
+      },
+    }),
+  }
 }
 
 /**
@@ -185,17 +349,7 @@ export function useCandidates() {
     context: { url: 'http://localhost:4000/api/graphql/candidates' },
   })
 
-  const candidates: Candidate[] = (result.data?.candidates ?? []).map((c: any) => ({
-    _id: c.id,
-    tp_type: mapTpType(c.tpType),
-    status: mapStatus(c.status),
-    identity: {
-      full_name: c.identity.fullName,
-      email: c.identity.email,
-      phone: c.identity.phone,
-    },
-    education: c.schoolLevel ? { school_level: mapSchoolLevel(c.schoolLevel) } : undefined,
-  }))
+  const candidates: Candidate[] = (result.data?.candidates ?? []).map(fromGql)
 
   return {
     candidates,
@@ -205,27 +359,39 @@ export function useCandidates() {
   }
 }
 
-interface CreateCandidateInput {
-  tpType: string
-  status: string
-  identity: { fullName: string; email: string; phone: string }
-  schoolLevel?: string | null
-  trainingSite?: string | null
-}
-
-/**
- * Returns a function to create a new candidate via mutation.
- * Uses candidateGraphqlClient directly to bypass the companies urql Provider.
- */
-export function useCreateCandidate() {
-  const [result, executeMutation] = useMutation(CREATE_CANDIDATE)
-
-  const createCandidate = (input: CreateCandidateInput) => {
-    return executeMutation(
-      { input },
-      { url: 'http://localhost:4000/api/graphql/candidates' } as any,
-    )
+export function useUpdateCandidate() {
+  const update = async (id: string, input: Candidate) => {
+    const result = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE, {
+      id,
+      input: toGqlUpdateInput(input),
+    })
+    return result.data?.updateCandidate
   }
 
-  return { createCandidate, result }
+  return { update }
 }
+
+// interface CreateCandidateInput {
+//   tpType: string
+//   status: string
+//   identity: { fullName: string; email: string; phone: string }
+//   schoolLevel?: string | null
+//   trainingSite?: string | null
+// }
+
+// /**
+//  * Returns a function to create a new candidate via mutation.
+//  * Uses candidateGraphqlClient directly to bypass the companies urql Provider.
+//  */
+// export function useCreateCandidate() {
+//   const [result, executeMutation] = useMutation(CREATE_CANDIDATE)
+
+//   const createCandidate = (input: CreateCandidateInput) => {
+//     return executeMutation(
+//       { input },
+//       { url: 'http://localhost:4000/api/graphql/candidates' } as any,
+//     )
+//   }
+
+//   return { createCandidate, result }
+// }

@@ -8,7 +8,7 @@ import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, Skil
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
-import { useCandidates, useCreateCandidate } from '@/graphql/hooks';
+import { useCandidates, useUpdateCandidate } from '@/graphql/hooks';
 
 // --- Helpers ---
 
@@ -537,6 +537,7 @@ export default function ListeCandidats() {
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { update } = useUpdateCandidate();
 
   // Sync server candidates into local state (enables optimistic edits)
   useMemo(() => { setLocalCandidates(candidates); }, [candidates]);
@@ -567,8 +568,10 @@ export default function ListeCandidats() {
     });
   }, [localCandidates, search, filterSite, filterPermis, filterLevel, filterMaxAge, filterStatus]);
 
-  const handleUpdateCandidate = (updated: Candidate) => {
-    setLocalCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));
+  const handleUpdateCandidate = async (updated: Candidate) => {
+    const candidate = await update(updated._id, updated);
+    console.log(candidate)
+    // setLocalCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));
   };
 
   const handleUpdateStatus = (id: string, newStatus: CandidateStatus) => {

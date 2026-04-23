@@ -11,4 +11,8 @@ export class CandidateRepository {
         await doc.save();
         return doc.toObject() as Candidate;
     }
+
+    async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
+        return CandidateModel.findOneAndUpdate({ _id: id }, { $set: data }, { new: true }).lean();
+    }
 }

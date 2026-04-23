@@ -154,14 +154,16 @@ export const GET_CANDIDATES = gql`
         email
         phone
       }
-      schoolLevel
+      education {
+        schoolLevel
+      }
     }
   }
 `
 
-export const CREATE_CANDIDATE = gql`
-  mutation CreateCandidate($input: CreateCandidateInput!) {
-    createCandidate(input: $input) {
+export const UPDATE_CANDIDATE = gql`
+  mutation UpdateCandidate($id: String!, $input: UpdateCandidateInput!) {
+    updateCandidate(id: $id, input: $input) {
       id
       status
       tpType
@@ -170,7 +172,25 @@ export const CREATE_CANDIDATE = gql`
         email
         phone
       }
-      schoolLevel
+      education {
+        schoolLevel
+      }
     }
   }
 `
+
+// export const CREATE_CANDIDATE = gql`
+//   mutation CreateCandidate($input: CreateCandidateInput!) {
+//     createCandidate(input: $input) {
+//       id
+//       status
+//       tpType
+//       identity {
+//         fullName
+//         email
+//         phone
+//       }
+//       schoolLevel
+//     }
+//   }
+// `

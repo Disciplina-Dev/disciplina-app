@@ -5,70 +5,108 @@ import {
     CandidateStatus,
     SchoolLevel,
     TrainingSite,
+    Candidate,
 } from '../../db/mongodb/interface';
 
 const candidateService = new CandidateService();
 
-interface CreateCandidateIdentityInput {
-    fullName: string;
-    email: string;
-    phone: string;
-}
-
 interface CreateCandidateInput {
     status: CandidateStatus;
     tpType: TitleProfessionalType;
-    identity: CreateCandidateIdentityInput;
-    schoolLevel?: SchoolLevel | null;
-    trainingSite?: TrainingSite | null;
+    identity: { fullName: string; email: string; phone: string; [key: string]: any };
+    [key: string]: any;
+}
+
+interface UpdateCandidateInput {
+    [key: string]: any;
+}
+
+function camelToSnakeCase(obj: any): any {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(camelToSnakeCase);
+
+    const result: any = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+            result[snakeKey] = camelToSnakeCase(obj[key]);
+        }
+    }
+    return result;
+}
+
+function snakeToCamelCase(obj: any): any {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(snakeToCamelCase);
+
+    const result: any = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const camelKey = key.replace(/_([a-z])/g, (_, char) => char.toUpperCase());
+            result[camelKey] = snakeToCamelCase(obj[key]);
+        }
+    }
+    return result;
+}
+
+function toGql(candidate: Candidate): any {
+    return {
+        id: candidate._id,
+        status: candidate.status,
+        tpType: candidate.tp_type,
+        trainingSite: candidate.training_site,
+        immersionAgreement: candidate.immersion_agreement,
+        desiredSectors: candidate.desired_sectors,
+        expectedCompanySkills: candidate.expected_company_skills,
+        identity: candidate.identity ? snakeToCamelCase(candidate.identity) : null,
+        education: candidate.education ? snakeToCamelCase(candidate.education) : null,
+        support: candidate.support ? snakeToCamelCase(candidate.support) : null,
+        background: candidate.background ? snakeToCamelCase(candidate.background) : null,
+        profile: candidate.profile ? snakeToCamelCase(candidate.profile) : null,
+        professionalProjects: candidate.professional_projects
+            ? snakeToCamelCase(candidate.professional_projects)
+            : null,
+        skillsAssessment: candidate.skills_assessment
+            ? candidate.skills_assessment.map((s) => snakeToCamelCase(s))
+            : null,
+        jobInfo: candidate.job_info ? snakeToCamelCase(candidate.job_info) : null,
+        synthesis: candidate.synthesis ? snakeToCamelCase(candidate.synthesis) : null,
+    };
 }
 
 export const resolvers = {
     Query: {
         candidates: async () => {
             const candidates = await candidateService.findAll();
-            return candidates.map(c => ({
-                id: c._id,
-                status: c.status,
-                tpType: c.tp_type,
-                identity: {
-                    fullName: c.identity.full_name,
-                    email: c.identity.email,
-                    phone: c.identity.phone,
-                },
-                schoolLevel: c.education?.school_level ?? null,
-            }));
+            return candidates.map(toGql);
         },
     },
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }) => {
             const id = randomUUID();
+            const snakeInput = camelToSnakeCase(input);
+
             const newCandidate = await candidateService.create({
                 _id: id,
-                tp_type: input.tpType,
-                status: input.status,
-                identity: {
-                    full_name: input.identity.fullName,
-                    email: input.identity.email,
-                    phone: input.identity.phone,
-                },
-                education: input.schoolLevel
-                    ? { school_level: input.schoolLevel }
-                    : undefined,
-                training_site: input.trainingSite ?? undefined,
+                candidate_id: id,
+                ...snakeInput,
             });
 
-            return {
-                id: newCandidate._id,
-                status: newCandidate.status,
-                tpType: newCandidate.tp_type,
-                identity: {
-                    fullName: newCandidate.identity.full_name,
-                    email: newCandidate.identity.email,
-                    phone: newCandidate.identity.phone,
-                },
-                schoolLevel: newCandidate.education?.school_level ?? null,
-            };
+            return toGql(newCandidate);
+        },
+
+        updateCandidate: async (
+            _: unknown,
+            { id, input }: { id: string; input: UpdateCandidateInput }
+        ) => {
+            const snakeInput = camelToSnakeCase(input);
+            const updated = await candidateService.update(id, snakeInput);
+
+            if (!updated) {
+                throw new Error(`Candidate with id ${id} not found`);
+            }
+
+            return toGql(updated);
         },
     },
 };
