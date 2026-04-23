@@ -140,3 +140,37 @@ export const DELETE_COMPANY = gql`
     deleteCompany(id: $id)
   }
 `
+
+// ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
+
+export const GET_CANDIDATES = gql`
+  query GetCandidates {
+    candidates {
+      id
+      status
+      tpType
+      identity {
+        fullName
+        email
+        phone
+      }
+      schoolLevel
+    }
+  }
+`
+
+export const CREATE_CANDIDATE = gql`
+  mutation CreateCandidate($input: CreateCandidateInput!) {
+    createCandidate(input: $input) {
+      id
+      status
+      tpType
+      identity {
+        fullName
+        email
+        phone
+      }
+      schoolLevel
+    }
+  }
+`

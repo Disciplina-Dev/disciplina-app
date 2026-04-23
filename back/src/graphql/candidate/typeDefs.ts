@@ -31,6 +31,26 @@ export const typeDefs = gql`
         BANNED
     }
 
+    enum TrainingSite {
+        NORD_SAINTE_MARIE
+        OUEST_SAINT_PAUL
+        SUD_SAINT_PIERRE
+    }
+
+    input CreateCandidateIdentityInput {
+        fullName: String!
+        email: String!
+        phone: String!
+    }
+
+    input CreateCandidateInput {
+        status: CandidateStatus!
+        tpType: TitleProfessionalType!
+        identity: CreateCandidateIdentityInput!
+        schoolLevel: SchoolLevel
+        trainingSite: TrainingSite
+    }
+
     type CandidateIdentity {
         fullName: String!
         email: String!
@@ -47,5 +67,9 @@ export const typeDefs = gql`
 
     type Query {
         candidates: [CandidateSummary!]!
+    }
+
+    type Mutation {
+        createCandidate(input: CreateCandidateInput!): CandidateSummary!
     }
 `;

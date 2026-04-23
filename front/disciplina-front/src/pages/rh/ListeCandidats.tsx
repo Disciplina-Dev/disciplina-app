@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Search, User, MapPin, Car, Calendar, 
+  Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
   X, Save, FileText, ClipboardCheck, Edit2, Plus, SlidersHorizontal, Trash2
 } from 'lucide-react';
-import { mockCandidates } from '@/data/mockCandidates';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
+import InputField from '@/components/ui/InputField';
+import { useCandidates, useCreateCandidate } from '@/graphql/hooks';
 
 // --- Helpers ---
 
@@ -359,10 +360,187 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: Candidat
 
 // --- Main Page Component ---
 
+// --- Create Candidate Modal ---
+
+interface CreateCandidateModalProps {
+  onClose: () => void;
+  onCreated: () => void;
+}
+
+function CreateCandidateModal({ onClose, onCreated }: CreateCandidateModalProps) {
+  const { createCandidate, result } = useCreateCandidate();
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    tpType: TitleProfessionalType.CC as string,
+    status: 'SEEKING' as string,
+    trainingSite: '' as string,
+    schoolLevel: '' as string,
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const res = await createCandidate({
+      tpType: form.tpType,
+      status: form.status,
+      identity: { fullName: form.fullName, email: form.email, phone: form.phone },
+      schoolLevel: form.schoolLevel || null,
+      trainingSite: form.trainingSite || null,
+    });
+    if (res.error) { setError(res.error.message); return; }
+    onCreated();
+    onClose();
+  };
+
+  const field = (key: keyof typeof form) =>
+    (val: string) => setForm(prev => ({ ...prev, [key]: val }));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col animate-[fadeIn_0.2s_ease-out]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-light flex items-center justify-center">
+              <User size={18} className="text-purple" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900">Nouveau candidat</h2>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
+              <AlertCircle size={16} className="shrink-0" />
+              {error}
+            </div>
+          )}
+          <InputField
+            id="cn-fullname"
+            label="Nom complet *"
+            placeholder="Ex: Jean Dupont"
+            required
+            value={form.fullName}
+            onChange={e => field('fullName')(e.target.value)}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <InputField
+              id="cn-email"
+              label="Email *"
+              type="email"
+              placeholder="jean@example.com"
+              required
+              value={form.email}
+              onChange={e => field('email')(e.target.value)}
+            />
+            <InputField
+              id="cn-phone"
+              label="Téléphone *"
+              type="tel"
+              placeholder="0692 XX XX XX"
+              required
+              value={form.phone}
+              onChange={e => field('phone')(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="cn-tptype" className="text-sm font-medium text-gray-700">Type TP *</label>
+              <select
+                id="cn-tptype"
+                required
+                value={form.tpType}
+                onChange={e => field('tpType')(e.target.value)}
+                className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-blue transition-colors"
+              >
+                {Object.values(TitleProfessionalType).map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="cn-status" className="text-sm font-medium text-gray-700">Statut *</label>
+              <select
+                id="cn-status"
+                required
+                value={form.status}
+                onChange={e => field('status')(e.target.value)}
+                className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-blue transition-colors"
+              >
+                <option value="SEEKING">Recherche</option>
+                <option value="NOT_SEEKING">Ne recherche pas</option>
+                <option value="MATCHED">Immersion</option>
+                <option value="CONTRACTED">Contrat</option>
+                <option value="CANCELLED">Rupture</option>
+                <option value="BANNED">Banni</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="cn-site" className="text-sm font-medium text-gray-700">Secteur</label>
+              <select
+                id="cn-site"
+                value={form.trainingSite}
+                onChange={e => field('trainingSite')(e.target.value)}
+                className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-blue transition-colors"
+              >
+                <option value="">Non renseigné</option>
+                <option value="NORD_SAINTE_MARIE">Nord</option>
+                <option value="OUEST_SAINT_PAUL">Ouest</option>
+                <option value="SUD_SAINT_PIERRE">Sud</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="cn-level" className="text-sm font-medium text-gray-700">Niveau d'études</label>
+              <select
+                id="cn-level"
+                value={form.schoolLevel}
+                onChange={e => field('schoolLevel')(e.target.value)}
+                className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-blue transition-colors"
+              >
+                <option value="">Non renseigné</option>
+                {Object.values(SchoolLevel).map(l => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+            <Button
+              type="submit"
+              isLoading={result.fetching}
+              className="bg-purple hover:bg-purple-dark text-white"
+              leftIcon={<Plus size={16} />}
+            >
+              Créer le candidat
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// --- Main Page Component ---
+
 export default function ListeCandidats() {
-  const [candidates, setCandidates] = useState<Candidate[]>(mockCandidates);
+  const { candidates, loading, error, refetch } = useCandidates();
+  const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
   const [search, setSearch] = useState('');
-  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Sync server candidates into local state (enables optimistic edits)
+  useMemo(() => { setLocalCandidates(candidates); }, [candidates]);
+
   // Filters state
   const [filterSite, setFilterSite] = useState<TrainingSite | ''>('');
   const [filterPermis, setFilterPermis] = useState<'all' | 'yes' | 'no'>('all');
@@ -374,10 +552,8 @@ export default function ListeCandidats() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
 
   const filteredCandidates = useMemo(() => {
-    return candidates.filter(c => {
-      // Search
+    return localCandidates.filter(c => {
       if (search && !c.identity.full_name.toLowerCase().includes(search.toLowerCase())) return false;
-      // Filters
       if (filterSite && c.training_site !== filterSite) return false;
       if (filterLevel && c.education?.school_level !== filterLevel) return false;
       if (filterStatus && c.status !== filterStatus) return false;
@@ -389,14 +565,14 @@ export default function ListeCandidats() {
       }
       return true;
     });
-  }, [candidates, search, filterSite, filterPermis, filterLevel, filterMaxAge, filterStatus]);
+  }, [localCandidates, search, filterSite, filterPermis, filterLevel, filterMaxAge, filterStatus]);
 
   const handleUpdateCandidate = (updated: Candidate) => {
-    setCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));
+    setLocalCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));
   };
 
   const handleUpdateStatus = (id: string, newStatus: CandidateStatus) => {
-    setCandidates(prev => prev.map(c => c._id === id ? { ...c, status: newStatus } : c));
+    setLocalCandidates(prev => prev.map(c => c._id === id ? { ...c, status: newStatus } : c));
     if (selectedCandidate && selectedCandidate._id === id) {
       setSelectedCandidate(prev => prev ? { ...prev, status: newStatus } : null);
     }
@@ -411,6 +587,34 @@ export default function ListeCandidats() {
     setFilterMaxAge('');
     setFilterStatus('');
   };
+
+  // Loading state
+  if (loading && localCandidates.length === 0) {
+    return (
+      <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-gray-500">
+          <Loader2 size={40} className="animate-spin text-purple" />
+          <p className="text-sm font-medium">Chargement des candidats…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && localCandidates.length === 0) {
+    return (
+      <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+          <div className="w-12 h-12 rounded-full bg-danger-bg flex items-center justify-center">
+            <AlertCircle size={24} className="text-danger" />
+          </div>
+          <p className="font-semibold text-gray-900">Impossible de charger les candidats</p>
+          <p className="text-sm text-gray-500">{error}</p>
+          <Button variant="secondary" onClick={() => refetch()}>Réessayer</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] p-4 sm:p-8">
@@ -446,7 +650,12 @@ export default function ListeCandidats() {
             <SlidersHorizontal size={16} />
             Filtres {activeFiltersCount > 0 && <span className="bg-purple text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full ml-1">{activeFiltersCount}</span>}
           </button>
-          <Button className="bg-purple hover:bg-purple-dark text-white shadow-sm h-[42px]" leftIcon={<Plus size={18} />}>
+          <Button
+            id="btn-nouveau-candidat"
+            className="bg-purple hover:bg-purple-dark text-white shadow-sm h-[42px]"
+            leftIcon={<Plus size={18} />}
+            onClick={() => setShowCreateModal(true)}
+          >
             Nouveau
           </Button>
         </div>
@@ -600,13 +809,21 @@ export default function ListeCandidats() {
         )}
       </div>
 
-      {/* Modal Render */}
+      {/* Detail Modal */}
       {selectedCandidate && (
-        <CandidateModal 
-          candidate={selectedCandidate} 
-          onClose={() => setSelectedCandidate(null)} 
-          onSave={handleUpdateCandidate} 
+        <CandidateModal
+          candidate={selectedCandidate}
+          onClose={() => setSelectedCandidate(null)}
+          onSave={handleUpdateCandidate}
           onUpdateStatus={handleUpdateStatus}
+        />
+      )}
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <CreateCandidateModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => refetch()}
         />
       )}
 

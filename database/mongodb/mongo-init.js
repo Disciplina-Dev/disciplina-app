@@ -13,7 +13,7 @@ db.createCollection('candidates', {
   validator: {
     $jsonSchema: {
       bsonType: "object",
-      required: ["_id", "candidate_id", "status", "tp_type"],
+      required: ["_id", "status", "tp_type"],
       properties: {
         _id: { bsonType: "string" },
         created_at: { bsonType: "date" },

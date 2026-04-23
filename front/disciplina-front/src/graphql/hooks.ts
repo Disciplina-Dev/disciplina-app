@@ -7,7 +7,11 @@ import {
   CREATE_COMPANY,
   UPDATE_COMPANY,
   DELETE_COMPANY,
+  GET_CANDIDATES,
+  CREATE_CANDIDATE,
 } from '@/graphql/queries'
+import type { Candidate } from '@/types/candidate'
+import { CandidateStatus, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -144,4 +148,84 @@ export function useDeleteCompany() {
   }
 
   return { deleteCompany, result }
+}
+
+// ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
+
+/** Maps backend status enum (English) → frontend enum (French labels) */
+function mapStatus(raw: string): CandidateStatus {
+  const map: Record<string, CandidateStatus> = {
+    SEEKING: CandidateStatus.SEEKING,
+    NOT_SEEKING: CandidateStatus.NOT_SEEKING,
+    CANCELLED: CandidateStatus.CANCELLED,
+    MATCHED: CandidateStatus.MATCHED,
+    CONTRACTED: CandidateStatus.CONTRACTED,
+    IMMERSING: CandidateStatus.MATCHED, // IMMERSING → Immersion (same label)
+    BANNED: CandidateStatus.BANNED,
+  }
+  return map[raw] ?? CandidateStatus.SEEKING
+}
+
+function mapTpType(raw: string): TitleProfessionalType {
+  return (TitleProfessionalType as any)[raw] ?? TitleProfessionalType.CC
+}
+
+function mapSchoolLevel(raw: string | null | undefined): SchoolLevel | undefined {
+  if (!raw) return undefined
+  return (SchoolLevel as any)[raw] ?? undefined
+}
+
+/**
+ * Fetches candidates from the dedicated MongoDB GraphQL endpoint.
+ * Returns { candidates, loading, error, refetch }.
+ */
+export function useCandidates() {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CANDIDATES,
+    context: { url: 'http://localhost:4000/api/graphql/candidates' },
+  })
+
+  const candidates: Candidate[] = (result.data?.candidates ?? []).map((c: any) => ({
+    _id: c.id,
+    tp_type: mapTpType(c.tpType),
+    status: mapStatus(c.status),
+    identity: {
+      full_name: c.identity.fullName,
+      email: c.identity.email,
+      phone: c.identity.phone,
+    },
+    education: c.schoolLevel ? { school_level: mapSchoolLevel(c.schoolLevel) } : undefined,
+  }))
+
+  return {
+    candidates,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+interface CreateCandidateInput {
+  tpType: string
+  status: string
+  identity: { fullName: string; email: string; phone: string }
+  schoolLevel?: string | null
+  trainingSite?: string | null
+}
+
+/**
+ * Returns a function to create a new candidate via mutation.
+ * Uses candidateGraphqlClient directly to bypass the companies urql Provider.
+ */
+export function useCreateCandidate() {
+  const [result, executeMutation] = useMutation(CREATE_CANDIDATE)
+
+  const createCandidate = (input: CreateCandidateInput) => {
+    return executeMutation(
+      { input },
+      { url: 'http://localhost:4000/api/graphql/candidates' } as any,
+    )
+  }
+
+  return { createCandidate, result }
 }

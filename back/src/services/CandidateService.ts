@@ -7,4 +7,8 @@ export class CandidateService {
     async findAll(): Promise<Candidate[]> {
         return this.repository.findAll();
     }
+
+    async create(data: Partial<Candidate>): Promise<Candidate> {
+        return this.repository.create(data);
+    }
 }
