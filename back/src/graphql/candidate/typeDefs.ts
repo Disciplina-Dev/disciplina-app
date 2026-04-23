@@ -23,7 +23,7 @@ export const typeDefs = gql`
 
     enum CandidateStatus {
         RECHERE
-        NE RECHERCHE PAS
+        NE_RECHERCHE_PAS
         RUPTURE
         IMMERSION
         CONTRAT
@@ -38,7 +38,7 @@ export const typeDefs = gql`
 
     type CandidateSummary {
         id: String!
-        status: CanidateStatus!
+        status: CandidateStatus!
         tpType: TitleProfessionalType!
         identity: CandidateIdentity!
         schoolLevel: SchoolLevel

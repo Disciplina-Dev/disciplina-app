@@ -13,6 +13,12 @@ services:
       - back-end
     ports:
       - 5001:3306
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
   nosql-db:
     image: mongo:latest
     restart: always
@@ -24,10 +30,23 @@ services:
       - ./database/mongodb/mongo-data:/data/db
     ports:
       - ${MONGO_PORT}:27017
+    networks:
+      - back-end
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
   backend:
     build:
       context: ./back/
       dockerfile: Dockerfile
+    depends_on:
+      sql-db:
+        condition: service_healthy
+      nosql-db:
+        condition: service_healthy
     env_file:
       - ./.env
       - ./back/.env
@@ -40,6 +59,8 @@ services:
     build:
       context: ./front/disciplina-front
       dockerfile: Dockerfile
+    depends_on:
+      - backend
     networks:
       - front-end
     ports:
