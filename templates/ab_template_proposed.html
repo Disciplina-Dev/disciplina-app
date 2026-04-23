@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<style>
+
+/* ══ PAGE ══════════════════════════════════════════ */
+@page {
+  size: A4;
+  margin: 28mm 20mm 30mm 20mm;
+  @top-left {
+    content: element(running-logo);
+    vertical-align: bottom;
+  }
+  @bottom-center {
+    content: element(running-footer);
+    vertical-align: top;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.5pt;
+  color: #000;
+  line-height: 1.5;
+}
+
+/* ══ LOGO COURANT (toutes pages) ════════════════════ */
+.running-logo {
+  position: running(running-logo);
+  padding-bottom: 4pt;
+}
+.running-logo img {
+  height: 42pt;
+  width: auto;
+  display: block;
+}
+.running-logo .tagline {
+  font-size: 8pt;
+  font-style: italic;
+  color: #222;
+  margin-top: 1pt;
+}
+
+/* ══ FOOTER COURANT (toutes pages) ═════════════════ */
+.running-footer {
+  position: running(running-footer);
+  text-align: center;
+  font-size: 7pt;
+  color: #333;
+  border-top: 0.5pt solid #999;
+  padding-top: 3pt;
+  line-height: 1.45;
+  font-family: Arial, sans-serif;
+}
+
+/* ══ TITRE PRINCIPAL (page 1 seulement) ════════════ */
+.doc-title {
+  text-align: center;
+  font-size: 20pt;
+  font-weight: bold;
+  margin: 8pt 0 18pt 0;
+  color: #000;
+}
+
+/* ══ BOÎTE DE SECTION ═══════════════════════════════ */
+.section-box {
+  border: 1pt solid #000;
+  padding: 5pt 10pt;
+  margin-bottom: 0;
+  background: #fff;
+}
+.section-box-title {
+  font-size: 10.5pt;
+  font-weight: bold;
+  color: #000;
+}
+
+/* ══ CONTENU DE SECTION ═════════════════════════════ */
+.section-content {
+  padding: 4pt 0 14pt 0;
+}
+
+/* ══ CHAMP ══════════════════════════════════════════ */
+.field {
+  margin-top: 10pt;
+}
+.field-label {
+  font-weight: bold;
+  font-size: 10.5pt;
+}
+.field-hint {
+  font-style: italic;
+  font-size: 9pt;
+  color: #444;
+  margin-top: 1pt;
+}
+.field-value {
+  font-size: 10.5pt;
+  margin-top: 3pt;
+}
+/* label + valeur inline ex: "Label : valeur" */
+.field-inline {
+  margin-top: 10pt;
+  font-size: 10.5pt;
+  line-height: 1.6;
+}
+.field-inline b { font-weight: bold; }
+
+/* ══ MISSIONS (liste 2 colonnes) ════════════════════ */
+.missions-table {
+  display: table;
+  width: 100%;
+  margin-top: 6pt;
+}
+.missions-row {
+  display: table-row;
+}
+.missions-col {
+  display: table-cell;
+  width: 50%;
+  vertical-align: top;
+  padding-right: 10pt;
+  font-size: 10pt;
+}
+.missions-col:last-child { padding-right: 0; }
+.mission-item {
+  margin-bottom: 5pt;
+  display: flex;
+  align-items: flex-start;
+  gap: 5pt;
+}
+.mission-cb {
+  flex-shrink: 0;
+  font-size: 10pt;
+  margin-top: 0.5pt;
+}
+.autres-box {
+  border-left: 2.5pt solid #333;
+  padding: 4pt 8pt;
+  margin-top: 8pt;
+  font-size: 10pt;
+  background: #f8f8f8;
+}
+
+/* ══ RADIOS / CASES ══════════════════════════════════ */
+.choice-row {
+  margin-top: 7pt;
+  font-size: 10.5pt;
+}
+.choice-row b { font-weight: bold; }
+.opt {
+  display: inline;
+  margin-right: 14pt;
+}
+
+/* ══ LISTE VERTICALE (âge, méthode, pmsmp) ══════════ */
+.choice-list {
+  margin-top: 7pt;
+  font-size: 10.5pt;
+}
+.choice-list b { font-weight: bold; }
+.choice-list ul {
+  list-style: none;
+  margin: 2pt 0 0 12pt;
+}
+.choice-list ul li {
+  margin-bottom: 2pt;
+}
+
+/* ══ JOURS DE FORMATION (liste + tableau) ═══════════ */
+.jours-table {
+  border-collapse: collapse;
+  margin-top: 6pt;
+  width: 55%;
+  font-size: 10pt;
+}
+.jours-table th {
+  border: 0.75pt solid #555;
+  padding: 4pt 10pt;
+  font-weight: bold;
+  background: #f2f2f2;
+  text-align: center;
+}
+.jours-table th:first-child { text-align: left; }
+.jours-table td {
+  border: 0.75pt solid #555;
+  padding: 3pt 10pt;
+  text-align: center;
+}
+.jours-table td:first-child {
+  text-align: left;
+  font-weight: bold;
+}
+
+/* ══ ENGAGEMENT ═════════════════════════════════════ */
+.engagement-list {
+  margin-top: 8pt;
+  font-size: 10.5pt;
+}
+.engagement-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6pt;
+  margin-bottom: 8pt;
+  line-height: 1.45;
+}
+.engagement-cb {
+  flex-shrink: 0;
+  font-size: 11pt;
+  margin-top: 1pt;
+}
+
+/* ══ SAUT DE PAGE ════════════════════════════════════ */
+.page-break { page-break-before: always; }
+.avoid-break { page-break-inside: avoid; }
+
+/* ══ PAGE SIGNATURE (dédiée YouSign) ════════════════ */
+.signature-page {
+  page-break-before: always;
+  padding-top: 0;
+}
+.sig-fait {
+  margin-top: 18pt;
+  display: table;
+  width: 100%;
+  font-size: 10.5pt;
+  font-weight: bold;
+}
+.sig-fait-cell {
+  display: table-cell;
+  width: 50%;
+  vertical-align: top;
+}
+.sig-fait-line {
+  display: inline-block;
+  width: 55%;
+  border-bottom: 1pt solid #000;
+  margin-left: 5pt;
+  vertical-align: bottom;
+  height: 14pt;
+}
+.sig-title {
+  font-weight: bold;
+  font-size: 10.5pt;
+  margin: 18pt 0 12pt 0;
+}
+.sig-blocks {
+  display: table;
+  width: 100%;
+  margin-top: 10pt;
+}
+.sig-block-cell {
+  display: table-cell;
+  width: 50%;
+  vertical-align: top;
+  padding-right: 20pt;
+}
+.sig-block-cell:last-child { padding-right: 0; }
+.sig-block {
+  border: 1pt dashed #999;
+  min-height: 75pt;
+  padding: 8pt 10pt;
+}
+.sig-block-label {
+  font-size: 8.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: #444;
+  letter-spacing: 0.04em;
+  margin-bottom: 5pt;
+}
+.sig-block-name {
+  font-size: 9pt;
+  font-style: italic;
+  color: #555;
+}
+
+/* ══ CLAUSE ══════════════════════════════════════════ */
+.clause-p {
+  font-size: 10pt;
+  line-height: 1.55;
+  text-align: justify;
+  margin-top: 6pt;
+}
+.contacts-section {
+  font-size: 10pt;
+  line-height: 1.5;
+}
+.contacts-site-title {
+  font-weight: bold;
+  margin: 7pt 0 2pt 0;
+}
+.contacts-items {
+  list-style: none;
+  margin-left: 8pt;
+}
+.contacts-items li::before {
+  content: "- ";
+}
+.contacts-items li {
+  margin-bottom: 2pt;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ══ ÉLÉMENTS COURANTS (logo + footer sur toutes pages) ══ -->
+<div class="running-logo">
+  <img src="logo-disciplina.svg" alt="Disciplina" />
+  <div class="tagline">Notre passion, votre progression</div>
+</div>
+<div class="running-footer">
+  <strong>DISCIPLINA</strong> | 71 rue Roger Payet, Sainte-Marie 97438 | Numéro SIRET : <em>97828986600011</em><br>
+  Déclaration d'activité enregistrée sous le n° 04973484197 auprès du Préfet de région de Réunion.
+  Cet enregistrement ne vaut pas agrément de l'Etat - Mis à jour le 07/08/2025
+</div>
+
+<!-- ════════════════════════════════════════
+     PAGE 1 — IDENTITÉ DE L'ENTREPRISE
+════════════════════════════════════════ -->
+
+<div class="doc-title">Analyse du besoin de l'entreprise</div>
+
+<!-- Identité de l'entreprise -->
+<div class="section-box">
+  <span class="section-box-title">Identité de l'entreprise</span>
+</div>
+<div class="section-content">
+  <div class="field-inline"><b>Dénomination ou raison sociale :</b> {{ raison_sociale or '' }}</div>
+  <div class="field-inline"><b>Numéro SIRET du siège social :</b> {{ siret or '' }}</div>
+</div>
+
+<!-- Coordonnées du siège -->
+<div class="section-box">
+  <span class="section-box-title">Coordonnées du siège</span>
+</div>
+<div class="section-content">
+  <div class="field-inline"><b>Adresse du siège social :</b> {{ adresse_siege or '' }}</div>
+  <div class="field-inline"><b>Code postal :</b> {{ code_postal or '' }}</div>
+  <div class="field-inline"><b>Commune :</b> {{ commune or '' }}</div>
+</div>
+
+<!-- Représentant légal -->
+<div class="section-box">
+  <span class="section-box-title">Informations du représentant légal</span>
+</div>
+<div class="section-content">
+  <div class="field-inline"><b>Nom et prénom du représentant légal :</b> {{ rl_nom or '' }}</div>
+  <div class="field-inline"><b>Fonction du représentant légal :</b> {{ rl_fonction or '' }}</div>
+  <div class="field-inline"><b>Téléphone du représentant légal :</b> {{ rl_telephone or '' }}</div>
+  <div class="field-inline"><b>Courriel du représentant légal :</b> {{ rl_email or '' }}</div>
+</div>
+
+<!-- Responsable de recrutement -->
+<div class="section-box">
+  <span class="section-box-title">Informations du responsable de recrutement</span>
+</div>
+<div class="section-content">
+  {% if rr_same_as_rl %}
+  <div class="field-inline" style="font-style:italic;color:#555;">Même personne que le représentant légal.</div>
+  {% else %}
+  <div class="field-inline"><b>Nom et prénom du responsable de recrutement :</b> {{ rr_nom or '' }}</div>
+  <div class="field-inline"><b>Fonction du responsable de recrutement :</b> {{ rr_fonction or '' }}</div>
+  <div class="field-inline"><b>Téléphone du responsable de recrutement :</b> {{ rr_telephone or '' }}</div>
+  <div class="field-inline"><b>Courriel du responsable de recrutement :</b> {{ rr_email or '' }}</div>
+  {% endif %}
+</div>
+
+
+<!-- ════════════════════════════════════════
+     PAGE 2 — À PROPOS + EXIGENCES POSTE
+════════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<!-- À propos de l'entreprise -->
+<div class="section-box">
+  <span class="section-box-title">A propos de l'entreprise</span>
+</div>
+<div class="section-content">
+  <div class="field">
+    <div class="field-label">Présentation de l'activité de l'entreprise :</div>
+    <div class="field-hint">(Brève description de l'activité principale de l'entreprise, des secteurs concernés, et de sa mission globale.)</div>
+    <div class="field-value" style="margin-top:6pt;">{{ presentation_activite or '' }}</div>
+  </div>
+  <div class="field-inline" style="margin-top:12pt;"><b>Nombre de poste à pourvoir :</b> {{ nb_postes or '' }}</div>
+  <div class="field-inline"><b>Localisation du poste à pourvoir :</b> {{ localisation_poste or '' }}</div>
+</div>
+
+<!-- Exigences du poste -->
+<div class="section-box">
+  <span class="section-box-title">Exigences du poste à pourvoir</span>
+</div>
+<div class="section-content">
+  <div class="field-inline"><b>Intitulé du métier :</b> {{ intitule_poste or '' }}</div>
+
+  <div class="field" style="margin-top:12pt;">
+    <div class="field-label">Description des missions :</div>
+    <div class="field-hint">(Détailler les principales responsabilités et tâches associées au poste)</div>
+    {% if missions and missions|length > 0 %}
+    <div class="missions-table" style="margin-top:6pt;">
+      <div class="missions-row">
+        <div class="missions-col">
+          {% for m in missions %}{% if loop.index0 % 2 == 0 %}
+          <div class="mission-item"><span class="mission-cb">▣</span><span>{{ m }}</span></div>
+          {% endif %}{% endfor %}
+        </div>
+        <div class="missions-col">
+          {% for m in missions %}{% if loop.index0 % 2 == 1 %}
+          <div class="mission-item"><span class="mission-cb">▣</span><span>{{ m }}</span></div>
+          {% endif %}{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% if autres_missions %}
+    <div class="autres-box"><b>Autres missions :</b> {{ autres_missions }}</div>
+    {% endif %}
+  </div>
+
+  <div class="field" style="margin-top:14pt;">
+    <div class="field-label">Profils recherchés :</div>
+    <div class="field-hint">(Préciser les formations et expériences professionnelles souhaitées.)</div>
+    <div class="field-value" style="margin-top:5pt;">{{ profils_recherches or '' }}</div>
+  </div>
+
+  <div class="field" style="margin-top:14pt;">
+    <div class="field-label">Compétences et savoir-être requises (techniques, comportementales, soft skills) :</div>
+    <div class="field-hint">(Compétences techniques spécifiques requises, qualités personnelles recherchées, etc.)</div>
+    <div class="field-value" style="margin-top:5pt;">{{ competences or '' }}</div>
+  </div>
+
+  <div class="field" style="margin-top:14pt;">
+    <div class="field-label">Commentaires supplémentaires :</div>
+    <div class="field-hint">(Précisions sur les horaires, les salaires, les avantages éventuels, etc.)</div>
+    <div class="field-value" style="margin-top:5pt;">{{ commentaires or '' }}</div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     PAGE 3 — EXIGENCES APPRENTI + ENGAGEMENT
+════════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<div class="section-box">
+  <span class="section-box-title">Exigences de l'apprenti</span>
+</div>
+<div class="section-content">
+
+  <!-- Domaine -->
+  <div class="choice-row">
+    <b>Domaine de formation : </b>
+    <span class="opt">{% if domaine == 'Secretariat' %}●{% else %}○{% endif %} Secrétariat</span>
+    <span class="opt">{% if domaine == 'Vente' %}●{% else %}○{% endif %} Vente</span>
+  </div>
+
+  <!-- Niveau -->
+  <div class="choice-row">
+    <b>Niveau de formation : </b>
+    <span class="opt">{% if niveau_formation == 'Niveau Bac' %}●{% else %}○{% endif %} Niveau Bac</span>
+    <span class="opt">{% if niveau_formation in ['Niveau Bac+2', 'Niveau Bac + 2'] %}●{% else %}○{% endif %} Niveau Bac + 2</span>
+    <span class="opt">{% if niveau_formation in ['Niveau Bac+3', 'Niveau Bac + 3'] %}●{% else %}○{% endif %} Niveau Bac + 3</span>
+  </div>
+
+  <!-- Permis -->
+  <div class="choice-row">
+    <b>Permis : </b>
+    <span class="opt">{% if permis == 'Oui' %}▣{% else %}▢{% endif %} Oui</span>
+    <span class="opt" style="margin-left:10pt;">{% if permis == 'Optionnel' %}●{% else %}○{% endif %} Optionnel</span>
+  </div>
+
+  <!-- Expérience -->
+  <div class="choice-row">
+    <b>Expérience requis : </b>
+    <span class="opt">{% if experience == 'Débutant' %}▣{% else %}▢{% endif %} Débutant</span>
+    <span class="opt">{% if experience == 'Obligatoire' %}▣{% else %}▢{% endif %} Obligatoire</span>
+  </div>
+
+  <!-- Âge -->
+  <div class="choice-list">
+    <b>Âge exigé de l'apprenti :</b>
+    <ul>
+      <li>{% if age_exige == '18 à 20 ans' %}●{% else %}○{% endif %} 18 à 20 ans</li>
+      <li>{% if age_exige == '21 à 25 ans' %}●{% else %}○{% endif %} 21 à 25 ans</li>
+      <li>{% if age_exige == '26 à 29 ans' %}●{% else %}○{% endif %} 26 à 29 ans</li>
+    </ul>
+  </div>
+
+  <!-- Méthode recrutement -->
+  <div class="choice-list">
+    <b>Méthode de recrutement :</b>
+    <ul>
+      <li>{% if methode_recrutement == 'Réception de tous les CV' %}●{% else %}○{% endif %} Réception de tous les CV</li>
+      <li>{% if methode_recrutement == 'Présélection des CV par le centre de formation' %}●{% else %}○{% endif %} Présélection des CV par le centre de formation</li>
+      <li>{% if methode_recrutement == 'Pré-entretien des CV par le centre de formation' %}●{% else %}○{% endif %} Pré-entretien des CV par le centre de formation</li>
+    </ul>
+  </div>
+
+  <!-- PMSMP -->
+  <div class="choice-list">
+    <b>Souhaitez-vous proposer une période d'immersion (PMSMP) avant la signature du contrat d'apprentissage :</b>
+    <ul>
+      <li>{% if pmsmp == 'Oui' %}●{% else %}○{% endif %} Oui</li>
+      <li>{% if pmsmp == 'Non' %}●{% else %}○{% endif %} Non</li>
+      <li>{% if pmsmp == 'A discuter ensemble' %}●{% else %}○{% endif %} A discuter ensemble</li>
+    </ul>
+  </div>
+
+  <!-- Jours de formation -->
+  {% if jours_formation %}
+  <div style="margin-top:12pt;">
+    <b>Jours de formation possible : (Oui / Non / Préféré)</b>
+    <table class="jours-table">
+      <thead>
+        <tr>
+          <th>Jour</th>
+          <th>Oui</th>
+          <th>Non</th>
+          <th>Préféré</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'] %}
+        {% for j in jours %}
+        {% set v = jours_formation.get(j, 'Non') %}
+        <tr>
+          <td><b>{{ j }} :</b></td>
+          <td>{% if v == 'Oui' %}✓{% endif %}</td>
+          <td>{% if v == 'Non' %}✓{% endif %}</td>
+          <td>{% if v == 'Préféré' %}★{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Engagement -->
+<div class="section-box">
+  <span class="section-box-title">Engagement sur l'évolution des missions</span>
+</div>
+<div class="section-content">
+  <div class="field-inline" style="margin-top:4pt;"><b>L'entreprise reconnaît que les missions confiées à l'apprenti pourront :</b></div>
+  <div class="engagement-list">
+    <div class="engagement-item">
+      <span class="engagement-cb">▣</span>
+      <span><b>Évoluer progressivement</b> en fonction de sa montée en compétences.</span>
+    </div>
+    <div class="engagement-item">
+      <span class="engagement-cb">▣</span>
+      <span><b>Être adaptées</b> afin de rester en cohérence avec le parcours de formation suivi.</span>
+    </div>
+    <div class="engagement-item">
+      <span class="engagement-cb">▣</span>
+      <span><b>Faire l'objet de réajustements</b> en accord avec le centre de formation, dans un souci de complémentarité entre la pratique en entreprise et les enseignements dispensés.</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     PAGE 4 — CLAUSE + CONTACTS + FAIT À
+════════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<!-- Clause -->
+<div class="section-box">
+  <span class="section-box-title">Clause de non-engagement et de confidentialité</span>
+</div>
+<div class="section-content" style="padding-bottom:8pt;">
+  <p class="clause-p">Ce document est fourni à titre informatif et ne constitue en aucun cas un engagement obligatoire de la part de l'entreprise.</p>
+  <p class="clause-p">DISCIPLINA s'engage à respecter la confidentialité des données reçues et garantit que celles-ci ne seront utilisées que dans le cadre du processus de recrutement décrit.</p>
+  <p class="clause-p">Les informations contenues dans ce document, ainsi que toutes les données échangées (y compris, mais sans s'y limiter, les CV, les lettres de motivation et autres documents personnels transmis), sont strictement confidentielles. Les informations personnelles, notamment les CV, ne peuvent être utilisées à d'autres fins ni être partagées avec des tiers sans le consentement explicite des personnes concernées.</p>
+  <p class="clause-p">De la même manière, nous demandons aux destinataires de ce document et des données transmises de respecter ces mêmes obligations de confidentialité. Toute utilisation non autorisée des données personnelles, y compris l'utilisation des CV à des fins autres que celles définies dans le cadre de cette collaboration, est formellement interdite et pourrait donner lieu à des sanctions.</p>
+  <p class="clause-p">Ce texte clarifie que le document n'a pas de caractère contraignant tout en soulignant l'importance de la confidentialité des données, notamment celles relatives aux candidats.</p>
+</div>
+
+<!-- Contacts -->
+<div class="section-box">
+  <span class="section-box-title">Contacts</span>
+</div>
+<div class="section-content contacts-section" style="padding-bottom:10pt;">
+  <p class="contacts-site-title">Fonction centrale : 8 rue Pondichéry, ZI La Mare, 97438 Ste Marie</p>
+  <ul class="contacts-items">
+    <li>Lorenzo ENCATASSAMY en qualité de Directeur : direction@disciplina.re / 0693 85 59 91</li>
+    <li>Daïna VINGUETAMA-PERIANAGOM en qualité de Référente qualité, Référent des Personnes en Situation de Handicap et Personne Dédiée à la Mobilité : vinguetama.qualite@disciplina.re / 0693 83 17 92</li>
+  </ul>
+  <p class="contacts-site-title">DISCIPLINA Nord : 8 rue Pondichéry, ZI La Mare, 97438 Ste Marie</p>
+  <ul class="contacts-items">
+    <li>Céline BOYER en qualité de Chargé de recrutement : boyer.rh@disciplina.re / 0693 88 80 23</li>
+    <li>Rachelle ADAVAMIS en qualité d'assistante de recrutement : rachelle.rh@disciplina.re / 0693 06 23 12</li>
+    <li>Eléanore PLANTE en qualité d'Assistante de direction : plante.administration@disciplina.re / 0693 88 80 22</li>
+    <li>Emmanuelle TAILE en qualité d'Assistante de gestion en comptabilité : taile.administration@disciplina.re / 0693 01 29 33</li>
+    <li>Amanda SINAMAN en qualité de Commerciale : sinaman.commercial@disciplina.re / 0693 00 76 91</li>
+  </ul>
+  <p class="contacts-site-title">DISCIPLINA Ouest : 14 rue Jules Thirel, 97460 Saint-Paul</p>
+  <ul class="contacts-items">
+    <li>Séverine DUGAIN en qualité d'Assistante de direction : dugain.administration@disciplina.re / 0693 88 80 21</li>
+    <li>Alice NATIVEL en qualité de Chargée de recrutement : nativel.rh@disciplina.re / 0692 44 37 99</li>
+  </ul>
+  <p class="contacts-site-title">DISCIPLINA Sud : 249 avenue du Général de Gaulle, 97410 Saint-Pierre</p>
+  <ul class="contacts-items">
+    <li>Céline BOYER en qualité de Chargé de recrutement : boyer.rh@disciplina.re / 0693 88 80 23</li>
+  </ul>
+</div>
+
+<!-- Fait à / Le -->
+<div class="sig-fait">
+  <div class="sig-fait-cell">
+    <b>Fait à :</b>
+    <span class="sig-fait-line">{% if fait_a %}{{ fait_a }}{% endif %}</span>
+  </div>
+  <div class="sig-fait-cell">
+    <b>Le :</b>
+    <span class="sig-fait-line">{% if fait_le %}{{ fait_le }}{% endif %}</span>
+  </div>
+</div>
+
+<div class="sig-title">Signature et cachet de l'entreprise</div>
+
+
+<!-- ════════════════════════════════════════
+     PAGE 5 — SIGNATURE DÉDIÉE (YouSign)
+     Coordonnées fixes — ne pas modifier
+════════════════════════════════════════ -->
+<div class="signature-page">
+  <div class="sig-blocks">
+    <div class="sig-block-cell">
+      <div class="sig-block">
+        <div class="sig-block-label">Signature et cachet de l'entreprise</div>
+        <div class="sig-block-name">{{ rl_nom or '' }}</div>
+      </div>
+    </div>
+    <div class="sig-block-cell">
+      <div class="sig-block">
+        <div class="sig-block-label">Signature Disciplina</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -21,6 +21,7 @@ import QuestionnaireAB from "@/pages/rh/QuestionnaireAB";
 import Matching from "@/pages/rh/Matching";
 import Calendrier from "@/pages/rh/Calendrier";
 import ABEntreprisesRecues from "@/pages/rh/ABEntreprisesRecues";
+import Relance from "@/pages/rh/Relance";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
       { path: "matching", element: <Matching /> },
       { path: "calendrier", element: <Calendrier /> },
       { path: "analyses-besoin", element: <ABEntreprisesRecues /> },
+      { path: "relance", element: <Relance /> },
     ],
   },
   {
