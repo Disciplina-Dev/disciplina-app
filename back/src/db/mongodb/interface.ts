@@ -150,6 +150,7 @@ export interface Synthesis {
 
 export interface Candidate {
     _id: string;
+    candidate_id: string;
     tp_type: TitleProfessionalType;
     identity: Identity;
     status: CandidateStatus;

@@ -11,4 +11,8 @@ export class CandidateService {
     async create(data: Partial<Candidate>): Promise<Candidate> {
         return this.repository.create(data);
     }
+
+    async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
+        return this.repository.update(id, data);
+    }
 }

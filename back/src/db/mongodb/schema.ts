@@ -130,6 +130,7 @@ const synthesisSchema = new Schema<Synthesis>({
 const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
+        candidate_id: { type: String, required: true },
         tp_type: {
             type: String,
             enum: Object.values(TitleProfessionalType),
