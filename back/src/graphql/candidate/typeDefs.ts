@@ -22,12 +22,13 @@ export const typeDefs = gql`
     }
 
     enum CandidateStatus {
-        RECHERE
-        NE_RECHERCHE_PAS
-        RUPTURE
-        IMMERSION
-        CONTRAT
-        BANNI
+        SEEKING
+        NOT_SEEKING
+        CANCELLED
+        MATCHED
+        CONTRACTED
+        IMMERSING
+        BANNED
     }
 
     type CandidateIdentity {

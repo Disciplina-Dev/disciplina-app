@@ -19,7 +19,7 @@ db.createCollection('candidates', {
         created_at: { bsonType: "date" },
         created_by: { bsonType: "string" },
         status: {
-          enum: ["DRAFT", "ACTIVE", "MATCHED", "CLOSED"]
+          enum: ["SEEKING", "NOT_SEEKING", "CANCELLED", "MATCHED", "CONTRACTED", "IMMERSING" , "BANNED"]
         },
 
         // Titre Professionnel visé
