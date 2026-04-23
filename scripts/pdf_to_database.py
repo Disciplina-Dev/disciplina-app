@@ -166,6 +166,7 @@ def parse_docx(file_path):
 
     in_experiences = False
     exp_buffer = []
+    previous_formation = False
 
     for i, p in enumerate(paragraphs):
         text = p.text.strip()
@@ -180,7 +181,10 @@ def parse_docx(file_path):
 
         label, value = inline_value(p)
         lower: str = text.lower()
-        # print("lower: ", lower, " label: ", label, " value: ", value)
+        if previous_formation == True:
+            background["previous_trainings"] = lower
+            previous_formation = False
+            continue
 
 
         # Identity
@@ -202,20 +206,20 @@ def parse_docx(file_path):
                 parts = value.split(" ", 1)
                 identity["postal_code"] = parts[0]
                 if len(parts) > 1:
-                    identity["city"] = parts[1]
+                    identity["city"] = parts[1].split(':')[1]
         # elif re.search(r"^email\s*:", lower):
         elif "email" in lower:
             identity["email"] = lower.split(':')[1].replace(' ', '')
         elif "numéro de téléphone" in lower:
             if value:
-                identity["phone"] = value
+                identity["phone"] = re.sub('\D', '', value)
         elif "permis b" in lower:
             identity["driving_license_b"] = parse_yes_no(paragraphs, i + 1) or (
                 value.lower().startswith("oui") if value else None
             )
         elif "moyen de transport" in lower:
             if value:
-                identity["transport_means"] = value
+                identity["transport_means"] = value.split(":")[1]
         elif "référent psh" in lower:
             identity["psh_referral_request"] = parse_yes_no(paragraphs, i + 1)
 
@@ -281,10 +285,9 @@ def parse_docx(file_path):
         # Background
         elif "dernier diplôme" in lower:
             if value:
-                background["last_diploma"] = value
+                background["last_diploma"] = value.split(":")[1]
         elif "formations suivies" in lower:
-            if value:
-                background["previous_trainings"] = value
+            previous_formation = True
         elif "expériences professionnelles passées" in lower:
             in_experiences = True
 
@@ -327,30 +330,31 @@ def parse_docx(file_path):
         # Professional projects
         elif "objectifs professionnels" in lower:
             if value:
-                professional_projects["career_objectives"] = value
+                professional_projects["career_objectives"] = value.split(':')[1]
         elif "compétences que vous souhaitez" in lower:
             if value:
-                professional_projects["desired_skills"] = value
+                professional_projects["desired_skills"] = value.split(':')[1]
         elif "motivations pour choisir" in lower:
             if value:
-                professional_projects["apprenticeship_motivation"] = value
+                professional_projects["apprenticeship_motivation"] = value.split(':')[1]
         elif "attentes vis-à-vis" in lower:
+            print(f"value: [{value}], label: [{label}], lower: [{lower}]")
             if value:
-                professional_projects["training_expectations"] = value
+                professional_projects["training_expectations"] = lower.split(':')[1]
 
         # Job info
         elif "pourquoi avez-vous choisi ce domaine" in lower:
             if value:
-                job_info["domain_motivation"] = value
+                job_info["domain_motivation"] = value.split('?')[1]
         elif "questions / préoccupations" in lower:
             if value:
-                job_info["questions_concerns"] = value
+                job_info["questions_concerns"] = value.split('?')[1]
         elif "date de disponibilité" in lower:
             if value:
-                job_info["availability_date_raw"] = value
+                job_info["availability_date_raw"] = value.split('?')[1]
         elif "mobilité géographique" in lower:
             if value:
-                job_info["geographic_mobility"] = value
+                job_info["geographic_mobility"] = value.split('?')[1]
         elif "week-end" in lower:
             job_info["weekend_work"] = parse_yes_no(paragraphs, i + 1) or (
                 value.lower().startswith("oui") if value else None
@@ -363,10 +367,10 @@ def parse_docx(file_path):
         # Synthesis
         elif "conclusion sur la faisabilité" in lower:
             if value:
-                synthesis["feasibility_conclusion"] = value
+                synthesis["feasibility_conclusion"] = value.split(':')[1]
         elif "pertinence du parcours" in lower:
             if value:
-                synthesis["pathway_relevance"] = value
+                synthesis["pathway_relevance"] = value.split(':')[1]
         elif "besoins particuliers" in lower:
             if value:
                 synthesis["special_needs"] = value
@@ -394,11 +398,14 @@ def parse_docx(file_path):
             if value:
                 synthesis["other_recommendations"] = value
         elif re.search(r"^fait à\s*:", lower):
+            print(f"value: {value}, label: {label}, lower: {lower}")
             if value:
                 synthesis["location"] = value
 
         elif in_experiences and text:
             exp_buffer.append(text)
+        # else:
+            # print(f"value: {value}, label: {label}, lower: {lower}")
 
     # flush experience buffer
     if exp_buffer:
