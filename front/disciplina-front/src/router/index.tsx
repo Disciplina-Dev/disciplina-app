@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 
 import SelectProfil from "@/pages/SelectProfil";
 import NotFound from "@/pages/NotFound";
+import Drive from "@/pages/Drive";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -33,6 +34,10 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <SelectProfil />,
+  },
+  {
+    path: "/drive",
+    element: <Drive />,
   },
   {
     element: <AuthLayout />,
