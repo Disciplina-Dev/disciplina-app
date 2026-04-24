@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
   X, Save, FileText, ClipboardCheck, Edit2, Plus, SlidersHorizontal, Trash2
 } from 'lucide-react';
@@ -91,14 +91,14 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: Candidat
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="relative w-full max-w-4xl max-h-full bg-white rounded-2xl shadow-2xl flex flex-col animate-[fadeIn_0.2s_ease-out]">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-4">
@@ -136,7 +136,7 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: Candidat
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {!isEditing ? (
               <Button size="sm" variant="secondary" onClick={() => setIsEditing(true)} leftIcon={<Edit2 size={16} />}>
@@ -155,14 +155,14 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: Candidat
 
         {/* Content */}
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-8">
-          
+
           {/* Quick Actions */}
           <div className="flex gap-3">
             <Button variant="secondary" leftIcon={<FileText size={16} className="text-purple" />}>
               Voir le CV
             </Button>
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               leftIcon={<ClipboardCheck size={16} className="text-purple" />}
               onClick={() => navigate(`/rh/candidats/${candidate._id}/questionnaire`)}
             >
@@ -321,18 +321,18 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: Candidat
             <section className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-purple border-b border-purple/10 pb-2">Évaluation des compétences</h3>
               <div className="space-y-3">
-                 {!isEditing && (!formData.skills_assessment || formData.skills_assessment.length === 0) ? (
-                    <p className="text-sm text-gray-500 italic">Aucune évaluation enregistrée.</p>
-                 ) : (
-                   <div className="space-y-2">
-                     {formData.skills_assessment?.map((assessment, i) => (
-                       <div key={i} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
-                         <span className="text-sm font-medium text-gray-900">{assessment.competence}</span>
-                         <span className="text-xs font-bold px-2 py-1 bg-white text-purple border border-purple/20 rounded-md">{assessment.level}</span>
-                       </div>
-                     ))}
-                   </div>
-                 )}
+                {!isEditing && (!formData.skills_assessment || formData.skills_assessment.length === 0) ? (
+                  <p className="text-sm text-gray-500 italic">Aucune évaluation enregistrée.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {formData.skills_assessment?.map((assessment, i) => (
+                      <div key={i} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+                        <span className="text-sm font-medium text-gray-900">{assessment.competence}</span>
+                        <span className="text-xs font-bold px-2 py-1 bg-white text-purple border border-purple/20 rounded-md">{assessment.level}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
 
@@ -570,7 +570,20 @@ export default function ListeCandidats() {
 
   const handleUpdateCandidate = async (updated: Candidate) => {
     const candidate = await update(updated._id, updated);
-    console.log(candidate)
+    candidates.map(c => {
+      if (c._id == candidate._id)
+        for (const key in candidate) {
+          const propertyName: keyof Candidate = key;
+          if (candidate[propertyName] !== undefined)
+            if (typeof candidate[propertyName] !== 'object')
+              c[propertyName] = candidate[propertyName];
+            else {
+              for (const k in candidate[propertyName]) {
+                c[propertyName][k] = candidate[propertyName][k]
+              }
+            }
+        }
+    })
     // setLocalCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));
   };
 
@@ -621,7 +634,7 @@ export default function ListeCandidats() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] p-4 sm:p-8">
-      
+
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -630,25 +643,24 @@ export default function ListeCandidats() {
             {filteredCandidates.length} candidat{filteredCandidates.length !== 1 ? 's' : ''} trouvé{filteredCandidates.length !== 1 ? 's' : ''}
           </p>
         </div>
-        
+
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Rechercher par nom..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"
             />
           </div>
-          <button 
+          <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-              showFilters || activeFiltersCount > 0 
-                ? 'bg-purple-light text-purple ring-1 ring-purple/20' 
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${showFilters || activeFiltersCount > 0
+                ? 'bg-purple-light text-purple ring-1 ring-purple/20'
                 : 'bg-white text-gray-600 border border-gray-100 hover:border-gray-200 shadow-sm'
-            }`}
+              }`}
           >
             <SlidersHorizontal size={16} />
             Filtres {activeFiltersCount > 0 && <span className="bg-purple text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full ml-1">{activeFiltersCount}</span>}
@@ -668,7 +680,7 @@ export default function ListeCandidats() {
       {showFilters && (
         <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] animate-[fadeIn_0.15s_ease-out]">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-            
+
             {/* Secteur */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Secteur</label>
@@ -677,7 +689,7 @@ export default function ListeCandidats() {
                 {Object.values(TrainingSite).map(site => <option key={site} value={site}>{formatTrainingSite(site)}</option>)}
               </select>
             </div>
-            
+
             {/* Statut */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Statut</label>
@@ -686,7 +698,7 @@ export default function ListeCandidats() {
                 {Object.values(CandidateStatus).map(status => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
-            
+
             {/* Niveau BAC */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Niveau d'études</label>
@@ -695,11 +707,11 @@ export default function ListeCandidats() {
                 {Object.values(SchoolLevel).map(level => <option key={level} value={level}>{level}</option>)}
               </select>
             </div>
-            
+
             {/* Permis B */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Permis B</label>
-              <select value={filterPermis} onChange={e => setFilterPermis(e.target.value as 'all'|'yes'|'no')} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+              <select value={filterPermis} onChange={e => setFilterPermis(e.target.value as 'all' | 'yes' | 'no')} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="all">Indifférent</option>
                 <option value="yes">Oui</option>
                 <option value="no">Non</option>
@@ -709,20 +721,20 @@ export default function ListeCandidats() {
             {/* Age Max */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Âge max</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 placeholder="Ex: 25"
-                value={filterMaxAge} 
-                onChange={e => setFilterMaxAge(e.target.value ? Number(e.target.value) : '')} 
+                value={filterMaxAge}
+                onChange={e => setFilterMaxAge(e.target.value ? Number(e.target.value) : '')}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               />
             </div>
 
           </div>
-          
+
           {activeFiltersCount > 0 && (
             <div className="mt-4 flex justify-end">
-              <button 
+              <button
                 onClick={handleResetFilters}
                 className="flex items-center gap-1.5 text-xs font-semibold text-danger hover:text-pink-dark transition-colors"
               >
@@ -737,7 +749,7 @@ export default function ListeCandidats() {
       {/* Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredCandidates.map(candidate => (
-          <div 
+          <div
             key={candidate._id}
             onClick={() => setSelectedCandidate(candidate)}
             className="group relative bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-purple/30 transition-all cursor-pointer flex flex-col h-full overflow-hidden"
@@ -763,9 +775,9 @@ export default function ListeCandidats() {
             {/* Card Header: Avatar */}
             <div className="mb-4 mt-2">
               {candidate.identity.avatar_url ? (
-                <img 
-                  src={candidate.identity.avatar_url} 
-                  alt={candidate.identity.full_name} 
+                <img
+                  src={candidate.identity.avatar_url}
+                  alt={candidate.identity.full_name}
                   className="w-14 h-14 rounded-full object-cover ring-2 ring-gray-50 group-hover:ring-purple-light transition-all"
                 />
               ) : (
@@ -785,7 +797,7 @@ export default function ListeCandidats() {
                   {candidate.tp_type}
                 </span>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Calendar size={16} className="text-gray-400" />
