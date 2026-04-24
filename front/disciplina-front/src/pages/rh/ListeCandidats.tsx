@@ -538,7 +538,6 @@ export default function ListeCandidats() {
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { update } = useUpdateCandidate();
-  console.log(candidates[0])
 
   // Sync server candidates into local state (enables optimistic edits)
   useMemo(() => { setLocalCandidates(candidates); }, [candidates]);
@@ -571,13 +570,18 @@ export default function ListeCandidats() {
 
   const handleUpdateCandidate = async (updated: Candidate) => {
     const candidate = await update(updated._id, updated);
-    console.log(candidate);
     candidates.map(c => {
       if (c._id == candidate._id)
         for (const key in candidate) {
           const propertyName: keyof Candidate = key;
-          if (c[propertyName]!== undefined)
-            console.log(c[propertyName]);
+          if (candidate[propertyName] !== undefined)
+            if (typeof candidate[propertyName] !== 'object')
+              c[propertyName] = candidate[propertyName];
+            else {
+              for (const k in candidate[propertyName]) {
+                c[propertyName][k] = candidate[propertyName][k]
+              }
+            }
         }
     })
     // setLocalCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));

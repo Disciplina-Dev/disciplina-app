@@ -149,6 +149,7 @@ export const GET_CANDIDATES = gql`
       id
       status
       tpType
+      trainingSite
       skillsAssessment {
         competence
         level
@@ -177,9 +178,6 @@ export const GET_CANDIDATES = gql`
       background {
         lastDiploma
       }
-      jobInfo {
-        geographicMobility
-      }
     }
   }
 `
@@ -190,7 +188,11 @@ export const UPDATE_CANDIDATE = gql`
       id
       status
       tpType
-      skillsAssessment
+      trainingSite
+      skillsAssessment {
+        competence
+        level
+      }
       identity {
         fullName
         email
@@ -207,6 +209,13 @@ export const UPDATE_CANDIDATE = gql`
       }
       synthesis {
         feasibilityConclusion
+      }
+      professionalProjects {
+        careerObjectives
+        apprenticeshipMotivation
+      }
+      background {
+        lastDiploma
       }
     }
   }
