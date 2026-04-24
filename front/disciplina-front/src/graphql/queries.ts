@@ -221,18 +221,41 @@ export const UPDATE_CANDIDATE = gql`
   }
 `
 
-// export const CREATE_CANDIDATE = gql`
-//   mutation CreateCandidate($input: CreateCandidateInput!) {
-//     createCandidate(input: $input) {
-//       id
-//       status
-//       tpType
-//       identity {
-//         fullName
-//         email
-//         phone
-//       }
-//       schoolLevel
-//     }
-//   }
-// `
+export const CREATE_CANDIDATE = gql`
+  mutation CreateCandidate($input: CreateCandidateInput!) {
+    createCandidate(input: $input) {
+      id
+      status
+      tpType
+      trainingSite
+      skillsAssessment {
+        competence
+        level
+      }
+      identity {
+        fullName
+        email
+        phone
+        drivingLicenseB
+      }
+      education {
+        schoolLevel
+      }
+      profile {
+        frenchLevel
+        englishLevel
+        qualities
+      }
+      synthesis {
+        feasibilityConclusion
+      }
+      professionalProjects {
+        careerObjectives
+        apprenticeshipMotivation
+      }
+      background {
+        lastDiploma
+      }
+    }
+  }
+`

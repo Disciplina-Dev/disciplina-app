@@ -8,8 +8,8 @@ import {
   UPDATE_COMPANY,
   DELETE_COMPANY,
   GET_CANDIDATES,
-  UPDATE_CANDIDATE
-  // CREATE_CANDIDATE,
+  UPDATE_CANDIDATE,
+  CREATE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
@@ -371,27 +371,27 @@ export function useUpdateCandidate() {
   return { update }
 }
 
-// interface CreateCandidateInput {
-//   tpType: string
-//   status: string
-//   identity: { fullName: string; email: string; phone: string }
-//   schoolLevel?: string | null
-//   trainingSite?: string | null
-// }
+interface CreateCandidateInput {
+  tpType: string
+  status: string
+  identity: { fullName: string; email: string; phone: string }
+  schoolLevel?: string | null
+  trainingSite?: string | null
+}
 
-// /**
-//  * Returns a function to create a new candidate via mutation.
-//  * Uses candidateGraphqlClient directly to bypass the companies urql Provider.
-//  */
-// export function useCreateCandidate() {
-//   const [result, executeMutation] = useMutation(CREATE_CANDIDATE)
+/**
+ * Returns a function to create a new candidate via mutation.
+ * Uses candidateGraphqlClient directly to bypass the companies urql Provider.
+ */
+export function useCreateCandidate() {
+  const [result, executeMutation] = useMutation(CREATE_CANDIDATE)
 
-//   const createCandidate = (input: CreateCandidateInput) => {
-//     return executeMutation(
-//       { input },
-//       { url: 'http://localhost:4000/api/graphql/candidates' } as any,
-//     )
-//   }
+  const createCandidate = (input: CreateCandidateInput) => {
+    return executeMutation(
+      { input },
+      { url: 'http://localhost:4000/api/graphql/candidates' } as any,
+    )
+  }
 
-//   return { createCandidate, result }
-// }
+  return { createCandidate, result }
+}
