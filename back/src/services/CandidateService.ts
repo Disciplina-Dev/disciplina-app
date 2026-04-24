@@ -15,4 +15,8 @@ export class CandidateService {
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
         return this.repository.update(id, data);
     }
+
+    async delete(id: string) {
+        return await this.repository.delete(id);
+    }
 }
