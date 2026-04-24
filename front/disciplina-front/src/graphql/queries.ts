@@ -149,13 +149,36 @@ export const GET_CANDIDATES = gql`
       id
       status
       tpType
+      skillsAssessment {
+        competence
+        level
+      }
       identity {
         fullName
         email
         phone
+        drivingLicenseB
       }
       education {
         schoolLevel
+      }
+      profile {
+        frenchLevel
+        englishLevel
+        qualities
+      }
+      synthesis {
+        feasibilityConclusion
+      }
+      professionalProjects {
+        careerObjectives
+        apprenticeshipMotivation
+      }
+      background {
+        lastDiploma
+      }
+      jobInfo {
+        geographicMobility
       }
     }
   }
@@ -167,13 +190,23 @@ export const UPDATE_CANDIDATE = gql`
       id
       status
       tpType
+      skillsAssessment
       identity {
         fullName
         email
         phone
+        drivingLicenseB
       }
       education {
         schoolLevel
+      }
+      profile {
+        frenchLevel
+        englishLevel
+        qualities
+      }
+      synthesis {
+        feasibilityConclusion
       }
     }
   }
