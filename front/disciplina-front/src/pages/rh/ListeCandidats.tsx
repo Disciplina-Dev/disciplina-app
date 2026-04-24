@@ -387,7 +387,7 @@ function CreateCandidateModal({ onClose, onCreated }: CreateCandidateModalProps)
       tpType: form.tpType,
       status: form.status,
       identity: { fullName: form.fullName, email: form.email, phone: form.phone },
-      schoolLevel: form.schoolLevel || null,
+      education: { schoolLevel: form.schoolLevel || null },
       trainingSite: form.trainingSite || null,
     });
     if (res.error) { setError(res.error.message); return; }

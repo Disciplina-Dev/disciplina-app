@@ -375,7 +375,7 @@ interface CreateCandidateInput {
   tpType: string
   status: string
   identity: { fullName: string; email: string; phone: string }
-  schoolLevel?: string | null
+  education?: { schoolLevel?: string | null } | null
   trainingSite?: string | null
 }
 

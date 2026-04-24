@@ -159,6 +159,7 @@ export const GET_CANDIDATES = gql`
         email
         phone
         drivingLicenseB
+        age
       }
       education {
         schoolLevel
@@ -198,6 +199,7 @@ export const UPDATE_CANDIDATE = gql`
         email
         phone
         drivingLicenseB
+        age
       }
       education {
         schoolLevel
@@ -237,6 +239,7 @@ export const CREATE_CANDIDATE = gql`
         email
         phone
         drivingLicenseB
+        age
       }
       education {
         schoolLevel
