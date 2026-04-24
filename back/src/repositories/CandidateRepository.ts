@@ -1,5 +1,25 @@
 import { CandidateModel } from '../db/mongodb/schema';
 import { Candidate } from '../db/mongodb/interface';
+type FlattenedObject = Record<string, any>;
+
+function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
+    const result: FlattenedObject = {};
+
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            const value = obj[key];
+            const newKey = parentKey ? `${parentKey}.${key}` : key;
+
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                Object.assign(result, flattenObject(value, newKey));
+            } else {
+                result[newKey] = value;
+            }
+        }
+    }
+
+    return result;
+}
 
 export class CandidateRepository {
     async findAll(): Promise<Candidate[]> {
@@ -13,6 +33,6 @@ export class CandidateRepository {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
-        return CandidateModel.findOneAndUpdate({ _id: id }, { $set: data }, { new: true }).lean();
+        return CandidateModel.findOneAndUpdate({ _id: id }, { $set: flattenObject(data) }, { new: true }).lean();
     }
 }
