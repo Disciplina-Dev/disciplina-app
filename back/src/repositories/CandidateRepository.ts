@@ -35,4 +35,8 @@ export class CandidateRepository {
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
         return CandidateModel.findOneAndUpdate({ _id: id }, { $set: flattenObject(data) }, { new: true }).lean();
     }
+
+    async delete(id: string) {
+        return (await CandidateModel.deleteOne({ _id: id})).deletedCount > 0;
+    }
 }

@@ -309,5 +309,6 @@ export const typeDefs = gql`
     type Mutation {
         createCandidate(input: CreateCandidateInput!): Candidate!
         updateCandidate(id: String!, input: UpdateCandidateInput!): Candidate!
+        deleteCandidate(id: String!): Boolean!
     }
 `;

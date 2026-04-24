@@ -108,5 +108,9 @@ export const resolvers = {
 
             return toGql(updated);
         },
+
+        deleteCandidate: async(_: unknown, { id }: { id: string }) => {
+            return candidateService.delete(id);
+        }
     },
 };
