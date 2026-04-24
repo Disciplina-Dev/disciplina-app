@@ -8,7 +8,7 @@ import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, Skil
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
-import { useCandidates, useUpdateCandidate } from '@/graphql/hooks';
+import { useCandidates, useUpdateCandidate, useCreateCandidate } from '@/graphql/hooks';
 
 // --- Helpers ---
 

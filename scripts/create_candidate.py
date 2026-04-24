@@ -32,65 +32,63 @@ def insert_candidate():
     
     # Objet complet respectant parfaitement toutes les sous-sections de ton schéma mongo-init.js
     new_candidate = {
-        "_id": "cand_python_full_002",
-        "candidate_id": "CAND-PY-FULL-001",
         "status": "IMMERSING",  # Le nouveau statut que tu viens d'ajouter !
-        "tp_type": "CC",
+        "tpType": "CC",
         # "created_at": datetime.now(),
-        "created_by": "script_python",
+        # "created_by": "script_python",
         
         # ===========================
         # Identité du candidat
         # ===========================
         "identity": {
-            "full_name": "Turing Alan",
-            "date_of_birth": datetime(1912, 6, 23).strftime("%d/%m/%Y"),
-            "place_of_birth": "Londres",
+            "fullName": "Turing Alan",
+            "dateOfBirth": datetime(1912, 6, 23).strftime("%Y-%m-%d"),
+            "placeOfBirth": "Londres",
             "age": 30,
-            "postal_code": "75001",
+            "postalCode": "75001",
             "city": "Paris",
             "email": "alan.turing@example.com",
             "phone": "0601020304",
-            "driving_license_b": True,
-            "transport_means": "Transport en commun",
-            "psh_referral_request": False
+            "drivingLicenseB": True,
+            "transportMeans": "Transport en commun",
+            "pshReferralRequest": False
         },
         
         # ===========================
         # Parcours et prérequis
         # ===========================
         "education": {
-            "school_level": "BAC_PLUS_3_PLUS",
+            "schoolLevel": "BAC_PLUS_3_PLUS",
             "justification": "Diplôme universitaire en mathématiques"
         },
         
         # ===========================
         # Positionnement
         # ===========================
-        "training_site": "NORD_SAINTE_MARIE",
+        "trainingSite": "NORD_SAINTE_MARIE",
         
         # ===========================
         # Accompagnement
         # ===========================
         "support": {
-            "france_travail_registered": True,
-            "france_travail_agency": "Agence Paris Centre",
-            "mission_locale_registered": False,
-            "mission_locale_city": ""
+            "franceTravailRegistered": True,
+            "franceTravailAgency": "Agence Paris Centre",
+            "missionLocaleRegistered": False,
+            "missionLocaleCity": ""
         },
         
         # ===========================
         # Immersion
         # ===========================
-        "immersion_agreement": True,
+        "immersionAgreement": True,
         
         # ===========================
         # Parcours antérieurs
         # ===========================
         "background": {
-            "last_diploma": "Doctorat",
-            "previous_trainings": "Cryptographie avancée",
-            "professional_experiences": [
+            "lastDiploma": "Doctorat",
+            "previousTrainings": "Cryptographie avancée",
+            "professionalExperiences": [
                 {
                     "position": "Cryptanalyste",
                     "duration": "4 ans",
@@ -104,31 +102,31 @@ def insert_candidate():
         # Caractéristiques du profil
         # ===========================
         "profile": {
-            "french_level": 8,
-            "english_level": 10,
-            "other_languages": ["Allemand"],
-            "strengths_and_improvements": "Logique imparable, doit améliorer la vulgarisation",
+            "frenchLevel": 8,
+            "englishLevel": 10,
+            "otherLanguages": ["Allemand"],
+            "strengthsAndImprovements": "Logique imparable, doit améliorer la vulgarisation",
             "qualities": ["Logique", "Persévérant", "Curieux"],
             "defects": ["Impatient"],
-            "digital_skills": ["Programmation", "Algorithmique"],
-            "ready_for_challenges": True,
+            "digitalSkills": ["Programmation", "Algorithmique"],
+            "readyForChallenges": True,
             "hobbies": "Course de fond"
         },
         
         # ===========================
         # Projets professionnels
         # ===========================
-        "professional_projects": {
-            "career_objectives": "Créer l'intelligence artificielle",
-            "desired_skills": "Développement logiciel",
-            "apprenticeship_motivation": "Mettre en pratique des modèles mathématiques",
-            "training_expectations": "Projets complexes"
+        "professionalProjects": {
+            "careerObjectives": "Créer l'intelligence artificielle",
+            "desiredSkills": "Développement logiciel",
+            "apprenticeshipMotivation": "Mettre en pratique des modèles mathématiques",
+            "trainingExpectations": "Projets complexes"
         },
         
         # ===========================
         # Analyse des compétences
         # ===========================
-        "skills_assessment": [
+        "skillsAssessment": [
             {
                 "competence": "Algorithmique",
                 "level": "A"
@@ -138,45 +136,45 @@ def insert_candidate():
         # ===========================
         # Champs spécifiques au TP
         # ===========================
-        "desired_sectors": ["Informatique", "Recherche"],
-        "expected_company_skills": ["Innovation", "Rigueur"],
+        "desiredSectors": ["Informatique", "Recherche"],
+        "expectedCompanySkills": ["Innovation", "Rigueur"],
         
         # ===========================
         # Informations sur le poste
         # ===========================
-        "job_info": {
-            "domain_motivation": "Passion pour l'informatique",
-            "questions_concerns": "Aucune",
-            "availability_date": datetime.now().strftime("%d/%m/%Y"),
-            "geographic_mobility": "Toute la France",
-            "weekend_work": False,
-            "discovery_source": "OTHER"
+        "jobInfo": {
+            "domainMotivation": "Passion pour l'informatique",
+            "questionsConcerns": "Aucune",
+            "availabilityDate": datetime.now().strftime("%Y-%m-%d"),
+            "geographicMobility": "Toute la France",
+            "weekendWork": False,
+            "discoverySource": "OTHER"
         },
         
         # ===========================
         # Synthèse (Chargé de recrutement)
         # ===========================
         "synthesis": {
-            "feasibility_conclusion": "Excellent profil",
-            "pathway_relevance": "Parfaite adéquation",
-            "special_needs": "Aucun",
-            "pedagogical_recommendations": {
-                "office_tools_reinforcement": False,
-                "written_communication_support": False,
-                "oral_confidence_development": True,
-                "time_management_support": False,
-                "professional_posture_work": False,
-                "enhanced_company_immersion": False,
-                "psh_specific_support": False,
-                "individual_follow_up": True,
-                "language_training": False,
-                "stress_management_follow_up": False
+            "feasibilityConclusion": "Excellent profil",
+            "pathwayRelevance": "Parfaite adéquation",
+            "specialNeeds": "Aucun",
+            "pedagogicalRecommendations": {
+                "officeToolsReinforcement": False,
+                "writtenCommunicationSupport": False,
+                "oralConfidenceDevelopment": True,
+                "timeManagementSupport": False,
+                "professionalPostureWork": False,
+                "enhancedCompanyImmersion": False,
+                "pshSpecificSupport": False,
+                "individualFollowUp": True,
+                "languageTraining": False,
+                "stressManagementFollowUp": False
             },
-            "other_recommendations": "Profil à fort potentiel",
+            "otherRecommendations": "Profil à fort potentiel",
             "location": "Paris",
-            "date": datetime.now().strftime("%d/%m/%Y"),
-            "recruiter_signature": "Signé Jean Recruteur",
-            "candidate_signature": "Signé Alan Turing"
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "recruiterSignature": "Signé Jean Recruteur",
+            "candidateSignature": "Signé Alan Turing"
         }
     }
     
