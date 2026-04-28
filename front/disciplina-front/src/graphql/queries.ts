@@ -286,7 +286,7 @@ export const REGISTER_USER = gql`
     $email: String!
     $name: String!
     $passwordPlain: String!
-    $role: String!
+    $role: Role!
     $sectors: [String!]
   ) {
     register(
@@ -296,14 +296,11 @@ export const REGISTER_USER = gql`
       role: $role
       sectors: $sectors
     ) {
-      token
-      user {
-        id
-        email
-        name
-        role
-        sectors
-      }
+      id
+      email
+      name
+      role
+      sectors
     }
   }
 `

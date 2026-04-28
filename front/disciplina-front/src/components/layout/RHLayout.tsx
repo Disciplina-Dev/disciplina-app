@@ -1,6 +1,6 @@
-import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, Repeat2 } from 'lucide-react'
-import { useCurrentUser } from '@/store/authStore'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus } from 'lucide-react'
+import { useAuthStore, useCurrentUser } from '@/store/authStore'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -24,6 +24,13 @@ function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; 
 
 export default function RHLayout() {
   const currentUser = useCurrentUser()
+  const logout = useAuthStore(s => s.logout)
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
@@ -41,19 +48,38 @@ export default function RHLayout() {
           <NavItem to="/rh/matching" icon={<Repeat2 size={18} />} label="Matching" />
         </nav>
 
+        {/* Administration Nav (Admin Only) */}
+        {currentUser?.role === 'ADMIN' && (
+          <>
+            <div className="mx-3 my-4 border-t border-gray-100" />
+            <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>
+            <nav className="flex flex-col gap-1 px-3">
+              <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
+              <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+            </nav>
+          </>
+        )}
+
         {/* Profile Footer */}
         <div className="mt-auto p-4">
           <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-gray-50 transition-colors">
             <div 
               className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]" 
-              style={{ backgroundColor: currentUser?.color || '#60207E' }}
+              style={{ backgroundColor: '#60207E' }}
             >
-              {currentUser?.initials || '..'}
+              <User size={18} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{currentUser?.name}</p>
               <p className="truncate text-[11px] font-medium text-gray-400 capitalize">{currentUser?.role}</p>
             </div>
+            <button 
+              onClick={handleLogout}
+              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+              title="Se déconnecter"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>

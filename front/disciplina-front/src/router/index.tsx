@@ -49,7 +49,14 @@ export const router = createBrowserRouter([
     element: <AuthLayout />,
     children: [
       { path: "/login", element: <LoginPage /> },
-      { path: "/register", element: <RegisterPage /> },
+      { 
+        path: "/register", 
+        element: (
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <RegisterPage />
+          </ProtectedRoute>
+        )
+      },
     ],
   },
   {

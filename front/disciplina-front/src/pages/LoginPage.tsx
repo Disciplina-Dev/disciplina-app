@@ -121,13 +121,7 @@ export default function LoginPage() {
         Continuer avec Google
       </button>
 
-      {/* Sign up link */}
-      <p className="mt-5 text-center text-sm text-gray-500">
-        Pas encore de compte ?{' '}
-        <Link to="/register" className="font-medium text-blue">
-          S'inscrire
-        </Link>
-      </p>
+
     </div>
   )
 }
