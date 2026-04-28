@@ -1,4 +1,5 @@
 import os
+import sys
 import csv
 from sys import stderr
 from dotenv import load_dotenv
@@ -6,6 +7,7 @@ from pymongo import MongoClient
 import unicodedata
 from bson.binary import UuidRepresentation
 from uuid import uuid4
+
 load_dotenv('../.env')
 POSTAL_CODE = {
     "Saint-Denis".upper().replace("-", "_").replace(" ", "_") : '97400',
@@ -99,7 +101,7 @@ def set_geographical_sector(sectors: str) -> list[str]:
         desired_sectors.append(desired.upper().replace('"', ""))
     return desired_sectors
 
-def insert_candidate():
+def insert_candidate(file: str):
     client = get_mongo_connection()
     # Sélection de la BDD et de la collection
     db = client["human_ressources"]
@@ -144,4 +146,5 @@ def insert_candidate():
                 print(f"Error while reading CSV: {error}", file=stderr)
                 raise TypeError
 
-insert_candidate()
+if __name__ == '__main__':
+    insert_candidate(sys.argv[1])

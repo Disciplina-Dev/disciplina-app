@@ -6,6 +6,8 @@ from pymongo import MongoClient
 import unicodedata
 from bson.binary import UuidRepresentation
 from uuid import uuid4
+import sys
+
 load_dotenv('../.env')
 POSTAL_CODE = {
     "Saint-Denis".upper().replace("-", "_").replace(" ", "_") : '97400',
@@ -141,4 +143,5 @@ def insert_candidate():
                 print(f"Error while reading CSV: {error}", file=stderr)
                 raise TypeError
 
-insert_candidate()
+if __name__ == '__main__':
+    insert_candidate(sys.argv[1])
