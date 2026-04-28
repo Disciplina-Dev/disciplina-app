@@ -2,6 +2,8 @@ import { CompaniesService } from '../../services/CompaniesService';
 import { SalePersonsService } from '../../services/SalePersonsService';
 import { CompaniesRow } from '../../repositories/interfaces';
 import { toCompanies, toSalePerson } from '../../services/mappers';
+import { authGuard } from '../authGuard';
+import { Role } from '../../services/interfaces';
 
 const companiesService = new CompaniesService();
 const salePersonsService = new SalePersonsService();
@@ -46,7 +48,8 @@ async function getSalePersonForCompany(company: any) {
 
 export const resolvers = {
   Query: {
-    companies: async () => {
+    companies: async (_: unknown, __: unknown, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       const companies = await companiesService.findAll();
       const result = [];
       for (const company of companies) {
@@ -61,13 +64,16 @@ export const resolvers = {
       }
       return result;
     },
-    salePersons: async () => {
+    salePersons: async (_: unknown, __: unknown, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       return salePersonsService.findAll();
     },
-    salePerson: async (_: unknown, { id }: { id: number }) => {
+    salePerson: async (_: unknown, { id }: { id: number }, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       return salePersonsService.findById(id);
     },
-    companyByCommercial: async (_: unknown, { salePersonID }: { salePersonID: number }) => {
+    companyByCommercial: async (_: unknown, { salePersonID }: { salePersonID: number }, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       const companies = await companiesService.findByCommercial(salePersonID);
       const result = [];
       for (const company of companies) {
@@ -82,7 +88,8 @@ export const resolvers = {
       }
       return result;
     },
-    companyBySiret: async (_: unknown, { siret }: { siret: string }) => {
+    companyBySiret: async (_: unknown, { siret }: { siret: string }, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       const company = await companiesService.findBySiret(siret);
       if (!company) return null;
       const salePerson = await salePersonsService.findById(company.salePersonID ?? 0);
@@ -93,7 +100,8 @@ export const resolvers = {
     },
   },
   Mutation: {
-    createCompany: async (_: unknown, { input }: { input: CompanyInput }) => {
+    createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       const rowData = mapInputToRow(input);
       const company = await companiesService.create(rowData);
       const salePerson = company?.salePersonID ? await salePersonsService.findById(company.salePersonID) : null;
@@ -102,7 +110,8 @@ export const resolvers = {
         salePerson: salePerson ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name } as any) : null,
       };
     },
-    updateCompany: async (_: unknown, { id, input }: { id: number; input: CompanyInput }) => {
+    updateCompany: async (_: unknown, { id, input }: { id: number; input: CompanyInput }, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       const rowData = mapInputToRow(input);
       const company = await companiesService.update(id, rowData);
       const salePerson = company?.salePersonID ? await salePersonsService.findById(company.salePersonID) : null;
@@ -111,7 +120,8 @@ export const resolvers = {
         salePerson: salePerson ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name } as any) : null,
       };
     },
-    deleteCompany: async (_: unknown, { id }: { id: number }) => {
+    deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {
+      authGuard(context.user, [Role.COMMERCIAL]);
       return companiesService.delete(id);
     },
   },

@@ -365,6 +365,7 @@ export function useUpdateCandidate() {
       id,
       input: toGqlUpdateInput(input),
     })
+    console.log(result.data);
     return fromGql(result.data?.updateCandidate)
   }
 

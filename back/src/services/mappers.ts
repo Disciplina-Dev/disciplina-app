@@ -1,5 +1,27 @@
-import { CompaniesRow, SalePersonsRow } from '../repositories/interfaces';
-import { Companies, SalePerson } from './interfaces';
+import { CompaniesRow, SalePersonsRow, UserRow } from '../repositories/interfaces';
+import { Companies, SalePerson, User, Role } from './interfaces';
+
+export function toUser(row: UserRow): User {
+  let parsedSectors: string[] | null = null;
+  if (row.sectors) {
+    try {
+      parsedSectors = JSON.parse(row.sectors);
+    } catch (e) {
+      parsedSectors = [];
+    }
+  }
+
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    password: row.password,
+    role: row.role as Role,
+    sectors: parsedSectors,
+    oauthToken: row.oauth_token,
+    refreshToken: row.refresh_token,
+  };
+}
 
 export function toSalePerson(row: SalePersonsRow): SalePerson {
   return {

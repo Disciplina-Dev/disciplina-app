@@ -1,5 +1,9 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Mail } from 'lucide-react'
+import { useMutation } from 'urql'
+import { LOGIN_USER } from '@/graphql/queries'
+import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
@@ -26,21 +30,46 @@ const GoogleIcon = () => (
 )
 
 export default function LoginPage() {
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((state) => state.setAuth)
+  const [{ fetching, error }, executeMutation] = useMutation(LOGIN_USER)
+  
+  const [email, setEmail] = useState('')
+  const [passwordPlain, setPasswordPlain] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const result = await executeMutation(
+      { email, passwordPlain },
+      { url: 'http://localhost:4000/api/graphql/users' }
+    )
+    
+    if (result.data?.login) {
+      const { token, user } = result.data.login
+      setAuth(token, user)
+      
+      if (user.role === 'RH') {
+        navigate('/rh')
+      } else if (user.role === 'COMMERCIAL') {
+        navigate('/commercial')
+      } else {
+        navigate('/')
+      }
+    }
+  }
+
   return (
     <div className="w-full max-w-md mx-auto bg-white rounded-[20px] p-8 shadow-sm">
-      {/* Logo */}
       <div className="flex justify-center mb-6">
         <img src="/logo-disciplina.svg" alt="Disciplina" className="h-10" />
       </div>
 
-      {/* Header */}
       <div className="text-center mb-6">
         <h2>Bon retour</h2>
         <p className="mt-1 text-sm text-gray-500">Connectez-vous à votre espace</p>
       </div>
 
-      {/* Form */}
-      <form className="flex flex-col gap-4">
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <InputField
           label="Adresse email"
           id="email"
@@ -48,6 +77,9 @@ export default function LoginPage() {
           placeholder="vous@exemple.fr"
           icon={<Mail size={18} />}
           autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
         />
 
         <div className="flex flex-col gap-1">
@@ -56,6 +88,9 @@ export default function LoginPage() {
             id="password"
             placeholder="••••••••"
             autoComplete="current-password"
+            value={passwordPlain}
+            onChange={(e) => setPasswordPlain(e.target.value)}
+            required
           />
           <div className="flex justify-end">
             <Link to="/forgot-password" className="text-sm text-blue">
@@ -64,12 +99,13 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <Button type="submit" size="lg" className="w-full rounded-[10px]">
-          Se connecter
+        {error && <p className="text-sm text-red-500">{error.message}</p>}
+
+        <Button type="submit" size="lg" className="w-full rounded-[10px]" disabled={fetching}>
+          {fetching ? 'Connexion...' : 'Se connecter'}
         </Button>
       </form>
 
-      {/* Separator */}
       <div className="my-5 flex items-center gap-3">
         <div className="flex-1 border-t border-gray-100" />
         <span className="text-xs text-gray-300">ou continuer avec</span>

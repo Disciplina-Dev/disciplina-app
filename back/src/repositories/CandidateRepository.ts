@@ -13,7 +13,8 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
             if (value && typeof value === 'object' && !Array.isArray(value)) {
                 Object.assign(result, flattenObject(value, newKey));
             } else {
-                result[newKey] = value;
+                if (value)
+                    result[newKey] = value;
             }
         }
     }

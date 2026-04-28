@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
-  X, Save, FileText, ClipboardCheck, Edit2, Plus, SlidersHorizontal, Trash2
+  X, Save, FileText, ClipboardCheck, Edit2, Plus, SlidersHorizontal, Trash2,
+  Phone, GraduationCap, Star, Mail, Copy, Check
 } from 'lucide-react';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
@@ -551,6 +552,7 @@ export default function ListeCandidats() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const filteredCandidates = useMemo(() => {
     return localCandidates.filter(c => {
@@ -797,20 +799,74 @@ export default function ListeCandidats() {
                   {candidate.tp_type}
                 </span>
               </div>
-
-              <div className="space-y-2">
+              <div className="space-y-2 mt-2">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar size={16} className="text-gray-400" />
-                  <span>{candidate.identity.age ? `${candidate.identity.age} ans` : 'Âge inconnu'}</span>
+                  <Mail size={16} className="text-gray-400 shrink-0" />
+                  {candidate.identity.email ? (
+                    <>
+                      <span className="truncate flex-1">{candidate.identity.email}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(candidate.identity.email);
+                          setCopiedId(candidate._id);
+                          setTimeout(() => setCopiedId(null), 2000);
+                        }}
+                        className={`p-1 rounded transition-all flex items-center justify-center ${
+                          copiedId === candidate._id 
+                            ? 'text-success bg-success/10 opacity-100' 
+                            : 'md:opacity-0 focus:opacity-100 group-hover:opacity-100 text-gray-400 hover:text-purple hover:bg-purple-light'
+                        }`}
+                        title="Copier l'email"
+                      >
+                        {copiedId === candidate._id ? (
+                          <Check size={14} className="animate-[ping__.3s_ease-in-out_1]" />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="truncate flex-1">-</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Car size={16} className="text-gray-400" />
+                  <Phone size={16} className="text-gray-400 shrink-0" />
+                  <span className="truncate">{candidate.identity.phone || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <GraduationCap size={16} className="text-gray-400 shrink-0" />
+                  <span className="truncate">{candidate.education?.school_level || candidate.background?.last_diploma || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Calendar size={16} className="text-gray-400 shrink-0" />
+                    <span>{candidate.identity.age ? `${candidate.identity.age} ans` : '-'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <MapPin size={16} className="text-gray-400 shrink-0" />
+                    <span className="truncate">{candidate.identity.city || '-'}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Car size={16} className="text-gray-400 shrink-0" />
                   <span>Permis B: {candidate.identity.driving_license_b ? 'Oui' : 'Non'}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin size={16} className="text-gray-400" />
-                  <span>{formatTrainingSite(candidate.training_site)}</span>
-                </div>
+                
+                {candidate.profile?.qualities && candidate.profile.qualities.length > 0 && (
+                  <div className="pt-3 mt-3 border-t border-gray-100 flex flex-wrap gap-1.5">
+                    {candidate.profile.qualities.slice(0, 3).map((q, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-md whitespace-nowrap truncate max-w-full">
+                        {q}
+                      </span>
+                    ))}
+                    {candidate.profile.qualities.length > 3 && (
+                      <span className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[11px] font-medium rounded-md whitespace-nowrap">
+                        +{candidate.profile.qualities.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

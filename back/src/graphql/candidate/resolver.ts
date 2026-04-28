@@ -1,3 +1,5 @@
+import { authGuard } from '../authGuard';
+import { Role } from '../../services/interfaces';
 import { CandidateService } from '../../services/CandidateService';
 import { randomUUID } from 'crypto';
 import {
@@ -76,13 +78,15 @@ function toGql(candidate: Candidate): any {
 
 export const resolvers = {
     Query: {
-        candidates: async () => {
+        candidates: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.RH]);
             const candidates = await candidateService.findAll();
             return candidates.map(toGql);
         },
     },
     Mutation: {
-        createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }) => {
+        createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {
+            authGuard(context.user, [Role.RH]);
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
 
@@ -97,8 +101,10 @@ export const resolvers = {
 
         updateCandidate: async (
             _: unknown,
-            { id, input }: { id: string; input: UpdateCandidateInput }
+            { id, input }: { id: string; input: UpdateCandidateInput },
+            context: any
         ) => {
+            authGuard(context.user, [Role.RH]);
             const snakeInput = camelToSnakeCase(input);
             const updated = await candidateService.update(id, snakeInput);
 

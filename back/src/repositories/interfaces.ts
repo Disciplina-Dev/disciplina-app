@@ -20,3 +20,14 @@ export interface CompaniesRow {
   notes: string | null;
   conclusion: string | null;
 }
+
+export interface UserRow {
+  id: number;
+  email: string;
+  name: string;
+  password?: string;
+  role: 'ADMIN' | 'COMMERCIAL' | 'RH';
+  sectors: string | null; // JSON string in MySQL
+  oauth_token: string | null;
+  refresh_token: string | null;
+}

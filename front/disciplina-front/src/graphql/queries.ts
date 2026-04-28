@@ -160,6 +160,7 @@ export const GET_CANDIDATES = gql`
         phone
         drivingLicenseB
         age
+        city
       }
       education {
         schoolLevel
@@ -258,6 +259,50 @@ export const CREATE_CANDIDATE = gql`
       }
       background {
         lastDiploma
+      }
+    }
+  }
+`
+
+// ─── Authentication ──────────────────────────────────────────────────────────
+
+export const LOGIN_USER = gql`
+  mutation LoginUser($email: String!, $passwordPlain: String!) {
+    login(email: $email, passwordPlain: $passwordPlain) {
+      token
+      user {
+        id
+        email
+        name
+        role
+        sectors
+      }
+    }
+  }
+`
+
+export const REGISTER_USER = gql`
+  mutation RegisterUser(
+    $email: String!
+    $name: String!
+    $passwordPlain: String!
+    $role: String!
+    $sectors: [String!]
+  ) {
+    register(
+      email: $email
+      name: $name
+      passwordPlain: $passwordPlain
+      role: $role
+      sectors: $sectors
+    ) {
+      token
+      user {
+        id
+        email
+        name
+        role
+        sectors
       }
     }
   }

@@ -1,0 +1,91 @@
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { UserRepository } from '../repositories/UserRepository';
+import { User, Role } from './interfaces';
+import { toUser } from './mappers';
+import { UserRow } from '../repositories/interfaces';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-in-production';
+const SALT_ROUNDS = 10;
+
+export class UserService {
+  private userRepository: UserRepository;
+
+  constructor() {
+    this.userRepository = new UserRepository();
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    const row = await this.userRepository.findByEmail(email);
+    return row ? toUser(row) : null;
+  }
+
+  async findById(id: number): Promise<User | null> {
+    const row = await this.userRepository.findById(id);
+    return row ? toUser(row) : null;
+  }
+
+  async register(
+    email: string,
+    name: string,
+    passwordPlain: string,
+    role: Role,
+    sectors?: string[]
+  ): Promise<User> {
+    const existing = await this.userRepository.findByEmail(email);
+    if (existing) {
+      throw new Error('User already exists');
+    }
+
+    const hashedPassword = await bcrypt.hash(passwordPlain, SALT_ROUNDS);
+
+    const userToCreate: Omit<UserRow, 'id'> = {
+      email,
+      name,
+      password: hashedPassword,
+      role,
+      sectors: sectors && sectors.length > 0 ? JSON.stringify(sectors) : null,
+      oauth_token: null,
+      refresh_token: null,
+    };
+
+    const newId = await this.userRepository.create(userToCreate);
+
+    const created = await this.userRepository.findById(newId);
+    if (!created) {
+      throw new Error('Failed to create user');
+    }
+
+    return toUser(created);
+  }
+
+  async login(email: string, passwordPlain: string): Promise<{ token: string; user: User }> {
+    const userRow = await this.userRepository.findByEmail(email);
+    if (!userRow || !userRow.password) {
+      throw new Error('Invalid email or password');
+    }
+
+    const isMatch = await bcrypt.compare(passwordPlain, userRow.password);
+    if (!isMatch) {
+      throw new Error('Invalid email or password');
+    }
+
+    const user = toUser(userRow);
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return { token, user };
+  }
+
+  async updateDriveTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
+    await this.userRepository.updateTokens(id, oauthToken, refreshToken);
+  }
+}

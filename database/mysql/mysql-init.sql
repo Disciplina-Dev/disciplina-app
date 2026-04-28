@@ -31,3 +31,14 @@ CREATE TABLE IF NOT EXISTS companies (
     conclusion VARCHAR(255) NOT NULL,
     FOREIGN KEY (sale_person_id) REFERENCES sale_persons(id) ON UPDATE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('ADMIN', 'COMMERCIAL', 'RH') NOT NULL,
+    sectors JSON DEFAULT NULL,
+    oauth_token TEXT DEFAULT NULL,
+    refresh_token TEXT DEFAULT NULL
+);

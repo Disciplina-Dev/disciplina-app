@@ -30,6 +30,8 @@ import GestionApprentis from "@/pages/entreprise/GestionApprentis";
 import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
 
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+
 export const router = createBrowserRouter([
   {
     path: "/",
@@ -37,7 +39,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/drive",
-    element: <Drive />,
+    element: (
+      <ProtectedRoute>
+        <Drive />
+      </ProtectedRoute>
+    ),
   },
   {
     element: <AuthLayout />,
@@ -48,7 +54,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/commercial",
-    element: <CommercialLayout />,
+    element: (
+      <ProtectedRoute allowedRoles={['COMMERCIAL']}>
+        <CommercialLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardCommercial /> },
       { path: "analyses-besoin", element: <ListeAB /> },
@@ -58,7 +68,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/rh",
-    element: <RHLayout />,
+    element: (
+      <ProtectedRoute allowedRoles={['RH']}>
+        <RHLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardRH /> },
       { path: "candidats", element: <ListeCandidats /> },
@@ -71,7 +85,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/entreprise",
-    element: <EntrepriseLayout />,
+    element: (
+      <ProtectedRoute allowedRoles={['ENTREPRISE']}>
+        <EntrepriseLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardEntreprise /> },
       { path: "analyse-besoin", element: <FormulaireAB /> },
