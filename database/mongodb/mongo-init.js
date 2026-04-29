@@ -41,7 +41,7 @@ db.createCollection('candidates', {
             date_of_birth: { bsonType: "date" },
             place_of_birth: { bsonType: "string" },
             age: { bsonType: "int" },
-            sex: { bsonType: "bool" },
+            sex: { enum: ["FILLE", "GARCON"] },
             postal_code: { bsonType: "string" },
             city: { bsonType: "string" },
             email: { bsonType: "string" },
