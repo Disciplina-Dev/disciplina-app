@@ -23,6 +23,7 @@ import Matching from "@/pages/rh/Matching";
 import Calendrier from "@/pages/rh/Calendrier";
 import ABEntreprisesRecues from "@/pages/rh/ABEntreprisesRecues";
 import MailTemplates from "@/pages/rh/MailTemplates";
+import Relance from "@/pages/rh/Relance";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
       { path: "calendrier", element: <Calendrier /> },
       { path: "analyses-besoin", element: <ABEntreprisesRecues /> },
       { path: "mail", element: <MailTemplates /> },
+      { path: "relance", element: <Relance /> },
     ],
   },
   {
