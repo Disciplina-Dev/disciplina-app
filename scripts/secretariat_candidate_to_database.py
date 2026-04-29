@@ -114,7 +114,7 @@ def insert_candidate(file: str):
         'job_info': {}
     }
 
-    with open("../ressources/candidats_nord_AD.csv", "r") as candidate_file:
+    with open(file, "r") as candidate_file:
         reader = csv.DictReader(candidate_file)
         for row in reader:
             try:
