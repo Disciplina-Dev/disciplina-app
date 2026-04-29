@@ -1,8 +1,10 @@
 import { JobRepository } from '../repositories/JobRepository';
-import { Job, MatchingCandidate } from '../db/mongodb/interface';
+import { CandidateRepository } from '../repositories/CandidateRepository';
+import { Candidate, Job, Localisation, MatchingCandidate } from '../db/mongodb/interface';
 
 function matchingCandidateToGql(mc: MatchingCandidate): object {
     return {
+        id: mc.id,
         fullName: mc.full_name,
         age: mc.age,
         sex: mc.sex,
@@ -44,6 +46,7 @@ function fromGql(data: any): Partial<Job> {
 
 export class JobService {
     private repository = new JobRepository();
+    private externalRepositiry = new CandidateRepository();
 
     async findAll(): Promise<object[]> {
         const jobs = await this.repository.findAll();
@@ -52,7 +55,34 @@ export class JobService {
 
     async find(id: string): Promise<object | null> {
         const job = await this.repository.find(id);
-        return job ? toGql(job) : null;
+        if (!job) return null;
+
+        const filter: Record<string, any> = {};
+        if (job.desired_tp) filter['tp_type'] = job.desired_tp;
+        if (job.driving_license_b) filter['identity.driving_license_b'] = true;
+
+        if (job.age_range) {
+            const [min, max] = job.age_range.split('-').map(Number);
+            if (!isNaN(min) && !isNaN(max))
+                filter['identity.age'] = { $gte: min, $lte: max };
+        }
+
+        if (job.localisation?.length)
+            filter['job_info.geographic_mobility'] = { $in: job.localisation };
+
+        const candidates = await this.externalRepositiry.findByfilter(filter);
+
+        const matched: MatchingCandidate[] = candidates.map((c: Candidate) => ({
+            id: c._id,
+            full_name: c.identity.full_name,
+            age: c.identity.age,
+            city: c.identity.city as unknown as Localisation,
+            email: c.identity.email,
+            phone: c.identity.phone
+        }));
+
+        console.log(matched)
+        return toGql({ ...job, matched_candidate: matched });
     }
 
     async create(data: any): Promise<object> {

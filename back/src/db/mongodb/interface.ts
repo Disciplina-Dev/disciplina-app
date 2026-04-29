@@ -94,7 +94,14 @@ export enum Localisation {
     SAINTE_ANNE = "SAINTE_ANNE"
 }
 
+export enum Sex {
+    FILLE = "FILLE",
+    GARCON = "GARCON",
+    MIXTE = "MIXTE"
+}
+
 export interface MatchingCandidate {
+    id: string
     full_name?: string;
     age?: number;
     sex?: boolean;
@@ -121,7 +128,8 @@ export interface Identity {
     full_name: string;                    // Nom complet du candidat
     date_of_birth?: Date;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
-    age?: number;                         // Âge actuel (calculé ou fourni)
+    age?: number;  
+    sex?: Sex;                      // Âge actuel (calculé ou fourni)
     postal_code?: string;                 // Code postal
     city?: string;                        // Ville
     email: string;                        // Adresse email (requis, unique)
