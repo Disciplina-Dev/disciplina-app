@@ -5,6 +5,8 @@ import { typeDefs as candidateTypeDefs } from "./candidate/typeDefs";
 import { resolvers as candidateResolvers } from "./candidate/resolver";
 import { typeDefs as userTypeDefs } from "./user/typeDefs";
 import { resolvers as userResolvers } from "./user/resolvers";
+import { resolvers as jobResolvers } from "./jobs/resolver";
+import { typeDefs as jobTypeDefs } from "./jobs/typeDefs";
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-in-production';
@@ -39,3 +41,9 @@ export const UserAPI = new ApolloServer({
     resolvers: userResolvers,
     context: contextMiddleware
 });
+
+export const JobAPI = new ApolloServer({
+  typeDefs: jobTypeDefs,
+  resolvers: jobResolvers,
+  // context: contextMiddleware
+})

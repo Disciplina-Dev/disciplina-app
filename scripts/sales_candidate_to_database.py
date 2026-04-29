@@ -101,7 +101,7 @@ def set_geographical_sector(sectors: str) -> list[str]:
         desired_sectors.append(desired)
     return desired_sectors
 
-def insert_candidate(file):
+def insert_candidate(file: str):
     client = get_mongo_connection()
     # Sélection de la BDD et de la collection
     db = client["human_ressources"]

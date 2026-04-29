@@ -319,3 +319,68 @@ db.createCollection('candidates', {
     }
   }
 });
+
+db.createCollection('jobs', {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      properties: {
+        _id: { bsonType: "string" },
+        company_name: { bsonType: "string" },
+        age_range: { bsonType: "string" },
+        desired_tp: { enum: ["AD", "CC", "NTC", "REM", "SA"] },
+        desired_sex: { enum: ["MIXTE", "FILLE", "GARCON"] },
+        driving_license_b: { bsonType: "bool" },
+        professional_experience: { bsonType: "bool" },
+        status: { enum: ["NOT_MATCHED", "MATCHED", "ZERO_MATCHED", "CV_SEND", "IMMERSING", "CONTRACT"] },
+        localisation: {
+          bsonType: "array",
+          items: {
+            enum: [
+              "SAINT_DENIS",
+              "SAINTE_MARIE",
+              "SAINTE_SUZANNE",
+              "SAINT_PAUL",
+              "LA_POSSESSION",
+              "LE_PORT",
+              "TROIS_BASSINS",
+              "SAINT_LEU",
+              "SAINT_PIERRE",
+              "CILAOS",
+              "ETANG_SALE",
+              "SAINT_LOUIS",
+              "ENTRE_DEUX",
+              "LES_AVIRONS",
+              "LE_TAMPON",
+              "SAINT_PHILLIPE",
+              "SAINT_JOSEPH",
+              "PETIT_ILE",
+              "SAINTE_ROSE",
+              "SAINT_BENOIT",
+              "BRAS_PANON",
+              "SAINT_ANDRE",
+              "LA_PLAINE_DES_PALMISTES",
+              "SALAZIE",
+              "SAINTE_ANNE"
+            ]
+          }
+        },
+        matched_candidate: {
+          bsonType: "array",
+          items: {
+            bsonType: "object",
+            properties: {
+              id: { bsonType: "string" },
+              full_name: { bsonType: "string" },
+              age: { bsonType: "int" },
+              sex: { bsonType: "bool" },
+              city: { bsonType: "string" },
+              email: { bsonType: "string" },
+              phone: { bsonType: "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+})

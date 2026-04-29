@@ -2,4 +2,5 @@
 .env
 *.docx
 *.pdf
+__pycache__
 *.csv
