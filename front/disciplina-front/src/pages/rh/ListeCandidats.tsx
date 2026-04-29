@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
   X, Save, FileText, ClipboardCheck, Edit2, Plus, SlidersHorizontal, Trash2,
-  Phone, GraduationCap, Star, Mail, Copy, Check
+  Phone, GraduationCap, Star, Mail, Copy, Check, ExternalLink
 } from 'lucide-react';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
@@ -161,9 +161,15 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus, onMail }: 
 
           {/* Quick Actions */}
           <div className="flex gap-3 flex-wrap">
-            <Button variant="secondary" leftIcon={<FileText size={16} className="text-purple" />}>
-              Voir le CV
-            </Button>
+            {formData.pdf_link && (
+              <Button
+                variant="secondary"
+                leftIcon={<ExternalLink size={16} className="text-purple" />}
+                onClick={() => window.open(formData.pdf_link, '_blank')}
+              >
+                Drive
+              </Button>
+            )}
             <Button
               variant="secondary"
               leftIcon={<ClipboardCheck size={16} className="text-purple" />}

@@ -9,8 +9,12 @@ import {
     TrainingSite,
     Candidate,
 } from '../../db/mongodb/interface';
+import { UserService } from '../../services/UserService';
+import { PdfService } from '../../services/PdfService';
+import { DriveService } from '../../rest/google/service/DriveService';
 
 const candidateService = new CandidateService();
+const userService = new UserService();
 
 interface CreateCandidateInput {
     status: CandidateStatus;
@@ -73,6 +77,7 @@ function toGql(candidate: Candidate): any {
             : null,
         jobInfo: candidate.job_info ? snakeToCamelCase(candidate.job_info) : null,
         synthesis: candidate.synthesis ? snakeToCamelCase(candidate.synthesis) : null,
+        pdfLink: candidate.pdf_link || null,
     };
 }
 
@@ -95,11 +100,32 @@ export const resolvers = {
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
 
-            const newCandidate = await candidateService.create({
+            let newCandidate = await candidateService.create({
                 _id: id,
                 candidate_id: id,
                 ...snakeInput,
             });
+
+            try {
+                const user = await userService.findById(context.user.id);
+                if (user && user.oauthToken) {
+                    const pdfBuffer = await PdfService.generateCandidatePdf(newCandidate);
+                    
+                    const driveService = DriveService.fromTokens({
+                        access_token: user.oauthToken,
+                        refresh_token: user.refreshToken || undefined,
+                    });
+                    
+                    const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
+                    const folderId = await driveService.createFolder(folderName);
+                    const pdfLink = await driveService.uploadFile(`Dossier_${newCandidate.identity.full_name}.pdf`, 'application/pdf', pdfBuffer, folderId);
+                    
+                    await candidateService.update(id, { pdf_link: pdfLink });
+                    newCandidate.pdf_link = pdfLink;
+                }
+            } catch (error) {
+                console.error("Erreur lors de la création du PDF ou de l'upload vers Drive :", error);
+            }
 
             return toGql(newCandidate);
         },

@@ -156,7 +156,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         professional_projects: { type: professionalProjectsSchema },
         skills_assessment: { type: [skillsAssessmentSchema] },
         job_info: { type: jobInfoSchema },
-        synthesis: { type: synthesisSchema }
+        synthesis: { type: synthesisSchema },
+        pdf_link: { type: String }
     },
     { collection: 'candidates' }
 );

@@ -298,6 +298,7 @@ function fromGql(c: any): Candidate {
           candidate_signature: c.synthesis.candidateSignature,
         }
       : undefined,
+    pdf_link: c.pdfLink,
   }
 }
 
