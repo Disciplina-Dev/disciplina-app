@@ -365,12 +365,12 @@ db.createCollection('jobs', {
             ]
           }
         },
-        matched: { bsonType: "bool" },
         matched_candidate: {
           bsonType: "array",
           items: {
             bsonType: "object",
             properties: {
+              id: { bsonType: "string" },
               full_name: { bsonType: "string" },
               age: { bsonType: "int" },
               sex: { bsonType: "bool" },

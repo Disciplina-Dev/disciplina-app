@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
-import { CompanyAPI, CandidateAPI, UserAPI } from './graphql/server';
+import { CompanyAPI, CandidateAPI, UserAPI, JobAPI } from './graphql/server';
 import { connectMongoDB } from './db/mongodb/connection';
 import session from 'express-session';
 import cors from 'cors';
@@ -47,12 +47,15 @@ async function startServer() {
     await CandidateAPI.start();
     CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates' });
 
-  await UserAPI.start();
-  UserAPI.applyMiddleware({ app, path: '/api/graphql/users' });
+    await UserAPI.start();
+    UserAPI.applyMiddleware({ app, path: '/api/graphql/users' });
 
-  app.listen(PORT, () => {
-    console.log(`Server ready at http://localhost:${PORT}`);
-  });
+    await JobAPI.start();
+    JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' })
+
+    app.listen(PORT, () => {
+        console.log(`Server ready at http://localhost:${PORT}`);
+    });
 }
 
 startServer().catch(console.error);
