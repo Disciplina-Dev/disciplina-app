@@ -1,15 +1,6 @@
 import { Request, Response } from 'express';
 import nodemailer from 'nodemailer';
-
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-    },
-});
+import { transporter } from './transporter';
 
 export async function sendEmail(req: Request, res: Response) {
     const { to, subject, body, attachment } = req.body;
