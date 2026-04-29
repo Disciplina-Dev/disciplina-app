@@ -6,6 +6,8 @@ import session from 'express-session';
 import cors from 'cors';
 import { router as googleRouter } from './rest/google/route';
 import { router as filesRouter } from './rest/files/route';
+import { router as emailRouter } from './rest/email/route';
+import { router as relanceRouter } from './rest/relance/route';
 
 dotenv.config();
 
@@ -32,6 +34,8 @@ async function startServer() {
 
     app.use(googleRouter);
     app.use('/api/files', filesRouter);
+    app.use(emailRouter);
+    app.use(relanceRouter);
 
     app.get('/api/logout', (req: Request, res: Response) => {
         req.session.destroy(() => {
