@@ -83,6 +83,11 @@ export const resolvers = {
             const candidates = await candidateService.findAll();
             return candidates.map(toGql);
         },
+        candidate: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuard(context.user, [Role.RH]);
+            const candidate = await candidateService.findById(id);
+            return candidate ? toGql(candidate) : null;
+        },
     },
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {

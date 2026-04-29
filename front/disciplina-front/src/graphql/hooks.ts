@@ -8,6 +8,7 @@ import {
   UPDATE_COMPANY,
   DELETE_COMPANY,
   GET_CANDIDATES,
+  GET_CANDIDATE_BY_ID,
   UPDATE_CANDIDATE,
   CREATE_CANDIDATE,
 } from '@/graphql/queries'
@@ -395,4 +396,21 @@ export function useCreateCandidate() {
   }
 
   return { createCandidate, result }
+}
+
+export function useCandidateById(id: string) {
+  const [result] = useQuery({
+    query: GET_CANDIDATE_BY_ID,
+    variables: { id },
+    context: { url: 'http://localhost:4000/api/graphql/candidates' },
+    pause: !id,
+  })
+
+  const candidate: Candidate | null = result.data?.candidate ? fromGql(result.data.candidate) : null
+
+  return {
+    candidate,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+  }
 }

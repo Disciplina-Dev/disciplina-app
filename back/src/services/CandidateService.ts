@@ -8,6 +8,10 @@ export class CandidateService {
         return this.repository.findAll();
     }
 
+    async findById(id: string): Promise<Candidate | null> {
+        return this.repository.findById(id);
+    }
+
     async create(data: Partial<Candidate>): Promise<Candidate> {
         return this.repository.create(data);
     }

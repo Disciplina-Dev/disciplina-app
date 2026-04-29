@@ -184,6 +184,58 @@ export const GET_CANDIDATES = gql`
   }
 `
 
+export const GET_CANDIDATE_BY_ID = gql`
+  query GetCandidateById($id: String!) {
+    candidate(id: $id) {
+      id
+      status
+      tpType
+      trainingSite
+      identity {
+        fullName
+        email
+        phone
+        age
+        city
+        postalCode
+        drivingLicenseB
+      }
+      education {
+        schoolLevel
+      }
+      background {
+        lastDiploma
+        professionalExperiences {
+          position
+          company
+          duration
+        }
+      }
+      profile {
+        frenchLevel
+        englishLevel
+        qualities
+        digitalSkills
+      }
+      professionalProjects {
+        careerObjectives
+        apprenticeshipMotivation
+      }
+      synthesis {
+        feasibilityConclusion
+      }
+      skillsAssessment {
+        competence
+        level
+      }
+      jobInfo {
+        availabilityDate
+        geographicMobility
+      }
+    }
+  }
+`
+
 export const UPDATE_CANDIDATE = gql`
   mutation UpdateCandidate($id: String!, $input: UpdateCandidateInput!) {
     updateCandidate(id: $id, input: $input) {

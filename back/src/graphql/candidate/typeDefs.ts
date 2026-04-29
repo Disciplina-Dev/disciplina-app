@@ -304,6 +304,7 @@ export const typeDefs = gql`
 
     type Query {
         candidates: [Candidate!]!
+        candidate(id: String!): Candidate
     }
 
     type Mutation {
