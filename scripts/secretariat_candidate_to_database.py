@@ -127,7 +127,7 @@ def insert_candidate(file: str):
             try:
                 new_candidate['_id'] = str(uuid4())
                 new_candidate['tp_type'] = 'AD'
-                new_candidate['identity']['sex'] = row.get("GENRE") != "FILLE"
+                new_candidate['identity']['sex'] = "GARCON" if row.get("Sex") == "GARCON" else "FILLE"
                 new_candidate['identity']['full_name'] = row.get("NOM - PRENOM")
                 new_candidate['identity']['city'] = noamilze_string(row.get("VILLE").upper().replace("-", "_").replace(" ", "_")) if row.get("VILLE") else ''
                 new_candidate['identity']['age'] = int(row.get("AGE")) if row.get("AGE") != '' else 0

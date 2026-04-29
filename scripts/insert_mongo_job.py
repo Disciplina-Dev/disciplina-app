@@ -90,9 +90,10 @@ loc_options = [
     "BRAS_PANON", "SAINT_ANDRE", "LA_PLAINE_DES_PALMISTES", "SALAZIE",
     "SAINTE_ANNE"
 ]
+
 print("Select localisations (comma-separated, e.g., SAINT_DENIS,SAINT_PIERRE):")
-for i, loc in enumerate(loc_options, 1):
-    print(f"{i}. {loc}")
+for i in range(len(loc_options)):
+    print(f"{i}. {loc_options[i]}")
 loc_input = input("Enter localisations: ").strip()
 if loc_input:
     loc_list = [x.strip() for x in loc_input.split(",")]
