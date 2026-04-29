@@ -60,6 +60,7 @@ export class JobService {
         const filter: Record<string, any> = {};
         if (job.desired_tp) filter['tp_type'] = job.desired_tp;
         if (job.driving_license_b) filter['identity.driving_license_b'] = true;
+        if (job.desired_sex != 'MIXTE') filter['identity.sex'] = job.desired_sex;
 
         if (job.age_range) {
             const [min, max] = job.age_range.split('-').map(Number);
