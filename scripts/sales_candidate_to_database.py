@@ -101,7 +101,7 @@ def set_geographical_sector(sectors: str) -> list[str]:
         desired_sectors.append(desired)
     return desired_sectors
 
-def insert_candidate():
+def insert_candidate(file: str):
     client = get_mongo_connection()
     # Sélection de la BDD et de la collection
     db = client["human_ressources"]
@@ -114,7 +114,7 @@ def insert_candidate():
         'job_info': {}
     }
 
-    with open("../ressources/candidats_nord.csv", "r") as candidate_file:
+    with open(file, "r") as candidate_file:
         reader = csv.DictReader(candidate_file)
         for row in reader:
             try:
