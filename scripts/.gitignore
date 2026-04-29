@@ -2,3 +2,4 @@
 .env
 *.docx
 *.pdf
+*.csv
