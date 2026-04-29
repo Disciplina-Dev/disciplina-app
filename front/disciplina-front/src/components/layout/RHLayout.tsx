@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus } from 'lucide-react'
+import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
@@ -46,6 +46,7 @@ export default function RHLayout() {
           <NavItem to="/rh" end icon={<LayoutDashboard size={18} />} label="Dashboard" />
           <NavItem to="/rh/candidats" icon={<Users size={18} />} label="Candidats" />
           <NavItem to="/rh/matching" icon={<Repeat2 size={18} />} label="Matching" />
+          <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
         </nav>
 
         {/* Administration Nav (Admin Only) */}

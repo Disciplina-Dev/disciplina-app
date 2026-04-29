@@ -27,6 +27,10 @@ export class CandidateRepository {
         return CandidateModel.find().lean();
     }
 
+    async findById(id: string): Promise<Candidate | null> {
+        return CandidateModel.findById(id).lean();
+    }
+
     async create(data: Partial<Candidate>): Promise<Candidate> {
         const doc = new CandidateModel(data);
         await doc.save();

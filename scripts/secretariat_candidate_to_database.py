@@ -1,6 +1,7 @@
 import os
 import sys
 import csv
+import time
 from sys import stderr
 from dotenv import load_dotenv
 from pymongo import MongoClient
@@ -102,6 +103,10 @@ def set_geographical_sector(sectors: str) -> list[str]:
     return desired_sectors
 
 def insert_candidate(file: str):
+    start_time = time.time()
+    print(f"[{time.time() - start_time:.2f}s] Début de l'exécution")
+    
+    print(f"[{time.time() - start_time:.2f}s] Connexion à MongoDB...")
     client = get_mongo_connection()
     # Sélection de la BDD et de la collection
     db = client["human_ressources"]
@@ -114,7 +119,9 @@ def insert_candidate(file: str):
         'job_info': {}
     }
 
-    with open("../ressources/candidats_nord_AD.csv", "r") as candidate_file:
+    count = 0
+    print(f"[{time.time() - start_time:.2f}s] Ouverture du fichier CSV...")
+    with open(file, "r") as candidate_file:
         reader = csv.DictReader(candidate_file)
         for row in reader:
             try:
@@ -134,17 +141,23 @@ def insert_candidate(file: str):
                     new_candidate['status'] = "SEEKING" if row.get("Disponibilité".upper()).startswith('Disponible') else "NOT_SEEKING"
                 else:
                     new_candidate['status'] = "NOT_SEEKING"
+                
+                if count == 0:
+                    print(f"[{time.time() - start_time:.2f}s] Tentative de la 1ère insertion dans la DB...")
+                
                 x = candidates_collection.insert_one(new_candidate)
-                print(x.inserted_id)
-                # result_json = req.post("http://localhost:4000/api/graphql/candidates", json={
-                #     'query': "mutation($input: CreateCandidateInput!) { createCandidate(input: $input) { id identity { fullName }}}",
-                #     'variables': {
-                #         'input': new_candidate
-                #     }
-                # })
+                
+                if count == 0:
+                    print(f"[{time.time() - start_time:.2f}s] 1ère insertion réussie.")
+                    
+                if count % 100 == 0 and count > 0:
+                    print(f"[{time.time() - start_time:.2f}s] {count} insertions...")
+                count += 1
             except Exception as error:
                 print(f"Error while reading CSV: {error}", file=stderr)
                 raise TypeError
+
+    print(f"[{time.time() - start_time:.2f}s] Script terminé ! Total inséré: {count}")
 
 if __name__ == '__main__':
     insert_candidate(sys.argv[1])

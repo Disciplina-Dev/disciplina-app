@@ -9,6 +9,7 @@ import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, Skil
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
+import MailModal from '@/components/ui/MailModal';
 import { useCandidates, useUpdateCandidate, useCreateCandidate } from '@/graphql/hooks';
 
 // --- Helpers ---
@@ -69,9 +70,10 @@ interface CandidateModalProps {
   onClose: () => void;
   onSave: (c: Candidate) => void;
   onUpdateStatus: (id: string, status: CandidateStatus) => void;
+  onMail: (c: Candidate) => void;
 }
 
-function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: CandidateModalProps) {
+function CandidateModal({ candidate, onClose, onSave, onUpdateStatus, onMail }: CandidateModalProps) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<Candidate>(structuredClone(candidate));
   const [isEditing, setIsEditing] = useState(false);
@@ -158,7 +160,7 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: Candidat
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-8">
 
           {/* Quick Actions */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <Button variant="secondary" leftIcon={<FileText size={16} className="text-purple" />}>
               Voir le CV
             </Button>
@@ -168,6 +170,13 @@ function CandidateModal({ candidate, onClose, onSave, onUpdateStatus }: Candidat
               onClick={() => navigate(`/rh/candidats/${candidate._id}/questionnaire`)}
             >
               Analyse de Besoin
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<Mail size={16} className="text-purple" />}
+              onClick={() => onMail(candidate)}
+            >
+              Envoyer un mail
             </Button>
           </div>
 
@@ -552,6 +561,7 @@ export default function ListeCandidats() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [mailCandidate, setMailCandidate] = useState<Candidate | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const filteredCandidates = useMemo(() => {
@@ -887,6 +897,15 @@ export default function ListeCandidats() {
           onClose={() => setSelectedCandidate(null)}
           onSave={handleUpdateCandidate}
           onUpdateStatus={handleUpdateStatus}
+          onMail={(c) => setMailCandidate(c)}
+        />
+      )}
+
+      {mailCandidate && (
+        <MailModal
+          defaultTo={mailCandidate.identity.email}
+          candidateName={mailCandidate.identity.full_name}
+          onClose={() => setMailCandidate(null)}
         />
       )}
 
