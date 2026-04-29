@@ -29,5 +29,6 @@ export const typeDefs = gql`
   type Mutation {
     register(email: String!, name: String!, passwordPlain: String!, role: Role!, sectors: [String]): User!
     login(email: String!, passwordPlain: String!): AuthPayload!
+    linkGoogleDrive(code: String!): User!
   }
 `;

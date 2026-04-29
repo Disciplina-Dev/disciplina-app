@@ -167,6 +167,7 @@ export const typeDefs = gql`
         skillsAssessment: [SkillAssessment]
         jobInfo: JobInfo
         synthesis: CandidateSynthesis
+        pdfLink: String
     }
 
     input IdentityInput {

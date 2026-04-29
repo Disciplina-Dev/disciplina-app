@@ -14,12 +14,14 @@ export interface AppUser {
   name: string
   role: UserRole
   sectors?: string[]
+  oauthToken?: string
 }
 
 interface AuthStore {
   token: string | null
   user: AppUser | null
   setAuth: (token: string, user: AppUser) => void
+  updateUser: (user: Partial<AppUser>) => void
   logout: () => void
 }
 
@@ -29,6 +31,9 @@ export const useAuthStore = create<AuthStore>()(
       token: null,
       user: null,
       setAuth: (token, user) => set({ token, user }),
+      updateUser: (updates) => set((state) => ({ 
+        user: state.user ? { ...state.user, ...updates } : null 
+      })),
       logout: () => set({ token: null, user: null }),
     }),
     { name: 'disciplina-auth' }

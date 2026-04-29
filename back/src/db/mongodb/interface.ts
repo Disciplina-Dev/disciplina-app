@@ -242,4 +242,5 @@ export interface Candidate {
     skills_assessment?: SkillsAssessment[];
     job_info?: JobInfo;
     synthesis?: Synthesis;
+    pdf_link?: string;
 }

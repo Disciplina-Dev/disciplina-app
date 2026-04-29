@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, GraduationCap, Briefcase } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, GraduationCap, Briefcase, ExternalLink } from 'lucide-react'
 import { useCandidateById } from '@/graphql/hooks'
 import MailModal from '@/components/ui/MailModal'
 import Button from '@/components/ui/Button'
@@ -80,6 +80,16 @@ export default function FicheCandidat() {
             >
               Mail
             </Button>
+            {candidate.pdf_link && (
+              <Button
+                size="sm"
+                variant="primary"
+                leftIcon={<ExternalLink size={15} />}
+                onClick={() => window.open(candidate.pdf_link, '_blank')}
+              >
+                Drive
+              </Button>
+            )}
           </div>
         </div>
 

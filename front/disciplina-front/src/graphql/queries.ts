@@ -180,6 +180,7 @@ export const GET_CANDIDATES = gql`
       background {
         lastDiploma
       }
+      pdfLink
     }
   }
 `
@@ -232,6 +233,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         availabilityDate
         geographicMobility
       }
+      pdfLink
     }
   }
 `
@@ -272,6 +274,7 @@ export const UPDATE_CANDIDATE = gql`
       background {
         lastDiploma
       }
+      pdfLink
     }
   }
 `
@@ -312,6 +315,7 @@ export const CREATE_CANDIDATE = gql`
       background {
         lastDiploma
       }
+      pdfLink
     }
   }
 `
