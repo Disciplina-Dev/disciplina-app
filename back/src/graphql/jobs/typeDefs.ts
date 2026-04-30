@@ -75,8 +75,36 @@ export const typeDefs = gql`
         matchedCandidate: [MatchingCandidate]
     }
 
+    input MatchingCandidateInput {
+        id: String
+        fullName: String
+        age: Int
+        sex: Sex
+        city: Localisation
+        email: String
+        phone: String
+    }
+
+    input JobInput {
+        id: String!
+        companyName: String
+        ageRange: String
+        desiredTP: DesiredTP
+        desiredSex: Sex
+        drivingLicencseB: Boolean
+        professionalExperience: Boolean
+        status: JobStatus
+        localisation: [Localisation]
+        matchedCandidate: [MatchingCandidateInput]
+    }
+
     type Query {
         jobs: [Job!]!
         matchJob(id: String!): Job!
+    }
+
+    type Mutation {
+        updateJob(job: JobInput!): Job!
+        unmatch(id: String!): Job
     }
 `
