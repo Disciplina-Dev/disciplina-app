@@ -206,7 +206,7 @@ db.createCollection('candidates', {
               "RESTAURATION",
               "STATION",
               "PAP",
-              "LIBRE SERVICE",
+              "LIBRE_SERVICE",
               "TELEPHONIE",
               "AUTO",
               "COMMERCIAL",
@@ -332,6 +332,28 @@ db.createCollection('jobs', {
         desired_sex: { enum: ["MIXTE", "FILLE", "GARCON"] },
         driving_license_b: { bsonType: "bool" },
         professional_experience: { bsonType: "bool" },
+        sector: {
+          enum: [
+            "BOULANGERIE",
+            "RESTAURATION",
+            "STATION",
+            "PAP",
+            "LIBRE_SERVICE",
+            "TELEPHONIE",
+            "AUTO",
+            "COMMERCIAL",
+            "BIJOUX",
+            "COSMETIQUE",
+            "IMMOBILIER",
+            "ASSURANCE",
+            "ANIMAUX",
+            "SPORT",
+            "ENFANT",
+            "PHARMACIE",
+            "BAZAR",
+            "NONE"
+          ]
+        },
         status: { enum: ["NOT_MATCHED", "MATCHED", "ZERO_MATCHED", "CV_SEND", "IMMERSING", "CONTRACT"] },
         localisation: {
           bsonType: "array",
