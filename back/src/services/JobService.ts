@@ -1,6 +1,6 @@
 import { JobRepository } from '../repositories/JobRepository';
 import { CandidateRepository } from '../repositories/CandidateRepository';
-import { Candidate, Job, Localisation, MatchingCandidate, Sex } from '../db/mongodb/interface';
+import { Candidate, Job, Localisation, MatchingCandidate, Sector, Sex } from '../db/mongodb/interface';
 
 function matchingCandidateToGql(mc: MatchingCandidate): object {
     return {
@@ -71,7 +71,7 @@ export class JobService {
         if (job.localisation?.length)
             filter['job_info.geographic_mobility'] = { $all: job.localisation };
 
-        if (job.sector?.length)
+        if (job.sector != Sector.NONE)
             filter['desired_sectors'] = { $all: job.sector }
 
         const candidates = await this.externalRepositiry.findByfilter(filter);

@@ -140,7 +140,7 @@ export interface Job {
     driving_license_b?: boolean;
     professional_experience?: boolean;
     status?: JobStatus;
-    sector?: Sector[];
+    sector?: Sector;
     localisation?: Localisation[];
     matched?: boolean;
     matched_candidate?: MatchingCandidate[];
