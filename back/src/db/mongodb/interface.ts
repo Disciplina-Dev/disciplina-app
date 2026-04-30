@@ -100,6 +100,27 @@ export enum Sex {
     MIXTE = "MIXTE"
 }
 
+export enum Sector {
+    BOULANGERIE = "BOULANGERIE",
+    RESTAURATION = "RESTAURATION",
+    STATION = "STATION",
+    PAP = "PAP",
+    LIBRE_SERVICE = "LIBRE_SERVICE",
+    TELEPHONIE = "TELEPHONIE",
+    AUTO = "AUTO",
+    COMMERCIAL = "COMMERCIAL",
+    BIJOUX = "BIJOUX",
+    COSMETIQUE = "COSMETIQUE",
+    IMMOBILIER = "IMMOBILIER",
+    ASSURANCE = "ASSURANCE",
+    ANIMAUX = "ANIMAUX",
+    SPORT = "SPORT",
+    ENFANT = "ENFANT",
+    PHARMACIE = "PHARMACIE",
+    BAZAR = "BAZAR",
+    NONE = "NONE"
+}
+
 export interface MatchingCandidate {
     id: string
     full_name?: string;
@@ -119,6 +140,7 @@ export interface Job {
     driving_license_b?: boolean;
     professional_experience?: boolean;
     status?: JobStatus;
+    sector?: Sector[];
     localisation?: Localisation[];
     matched?: boolean;
     matched_candidate?: MatchingCandidate[];
@@ -128,7 +150,7 @@ export interface Identity {
     full_name: string;                    // Nom complet du candidat
     date_of_birth?: Date;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
-    age?: number;  
+    age?: number;
     sex?: Sex;                      // Âge actuel (calculé ou fourni)
     postal_code?: string;                 // Code postal
     city?: string;                        // Ville
