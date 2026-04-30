@@ -1,6 +1,6 @@
 import { JobRepository } from '../repositories/JobRepository';
 import { CandidateRepository } from '../repositories/CandidateRepository';
-import { Candidate, Job, Localisation, MatchingCandidate } from '../db/mongodb/interface';
+import { Candidate, Job, Localisation, MatchingCandidate, Sex } from '../db/mongodb/interface';
 
 function matchingCandidateToGql(mc: MatchingCandidate): object {
     return {
@@ -69,20 +69,27 @@ export class JobService {
         }
 
         if (job.localisation?.length)
-            filter['job_info.geographic_mobility'] = { $in: job.localisation };
+            filter['job_info.geographic_mobility'] = { $all: job.localisation };
+
+        if (job.sector?.length)
+            filter['desired_sectors'] = { $all: job.sector }
 
         const candidates = await this.externalRepositiry.findByfilter(filter);
 
-        const matched: MatchingCandidate[] = candidates.map((c: Candidate) => ({
-            id: c._id,
-            full_name: c.identity.full_name,
-            age: c.identity.age,
-            city: c.identity.city as unknown as Localisation,
-            email: c.identity.email,
-            phone: c.identity.phone
-        }));
+        const matched: MatchingCandidate[] = candidates.map((c: Candidate) => {
+            const loc: keyof typeof Localisation = c.identity.city;
 
-        console.log(matched)
+            return {
+                id: c._id,
+                full_name: c.identity.full_name,
+                age: c.identity.age,
+                city: Localisation[loc],
+                email: c.identity.email,
+                phone: c.identity.phone,
+                sex: c.identity.sex == Sex.FILLE ? false : true
+            }
+        });
+
         return toGql({ ...job, matched_candidate: matched });
     }
 
