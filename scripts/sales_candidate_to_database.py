@@ -82,7 +82,7 @@ def set_desired_sectors(row):
         if desired == None:
             continue
         if desired.upper() == 'OUI':
-            desired_sectors.append(sector)
+            desired_sectors.append(sector.replace(" ", "_"))
     return desired_sectors
 
 def noamilze_string(string: str):
