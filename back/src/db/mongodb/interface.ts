@@ -125,7 +125,7 @@ export interface MatchingCandidate {
     id: string
     full_name?: string;
     age?: number;
-    sex?: boolean;
+    sex?: Sex;
     city?: Localisation;
     email?: string;
     phone?: string;
