@@ -360,3 +360,35 @@ export const REGISTER_USER = gql`
     }
   }
 `
+
+// ─── Jobs / Matching ─────────────────────────────────────────────────────────
+
+export const GET_JOBS = gql`
+  query GetJobs {
+    jobs {
+      id
+      companyName
+      ageRange
+    }
+  }
+`
+
+export const MATCH_JOB = gql`
+  query MatchJob($id: String!) {
+    matchJob(id: $id) {
+      id
+      companyName
+      ageRange
+      matchedCandidate {
+        id
+        fullName
+        age
+        sex
+        city
+        email
+        phone
+      }
+    }
+  }
+`
+
