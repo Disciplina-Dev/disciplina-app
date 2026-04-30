@@ -56,7 +56,7 @@ export const typeDefs = gql`
         id: String
         fullName: String
         age: Int
-        sex: Boolean
+        sex: Sex
         city: Localisation
         email: String
         phone: String

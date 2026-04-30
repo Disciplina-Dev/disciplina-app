@@ -395,7 +395,7 @@ db.createCollection('jobs', {
               id: { bsonType: "string" },
               full_name: { bsonType: "string" },
               age: { bsonType: "int" },
-              sex: { bsonType: "bool" },
+              sex: { enum: ["FILLE", "GARCON"] },
               city: { bsonType: "string" },
               email: { bsonType: "string" },
               phone: { bsonType: "string" }

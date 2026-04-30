@@ -86,7 +86,7 @@ export class JobService {
                 city: Localisation[loc],
                 email: c.identity.email,
                 phone: c.identity.phone,
-                sex: c.identity.sex == Sex.FILLE ? false : true
+                sex: c.identity.sex,
             }
         });
 
