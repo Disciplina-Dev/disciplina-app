@@ -1,10 +1,12 @@
-#dependencies
-node_modules/
-
-#build
-dist/
-
-# Documentation
-*.md
-
+node_modules
+npm-debug.log
+.env
+.git
+.gitignore
 Dockerfile
+.dockerignore
+dist
+build
+coverage
+logs
+tmpCopied!   
