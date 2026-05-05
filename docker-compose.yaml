@@ -56,6 +56,8 @@ services:
           ignore:
             - nodes_modules
             - dist
+        - action: rebuild
+          path: ./back/package.json
     env_file:
       - ./.env
       - ./back/.env
