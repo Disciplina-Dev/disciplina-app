@@ -53,11 +53,9 @@ services:
           path: ./back/src
           target: /app/src
           initial_sync: true
-          ignore:
-            - nodes_modules
-            - dist
         - action: rebuild
           path: ./back/package.json
+          initial_sync: true
     env_file:
       - ./.env
       - ./back/.env
@@ -70,6 +68,14 @@ services:
     build:
       context: ./front/disciplina-front
       dockerfile: Dockerfile
+    develop:
+      watch:
+        - path: ./front/disciplina-front/src
+          action: sync
+          target: /app/src
+          initial_sync: true
+        - path: ./front/disciplina-front/package.json
+          action: rebuild
     depends_on:
       - backend
     networks:
