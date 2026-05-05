@@ -47,6 +47,15 @@ services:
         condition: service_healthy
       nosql-db:
         condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ./back/src
+          target: /app/src
+          initial_sync: true
+          ignore:
+            - nodes_modules
+            - dist
     env_file:
       - ./.env
       - ./back/.env
