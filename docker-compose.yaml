@@ -3,7 +3,7 @@ services:
     image: mysql:8.4.8
     restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD}
     volumes:
       - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
@@ -21,13 +21,13 @@ services:
     image: mongo:latest
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD}
     volumes:
       - ./database/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
       - ./database/mongodb/mongo-data:/data/db
     ports:
-      - ${MONGO_PORT}:27017
+      - ${MONGO_PORT:-4011}:27017
     networks:
       - back-end
     healthcheck:
@@ -43,8 +43,10 @@ services:
     depends_on:
       sql-db:
         condition: service_healthy
+        restart: true
       nosql-db:
         condition: service_healthy
+        restart: true
     develop:
       watch:
         - action: sync
@@ -75,7 +77,9 @@ services:
         - path: ./front/disciplina-front/package.json
           action: rebuild
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+        restart: true
     networks:
       - front-end
     ports:
