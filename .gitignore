@@ -1,3 +1,4 @@
+.env.global
 .env
 skills-lock.json
 .agents
