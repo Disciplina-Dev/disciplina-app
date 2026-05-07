@@ -8,7 +8,7 @@ services:
       - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
-      - back-end
+      - back-tier
     ports:
       - 5001:3306
     healthcheck:
@@ -29,7 +29,7 @@ services:
     ports:
       - ${MONGO_PORT:-4011}:27017
     networks:
-      - back-end
+      - back-tier
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -60,8 +60,8 @@ services:
       - ./.env
       - ./back/.env
     networks:
-      - back-end
-      - front-end
+      - back-tier
+      - front-tier
     ports:
       - "4000:4000"
   frontend:
@@ -81,9 +81,9 @@ services:
         condition: service_started
         restart: true
     networks:
-      - front-end
+      - front-tier
     ports:
       - "5173:5173"
 networks:
-  front-end:
-  back-end:
+  front-tier:
+  back-tier:
