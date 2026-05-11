@@ -18,5 +18,9 @@ export function getOAuth2Client(): Auth.OAuth2Client {
 }
 
 export function getAuthScopes(): string[] {
-    return ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/calendar'];
+    return [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/gmail.modify'
+    ];
 }

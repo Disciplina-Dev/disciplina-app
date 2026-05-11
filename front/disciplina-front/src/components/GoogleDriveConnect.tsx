@@ -26,7 +26,7 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
   const login = useGoogleLogin({
     use_fedcm_for_prompt: true,
     flow: 'auth-code',
-    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar',
+    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.modify',
     onSuccess: async (codeResponse) => {
       setIsLoading(true)
       setErrorMsg(null)
