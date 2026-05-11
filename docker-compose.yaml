@@ -52,16 +52,16 @@ services:
         - action: sync
           path: ./back/src
           target: /app/src
-          initial_sync: true
+          # initial_sync: true
         - action: rebuild
           path: ./back/package.json
-          initial_sync: true
+          # initial_sync: true
         - action: sync+restart
           path: ./back/.env.back
           target: /app/src
     env_file:
       - ./.env
-      - ./back/.env.back
+      - ./back/.env
     networks:
       - backend-net
       - frontend-net
@@ -76,7 +76,7 @@ services:
         - path: ./front/disciplina-front/src
           action: sync
           target: /app/src
-          initial_sync: true
+          # initial_sync: true
         - path: ./front/disciplina-front/package.json
           action: rebuild
     depends_on:
