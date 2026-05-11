@@ -1,22 +1,22 @@
-import { SalePersonsRepository } from '../repositories/SalePersonsRepository';
-import { SalePerson } from './interfaces';
-import { toSalePerson } from './mappers';
+import { SalePersonRepository } from '../repositories/mysql/SalePersonRepository';
+import { SalePerson } from '../types/company.types';
+import { toSalePerson } from './mappers/company.mapper';
 
-const salePersonsRepository = new SalePersonsRepository();
+const salePersonRepository = new SalePersonRepository();
 
 export class SalePersonsService {
-  async findAll(): Promise<SalePerson[]> {
-    const rows = await salePersonsRepository.findAll();
-    return rows.map(toSalePerson);
-  }
+    async findAll(): Promise<SalePerson[]> {
+        const rows = await salePersonRepository.findAll();
+        return rows.map(toSalePerson);
+    }
 
-  async findById(id: number): Promise<SalePerson | null> {
-    const row = await salePersonsRepository.findById(id);
-    return row ? toSalePerson(row) : null;
-  }
+    async findById(id: number): Promise<SalePerson | null> {
+        const row = await salePersonRepository.findById(id);
+        return row ? toSalePerson(row) : null;
+    }
 
-  async findByEmail(email: string): Promise<SalePerson | null> {
-    const row = await salePersonsRepository.findByEmail(email);
-    return row ? toSalePerson(row) : null;
-  }
+    async findByEmail(email: string): Promise<SalePerson | null> {
+        const row = await salePersonRepository.findByEmail(email);
+        return row ? toSalePerson(row) : null;
+    }
 }

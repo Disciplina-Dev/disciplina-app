@@ -1,25 +1,21 @@
-import { JobModel } from '../db/mongodb/schema';
-import { Job } from '../db/mongodb/interface';
+import { JobModel } from '../../db/mongo/schemas/job.schema';
+import { Job } from '../../types/job.types';
 
 type FlattenedObject = Record<string, any>;
 
 function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
     const result: FlattenedObject = {};
-
     for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
             const value = obj[key];
             const newKey = parentKey ? `${parentKey}.${key}` : key;
-
             if (value && typeof value === 'object' && !Array.isArray(value)) {
                 Object.assign(result, flattenObject(value, newKey));
-            } else {
-                if (value)
-                    result[newKey] = value;
+            } else if (value) {
+                result[newKey] = value;
             }
         }
     }
-
     return result;
 }
 

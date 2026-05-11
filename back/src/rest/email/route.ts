@@ -3,4 +3,4 @@ import { sendEmail } from './controller';
 
 export const router: Router = express.Router();
 
-router.post('/api/email/send', express.json({ limit: '2500mb' }), sendEmail);
+router.post('/api/email/send', express.json({ limit: '25mb' }), sendEmail);
