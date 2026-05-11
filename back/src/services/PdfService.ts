@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { Candidate } from '../db/mongodb/interface';
+import { Candidate } from '../types/candidate.types';
 
 export class PdfService {
     static generateCandidatePdf(candidate: Candidate): Promise<Buffer> {

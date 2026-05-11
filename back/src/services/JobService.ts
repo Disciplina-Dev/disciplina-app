@@ -1,6 +1,7 @@
-import { JobRepository } from '../repositories/JobRepository';
-import { CandidateRepository } from '../repositories/CandidateRepository';
-import { Candidate, Job, Localisation, MatchingCandidate, Sector, Sex } from '../db/mongodb/interface';
+import { JobRepository } from '../repositories/mongo/JobRepository';
+import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
+import { Candidate } from '../types/candidate.types';
+import { Job, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
 
 function matchingCandidateToGql(mc: MatchingCandidate): object {
     return {
@@ -46,7 +47,7 @@ function fromGql(data: any): Partial<Job> {
 
 export class JobService {
     private repository = new JobRepository();
-    private externalRepositiry = new CandidateRepository();
+    private candidateRepository = new CandidateRepository();
 
     async findAll(): Promise<object[]> {
         const jobs = await this.repository.findAll();
@@ -60,7 +61,7 @@ export class JobService {
         const filter: Record<string, any> = {};
         if (job.desired_tp) filter['tp_type'] = job.desired_tp;
         if (job.driving_license_b) filter['identity.driving_license_b'] = true;
-        if (job.desired_sex != 'MIXTE') filter['identity.sex'] = job.desired_sex;
+        if (job.desired_sex !== 'MIXTE') filter['identity.sex'] = job.desired_sex;
 
         if (job.age_range) {
             const [min, max] = job.age_range.split('-').map(Number);
@@ -71,14 +72,13 @@ export class JobService {
         if (job.localisation?.length)
             filter['job_info.geographic_mobility'] = { $all: job.localisation };
 
-        if (job.sector != Sector.NONE)
-            filter['desired_sectors'] = { $all: job.sector }
+        if (job.sector !== Sector.NONE)
+            filter['desired_sectors'] = { $all: job.sector };
 
-        const candidates = await this.externalRepositiry.findByfilter(filter);
+        const candidates = await this.candidateRepository.findByfilter(filter);
 
         const matched: MatchingCandidate[] = candidates.map((c: Candidate) => {
-            const loc: keyof typeof Localisation = c.identity.city;
-
+            const loc = c.identity.city as keyof typeof Localisation;
             return {
                 id: c._id,
                 full_name: c.identity.full_name,
@@ -86,8 +86,8 @@ export class JobService {
                 city: Localisation[loc],
                 email: c.identity.email,
                 phone: c.identity.phone,
-                sex: c.identity.sex,
-            }
+                sex: c.identity.sex as Sex,
+            };
         });
 
         return toGql({ ...job, matched_candidate: matched });

@@ -18,21 +18,7 @@ import {
     JobInfo,
     PedagogicalRecommendations,
     Synthesis,
-    Job,
-    JobStatus,
-    DesiredSex,
-    Localisation,
-    MatchingCandidate
-} from './interface';
-
-const matchingCandidateSchema = new Schema<MatchingCandidate>({
-    full_name: { type: String },
-    age: { type: Number },
-    sex: { type: Boolean },
-    city: { type: String, enum: Object.values(Localisation) },
-    email: { type: String },
-    phone: { type: String }
-}, { _id: false });
+} from '../../../types/candidate.types';
 
 const identitySchema = new Schema<Identity>({
     full_name: { type: String, required: true },
@@ -49,10 +35,7 @@ const identitySchema = new Schema<Identity>({
 }, { _id: false });
 
 const educationSchema = new Schema<Education>({
-    school_level: {
-        type: String,
-        enum: Object.values(SchoolLevel)
-    },
+    school_level: { type: String, enum: Object.values(SchoolLevel) },
     justification: { type: String }
 }, { _id: false });
 
@@ -97,11 +80,7 @@ const professionalProjectsSchema = new Schema<ProfessionalProjects>({
 
 const skillsAssessmentSchema = new Schema<SkillsAssessment>({
     competence: { type: String, required: true },
-    level: {
-        type: String,
-        enum: Object.values(SkillLevel),
-        required: true
-    }
+    level: { type: String, enum: Object.values(SkillLevel), required: true }
 }, { _id: false });
 
 const jobInfoSchema = new Schema<JobInfo>({
@@ -110,10 +89,7 @@ const jobInfoSchema = new Schema<JobInfo>({
     availability_date: { type: Date },
     geographic_mobility: { type: String },
     weekend_work: { type: Boolean },
-    discovery_source: {
-        type: String,
-        enum: Object.values(DiscoverySource)
-    }
+    discovery_source: { type: String, enum: Object.values(DiscoverySource) }
 }, { _id: false });
 
 const pedagogicalRecommendationsSchema = new Schema<PedagogicalRecommendations>({
@@ -145,21 +121,10 @@ const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
-        tp_type: {
-            type: String,
-            enum: Object.values(TitleProfessionalType),
-            required: true
-        },
+        tp_type: { type: String, enum: Object.values(TitleProfessionalType), required: true },
         identity: { type: identitySchema, required: true },
-        status: {
-            type: String,
-            enum: Object.values(CandidateStatus),
-            required: true
-        },
-        training_site: {
-            type: String,
-            enum: Object.values(TrainingSite)
-        },
+        status: { type: String, enum: Object.values(CandidateStatus), required: true },
+        training_site: { type: String, enum: Object.values(TrainingSite) },
         immersion_agreement: { type: Boolean },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
@@ -177,22 +142,3 @@ const candidateSchema = new Schema<Candidate & Document>(
 );
 
 export const CandidateModel = model<Candidate & Document>('Candidate', candidateSchema);
-
-const jobSchema = new Schema<Job & Document>(
-    {
-        _id: { type: String },
-        company_name: { type: String },
-        age_range: { type: String },
-        desired_tp: { type: String, enum: Object.values(TitleProfessionalType) },
-        desired_sex: { type: String, enum: Object.values(DesiredSex) },
-        driving_license_b: { type: Boolean },
-        professional_experience: { type: Boolean },
-        status: { type: String, enum: Object.values(JobStatus) },
-        localisation: { type: [String], enum: Object.values(Localisation) },
-        matched: { type: Boolean },
-        matched_candidate: { type: [matchingCandidateSchema] }
-    },
-    { collection: 'jobs' }
-);
-
-export const JobModel = model<Job & Document>('Job', jobSchema);

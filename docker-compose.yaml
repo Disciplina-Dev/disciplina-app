@@ -56,6 +56,9 @@ services:
         - action: rebuild
           path: ./back/package.json
           initial_sync: true
+        - action: sync+restart
+          path: ./back/.env.back
+          target: /app/src
     env_file:
       - ./.env
       - ./back/.env.back
