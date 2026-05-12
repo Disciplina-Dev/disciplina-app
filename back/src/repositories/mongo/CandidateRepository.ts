@@ -1,24 +1,21 @@
-import { CandidateModel } from '../db/mongodb/schema';
-import { Candidate } from '../db/mongodb/interface';
+import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
+import { Candidate } from '../../types/candidate.types';
+
 type FlattenedObject = Record<string, any>;
 
 function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
     const result: FlattenedObject = {};
-
     for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
             const value = obj[key];
             const newKey = parentKey ? `${parentKey}.${key}` : key;
-
             if (value && typeof value === 'object' && !Array.isArray(value)) {
                 Object.assign(result, flattenObject(value, newKey));
-            } else {
-                if (value)
-                    result[newKey] = value;
+            } else if (value) {
+                result[newKey] = value;
             }
         }
     }
-
     return result;
 }
 
@@ -45,7 +42,7 @@ export class CandidateRepository {
         return CandidateModel.findOneAndUpdate({ _id: id }, { $set: flattenObject(data) }, { new: true }).lean();
     }
 
-    async delete(id: string) {
-        return (await CandidateModel.deleteOne({ _id: id})).deletedCount > 0;
+    async delete(id: string): Promise<boolean> {
+        return (await CandidateModel.deleteOne({ _id: id })).deletedCount > 0;
     }
 }

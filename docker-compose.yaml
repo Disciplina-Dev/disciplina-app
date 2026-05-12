@@ -1,16 +1,14 @@
-version: '3.9'
-
 services:
   sql-db:
     image: mysql:8.4.8
     restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD}
     volumes:
       - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
-      - back-end
+      - backend-net
     ports:
       - 5001:3306
     healthcheck:
@@ -23,15 +21,15 @@ services:
     image: mongo:latest
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD}
     volumes:
       - ./database/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
       - ./database/mongodb/mongo-data:/data/db
     ports:
-      - ${MONGO_PORT}:27017
+      - ${MONGO_PORT:-4011}:27017
     networks:
-      - back-end
+      - backend-net
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -45,26 +43,50 @@ services:
     depends_on:
       sql-db:
         condition: service_healthy
+        restart: true
       nosql-db:
         condition: service_healthy
+        restart: true
+    develop:
+      watch:
+        - action: sync
+          path: ./back/src
+          target: /app/src
+          # initial_sync: true
+        - action: rebuild
+          path: ./back/package.json
+          # initial_sync: true
+        - action: sync+restart
+          path: ./back/.env.back
+          target: /app/src
     env_file:
       - ./.env
       - ./back/.env
     networks:
-      - back-end
-      - front-end
+      - backend-net
+      - frontend-net
     ports:
       - "4000:4000"
   frontend:
     build:
       context: ./front/disciplina-front
       dockerfile: Dockerfile
+    develop:
+      watch:
+        - path: ./front/disciplina-front/src
+          action: sync
+          target: /app/src
+          # initial_sync: true
+        - path: ./front/disciplina-front/package.json
+          action: rebuild
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+        restart: true
     networks:
-      - front-end
+      - frontend-net
     ports:
       - "5173:5173"
 networks:
-  front-end:
-  back-end:
+  frontend-net:
+  backend-net:

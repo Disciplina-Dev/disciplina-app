@@ -1,15 +1,17 @@
+import './config/env'; // validate env vars at startup
 import express, { Request, Response } from 'express';
-import dotenv from 'dotenv';
 import { CompanyAPI, CandidateAPI, UserAPI, JobAPI } from './graphql/server';
-import { connectMongoDB } from './db/mongodb/connection';
+import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
 import { router as googleRouter } from './rest/google/route';
 import { router as filesRouter } from './rest/files/route';
 import { router as emailRouter } from './rest/email/route';
 import { router as relanceRouter } from './rest/relance/route';
-
-dotenv.config();
+import { errorHandler } from './rest/middleware/errorHandler';
+import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
+import { logger } from './utils/logger';
+import { env } from './config/env';
 
 declare module 'express-session' {
     interface SessionData {
@@ -19,22 +21,23 @@ declare module 'express-session' {
 
 async function startServer() {
     const app: any = express();
-    const PORT = process.env.API_PORT || 4000;
 
     app.use(cors({
         origin: ['http://localhost:3000', 'http://localhost:5173'],
-        credentials: true
+        credentials: true,
     }));
 
     app.use(session({
-        secret: process.env.SESSION_SECRET || 'supersecret123',
+        secret: env.SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
     }));
 
     app.use(googleRouter);
     app.use('/api/files', filesRouter);
+    app.use('/api/email/send', emailRateLimiter);
     app.use(emailRouter);
+    app.use('/api/relance/send', relanceRateLimiter);
     app.use(relanceRouter);
 
     app.get('/api/logout', (req: Request, res: Response) => {
@@ -42,6 +45,8 @@ async function startServer() {
             res.status(200).json({ message: 'Logged out' });
         });
     });
+
+    app.use(errorHandler);
 
     await connectMongoDB();
 
@@ -55,11 +60,11 @@ async function startServer() {
     UserAPI.applyMiddleware({ app, path: '/api/graphql/users' });
 
     await JobAPI.start();
-    JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' })
+    JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' });
 
-    app.listen(PORT, () => {
-        console.log(`Server ready at http://localhost:${PORT}`);
+    app.listen(env.API_PORT, () => {
+        logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
 }
 
-startServer().catch(console.error);
+startServer().catch(err => logger.error(err, 'Startup error'));

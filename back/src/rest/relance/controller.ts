@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import { transporter } from '../email/transporter';
 import { CandidateService } from '../../services/CandidateService';
-import { CandidateStatus } from '../../db/mongodb/interface';
+import { CandidateStatus } from '../../types/candidate.types';
+import { signRelanceUrl, verifyRelanceUrl } from '../../utils/hmac';
+import { env } from '../../config/env';
+import { logger } from '../../utils/logger';
 
 const candidateService = new CandidateService();
 
@@ -13,14 +16,15 @@ export async function sendRelance(req: Request, res: Response) {
         (ids && ids.length > 0 ? ids.includes(c._id) : c.status === CandidateStatus.SEEKING)
     );
 
-    const BASE_URL = process.env.APP_BASE_URL || 'http://localhost:4000';
     let sent = 0;
     let errors = 0;
 
     for (const candidate of seeking) {
         const name = candidate.identity.full_name?.split(' ')[0] ?? 'Candidat';
-        const ouiUrl = `${BASE_URL}/api/relance/response?id=${candidate._id}&answer=oui`;
-        const nonUrl = `${BASE_URL}/api/relance/response?id=${candidate._id}&answer=non`;
+        const sig_oui = signRelanceUrl(candidate._id, 'oui');
+        const sig_non = signRelanceUrl(candidate._id, 'non');
+        const ouiUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=oui&sig=${sig_oui}`;
+        const nonUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=non&sig=${sig_non}`;
 
         const html = `<!DOCTYPE html>
 <html>
@@ -53,7 +57,7 @@ export async function sendRelance(req: Request, res: Response) {
 
         try {
             await transporter.sendMail({
-                from: process.env.SMTP_FROM || process.env.SMTP_USER,
+                from: env.SMTP_FROM || env.SMTP_USER,
                 to: candidate.identity.email,
                 subject: 'DISCIPLINA – Êtes-vous toujours en recherche ?',
                 html,
@@ -69,10 +73,14 @@ export async function sendRelance(req: Request, res: Response) {
 }
 
 export async function handleResponse(req: Request, res: Response) {
-    const { id, answer } = req.query as { id?: string; answer?: string };
+    const { id, answer, sig } = req.query as { id?: string; answer?: string; sig?: string };
 
-    if (!id || !answer || !['oui', 'non'].includes(answer)) {
+    if (!id || !answer || !sig || !['oui', 'non'].includes(answer)) {
         return res.status(400).send(confirmationPage('Lien invalide.', false));
+    }
+
+    if (!verifyRelanceUrl(id, answer, sig)) {
+        return res.status(400).send(confirmationPage('Lien invalide ou expiré.', false));
     }
 
     const newStatus = answer === 'non' ? CandidateStatus.NOT_SEEKING : CandidateStatus.SEEKING;
@@ -80,15 +88,13 @@ export async function handleResponse(req: Request, res: Response) {
     let updated;
     try {
         updated = await candidateService.update(id, { status: newStatus });
-        console.log('[relance] update result:', JSON.stringify(updated));
-        console.log('[relance] id:', id, '| answer:', answer, '| newStatus:', newStatus);
+        logger.info({ id, answer, newStatus }, '[relance] status updated');
     } catch (err) {
-        console.error('[relance] update error:', err);
+        logger.error({ err }, '[relance] update error');
         return res.status(500).send(confirmationPage('Une erreur est survenue.', false));
     }
 
     if (!updated) {
-        console.warn('[relance] no document found for id:', id);
         return res.status(404).send(confirmationPage('Candidat introuvable.', false));
     }
 

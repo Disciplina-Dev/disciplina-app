@@ -1,0 +1,24 @@
+import mysql, { Pool, PoolConnection } from 'mysql2/promise';
+import { env } from '../../config/env';
+
+const pool: Pool = mysql.createPool({
+    host: env.MYSQL_HOST,
+    port: env.MYSQL_PORT,
+    user: env.MYSQL_USER,
+    password: env.MYSQL_ROOT_PASSWORD,
+    database: env.MYSQL_DATABASE,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+});
+
+export async function getConnection(): Promise<PoolConnection> {
+    return pool.getConnection();
+}
+
+export async function query<T>(sql: string, params?: unknown[]): Promise<T> {
+    const [rows] = await pool.execute(sql, params as (string | number)[]);
+    return rows as T;
+}
+
+export default pool;

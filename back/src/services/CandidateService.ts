@@ -1,5 +1,5 @@
-import { CandidateRepository } from '../repositories/CandidateRepository';
-import { Candidate } from '../db/mongodb/interface';
+import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
+import { Candidate } from '../types/candidate.types';
 
 export class CandidateService {
     private repository = new CandidateRepository();
@@ -20,7 +20,7 @@ export class CandidateService {
         return this.repository.update(id, data);
     }
 
-    async delete(id: string) {
-        return await this.repository.delete(id);
+    async delete(id: string): Promise<boolean> {
+        return this.repository.delete(id);
     }
 }
