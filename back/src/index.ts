@@ -4,8 +4,7 @@ import { CompanyAPI, CandidateAPI, UserAPI, JobAPI } from './graphql/server';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
-import { router as googleRouter } from './rest/google/route';
-import { router as filesRouter } from './rest/files/route';
+
 import { router as emailRouter } from './rest/email/route';
 import { router as relanceRouter } from './rest/relance/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -33,8 +32,6 @@ async function startServer() {
         saveUninitialized: false,
     }));
 
-    app.use(googleRouter);
-    app.use('/api/files', filesRouter);
     app.use('/api/email/send', emailRateLimiter);
     app.use(emailRouter);
     app.use('/api/relance/send', relanceRateLimiter);

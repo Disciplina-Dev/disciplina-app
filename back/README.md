@@ -27,9 +27,7 @@ src/
                          JobService, SalePersonsService, PdfService
     mappers/             Snake-case ↔ camelCase mappers for user, company, candidate
   rest/
-    google/              Google OAuth2 routes & Drive API service
     email/               SMTP email sending (nodemailer, Brevo)
-    files/               Google Drive file listing
     relance/             Candidate follow-up emails with HMAC-signed tracking links
     middleware/          Error handler & rate limiters
   types/                 Domain types: user, company, candidate, job, db-rows
@@ -51,9 +49,6 @@ All use the same JWT context (`back/src/graphql/context.ts`).
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/auth/google` | Initiate Google OAuth2 flow |
-| GET | `/auth/callback` | Google OAuth2 callback |
-| GET | `/api/files` | List Google Drive files |
 | POST | `/api/email/send` | Send email (rate-limited: 20/15min) |
 | POST | `/api/relance/send` | Send relance emails (rate-limited: 5/hour) |
 | GET | `/api/relance/response` | Handle relance OUI/NON click-through |
@@ -120,7 +115,6 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 1. **Register**: `register` mutation → bcrypt hash → insert user
 2. **Login**: `login` mutation → verify password → return JWT (24h expiry)
 3. **GraphQL**: Client sends `Authorization: Bearer <token>` → `context.ts` verifies JWT → attaches `user` to context
-4. **REST session**: Google OAuth uses `express-session` (not JWT)
 
 ## Key dependencies
 
@@ -142,7 +136,6 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 
 - No test suite or CI configured
 - 4 separate Apollo Servers instead of one unified gateway — cross-entity GraphQL queries not possible
-- Google OAuth redirect URL is hardcoded to `http://localhost:5173/drive` in `rest/google/controller.ts`
 - CORS origins hardcoded to `localhost:3000` and `localhost:5173` in `index.ts`
 - Session cookies lack `secure`, `httpOnly`, `sameSite` flags
 - Error handler sends `err.message` directly to client (may leak internals)
