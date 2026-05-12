@@ -40,19 +40,21 @@ src/
 |------|--------|----------|
 | `/api/graphql/companies` | Companies + SalePersons | MySQL |
 | `/api/graphql/candidates` | Candidates | MongoDB |
-| `/api/graphql/users` | Users (register, login, Google Drive link) | MySQL |
 | `/api/graphql/jobs` | Jobs + candidate matching | MongoDB |
 
 All use the same JWT context (`back/src/graphql/context.ts`).
 
 ## REST endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/email/send` | Send email (rate-limited: 20/15min) |
-| POST | `/api/relance/send` | Send relance emails (rate-limited: 5/hour) |
-| GET | `/api/relance/response` | Handle relance OUI/NON click-through |
-| GET | `/api/logout` | Destroy session |
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/auth/login` | None | Login → JWT + user |
+| POST | `/api/auth/register` | JWT (ADMIN) | Register new user |
+| POST | `/api/auth/drive/link` | JWT | Link Google Drive with OAuth code |
+| POST | `/api/email/send` | None | Send email (rate-limited: 20/15min) |
+| POST | `/api/relance/send` | None | Send relance emails (rate-limited: 5/hour) |
+| GET | `/api/relance/response` | None | Handle relance OUI/NON click-through |
+| GET | `/api/logout` | Session | Destroy session |
 
 ## Commands
 

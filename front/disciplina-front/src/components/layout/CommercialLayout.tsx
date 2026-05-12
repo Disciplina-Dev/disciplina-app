@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
-import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
+// import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -62,7 +62,7 @@ export default function CommercialLayout() {
 
         {/* Profile Footer */}
         <div className="mt-auto p-4 flex flex-col gap-4">
-          <GoogleDriveConnect theme="blue" />
+          {/* <GoogleDriveConnect theme="blue" /> */}
           <div className="h-px w-full bg-gray-100" />
           <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-gray-50 transition-colors">
             <div 
