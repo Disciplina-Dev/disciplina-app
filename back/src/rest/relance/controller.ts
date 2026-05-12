@@ -106,7 +106,6 @@ export async function handleResponse(req: Request, res: Response) {
 }
 
 function confirmationPage(message: string, success: boolean): string {
-    const color = success ? '#60207E' : '#ef4444';
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>DISCIPLINA</title>

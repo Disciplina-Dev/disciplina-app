@@ -1,7 +1,7 @@
 import { CompaniesService } from '../../services/CompaniesService';
 import { SalePersonsService } from '../../services/SalePersonsService';
 import { CompaniesRow } from '../../types/db-rows.types';
-import { toCompanies, toSalePerson } from '../../services/mappers/company.mapper';
+import { toSalePerson } from '../../services/mappers/company.mapper';
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
 

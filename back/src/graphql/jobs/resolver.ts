@@ -1,6 +1,6 @@
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
-import { JobService, toGql } from '../../services/JobService';
+import { JobService } from '../../services/JobService';
 import { Job, JobStatus } from '../../types/job.types';
 
 const jobService = new JobService();
