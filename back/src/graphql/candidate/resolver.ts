@@ -95,7 +95,8 @@ export const resolvers = {
             return candidateToGql(updated);
         },
 
-        deleteCandidate: async (_: unknown, { id }: { id: string }) => {
+        deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuard(context.user, [Role.RH]);
             return candidateService.delete(id);
         },
     },
