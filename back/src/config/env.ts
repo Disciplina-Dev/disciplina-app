@@ -50,7 +50,6 @@ if (!parsed.success) {
 }
 
 const data = parsed.data;
-console.log(data);
 
 if (INSECURE_DEFAULTS.has(data.JWT_SECRET)) {
     console.error('JWT_SECRET is set to an insecure default value. Change it before running in production.');
