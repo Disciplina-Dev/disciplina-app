@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail } from 'lucide-react'
-import { useMutation } from 'urql'
-import { LOGIN_USER } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
@@ -32,20 +30,28 @@ const GoogleIcon = () => (
 export default function LoginPage() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
-  const [{ fetching, error }, executeMutation] = useMutation(LOGIN_USER)
+  const [fetching, setFetching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   const [email, setEmail] = useState('')
   const [passwordPlain, setPasswordPlain] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const result = await executeMutation(
-      { email, passwordPlain },
-      { url: 'http://localhost:4000/api/graphql/users' }
-    )
-    
-    if (result.data?.login) {
-      const { token, user } = result.data.login
+    setFetching(true)
+    setError(null)
+    try {
+      const res = await fetch('http://localhost:4000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, passwordPlain }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Erreur de connexion')
+        return
+      }
+      const { token, user } = data
       setAuth(token, user)
       
       if (user.role === 'RH') {
@@ -55,6 +61,10 @@ export default function LoginPage() {
       } else {
         navigate('/')
       }
+    } catch {
+      setError('Erreur réseau')
+    } finally {
+      setFetching(false)
     }
   }
 
@@ -99,7 +109,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-500">{error.message}</p>}
+        {error && <p className="text-sm text-red-500">{error}</p>}
 
         <Button type="submit" size="lg" className="w-full rounded-[10px]" disabled={fetching}>
           {fetching ? 'Connexion...' : 'Se connecter'}

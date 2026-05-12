@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { User, Mail, ShieldCheck, Shield } from 'lucide-react'
-import { useMutation } from 'urql'
-import { REGISTER_USER } from '@/graphql/queries'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
-import { UserRole } from '@/store/authStore'
+import { UserRole, useAuthStore } from '@/store/authStore'
 
 export default function RegisterPage() {
-  const [{ fetching, error }, executeMutation] = useMutation(REGISTER_USER)
+  const token = useAuthStore((s) => s.token)
+  const [fetching, setFetching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [firstname, setFirstname] = useState('')
   const [lastname, setLastname] = useState('')
@@ -28,19 +28,30 @@ export default function RegisterPage() {
     e.preventDefault()
     if (password !== confirmPassword) return
     setSuccess(false)
+    setFetching(true)
+    setError(null)
 
-    const result = await executeMutation(
-      {
-        email,
-        name: `${firstname} ${lastname}`.trim(),
-        passwordPlain: password,
-        role,
-        sectors: [],
-      },
-      { url: 'http://localhost:4000/api/graphql/users' }
-    )
+    try {
+      const res = await fetch('http://localhost:4000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email,
+          name: `${firstname} ${lastname}`.trim(),
+          passwordPlain: password,
+          role,
+          sectors: [],
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || "Erreur lors de l'inscription")
+        return
+      }
 
-    if (result.data?.register) {
       setSuccess(true)
       setFirstname('')
       setLastname('')
@@ -48,6 +59,10 @@ export default function RegisterPage() {
       setPassword('')
       setConfirmPassword('')
       setRole(UserRole.COMMERCIAL)
+    } catch {
+      setError('Erreur réseau')
+    } finally {
+      setFetching(false)
     }
   }
 
@@ -151,7 +166,7 @@ export default function RegisterPage() {
           required
         />
 
-        {error && <p className="text-sm text-red-500">{error.message}</p>}
+        {error && <p className="text-sm text-red-500">{error}</p>}
 
         <Button
           type="submit"

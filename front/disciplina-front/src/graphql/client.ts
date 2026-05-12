@@ -25,9 +25,3 @@ export const candidateGraphqlClient = new Client({
   exchanges: [cacheExchange, fetchExchange],
   fetchOptions: getFetchOptions,
 })
-
-export const userGraphqlClient = new Client({
-  url: 'http://localhost:4000/api/graphql/users',
-  exchanges: [cacheExchange, fetchExchange],
-  fetchOptions: getFetchOptions,
-})
