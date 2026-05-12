@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { Auth } from 'googleapis';
-import { DriveFile, GoogleTokens, DriveListResponse } from '../types';
+import { DriveFile, GoogleTokens } from '../types';
 import stream from 'stream';
 
 export class DriveService {

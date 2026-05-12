@@ -5,7 +5,6 @@ import {
     DesiredSex,
     Localisation,
     MatchingCandidate,
-    Sex,
 } from '../../../types/job.types';
 import { TitleProfessionalType } from '../../../types/candidate.types';
 
