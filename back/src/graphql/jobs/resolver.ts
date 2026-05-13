@@ -25,7 +25,7 @@ export const resolvers = {
         },
         unmatch: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH]);
-            const job = await jobService.find(id) as Job | null;
+            const job = (await jobService.find(id)) as Job | null;
             if (job) {
                 job.matched_candidate = [];
                 job.status = JobStatus.NOT_MATCHED;

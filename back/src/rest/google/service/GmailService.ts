@@ -67,11 +67,7 @@ export class GmailService {
             ].join('\r\n');
         }
 
-        return Buffer.from(message)
-            .toString('base64')
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
+        return Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
 
     async sendEmail(
@@ -80,11 +76,7 @@ export class GmailService {
         refreshToken: string,
         options: SendEmailOptions,
     ): Promise<void> {
-        const oauth2Client = new google.auth.OAuth2(
-            env.GOOGLE_CLIENT_ID,
-            env.GOOGLE_CLIENT_SECRET,
-            CALLBACK_URL,
-        );
+        const oauth2Client = new google.auth.OAuth2(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, CALLBACK_URL);
         oauth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
 
         oauth2Client.on('tokens', async (tokens) => {

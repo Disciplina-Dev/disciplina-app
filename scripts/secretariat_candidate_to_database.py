@@ -105,7 +105,7 @@ def set_geographical_sector(sectors: str) -> list[str]:
 def insert_candidate(file: str):
     start_time = time.time()
     print(f"[{time.time() - start_time:.2f}s] Début de l'exécution")
-    
+
     print(f"[{time.time() - start_time:.2f}s] Connexion à MongoDB...")
     client = get_mongo_connection()
     # Sélection de la BDD et de la collection
@@ -141,15 +141,15 @@ def insert_candidate(file: str):
                     new_candidate['status'] = "SEEKING" if row.get("Disponibilité".upper()).startswith('Disponible') else "NOT_SEEKING"
                 else:
                     new_candidate['status'] = "NOT_SEEKING"
-                
+
                 if count == 0:
                     print(f"[{time.time() - start_time:.2f}s] Tentative de la 1ère insertion dans la DB...")
-                
+
                 x = candidates_collection.insert_one(new_candidate)
-                
+
                 if count == 0:
                     print(f"[{time.time() - start_time:.2f}s] 1ère insertion réussie.")
-                    
+
                 if count % 100 == 0 and count > 0:
                     print(f"[{time.time() - start_time:.2f}s] {count} insertions...")
                 count += 1

@@ -25,13 +25,7 @@ export class UserService {
         return row ? toUser(row) : null;
     }
 
-    async register(
-        email: string,
-        name: string,
-        passwordPlain: string,
-        role: Role,
-        sectors?: string[]
-    ): Promise<User> {
+    async register(email: string, name: string, passwordPlain: string, role: Role, sectors?: string[]): Promise<User> {
         const existing = await this.userRepository.findByEmail(email);
         if (existing) {
             throw new Error('User already exists');
@@ -71,11 +65,9 @@ export class UserService {
 
         const user = toUser(userRow);
 
-        const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role },
-            env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, env.JWT_SECRET, {
+            expiresIn: '24h',
+        });
 
         return { token, user };
     }

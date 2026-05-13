@@ -2,11 +2,7 @@ import { google, Auth } from 'googleapis';
 import { OAuth2Config } from './types';
 
 export function createOAuth2Client(config: OAuth2Config): Auth.OAuth2Client {
-    return new google.auth.OAuth2(
-        config.clientId,
-        config.clientSecret,
-        config.redirectUri
-    );
+    return new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri);
 }
 
 export function getOAuth2Client(): Auth.OAuth2Client {
@@ -21,6 +17,6 @@ export function getAuthScopes(): string[] {
     return [
         'https://www.googleapis.com/auth/drive.file',
         'https://www.googleapis.com/auth/calendar',
-        'https://www.googleapis.com/auth/gmail.modify'
+        'https://www.googleapis.com/auth/gmail.modify',
     ];
 }

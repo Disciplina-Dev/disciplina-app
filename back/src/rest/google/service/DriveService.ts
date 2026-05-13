@@ -38,28 +38,33 @@ export class DriveService {
         return file.data.id as string;
     }
 
-    async uploadFile(fileName: string, mimeType: string, contentBuffer: Buffer, parentFolderId?: string): Promise<string> {
+    async uploadFile(
+        fileName: string,
+        mimeType: string,
+        contentBuffer: Buffer,
+        parentFolderId?: string,
+    ): Promise<string> {
         const bufferStream = new stream.PassThrough();
         bufferStream.end(contentBuffer);
-        
+
         const fileMetadata: any = {
             name: fileName,
         };
         if (parentFolderId) {
             fileMetadata.parents = [parentFolderId];
         }
-        
+
         const media = {
             mimeType: mimeType,
             body: bufferStream,
         };
-        
+
         const file = await this.drive.files.create({
             requestBody: fileMetadata,
             media: media,
             fields: 'id, webViewLink',
         });
-        
+
         return file.data.webViewLink as string;
     }
 }

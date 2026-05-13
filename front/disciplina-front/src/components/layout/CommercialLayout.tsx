@@ -65,8 +65,8 @@ export default function CommercialLayout() {
           <GoogleDriveConnect theme="blue" />
           <div className="h-px w-full bg-gray-100" />
           <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-gray-50 transition-colors">
-            <div 
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]" 
+            <div
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
               style={{ backgroundColor: '#1130A7' }}
             >
               <User size={18} />
@@ -75,7 +75,7 @@ export default function CommercialLayout() {
               <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{currentUser?.name}</p>
               <p className="truncate text-[11px] font-medium text-gray-400 capitalize">{currentUser?.role}</p>
             </div>
-            <button 
+            <button
               onClick={handleLogout}
               className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
               title="Se déconnecter"

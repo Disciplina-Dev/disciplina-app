@@ -1,4 +1,4 @@
-import gql from 'graphql-tag'
+import gql from 'graphql-tag';
 
 export const typeDefs = gql`
     enum JobStatus {
@@ -107,4 +107,4 @@ export const typeDefs = gql`
         updateJob(job: JobInput!): Job!
         unmatch(id: String!): Job
     }
-`
+`;

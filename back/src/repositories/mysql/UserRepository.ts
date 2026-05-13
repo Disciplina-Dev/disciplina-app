@@ -16,16 +16,12 @@ export class UserRepository {
         const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(
             'INSERT INTO users (email, name, password, role, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [user.email, user.name, user.password, user.role, sectorsJson, user.oauth_token, user.refresh_token]
+            [user.email, user.name, user.password, user.role, sectorsJson, user.oauth_token, user.refresh_token],
         );
         return result.insertId;
     }
 
     async updateTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
-        await query('UPDATE users SET oauth_token = ?, refresh_token = ? WHERE id = ?', [
-            oauthToken,
-            refreshToken,
-            id
-        ]);
+        await query('UPDATE users SET oauth_token = ?, refresh_token = ? WHERE id = ?', [oauthToken, refreshToken, id]);
     }
 }

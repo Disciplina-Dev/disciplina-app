@@ -11,7 +11,7 @@ export default function LoginPage() {
   const setAuth = useAuthStore((state) => state.setAuth)
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   const [email, setEmail] = useState('')
   const [passwordPlain, setPasswordPlain] = useState('')
 
@@ -32,7 +32,7 @@ export default function LoginPage() {
       }
       const { token, user } = data
       setAuth(token, user)
-      
+
       if (user.role === 'RH') {
         navigate('/rh')
       } else if (user.role === 'COMMERCIAL') {

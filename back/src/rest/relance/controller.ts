@@ -21,9 +21,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 
     const { ids } = req.body as { ids?: string[] };
     const candidates = await candidateService.findAll();
-    const seeking = candidates.filter(c =>
-        c.identity?.email &&
-        (ids && ids.length > 0 ? ids.includes(c._id) : c.status === CandidateStatus.SEEKING)
+    const seeking = candidates.filter(
+        (c) =>
+            c.identity?.email && (ids && ids.length > 0 ? ids.includes(c._id) : c.status === CandidateStatus.SEEKING),
     );
 
     let sent = 0;
@@ -109,9 +109,10 @@ export async function handleResponse(req: Request, res: Response) {
         return res.status(404).send(confirmationPage('Candidat introuvable.', false));
     }
 
-    const message = answer === 'non'
-        ? 'Merci pour votre retour. Votre dossier a été mis à jour — bonne continuation !'
-        : 'Merci ! Votre dossier reste actif. Nous restons en contact.';
+    const message =
+        answer === 'non'
+            ? 'Merci pour votre retour. Votre dossier a été mis à jour — bonne continuation !'
+            : 'Merci ! Votre dossier reste actif. Nous restons en contact.';
 
     res.send(confirmationPage(message, true));
 }
