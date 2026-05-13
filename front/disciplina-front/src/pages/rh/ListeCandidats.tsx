@@ -829,8 +829,8 @@ export default function ListeCandidats() {
                           setTimeout(() => setCopiedId(null), 2000);
                         }}
                         className={`p-1 rounded transition-all flex items-center justify-center ${
-                          copiedId === candidate._id 
-                            ? 'text-success bg-success/10 opacity-100' 
+                          copiedId === candidate._id
+                            ? 'text-success bg-success/10 opacity-100'
                             : 'md:opacity-0 focus:opacity-100 group-hover:opacity-100 text-gray-400 hover:text-purple hover:bg-purple-light'
                         }`}
                         title="Copier l'email"
@@ -868,7 +868,7 @@ export default function ListeCandidats() {
                   <Car size={16} className="text-gray-400 shrink-0" />
                   <span>Permis B: {candidate.identity.driving_license_b ? 'Oui' : 'Non'}</span>
                 </div>
-                
+
                 {candidate.profile?.qualities && candidate.profile.qualities.length > 0 && (
                   <div className="pt-3 mt-3 border-t border-gray-100 flex flex-wrap gap-1.5">
                     {candidate.profile.qualities.slice(0, 3).map((q, i) => (

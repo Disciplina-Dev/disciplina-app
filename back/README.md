@@ -65,7 +65,32 @@ npm run dev     # ts-node-dev --respawn --transpile-only src/index.ts
 npm run build   # tsc (outputs to dist/)
 npm start       # node dist/index.js
 npm run lint    # oxlint
+npm run format  # prettier --write src/
 ```
+
+## Pre-commit hooks
+
+This project uses [pre-commit](https://pre-commit.com) to run Prettier and
+lightweight checks on staged files before each commit.
+
+```sh
+# one-time setup
+python3 -m pip install pre-commit
+python3 -m pre_commit install
+
+# run on all files (optional — hooks auto-run on git commit)
+python3 -m pre_commit run --all-files
+```
+
+Active hooks:
+
+| Hook | Files | Purpose |
+|------|-------|---------|
+| Prettier | `back/src/*.ts` | Format TypeScript |
+| trailing-whitespace | All | Trim trailing whitespace |
+| end-of-file-fixer | All | Files end with newline |
+| check-yaml | `.yaml` / `.yml` | Valid YAML |
+| check-json | `.json` | Valid JSON |
 
 ## Environment
 

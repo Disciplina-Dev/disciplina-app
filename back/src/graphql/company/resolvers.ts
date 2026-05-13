@@ -108,9 +108,7 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL]);
             const rowData = mapInputToRow(input);
             const company = await companiesService.create(rowData);
-            const salePerson = company?.salePersonID
-                ? await salePersonsService.findById(company.salePersonID)
-                : null;
+            const salePerson = company?.salePersonID ? await salePersonsService.findById(company.salePersonID) : null;
             return {
                 ...company,
                 salePerson: salePerson
@@ -122,9 +120,7 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL]);
             const rowData = mapInputToRow(input);
             const company = await companiesService.update(id, rowData);
-            const salePerson = company?.salePersonID
-                ? await salePersonsService.findById(company.salePersonID)
-                : null;
+            const salePerson = company?.salePersonID ? await salePersonsService.findById(company.salePersonID) : null;
             return {
                 ...company,
                 salePerson: salePerson

@@ -44,7 +44,7 @@ export function candidateToGql(candidate: Candidate): any {
             ? snakeToCamelCase(candidate.professional_projects)
             : null,
         skillsAssessment: candidate.skills_assessment
-            ? candidate.skills_assessment.map(s => snakeToCamelCase(s))
+            ? candidate.skills_assessment.map((s) => snakeToCamelCase(s))
             : null,
         jobInfo: candidate.job_info ? snakeToCamelCase(candidate.job_info) : null,
         synthesis: candidate.synthesis ? snakeToCamelCase(candidate.synthesis) : null,

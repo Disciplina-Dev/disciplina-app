@@ -291,6 +291,31 @@ try {
 - Categories: correctness (error), suspicious (warn), perf (warn)
 - Plugin: `import`
 
+### Pre-commit hooks
+
+Project uses [pre-commit](https://pre-commit.com) — config at root `.pre-commit-config.yaml`:
+
+```sh
+python3 -m pip install pre-commit   # one-time
+python3 -m pre_commit install        # activate hooks
+```
+
+Hooks run **only on staged files** at `git commit` time:
+
+- **Prettier** — formats TypeScript under `back/src/` (config: `back/.prettierrc`)
+- **trailing-whitespace** — trims trailing whitespace
+- **end-of-file-fixer** — ensures files end with newline
+- **check-yaml** — validates YAML files
+- **check-json** — validates JSON files
+
+Skip hooks on a commit with `git commit --no-verify`.
+
+### Formatter (Prettier)
+
+- Config: `back/.prettierrc`
+- Run: `npm run format` (write) or `npm run format:check` (CI check)
+- Settings: 4-space indent, single quotes, trailing commas, 120 print width
+
 ## Environment & configuration
 
 - Two `.env` files loaded at startup (root `../.env` + `back/.env`)

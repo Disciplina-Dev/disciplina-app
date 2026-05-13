@@ -22,16 +22,20 @@ declare module 'express-session' {
 async function startServer() {
     const app: any = express();
 
-    app.use(cors({
-        origin: ['http://localhost:3000', 'http://localhost:5173'],
-        credentials: true,
-    }));
+    app.use(
+        cors({
+            origin: ['http://localhost:3000', 'http://localhost:5173'],
+            credentials: true,
+        }),
+    );
 
-    app.use(session({
-        secret: env.SESSION_SECRET,
-        resave: false,
-        saveUninitialized: false,
-    }));
+    app.use(
+        session({
+            secret: env.SESSION_SECRET,
+            resave: false,
+            saveUninitialized: false,
+        }),
+    );
 
     app.use('/api/email/send', emailRateLimiter);
     app.use(emailRouter);
@@ -63,4 +67,4 @@ async function startServer() {
     });
 }
 
-startServer().catch(err => logger.error(err, 'Startup error'));
+startServer().catch((err) => logger.error(err, 'Startup error'));

@@ -8,6 +8,6 @@ export async function connectMongoDB(): Promise<void> {
         maxPoolSize: 10,
         minPoolSize: 2,
         serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000
+        socketTimeoutMS: 45000,
     });
 }

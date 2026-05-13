@@ -3,11 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const INSECURE_DEFAULTS = new Set([
-    'super-secret-key-change-in-production',
-    'supersecret123',
-    'changeme',
-]);
+const INSECURE_DEFAULTS = new Set(['super-secret-key-change-in-production', 'supersecret123', 'changeme']);
 
 const schema = z.object({
     API_PORT: z.coerce.number().default(4000),

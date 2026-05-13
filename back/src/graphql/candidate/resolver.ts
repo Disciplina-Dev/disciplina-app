@@ -6,10 +6,7 @@ import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.ty
 import { UserService } from '../../services/UserService';
 import { PdfService } from '../../services/PdfService';
 import { DriveService } from '../../rest/google/service/DriveService';
-import {
-    camelToSnakeCase,
-    candidateToGql,
-} from '../../services/mappers/candidate.mapper';
+import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candidate.mapper';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
@@ -66,7 +63,7 @@ export const resolvers = {
                         `Dossier_${newCandidate.identity.full_name}.pdf`,
                         'application/pdf',
                         pdfBuffer,
-                        folderId
+                        folderId,
                     );
 
                     await candidateService.update(id, { pdf_link: pdfLink });
@@ -82,7 +79,7 @@ export const resolvers = {
         updateCandidate: async (
             _: unknown,
             { id, input }: { id: string; input: UpdateCandidateInput },
-            context: any
+            context: any,
         ) => {
             authGuard(context.user, [Role.RH]);
             const snakeInput = camelToSnakeCase(input);

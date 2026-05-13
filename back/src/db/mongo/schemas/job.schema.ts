@@ -1,21 +1,18 @@
 import { Schema, model, Document } from 'mongoose';
-import {
-    Job,
-    JobStatus,
-    DesiredSex,
-    Localisation,
-    MatchingCandidate,
-} from '../../../types/job.types';
+import { Job, JobStatus, DesiredSex, Localisation, MatchingCandidate } from '../../../types/job.types';
 import { TitleProfessionalType } from '../../../types/candidate.types';
 
-const matchingCandidateSchema = new Schema<MatchingCandidate>({
-    full_name: { type: String },
-    age: { type: Number },
-    sex: { type: Boolean },
-    city: { type: String, enum: Object.values(Localisation) },
-    email: { type: String },
-    phone: { type: String }
-}, { _id: false });
+const matchingCandidateSchema = new Schema<MatchingCandidate>(
+    {
+        full_name: { type: String },
+        age: { type: Number },
+        sex: { type: Boolean },
+        city: { type: String, enum: Object.values(Localisation) },
+        email: { type: String },
+        phone: { type: String },
+    },
+    { _id: false },
+);
 
 const jobSchema = new Schema<Job & Document>(
     {
@@ -29,9 +26,9 @@ const jobSchema = new Schema<Job & Document>(
         status: { type: String, enum: Object.values(JobStatus) },
         localisation: { type: [String], enum: Object.values(Localisation) },
         matched: { type: Boolean },
-        matched_candidate: { type: [matchingCandidateSchema] }
+        matched_candidate: { type: [matchingCandidateSchema] },
     },
-    { collection: 'jobs' }
+    { collection: 'jobs' },
 );
 
 export const JobModel = model<Job & Document>('Job', jobSchema);
