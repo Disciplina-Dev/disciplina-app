@@ -1,85 +1,60 @@
 import { useState } from 'react'
 import { Cloud, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
-import { useGoogleLogin } from '@react-oauth/google'
 import { useAuthStore } from '@/store/authStore'
+import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 
-// export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purple' }) {
-//   const { user, updateUser, token } = useAuthStore()
-//   const [isLoading, setIsLoading] = useState(false)
-//   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purple' }) {
+  const user = useAuthStore((s) => s.user)
+  const { connectGoogle, isLoading } = useGoogleOAuthPopup()
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-//   const isConnected = !!user?.oauthToken
+  const isConnected = !!user?.oauthToken
 
-//   const login = useGoogleLogin({
-//     use_fedcm_for_prompt: true,
-//     flow: 'auth-code',
-//     scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.modify',
-//     onSuccess: async (codeResponse) => {
-//       setIsLoading(true)
-//       setErrorMsg(null)
-//       try {
-//         const res = await fetch('http://localhost:4000/api/auth/drive/link', {
-//           method: 'POST',
-//           headers: {
-//             'Content-Type': 'application/json',
-//             ...(token ? { Authorization: `Bearer ${token}` } : {}),
-//           },
-//           body: JSON.stringify({ code: codeResponse.code }),
-//         })
-//         const data = await res.json()
-//         if (!res.ok) {
-//           setErrorMsg(data.error || "Erreur lors de l'association")
-//         } else {
-//           updateUser(data)
-//         }
-//       } catch (err: any) {
-//         setErrorMsg(err.message || "Une erreur inattendue est survenue")
-//       } finally {
-//         setIsLoading(false)
-//       }
-//     },
-//     onError: (errorResponse) => {
-//       setErrorMsg("La connexion à Google a échoué")
-//       console.error(errorResponse)
-//     },
-//   })
+  const handleConnect = async () => {
+    setErrorMsg(null)
+    try {
+      await connectGoogle()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Une erreur inattendue est survenue')
+    }
+  }
 
-//   if (isConnected) {
-//     return (
-//       <div className="flex flex-col gap-2">
-//         <div className="flex items-center justify-center gap-2 rounded-xl bg-success-bg py-2.5 px-4 border border-success/20 transition-all duration-200">
-//           <CheckCircle2 size={18} className="text-success" />
-//           <span className="text-[14px] font-bold text-success">Drive connecté</span>
-//         </div>
-//       </div>
-//     )
-//   }
+  if (isConnected) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-center gap-2 rounded-xl bg-success-bg py-2.5 px-4 border border-success/20 transition-all duration-200">
+          <CheckCircle2 size={18} className="text-success" />
+          <span className="text-[14px] font-bold text-success">Google connecté</span>
+        </div>
+      </div>
+    )
+  }
 
-//   return (
-//     <div className="flex flex-col gap-2">
-//       <button
-//         onClick={() => login()}
-//         disabled={isLoading}
-//         className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-4 text-white hover:shadow-md transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed ${
-//           theme === 'purple' ? 'bg-purple hover:bg-purple-dark' : 'bg-blue hover:bg-blue-dark'
-//         }`}
-//       >
-//         {isLoading ? (
-//           <Loader2 size={18} className="animate-spin" />
-//         ) : (
-//           <Cloud size={18} />
-//         )}
-//         <span className="text-[14px] font-bold">
-//           {isLoading ? 'Connexion...' : 'Associer mon Google Drive'}
-//         </span>
-//       </button>
-      
-//       {errorMsg && (
-//         <div className="flex items-start gap-2 text-danger text-[12px] mt-1 bg-danger-bg p-2 rounded-md">
-//           <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-//           <span>{errorMsg}</span>
-//         </div>
-//       )}
-//     </div>
-//   )
-// }
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={handleConnect}
+        disabled={isLoading}
+        className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-4 text-white hover:shadow-md transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed ${
+          theme === 'purple' ? 'bg-purple hover:bg-purple-dark' : 'bg-blue hover:bg-blue-dark'
+        }`}
+      >
+        {isLoading ? (
+          <Loader2 size={18} className="animate-spin" />
+        ) : (
+          <Cloud size={18} />
+        )}
+        <span className="text-[14px] font-bold">
+          {isLoading ? 'Connexion...' : 'Associer mon compte Google'}
+        </span>
+      </button>
+
+      {errorMsg && (
+        <div className="flex items-start gap-2 text-danger text-[12px] mt-1 bg-danger-bg p-2 rounded-md">
+          <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+    </div>
+  )
+}

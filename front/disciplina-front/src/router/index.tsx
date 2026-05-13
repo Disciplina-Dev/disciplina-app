@@ -2,7 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 
 import SelectProfil from "@/pages/SelectProfil";
 import NotFound from "@/pages/NotFound";
-import Drive from "@/pages/Drive";
+import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -40,19 +40,14 @@ export const router = createBrowserRouter([
     element: <SelectProfil />,
   },
   {
-    path: "/drive",
-    element: (
-      <ProtectedRoute>
-        <Drive />
-      </ProtectedRoute>
-    ),
-  },
-  {
     element: <AuthLayout />,
     children: [
-      { path: "/login", element: <LoginPage /> },
-      { 
-        path: "/register", 
+  {
+    path: "/login", element: <LoginPage /> },
+  {
+    path: "/auth/google", element: <GoogleAuthCallback /> },
+      {
+        path: "/register",
         element: (
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <RegisterPage />
