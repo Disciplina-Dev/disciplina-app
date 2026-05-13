@@ -37,6 +37,7 @@ const schema = z.object({
 
     APP_BASE_URL: z.string().default('http://localhost:4000'),
     RELANCE_HMAC_SECRET: z.string().default('change-this-relance-secret'),
+    GOOGLE_STATE_SECRET: z.string().default('change-this-google-state-secret'),
 });
 
 const parsed = schema.safeParse(process.env);

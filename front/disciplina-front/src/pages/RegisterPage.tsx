@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { User, Mail, ShieldCheck, Shield } from 'lucide-react'
-import { useMutation } from 'urql'
-import { REGISTER_USER } from '@/graphql/queries'
+import { User, Mail, ShieldCheck, Shield, Globe } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
-import { UserRole } from '@/store/authStore'
+import { UserRole, useAuthStore } from '@/store/authStore'
+import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 
 export default function RegisterPage() {
-  const [{ fetching, error }, executeMutation] = useMutation(REGISTER_USER)
+  const token = useAuthStore((s) => s.token)
+  const { connectGoogle, isLoading: googleLoading } = useGoogleOAuthPopup()
+  const [fetching, setFetching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [firstname, setFirstname] = useState('')
   const [lastname, setLastname] = useState('')
@@ -17,7 +19,9 @@ export default function RegisterPage() {
   const [role, setRole] = useState<UserRole>(UserRole.COMMERCIAL)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [linkGoogle, setLinkGoogle] = useState(true)
   const [success, setSuccess] = useState(false)
+  const [googleStatus, setGoogleStatus] = useState<'pending' | 'connected' | 'skipped' | 'failed' | null>(null)
 
   const confirmError =
     confirmPassword.length > 0 && confirmPassword !== password
@@ -28,19 +32,31 @@ export default function RegisterPage() {
     e.preventDefault()
     if (password !== confirmPassword) return
     setSuccess(false)
+    setGoogleStatus(null)
+    setFetching(true)
+    setError(null)
 
-    const result = await executeMutation(
-      {
-        email,
-        name: `${firstname} ${lastname}`.trim(),
-        passwordPlain: password,
-        role,
-        sectors: [],
-      },
-      { url: 'http://localhost:4000/api/graphql/users' }
-    )
+    try {
+      const res = await fetch('http://localhost:4000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email,
+          name: `${firstname} ${lastname}`.trim(),
+          passwordPlain: password,
+          role,
+          sectors: [],
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || "Erreur lors de l'inscription")
+        return
+      }
 
-    if (result.data?.register) {
       setSuccess(true)
       setFirstname('')
       setLastname('')
@@ -48,8 +64,26 @@ export default function RegisterPage() {
       setPassword('')
       setConfirmPassword('')
       setRole(UserRole.COMMERCIAL)
+
+      if (linkGoogle) {
+        setGoogleStatus('pending')
+        try {
+          await connectGoogle(data.id)
+          setGoogleStatus('connected')
+        } catch {
+          setGoogleStatus('failed')
+        }
+      } else {
+        setGoogleStatus('skipped')
+      }
+    } catch {
+      setError('Erreur réseau')
+    } finally {
+      setFetching(false)
     }
   }
+
+  const isBusy = fetching || googleLoading
 
   return (
     <div className="w-full max-w-md mx-auto bg-white rounded-[20px] p-8 shadow-sm">
@@ -66,7 +100,19 @@ export default function RegisterPage() {
 
       {success && (
         <div className="mb-6 p-4 bg-green-50 text-green-700 rounded-lg text-sm border border-green-200">
-          L'utilisateur a été créé avec succès.
+          <p className="font-medium">L'utilisateur a été créé avec succès.</p>
+          {googleStatus === 'connected' && (
+            <p className="mt-1">Compte Google connecté.</p>
+          )}
+          {googleStatus === 'skipped' && (
+            <p className="mt-1 text-gray-600">Connexion Google ignorée.</p>
+          )}
+          {googleStatus === 'failed' && (
+            <p className="mt-1 text-amber-600">Connexion Google annulée ou indisponible.</p>
+          )}
+          {googleStatus === 'pending' && (
+            <p className="mt-1">Connexion Google en cours...</p>
+          )}
         </div>
       )}
 
@@ -151,15 +197,26 @@ export default function RegisterPage() {
           required
         />
 
-        {error && <p className="text-sm text-red-500">{error.message}</p>}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={linkGoogle}
+            onChange={(e) => setLinkGoogle(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-blue focus:ring-blue"
+          />
+          <Globe size={16} className="text-gray-400" />
+          <span className="text-sm text-gray-600">Connecter un compte Google</span>
+        </label>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
 
         <Button
           type="submit"
           size="lg"
           className="w-full rounded-[10px]"
-          disabled={fetching}
+          disabled={isBusy}
         >
-          {fetching ? 'Création...' : 'Créer l\'utilisateur'}
+          {fetching ? 'Création...' : "Créer l'utilisateur"}
         </Button>
       </form>
     </div>

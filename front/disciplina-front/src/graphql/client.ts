@@ -26,12 +26,6 @@ export const candidateGraphqlClient = new Client({
   fetchOptions: getFetchOptions,
 })
 
-export const userGraphqlClient = new Client({
-  url: 'http://localhost:4000/api/graphql/users',
-  exchanges: [cacheExchange, fetchExchange],
-  fetchOptions: getFetchOptions,
-})
-
 // Client dédié aux jobs (matching – endpoint séparé)
 export const jobGraphqlClient = new Client({
   url: 'http://localhost:4000/api/graphql/jobs',

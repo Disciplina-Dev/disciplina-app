@@ -1,11 +1,11 @@
 import './config/env'; // validate env vars at startup
 import express, { Request, Response } from 'express';
-import { CompanyAPI, CandidateAPI, UserAPI, JobAPI } from './graphql/server';
+import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
-import { router as googleRouter } from './rest/google/route';
-import { router as filesRouter } from './rest/files/route';
+
+import { router as authRouter } from './rest/auth/route';
 import { router as emailRouter } from './rest/email/route';
 import { router as relanceRouter } from './rest/relance/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -33,8 +33,6 @@ async function startServer() {
         saveUninitialized: false,
     }));
 
-    app.use(googleRouter);
-    app.use('/api/files', filesRouter);
     app.use('/api/email/send', emailRateLimiter);
     app.use(emailRouter);
     app.use('/api/relance/send', relanceRateLimiter);
@@ -46,6 +44,7 @@ async function startServer() {
         });
     });
 
+    app.use('/api/auth', authRouter);
     app.use(errorHandler);
 
     await connectMongoDB();
@@ -55,9 +54,6 @@ async function startServer() {
 
     await CandidateAPI.start();
     CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates' });
-
-    await UserAPI.start();
-    UserAPI.applyMiddleware({ app, path: '/api/graphql/users' });
 
     await JobAPI.start();
     JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' });

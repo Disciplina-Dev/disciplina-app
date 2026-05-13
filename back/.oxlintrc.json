@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "plugins": ["import"],
+  "rules": {
+    "no-unused-vars": "error",
+    "no-underscore-dangle": ["warn", { "allow": ["_id"] }],
+    "import/no-unassigned-import": "off"
+  }
+}
