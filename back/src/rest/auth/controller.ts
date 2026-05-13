@@ -1,8 +1,12 @@
 import { Response } from 'express';
+import { google } from 'googleapis';
 import { UserService } from '../../services/UserService';
-import { createOAuth2Client } from '../google/client';
+import { getAuthScopes } from '../google/client';
+import { signGoogleState, verifyGoogleState } from '../../utils/hmac';
 import { env } from '../../config/env';
 import { AuthRequest } from '../middleware/auth';
+
+const CALLBACK_URL = 'http://localhost:5173/auth/google';
 
 const userService = new UserService();
 
@@ -38,25 +42,52 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
     }
 }
 
-export async function linkDrive(req: AuthRequest, res: Response): Promise<void> {
+export async function generateGoogleUri(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const { code } = req.body;
-        if (!code) {
-            res.status(400).json({ error: 'Authorization code is required' });
+        const targetUserId = req.body?.userId && req.user.role === 'ADMIN'
+            ? req.body.userId
+            : req.user.id;
+        const state = signGoogleState(targetUserId);
+        const oauth2Client = new google.auth.OAuth2(
+            env.GOOGLE_CLIENT_ID,
+            env.GOOGLE_CLIENT_SECRET,
+            CALLBACK_URL
+        );
+        const url = oauth2Client.generateAuthUrl({
+            access_type: 'offline',
+            scope: getAuthScopes(),
+            state,
+        });
+        res.json({ url });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
+export async function handleGoogleToken(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const { code, state } = req.body;
+        if (!code || !state) {
+            res.status(400).json({ error: 'Code and state are required' });
             return;
         }
-        const oauth2Client = createOAuth2Client({
-            clientId: env.GOOGLE_CLIENT_ID || '',
-            clientSecret: env.GOOGLE_CLIENT_SECRET || '',
-            redirectUri: 'postmessage',
-        });
+        const result = verifyGoogleState(state);
+        if (!result) {
+            res.status(400).json({ error: 'Invalid state parameter' });
+            return;
+        }
+        const oauth2Client = new google.auth.OAuth2(
+            env.GOOGLE_CLIENT_ID,
+            env.GOOGLE_CLIENT_SECRET,
+            CALLBACK_URL
+        );
         const { tokens } = await oauth2Client.getToken(code);
-        await userService.updateDriveTokens(
-            req.user.id,
+        await userService.updateGoogleTokens(
+            result.userId,
             tokens.access_token || null,
             tokens.refresh_token || null
         );
-        const user = await userService.findById(req.user.id);
+        const user = await userService.findById(result.userId);
         res.json(user);
     } catch (error: any) {
         res.status(500).json({ error: error.message });

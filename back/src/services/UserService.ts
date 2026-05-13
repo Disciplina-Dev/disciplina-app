@@ -80,7 +80,7 @@ export class UserService {
         return { token, user };
     }
 
-    async updateDriveTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
+    async updateGoogleTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
         await this.userRepository.updateTokens(id, oauthToken, refreshToken);
     }
 }
