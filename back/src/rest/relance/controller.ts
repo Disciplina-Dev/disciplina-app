@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
-import { transporter } from '../email/transporter';
+import { AuthRequest } from '../middleware/auth';
+import { GmailService } from '../google/service/GmailService';
+import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateStatus } from '../../types/candidate.types';
 import { signRelanceUrl, verifyRelanceUrl } from '../../utils/hmac';
@@ -7,8 +9,16 @@ import { env } from '../../config/env';
 import { logger } from '../../utils/logger';
 
 const candidateService = new CandidateService();
+const userService = new UserService();
+const gmailService = new GmailService();
 
-export async function sendRelance(req: Request, res: Response) {
+export async function sendRelance(req: AuthRequest, res: Response) {
+    const user = await userService.findById(req.user.id);
+    if (!user?.oauthToken || !user?.refreshToken) {
+        res.status(403).json({ error: 'Compte Google non connecté. Veuillez connecter votre compte Google.' });
+        return;
+    }
+
     const { ids } = req.body as { ids?: string[] };
     const candidates = await candidateService.findAll();
     const seeking = candidates.filter(c =>
@@ -55,13 +65,14 @@ export async function sendRelance(req: Request, res: Response) {
 </body>
 </html>`;
 
+        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA`;
+
         try {
-            await transporter.sendMail({
-                from: env.SMTP_FROM || env.SMTP_USER,
-                to: candidate.identity.email,
+            await gmailService.sendEmail(user.id, user.oauthToken!, user.refreshToken!, {
+                to: candidate.identity.email!,
                 subject: 'DISCIPLINA – Êtes-vous toujours en recherche ?',
                 html,
-                text: `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA`,
+                text,
             });
             sent++;
         } catch {

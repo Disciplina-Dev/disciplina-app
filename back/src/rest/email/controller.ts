@@ -1,35 +1,35 @@
-import { Request, Response } from 'express';
-import nodemailer from 'nodemailer';
-import { transporter } from './transporter';
+import { Response } from 'express';
+import { AuthRequest } from '../middleware/auth';
+import { UserService } from '../../services/UserService';
+import { GmailService } from '../google/service/GmailService';
 
-export async function sendEmail(req: Request, res: Response) {
+const userService = new UserService();
+const gmailService = new GmailService();
+
+export async function sendEmail(req: AuthRequest, res: Response): Promise<void> {
     const { to, subject, body, attachment } = req.body;
 
     if (!to || !subject || !body) {
-        return res.status(400).json({ error: 'Champs manquants : to, subject, body' });
+        res.status(400).json({ error: 'Champs manquants : to, subject, body' });
+        return;
     }
 
-    const mailOptions: nodemailer.SendMailOptions = {
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
-        to,
-        subject,
-        html: body,
-        text: body.replace(/<[^>]*>/g, ''),
-    };
-
-    if (attachment?.content && attachment?.filename) {
-        mailOptions.attachments = [{
-            filename: attachment.filename,
-            content: Buffer.from(attachment.content, 'base64'),
-            contentType: attachment.contentType,
-        }];
+    const user = await userService.findById(req.user.id);
+    if (!user?.oauthToken || !user?.refreshToken) {
+        res.status(403).json({ error: 'Compte Google non connecté. Veuillez connecter votre compte Google.' });
+        return;
     }
 
     try {
-        await transporter.sendMail(mailOptions);
+        await gmailService.sendEmail(user.id, user.oauthToken, user.refreshToken, {
+            to,
+            subject,
+            html: body,
+            text: body.replace(/<[^>]*>/g, ''),
+            attachment,
+        });
         res.json({ success: true });
     } catch (err: any) {
-        console.error('Email send error:', err);
         res.status(500).json({ error: err.message });
     }
 }

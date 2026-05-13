@@ -3,6 +3,7 @@ import { X, Send, Paperclip, Trash2 } from 'lucide-react'
 import Button from './Button'
 import RichTextEditor from './RichTextEditor'
 import { useMailTemplatesStore } from '@/store/mailTemplatesStore'
+import { useAuthStore } from '@/store/authStore'
 
 interface MailModalProps {
   defaultTo?: string
@@ -15,6 +16,7 @@ const inputClass =
 
 export default function MailModal({ defaultTo = '', candidateName, onClose }: MailModalProps) {
   const { templates, signatureImage } = useMailTemplatesStore()
+  const token = useAuthStore((s) => s.token)
 
   const sigHtml = signatureImage
     ? `<br/><img src="${signatureImage}" alt="signature" style="max-height:96px;max-width:320px"/>`
@@ -58,7 +60,10 @@ export default function MailModal({ defaultTo = '', candidateName, onClose }: Ma
     try {
       const res = await fetch('http://localhost:4000/api/email/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ to, subject, body, attachment }),
       })
       const data = await res.json()
