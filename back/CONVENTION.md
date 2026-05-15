@@ -147,12 +147,11 @@ Any code that talks to a third-party API, performs cryptography, or wraps a cros
 ```
 external/
   google/
-    client.ts         OAuth2 client factory + scopes
+    oauth-client.ts   GoogleOAuthClient (auth URL, code exchange, credentialed-client + refresh hook) + `googleOAuth` singleton
     drive.service.ts  GoogleDriveService — Drive API wrapper
     gmail.service.ts  GoogleGmailService — Gmail API wrapper (uses mime.builder)
     mime.builder.ts   buildRawMessage(options) — pure MIME assembly
-    types.ts          GoogleTokens, DriveFile, OAuth2Config, SendEmailOptions
-    index.ts          Barrel — public surface
+    types.ts          GoogleTokens, GoogleTokenRefreshHandler, DriveFile, SendEmailOptions
   crypto/
     hmac.service.ts   HmacService class + `hmac` singleton (sign/verify)
     signers.ts        Domain helpers: signRelanceUrl/verifyRelanceUrl, signGoogleState/verifyGoogleState
@@ -163,8 +162,11 @@ external/
 ```
 
 **Rules:**
-- Callers import from the barrel (`external/google`, `external/crypto`, `external/logger`), never from a deep file path.
-- Service classes are prefixed with `Google` (e.g. `GoogleDriveService`, `GoogleGmailService`) to make the integration boundary obvious at call sites.
+- Callers import from the specific module file (`external/google/oauth-client`, `external/google/gmail.service`, etc.). No barrels under `external/google/` — they hide where the code lives. (`crypto/` and `logger/` keep their barrels because the public surface is genuinely one bag of small helpers.)
+- Type and interface declarations for an `external/<integration>/` module always live in `<integration>/types.ts` — not next to the class that uses them.
+- Service classes are prefixed with `Google` (e.g. `GoogleDriveService`, `GoogleGmailService`, `GoogleOAuthClient`) to make the integration boundary obvious at call sites.
+- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. The redirect URI lives in `env.GOOGLE_REDIRECT_URI`, not in source.
+- When a Google API call may refresh tokens, callers pass a refresh handler that persists the new tokens via `userService.updateGoogleTokens`. The convention helper at the top of each call site is `persistRefreshedTokens(userId)`.
 - Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
 - The logger is a singleton; never instantiate `pino()` outside `external/logger/`.
 
