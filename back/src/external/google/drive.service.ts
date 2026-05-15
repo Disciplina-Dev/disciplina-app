@@ -1,6 +1,7 @@
 import { google, Auth } from 'googleapis';
 import stream from 'stream';
-import { DriveFile, GoogleTokens } from './types';
+import { googleOAuth, GoogleOAuthClient } from './oauth-client';
+import { DriveFile, GoogleTokens, GoogleTokenRefreshHandler } from './types';
 
 export class GoogleDriveService {
     private drive;
@@ -9,10 +10,12 @@ export class GoogleDriveService {
         this.drive = google.drive({ version: 'v3', auth });
     }
 
-    static fromTokens(tokens: GoogleTokens): GoogleDriveService {
-        const oauth2Client = new google.auth.OAuth2();
-        oauth2Client.setCredentials(tokens);
-        return new GoogleDriveService(oauth2Client);
+    static fromTokens(
+        creds: GoogleTokens,
+        onRefresh?: GoogleTokenRefreshHandler,
+        oauth: GoogleOAuthClient = googleOAuth,
+    ): GoogleDriveService {
+        return new GoogleDriveService(oauth.forCredentials(creds, onRefresh));
     }
 
     async listFiles(): Promise<DriveFile[]> {
