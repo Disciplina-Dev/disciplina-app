@@ -1,12 +1,8 @@
 import { Response } from 'express';
-import { google } from 'googleapis';
 import { UserService } from '../../services/UserService';
-import { getAuthScopes } from '../google/client';
-import { signGoogleState, verifyGoogleState } from '../../utils/hmac';
-import { env } from '../../config/env';
+import { googleOAuth } from '../../external/google/oauth-client';
+import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
-
-const CALLBACK_URL = 'http://localhost:5173/auth/google';
 
 const userService = new UserService();
 
@@ -46,12 +42,7 @@ export async function generateGoogleUri(req: AuthRequest, res: Response): Promis
     try {
         const targetUserId = req.body?.userId && req.user.role === 'ADMIN' ? req.body.userId : req.user.id;
         const state = signGoogleState(targetUserId);
-        const oauth2Client = new google.auth.OAuth2(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, CALLBACK_URL);
-        const url = oauth2Client.generateAuthUrl({
-            access_type: 'offline',
-            scope: getAuthScopes(),
-            state,
-        });
+        const url = googleOAuth.generateAuthUrl(state);
         res.json({ url });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -70,9 +61,8 @@ export async function handleGoogleToken(req: AuthRequest, res: Response): Promis
             res.status(400).json({ error: 'Invalid state parameter' });
             return;
         }
-        const oauth2Client = new google.auth.OAuth2(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, CALLBACK_URL);
-        const { tokens } = await oauth2Client.getToken(code);
-        await userService.updateGoogleTokens(result.userId, tokens.access_token || null, tokens.refresh_token || null);
+        const tokens = await googleOAuth.exchangeCode(code);
+        await userService.updateGoogleTokens(result.userId, tokens.access_token ?? null, tokens.refresh_token ?? null);
         const user = await userService.findById(result.userId);
         res.json(user);
     } catch (error: any) {

@@ -1,16 +1,20 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { GmailService } from '../google/service/GmailService';
+import { GoogleGmailService } from '../../external/google/gmail.service';
+import { GoogleTokens } from '../../external/google/types';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateStatus } from '../../types/candidate.types';
-import { signRelanceUrl, verifyRelanceUrl } from '../../utils/hmac';
+import { signRelanceUrl, verifyRelanceUrl } from '../../external/crypto';
 import { env } from '../../config/env';
-import { logger } from '../../utils/logger';
+import { logger } from '../../external/logger';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
-const gmailService = new GmailService();
+const gmailService = new GoogleGmailService();
+
+const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
+    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 export async function sendRelance(req: AuthRequest, res: Response) {
     const user = await userService.findById(req.user.id);
@@ -68,12 +72,16 @@ export async function sendRelance(req: AuthRequest, res: Response) {
         const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA`;
 
         try {
-            await gmailService.sendEmail(user.id, user.oauthToken!, user.refreshToken!, {
-                to: candidate.identity.email!,
-                subject: 'DISCIPLINA – Êtes-vous toujours en recherche ?',
-                html,
-                text,
-            });
+            await gmailService.sendEmail(
+                { access_token: user.oauthToken, refresh_token: user.refreshToken },
+                {
+                    to: candidate.identity.email!,
+                    subject: 'DISCIPLINA – Êtes-vous toujours en recherche ?',
+                    html,
+                    text,
+                },
+                persistRefreshedTokens(user.id),
+            );
             sent++;
         } catch {
             errors++;

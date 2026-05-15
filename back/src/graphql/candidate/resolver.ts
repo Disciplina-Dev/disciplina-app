@@ -5,11 +5,15 @@ import { randomUUID } from 'crypto';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
 import { UserService } from '../../services/UserService';
 import { PdfService } from '../../services/PdfService';
-import { DriveService } from '../../rest/google/service/DriveService';
+import { GoogleDriveService } from '../../external/google/drive.service';
+import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candidate.mapper';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
+
+const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
+    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 interface CreateCandidateInput {
     status: CandidateStatus;
@@ -52,10 +56,10 @@ export const resolvers = {
                 if (user && user.oauthToken) {
                     const pdfBuffer = await PdfService.generateCandidatePdf(newCandidate);
 
-                    const driveService = DriveService.fromTokens({
-                        access_token: user.oauthToken,
-                        refresh_token: user.refreshToken || undefined,
-                    });
+                    const driveService = GoogleDriveService.fromTokens(
+                        { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                        persistRefreshedTokens(user.id),
+                    );
 
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
                     const folderId = await driveService.createFolder(folderName);
