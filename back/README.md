@@ -7,11 +7,15 @@ Node.js/TypeScript API server (Express + Apollo GraphQL + REST).
 ```
 src/
   index.ts              Entry point — bootstraps Express, mounts all routes & GraphQL
-  config/env.ts         Zod-validated environment config (exits on invalid/missing vars)
+  config/env.ts         Hand-rolled environment validator (exits on invalid/missing vars)
   db/
     mongo/connection.ts Mongoose connection (DB: human_ressources)
     mongo/schemas/      Mongoose schemas for candidates & jobs
     mysql/connection.ts MySQL2 connection pool (DB: sales_service)
+  external/             Third-party integrations & cross-cutting infrastructure
+    google/             OAuth2 client, GoogleDriveService, GoogleGmailService, MIME builder, types
+    crypto/             HmacService + domain signers (relance URL, Google OAuth state)
+    logger/             pino logger instance
   graphql/
     server.ts           3 separate ApolloServer instances on different paths
     context.ts          JWT extraction from Authorization header
@@ -27,12 +31,10 @@ src/
     mappers/            Snake-case ↔ camelCase mappers for user, company, candidate
   rest/
     auth/               Login, register, Google OAuth
-    email/              SMTP email sending (nodemailer, Brevo)
-    google/             Google API client, types, DriveService
+    email/              Gmail email sending (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
     middleware/         Auth (JWT), error handler & rate limiters
   types/                Domain types: user, company, candidate, job, db-rows
-  utils/                Logger (pino) & HMAC signing
 ```
 
 ## GraphQL endpoints
@@ -116,16 +118,13 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 REDIRECT_URI=http://localhost:4000/auth/callback
 APP_BASE_URL=http://localhost:4000
-SMTP_HOST=smtp-relay.brevo.com
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
-SMTP_FROM=Disciplina <epitechdisciplina.dev@gmail.com>
 RELANCE_HMAC_SECRET=change-this-relance-secret
 GOOGLE_STATE_SECRET=change-this-google-state-secret
 ```
 
-All vars are validated by `back/src/config/env.ts` using Zod — the server exits immediately if anything is missing or invalid.
+> Note: `SMTP_*` env vars are recognized but unused today. Email sending goes through Gmail OAuth (`external/google/gmail.service.ts`), not SMTP/Brevo/nodemailer.
+
+All vars are validated by `back/src/config/env.ts` (hand-rolled validator) — the server exits immediately if anything is missing or invalid.
 
 ### Insecure default warnings
 
@@ -160,9 +159,7 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 - `jsonwebtoken` ^9.0 — JWT auth
 - `bcrypt` ^6.0 — Password hashing
 - `googleapis` ^171 — Google APIs (Drive, Calendar, Gmail)
-- `nodemailer` ^6.9 — SMTP email
 - `pdfkit` ^0.18 — PDF generation
-- `zod` ^4.4 — Env validation
 - `pino` ^10.3 — Logging
 - `express-rate-limit` ^8.5 — Rate limiting
 - `express-session` ^1.19 — Session middleware

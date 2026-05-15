@@ -10,7 +10,7 @@ import { router as emailRouter } from './rest/email/route';
 import { router as relanceRouter } from './rest/relance/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
-import { logger } from './utils/logger';
+import { logger } from './external/logger';
 import { env } from './config/env';
 
 declare module 'express-session' {

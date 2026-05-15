@@ -1,19 +1,18 @@
-import { google } from 'googleapis';
-import { Auth } from 'googleapis';
-import { DriveFile, GoogleTokens } from '../types';
+import { google, Auth } from 'googleapis';
 import stream from 'stream';
+import { DriveFile, GoogleTokens } from './types';
 
-export class DriveService {
+export class GoogleDriveService {
     private drive;
 
     constructor(auth: Auth.OAuth2Client) {
         this.drive = google.drive({ version: 'v3', auth });
     }
 
-    static fromTokens(tokens: GoogleTokens): DriveService {
+    static fromTokens(tokens: GoogleTokens): GoogleDriveService {
         const oauth2Client = new google.auth.OAuth2();
         oauth2Client.setCredentials(tokens);
-        return new DriveService(oauth2Client);
+        return new GoogleDriveService(oauth2Client);
     }
 
     async listFiles(): Promise<DriveFile[]> {

@@ -1,8 +1,8 @@
 import { Response } from 'express';
 import { google } from 'googleapis';
 import { UserService } from '../../services/UserService';
-import { getAuthScopes } from '../google/client';
-import { signGoogleState, verifyGoogleState } from '../../utils/hmac';
+import { getAuthScopes } from '../../external/google';
+import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { env } from '../../config/env';
 import { AuthRequest } from '../middleware/auth';
 

@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { GmailService } from '../google/service/GmailService';
+import { GoogleGmailService } from '../../external/google';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateStatus } from '../../types/candidate.types';
-import { signRelanceUrl, verifyRelanceUrl } from '../../utils/hmac';
+import { signRelanceUrl, verifyRelanceUrl } from '../../external/crypto';
 import { env } from '../../config/env';
-import { logger } from '../../utils/logger';
+import { logger } from '../../external/logger';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
-const gmailService = new GmailService();
+const gmailService = new GoogleGmailService();
 
 export async function sendRelance(req: AuthRequest, res: Response) {
     const user = await userService.findById(req.user.id);

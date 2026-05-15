@@ -1,10 +1,10 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
-import { GmailService } from '../google/service/GmailService';
+import { GoogleGmailService } from '../../external/google';
 
 const userService = new UserService();
-const gmailService = new GmailService();
+const gmailService = new GoogleGmailService();
 
 export async function sendEmail(req: AuthRequest, res: Response): Promise<void> {
     const { to, subject, body, attachment } = req.body;

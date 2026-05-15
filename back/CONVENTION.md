@@ -140,6 +140,34 @@ export class CompanyRepository {
 - Transform between DB row shape (snake_case) and domain types (camelCase)
 - Named exports: `toUser()`, `toCompanies()`, `toSalePerson()`
 
+### 6. External integrations (`src/external/`)
+
+Any code that talks to a third-party API, performs cryptography, or wraps a cross-cutting infrastructure concern lives under `src/external/`. Business code (services, controllers, resolvers) imports from `external/` — it never reaches into `googleapis`, `node:crypto`, or `pino` directly.
+
+```
+external/
+  google/
+    client.ts         OAuth2 client factory + scopes
+    drive.service.ts  GoogleDriveService — Drive API wrapper
+    gmail.service.ts  GoogleGmailService — Gmail API wrapper (uses mime.builder)
+    mime.builder.ts   buildRawMessage(options) — pure MIME assembly
+    types.ts          GoogleTokens, DriveFile, OAuth2Config, SendEmailOptions
+    index.ts          Barrel — public surface
+  crypto/
+    hmac.service.ts   HmacService class + `hmac` singleton (sign/verify)
+    signers.ts        Domain helpers: signRelanceUrl/verifyRelanceUrl, signGoogleState/verifyGoogleState
+    index.ts          Barrel
+  logger/
+    logger.ts         pino instance (pretty in dev)
+    index.ts          Barrel
+```
+
+**Rules:**
+- Callers import from the barrel (`external/google`, `external/crypto`, `external/logger`), never from a deep file path.
+- Service classes are prefixed with `Google` (e.g. `GoogleDriveService`, `GoogleGmailService`) to make the integration boundary obvious at call sites.
+- Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
+- The logger is a singleton; never instantiate `pino()` outside `external/logger/`.
+
 ## File naming conventions
 
 | Layer | Convention | Examples |
@@ -319,7 +347,7 @@ Skip hooks on a commit with `git commit --no-verify`.
 ## Environment & configuration
 
 - Two `.env` files loaded at startup (root `../.env` + `back/.env`)
-- All vars validated by Zod in `config/env.ts`
+- All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons)
 - Server `exit(1)` on invalid/missing vars
 - Exported as `export const env = data` (typed object)
 

@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
 import { UserService } from '../../services/UserService';
 import { PdfService } from '../../services/PdfService';
-import { DriveService } from '../../rest/google/service/DriveService';
+import { GoogleDriveService } from '../../external/google';
 import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candidate.mapper';
 
 const candidateService = new CandidateService();
@@ -52,7 +52,7 @@ export const resolvers = {
                 if (user && user.oauthToken) {
                     const pdfBuffer = await PdfService.generateCandidatePdf(newCandidate);
 
-                    const driveService = DriveService.fromTokens({
+                    const driveService = GoogleDriveService.fromTokens({
                         access_token: user.oauthToken,
                         refresh_token: user.refreshToken || undefined,
                     });

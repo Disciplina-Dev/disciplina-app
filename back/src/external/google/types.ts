@@ -22,3 +22,15 @@ export interface OAuth2Config {
 export interface DriveListResponse {
     files: DriveFile[];
 }
+
+export interface SendEmailOptions {
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+    attachment?: {
+        filename: string;
+        content: string;
+        contentType?: string;
+    };
+}
