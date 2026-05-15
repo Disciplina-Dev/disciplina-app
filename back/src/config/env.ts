@@ -55,6 +55,7 @@ const data = {
 
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
+    GOOGLE_REDIRECT_URI: stringWithDefault('GOOGLE_REDIRECT_URI', 'http://localhost:5173/auth/google'),
 
     SMTP_HOST: optionalString('SMTP_HOST'),
     SMTP_PORT: numberWithDefault('SMTP_PORT', 587),

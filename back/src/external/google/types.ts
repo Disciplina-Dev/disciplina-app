@@ -1,9 +1,11 @@
 export interface GoogleTokens {
-    access_token?: string;
-    refresh_token?: string;
+    access_token?: string | null;
+    refresh_token?: string | null;
     token_type?: string;
     expiry_date?: number;
 }
+
+export type GoogleTokenRefreshHandler = (tokens: GoogleTokens) => void | Promise<void>;
 
 export interface DriveFile {
     id: string;
@@ -11,16 +13,6 @@ export interface DriveFile {
     mimeType: string;
     size?: string;
     modifiedTime?: string;
-}
-
-export interface OAuth2Config {
-    clientId: string;
-    clientSecret: string;
-    redirectUri: string;
-}
-
-export interface DriveListResponse {
-    files: DriveFile[];
 }
 
 export interface SendEmailOptions {
