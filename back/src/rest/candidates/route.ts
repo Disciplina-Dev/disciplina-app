@@ -1,6 +1,5 @@
 import express, { Router, Response } from 'express';
 import { randomUUID } from 'crypto';
-import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { Role } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
@@ -9,18 +8,13 @@ import {
     TitleProfessionalType,
     CandidateStatus,
 } from '../../types/candidate.types';
-import { logger } from '../../utils/logger';
+import { logger } from '../../external/logger/logger';
 
 export const router: Router = express.Router();
 
 const candidateService = new CandidateService();
 const candidateRepository = new CandidateRepository();
 
-const quickCreateSchema = z.object({
-    first_name: z.string().trim().min(1, 'first_name is required'),
-    last_name: z.string().trim().min(1, 'last_name is required'),
-    tp_type: z.nativeEnum(TitleProfessionalType),
-});
 
 function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -37,13 +31,15 @@ router.post(
             return;
         }
 
-        const parsed = quickCreateSchema.safeParse(req.body);
-        if (!parsed.success) {
-            res.status(400).json({ error: 'Invalid body', issues: parsed.error.issues });
+        const { first_name, last_name, tp_type } = req.body ?? {};
+        if (!first_name?.trim() || !last_name?.trim()) {
+            res.status(400).json({ error: 'first_name and last_name are required' });
             return;
         }
-
-        const { first_name, last_name, tp_type } = parsed.data;
+        if (!Object.values(TitleProfessionalType).includes(tp_type)) {
+            res.status(400).json({ error: 'Invalid tp_type' });
+            return;
+        }
         const fullName = `${first_name.trim()} ${last_name.trim()}`;
         const normalized = normalizeName(fullName);
 

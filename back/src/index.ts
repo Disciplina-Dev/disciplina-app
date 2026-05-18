@@ -13,7 +13,7 @@ import { router as classmarkerWebhookRouter } from './rest/classmarker/webhook.r
 import { router as candidatesRestRouter } from './rest/candidates/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
-import { logger } from './external/logger';
+import { logger } from './external/logger/logger';
 import { env } from './config/env';
 
 declare module 'express-session' {

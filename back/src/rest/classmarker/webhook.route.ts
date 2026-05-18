@@ -1,5 +1,5 @@
 import express, { Router, Request, Response } from 'express';
-import { logger } from '../../utils/logger';
+import { logger } from '../../external/logger/logger';
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { addClient, removeClient, notifyCandidate } from './sse';
 

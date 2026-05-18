@@ -6,7 +6,7 @@ import {
     MissingCredentialsError,
     ClassMarkerApiError,
 } from './service';
-import { logger } from '../../utils/logger';
+import { logger } from '../../external/logger/logger';
 
 export const router: Router = express.Router();
 
