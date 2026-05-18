@@ -196,7 +196,7 @@ export default function DashboardCommercial() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       <div className="mx-auto max-w-screen-xl px-4 py-8 sm:px-6 lg:px-8">
-        
+
         {/* ─── Header ──────────────────────────────────────────────────────── */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -302,7 +302,7 @@ export default function DashboardCommercial() {
               {statsPerCommercial.map((s) => (
                 <div key={s.id} className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
-                    <span 
+                    <span
                       className="flex h-9 w-9 items-center justify-center rounded-full text-white text-[13px] font-bold shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
                       style={{ backgroundColor: s.color }}
                     >
@@ -313,7 +313,7 @@ export default function DashboardCommercial() {
                       <span className="block text-[12px] font-medium text-gray-400 leading-none">{s.total} appel{s.total !== 1 ? 's' : ''} cette semaine</span>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between rounded-xl border border-gray-50 bg-gray-50/50 p-2.5">
                     <div className="flex items-center gap-1.5 text-success" title="Accords">
                       <CheckCircle2 className="h-4 w-4 opacity-75" />
@@ -356,8 +356,8 @@ export default function DashboardCommercial() {
                 Aucun appel téléphonique
               </p>
               <p className="text-[13px] text-gray-400 mt-1 max-w-sm mx-auto">
-                {currentUser.role === 'commercial' 
-                  ? "Vous n'avez appelé aucune entreprise cette semaine pour le moment. Commencez votre prospection !" 
+                {currentUser.role === 'commercial'
+                  ? "Vous n'avez appelé aucune entreprise cette semaine pour le moment. Commencez votre prospection !"
                   : "Aucune entreprise n'a été appelée récemment par les commerciaux."}
               </p>
             </div>

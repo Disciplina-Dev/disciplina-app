@@ -14,7 +14,7 @@ load_dotenv(env_path)
 #     password = os.getenv("MONGO_ROOT_PASSWORD")
 #     port = os.getenv("MONGO_PORT", "27017")
 #     host = "localhost"
-    
+
 #     # Si le mot de passe est manquant, on gère l'erreur
 #     if not username or not password:
 #         raise ValueError("Les variables MONGO_ROOT_USERNAME et MONGO_ROOT_PASSWORD doivent être définies dans le fichier .env")
@@ -25,18 +25,18 @@ load_dotenv(env_path)
 
 def insert_candidate():
     # client = get_mongo_connection()
-    
+
     # Sélection de la BDD et de la collection
     # db = client["human_ressources"]
     # candidates_collection = db["candidates"]
-    
+
     # Objet complet respectant parfaitement toutes les sous-sections de ton schéma mongo-init.js
     new_candidate = {
         "status": "IMMERSING",  # Le nouveau statut que tu viens d'ajouter !
         "tpType": "CC",
         # "created_at": datetime.now(),
         # "created_by": "script_python",
-        
+
         # ===========================
         # Identité du candidat
         # ===========================
@@ -53,7 +53,7 @@ def insert_candidate():
             "transportMeans": "Transport en commun",
             "pshReferralRequest": False
         },
-        
+
         # ===========================
         # Parcours et prérequis
         # ===========================
@@ -61,12 +61,12 @@ def insert_candidate():
             "schoolLevel": "BAC_PLUS_3_PLUS",
             "justification": "Diplôme universitaire en mathématiques"
         },
-        
+
         # ===========================
         # Positionnement
         # ===========================
         "trainingSite": "NORD_SAINTE_MARIE",
-        
+
         # ===========================
         # Accompagnement
         # ===========================
@@ -76,12 +76,12 @@ def insert_candidate():
             "missionLocaleRegistered": False,
             "missionLocaleCity": ""
         },
-        
+
         # ===========================
         # Immersion
         # ===========================
         "immersionAgreement": True,
-        
+
         # ===========================
         # Parcours antérieurs
         # ===========================
@@ -97,7 +97,7 @@ def insert_candidate():
                 }
             ]
         },
-        
+
         # ===========================
         # Caractéristiques du profil
         # ===========================
@@ -112,7 +112,7 @@ def insert_candidate():
             "readyForChallenges": True,
             "hobbies": "Course de fond"
         },
-        
+
         # ===========================
         # Projets professionnels
         # ===========================
@@ -122,7 +122,7 @@ def insert_candidate():
             "apprenticeshipMotivation": "Mettre en pratique des modèles mathématiques",
             "trainingExpectations": "Projets complexes"
         },
-        
+
         # ===========================
         # Analyse des compétences
         # ===========================
@@ -132,13 +132,13 @@ def insert_candidate():
                 "level": "A"
             }
         ],
-        
+
         # ===========================
         # Champs spécifiques au TP
         # ===========================
         "desiredSectors": ["Informatique", "Recherche"],
         "expectedCompanySkills": ["Innovation", "Rigueur"],
-        
+
         # ===========================
         # Informations sur le poste
         # ===========================
@@ -150,7 +150,7 @@ def insert_candidate():
             "weekendWork": False,
             "discoverySource": "OTHER"
         },
-        
+
         # ===========================
         # Synthèse (Chargé de recrutement)
         # ===========================
@@ -177,7 +177,7 @@ def insert_candidate():
             "candidateSignature": "Signé Alan Turing"
         }
     }
-    
+
     try:
         # Insertion
         result_json = req.post("http://localhost:4000/api/graphql/candidates", json={

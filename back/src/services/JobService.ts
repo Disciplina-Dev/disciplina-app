@@ -11,7 +11,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         sex: mc.sex,
         city: mc.city,
         email: mc.email,
-        phone: mc.phone
+        phone: mc.phone,
     };
 }
 
@@ -27,7 +27,7 @@ export function toGql(job: Job): object {
         status: job.status,
         localisation: job.localisation,
         matched: job.matched,
-        matchedCandidate: job.matched_candidate?.map(matchingCandidateToGql)
+        matchedCandidate: job.matched_candidate?.map(matchingCandidateToGql),
     };
 }
 
@@ -65,15 +65,12 @@ export class JobService {
 
         if (job.age_range) {
             const [min, max] = job.age_range.split('-').map(Number);
-            if (!isNaN(min) && !isNaN(max))
-                filter['identity.age'] = { $gte: min, $lte: max };
+            if (!isNaN(min) && !isNaN(max)) filter['identity.age'] = { $gte: min, $lte: max };
         }
 
-        if (job.localisation?.length)
-            filter['job_info.geographic_mobility'] = { $all: job.localisation };
+        if (job.localisation?.length) filter['job_info.geographic_mobility'] = { $all: job.localisation };
 
-        if (job.sector !== Sector.NONE)
-            filter['desired_sectors'] = { $all: job.sector };
+        if (job.sector !== Sector.NONE) filter['desired_sectors'] = { $all: job.sector };
 
         const candidates = await this.candidateRepository.findByfilter(filter);
 

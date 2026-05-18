@@ -64,7 +64,7 @@ export class CompaniesService {
             throw new Error('Valid company ID is required');
         }
         const rows = await this.repository.findAll();
-        const exists = rows.some(c => c.id === id);
+        const exists = rows.some((c) => c.id === id);
         if (!exists) {
             throw new Error('Company not found');
         }

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../../utils/logger';
+import { logger } from '../../external/logger';
 
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction): void {
     logger.error({ err, method: req.method, url: req.url }, 'Unhandled error');

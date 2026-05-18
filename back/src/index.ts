@@ -13,7 +13,7 @@ import { router as classmarkerWebhookRouter } from './rest/classmarker/webhook.r
 import { router as candidatesRestRouter } from './rest/candidates/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
-import { logger } from './utils/logger';
+import { logger } from './external/logger';
 import { env } from './config/env';
 
 declare module 'express-session' {
@@ -25,16 +25,20 @@ declare module 'express-session' {
 async function startServer() {
     const app: any = express();
 
-    app.use(cors({
-        origin: ['http://localhost:3000', 'http://localhost:5173'],
-        credentials: true,
-    }));
+    app.use(
+        cors({
+            origin: ['http://localhost:3000', 'http://localhost:5173'],
+            credentials: true,
+        }),
+    );
 
-    app.use(session({
-        secret: env.SESSION_SECRET,
-        resave: false,
-        saveUninitialized: false,
-    }));
+    app.use(
+        session({
+            secret: env.SESSION_SECRET,
+            resave: false,
+            saveUninitialized: false,
+        }),
+    );
 
     app.use('/api/email/send', emailRateLimiter);
     app.use(emailRouter);
@@ -69,4 +73,4 @@ async function startServer() {
     });
 }
 
-startServer().catch(err => logger.error(err, 'Startup error'));
+startServer().catch((err) => logger.error(err, 'Startup error'));

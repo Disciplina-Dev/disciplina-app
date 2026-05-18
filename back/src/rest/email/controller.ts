@@ -1,10 +1,14 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
-import { GmailService } from '../google/service/GmailService';
+import { GoogleGmailService } from '../../external/google/gmail.service';
+import { GoogleTokens } from '../../external/google/types';
 
 const userService = new UserService();
-const gmailService = new GmailService();
+const gmailService = new GoogleGmailService();
+
+const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
+    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 export async function sendEmail(req: AuthRequest, res: Response): Promise<void> {
     const { to, subject, body, attachment } = req.body;
@@ -21,13 +25,17 @@ export async function sendEmail(req: AuthRequest, res: Response): Promise<void> 
     }
 
     try {
-        await gmailService.sendEmail(user.id, user.oauthToken, user.refreshToken, {
-            to,
-            subject,
-            html: body,
-            text: body.replace(/<[^>]*>/g, ''),
-            attachment,
-        });
+        await gmailService.sendEmail(
+            { access_token: user.oauthToken, refresh_token: user.refreshToken },
+            {
+                to,
+                subject,
+                html: body,
+                text: body.replace(/<[^>]*>/g, ''),
+                attachment,
+            },
+            persistRefreshedTokens(user.id),
+        );
         res.json({ success: true });
     } catch (err: any) {
         res.status(500).json({ error: err.message });

@@ -140,6 +140,36 @@ export class CompanyRepository {
 - Transform between DB row shape (snake_case) and domain types (camelCase)
 - Named exports: `toUser()`, `toCompanies()`, `toSalePerson()`
 
+### 6. External integrations (`src/external/`)
+
+Any code that talks to a third-party API, performs cryptography, or wraps a cross-cutting infrastructure concern lives under `src/external/`. Business code (services, controllers, resolvers) imports from `external/` — it never reaches into `googleapis`, `node:crypto`, or `pino` directly.
+
+```
+external/
+  google/
+    oauth-client.ts   GoogleOAuthClient (auth URL, code exchange, credentialed-client + refresh hook) + `googleOAuth` singleton
+    drive.service.ts  GoogleDriveService — Drive API wrapper
+    gmail.service.ts  GoogleGmailService — Gmail API wrapper (uses mime.builder)
+    mime.builder.ts   buildRawMessage(options) — pure MIME assembly
+    types.ts          GoogleTokens, GoogleTokenRefreshHandler, DriveFile, SendEmailOptions
+  crypto/
+    hmac.service.ts   HmacService class + `hmac` singleton (sign/verify)
+    signers.ts        Domain helpers: signRelanceUrl/verifyRelanceUrl, signGoogleState/verifyGoogleState
+    index.ts          Barrel
+  logger/
+    logger.ts         pino instance (pretty in dev)
+    index.ts          Barrel
+```
+
+**Rules:**
+- Callers import from the specific module file (`external/google/oauth-client`, `external/google/gmail.service`, etc.). No barrels under `external/google/` — they hide where the code lives. (`crypto/` and `logger/` keep their barrels because the public surface is genuinely one bag of small helpers.)
+- Type and interface declarations for an `external/<integration>/` module always live in `<integration>/types.ts` — not next to the class that uses them.
+- Service classes are prefixed with `Google` (e.g. `GoogleDriveService`, `GoogleGmailService`, `GoogleOAuthClient`) to make the integration boundary obvious at call sites.
+- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. The redirect URI lives in `env.GOOGLE_REDIRECT_URI`, not in source.
+- When a Google API call may refresh tokens, callers pass a refresh handler that persists the new tokens via `userService.updateGoogleTokens`. The convention helper at the top of each call site is `persistRefreshedTokens(userId)`.
+- Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
+- The logger is a singleton; never instantiate `pino()` outside `external/logger/`.
+
 ## File naming conventions
 
 | Layer | Convention | Examples |
@@ -291,10 +321,35 @@ try {
 - Categories: correctness (error), suspicious (warn), perf (warn)
 - Plugin: `import`
 
+### Pre-commit hooks
+
+Project uses [pre-commit](https://pre-commit.com) — config at root `.pre-commit-config.yaml`:
+
+```sh
+python3 -m pip install pre-commit   # one-time
+python3 -m pre_commit install        # activate hooks
+```
+
+Hooks run **only on staged files** at `git commit` time:
+
+- **Prettier** — formats TypeScript under `back/src/` (config: `back/.prettierrc`)
+- **trailing-whitespace** — trims trailing whitespace
+- **end-of-file-fixer** — ensures files end with newline
+- **check-yaml** — validates YAML files
+- **check-json** — validates JSON files
+
+Skip hooks on a commit with `git commit --no-verify`.
+
+### Formatter (Prettier)
+
+- Config: `back/.prettierrc`
+- Run: `npm run format` (write) or `npm run format:check` (CI check)
+- Settings: 4-space indent, single quotes, trailing commas, 120 print width
+
 ## Environment & configuration
 
 - Two `.env` files loaded at startup (root `../.env` + `back/.env`)
-- All vars validated by Zod in `config/env.ts`
+- All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons)
 - Server `exit(1)` on invalid/missing vars
 - Exported as `export const env = data` (typed object)
 

@@ -28,7 +28,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     if (user.role === 'COMMERCIAL') {
       return <Navigate to="/commercial" replace />
     }
-    
+
     // Fallback if neither
     return <Navigate to="/" replace />
   }
