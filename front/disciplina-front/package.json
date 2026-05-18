@@ -20,6 +20,7 @@
     "@tiptap/starter-kit": "^2.11.5",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.7.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.72.0",

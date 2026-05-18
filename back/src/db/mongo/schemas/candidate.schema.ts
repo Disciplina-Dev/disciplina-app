@@ -18,6 +18,7 @@ import {
     JobInfo,
     PedagogicalRecommendations,
     Synthesis,
+    ClassMarkerResult,
 } from '../../../types/candidate.types';
 
 const identitySchema = new Schema<Identity>({
@@ -27,8 +28,8 @@ const identitySchema = new Schema<Identity>({
     age: { type: Number },
     postal_code: { type: String },
     city: { type: String },
-    email: { type: String, required: true },
-    phone: { type: String, required: true },
+    email: { type: String, default: '' },
+    phone: { type: String, default: '' },
     driving_license_b: { type: Boolean },
     transport_means: { type: String },
     psh_referral_request: { type: Boolean }
@@ -117,6 +118,16 @@ const synthesisSchema = new Schema<Synthesis>({
     candidate_signature: { type: String }
 }, { _id: false });
 
+const classMarkerResultSchema = new Schema<ClassMarkerResult>({
+    percentage: { type: Number },
+    points_scored: { type: Number },
+    points_available: { type: Number },
+    passed: { type: Boolean },
+    test_name: { type: String },
+    completed_at: { type: Date },
+    duration: { type: String },
+}, { _id: false });
+
 const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
@@ -136,7 +147,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         skills_assessment: { type: [skillsAssessmentSchema] },
         job_info: { type: jobInfoSchema },
         synthesis: { type: synthesisSchema },
-        pdf_link: { type: String }
+        pdf_link: { type: String },
+        classmarker: { type: classMarkerResultSchema }
     },
     { collection: 'candidates' }
 );
