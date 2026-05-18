@@ -211,7 +211,7 @@ def import_sales_candidates(filepath: str) -> int:
                         "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
                     },
                     "job_info": {
-                        "geographic_mobility": geo_sectors,
+                        "geographic_mobility": ", ".join(geo_sectors),
                     },
                     "desired_sectors": desired_sectors,
                 }
@@ -266,7 +266,7 @@ def import_secretariat_candidates(filepath: str) -> int:
                         "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
                     },
                     "job_info": {
-                        "geographic_mobility": geo_sectors,
+                        "geographic_mobility": ", ".join(geo_sectors),
                     },
                 }
                 collection.insert_one(doc)
