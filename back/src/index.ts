@@ -8,6 +8,9 @@ import cors from 'cors';
 import { router as authRouter } from './rest/auth/route';
 import { router as emailRouter } from './rest/email/route';
 import { router as relanceRouter } from './rest/relance/route';
+import { router as classmarkerRouter } from './rest/classmarker/route';
+import { router as classmarkerWebhookRouter } from './rest/classmarker/webhook.route';
+import { router as candidatesRestRouter } from './rest/candidates/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
 import { logger } from './external/logger';
@@ -49,6 +52,9 @@ async function startServer() {
     });
 
     app.use('/api/auth', authRouter);
+    app.use('/api/classmarker', classmarkerRouter);
+    app.use('/api/webhooks', classmarkerWebhookRouter);
+    app.use('/api/candidates', candidatesRestRouter);
     app.use(errorHandler);
 
     await connectMongoDB();

@@ -148,6 +148,16 @@ export interface Synthesis {
     candidate_signature?: string;
 }
 
+export interface ClassMarkerResult {
+    percentage?: number;
+    points_scored?: number;
+    points_available?: number;
+    passed?: boolean;
+    test_name?: string;
+    completed_at?: Date;
+    duration?: string;
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -167,4 +177,5 @@ export interface Candidate {
     job_info?: JobInfo;
     synthesis?: Synthesis;
     pdf_link?: string;
+    classmarker?: ClassMarkerResult;
 }

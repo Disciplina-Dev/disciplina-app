@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import {
@@ -382,21 +382,17 @@ interface CreateCandidateInput {
   trainingSite?: string | null
 }
 
-/**
- * Returns a function to create a new candidate via mutation.
- * Uses candidateGraphqlClient directly to bypass the companies urql Provider.
- */
 export function useCreateCandidate() {
-  const [result, executeMutation] = useMutation(CREATE_CANDIDATE)
+  const [fetching, setFetching] = useState(false)
 
-  const createCandidate = (input: CreateCandidateInput) => {
-    return executeMutation(
-      { input },
-      { url: 'http://localhost:4000/api/graphql/candidates' } as any,
-    )
+  const createCandidate = async (input: CreateCandidateInput) => {
+    setFetching(true)
+    const result = await candidateGraphqlClient.mutation(CREATE_CANDIDATE, { input })
+    setFetching(false)
+    return result
   }
 
-  return { createCandidate, result }
+  return { createCandidate, result: { fetching } }
 }
 
 export function useCandidateById(id: string) {

@@ -18,6 +18,7 @@ import {
     JobInfo,
     PedagogicalRecommendations,
     Synthesis,
+    ClassMarkerResult,
 } from '../../../types/candidate.types';
 
 const identitySchema = new Schema<Identity>(
@@ -150,6 +151,16 @@ const synthesisSchema = new Schema<Synthesis>(
     { _id: false },
 );
 
+const classMarkerResultSchema = new Schema<ClassMarkerResult>({
+    percentage: { type: Number },
+    points_scored: { type: Number },
+    points_available: { type: Number },
+    passed: { type: Boolean },
+    test_name: { type: String },
+    completed_at: { type: Date },
+    duration: { type: String },
+}, { _id: false });
+
 const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
@@ -170,6 +181,7 @@ const candidateSchema = new Schema<Candidate & Document>(
         job_info: { type: jobInfoSchema },
         synthesis: { type: synthesisSchema },
         pdf_link: { type: String },
+        classmarker: { type: classMarkerResultSchema }
     },
     { collection: 'candidates' },
 );

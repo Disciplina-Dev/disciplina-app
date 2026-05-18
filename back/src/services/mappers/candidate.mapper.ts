@@ -46,7 +46,12 @@ export function candidateToGql(candidate: Candidate): any {
         skillsAssessment: candidate.skills_assessment
             ? candidate.skills_assessment.map((s) => snakeToCamelCase(s))
             : null,
-        jobInfo: candidate.job_info ? snakeToCamelCase(candidate.job_info) : null,
+        jobInfo: candidate.job_info ? snakeToCamelCase({
+            ...candidate.job_info,
+            geographic_mobility: Array.isArray((candidate.job_info as any).geographic_mobility)
+                ? ((candidate.job_info as any).geographic_mobility as string[]).join(', ')
+                : (candidate.job_info as any).geographic_mobility,
+        }) : null,
         synthesis: candidate.synthesis ? snakeToCamelCase(candidate.synthesis) : null,
         pdfLink: candidate.pdf_link || null,
     };

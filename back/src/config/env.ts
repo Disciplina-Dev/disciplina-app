@@ -40,6 +40,13 @@ function numberWithDefault(key: string, fallback: number): number {
 const data = {
     API_PORT: numberWithDefault('API_PORT', 4000),
 
+    APP_BASE_URL: z.string().default('http://localhost:4000'),
+    RELANCE_HMAC_SECRET: z.string().default('change-this-relance-secret'),
+    GOOGLE_STATE_SECRET: z.string().default('change-this-google-state-secret'),
+
+    CLASSMARKER_API_NAME: z.string().optional(),
+    CLASSMARKER_API_KEY: z.string().optional(),
+    CLASSMARKER_API_SECRET: z.string().optional(),
     MYSQL_HOST: stringWithDefault('MYSQL_HOST', 'sql-db'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
