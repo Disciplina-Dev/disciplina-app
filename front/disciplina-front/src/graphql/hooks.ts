@@ -9,6 +9,7 @@ import {
   DELETE_COMPANY,
   GET_CANDIDATES,
   GET_CANDIDATE_BY_ID,
+  GET_CANDIDATE_FULL,
   UPDATE_CANDIDATE,
   CREATE_CANDIDATE,
 } from '@/graphql/queries'
@@ -377,9 +378,10 @@ export function useUpdateCandidate() {
 interface CreateCandidateInput {
   tpType: string
   status: string
-  identity: { fullName: string; email: string; phone: string }
-  education?: { schoolLevel?: string | null } | null
+  identity: { fullName: string; email: string; phone: string; [key: string]: any }
+  education?: { schoolLevel?: string | null; [key: string]: any } | null
   trainingSite?: string | null
+  [key: string]: any
 }
 
 export function useCreateCandidate() {
@@ -409,5 +411,23 @@ export function useCandidateById(id: string) {
     candidate,
     loading: result.fetching,
     error: result.error?.message ?? null,
+  }
+}
+
+export function useCandidateFull(id: string) {
+  const [result, reexecute] = useQuery({
+    query: GET_CANDIDATE_FULL,
+    variables: { id },
+    context: { url: 'http://localhost:4000/api/graphql/candidates' },
+    pause: !id,
+  })
+
+  const candidate: Candidate | null = result.data?.candidate ? fromGql(result.data.candidate) : null
+
+  return {
+    candidate,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecute({ requestPolicy: 'network-only' }),
   }
 }

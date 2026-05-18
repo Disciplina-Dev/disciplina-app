@@ -44,9 +44,9 @@ const data = {
     RELANCE_HMAC_SECRET: stringWithDefault('RELANCE_HMAC_SECRET', 'change-this-relance-secret'),
     GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
 
-    CLASSMARKER_API_NAME: requireString('CLASSMARKER_API_NAME'),
-    CLASSMARKER_API_KEY: requireString('CLASSMARKER_API_KEY'),
-    CLASSMARKER_API_SECRET:  requireString('CLASSMARKER_API_SECRET'),
+    CLASSMARKER_API_NAME: optionalString('CLASSMARKER_API_NAME'),
+    CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
+    CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
     MYSQL_HOST: stringWithDefault('MYSQL_HOST', 'sql-db'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),

@@ -15,6 +15,7 @@ export function camelToSnakeCase(obj: any): any {
 
 export function snakeToCamelCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
+    if (obj instanceof Date) return obj.toISOString();
     if (Array.isArray(obj)) return obj.map(snakeToCamelCase);
     const result: any = {};
     for (const key in obj) {

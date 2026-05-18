@@ -303,9 +303,18 @@ export const typeDefs = gql`
         synthesis: SynthesisInput
     }
 
+    type CandidateTemplate {
+        tpType: TitleProfessionalType!
+        hasEnglishLevel: Boolean!
+        availableSectors: [String!]!
+        availableExpectedSkills: [String!]!
+        defaultSkillsAssessment: [SkillAssessment!]!
+    }
+
     type Query {
         candidates: [Candidate!]!
         candidate(id: String!): Candidate
+        candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
     }
 
     type Mutation {

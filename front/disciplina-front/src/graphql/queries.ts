@@ -320,6 +320,102 @@ export const CREATE_CANDIDATE = gql`
   }
 `
 
+export const GET_CANDIDATE_FULL = gql`
+  query GetCandidateFull($id: String!) {
+    candidate(id: $id) {
+      id
+      status
+      tpType
+      trainingSite
+      immersionAgreement
+      desiredSectors
+      expectedCompanySkills
+      identity {
+        fullName
+        email
+        phone
+        dateOfBirth
+        placeOfBirth
+        age
+        postalCode
+        city
+        drivingLicenseB
+        transportMeans
+        pshReferralRequest
+      }
+      education { schoolLevel justification }
+      support {
+        franceTravailRegistered
+        franceTravailAgency
+        missionLocaleRegistered
+        missionLocaleCity
+      }
+      background {
+        lastDiploma
+        previousTrainings
+        professionalExperiences { position duration responsibilities company }
+      }
+      profile {
+        frenchLevel
+        englishLevel
+        otherLanguages
+        strengthsAndImprovements
+        qualities
+        defects
+        digitalSkills
+        readyForChallenges
+        hobbies
+      }
+      professionalProjects {
+        careerObjectives
+        desiredSkills
+        apprenticeshipMotivation
+        trainingExpectations
+      }
+      skillsAssessment { competence level }
+      jobInfo {
+        domainMotivation
+        questionsConcerns
+        availabilityDate
+        geographicMobility
+        weekendWork
+        discoverySource
+      }
+      synthesis {
+        feasibilityConclusion
+        pathwayRelevance
+        specialNeeds
+        pedagogicalRecommendations {
+          officeToolsReinforcement
+          writtenCommunicationSupport
+          oralConfidenceDevelopment
+          timeManagementSupport
+          professionalPostureWork
+          enhancedCompanyImmersion
+          pshSpecificSupport
+          individualFollowUp
+          languageTraining
+          stressManagementFollowUp
+        }
+        otherRecommendations
+        location
+        date
+      }
+      pdfLink
+    }
+  }
+`
+
+export const UPDATE_CANDIDATE_FULL = gql`
+  mutation UpdateCandidateFull($id: String!, $input: UpdateCandidateInput!) {
+    updateCandidate(id: $id, input: $input) {
+      id
+      status
+      tpType
+    }
+  }
+`
+
 // ─── Authentication ──────────────────────────────────────────────────────────
 
 export const LOGIN_USER = gql`

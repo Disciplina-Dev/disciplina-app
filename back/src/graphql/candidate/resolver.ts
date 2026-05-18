@@ -3,6 +3,7 @@ import { Role } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { randomUUID } from 'crypto';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
+import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { PdfService } from '../../services/PdfService';
 import { GoogleDriveService } from '../../external/google/drive.service';
@@ -45,12 +46,33 @@ export const resolvers = {
                 throw err;
             }
         },
+        candidateTemplate: async (_: unknown, { tpType }: { tpType: TitleProfessionalType }, context: any) => {
+            authGuard(context.user, [Role.RH]);
+            const template = CANDIDATE_TEMPLATES[tpType];
+            return {
+                tpType: template.tp_type,
+                hasEnglishLevel: template.has_english_level,
+                availableSectors: template.available_sectors,
+                availableExpectedSkills: template.available_expected_skills,
+                defaultSkillsAssessment: template.default_skills_assessment.map((s) => ({
+                    competence: s.competence,
+                    level: s.level,
+                })),
+            };
+        },
     },
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {
             authGuard(context.user, [Role.RH]);
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
+
+            if (!snakeInput.skills_assessment || snakeInput.skills_assessment.length === 0) {
+                const template = CANDIDATE_TEMPLATES[input.tpType];
+                if (template) {
+                    snakeInput.skills_assessment = template.default_skills_assessment;
+                }
+            }
 
             let newCandidate = await candidateService.create({
                 _id: id,
