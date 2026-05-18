@@ -42,7 +42,7 @@ const data = {
 
     APP_BASE_URL: stringWithDefault('APP_BASE_URL', 'http://localhost:4000'),
     RELANCE_HMAC_SECRET: stringWithDefault('RELANCE_HMAC_SECRET', 'change-this-relance-secret'),
-GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
+    GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
 
     CLASSMARKER_API_NAME: requireString('CLASSMARKER_API_NAME'),
     CLASSMARKER_API_KEY: requireString('CLASSMARKER_API_KEY'),
