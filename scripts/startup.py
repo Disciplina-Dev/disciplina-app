@@ -106,17 +106,42 @@ def get_mongo_connection():
     )
 
 
+# -- Seeded checks -----------------------------------------------------------------
+
+
+def mysql_has_rows(table: str) -> bool:
+    conn = get_mysql_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
+    row = cursor.fetchone()
+    count = row[0] if row else 0
+    cursor.close()
+    conn.close()
+    return count > 0
+
+
+def mongo_has_docs(collection: str, filter_: dict | None = None) -> bool:
+    client = get_mongo_connection()
+    db = client["human_ressources"]
+    count = db[collection].count_documents(filter_ or {})
+    client.close()
+    return count > 0
+
+
 # -- 1. Companies -> MySQL -------------------------------------------------------
 
 
 def select_saler_id(name: str, email: str) -> int:
-    if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re':
-        return 2
-    if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re':
-        return 3
-    if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re':
-        return 4
-    return 1
+    try:
+        if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re':
+            return 2
+        if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re':
+            return 3
+        if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re':
+            return 4
+        return 1
+    except:
+            return 1
 
 
 def import_companies(filepath: str) -> int:
@@ -189,14 +214,13 @@ def import_sales_candidates(filepath: str) -> int:
                         )
 
                 disp = (row.get("Disponibilite") or '').strip()
-                status = "SEEKING" if disp.startswith("Disponible") else "NOT_SEEKING"
 
                 doc = {
                     "_id": str(uuid.uuid4()),
                     "training_site": "NORD_SAINTE_MARIE",
                     "formation_type": "VENTE",
                     "tp_type": (row.get("FORMATION") or '').strip(),
-                    "status": status,
+                    "status": "SEEKING",
                     "identity": {
                         "sex": "GARCON" if (row.get("Sex") or '').strip() == "GARCON" else "FILLE",
                         "full_name": row.get("NOM - PRENOM"),
@@ -208,7 +232,7 @@ def import_sales_candidates(filepath: str) -> int:
                         "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
                     },
                     "job_info": {
-                        "geographic_mobility": geo_sectors,
+                        "geographic_mobility": ", ".join(geo_sectors),
                     },
                     "desired_sectors": desired_sectors,
                 }
@@ -244,14 +268,13 @@ def import_secretariat_candidates(filepath: str) -> int:
                         )
 
                 disp_raw = row.get("DISPONIBILITE") or ''
-                status = "SEEKING" if disp_raw.strip().startswith("Disponible") else "NOT_SEEKING"
 
                 doc = {
                     "_id": str(uuid.uuid4()),
                     "training_site": "NORD_SAINTE_MARIE",
                     "formation_type": "SECRETARIAT",
                     "tp_type": "AD",
-                    "status": status,
+                    "status": "SEEKING",
                     "identity": {
                         "sex": "GARCON" if (row.get("Genre") or '').strip() == "GARCON" else "FILLE",
                         "full_name": row.get("NOM - PRENOM"),
@@ -263,7 +286,7 @@ def import_secretariat_candidates(filepath: str) -> int:
                         "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
                     },
                     "job_info": {
-                        "geographic_mobility": geo_sectors,
+                        "geographic_mobility": ", ".join(geo_sectors),
                     },
                 }
                 collection.insert_one(doc)
@@ -338,7 +361,7 @@ def import_jobs(filepaths: list) -> int:
                         "desired_sex": genre_raw if genre_raw in DESIRED_SEX_ENUM else None,
                         "driving_license_b": (row.get("Permis") or '').strip().upper() == "OUI",
                         "professional_experience": (row.get("Experience connaissance") or '').strip().upper() == "OUI",
-                        "sector": resolve_sector(row),
+                        # "sector": resolve_sector(row),
                         "localisation": parse_localisation(row.get("Localisation") or ''),
                         "status": "NOT_MATCHED",
                         "matched_candidate": [],
@@ -367,54 +390,62 @@ def main() -> int:
     # 1. Companies
     print("\n[1/4] Importing companies -> MySQL ...")
     path = os.path.join(RESOURCE_DIR, 'suivi_client-contact.csv')
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        print(f"  SKIP -- suivi_client-contact.csv not found")
+    elif mysql_has_rows("companies"):
+        print(f"  SKIP -- companies table already has data")
+    else:
         try:
             n = import_companies(path)
             print(f"  OK -- {n} companies inserted")
         except Exception as e:
             print(f"  FAIL -- Companies: {e}")
             errors.append(f"Companies: {e}")
-    else:
-        print(f"  SKIP -- suivi_client-contact.csv not found")
 
     # 2. Sales candidates
     print("\n[2/4] Importing sales candidates -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidats_nord.csv')
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        print(f"  SKIP -- candidats_nord.csv not found")
+    elif mongo_has_docs("candidates", {"formation_type": "VENTE"}):
+        print(f"  SKIP -- sales candidates already exist")
+    else:
         try:
             n = import_sales_candidates(path)
             print(f"  OK -- {n} sales candidates inserted")
         except Exception as e:
             print(f"  FAIL -- Sales candidates: {e}")
             errors.append(f"Sales candidates: {e}")
-    else:
-        print(f"  SKIP -- candidats_nord.csv not found")
 
     # 3. Secretariat candidates
     print("\n[3/4] Importing secretariat candidates -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidats_nord_AD.csv')
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        print(f"  SKIP -- candidats_nord_AD.csv not found")
+    elif mongo_has_docs("candidates", {"formation_type": "SECRETARIAT"}):
+        print(f"  SKIP -- secretariat candidates already exist")
+    else:
         try:
             n = import_secretariat_candidates(path)
             print(f"  OK -- {n} secretariat candidates inserted")
         except Exception as e:
             print(f"  FAIL -- Secretariat candidates: {e}")
             errors.append(f"Secretariat candidates: {e}")
-    else:
-        print(f"  SKIP -- candidats_nord_AD.csv not found")
 
     # 4. Jobs
     print("\n[4/4] Importing jobs -> MongoDB ...")
     job_files = sorted(glob.glob(os.path.join(RESOURCE_DIR, 'company_recruitement_nord*.csv')))
-    if job_files:
+    if not job_files:
+        print(f"  SKIP -- no company_recruitement_nord*.csv files found")
+    elif mongo_has_docs("jobs"):
+        print(f"  SKIP -- jobs already exist")
+    else:
         try:
             n = import_jobs(job_files)
             print(f"  OK -- {n} jobs inserted from {len(job_files)} file(s)")
         except Exception as e:
             print(f"  FAIL -- Jobs: {e}")
             errors.append(f"Jobs: {e}")
-    else:
-        print(f"  SKIP -- no company_recruitement_nord*.csv files found")
 
     print()
     print("=" * 50)
