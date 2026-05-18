@@ -2,7 +2,7 @@ FROM node:22
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 RUN useradd -ms /bin/sh -u 1001 app
 USER app

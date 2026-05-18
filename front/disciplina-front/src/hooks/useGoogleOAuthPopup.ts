@@ -61,12 +61,16 @@ export function useGoogleOAuthPopup() {
 
       const result = await new Promise<{ code: string; state: string }>((resolve, reject) => {
         const timer = window.setInterval(() => {
-          if (popup.closed) {
-            clearInterval(timer)
-            if (handlerRef.current) {
-              window.removeEventListener('message', handlerRef.current)
+          try {
+            if (popup.closed) {
+              clearInterval(timer)
+              if (handlerRef.current) {
+                window.removeEventListener('message', handlerRef.current)
+              }
+              reject(new Error('Fenêtre fermée sans autorisation'))
             }
-            reject(new Error('Fenêtre fermée sans autorisation'))
+          } catch {
+            // COOP policy blocks popup.closed access — ignore
           }
         }, 500)
         timerRef.current = timer

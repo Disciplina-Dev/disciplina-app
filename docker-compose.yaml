@@ -52,10 +52,10 @@ services:
         - action: sync
           path: ./back/src
           target: /app/src
-          initial_sync: true
+          # initial_sync: true
         - action: rebuild
           path: ./back/package.json
-          initial_sync: true
+          # initial_sync: true
         - action: sync+restart
           path: ./back/.env.back
           target: /app/src
