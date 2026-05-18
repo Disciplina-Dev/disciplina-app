@@ -192,14 +192,13 @@ def import_sales_candidates(filepath: str) -> int:
                         )
 
                 disp = (row.get("Disponibilite") or '').strip()
-                status = "SEEKING" if disp.startswith("Disponible") else "NOT_SEEKING"
 
                 doc = {
                     "_id": str(uuid.uuid4()),
                     "training_site": "NORD_SAINTE_MARIE",
                     "formation_type": "VENTE",
                     "tp_type": (row.get("FORMATION") or '').strip(),
-                    "status": status,
+                    "status": "SEEKING",
                     "identity": {
                         "sex": "GARCON" if (row.get("Sex") or '').strip() == "GARCON" else "FILLE",
                         "full_name": row.get("NOM - PRENOM"),
@@ -247,14 +246,13 @@ def import_secretariat_candidates(filepath: str) -> int:
                         )
 
                 disp_raw = row.get("DISPONIBILITE") or ''
-                status = "SEEKING" if disp_raw.strip().startswith("Disponible") else "NOT_SEEKING"
 
                 doc = {
                     "_id": str(uuid.uuid4()),
                     "training_site": "NORD_SAINTE_MARIE",
                     "formation_type": "SECRETARIAT",
                     "tp_type": "AD",
-                    "status": status,
+                    "status": "SEEKING",
                     "identity": {
                         "sex": "GARCON" if (row.get("Genre") or '').strip() == "GARCON" else "FILLE",
                         "full_name": row.get("NOM - PRENOM"),
@@ -341,12 +339,11 @@ def import_jobs(filepaths: list) -> int:
                         "desired_sex": genre_raw if genre_raw in DESIRED_SEX_ENUM else None,
                         "driving_license_b": (row.get("Permis") or '').strip().upper() == "OUI",
                         "professional_experience": (row.get("Experience connaissance") or '').strip().upper() == "OUI",
-                        "sector": resolve_sector(row),
+                        # "sector": resolve_sector(row),
                         "localisation": parse_localisation(row.get("Localisation") or ''),
                         "status": "NOT_MATCHED",
                         "matched_candidate": [],
                     }
-                    print('doc: ', doc)
                     collection.insert_one(doc)
                     count += 1
                 except Exception as e:
