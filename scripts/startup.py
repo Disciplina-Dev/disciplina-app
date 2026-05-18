@@ -110,13 +110,16 @@ def get_mongo_connection():
 
 
 def select_saler_id(name: str, email: str) -> int:
-    if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re':
-        return 2
-    if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re':
-        return 3
-    if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re':
-        return 4
-    return 1
+    try:
+        if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re':
+            return 2
+        if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re':
+            return 3
+        if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re':
+            return 4
+        return 1
+    except:
+            return 1
 
 
 def import_companies(filepath: str) -> int:
@@ -343,6 +346,7 @@ def import_jobs(filepaths: list) -> int:
                         "status": "NOT_MATCHED",
                         "matched_candidate": [],
                     }
+                    print('doc: ', doc)
                     collection.insert_one(doc)
                     count += 1
                 except Exception as e:
