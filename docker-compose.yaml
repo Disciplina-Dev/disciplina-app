@@ -67,6 +67,24 @@ services:
       - frontend-net
     ports:
       - "4000:4000"
+  startup-script:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    depends_on:
+      sql-db:
+        condition: service_healthy
+      nosql-db:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      MYSQL_USER: root
+      MYSQL_DATABASE: sales_service
+      MONGO_HOST: nosql-db
+    restart: no
+    networks:
+      - backend-net
   frontend:
     build:
       context: ./front/disciplina-front

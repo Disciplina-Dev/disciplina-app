@@ -42,3 +42,6 @@ CREATE TABLE IF NOT EXISTS users (
     oauth_token TEXT DEFAULT NULL,
     refresh_token TEXT DEFAULT NULL
 );
+
+INSERT INTO users (id, email, name, password, role)
+VALUES (1, 'root@example.com', 'root', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'ADMIN');
