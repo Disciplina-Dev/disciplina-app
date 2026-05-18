@@ -106,6 +106,28 @@ def get_mongo_connection():
     )
 
 
+# -- Seeded checks -----------------------------------------------------------------
+
+
+def mysql_has_rows(table: str) -> bool:
+    conn = get_mysql_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
+    row = cursor.fetchone()
+    count = row[0] if row else 0
+    cursor.close()
+    conn.close()
+    return count > 0
+
+
+def mongo_has_docs(collection: str, filter_: dict | None = None) -> bool:
+    client = get_mongo_connection()
+    db = client["human_ressources"]
+    count = db[collection].count_documents(filter_ or {})
+    client.close()
+    return count > 0
+
+
 # -- 1. Companies -> MySQL -------------------------------------------------------
 
 
@@ -368,54 +390,62 @@ def main() -> int:
     # 1. Companies
     print("\n[1/4] Importing companies -> MySQL ...")
     path = os.path.join(RESOURCE_DIR, 'suivi_client-contact.csv')
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        print(f"  SKIP -- suivi_client-contact.csv not found")
+    elif mysql_has_rows("companies"):
+        print(f"  SKIP -- companies table already has data")
+    else:
         try:
             n = import_companies(path)
             print(f"  OK -- {n} companies inserted")
         except Exception as e:
             print(f"  FAIL -- Companies: {e}")
             errors.append(f"Companies: {e}")
-    else:
-        print(f"  SKIP -- suivi_client-contact.csv not found")
 
     # 2. Sales candidates
     print("\n[2/4] Importing sales candidates -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidats_nord.csv')
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        print(f"  SKIP -- candidats_nord.csv not found")
+    elif mongo_has_docs("candidates", {"formation_type": "VENTE"}):
+        print(f"  SKIP -- sales candidates already exist")
+    else:
         try:
             n = import_sales_candidates(path)
             print(f"  OK -- {n} sales candidates inserted")
         except Exception as e:
             print(f"  FAIL -- Sales candidates: {e}")
             errors.append(f"Sales candidates: {e}")
-    else:
-        print(f"  SKIP -- candidats_nord.csv not found")
 
     # 3. Secretariat candidates
     print("\n[3/4] Importing secretariat candidates -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidats_nord_AD.csv')
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        print(f"  SKIP -- candidats_nord_AD.csv not found")
+    elif mongo_has_docs("candidates", {"formation_type": "SECRETARIAT"}):
+        print(f"  SKIP -- secretariat candidates already exist")
+    else:
         try:
             n = import_secretariat_candidates(path)
             print(f"  OK -- {n} secretariat candidates inserted")
         except Exception as e:
             print(f"  FAIL -- Secretariat candidates: {e}")
             errors.append(f"Secretariat candidates: {e}")
-    else:
-        print(f"  SKIP -- candidats_nord_AD.csv not found")
 
     # 4. Jobs
     print("\n[4/4] Importing jobs -> MongoDB ...")
     job_files = sorted(glob.glob(os.path.join(RESOURCE_DIR, 'company_recruitement_nord*.csv')))
-    if job_files:
+    if not job_files:
+        print(f"  SKIP -- no company_recruitement_nord*.csv files found")
+    elif mongo_has_docs("jobs"):
+        print(f"  SKIP -- jobs already exist")
+    else:
         try:
             n = import_jobs(job_files)
             print(f"  OK -- {n} jobs inserted from {len(job_files)} file(s)")
         except Exception as e:
             print(f"  FAIL -- Jobs: {e}")
             errors.append(f"Jobs: {e}")
-    else:
-        print(f"  SKIP -- no company_recruitement_nord*.csv files found")
 
     print()
     print("=" * 50)
