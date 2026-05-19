@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import mongoose, { Schema, model, Document } from 'mongoose';
 import {
     Candidate,
     TitleProfessionalType,
@@ -151,15 +151,18 @@ const synthesisSchema = new Schema<Synthesis>(
     { _id: false },
 );
 
-const classMarkerResultSchema = new Schema<ClassMarkerResult>({
-    percentage: { type: Number },
-    points_scored: { type: Number },
-    points_available: { type: Number },
-    passed: { type: Boolean },
-    test_name: { type: String },
-    completed_at: { type: Date },
-    duration: { type: String },
-}, { _id: false });
+const classMarkerResultSchema = new Schema<ClassMarkerResult>(
+    {
+        percentage: { type: Number },
+        points_scored: { type: Number },
+        points_available: { type: Number },
+        passed: { type: Boolean },
+        test_name: { type: String },
+        completed_at: { type: Date },
+        duration: { type: String },
+    },
+    { _id: false },
+);
 
 const candidateSchema = new Schema<Candidate & Document>(
     {
@@ -181,9 +184,9 @@ const candidateSchema = new Schema<Candidate & Document>(
         job_info: { type: jobInfoSchema },
         synthesis: { type: synthesisSchema },
         pdf_link: { type: String },
-        classmarker: { type: classMarkerResultSchema }
+        classmarker: { type: classMarkerResultSchema },
     },
     { collection: 'candidates' },
 );
 
-export const CandidateModel = model<Candidate & Document>('Candidate', candidateSchema);
+export const CandidateModel = mongoose.models.Candidate || model<Candidate & Document>('Candidate', candidateSchema);
