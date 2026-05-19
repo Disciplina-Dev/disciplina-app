@@ -1,0 +1,348 @@
+# HOWTOTEST.md — Backend component testing
+
+This guide is for contributors writing the first tests in `back/`. It is **opinionated** and **project-specific**. The goal is for any backend dev to be able to drop a new test file into the right place without rediscovering conventions every time.
+
+There is no test suite or CI in this repo yet — see `back/CONVENTION.md` "Known quirks". This document describes the target setup, not the current state. Anything marked **(prerequisite)** is work that has to land before the first test runs.
+
+---
+
+## 1. Philosophy: Testing Diamond + AAAC
+
+We prioritise **component tests** over unit tests. A component test boots the Express app, talks to it through HTTP, and uses real MySQL and real MongoDB. We only mock things that leave the service boundary — Google APIs, HMAC signers — never our own services, repositories, resolvers, or controllers.
+
+Every test follows **AAAC**:
+
+- **Arrange** — seed only what the test needs. Use a random suffix (`Date.now()`, UUID) on unique fields so suites never collide.
+- **Act** — one `fetch()` call against the running server. No internal function calls.
+- **Assert** — check three exit doors: (1) the HTTP response (status + body), (2) the persisted state by reading it back through another API call, (3) outgoing calls to mocked third parties.
+- **Clear** — wipe the rows the test touched so the next test starts clean.
+
+The original AAAC pattern lists 5 exit doors (message queues, metrics). This repo has no queues and no metrics endpoints, so those don't apply.
+
+---
+
+## 2. What "component" means here
+
+The component under test is the Express app booted by `back/src/index.ts`. It exposes:
+
+- REST routes: `/api/auth`, `/api/email/*`, `/api/relance/*`, `/api/classmarker`, `/api/webhooks`, `/api/candidates`
+- Three Apollo GraphQL endpoints, all on the same Express app:
+  - `POST /api/graphql/companies` — `CompanyAPI`
+  - `POST /api/graphql/candidates` — `CandidateAPI`
+  - `POST /api/graphql/jobs` — `JobAPI`
+
+There are no cross-entity GraphQL queries. A test posts to the endpoint that owns the entity it cares about.
+
+**Mock boundary = `back/src/external/` only.** That is where Google (Drive, Gmail, OAuth) and crypto (HMAC signers) live. Everything in `services/`, `repositories/`, `graphql/`, `rest/`, `db/`, `config/`, `types/` is real in a component test.
+
+---
+
+## 3. Tooling
+
+| Concern | Choice | Why |
+|---|---|---|
+| Test runner | **Vitest** | Native TS, fast cold starts, no Jest-style config |
+| HTTP client | **`fetch`** (Node ≥ 18 built-in) | Black-box the API; no shared in-process state with the server |
+| GraphQL client | **`fetch`** with a hand-written body | No Apollo client needed |
+| Mocks | **`vi.mock()`** of `src/external/*` modules only | The boundary, never internals |
+
+**(prerequisite)** Add to `back/package.json`:
+
+```jsonc
+"scripts": {
+  "test": "vitest run",
+  "test:watch": "vitest"
+},
+"devDependencies": {
+  "vitest": "^2.0.0",
+  "@vitest/coverage-v8": "^2.0.0"
+}
+```
+
+Test layout:
+
+```
+back/
+  src/
+    rest/auth/__tests__/login.test.ts      ← co-located with feature
+    graphql/candidate/__tests__/query.test.ts
+  test/
+    setup.ts                ← boots/teardowns the server, wires .env.test
+    helpers/
+      auth.ts               ← mintToken()
+      db.ts                 ← truncateMysql(), dropMongo()
+```
+
+---
+
+## 4. Test environment
+
+Reuse the root `docker-compose.yaml`:
+
+```sh
+docker compose up -d sql-db nosql-db
+```
+
+That gives you MySQL on `localhost:5001` and Mongo on `localhost:${MONGO_PORT:-4011}`. No separate compose file is needed.
+
+**(prerequisite — `.env.test`)** Create `back/.env.test` with the same shape `config/env.ts` requires (`MYSQL_DATABASE`, `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD`, `MONGO_PORT`, `JWT_SECRET`, `SESSION_SECRET`, the Google OAuth vars, …), pointing at a `sales_service_test` MySQL schema and a `human_ressources_test` Mongo database. The test setup file loads this file instead of `.env`.
+
+**(prerequisite — Mongo URI override)** `src/db/mongo/connection.ts` currently hardcodes the Mongo URI with hostname `nosql-db` and database `human_ressources`. Move both to env vars (`MONGO_HOST`, `MONGO_DB_NAME`) before component tests can target a separate database. This is a small refactor, not a test-only change.
+
+**(prerequisite — `startServer()` export)** `src/index.ts` calls `startServer()` at module load and never exports it. Export it so the test setup can call it once per suite and shut down cleanly — otherwise you spawn a child process per suite, which is slow and flaky.
+
+---
+
+## 5. Auth helper
+
+JWTs are minted with `env.JWT_SECRET` and carry `{ id, email, role }`. Both `rest/middleware/auth.ts` and `graphql/context.ts` decode the same shape.
+
+`back/test/helpers/auth.ts`:
+
+```ts
+import jwt from 'jsonwebtoken';
+import { env } from '../../src/config/env';
+
+type Role = 'ADMIN' | 'COMMERCIAL' | 'RH';
+
+export function mintToken(user: { id: number; email: string; role: Role }): string {
+    return jwt.sign(user, env.JWT_SECRET, { expiresIn: '1h' });
+}
+```
+
+Use it in tests as:
+
+```ts
+const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+```
+
+`ADMIN` bypasses every role check (see `graphql/authGuard.ts`), so use it for the happy path and use other roles only when the test specifically asserts an authorisation outcome.
+
+---
+
+## 6. Clean state between tests
+
+AAAC's "Clear" runs in `beforeEach`, globally. Per-test cleanup is fragile — global wipe is simpler and your tests stop depending on each other's leftovers.
+
+`back/test/helpers/db.ts`:
+
+```ts
+import pool from '../../src/db/mysql/connection';
+import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
+import { JobModel } from '../../src/db/mongo/schemas/job.schema';
+
+export async function truncateMysql(): Promise<void> {
+    const conn = await pool.getConnection();
+    try {
+        await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+        await conn.query('TRUNCATE TABLE users');
+        await conn.query('TRUNCATE TABLE companies');
+        await conn.query('TRUNCATE TABLE sale_persons');
+        await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+    } finally {
+        conn.release();
+    }
+}
+
+export async function dropMongo(): Promise<void> {
+    await CandidateModel.deleteMany({});
+    await JobModel.deleteMany({});
+}
+```
+
+Per-test uniqueness still matters when suites run in parallel — append `Date.now()` or a UUID to email/name fields so two suites seeding "test user" don't trip the unique index.
+
+---
+
+## 7. Example: REST component test
+
+`back/src/rest/auth/__tests__/login.test.ts`:
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import bcrypt from 'bcrypt';
+import { truncateMysql } from '../../../../test/helpers/db';
+import { UserRepository } from '../../../repositories/mysql/UserRepository';
+
+const BASE = 'http://localhost:4000';
+
+describe('POST /api/auth/login', () => {
+    beforeEach(async () => {
+        await truncateMysql();
+    });
+
+    it('returns a JWT for valid credentials and the token authorises a follow-up call', async () => {
+        // Arrange — seed one user directly through the real repository
+        const email = `admin-${Date.now()}@test.local`;
+        const password = 'hunter2!';
+        await new UserRepository().create({
+            email,
+            password: await bcrypt.hash(password, 10),
+            role: 'ADMIN',
+            // …other required fields…
+        });
+
+        // Act
+        const res = await fetch(`${BASE}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        const body = await res.json();
+
+        // Assert — HTTP response
+        expect(res.status).toBe(200);
+        expect(typeof body.token).toBe('string');
+
+        // Assert — token works on a protected route (verify via public API, not the DB)
+        const me = await fetch(`${BASE}/api/candidates`, {
+            headers: { Authorization: `Bearer ${body.token}` },
+        });
+        expect(me.status).toBe(200);
+    });
+});
+```
+
+Notes:
+
+- We seed via `UserRepository` because there is no public "create admin" endpoint. Seeding through a repository is fine — it's a fixture, not the system under test.
+- We **verify by calling another route**, never by reading from MySQL directly. Direct DB reads tie tests to schema and rot the moment you rename a column.
+
+---
+
+## 8. Example: GraphQL component test
+
+GraphQL is just an HTTP POST. No special client.
+
+`back/src/graphql/candidate/__tests__/query.test.ts`:
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { dropMongo, truncateMysql } from '../../../../test/helpers/db';
+import { mintToken } from '../../../../test/helpers/auth';
+import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
+
+const ENDPOINT = 'http://localhost:4000/api/graphql/candidates';
+
+describe('GraphQL candidate query', () => {
+    beforeEach(async () => {
+        await truncateMysql();
+        await dropMongo();
+    });
+
+    it('returns a candidate by id for an authed admin', async () => {
+        // Arrange
+        const token = mintToken({ id: 1, email: 'a@test.local', role: 'ADMIN' });
+        const seeded = await new CandidateRepository().create({
+            identity: { full_name: `Jane ${Date.now()}`, email: 'jane@test.local', phone: '0600000000' },
+            status: 'SEEKING',
+            tp_type: 'AD',
+        });
+
+        // Act
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                query: `query($id: ID!) { candidate(id: $id) { id identity { fullName email } status } }`,
+                variables: { id: seeded._id },
+            }),
+        });
+        const json = await res.json();
+
+        // Assert
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.candidate.id).toBe(seeded._id);
+        expect(json.data.candidate.identity.email).toBe('jane@test.local');
+    });
+});
+```
+
+Three Apollo servers, three endpoints — pick the one that owns the entity:
+
+| Entity | Endpoint |
+|---|---|
+| Company / SalePerson / User | `POST /api/graphql/companies` |
+| Candidate | `POST /api/graphql/candidates` |
+| Job | `POST /api/graphql/jobs` |
+
+Field names in responses are **camelCase** (domain types). Mongo stores them **snake_case** (`full_name`). The mappers in `src/services/mappers/` translate at the resolver boundary — assertions go against the camelCase form because that's what the API returns.
+
+---
+
+## 9. Mocking the `external/` boundary
+
+Anything that leaves the service belongs in `src/external/`. That is the only place `vi.mock` is appropriate.
+
+```ts
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { mintToken } from '../../../../test/helpers/auth';
+
+vi.mock('../../../external/google/gmail.service', () => ({
+    GoogleGmailService: vi.fn().mockImplementation(() => ({
+        sendEmail: vi.fn().mockResolvedValue({ id: 'mocked-message-id' }),
+    })),
+}));
+
+describe('POST /api/email/send', () => {
+    it('does not call Gmail when the request is invalid', async () => {
+        const res = await fetch('http://localhost:4000/api/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${mintToken({ id: 1, email: 'a@b', role: 'ADMIN' })}` },
+            body: JSON.stringify({}),
+        });
+        expect(res.status).toBe(400);
+    });
+});
+```
+
+Same pattern for `external/crypto/signers.ts` when a test needs a known signature (e.g. the relance HMAC, the Google OAuth state).
+
+**Rule:** if you find yourself wanting to mock a service, repository, or controller, stop. Either the code needs a refactor, or you're testing the wrong layer.
+
+---
+
+## 10. Anti-patterns
+
+- **No `vi.spyOn` on internals.** Services, repositories, resolvers, controllers — all real. Spying makes tests brittle to refactors with no upside.
+- **No mocking of `mysql2` or `mongoose`.** Use the Dockerised DBs. In-memory fakes drift from the real engines and hide bugs.
+- **No sharing of dev `.env`.** Tests must point at `*_test` schemas. Misconfigure once and you wipe your dev data.
+- **No reading `req.user` shape in tests.** Go through the route with an `Authorization` header. The shape is an internal detail.
+- **The `sectors` column on `users` is stringified JSON.** Parse before comparing: `JSON.parse(row.sectors)`.
+- **camelCase in API assertions, snake_case in raw DB rows.** Don't mix.
+- **No fixtures shared across files.** Seed inside `beforeEach` or the test itself. Shared fixtures are the "domino" AAAC warns against.
+
+---
+
+## 11. Performance
+
+- For the test MySQL container, pass `--innodb-flush-log-at-trx-commit=0 --sync-binlog=0`. Durability is wrong for tests; speed is right.
+- Start single-threaded: `vitest --pool=threads --poolOptions.threads.singleThread=true`. Component tests share the DBs; parallelism comes later, once tests are isolated per schema.
+- Truncate is cheaper than `DROP DATABASE`/recreate. Resist the urge to "fully reset" between tests.
+
+---
+
+## 12. CI (forward-looking)
+
+When CI lands, the recipe is:
+
+```sh
+docker compose up -d sql-db nosql-db
+# wait for healthchecks
+cd back && npm ci && npm run test
+```
+
+No workflow file is being added in this commit — just the contract.
+
+---
+
+## Out of scope of this guide
+
+- **Pure unit tests** for mappers and pure helpers (`services/mappers/`, `external/crypto/signers.ts`). They are valuable but tiny; write them inline next to the file with the same Vitest runner, no setup needed.
+- **Repository-only integration tests** bypassing HTTP. Skip in favour of component tests — same coverage, closer to the real exit door.
+- **End-to-end tests with the frontend.** Out of scope for `back/`.
