@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { env } from '../../config/env';
 
-const MONGO_URI = `mongodb://${env.MONGO_ROOT_USERNAME}:${env.MONGO_ROOT_PASSWORD}@nosql-db:27017/human_ressources?authSource=admin`;
+const MONGO_URI = `mongodb://${env.MONGO_ROOT_USERNAME}:${env.MONGO_ROOT_PASSWORD}@${env.MONGO_HOST}:${env.MONGO_PORT}/${env.MONGO_DB_NAME}?authSource=admin`;
 
 /**
  * Patches the candidates collection validator to fix inconsistencies
@@ -19,7 +19,9 @@ async function patchCandidatesValidator(): Promise<void> {
                     candidate_id: { bsonType: 'string' },
                     created_at: { bsonType: 'date' },
                     created_by: { bsonType: 'string' },
-                    status: { enum: ['SEEKING', 'NOT_SEEKING', 'CANCELLED', 'MATCHED', 'CONTRACTED', 'IMMERSING', 'BANNED'] },
+                    status: {
+                        enum: ['SEEKING', 'NOT_SEEKING', 'CANCELLED', 'MATCHED', 'CONTRACTED', 'IMMERSING', 'BANNED'],
+                    },
                     tp_type: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] },
                     training_site: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },
                     immersion_agreement: { bsonType: 'bool' },
@@ -46,7 +48,19 @@ async function patchCandidatesValidator(): Promise<void> {
                     education: {
                         bsonType: 'object',
                         properties: {
-                            school_level: { enum: ['CAP_BEP_WITH_1Y_EXP', 'PREMIERE_TERMINALE', 'PREMIERE_TERMINALE_WITH_1Y_EXP', 'BAC', 'BAC_WITH_1Y_EXP', 'BAC_PLUS', 'BAC_PLUS_2', 'BAC_PLUS_2_PLUS', 'BAC_PLUS_3_PLUS'] },
+                            school_level: {
+                                enum: [
+                                    'CAP_BEP_WITH_1Y_EXP',
+                                    'PREMIERE_TERMINALE',
+                                    'PREMIERE_TERMINALE_WITH_1Y_EXP',
+                                    'BAC',
+                                    'BAC_WITH_1Y_EXP',
+                                    'BAC_PLUS',
+                                    'BAC_PLUS_2',
+                                    'BAC_PLUS_2_PLUS',
+                                    'BAC_PLUS_3_PLUS',
+                                ],
+                            },
                             justification: { bsonType: 'string' },
                         },
                     },
@@ -120,7 +134,16 @@ async function patchCandidatesValidator(): Promise<void> {
                             // Free-text string (not an array of city enums)
                             geographic_mobility: { bsonType: 'string' },
                             weekend_work: { bsonType: 'bool' },
-                            discovery_source: { enum: ['SOCIAL_MEDIA', 'FRANCE_TRAVAIL', 'MISSION_LOCALE', 'WORD_OF_MOUTH', 'KOANN', 'OTHER'] },
+                            discovery_source: {
+                                enum: [
+                                    'SOCIAL_MEDIA',
+                                    'FRANCE_TRAVAIL',
+                                    'MISSION_LOCALE',
+                                    'WORD_OF_MOUTH',
+                                    'KOANN',
+                                    'OTHER',
+                                ],
+                            },
                         },
                     },
                     synthesis: {
