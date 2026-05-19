@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
+import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -27,7 +28,7 @@ describe('GraphQL candidate mutations', () => {
                     `,
                     variables: {
                         input: {
-                            status: 'SEEKING',
+                            status: CandidateStatus.SEEKING,
                             tpType: 'AD',
                             identity: {
                                 fullName: `Alice ${suffix}`,
@@ -75,7 +76,7 @@ describe('GraphQL candidate mutations', () => {
                     `,
                     variables: {
                         input: {
-                            status: 'SEEKING',
+                            status: CandidateStatus.SEEKING,
                             tpType: 'AD',
                             identity: {
                                 fullName: `Bob ${suffix}`,
@@ -131,7 +132,7 @@ describe('GraphQL candidate mutations', () => {
                     `,
                     variables: {
                         input: {
-                            status: 'SEEKING',
+                            status: CandidateStatus.SEEKING,
                             tpType: 'AD',
                             identity: {
                                 fullName: `Carol ${suffix}`,
@@ -159,8 +160,8 @@ describe('GraphQL candidate mutations', () => {
             const seeded = await repo.create({
                 _id: `update-status-${suffix}`,
                 candidate_id: `update-status-${suffix}`,
-                tp_type: 'AD',
-                status: 'SEEKING',
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
                 identity: { full_name: `Dave ${suffix}`, email: `dave-${suffix}@test.local`, phone: '0100000004' },
             });
 
@@ -214,8 +215,8 @@ describe('GraphQL candidate mutations', () => {
             const seeded = await repo.create({
                 _id: `update-nested-${suffix}`,
                 candidate_id: `update-nested-${suffix}`,
-                tp_type: 'AD',
-                status: 'SEEKING',
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
                 identity: { full_name: `Eve ${suffix}`, email: `eve-${suffix}@test.local`, phone: '0100000005' },
             });
 
@@ -294,8 +295,8 @@ describe('GraphQL candidate mutations', () => {
             const seeded = await repo.create({
                 _id: `delete-existing-${suffix}`,
                 candidate_id: `delete-existing-${suffix}`,
-                tp_type: 'AD',
-                status: 'SEEKING',
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
                 identity: { full_name: `Frank ${suffix}`, email: `frank-${suffix}@test.local`, phone: '0100000006' },
             });
 
