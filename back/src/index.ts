@@ -22,7 +22,7 @@ declare module 'express-session' {
     }
 }
 
-async function startServer() {
+export async function startServer() {
     const app: any = express();
 
     app.use(
@@ -73,4 +73,6 @@ async function startServer() {
     });
 }
 
-startServer().catch((err) => logger.error(err, 'Startup error'));
+if (process.env.NODE_ENV !== 'test') {
+    startServer().catch((err) => logger.error(err, 'Startup error'));
+}
