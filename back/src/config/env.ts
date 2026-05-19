@@ -56,6 +56,8 @@ const data = {
     MONGO_ROOT_USERNAME: requireString('MONGO_ROOT_USERNAME'),
     MONGO_ROOT_PASSWORD: requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
+    MONGO_HOST: stringWithDefault('MONGO_HOST', 'nosql-db'),
+    MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
 
     JWT_SECRET: requireString('JWT_SECRET'),
     SESSION_SECRET: requireString('SESSION_SECRET'),
@@ -70,7 +72,6 @@ const data = {
     SMTP_USER: optionalString('SMTP_USER'),
     SMTP_PASS: optionalString('SMTP_PASS'),
     SMTP_FROM: optionalString('SMTP_FROM'),
-
 };
 
 if (errors.length > 0) {

@@ -1,5 +1,6 @@
 import './config/env'; // validate env vars at startup
 import express, { Request, Response } from 'express';
+import http from 'http';
 import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
@@ -22,7 +23,7 @@ declare module 'express-session' {
     }
 }
 
-async function startServer() {
+export async function startServer(): Promise<http.Server> {
     const app: any = express();
 
     app.use(
@@ -68,9 +69,13 @@ async function startServer() {
     await JobAPI.start();
     JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' });
 
-    app.listen(env.API_PORT, () => {
+    const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
+
+    return server;
 }
 
-startServer().catch((err) => logger.error(err, 'Startup error'));
+if (process.env.NODE_ENV !== 'test') {
+    startServer().catch((err) => logger.error(err, 'Startup error'));
+}

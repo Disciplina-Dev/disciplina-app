@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import mongoose, { Schema, model, Document } from 'mongoose';
 import { Job, JobStatus, DesiredSex, Localisation, MatchingCandidate } from '../../../types/job.types';
 import { TitleProfessionalType } from '../../../types/candidate.types';
 
@@ -31,4 +31,4 @@ const jobSchema = new Schema<Job & Document>(
     { collection: 'jobs' },
 );
 
-export const JobModel = model<Job & Document>('Job', jobSchema);
+export const JobModel = mongoose.models.Job || model<Job & Document>('Job', jobSchema);

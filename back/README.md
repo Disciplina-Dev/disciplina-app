@@ -63,12 +63,34 @@ All use the same JWT context (`back/src/graphql/context.ts`).
 ## Commands
 
 ```sh
-npm run dev     # ts-node-dev --respawn --transpile-only src/index.ts
-npm run build   # tsc (outputs to dist/)
-npm start       # node dist/index.js
-npm run lint    # oxlint
-npm run format  # prettier --write src/
+npm run dev       # ts-node-dev --respawn --transpile-only src/index.ts
+npm run build     # tsc (outputs to dist/)
+npm start         # node dist/index.js
+npm test          # vitest run
+npm run test:watch  # vitest (watch mode)
+npm run lint      # oxlint
+npm run format    # prettier --write src/
 ```
+
+## Testing
+
+Component tests boot the Express app against real Dockerised databases. See [`HOWTOTEST.md`](./HOWTOTEST.md) for conventions and patterns.
+
+```sh
+# Start databases (Docker required)
+docker compose up -d sql-db nosql-db
+
+# Run all tests
+npm test
+
+# Run specific test file
+npx vitest run src/graphql/candidate/__tests__/query.test.ts
+
+# Watch mode
+npm run test:watch
+```
+
+The test environment is configured in `.env.back.example` — MySQL on `localhost:5001`, MongoDB on `localhost:27017`, test database `human_ressources_test`.
 
 ## Pre-commit hooks
 
@@ -164,10 +186,11 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 - `express-rate-limit` ^8.5 — Rate limiting
 - `express-session` ^1.19 — Session middleware
 - `oxlint` ^0.64 — Linter (Rust-based)
+- `vitest` ^2.0 — Test runner
 
 ## Known quirks
 
-- No test suite or CI configured
+- **Tests**: 14 component tests for GraphQL candidates exist (`src/graphql/candidate/__tests__/`). No CI configured yet — requires Dockerised MySQL + MongoDB.
 - 3 separate Apollo Servers instead of one unified gateway — cross-entity GraphQL queries not possible
 - CORS origins hardcoded to `localhost:3000` and `localhost:5173` in `index.ts`
 - Session cookies lack `secure`, `httpOnly`, `sameSite` flags

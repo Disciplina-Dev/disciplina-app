@@ -15,7 +15,8 @@
     "moduleResolution": "node"
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "src/graphql/candidate/__tests__/query.test.ts"
   ],
   "exclude": [
     "node_modules",

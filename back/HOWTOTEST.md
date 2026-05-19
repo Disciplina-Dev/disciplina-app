@@ -2,7 +2,7 @@
 
 This guide is for contributors writing the first tests in `back/`. It is **opinionated** and **project-specific**. The goal is for any backend dev to be able to drop a new test file into the right place without rediscovering conventions every time.
 
-There is no test suite or CI in this repo yet — see `back/CONVENTION.md` "Known quirks". This document describes the target setup, not the current state. Anything marked **(prerequisite)** is work that has to land before the first test runs.
+14 component tests for GraphQL candidates (`src/graphql/candidate/__tests__/`) are already in place as a reference. Drop new test files next to the feature they cover. No CI configured yet — requires Dockerised MySQL + MongoDB.
 
 ---
 
@@ -46,28 +46,20 @@ There are no cross-entity GraphQL queries. A test posts to the endpoint that own
 | GraphQL client | **`fetch`** with a hand-written body | No Apollo client needed |
 | Mocks | **`vi.mock()`** of `src/external/*` modules only | The boundary, never internals |
 
-**(prerequisite)** Add to `back/package.json`:
-
-```jsonc
-"scripts": {
-  "test": "vitest run",
-  "test:watch": "vitest"
-},
-"devDependencies": {
-  "vitest": "^2.0.0",
-  "@vitest/coverage-v8": "^2.0.0"
-}
-```
+Already configured in `back/package.json` — `vitest`, `@vitest/coverage-v8` installed, `test`/`test:watch` scripts registered.
 
 Test layout:
 
 ```
 back/
+  vitest.config.ts          ← loads .env.back.example, single-threaded pool
+  .env.back.example         ← test env vars (MySQL localhost:5001, Mongo localhost:27017)
   src/
-    rest/auth/__tests__/login.test.ts      ← co-located with feature
-    graphql/candidate/__tests__/query.test.ts
+    graphql/candidate/__tests__/
+      query.test.ts         ← candidates list, by-id, template queries
+      mutation.test.ts      ← create, update, delete mutations
   test/
-    setup.ts                ← boots/teardowns the server, wires .env.test
+    setup.ts                ← boots/teardowns the server, wires .env.back.example
     helpers/
       auth.ts               ← mintToken()
       db.ts                 ← truncateMysql(), dropMongo()
@@ -85,11 +77,11 @@ docker compose up -d sql-db nosql-db
 
 That gives you MySQL on `localhost:5001` and Mongo on `localhost:${MONGO_PORT:-4011}`. No separate compose file is needed.
 
-**(prerequisite — `.env.test`)** Create `back/.env.test` with the same shape `config/env.ts` requires (`MYSQL_DATABASE`, `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD`, `MONGO_PORT`, `JWT_SECRET`, `SESSION_SECRET`, the Google OAuth vars, …), pointing at a `sales_service_test` MySQL schema and a `human_ressources_test` Mongo database. The test setup file loads this file instead of `.env`.
+**Env file** — `back/.env.back.example` contains test env vars pointing MySQL at `localhost:5001` / `sales_service` and MongoDB at `localhost:27017` / `human_ressources_test`. Loaded by `vitest.config.ts` before any test files run.
 
-**(prerequisite — Mongo URI override)** `src/db/mongo/connection.ts` currently hardcodes the Mongo URI with hostname `nosql-db` and database `human_ressources`. Move both to env vars (`MONGO_HOST`, `MONGO_DB_NAME`) before component tests can target a separate database. This is a small refactor, not a test-only change.
+**Mongo URI** — `MONGO_HOST` and `MONGO_DB_NAME` env vars were added to `config/env.ts` with defaults `nosql-db` and `human_ressources`. The `connection.ts` now builds the URI from env vars instead of hardcoded values.
 
-**(prerequisite — `startServer()` export)** `src/index.ts` calls `startServer()` at module load and never exports it. Export it so the test setup can call it once per suite and shut down cleanly — otherwise you spawn a child process per suite, which is slow and flaky.
+**Server export** — `startServer()` is exported from `index.ts` and returns the `http.Server` instance. The auto-start is guarded by `if (process.env.NODE_ENV !== 'test')`. The test setup calls it once per run and shuts it down in `afterAll`.
 
 ---
 
@@ -316,6 +308,7 @@ Same pattern for `external/crypto/signers.ts` when a test needs a known signatur
 - **The `sectors` column on `users` is stringified JSON.** Parse before comparing: `JSON.parse(row.sectors)`.
 - **camelCase in API assertions, snake_case in raw DB rows.** Don't mix.
 - **No fixtures shared across files.** Seed inside `beforeEach` or the test itself. Shared fixtures are the "domino" AAAC warns against.
+- **Mongoose model re-registration.** When multiple test files import the same Mongoose model, vitest module isolation can trigger `OverwriteModelError`. Guard new schemas with `mongoose.models.Name || model(...)` — see `candidate.schema.ts` and `job.schema.ts`.
 
 ---
 
