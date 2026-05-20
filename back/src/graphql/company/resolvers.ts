@@ -27,6 +27,7 @@ interface CompanyInput {
 function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     return {
         sale_person_id: input.salePersonID || null,
+        legal_referent: input.legalReferent || null,
         name: input.name || null,
         phone: input.phone || null,
         email: input.email || null,
@@ -35,6 +36,7 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
         main_activity: input.mainActivity || null,
         siret: input.siret || null,
         idcc: input.idcc || null,
+        ape: input.ape || null,
         notes: input.notes || null,
         conclusion: input.conclusion || null,
     };
