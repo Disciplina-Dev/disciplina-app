@@ -1,3 +1,4 @@
+import { set } from 'mongoose';
 import { query, getConnection } from '../../db/mysql/connection';
 import { CompaniesRow } from '../../types/db-rows.types';
 
@@ -38,10 +39,11 @@ export class CompanyRepository {
     async update(id: number, data: Partial<CompaniesRow>): Promise<boolean> {
         const conn = await getConnection();
         try {
-            const sets = Object.keys(data)
+            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v != null));
+            const sets = Object.keys(cleaned)
                 .map((key) => `${key} = ?`)
                 .join(', ');
-            const values = [...Object.values(data), id];
+            const values = [...Object.values(cleaned), id];
             const result = await conn.execute(`UPDATE companies SET ${sets} WHERE id = ?`, values);
             return (result[0] as any).affectedRows > 0;
         } finally {

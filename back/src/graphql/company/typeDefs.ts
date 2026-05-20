@@ -31,6 +31,7 @@ export const typeDefs = gql`
 
     input CompanyInput {
         salePersonID: Int
+        legalReferent: String
         name: String
         phone: String
         email: String
