@@ -132,7 +132,7 @@ async function patchCandidatesValidator(): Promise<void> {
                             questions_concerns: { bsonType: 'string' },
                             availability_date: { bsonType: 'date' },
                             // Free-text string (not an array of city enums)
-                            geographic_mobility: { bsonType: 'string' },
+                            geographic_mobility: { bsonType: 'array', items: { bsonType: 'string' } },
                             weekend_work: { bsonType: 'bool' },
                             discovery_source: {
                                 enum: [
