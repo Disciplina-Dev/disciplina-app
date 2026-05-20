@@ -29,7 +29,6 @@ export class JobRepository {
     }
 
     async create(data: Partial<Job>): Promise<Job> {
-        console.log('create repository: ', data);
         const doc = new JobModel(data);
         await doc.save();
         return doc.toObject() as Job;

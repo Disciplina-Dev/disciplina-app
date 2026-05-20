@@ -1,7 +1,7 @@
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { Candidate } from '../types/candidate.types';
-import { Job, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
+import { Job, JobStatus, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
 
 function matchingCandidateToGql(mc: MatchingCandidate): object {
     return {
@@ -41,7 +41,7 @@ function fromGql(data: any): Partial<Job> {
         ...(data.professionalExperience !== undefined && { professional_experience: data.professionalExperience }),
         ...(data.status !== undefined && { status: data.status }),
         ...(data.localisation !== undefined && { localisation: data.localisation }),
-        ...(data.matched !== undefined && { matched: data.matched }),
+        ...(data.matchedCandidate !== undefined && { matched_candidate: data.matchedCandidate }),
     };
 }
 
@@ -58,7 +58,6 @@ export class JobService {
         const job = await this.repository.find(id);
         if (!job) return null;
 
-        console.log(job);
         const filter: Record<string, any> = {};
         if (job.desired_tp) filter['tp_type'] = job.desired_tp;
         if (job.driving_license_b) filter['identity.driving_license_b'] = true;
@@ -69,12 +68,12 @@ export class JobService {
             if (!isNaN(min) && !isNaN(max)) filter['identity.age'] = { $gte: min, $lte: max };
         }
 
-        // if (job.localisation?.length) filter['job_info.geographic_mobility'] = { $all: job.localisation };
+        if (job.localisation?.length) filter['job_info.geographic_mobility'] = { $all: job.localisation };
 
         if (job.sector !== Sector.NONE) filter['desired_sectors'] = { $all: [job.sector] };
 
-        console.log(filter);
         const candidates = await this.candidateRepository.findByfilter(filter);
+        if (candidates.length > 0) job.status = JobStatus.MATCHED;
         const matched: MatchingCandidate[] = candidates.map((c: Candidate) => {
             const loc = c.identity.city as keyof typeof Localisation;
             return {

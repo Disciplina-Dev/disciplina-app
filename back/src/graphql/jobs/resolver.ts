@@ -17,17 +17,14 @@ export const resolvers = {
         },
     },
     Mutation: {
-        updateJob: async (_: unknown, { job }: { job: Job }, context: any) => {
+        updateJob: async (_: unknown, { id, job }: { id: string; job: Job }, context: any) => {
             authGuard(context.user, [Role.RH]);
-            const id: string = job._id!;
-            job.status = JobStatus.MATCHED;
             return jobService.update(id, job);
         },
         unmatch: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH]);
             const job = (await jobService.find(id)) as Job | null;
             if (job) {
-                job.matched_candidate = [];
                 job.status = JobStatus.NOT_MATCHED;
                 return jobService.update(id, job);
             }
