@@ -20,6 +20,7 @@ import {
     Synthesis,
     ClassMarkerResult,
 } from '../../../types/candidate.types';
+import { Localisation } from '../../../types/job.types';
 
 const identitySchema = new Schema<Identity>(
     {
@@ -113,7 +114,7 @@ const jobInfoSchema = new Schema<JobInfo>(
         domain_motivation: { type: String },
         questions_concerns: { type: String },
         availability_date: { type: Date },
-        geographic_mobility: { type: String },
+        geographic_mobility: { type: [String], enum: Object.values(Localisation) },
         weekend_work: { type: Boolean },
         discovery_source: { type: String, enum: Object.values(DiscoverySource) },
     },

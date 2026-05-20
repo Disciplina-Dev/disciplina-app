@@ -58,6 +58,7 @@ export class JobService {
         const job = await this.repository.find(id);
         if (!job) return null;
 
+        console.log(job);
         const filter: Record<string, any> = {};
         if (job.desired_tp) filter['tp_type'] = job.desired_tp;
         if (job.driving_license_b) filter['identity.driving_license_b'] = true;
@@ -68,12 +69,12 @@ export class JobService {
             if (!isNaN(min) && !isNaN(max)) filter['identity.age'] = { $gte: min, $lte: max };
         }
 
-        if (job.localisation?.length) filter['job_info.geographic_mobility'] = { $all: job.localisation };
+        // if (job.localisation?.length) filter['job_info.geographic_mobility'] = { $all: job.localisation };
 
-        if (job.sector !== Sector.NONE) filter['desired_sectors'] = { $all: job.sector };
+        if (job.sector !== Sector.NONE) filter['desired_sectors'] = { $all: [job.sector] };
 
+        console.log(filter);
         const candidates = await this.candidateRepository.findByfilter(filter);
-
         const matched: MatchingCandidate[] = candidates.map((c: Candidate) => {
             const loc = c.identity.city as keyof typeof Localisation;
             return {

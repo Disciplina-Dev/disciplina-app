@@ -1,3 +1,5 @@
+import { Localisation } from './job.types';
+
 export enum TitleProfessionalType {
     AD = 'AD',
     CC = 'CC',
@@ -118,7 +120,7 @@ export interface JobInfo {
     domain_motivation?: string;
     questions_concerns?: string;
     availability_date?: Date;
-    geographic_mobility?: string;
+    geographic_mobility?: Localisation[];
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
 }

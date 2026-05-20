@@ -1,5 +1,5 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
-import { Job, JobStatus, DesiredSex, Localisation, MatchingCandidate } from '../../../types/job.types';
+import { Job, JobStatus, DesiredSex, Localisation, MatchingCandidate, Sector } from '../../../types/job.types';
 import { TitleProfessionalType } from '../../../types/candidate.types';
 
 const matchingCandidateSchema = new Schema<MatchingCandidate>(
@@ -23,9 +23,9 @@ const jobSchema = new Schema<Job & Document>(
         desired_sex: { type: String, enum: Object.values(DesiredSex) },
         driving_license_b: { type: Boolean },
         professional_experience: { type: Boolean },
+        sector: { type: String, enum: Object.values(Sector) },
         status: { type: String, enum: Object.values(JobStatus) },
         localisation: { type: [String], enum: Object.values(Localisation) },
-        matched: { type: Boolean },
         matched_candidate: { type: [matchingCandidateSchema] },
     },
     { collection: 'jobs' },
