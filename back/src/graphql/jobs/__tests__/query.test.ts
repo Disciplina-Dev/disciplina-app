@@ -144,25 +144,23 @@ describe('GraphQL job queries', () => {
         });
 
         const candidateId = `cand-${suffix}`;
-        console.log(
-            await candidateRepo.create({
-                _id: candidateId,
-                candidate_id: candidateId,
-                tp_type: TitleProfessionalType.AD,
-                status: CandidateStatus.SEEKING,
-                identity: {
-                    full_name: `Jane ${suffix}`,
-                    email: `jane-${suffix}@test.local`,
-                    phone: '0600000000',
-                    age: 28,
-                    driving_license_b: true,
-                },
-                desired_sectors: ['RESTAURATION'],
-                job_info: {
-                    geographic_mobility: [Localisation.ENTRE_DEUX],
-                },
-            }),
-        );
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Jane ${suffix}`,
+                email: `jane-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 28,
+                driving_license_b: true,
+            },
+            desired_sectors: ['RESTAURATION'],
+            job_info: {
+                geographic_mobility: [Localisation.ENTRE_DEUX],
+            },
+        });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -176,7 +174,6 @@ describe('GraphQL job queries', () => {
             }),
         });
         const json = await res.json();
-        console.log(json);
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
         expect(json.data.matchJob.id).toBe(jobId);
