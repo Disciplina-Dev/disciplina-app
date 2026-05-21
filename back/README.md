@@ -2,6 +2,16 @@
 
 Node.js/TypeScript API server (Express + Apollo GraphQL + REST).
 
+## Quick start (Docker)
+
+The easiest way to run the full stack:
+
+```sh
+docker compose up --build
+```
+
+This starts MySQL, MongoDB, the backend (port 4000), a seed/startup script, and the frontend. For manual setup or local development, see [Environment](#environment).
+
 ## Architecture
 
 ```
@@ -33,6 +43,8 @@ src/
     auth/               Login, register, Google OAuth
     email/              Gmail email sending (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
+    candidates/         Quick-create candidate endpoint
+    classmarker/        ClassMarker test links and webhooks
     middleware/         Auth (JWT), error handler & rate limiters
   types/                Domain types: user, company, candidate, job, db-rows
 ```
@@ -55,10 +67,15 @@ All use the same JWT context (`back/src/graphql/context.ts`).
 | POST | `/api/auth/register` | JWT (ADMIN) | Register new user |
 | POST | `/api/auth/google/uri` | JWT | Generate Google OAuth URI (admin can pass `userId` for another user) |
 | POST | `/api/auth/google/token` | None | Exchange OAuth code for Google tokens |
-| POST | `/api/email/send` | None | Send email (rate-limited: 20/15min) |
-| POST | `/api/relance/send` | None | Send relance emails (rate-limited: 5/hour) |
-| GET | `/api/relance/response` | None | Handle relance OUI/NON click-through |
 | GET | `/api/logout` | Session | Destroy session |
+| POST | `/api/email/send` | JWT | Send email (rate-limited: 20/15min) |
+| POST | `/api/relance/send` | JWT | Send relance emails (rate-limited: 5/hour) |
+| GET | `/api/relance/response` | None | Handle relance OUI/NON click-through |
+| GET | `/api/classmarker/links` | JWT (RH / ADMIN) | Get ClassMarker test links |
+| POST | `/api/webhooks/classmarker` | None | ClassMarker webhook (saves test result) |
+| GET | `/api/webhooks/classmarker/stream` | None | SSE stream for live ClassMarker results |
+| GET | `/api/webhooks/classmarker/result/:candidateId` | None | Fetch stored ClassMarker result |
+| POST | `/api/candidates/quick-create` | JWT (RH / ADMIN) | Quick-create a candidate (dedup by name) |
 
 ## Commands
 
@@ -69,7 +86,9 @@ npm start         # node dist/index.js
 npm test          # vitest run
 npm run test:watch  # vitest (watch mode)
 npm run lint      # oxlint
+npm run lint:fix  # oxlint --fix
 npm run format    # prettier --write src/
+npm run format:check  # prettier --check src/
 ```
 
 ## Testing
@@ -94,8 +113,7 @@ The test environment is configured in `.env.back.example` — MySQL on `localhos
 
 ## Pre-commit hooks
 
-This project uses [pre-commit](https://pre-commit.com) to run Prettier and
-lightweight checks on staged files before each commit.
+This project uses [pre-commit](https://pre-commit.com) to run Prettier and lightweight checks on staged files before each commit.
 
 ```sh
 # one-time setup
@@ -187,15 +205,3 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 - `express-session` ^1.19 — Session middleware
 - `oxlint` ^0.64 — Linter (Rust-based)
 - `vitest` ^2.0 — Test runner
-
-## Known quirks
-
-- **Tests**: 14 component tests for GraphQL candidates exist (`src/graphql/candidate/__tests__/`). No CI configured yet — requires Dockerised MySQL + MongoDB.
-- 3 separate Apollo Servers instead of one unified gateway — cross-entity GraphQL queries not possible
-- CORS origins hardcoded to `localhost:3000` and `localhost:5173` in `index.ts`
-- Session cookies lack `secure`, `httpOnly`, `sameSite` flags
-- Error handler sends `err.message` directly to client (may leak internals)
-- `flattenObject` helper duplicated in both `CandidateRepository` and `JobRepository`
-- GraphQL resolver contexts use `any` throughout
-- No dependency injection — services manually instantiate repositories
-- Backend Dockerfile runs `npm run dev` as CMD (not production build)
