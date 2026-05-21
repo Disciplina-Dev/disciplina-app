@@ -9,7 +9,6 @@ const userService = new UserService();
 export async function login(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { email, passwordPlain } = req.body;
-        console.log("login request", req.body);
         if (!email || !passwordPlain) {
             res.status(400).json({ error: 'Email and password are required' });
             return;

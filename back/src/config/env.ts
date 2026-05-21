@@ -92,5 +92,4 @@ if (INSECURE_DEFAULTS.has(data.SESSION_SECRET)) {
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 
-console.log(optionalString('GOOGLE_CLIENT_ID'));
 export const env = data;

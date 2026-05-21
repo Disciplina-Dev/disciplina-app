@@ -361,7 +361,7 @@ def import_jobs(filepaths: list) -> int:
                         "desired_sex": genre_raw if genre_raw in DESIRED_SEX_ENUM else None,
                         "driving_license_b": (row.get("Permis") or '').strip().upper() == "OUI",
                         "professional_experience": (row.get("Experience connaissance") or '').strip().upper() == "OUI",
-                        # "sector": resolve_sector(row),
+                        "sector": resolve_sector(row),
                         "localisation": parse_localisation(row.get("Localisation") or ''),
                         "status": "NOT_MATCHED",
                         "matched_candidate": [],
