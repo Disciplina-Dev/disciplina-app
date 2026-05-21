@@ -91,7 +91,6 @@ describe('GraphQL job mutations', () => {
                 }),
             });
             const json = await res.json();
-            console.log(json);
             expect(res.status).toBe(200);
             expect(json.data.updateJob).toBe(null);
         });

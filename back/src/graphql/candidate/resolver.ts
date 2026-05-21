@@ -37,7 +37,6 @@ export const resolvers = {
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH]);
             const candidate = await candidateService.findById(id);
-            console.log('[candidate resolver] id:', id, '| found:', !!candidate);
             if (!candidate) return null;
             try {
                 return candidateToGql(candidate);
