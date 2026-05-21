@@ -56,6 +56,8 @@ router.post('/endpoint', express.json(), authenticate, handler);
 - Auth-protected routes use `authenticate` middleware from `rest/middleware/auth.ts`
 - Always export as `export const router: Router`
 
+**Multi-route modules:** When a module needs two sets of routes (e.g., authenticated endpoints + public webhooks), create a second route file named `<feature>.route.ts` alongside `route.ts`. Example: `classmarker/webhook.route.ts` for public webhook handlers, `classmarker/route.ts` for authenticated endpoints. Both are mounted from `index.ts`.
+
 **Controller file** — named exports, async functions:
 
 ```ts
@@ -119,6 +121,9 @@ export class CompaniesService {
     }
 }
 ```
+
+- Repository may also be initialized as a field: `private repository = new CompanyRepository()` — equivalent to the constructor form and also acceptable
+- When a service has no repository dependency (e.g., PDF generation), it may be a class with static methods only. Example: `PdfService.generateCandidatePdf()`
 
 ### 4. Repositories (`src/repositories/`)
 
@@ -267,7 +272,6 @@ try {
 - Raw SQL via `mysql2/promise` with prepared statements (`pool.execute()`)
 - Connection pool with `query<T>()` helper for selects
 - Manual connection handling (`getConnection()` + `conn.release()`) for create/update
-- Tables: `sale_persons`, `companies`, `users`
 - JSON stored as stringified text (e.g., `sectors` in `users` table)
 
 ### MongoDB
@@ -275,30 +279,25 @@ try {
 - Mongoose ODM with explicit `collection` names
 - Schemas with `_id: false` on subdocuments
 - `flattenObject()` helper converts nested objects to dot-notation for `$set` updates
-- Collections: `candidates`, `jobs`
+
+For table and collection names, see [`README.md`](./README.md#databases).
 
 ## Authentication & authorization
-
-### JWT flow
-
-1. Login → `UserService.login()` verifies bcrypt hash → signs JWT with `{ id, email, role }`, 24h expiry
-2. Client sends `Authorization: Bearer <token>` header
-3. REST: `authenticate()` middleware verifies JWT, attaches `req.user`
-4. GraphQL: `context.ts` extracts JWT, attaches to Apollo context
 
 ### Role-based access
 
 - Three roles: `ADMIN`, `COMMERCIAL`, `RH` (or `ENTREPRISE` in some frontend code)
 - `ADMIN` role bypasses all role checks
-- GraphQL: `authGuard(context.user, [Role.XXX])` at resolver level
-- REST: inline checks like `if (req.user?.role !== 'ADMIN')`
+- GraphQL: `authGuard(context.user, [Role.XXX])` at resolver level (call at the very first line of each protected resolver)
+- REST: inline checks like `if (req.user?.role !== 'ADMIN')` before executing protected logic
 
-### Google OAuth
+### Google OAuth code patterns
 
-1. `POST /api/auth/google/uri` → HMAC-signs user ID into `state` param → returns Google OAuth URL
-2. User authorizes in popup → Google redirects to frontend with `code` + `state`
-3. `POST /api/auth/google/token` → verifies HMAC signature → exchanges `code` for tokens → stores in MySQL `users` table
-4. Admin can pass `userId` in body to generate URI bound to another user
+- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. The redirect URI lives in `env.GOOGLE_REDIRECT_URI`, not in source.
+- When a Google API call may refresh tokens, callers pass a refresh handler that persists the new tokens via `userService.updateGoogleTokens`. The convention helper at the top of each call site is `persistRefreshedTokens(userId)`.
+- Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
+
+For the complete JWT and Google OAuth flow (user-facing runtime narrative), see [`README.md`](./README.md#auth-flow).
 
 ## Code style
 
@@ -314,6 +313,18 @@ try {
 - DB row types (snake_case) vs domain types (camelCase) are separate
 - `AuthRequest` extends Express `Request` with `user?: any`
 
+### Logger
+
+- Never use `console.log`, `console.warn`, or `console.error` inside `src/`
+- Always use the `logger` singleton from `external/logger/`
+- The only exception is `config/env.ts` where the logger is not yet available at startup
+
+### Cryptography
+
+- `randomUUID` from `node:crypto` may be called directly (it is not secret-handling)
+- All HMAC signing, verification, and hash-based operations must go through `external/crypto/`
+- Direct `import crypto from 'crypto'` for hashing is not allowed — add the operation to `external/crypto/signers.ts` instead
+
 ### Linter (oxlint)
 
 - Config: `.oxlintrc.json`
@@ -323,22 +334,7 @@ try {
 
 ### Pre-commit hooks
 
-Project uses [pre-commit](https://pre-commit.com) — config at root `.pre-commit-config.yaml`:
-
-```sh
-python3 -m pip install pre-commit   # one-time
-python3 -m pre_commit install        # activate hooks
-```
-
-Hooks run **only on staged files** at `git commit` time:
-
-- **Prettier** — formats TypeScript under `back/src/` (config: `back/.prettierrc`)
-- **trailing-whitespace** — trims trailing whitespace
-- **end-of-file-fixer** — ensures files end with newline
-- **check-yaml** — validates YAML files
-- **check-json** — validates JSON files
-
-Skip hooks on a commit with `git commit --no-verify`.
+Pre-commit hooks run Prettier and basic hygiene checks on staged files at `git commit` time. See [`README.md`](./README.md#pre-commit-hooks) for setup instructions and the full list of active hooks.
 
 ### Formatter (Prettier)
 
@@ -348,20 +344,34 @@ Skip hooks on a commit with `git commit --no-verify`.
 
 ## Environment & configuration
 
-- Two `.env` files loaded at startup (root `../.env` + `back/.env`)
+- Two `.env` files loaded at startup (root `../.env` + `back/.env`) — see [`README.md`](./README.md#environment) for complete setup
 - All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons)
-- Server `exit(1)` on invalid/missing vars
 - Exported as `export const env = data` (typed object)
 
-## Known quirks
+## Testing
 
-- No test suite or CI
-- 3 separate Apollo Servers — no cross-entity GraphQL queries
-- CORS origins hardcoded to localhost
-- Session cookies without `secure`/`httpOnly`/`sameSite`
-- Error messages leaked to client via `error.message`
-- `flattenObject` duplicated in `CandidateRepository` and `JobRepository`
-- Widespread `any` types in GraphQL context and middleware
-- No dependency injection — services use `new Repository()`
-- Docker CMD runs `npm run dev` (ts-node-dev) instead of production build
-- Company resolver file is `resolvers.ts` (plural), others are `resolver.ts` (singular) — inconsistency
+For testing conventions, patterns, and examples, see [`HOWTOTEST.md`](./HOWTOTEST.md).
+
+## Convention violations
+
+The following violations of this CONVENTION.md have been identified in the codebase. These are tracked for future remediation:
+
+| # | File(s) | Violation | Severity |
+|---|---------|-----------|----------|
+| 1 | `rest/classmarker/route.ts`, `webhook.route.ts` | No `controller.ts` — handler logic inlined in routes | Structural |
+| 2 | `rest/candidates/route.ts` | No `controller.ts` — handler logic inlined in route | Structural |
+| 3 | `rest/classmarker/service.ts` | Custom `MissingCredentialsError` and `ClassMarkerApiError` — custom Error classes banned | Error handling |
+| 4 | `rest/classmarker/service.ts:67` | `.catch()` chain instead of async/await | Code style |
+| 5 | `rest/classmarker/service.ts:1` | Direct `import crypto from 'crypto'` for hashing — use `external/crypto/` | External boundary |
+| 6 | `repositories/mysql/CompanyRepository.ts:1` | Stray unused `import { set } from 'mongoose'` — wrong layer | Boundary violation |
+| 7 | `rest/email/controller.ts` | `userService.findById()` called outside try/catch block | Error handling |
+| 8 | `rest/relance/controller.ts` | `sendRelance` and `handleResponse` missing `Promise<void>` return type | Type annotation |
+| 9 | `rest/auth/controller.ts:19` | `console.error` instead of `logger.error` | Logger usage |
+| 10 | `graphql/candidate/resolver.ts:44,105` | `console.error` instead of `logger.error` | Logger usage |
+| 11 | `db/mongo/connection.ts:195` | `console.warn` instead of `logger.warn` | Logger usage |
+| 12 | `types/candidate-templates.ts` | Filename does not follow `kebab-case.types.ts` pattern | Naming |
+| 13 | `services/mappers/candidate.mapper.ts` | Mapper function names don't follow `toX()` pattern; generic utilities mixed in | Naming / Design |
+| 14 | `services/CandidateService.ts` | Repository initialized as field, not in constructor | Minor deviation |
+| 15 | `repositories/mongo/CandidateRepository.ts`, `JobRepository.ts` | `flattenObject()` helper duplicated in both files (already documented as known quirk) | Code duplication |
+
+---
