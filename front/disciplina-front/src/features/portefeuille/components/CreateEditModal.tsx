@@ -36,7 +36,6 @@ const STATUS_OPTIONS: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir']
 
 export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode }: Props) {
   const ownerList = Object.values(USERS)
-  console.log('Entreprise: ', initial);
 
   const defaultOwner =
     mode === 'create'

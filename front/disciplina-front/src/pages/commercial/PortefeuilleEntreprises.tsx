@@ -26,10 +26,9 @@ const PAGE_SIZE = 25
 
 // ─── User switcher ────────────────────────────────────────────────────────────
 function UserSwitcher() {
-  const currentUserId = useAuthStore((s) => s.currentUserId)
-  const setCurrentUser = useAuthStore((s) => s.setCurrentUser)
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const setCurrentUser = useAuthStore((s) => s.set)
   const user = USERS[currentUserId]
-  console.log(currentUserId);
 
   return (
     <div className="flex items-center gap-2.5">
@@ -332,8 +331,6 @@ export default function PortefeuilleEntreprises() {
   const handleSaveEdit = (data: Partial<Entreprise>) => {
     if (!editEntry) return
     const company = toCompany(data);
-    console.log('data: ', data);
-    console.log('company: ', company);
     update(Number(data.id), company)
     setEditEntry(null)
     if (detailEntry?.id === editEntry.id) setDetailEntry({ ...detailEntry, ...data } as Entreprise)
@@ -341,7 +338,6 @@ export default function PortefeuilleEntreprises() {
 
   const handleCreate = (data: Partial<Entreprise>) => {
     const company = toCompany(data);
-    console.log(company);
     createCompany(company);
     // addCompany({
       // ...data,

@@ -45,34 +45,40 @@ export const useCurrentUser = (): AppUser | null => {
 }
 
 export const USERS: Record<string, AppUser> = {
-  3: {
-    id: '3',
+  4: {
+    id: '4',
     name: 'Brandon',
     role: 'COMMERCIAL',
     email: 'galmar.commercial@disciplina.re',
   },
-  4: {
-    id: '4',
+  5: {
+    id: '5',
     name: 'Emile',
     role: 'COMMERCIAL',
     email: 'lebon.commercial@disciplina.re',
   },
-  2: {
-    id: '2',
+  3: {
+    id: '3',
     name: 'Amanda',
     role: 'RH',
     email: 'sinaman.commercial@disciplina.re',
   },
-  1: {
-    id: '1',
+  2: {
+    id: '2',
     name: 'Pas de commerciaux',
     role: 'COMMERCIAL',
     email: '',
   },
-  5: {
-    id: '5',
+  6: {
+    id: '6',
     name: 'Lorenzo',
     role: 'ADMIN',
     email: 'lorenzo@disciplina.re',
   },
+  1: {
+    id: '1',
+    name: 'root',
+    role: UserRole.ADMIN,
+    email: 'root@example.com'
+  }
 }

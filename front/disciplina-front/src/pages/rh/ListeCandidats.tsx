@@ -309,15 +309,12 @@ function CreateCandidateModal({ onClose, onCreated }: CreateCandidateModalProps)
     setError(null);
     setLoading(true);
     const input = toCreateInput(form);
-    console.log('[CreateCandidate] input:', JSON.stringify(input, null, 2));
     try {
       const result = await candidateGraphqlClient.mutation(CREATE_CANDIDATE, { input });
-      console.log('[CreateCandidate] result:', result);
       if (result.error) throw new Error(result.error.message);
       onCreated();
       onClose();
     } catch (err: any) {
-      console.error('[CreateCandidate] error:', err);
       setError(err.message ?? 'Erreur lors de la création');
     } finally {
       setLoading(false);
