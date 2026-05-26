@@ -17,6 +17,7 @@ import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimi
 import { logger } from './external/logger/logger';
 import { env } from './config/env';
 
+import { FilizAuthClient } from './external/filiz/auth-client';
 declare module 'express-session' {
     interface SessionData {
         tokens: any;
@@ -72,7 +73,8 @@ export async function startServer(): Promise<http.Server> {
     const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
-
+    const test = new FilizAuthClient();
+    const resp = await test.generateToken();
     return server;
 }
 

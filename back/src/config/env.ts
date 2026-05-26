@@ -72,6 +72,12 @@ const data = {
     SMTP_USER: optionalString('SMTP_USER'),
     SMTP_PASS: optionalString('SMTP_PASS'),
     SMTP_FROM: optionalString('SMTP_FROM'),
+
+    FILIZ_CLIENT_ID: requireString('FILIZ_CLIENT_ID'),
+    FILIZ_CLIENT_SECRET: requireString('FILIZ_CLIENT_SECRET'),
+    FILIZ_AUDIENCE: requireString('FILIZ_AUDIENCE'),
+    FILIZ_BASE_URI: optionalString('FILIZ_BASE_URI', 'https://api.dev.partners.filiz.io'),
+    FILIZ_AUTH_URI: requireString('FILIZ_AUTH_URI'),
 };
 
 if (errors.length > 0) {

@@ -1,0 +1,31 @@
+import { env } from '../../config/env';
+import { FilizToken } from './type';
+import { logger } from '../logger';
+
+export class FilizAuthClient {
+    private AUTH_ENDPOINT = `${env.FILIZ_AUTH_URI}/oauth/token`;
+    private AUTH_PARAMS = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: env.FILIZ_CLIENT_ID,
+        client_secret: env.FILIZ_CLIENT_SECRET,
+        audience: env.FILIZ_AUDIENCE,
+    });
+
+    async generateToken(): Promise<FilizToken | null> {
+        try {
+            const response = await fetch(this.AUTH_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/x-www-form-urlencoded',
+                },
+                body: this.AUTH_PARAMS,
+            });
+
+            const token = JSON.parse(await response.text()) as FilizToken;
+            return token;
+        } catch (error) {
+            logger.error(error);
+            return null;
+        }
+    }
+}
