@@ -5,7 +5,7 @@ import { User, Role } from '../types/user.types';
 import { UserRow } from '../types/db-rows.types';
 import { toUser } from './mappers/user.mapper';
 import { env } from '../config/env';
-
+import { map } from 'pdfkit';
 const SALT_ROUNDS = 10;
 
 export class UserService {
@@ -23,6 +23,11 @@ export class UserService {
     async findById(id: number): Promise<User | null> {
         const row = await this.userRepository.findById(id);
         return row ? toUser(row) : null;
+    }
+
+    async findByRole(role: Role): Promise<User[] | null> {
+        const row = await this.userRepository.findByRole(role);
+        return row ? row.map((user: UserRow) => toUser(user)) : null;
     }
 
     async register(email: string, name: string, passwordPlain: string, role: Role, sectors?: string[]): Promise<User> {

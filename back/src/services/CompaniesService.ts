@@ -12,11 +12,12 @@ export class CompaniesService {
 
     async findAll(): Promise<Companies[]> {
         const rows = await this.repository.findAll();
+        console.log(rows);
         return rows.map(toCompanies);
     }
 
-    async findByCommercial(salePersonID: number): Promise<Companies[]> {
-        const rows = await this.repository.findByCommercial(salePersonID);
+    async findByCommercial(userID: number): Promise<Companies[]> {
+        const rows = await this.repository.findByCommercial(userID);
         return rows.map(toCompanies);
     }
 
