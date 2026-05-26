@@ -2,7 +2,7 @@
 """Disciplina — consolidated database seed script.
 
 Imports CSV data into MySQL and MongoDB in 4 steps:
-  1. Companies -> MySQL (sales_service.companies)
+  1. Companies -> MySQL (disciplina.companies)
   2. Sales candidates -> MongoDB (human_ressources.candidates)
   3. Secretariat candidates -> MongoDB (human_ressources.candidates)
   4. Jobs -> MongoDB (human_ressources.jobs)
@@ -90,7 +90,7 @@ def get_mysql_connection():
         port=int(os.getenv('MYSQL_PORT', '5001')),
         user=os.getenv('MYSQL_USER', 'root'),
         password=os.getenv('MYSQL_ROOT_PASSWORD'),
-        database=os.getenv('MYSQL_DATABASE', 'sales_service'),
+        database=os.getenv('MYSQL_DATABASE', 'disciplina'),
     )
 
 
@@ -134,14 +134,14 @@ def mongo_has_docs(collection: str, filter_: dict | None = None) -> bool:
 def select_saler_id(name: str, email: str) -> int:
     try:
         if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re':
-            return 2
-        if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re':
             return 3
-        if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re':
+        if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re':
             return 4
-        return 1
+        if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re':
+            return 5
+        return 2
     except:
-            return 1
+            return 2
 
 
 def import_companies(filepath: str) -> int:
@@ -149,7 +149,7 @@ def import_companies(filepath: str) -> int:
     cursor = conn.cursor()
     query = """
         INSERT IGNORE INTO companies (
-            sale_person_id, legal_referent, name, phone, email,
+            user_id, legal_referent, name, phone, email,
             address, sector, main_activity, siret, idcc, notes, conclusion
         ) VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
