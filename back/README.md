@@ -21,7 +21,7 @@ src/
   db/
     mongo/connection.ts Mongoose connection (DB: human_ressources)
     mongo/schemas/      Mongoose schemas for candidates & jobs
-    mysql/connection.ts MySQL2 connection pool (DB: sales_service)
+    mysql/connection.ts MySQL2 connection pool (DB: disciplina)
   external/             Third-party integrations & cross-cutting infrastructure
     google/             OAuth2 client, GoogleDriveService, GoogleGmailService, MIME builder, types
     crypto/             HmacService + domain signers (relance URL, Google OAuth state)
@@ -34,10 +34,10 @@ src/
     candidate/          Candidates GraphQL (MongoDB)
     jobs/               Jobs GraphQL + matching logic (MongoDB)
   repositories/
-    mysql/              Data access: UserRepository, SalePersonRepository, CompanyRepository
+    mysql/              Data access: UserRepository, CompanyRepository
     mongo/              Data access: CandidateRepository, JobRepository
   services/             Business logic: CompaniesService, UserService, CandidateService,
-                        JobService, SalePersonsService, PdfService
+                        JobService, PdfService
     mappers/            Snake-case ↔ camelCase mappers for user, company, candidate
   rest/
     auth/               Login, register, Google OAuth
@@ -53,7 +53,7 @@ src/
 
 | Path | Domain | Database |
 |------|--------|----------|
-| `/api/graphql/companies` | Companies + SalePersons | MySQL |
+| `/api/graphql/companies` | Companies + Users| MySQL |
 | `/api/graphql/candidates` | Candidates | MongoDB |
 | `/api/graphql/jobs` | Jobs + candidate matching | MongoDB |
 
@@ -153,7 +153,7 @@ API_PORT=4000
 SESSION_SECRET=
 JWT_SECRET=
 MYSQL_USER=root
-MYSQL_DATABASE=sales_service
+MYSQL_DATABASE=disciplina
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google
@@ -172,8 +172,8 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 
 ## Databases
 
-### MySQL (`sales_service`)
-- Tables: `sale_persons`, `companies`, `users`
+### MySQL (`disciplina`)
+- Tables: `companies`, `users`
 - Init: `database/mysql/mysql-init.sql`
 - Connection pool via `mysql2/promise` (10 connections)
 

@@ -25,7 +25,7 @@ export const GET_COMPANIES = gql`
     companies {
       company {
         id
-        salePersonID
+        userID
         legalReferent
         name
         phone
@@ -52,7 +52,7 @@ export const GET_COMPANY_BY_SIRET = gql`
   query GetCompanyBySiret($siret: String!) {
     companyBySiret(siret: $siret) {
       id
-      salePersonID
+      userID
       name
       phone
       email
@@ -69,11 +69,11 @@ export const GET_COMPANY_BY_SIRET = gql`
 `
 
 export const GET_COMPANIES_BY_COMMERCIAL = gql`
-  query GetCompaniesByCommercial($salePersonID: Int!) {
-    companyByCommercial(salePersonID: $salePersonID) {
+  query GetCompaniesByCommercial($userID: Int!) {
+    companyByCommercial(userID: $userID) {
       company {
         id
-        salePersonID
+        userID
         name
         phone
         email
@@ -99,7 +99,7 @@ export const CREATE_COMPANY = gql`
   mutation CreateCompany($input: CompanyInput!) {
     createCompany(input: $input) {
       id
-      salePersonID
+      userID
       name
       phone
       email
@@ -119,7 +119,7 @@ export const UPDATE_COMPANY = gql`
   mutation UpdateCompany($id: Int!, $input: CompanyInput!) {
     updateCompany(id: $id, input: $input) {
       id
-      salePersonID
+      userID
       name
       phone
       email
@@ -487,4 +487,3 @@ export const MATCH_JOB = gql`
     }
   }
 `
-

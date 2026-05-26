@@ -1,5 +1,6 @@
 import { query } from '../../db/mysql/connection';
 import { UserRow } from '../../types/db-rows.types';
+import { Role } from '../../types/user.types';
 
 export class UserRepository {
     async findByEmail(email: string): Promise<UserRow | null> {
@@ -10,6 +11,11 @@ export class UserRepository {
     async findById(id: number): Promise<UserRow | null> {
         const result = await query<UserRow[]>('SELECT * FROM users WHERE id = ?', [id]);
         return result.length > 0 ? result[0] : null;
+    }
+
+    async findByRole(role: Role): Promise<UserRow[] | null> {
+        const result = await query<UserRow[]>('SELECT * FROM users WHERE role = ?', [role]);
+        return result;
     }
 
     async create(user: Omit<UserRow, 'id'>): Promise<number> {

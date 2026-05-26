@@ -4,6 +4,7 @@ import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
+import { Role } from '../../../types/user.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
 
@@ -28,7 +29,7 @@ describe('GraphQL company mutations', () => {
                     query: `
                         mutation($input: CompanyInput!) {
                             createCompany(input: $input) {
-                                id name siret address sector conclusion salePersonID
+                                id name siret address sector conclusion userID
                             }
                         }
                     `,
@@ -53,7 +54,7 @@ describe('GraphQL company mutations', () => {
             expect(json.data.createCompany.address).toBe('123 Rue de Paris');
             expect(json.data.createCompany.sector).toBe('TECHNOLOGY');
             expect(json.data.createCompany.conclusion).toBe('Profile matches requirements');
-            expect(json.data.createCompany.salePersonID).toBeNull();
+            expect(json.data.createCompany.userID).toBeNull();
 
             // Verify via follow-up query
             const verify = await fetch(ENDPOINT, {
@@ -78,13 +79,13 @@ describe('GraphQL company mutations', () => {
 
             // Seed a sale person for the relationship
             const conn = await pool.getConnection();
-            let salePersonId: number;
+            let userID: number;
             try {
-                const [result] = await conn.execute('INSERT INTO sale_persons (email, name) VALUES (?, ?)', [
-                    `sp-create-${suffix}@test.local`,
-                    `Sales Rep ${suffix}`,
-                ]);
-                salePersonId = (result as any).insertId;
+                const [result] = await conn.execute(
+                    'INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)',
+                    [`sp-create-${suffix}@test.local`, `Sales Rep ${suffix}`, `password${suffix}`, Role.COMMERCIAL],
+                );
+                userID = (result as any).insertId;
             } finally {
                 conn.release();
             }
@@ -105,7 +106,7 @@ describe('GraphQL company mutations', () => {
                                 address
                                 sector
                                 conclusion
-                                salePersonID
+                                userID
                                 legalReferent
                                 phone
                                 email
@@ -118,7 +119,7 @@ describe('GraphQL company mutations', () => {
                     `,
                     variables: {
                         input: {
-                            salePersonID: salePersonId,
+                            userID: userID,
                             legalReferent: 'John Doe',
                             name: `Full Corp ${suffix}`,
                             phone: '0123456789',
@@ -139,7 +140,7 @@ describe('GraphQL company mutations', () => {
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             const c = json.data.createCompany;
-            expect(c.salePersonID).toBe(salePersonId);
+            expect(c.userID).toBe(userID);
             expect(c.legalReferent).toBe('John Doe');
             expect(c.phone).toBe('0123456789');
             expect(c.email).toBe(`corp-${suffix}@test.local`);

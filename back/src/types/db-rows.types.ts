@@ -11,7 +11,7 @@ export interface UserRow {
 
 export interface CompaniesRow {
     id: number;
-    sale_person_id: number | null;
+    user_id: number | null;
     legal_referent: string | null;
     name: string | null;
     phone: string | null;

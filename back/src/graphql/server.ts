@@ -5,10 +5,11 @@ import { typeDefs as candidateTypeDefs } from './candidate/typeDefs';
 import { resolvers as candidateResolvers } from './candidate/resolver';
 import { resolvers as jobResolvers } from './jobs/resolver';
 import { typeDefs as jobTypeDefs } from './jobs/typeDefs';
+import { UserTypeDefs } from './common.typeDefs';
 import { jwtContext } from './context';
 
 export const CompanyAPI = new ApolloServer({
-    typeDefs: companyTypeDefs,
+    typeDefs: [UserTypeDefs, companyTypeDefs],
     resolvers: companyResolvers,
     context: jwtContext,
 });

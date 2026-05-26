@@ -15,8 +15,8 @@ export class CompaniesService {
         return rows.map(toCompanies);
     }
 
-    async findByCommercial(salePersonID: number): Promise<Companies[]> {
-        const rows = await this.repository.findByCommercial(salePersonID);
+    async findByCommercial(userID: number): Promise<Companies[]> {
+        const rows = await this.repository.findByCommercial(userID);
         return rows.map(toCompanies);
     }
 

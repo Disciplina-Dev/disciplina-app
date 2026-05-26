@@ -4,6 +4,7 @@ import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
+import { Role } from '../../../types/user.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
 
@@ -26,7 +27,6 @@ describe('GraphQL company queries', () => {
             }),
         });
         const json = await res.json();
-
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
         expect(json.data.companies).toEqual([]);
@@ -64,7 +64,7 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: '{ companies { company { id name siret mainActivity salePersonID } salePerson { id } } }',
+                query: '{ companies { company { id name siret mainActivity userID } salePerson { id } } }',
             }),
         });
         const json = await res.json();
@@ -74,7 +74,7 @@ describe('GraphQL company queries', () => {
         expect(json.data.companies).toHaveLength(2);
         expect(json.data.companies[0].company.name).toBe(`Alpha Corp ${suffix}`);
         expect(json.data.companies[0].company.mainActivity).toBe('RESTAURATION');
-        expect(json.data.companies[0].company.salePersonID).toBeNull();
+        expect(json.data.companies[0].company.userID).toBeNull();
         expect(json.data.companies[1].company.name).toBe(`Beta Corp ${suffix}`);
         expect(json.data.companies[1].company.mainActivity).toBe('COMMERCE');
     });
@@ -85,20 +85,22 @@ describe('GraphQL company queries', () => {
         const repo = new CompanyRepository();
 
         const conn = await pool.getConnection();
-        let salePersonId: number;
+        let userID: number;
         try {
-            const [result] = await conn.execute('INSERT INTO sale_persons (email, name) VALUES (?, ?)', [
+            const [result] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
                 `sp-${suffix}@test.local`,
                 `Sale Person ${suffix}`,
+                `password${suffix}`,
+                Role.COMMERCIAL,
             ]);
-            salePersonId = (result as any).insertId;
+            userID = (result as any).insertId;
         } finally {
             conn.release();
         }
 
         const siret = `${suffix}3333333333`.slice(0, 14);
         await repo.create({
-            sale_person_id: salePersonId,
+            user_id: userID,
             name: `Test Corp ${suffix}`,
             siret,
             address: 'Place Alpha',
@@ -113,7 +115,7 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: '{ companies { company { id name salePersonID } salePerson { id email name } } }',
+                query: '{ companies { company { id name userID } salePerson { id email name } } }',
             }),
         });
         const json = await res.json();
@@ -121,7 +123,7 @@ describe('GraphQL company queries', () => {
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
         expect(json.data.companies).toHaveLength(1);
-        expect(json.data.companies[0].company.salePersonID).toBe(salePersonId);
+        expect(json.data.companies[0].company.userID).toBe(userID);
         expect(json.data.companies[0].salePerson.email).toBe(`sp-${suffix}@test.local`);
         expect(json.data.companies[0].salePerson.name).toBe(`Sale Person ${suffix}`);
     });
@@ -132,11 +134,15 @@ describe('GraphQL company queries', () => {
 
         const conn = await pool.getConnection();
         try {
-            await conn.execute('INSERT INTO sale_persons (email, name) VALUES (?, ?), (?, ?)', [
+            await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?), (?, ?, ?, ?)', [
                 `sp1-${suffix}@test.local`,
                 `Alice ${suffix}`,
+                `Alice${suffix}`,
+                Role.COMMERCIAL,
                 `sp2-${suffix}@test.local`,
                 `Bob ${suffix}`,
+                `Bob${suffix}`,
+                Role.COMMERCIAL,
             ]);
         } finally {
             conn.release();
@@ -164,13 +170,15 @@ describe('GraphQL company queries', () => {
         const suffix = Date.now();
 
         const conn = await pool.getConnection();
-        let salePersonId: number;
+        let userID: number;
         try {
-            const [result] = await conn.execute('INSERT INTO sale_persons (email, name) VALUES (?, ?)', [
+            const [result] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
                 `sp-find-${suffix}@test.local`,
                 `Target ${suffix}`,
+                `password${suffix}`,
+                Role.COMMERCIAL,
             ]);
-            salePersonId = (result as any).insertId;
+            userID = (result as any).insertId;
         } finally {
             conn.release();
         }
@@ -183,14 +191,14 @@ describe('GraphQL company queries', () => {
             },
             body: JSON.stringify({
                 query: `query($id: Int!) { salePerson(id: $id) { id email name } }`,
-                variables: { id: salePersonId },
+                variables: { id: userID },
             }),
         });
         const json = await res.json();
 
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.salePerson.id).toBe(salePersonId);
+        expect(json.data.salePerson.id).toBe(userID);
         expect(json.data.salePerson.email).toBe(`sp-find-${suffix}@test.local`);
         expect(json.data.salePerson.name).toBe(`Target ${suffix}`);
     });
@@ -225,14 +233,18 @@ describe('GraphQL company queries', () => {
         let sp1Id: number;
         let sp2Id: number;
         try {
-            const [r1] = await conn.execute('INSERT INTO sale_persons (email, name) VALUES (?, ?)', [
+            const [r1] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
                 `sp-a-${suffix}@test.local`,
                 `SP A ${suffix}`,
+                `SPA${suffix}`,
+                Role.COMMERCIAL,
             ]);
             sp1Id = (r1 as any).insertId;
-            const [r2] = await conn.execute('INSERT INTO sale_persons (email, name) VALUES (?, ?)', [
+            const [r2] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
                 `sp-b-${suffix}@test.local`,
                 `SP B ${suffix}`,
+                `SPB${suffix}`,
+                Role.COMMERCIAL,
             ]);
             sp2Id = (r2 as any).insertId;
         } finally {
@@ -242,7 +254,7 @@ describe('GraphQL company queries', () => {
         const siret1 = `${suffix}4444444444`.slice(0, 14);
         const siret2 = `${suffix}5555555555`.slice(0, 14);
         await repo.create({
-            sale_person_id: sp1Id,
+            user_id: sp1Id,
             name: `Company A ${suffix}`,
             siret: siret1,
             address: 'Place Alpha',
@@ -250,7 +262,7 @@ describe('GraphQL company queries', () => {
             conclusion: 'conclusion',
         });
         await repo.create({
-            sale_person_id: sp2Id,
+            user_id: sp2Id,
             name: `Company B ${suffix}`,
             siret: siret2,
             address: 'Place Alpha',
@@ -265,8 +277,8 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `query($salePersonID: Int!) { companyByCommercial(salePersonID: $salePersonID) { company { id name } salePerson { id } } }`,
-                variables: { salePersonID: sp1Id },
+                query: `query($userID: Int!) { companyByCommercial(userID: $userID) { company { id name } salePerson { id } } }`,
+                variables: { userID: sp1Id },
             }),
         });
         const json = await res.json();
@@ -299,7 +311,7 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `query($siret: String!) { companyBySiret(siret: $siret) { id name siret salePersonID } }`,
+                query: `query($siret: String!) { companyBySiret(siret: $siret) { id name siret userID } }`,
                 variables: { siret },
             }),
         });

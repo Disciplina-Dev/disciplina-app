@@ -18,7 +18,7 @@ export interface SalePerson {
 
 export interface Company {
   id: number
-  salePersonID: number | null
+  userID: number | null
   name: string | null
   phone: string | null
   email: string | null
@@ -33,7 +33,7 @@ export interface Company {
 }
 
 export interface CompanyInput {
-  salePersonID: number | null
+  userID: number | null
   name: string | null
   phone: string | null
   email: string | null

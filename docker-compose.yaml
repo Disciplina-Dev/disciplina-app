@@ -80,7 +80,7 @@ services:
       - ./.env
     environment:
       MYSQL_USER: root
-      MYSQL_DATABASE: sales_service
+      MYSQL_DATABASE: disciplina
       MONGO_HOST: nosql-db
     restart: no
     networks:

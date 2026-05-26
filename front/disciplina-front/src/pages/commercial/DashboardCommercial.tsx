@@ -23,8 +23,8 @@ import Button from '@/components/ui/Button'
 
 // ─── User switcher (copied from Portefeuille for testing/nav) ───────────────
 function UserSwitcher() {
-  const currentUserId = useAuthStore((s) => s.currentUserId)
-  const setCurrentUser = useAuthStore((s) => s.setCurrentUser)
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const setCurrentUser = useAuthStore((s) => s.set)
   const user = USERS[currentUserId]
 
   return (

@@ -130,7 +130,6 @@ export function useUpdateCompany() {
           conclusion: response.data.updateCompany.conclusion,
         })
       }
-      console.log(response);
       return response
     })
   }

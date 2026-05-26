@@ -29,7 +29,7 @@ export function toEntrepriseFromCompanyWithSalePerson(data: CompanyWithSalePerso
 
 export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
   return {
-    salePersonID: entreprise.proprietaire_id || 1,
+    userID: entreprise.proprietaire_id || 1,
     name: entreprise.nom_commercial || null,
     phone: entreprise.telephone || null,
     email: entreprise.email || null,

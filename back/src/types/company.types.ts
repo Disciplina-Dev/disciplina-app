@@ -6,7 +6,7 @@ export interface SalePerson {
 
 export interface Companies {
     id: number;
-    salePersonID: number | null;
+    userID: number | null;
     legalReferent: string | null;
     name: string | null;
     phone: string | null;

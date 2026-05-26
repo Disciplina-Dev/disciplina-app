@@ -77,7 +77,7 @@ docker compose up -d sql-db nosql-db
 
 That gives you MySQL on `localhost:5001` and Mongo on `localhost:${MONGO_PORT:-4011}`. No separate compose file is needed.
 
-**Env file** — `back/.env.back.example` contains test env vars pointing MySQL at `localhost:5001` / `sales_service` and MongoDB at `localhost:27017` / `human_ressources_test`. Loaded by `vitest.config.ts` before any test files run.
+**Env file** — `back/.env.back.example` contains test env vars pointing MySQL at `localhost:5001` / `disciplina` and MongoDB at `localhost:27017` / `human_ressources_test`. Loaded by `vitest.config.ts` before any test files run.
 
 **Mongo URI** — `MONGO_HOST` and `MONGO_DB_NAME` env vars were added to `config/env.ts` with defaults `nosql-db` and `human_ressources`. The `connection.ts` now builds the URI from env vars instead of hardcoded values.
 
@@ -130,7 +130,6 @@ export async function truncateMysql(): Promise<void> {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
         await conn.query('TRUNCATE TABLE users');
         await conn.query('TRUNCATE TABLE companies');
-        await conn.query('TRUNCATE TABLE sale_persons');
         await conn.query('SET FOREIGN_KEY_CHECKS = 1');
     } finally {
         conn.release();
@@ -259,7 +258,7 @@ Three Apollo servers, three endpoints — pick the one that owns the entity:
 
 | Entity | Endpoint |
 |---|---|
-| Company / SalePerson / User | `POST /api/graphql/companies` |
+| Company / User | `POST /api/graphql/companies` |
 | Candidate | `POST /api/graphql/candidates` |
 | Job | `POST /api/graphql/jobs` |
 

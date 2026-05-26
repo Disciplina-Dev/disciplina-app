@@ -7,8 +7,8 @@ export class CompanyRepository {
         return query<CompaniesRow[]>('SELECT * FROM companies');
     }
 
-    async findByCommercial(salePersonID: number): Promise<CompaniesRow[]> {
-        return query<CompaniesRow[]>('SELECT * FROM companies WHERE sale_person_id = ?', [salePersonID]);
+    async findByCommercial(userID: number): Promise<CompaniesRow[]> {
+        return query<CompaniesRow[]>('SELECT * FROM companies WHERE user_id = ?', [userID]);
     }
 
     async findBySiret(siret: string): Promise<CompaniesRow | null> {
