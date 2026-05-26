@@ -157,12 +157,13 @@ def import_companies(filepath: str) -> int:
     """
     count = 0
     with open(filepath, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
+        # print(f.)
+        for row in csv.DictReader(f, delimiter=';'):
             try:
                 cursor.execute(query, (
                     select_saler_id(row.get("Commercial"), row.get("Proprietaire du contact")),
-                    row.get("Representant legale"),
-                    row.get("Nom commercial"),
+                    row.get("Prenom"),
+                    row.get("Nom"),
                     row.get("Numero de telephone"),
                     row.get("Adresse e-mail"),
                     row.get("ADRESSE"),
@@ -171,7 +172,7 @@ def import_companies(filepath: str) -> int:
                     row.get("SIRET"),
                     row.get("IDCC"),
                     row.get("Note a moi meme"),
-                    row.get("Conclusion"),
+                    row.get("Conclusion")
                 ))
                 count += 1
             except Exception as e:
