@@ -229,8 +229,8 @@ export default function ...  // ❌
 
 | Context | Convention | Example |
 |---------|-----------|---------|
-| DB rows (raw) | snake_case | `sale_person_id`, `oauth_token`, `refresh_token` |
-| Domain types | camelCase | `salePersonID`, `oauthToken`, `refreshToken` |
+| DB rows (raw) | snake_case | `user_id`, `oauth_token`, `refresh_token` |
+| Domain types | camelCase | `userID`, `oauthToken`, `refreshToken` |
 | MongoDB fields | snake_case | `full_name`, `tp_type`, `training_site` |
 
 ## Error handling patterns
