@@ -69,7 +69,6 @@ describe('GraphQL company mutations', () => {
                 }),
             });
             const vjson = await verify.json();
-            console.log('vjson: ', vjson);
             expect(vjson.data.companyBySiret.name).toBe(`Test Corp ${suffix}`);
         });
 

@@ -27,7 +27,6 @@ describe('GraphQL company queries', () => {
             }),
         });
         const json = await res.json();
-        // console.log('json: ', json);
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
         expect(json.data.companies).toEqual([]);

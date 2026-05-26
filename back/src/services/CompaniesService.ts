@@ -12,7 +12,6 @@ export class CompaniesService {
 
     async findAll(): Promise<Companies[]> {
         const rows = await this.repository.findAll();
-        console.log(rows);
         return rows.map(toCompanies);
     }
 
