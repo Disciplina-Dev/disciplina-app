@@ -5,3 +5,9 @@ export interface FilizToken {
     expires_in: number;
     token_type: string;
 }
+
+export interface FilizDegree {
+    degreeId: string;
+    degreeTitle: string;
+    preparedTitleName: string;
+}
