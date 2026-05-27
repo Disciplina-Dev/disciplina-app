@@ -17,7 +17,6 @@ import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimi
 import { logger } from './external/logger/logger';
 import { env } from './config/env';
 
-import { FilizAuthClient } from './external/filiz/auth-client';
 declare module 'express-session' {
     interface SessionData {
         tokens: any;
