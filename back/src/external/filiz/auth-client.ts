@@ -34,7 +34,6 @@ export class FilizAuthClient {
 
     async getToken(): Promise<string | null> {
         const res = await this.filizRepository.getToken();
-        console.log(res);
         return res ? res[0].token : null;
     }
 }
