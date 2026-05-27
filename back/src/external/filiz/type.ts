@@ -1,7 +1,7 @@
 import { Date } from 'mongoose';
 
 export interface FilizToken {
-    token: string;
+    access_token: string;
     expires_in: number;
     token_type: string;
 }

@@ -73,8 +73,6 @@ export async function startServer(): Promise<http.Server> {
     const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
-    const test = new FilizAuthClient();
-    const resp = await test.generateToken();
     return server;
 }
 

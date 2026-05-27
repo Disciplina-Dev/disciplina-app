@@ -1,6 +1,7 @@
 import { env } from '../../config/env';
 import { FilizToken } from './type';
 import { logger } from '../logger';
+import { FilizRepository } from '../../repositories/mysql/FilizRepository';
 
 export class FilizAuthClient {
     private AUTH_ENDPOINT = `${env.FILIZ_AUTH_URI}/oauth/token`;
@@ -10,6 +11,7 @@ export class FilizAuthClient {
         client_secret: env.FILIZ_CLIENT_SECRET,
         audience: env.FILIZ_AUDIENCE,
     });
+    private filizRepository = new FilizRepository();
 
     async generateToken(): Promise<FilizToken | null> {
         try {
@@ -22,7 +24,8 @@ export class FilizAuthClient {
             });
 
             const token = JSON.parse(await response.text()) as FilizToken;
-            return token;
+            const inserted = await this.filizRepository.insertToken(token);
+            return inserted;
         } catch (error) {
             logger.error(error);
             return null;
