@@ -12,6 +12,12 @@ CREATE TABLE IF NOT EXISTS users (
     refresh_token TEXT DEFAULT NULL
 );
 
+CREATE TABLE IF NOT EXISTS filiz (
+    token TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL
+);
+
 INSERT INTO users (id, email, name, password, role)
 VALUES
     (1, 'root@example.com', 'root', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'ADMIN'),

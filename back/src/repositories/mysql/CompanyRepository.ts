@@ -1,4 +1,3 @@
-import { set } from 'mongoose';
 import { query, getConnection } from '../../db/mysql/connection';
 import { CompaniesRow } from '../../types/db-rows.types';
 
