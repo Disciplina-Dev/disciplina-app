@@ -26,8 +26,8 @@ export interface CompaniesRow {
     conclusion: string | null;
 }
 
-export interface SalePersonsRow {
-    id: number;
-    email: string;
-    name: string;
+export interface FilizRow {
+    token: string;
+    created_at: Date;
+    expires_at: Date;
 }
