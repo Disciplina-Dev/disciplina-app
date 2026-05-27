@@ -11,3 +11,11 @@ export interface FilizDegree {
     degreeTitle: string;
     preparedTitleName: string;
 }
+
+export interface FilizClass {
+    degreeId: string;
+    classId: string;
+    className: string;
+    startDate: string;
+    endDate: string;
+}
