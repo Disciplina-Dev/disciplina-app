@@ -31,4 +31,10 @@ export class FilizAuthClient {
             return null;
         }
     }
+
+    async getToken(): Promise<string | null> {
+        const res = await this.filizRepository.getToken();
+        console.log(res);
+        return res ? res[0].token : null;
+    }
 }

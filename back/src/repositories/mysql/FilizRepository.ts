@@ -5,7 +5,7 @@ import { FilizRow } from '../../types/db-rows.types';
 
 export class FilizRepository {
     async getToken(): Promise<FilizRow[] | null> {
-        return query<FilizRow[]>('SELECT * FROM filiz WHERE expires_at < NOW()');
+        return query<FilizRow[]>('SELECT (token) FROM filiz WHERE expires_at > NOW()');
     }
 
     async insertToken(token: FilizToken): Promise<FilizToken | null> {
@@ -31,7 +31,7 @@ export class FilizRepository {
     async deleteTokens(): Promise<boolean> {
         const conn = await getConnection();
         try {
-            const result = await conn.execute('DELETE FROM filiz');
+            const result = await conn.execute('DELETE FROM filiz WHERE expires_at < NOW()');
             return (result[0] as any).affectedRows > 0;
         } catch (error) {
             logger.error(error);
