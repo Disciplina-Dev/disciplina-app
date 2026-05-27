@@ -50,6 +50,6 @@ export class FilizAuthClient {
 
     async getToken(): Promise<string | null> {
         const res = await this.filizRepository.getToken();
-        return res ? res[0].token : null;
+        return res ? res[0].token : this.refreshToken();
     }
 }
