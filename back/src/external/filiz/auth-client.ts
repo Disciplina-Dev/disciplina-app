@@ -13,7 +13,7 @@ export class FilizAuthClient {
     });
     private filizRepository = new FilizRepository();
 
-    async generateToken(): Promise<FilizToken | null> {
+    private async generateToken(): Promise<FilizToken | null> {
         try {
             const response = await fetch(this.AUTH_ENDPOINT, {
                 method: 'POST',
@@ -30,6 +30,22 @@ export class FilizAuthClient {
             logger.error(error);
             return null;
         }
+    }
+
+    private async deleteToken(): Promise<boolean> {
+        return await this.filizRepository.deleteTokens();
+    }
+
+    async refreshToken(): Promise<string | null> {
+        const tokens = await this.filizRepository.getToken();
+
+        if (tokens?.length !== undefined && tokens.length > 0) return tokens[0].token;
+        await this.deleteToken();
+        if (tokens?.length !== undefined && !tokens.length) {
+            const new_token = await this.generateToken();
+            return new_token ? new_token.access_token : null;
+        }
+        return null;
     }
 
     async getToken(): Promise<string | null> {
