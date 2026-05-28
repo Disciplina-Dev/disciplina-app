@@ -7,10 +7,23 @@ import { resolvers as jobResolvers } from './jobs/resolver';
 import { typeDefs as jobTypeDefs } from './jobs/typeDefs';
 import { UserTypeDefs } from './common.typeDefs';
 import { jwtContext } from './context';
+import { typeDefs as needsAnalysisTypeDefs } from './needsAnalysis/typeDefs';
+import { resolvers as needsAnalysisResolvers } from './needsAnalysis/resolvers';
+
+const combinedCompanyResolvers = {
+    Query: {
+        ...companyResolvers.Query,
+        ...needsAnalysisResolvers.Query,
+    },
+    Mutation: {
+        ...companyResolvers.Mutation,
+        ...needsAnalysisResolvers.Mutation,
+    },
+};
 
 export const CompanyAPI = new ApolloServer({
-    typeDefs: [UserTypeDefs, companyTypeDefs],
-    resolvers: companyResolvers,
+    typeDefs: [UserTypeDefs, companyTypeDefs, needsAnalysisTypeDefs],
+    resolvers: combinedCompanyResolvers,
     context: jwtContext,
 });
 

@@ -31,3 +31,31 @@ export interface FilizRow {
     created_at: Date;
     expires_at: Date;
 }
+
+export interface NeedsAnalysisRow {
+    id: number;
+    company_id: number;
+    user_id: number;
+    recruitment_responsible_name: string | null;
+    recruitment_responsible_phone: string | null;
+    recruitment_responsible_email: string | null;
+    positions_count: number;
+    localisation: 'NORD' | 'OUEST' | 'SUD';
+    training_domain: 'SECRETARIAT' | 'VENTE';
+    job_title: string;
+    selected_missions: string; // JSON string
+    other_missions: string | null;
+    education_level: 'BAC' | 'BAC_PLUS_2' | 'BAC_PLUS_3';
+    driving_license: 'OUI' | 'OPTIONNEL';
+    experience_required: 'DEBUTANT' | 'OBLIGATOIRE';
+    age_requirements: string; // JSON string
+    soft_skills: string | null;
+    recruitment_method: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW';
+    immersion_period: 'OUI' | 'NON' | 'A_DISCUTER';
+    training_days: string; // JSON string
+    yousign_signature_request_id: string | null;
+    status: 'BROUILLON' | 'EN_ATTENTE_SIGNATURE' | 'SIGNE' | 'EXPIRE';
+    created_at?: Date;
+    updated_at?: Date;
+}
+

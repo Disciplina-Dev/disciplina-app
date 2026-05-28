@@ -232,7 +232,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                   </label>
                   <select
                     id="proprietaire_id"
-                    disabled={currentUser.role === 'commercial'}
+                    disabled={currentUser.role?.toUpperCase() === 'COMMERCIAL'}
                     className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue disabled:opacity-60 disabled:cursor-not-allowed"
                     {...register('proprietaire_id')}
                   >
@@ -242,7 +242,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       </option>
                     ))}
                   </select>
-                  {currentUser.role === 'commercial' && (
+                  {currentUser.role?.toUpperCase() === 'COMMERCIAL' && (
                     <p className="text-xs text-gray-500">Vous serez automatiquement défini comme propriétaire</p>
                   )}
                 </div>

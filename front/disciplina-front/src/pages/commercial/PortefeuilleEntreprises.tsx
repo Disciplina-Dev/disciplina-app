@@ -17,6 +17,7 @@ import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import DetailModal from '@/features/portefeuille/components/DetailModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
+import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
 import { useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
@@ -283,6 +284,7 @@ export default function PortefeuilleEntreprises() {
   const [page, setPage] = useState(1)
   const [detailEntry, setDetailEntry] = useState<Entreprise | null>(null)
   const [editEntry, setEditEntry] = useState<Entreprise | null>(null)
+  const [abEntry, setAbEntry] = useState<Entreprise | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
   const [showSearch, setShowSearch] = useState(false)
@@ -542,6 +544,15 @@ export default function PortefeuilleEntreprises() {
           currentUser={currentUser}
           onClose={() => setDetailEntry(null)}
           onEdit={() => setEditEntry(detailEntry)}
+          onCreateAB={() => { setAbEntry(detailEntry); setDetailEntry(null) }}
+        />
+      )}
+      {abEntry && (
+        <NeedsAnalysisModal
+          entreprise={abEntry}
+          currentUser={currentUser}
+          onClose={() => setAbEntry(null)}
+          onSuccess={() => setAbEntry(null)}
         />
       )}
       {editEntry && (

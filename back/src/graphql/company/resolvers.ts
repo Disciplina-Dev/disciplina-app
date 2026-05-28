@@ -24,21 +24,21 @@ interface CompanyInput {
 }
 
 function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
-    return {
-        user_id: input.userID || null,
-        legal_referent: input.legalReferent || null,
-        name: input.name || '',
-        phone: input.phone || null,
-        email: input.email || null,
-        address: input.address || '',
-        sector: input.sector || '',
-        main_activity: input.mainActivity || null,
-        siret: input.siret || '',
-        idcc: input.idcc || null,
-        ape: input.ape || null,
-        notes: input.notes || null,
-        conclusion: input.conclusion || 'À Réfléchir',
-    };
+    const row: Partial<CompaniesRow> = {};
+    if (input.userID !== undefined) row.user_id = input.userID;
+    if (input.legalReferent !== undefined) row.legal_referent = input.legalReferent;
+    if (input.name !== undefined) row.name = input.name ?? '';
+    if (input.phone !== undefined) row.phone = input.phone;
+    if (input.email !== undefined) row.email = input.email;
+    if (input.address !== undefined) row.address = input.address ?? '';
+    if (input.sector !== undefined) row.sector = input.sector ?? '';
+    if (input.mainActivity !== undefined) row.main_activity = input.mainActivity;
+    if (input.siret !== undefined) row.siret = input.siret ?? '';
+    if (input.idcc !== undefined) row.idcc = input.idcc;
+    if (input.ape !== undefined) row.ape = input.ape;
+    if (input.notes !== undefined) row.notes = input.notes;
+    if (input.conclusion !== undefined) row.conclusion = input.conclusion ?? 'À Réfléchir';
+    return row;
 }
 
 export const resolvers = {

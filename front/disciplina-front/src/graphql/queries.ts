@@ -489,3 +489,35 @@ export const MATCH_JOB = gql`
     }
   }
 `
+
+export const CREATE_NEEDS_ANALYSIS = gql`
+  mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
+    createNeedsAnalysis(input: $input) {
+      id
+      companyID
+      userID
+      recruitmentResponsibleName
+      recruitmentResponsiblePhone
+      recruitmentResponsibleEmail
+      positionsCount
+      localisation
+      trainingDomain
+      jobTitle
+      selectedMissions
+      otherMissions
+      educationLevel
+      drivingLicense
+      experienceRequired
+      ageRequirements
+      softSkills
+      recruitmentMethod
+      immersionPeriod
+      trainingDays
+      yousignSignatureRequestID
+      status
+      createdAt
+      updatedAt
+    }
+  }
+`
+
