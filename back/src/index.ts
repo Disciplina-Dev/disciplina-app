@@ -12,11 +12,11 @@ import { router as relanceRouter } from './rest/relance/route';
 import { router as classmarkerRouter } from './rest/classmarker/route';
 import { router as classmarkerWebhookRouter } from './rest/classmarker/webhook.route';
 import { router as candidatesRestRouter } from './rest/candidates/route';
+import { router as sourcingRouter } from './rest/sourcing/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
 import { logger } from './external/logger/logger';
 import { env } from './config/env';
-import { SireneService } from './external/insee/sirene.service';
 
 declare module 'express-session' {
     interface SessionData {
@@ -57,6 +57,7 @@ export async function startServer(): Promise<http.Server> {
     app.use('/api/classmarker', classmarkerRouter);
     app.use('/api/webhooks', classmarkerWebhookRouter);
     app.use('/api/candidates', candidatesRestRouter);
+    app.use('/api/sourcing', sourcingRouter);
     app.use(errorHandler);
 
     await connectMongoDB();
