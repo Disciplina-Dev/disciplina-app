@@ -16,6 +16,7 @@ import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
 import { logger } from './external/logger/logger';
 import { env } from './config/env';
+import { SireneService } from './external/insee/sirene.service';
 
 declare module 'express-session' {
     interface SessionData {

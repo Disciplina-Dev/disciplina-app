@@ -80,6 +80,8 @@ const data = {
     FILIZ_AUDIENCE: requireString('FILIZ_AUDIENCE'),
     FILIZ_BASE_URI: optionalString('FILIZ_BASE_URI', 'https://api.dev.partners.filiz.io'),
     FILIZ_AUTH_URI: requireString('FILIZ_AUTH_URI'),
+
+    INSEE_API_KEY: requireString('INSEE_API_KEY'),
 };
 
 if (errors.length > 0) {

@@ -1,7 +1,6 @@
 import { FilizAuthClient } from './auth-client';
 import { env } from '../../config/env';
 import { logger } from '../logger';
-import { Token } from 'graphql';
 import { FilizClass, FilizDegree } from './type';
 
 export class FilizService {
