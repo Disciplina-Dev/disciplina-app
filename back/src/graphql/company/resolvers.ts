@@ -1,7 +1,5 @@
 import { CompaniesService } from '../../services/CompaniesService';
-import { SalePersonsService } from '../../services/SalePersonsService';
 import { CompaniesRow } from '../../types/db-rows.types';
-import { toSalePerson } from '../../services/mappers/company.mapper';
 import { UserService } from '../../services/UserService';
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
@@ -52,15 +50,8 @@ export const resolvers = {
             for (const company of companies) {
                 const salePerson = await userService.findById(company.userID ?? 0);
                 result.push({
-                    company: {
-                        ...company,
-                        salePerson: salePerson
-                            ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name })
-                            : null,
-                    },
-                    salePerson: salePerson
-                        ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name })
-                        : null,
+                    company,
+                    salePerson,
                 });
             }
             return result;
@@ -83,15 +74,8 @@ export const resolvers = {
             for (const company of companies) {
                 const salePerson = await userService.findById(company.userID ?? 0);
                 result.push({
-                    company: {
-                        ...company,
-                        salePerson: salePerson
-                            ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name })
-                            : null,
-                    },
-                    salePerson: salePerson
-                        ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name })
-                        : null,
+                    company,
+                    salePerson,
                 });
             }
             return result;
@@ -101,12 +85,8 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL]);
             const company = await companiesService.findBySiret(siret);
             if (!company) return null;
-            const salePerson = await userService.findById(company.userID ?? 0);
             return {
                 ...company,
-                salePerson: salePerson
-                    ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name })
-                    : null,
             };
         },
     },
@@ -115,12 +95,8 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL]);
             const rowData = mapInputToRow(input);
             const company = await companiesService.create(rowData);
-            const salePerson = company?.userID ? await userService.findById(company.userID) : null;
             return {
                 ...company,
-                salePerson: salePerson
-                    ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name })
-                    : null,
             };
         },
         updateCompany: async (_: unknown, { id, input }: { id: number; input: CompanyInput }, context: any) => {
@@ -130,9 +106,6 @@ export const resolvers = {
             const salePerson = company?.userID ? await userService.findById(company.userID) : null;
             return {
                 ...company,
-                salePerson: salePerson
-                    ? toSalePerson({ id: salePerson.id, email: salePerson.email, name: salePerson.name })
-                    : null,
             };
         },
         deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {

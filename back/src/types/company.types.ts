@@ -1,9 +1,3 @@
-export interface SalePerson {
-    id: number;
-    email: string;
-    name: string;
-}
-
 export interface Companies {
     id: number;
     userID: number | null;
