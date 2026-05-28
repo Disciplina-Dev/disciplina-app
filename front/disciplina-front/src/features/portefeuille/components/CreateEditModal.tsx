@@ -27,7 +27,7 @@ interface Props {
   initial?: Partial<Entreprise>
   prefillSiret?: string
   currentUser: AppUser
-  onSave: (data: Partial<Entreprise>) => void
+  onSave: (data: Partial<Entreprise>) => void | Promise<void>
   onClose: () => void
   mode: 'create' | 'edit'
 }
@@ -63,9 +63,9 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
     },
   })
 
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = async (values: FormValues) => {
     const owner = USERS[values.proprietaire_id]
-    onSave({
+    await onSave({
       id: initial?.id,
       nom_commercial: values.nom_commercial || null,
       siret: values.siret || null,

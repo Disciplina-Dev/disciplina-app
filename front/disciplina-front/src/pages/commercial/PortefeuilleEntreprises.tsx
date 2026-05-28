@@ -328,23 +328,53 @@ export default function PortefeuilleEntreprises() {
 
   const handleFilterChange = (f: EntrepriseFilters) => { setFilters(f); setPage(1) }
 
-  const handleSaveEdit = (data: Partial<Entreprise>) => {
-    if (!editEntry) return
-    const company = toCompany(data);
-    update(Number(data.id), company)
-    setEditEntry(null)
-    if (detailEntry?.id === editEntry.id) setDetailEntry({ ...detailEntry, ...data } as Entreprise)
+  const formatErrorMessage = (errorMsg: string, siret?: string | null): string => {
+    if (errorMsg.includes("Duplicate entry") && errorMsg.includes("companies.siret")) {
+      const extractedSiret = siret || errorMsg.match(/'(\d+)'/)?.[1] || "";
+      return `Cette entreprise (SIRET ${extractedSiret}) existe déjà dans le portefeuille. Vous pouvez la retrouver en utilisant la barre de "Recherche SIRET" en haut à droite de la page.`;
+    }
+    if (errorMsg.includes("siret must be 14 characters") || errorMsg.includes("SIRET must be 14 characters")) {
+      return "Le SIRET doit faire exactement 14 chiffres.";
+    }
+    if (errorMsg.includes("Unauthorized") || errorMsg.includes("Forbidden")) {
+      return "Session expirée ou droits insuffisants. Veuillez vous reconnecter.";
+    }
+    return errorMsg;
   }
 
-  const handleCreate = (data: Partial<Entreprise>) => {
+  const handleSaveEdit = async (data: Partial<Entreprise>) => {
+    if (!editEntry) return
     const company = toCompany(data);
-    createCompany(company);
-    // addCompany({
-      // ...data,
-      // id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    // } as Entreprise)
-    setCreateOpen(false)
-    setPrefillSiret(undefined)
+    try {
+      const response = await update(Number(data.id), company);
+      if (response.error) {
+        const friendlyMsg = formatErrorMessage(response.error.message, data.siret);
+        alert(`Erreur lors de la modification : ${friendlyMsg}`);
+        return;
+      }
+      setEditEntry(null)
+      if (detailEntry?.id === editEntry.id) setDetailEntry({ ...detailEntry, ...data } as Entreprise)
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erreur lors de la modification : ${err.message || err}`);
+    }
+  }
+
+  const handleCreate = async (data: Partial<Entreprise>) => {
+    const company = toCompany(data);
+    try {
+      const response = await createCompany(company);
+      if (response.error) {
+        const friendlyMsg = formatErrorMessage(response.error.message, data.siret);
+        alert(`Erreur lors de la création : ${friendlyMsg}`);
+        return;
+      }
+      setCreateOpen(false)
+      setPrefillSiret(undefined)
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erreur lors de la création : ${err.message || err}`);
+    }
   }
 
   const handleClaim = (id: string, userId: number, userName: string) => {

@@ -100,6 +100,7 @@ export const CREATE_COMPANY = gql`
     createCompany(input: $input) {
       id
       userID
+      legalReferent
       name
       phone
       email
@@ -120,6 +121,7 @@ export const UPDATE_COMPANY = gql`
     updateCompany(id: $id, input: $input) {
       id
       userID
+      legalReferent
       name
       phone
       email

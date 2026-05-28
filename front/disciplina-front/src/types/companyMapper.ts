@@ -1,6 +1,7 @@
 import type { Company, CompanyWithSalePerson, SalePerson, Entreprise, EntrepriseStatus, CompanyInput } from '@/types/entreprise'
 
 export function toEntreprise(company: Company, salePerson: SalePerson | null): Entreprise {
+  const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(company.conclusion || '');
   return {
     id: String(company.id),
     nom_commercial: company.name,
@@ -16,8 +17,8 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     siret: company.siret,
     idcc: company.idcc,
     note: company.notes,
-    conclusion: company.conclusion,
-    status: (company.conclusion as EntrepriseStatus) ?? 'À Réfléchir',
+    conclusion: isStatusOnly ? '' : company.conclusion,
+    status: (isStatusOnly ? company.conclusion : 'À Réfléchir') as EntrepriseStatus,
     date_insertion: new Date().toISOString().split('T')[0],
     date_relance: '',
   }
