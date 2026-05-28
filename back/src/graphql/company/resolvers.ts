@@ -29,17 +29,17 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     return {
         user_id: input.userID || null,
         legal_referent: input.legalReferent || null,
-        name: input.name || null,
+        name: input.name || '',
         phone: input.phone || null,
         email: input.email || null,
-        address: input.address || null,
-        sector: input.sector || null,
+        address: input.address || '',
+        sector: input.sector || '',
         main_activity: input.mainActivity || null,
-        siret: input.siret || null,
+        siret: input.siret || '',
         idcc: input.idcc || null,
         ape: input.ape || null,
         notes: input.notes || null,
-        conclusion: input.conclusion || null,
+        conclusion: input.conclusion || 'À Réfléchir',
     };
 }
 

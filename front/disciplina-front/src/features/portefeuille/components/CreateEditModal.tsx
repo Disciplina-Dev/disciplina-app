@@ -134,9 +134,16 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                 />
                 <InputField
                   id="siret"
-                  label="SIRET"
+                  label="SIRET *"
                   placeholder="14 chiffres"
-                  {...register('siret')}
+                  error={errors.siret?.message}
+                  {...register('siret', {
+                    required: 'Le SIRET est obligatoire',
+                    pattern: {
+                      value: /^\d{14}$/,
+                      message: 'Le SIRET doit contenir exactement 14 chiffres'
+                    }
+                  })}
                 />
                 <InputField
                   id="representant_legal"

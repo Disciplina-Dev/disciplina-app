@@ -29,17 +29,17 @@ export function toEntrepriseFromCompanyWithSalePerson(data: CompanyWithSalePerso
 
 export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
   return {
-    userID: entreprise.proprietaire_id || 1,
-    name: entreprise.nom_commercial || null,
+    userID: entreprise.proprietaire_id ? Number(entreprise.proprietaire_id) : 1,
+    name: entreprise.nom_commercial || '',
     phone: entreprise.telephone || null,
     email: entreprise.email || null,
-    address: entreprise.adresse || null,
-    sector: entreprise.secteur || null,
+    address: entreprise.adresse || '',
+    sector: entreprise.secteur || '',
     mainActivity: entreprise.metier || null,
-    siret: entreprise.siret || null,
+    siret: entreprise.siret || '',
     idcc: entreprise.idcc || null,
     ape: null,
     notes: entreprise.note || null,
-    conclusion: entreprise.conclusion || null
+    conclusion: entreprise.conclusion || entreprise.status || 'À Réfléchir'
   };
 };
