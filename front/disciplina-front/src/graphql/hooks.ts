@@ -79,15 +79,24 @@ export function useCreateCompany() {
   const [result, executeMutation] = useMutation(CREATE_COMPANY)
 
   const createCompany = (input: any) => {
+    console.log("createCompany mutation input:", input);
     return executeMutation({ input }).then((response) => {
+      console.log("createCompany mutation response:", response);
+      if (response.error) {
+        console.error("createCompany mutation failed:", response.error);
+      }
       if (response.data?.createCompany) {
+        const salePersons = usePortefeuilleStore.getState().salePersons;
+        const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
+        
+        const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(response.data.createCompany.conclusion || '');
         const company = {
           id: String(response.data.createCompany.id),
           nom_commercial: response.data.createCompany.name,
-          proprietaire_contact: null,
-          commercial: null,
-          proprietaire_id: null,
-          representant_legal: null,
+          proprietaire_contact: salePerson?.email || null,
+          commercial: salePerson?.name || null,
+          proprietaire_id: response.data.createCompany.userID || null,
+          representant_legal: response.data.createCompany.legalReferent || null,
           telephone: response.data.createCompany.phone,
           email: response.data.createCompany.email,
           adresse: response.data.createCompany.address,
@@ -96,8 +105,8 @@ export function useCreateCompany() {
           siret: response.data.createCompany.siret,
           idcc: response.data.createCompany.idcc,
           note: response.data.createCompany.notes,
-          conclusion: response.data.createCompany.conclusion,
-          status: (response.data.createCompany.conclusion as any) || 'À Réfléchir',
+          conclusion: isStatusOnly ? '' : response.data.createCompany.conclusion,
+          status: (isStatusOnly ? response.data.createCompany.conclusion : 'À Réfléchir') as any,
           date_insertion: new Date().toISOString().split('T')[0],
           date_relance: '',
         }
@@ -115,8 +124,17 @@ export function useUpdateCompany() {
   const [result, executeMutation] = useMutation(UPDATE_COMPANY)
 
   const update = async (id: number, input: any) => {
+    console.log("updateCompany mutation input:", { id, input });
     return executeMutation({ id, input }).then((response) => {
+      console.log("updateCompany mutation response:", response);
+      if (response.error) {
+        console.error("updateCompany mutation failed:", response.error);
+      }
       if (response.data?.updateCompany) {
+        const salePersons = usePortefeuilleStore.getState().salePersons;
+        const salePerson = salePersons.find((sp) => sp.id === response.data.updateCompany.userID);
+
+        const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(response.data.updateCompany.conclusion || '');
         updateCompany(String(id), {
           nom_commercial: response.data.updateCompany.name,
           telephone: response.data.updateCompany.phone,
@@ -127,7 +145,12 @@ export function useUpdateCompany() {
           siret: response.data.updateCompany.siret,
           idcc: response.data.updateCompany.idcc,
           note: response.data.updateCompany.notes,
-          conclusion: response.data.updateCompany.conclusion,
+          conclusion: isStatusOnly ? '' : response.data.updateCompany.conclusion,
+          status: (isStatusOnly ? response.data.updateCompany.conclusion : 'À Réfléchir') as any,
+          proprietaire_id: response.data.updateCompany.userID || null,
+          commercial: salePerson?.name || null,
+          proprietaire_contact: salePerson?.email || null,
+          representant_legal: response.data.updateCompany.legalReferent || null,
         })
       }
       return response

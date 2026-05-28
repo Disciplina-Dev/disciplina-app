@@ -22,26 +22,29 @@ export function useInitializePortfolio() {
     setError(error || null)
 
     if (companiesResult.data?.companies) {
-      const entreprises = companiesResult.data.companies.map((c: any) => ({
-        id: String(c.company.id),
-        nom_commercial: c.company.name,
-        proprietaire_contact: c.salePerson?.email || null,
-        commercial:  c.salePerson?.name || null,
-        proprietaire_id: c.salePerson?.id || null,
-        representant_legal: c.company?.legalReferent || null,
-        telephone: c.company.phone,
-        email: c.company.email,
-        adresse: c.company.address,
-        secteur: c.company.sector,
-        metier: c.company.mainActivity,
-        siret: c.company.siret,
-        idcc: c.company.idcc,
-        note: c.company.notes,
-        conclusion: c.company.conclusion,
-        status: (c.company.conclusion as any) || 'À Réfléchir',
-        date_insertion: new Date().toISOString().split('T')[0],
-        date_relance: '',
-      }))
+      const entreprises = companiesResult.data.companies.map((c: any) => {
+        const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(c.company.conclusion || '');
+        return {
+          id: String(c.company.id),
+          nom_commercial: c.company.name,
+          proprietaire_contact: c.salePerson?.email || null,
+          commercial:  c.salePerson?.name || null,
+          proprietaire_id: c.salePerson?.id || null,
+          representant_legal: c.company?.legalReferent || null,
+          telephone: c.company.phone,
+          email: c.company.email,
+          adresse: c.company.address,
+          secteur: c.company.sector,
+          metier: c.company.mainActivity,
+          siret: c.company.siret,
+          idcc: c.company.idcc,
+          note: c.company.notes,
+          conclusion: isStatusOnly ? '' : c.company.conclusion,
+          status: (isStatusOnly ? c.company.conclusion : 'À Réfléchir') || 'À Réfléchir',
+          date_insertion: new Date().toISOString().split('T')[0],
+          date_relance: '',
+        }
+      })
       setCompanies(entreprises)
     }
 
