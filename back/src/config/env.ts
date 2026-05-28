@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({
+    path: ['.env', '../.env'],
+});
 
 const INSECURE_DEFAULTS = new Set(['super-secret-key-change-in-production', 'supersecret123', 'changeme']);
 
@@ -47,7 +49,7 @@ const data = {
     CLASSMARKER_API_NAME: optionalString('CLASSMARKER_API_NAME'),
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
-    MYSQL_HOST: stringWithDefault('MYSQL_HOST', 'sql-db'),
+    MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
     MYSQL_ROOT_PASSWORD: requireString('MYSQL_ROOT_PASSWORD'),
@@ -56,7 +58,7 @@ const data = {
     MONGO_ROOT_USERNAME: requireString('MONGO_ROOT_USERNAME'),
     MONGO_ROOT_PASSWORD: requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
-    MONGO_HOST: stringWithDefault('MONGO_HOST', 'nosql-db'),
+    MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
 
     JWT_SECRET: requireString('JWT_SECRET'),

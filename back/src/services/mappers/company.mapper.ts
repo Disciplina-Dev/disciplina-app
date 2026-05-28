@@ -1,5 +1,5 @@
-import { CompaniesRow, SalePersonsRow } from '../../types/db-rows.types';
-import { Companies, SalePerson } from '../../types/company.types';
+import { CompaniesRow } from '../../types/db-rows.types';
+import { Companies } from '../../types/company.types';
 
 export function toCompanies(row: CompaniesRow): Companies {
     return {
@@ -17,13 +17,5 @@ export function toCompanies(row: CompaniesRow): Companies {
         ape: row.ape,
         notes: row.notes,
         conclusion: row.conclusion,
-    };
-}
-
-export function toSalePerson(row: SalePersonsRow): SalePerson {
-    return {
-        id: row.id,
-        email: row.email,
-        name: row.name,
     };
 }
