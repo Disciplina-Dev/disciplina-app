@@ -55,3 +55,14 @@ interface EtablissementRaw {
 export interface SireneRawResponse {
     etablissement: EtablissementRaw;
 }
+
+export interface SireneListHeader {
+    total: number;
+    debut: number;
+    nombre: number;
+}
+
+export interface SireneListResult {
+    header: SireneListHeader;
+    etablissements: SireneEtablissement[];
+}

@@ -1,5 +1,31 @@
 import { env } from '../../config/env';
-import { SireneEtablissement, SireneRawResponse } from './types';
+import { SireneEtablissement, SireneRawResponse, SireneListResult } from './types';
+
+interface RawListResponse {
+    header: { total: number; debut: number; nombre: number };
+    etablissements: Array<{
+        siren: string;
+        nic: string;
+        siret: string;
+        etablissementSiege: boolean;
+        adresseEtablissement: {
+            numeroVoieEtablissement: string | null;
+            typeVoieEtablissement: string | null;
+            libelleVoieEtablissement: string | null;
+            codePostalEtablissement: string | null;
+            libelleCommuneEtablissement: string | null;
+            codeCommuneEtablissement: string | null;
+        };
+        periodesEtablissement: Array<{ etatAdministratifEtablissement: 'A' | 'F'; dateFin: string | null }>;
+        uniteLegale: {
+            categorieEntreprise: string | null;
+            categorieJuridiqueUniteLegale: string | null;
+            denominationUniteLegale: string | null;
+            prenomUsuelUniteLegale: string | null;
+            nomUniteLegale: string | null;
+        };
+    }>;
+}
 
 export class SireneService {
     private KEY = env.INSEE_API_KEY;
@@ -32,6 +58,35 @@ export class SireneService {
 
         const raw: SireneRawResponse = await response.json();
         return this.mapToDomain(raw);
+    }
+
+    async companiesByCommune(commune: string): Promise<SireneListResult> {
+        const encoded = encodeURIComponent(commune);
+        const url = `${this.API_BASE_URI}/siret?q=libelleCommuneEtablissement%3A${encoded}`;
+        const response = await fetch(url, { headers: this.headers });
+
+        if (response.status === 404) {
+            throw new Error('No establishments found for this commune');
+        }
+        if (response.status === 401) {
+            throw new Error('Invalid INSEE API key');
+        }
+        if (response.status === 429) {
+            throw new Error('Rate limit exceeded');
+        }
+        if (!response.ok) {
+            throw new Error(`INSEE API error: ${response.status}`);
+        }
+
+        const raw = (await response.json()) as RawListResponse;
+        return {
+            header: {
+                total: raw.header.total,
+                debut: raw.header.debut,
+                nombre: raw.header.nombre,
+            },
+            etablissements: raw.etablissements.map((e) => this.mapToDomain({ etablissement: e })),
+        };
     }
 
     private mapToDomain(raw: SireneRawResponse): SireneEtablissement {

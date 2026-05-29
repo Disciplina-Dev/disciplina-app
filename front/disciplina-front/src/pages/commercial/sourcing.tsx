@@ -43,8 +43,20 @@ interface RecentEntry {
   siret: string
 }
 
+interface SireneListHeader {
+  total: number
+  debut: number
+  nombre: number
+}
+
+interface SireneListResult {
+  header: SireneListHeader
+  etablissements: SireneEtablissement[]
+}
+
 type View = 'empty' | 'loading' | 'result' | 'notfound'
 type ErrKind = 'invalid' | 'missing' | 'server' | 'none'
+type CommuneView = 'empty' | 'loading' | 'results' | 'notfound' | 'error'
 
 const normalizeSiret = (raw: string): string => (raw || '').replace(/\D/g, '')
 
@@ -89,6 +101,16 @@ const LEGAL_FORMS: Record<string, string> = {
 function legalFormShort(code: string | null): string {
   if (!code) return '—'
   return LEGAL_FORMS[code] || code
+}
+
+async function fetchCompaniesByCommune(commune: string, token: string | null): Promise<SireneListResult> {
+  const encoded = encodeURIComponent(commune.trim())
+  const res = await fetch(`${API_BASE}/api/sourcing/companies/${encoded}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
+  if (res.status === 404) throw new Error('notfound')
+  if (!res.ok) throw new Error('server')
+  return (await res.json()) as SireneListResult
 }
 
 function Logo() {
@@ -449,12 +471,142 @@ function EmptyState({ recents, examples, onPick, onClearRecents }: EmptyStatePro
   )
 }
 
+function ModeTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        'px-5 py-2 rounded-full text-[13px] font-semibold transition-all duration-150 border',
+        active
+          ? 'bg-blue text-white border-blue shadow-[0_2px_8px_-2px_rgba(17,48,167,0.35)]'
+          : 'bg-white text-gray-500 border-gray-100 hover:border-blue/30 hover:text-blue',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  )
+}
+
+function CommuneSearchBar({ value, onChange, onSubmit, busy }: {
+  value: string; onChange: (v: string) => void; onSubmit: () => void; busy: boolean
+}) {
+  return (
+    <form
+      className="flex items-center gap-2.5 bg-white border-[1.5px] border-gray-100 rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
+      onSubmit={(e) => { e.preventDefault(); onSubmit() }}
+    >
+      <span className="flex text-gray-500"><Search className="w-5 h-5" /></span>
+      <input
+        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 placeholder:text-gray-300 placeholder:font-normal"
+        placeholder="Nom de la commune (ex : Saint-Denis)"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {value && (
+        <button
+          type="button"
+          className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
+          onClick={() => onChange('')}
+          aria-label="Effacer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+      <button
+        type="submit"
+        disabled={busy || !value.trim()}
+        className="flex items-center gap-1.5 flex-shrink-0 border-0 cursor-pointer bg-blue text-white font-semibold text-[14px] py-[9px] px-4 rounded-[10px] min-w-[120px] justify-center hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default max-sm:min-w-[46px] max-sm:px-[9px]"
+      >
+        {busy ? (
+          <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+        ) : (
+          <>
+            <span className="max-sm:hidden">Rechercher</span>
+            <ArrowRight className="w-4 h-4" />
+          </>
+        )}
+      </button>
+    </form>
+  )
+}
+
+function CommuneSkeleton() {
+  const sk = 'block rounded-[6px] bg-[linear-gradient(90deg,var(--color-gray-50)_25%,var(--color-gray-100)_37%,var(--color-gray-50)_63%)] bg-[length:400%_100%] animate-[shimmer_1.3s_ease-in-out_infinite]'
+  return (
+    <div className="flex flex-col gap-2">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4">
+          <span className={`${sk} w-9 h-9 rounded-[8px] flex-shrink-0`} />
+          <div className="flex-1">
+            <span className={sk} style={{ width: '50%', height: 15 }} />
+            <span className={sk} style={{ width: '35%', height: 12, marginTop: 8 }} />
+          </div>
+          <span className={sk} style={{ width: 70, height: 24, borderRadius: 999 }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CommuneResultList({ result }: { result: SireneListResult }) {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-500 mb-4 text-center">
+        <span className="font-semibold text-gray-900">{result.header.nombre}</span>{' '}
+        établissement{result.header.nombre !== 1 ? 's' : ''} affiché{result.header.nombre !== 1 ? 's' : ''} sur{' '}
+        <span className="font-semibold text-gray-900">{result.header.total.toLocaleString('fr-FR')}</span> trouvés
+      </p>
+      <div className="flex flex-col gap-2">
+        {result.etablissements.map((e) => {
+          const closed = e.etatAdministratif === 'F'
+          const name = displayName(e)
+          const city = displayCity(e.adresse)
+          return (
+            <div
+              key={e.siret}
+              className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both]"
+            >
+              <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
+                <Building2 className="w-4 h-4" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-semibold text-gray-900 truncate">{name}</p>
+                <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
+                  {formatSiret(e.siret)}{city ? ` · ${city}` : ''}
+                </p>
+              </div>
+              <span
+                className={[
+                  'inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0',
+                  closed ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success',
+                ].join(' ')}
+              >
+                <span className={['w-[6px] h-[6px] rounded-full', closed ? 'bg-danger' : 'bg-success'].join(' ')} />
+                {closed ? 'Cessée' : 'En activité'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function Sourcing() {
   const token = useAuthStore((s) => s.token)
+
+  // SIRET mode state
+  const [mode, setMode] = useState<'siret' | 'commune'>('siret')
   const [query, setQuery] = useState('')
   const [view, setView] = useState<View>('empty')
   const [result, setResult] = useState<SireneEtablissement | null>(null)
   const [errKind, setErrKind] = useState<ErrKind>('none')
+
+  // Commune mode state
+  const [communeQuery, setCommuneQuery] = useState('')
+  const [communeView, setCommuneView] = useState<CommuneView>('empty')
+  const [communeResult, setCommuneResult] = useState<SireneListResult | null>(null)
   const [recents, setRecents] = useState<RecentEntry[]>(() => {
     try {
       const raw = localStorage.getItem(LS_KEY)
@@ -516,6 +668,20 @@ export default function Sourcing() {
     [token, pushRecent]
   )
 
+  const runCommune = useCallback(async (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed) return
+    setCommuneView('loading')
+    try {
+      const data = await fetchCompaniesByCommune(trimmed, token)
+      setCommuneResult(data)
+      setCommuneView(data.etablissements.length > 0 ? 'results' : 'notfound')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'server'
+      setCommuneView(msg === 'notfound' ? 'notfound' : 'error')
+    }
+  }, [token])
+
   const submit = () => run(query)
 
   const pick = (siret: string) => {
@@ -544,22 +710,77 @@ export default function Sourcing() {
         busy={view === 'loading'}
         error={view === 'notfound' && errKind === 'invalid'}
       />
-      <main
-        className="max-w-[760px] mx-auto px-6 pt-10 pb-20"
-        data-screen-label={view}
-      >
-        {view === 'loading' && <Skeleton />}
-        {view === 'result' && result && <ResultCard data={result} />}
-        {view === 'notfound' && (
-          <NotFound kind={errKind} query={formatSiret(query)} />
+      <main className="max-w-[760px] mx-auto px-6 pt-10 pb-20">
+        {/* Mode tabs */}
+        <div className="flex gap-2 mb-8 justify-center">
+          <ModeTab active={mode === 'siret'} label="Recherche par SIRET" onClick={() => setMode('siret')} />
+          <ModeTab active={mode === 'commune'} label="Recherche par commune" onClick={() => setMode('commune')} />
+        </div>
+
+        {/* SIRET mode */}
+        {mode === 'siret' && (
+          <>
+            {view === 'loading' && <Skeleton />}
+            {view === 'result' && result && <ResultCard data={result} />}
+            {view === 'notfound' && <NotFound kind={errKind} query={formatSiret(query)} />}
+            {view === 'empty' && (
+              <EmptyState
+                recents={recents}
+                examples={EXAMPLES}
+                onPick={pick}
+                onClearRecents={() => setRecents([])}
+              />
+            )}
+          </>
         )}
-        {view === 'empty' && (
-          <EmptyState
-            recents={recents}
-            examples={EXAMPLES}
-            onPick={pick}
-            onClearRecents={() => setRecents([])}
-          />
+
+        {/* Commune mode */}
+        {mode === 'commune' && (
+          <div>
+            <div className="mb-6">
+              <CommuneSearchBar
+                value={communeQuery}
+                onChange={(v) => { setCommuneQuery(v); if (communeView !== 'empty') setCommuneView('empty') }}
+                onSubmit={() => runCommune(communeQuery)}
+                busy={communeView === 'loading'}
+              />
+            </div>
+            {communeView === 'empty' && (
+              <div className="text-center py-11 animate-[rise_0.3s_ease_both]">
+                <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-blue-light text-blue">
+                  <Building2 className="w-7 h-7" />
+                </span>
+                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">Recherchez par commune</h3>
+                <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+                  Saisissez le nom d'une commune pour lister les établissements enregistrés dans le registre INSEE.
+                </p>
+              </div>
+            )}
+            {communeView === 'loading' && <CommuneSkeleton />}
+            {communeView === 'results' && communeResult && <CommuneResultList result={communeResult} />}
+            {communeView === 'notfound' && (
+              <div className="text-center py-11 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
+                <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
+                  <AlertTriangle className="w-7 h-7" />
+                </span>
+                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">Commune introuvable</h3>
+                <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+                  Aucun établissement trouvé pour cette commune dans le registre INSEE.
+                </p>
+              </div>
+            )}
+            {communeView === 'error' && (
+              <div className="text-center py-11 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
+                <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
+                  <AlertTriangle className="w-7 h-7" />
+                </span>
+                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">Erreur de connexion</h3>
+                <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+                  Impossible d'interroger le registre INSEE. Réessayez dans quelques instants.
+                </p>
+              </div>
+            )}
+          </div>
         )}
       </main>
     </div>
