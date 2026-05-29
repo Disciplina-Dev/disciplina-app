@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   Search,
   X,
@@ -113,99 +113,52 @@ async function fetchCompaniesByCommune(commune: string, token: string | null): P
   return (await res.json()) as SireneListResult
 }
 
-function Logo() {
-  return (
-    <div className="flex items-center gap-[11px] flex-shrink-0">
-      <span className="relative inline-block w-[26px] h-[26px]" aria-hidden="true">
-        <span className="absolute w-[15px] h-[15px] rounded-[4px] mix-blend-multiply bg-blue top-0 left-0" />
-        <span className="absolute w-[15px] h-[15px] rounded-[4px] mix-blend-multiply bg-purple top-0 right-0 opacity-[0.92]" />
-        <span className="absolute w-[15px] h-[15px] rounded-[4px] mix-blend-multiply bg-pink bottom-0 left-[5.5px] opacity-[0.92]" />
-      </span>
-      <span className="font-bold text-[18px] text-black tracking-[-0.02em]">
-        registre<span className="text-pink">.</span>
-      </span>
-    </div>
-  )
-}
-
-interface SearchBarProps {
-  value: string
-  onChange: (v: string) => void
-  onSubmit: () => void
-  busy: boolean
-  error: boolean
-}
-
-function SearchBar({ value, onChange, onSubmit, busy, error }: SearchBarProps) {
+function SiretSearchBar({ value, onChange, onSubmit, busy, error }: {
+  value: string; onChange: (v: string) => void; onSubmit: () => void; busy: boolean; error: boolean
+}) {
   const digits = normalizeSiret(value)
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    ref.current?.focus()
-  }, [])
-
   return (
-    <header className="sticky top-0 z-20 bg-background/[0.82] backdrop-blur-md border-b border-gray-100">
-      <div className="max-w-[980px] mx-auto px-6 py-4 flex items-center gap-6 max-sm:flex-col max-sm:items-stretch max-sm:gap-3">
-        <Logo />
-        <form
-          className={[
-            'flex-1 flex items-center gap-2.5 bg-white border-[1.5px] rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms]',
-            error
-              ? 'border-danger shadow-[0_0_0_4px_var(--color-danger-bg)]'
-              : 'border-gray-100 focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]',
-          ].join(' ')}
-          onSubmit={(e) => {
-            e.preventDefault()
-            onSubmit()
-          }}
+    <form
+      className={[
+        'flex items-center gap-2.5 bg-white border-[1.5px] rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms]',
+        error
+          ? 'border-danger shadow-[0_0_0_4px_var(--color-danger-bg)]'
+          : 'border-gray-100 focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]',
+      ].join(' ')}
+      onSubmit={(e) => { e.preventDefault(); onSubmit() }}
+    >
+      <span className={['flex', error ? 'text-danger' : 'text-gray-500'].join(' ')}>
+        <Search className="w-5 h-5" />
+      </span>
+      <input
+        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 placeholder:text-gray-300 placeholder:font-normal"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="Entrez un numéro SIRET (14 chiffres)"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <span className="font-mono text-[12px] text-gray-300 flex-shrink-0">{digits.length}/14</span>
+      {value && (
+        <button
+          type="button"
+          className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
+          onClick={() => onChange('')}
+          aria-label="Effacer"
         >
-          <span
-            className={[
-              'flex',
-              error ? 'text-danger' : 'text-gray-500',
-            ].join(' ')}
-          >
-            <Search className="w-5 h-5" />
-          </span>
-          <input
-            ref={ref}
-            className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 placeholder:text-gray-300 placeholder:font-normal"
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="Entrez un numéro SIRET (14 chiffres)"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-          />
-          <span className="font-mono text-[12px] text-gray-300 flex-shrink-0">
-            {digits.length}/14
-          </span>
-          {value && (
-            <button
-              type="button"
-              className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
-              onClick={() => onChange('')}
-              aria-label="Effacer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={busy}
-            className="flex items-center gap-1.5 flex-shrink-0 border-0 cursor-pointer bg-blue text-white font-semibold text-[14px] py-[9px] px-4 rounded-[10px] transition-[background,transform] duration-[180ms] min-w-[120px] justify-center hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default max-sm:min-w-[46px] max-sm:px-[9px]"
-          >
-            {busy ? (
-              <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <span className="max-sm:hidden">Rechercher</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </form>
-      </div>
-    </header>
+          <X className="w-4 h-4" />
+        </button>
+      )}
+      <button
+        type="submit"
+        disabled={busy}
+        className="flex items-center gap-1.5 flex-shrink-0 border-0 cursor-pointer bg-blue text-white font-semibold text-[14px] py-[9px] px-4 rounded-[10px] min-w-[120px] justify-center hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default max-sm:min-w-[46px] max-sm:px-[9px]"
+      >
+        {busy
+          ? <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+          : <><span className="max-sm:hidden">Rechercher</span><ArrowRight className="w-4 h-4" /></>}
+      </button>
+    </form>
   )
 }
 
@@ -703,13 +656,6 @@ export default function Sourcing() {
         @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
       `}</style>
-      <SearchBar
-        value={query}
-        onChange={onChange}
-        onSubmit={submit}
-        busy={view === 'loading'}
-        error={view === 'notfound' && errKind === 'invalid'}
-      />
       <main className="max-w-[760px] mx-auto px-6 pt-10 pb-20">
         {/* Mode tabs */}
         <div className="flex gap-2 mb-8 justify-center">
@@ -720,6 +666,15 @@ export default function Sourcing() {
         {/* SIRET mode */}
         {mode === 'siret' && (
           <>
+            <div className="mb-6">
+              <SiretSearchBar
+                value={query}
+                onChange={onChange}
+                onSubmit={submit}
+                busy={view === 'loading'}
+                error={view === 'notfound' && errKind === 'invalid'}
+              />
+            </div>
             {view === 'loading' && <Skeleton />}
             {view === 'result' && result && <ResultCard data={result} />}
             {view === 'notfound' && <NotFound kind={errKind} query={formatSiret(query)} />}
