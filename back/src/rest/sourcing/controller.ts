@@ -1,13 +1,21 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { SireneService } from '../../external/insee/sirene.service';
+import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
 
 const sireneService = new SireneService();
+const companyRepository = new CompanyRepository();
 
 export async function companiesByCommune(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { commune } = req.params;
         const result = await sireneService.companiesByCommune(commune);
+
+        const checks = await Promise.all(result.etablissements.map((e) => companyRepository.findBySiret(e.siret)));
+        const existingSet = new Set(result.etablissements.filter((_, i) => checks[i] !== null).map((e) => e.siret));
+        result.etablissements = result.etablissements.filter((e) => !existingSet.has(e.siret));
+        result.header.nombre = result.etablissements.length;
+
         res.json(result);
     } catch (error: any) {
         if (error.message === 'No establishments found for this commune') {
@@ -26,7 +34,8 @@ export async function checkSiret(req: AuthRequest, res: Response): Promise<void>
     try {
         const { siret } = req.params;
         const result = await sireneService.checkSiret(siret);
-        res.json(result);
+        const existing = await companyRepository.findBySiret(siret);
+        res.json({ ...result, alreadyExists: existing !== null });
     } catch (error: any) {
         if (error.message === 'SIRET not found') {
             res.status(404).json({ error: error.message });

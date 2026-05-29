@@ -36,6 +36,7 @@ interface SireneEtablissement {
   denomination: string | null
   nomPrenom: string | null
   adresse: SireneAdresse
+  alreadyExists?: boolean
 }
 
 interface RecentEntry {
@@ -105,7 +106,7 @@ function legalFormShort(code: string | null): string {
 
 async function fetchCompaniesByCommune(commune: string, token: string | null): Promise<SireneListResult> {
   const encoded = encodeURIComponent(commune.trim())
-  const res = await fetch(`${API_BASE}/api/sourcing/companies/${encoded}`, {
+  const res = await fetch(`${API_BASE}/api/sourcing/${encoded}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
   if (res.status === 404) throw new Error('notfound')
@@ -246,6 +247,11 @@ function ResultCard({ data }: { data: SireneEtablissement }) {
           />
           {closed ? 'Cessée' : 'En activité'}
         </span>
+        {data.alreadyExists && (
+          <span className="inline-flex items-center gap-1.5 flex-shrink-0 text-[12.5px] font-semibold py-[5px] px-[11px] rounded-full bg-[#FFF3CD] text-[#856404]">
+            Déjà dans le portefeuille
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-px bg-gray-100 max-sm:grid-cols-1">
