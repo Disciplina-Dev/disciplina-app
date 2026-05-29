@@ -275,6 +275,21 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                         pattern: {
                           value: /^\d{14}$/,
                           message: 'Le SIRET doit contenir exactement 14 chiffres'
+                        },
+                        validate: async (value) => {
+                          if (mode !== 'create') return true
+                          if (!/^\d{14}$/.test(value)) return true
+                          try {
+                            const res = await fetch(`http://localhost:4000/api/sourcing/${value}`, {
+                              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                            })
+                            if (!res.ok) return true
+                            const data = await res.json()
+                            if (data.alreadyExists) return 'Ce SIRET est déjà dans le portefeuille'
+                          } catch {
+                            // network failure — let submit proceed
+                          }
+                          return true
                         }
                       })}
                     />
