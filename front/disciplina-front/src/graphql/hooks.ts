@@ -12,9 +12,10 @@ import {
   GET_CANDIDATE_FULL,
   UPDATE_CANDIDATE,
   CREATE_CANDIDATE,
+  CREATE_NEEDS_ANALYSIS,
 } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
-import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
+import { CandidateStatus, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
 import { candidateGraphqlClient } from './client'
 
 export function useCompanies() {
@@ -34,7 +35,7 @@ export function useCompanies() {
         proprietaire_contact: null,
         commercial: null,
         proprietaire_id: null,
-        representant_legal: null,
+        representant_legal: c.company?.legalReferent || null,
         telephone: c.phone,
         email: c.email,
         adresse: c.address,
@@ -452,4 +453,19 @@ export function useCandidateFull(id: string) {
     error: result.error?.message ?? null,
     refetch: () => reexecute({ requestPolicy: 'network-only' }),
   }
+}
+
+export function useCreateNeedsAnalysis() {
+  const [result, executeMutation] = useMutation(CREATE_NEEDS_ANALYSIS)
+
+  const createNeedsAnalysis = (input: any) => {
+    return executeMutation({ input }).then((response) => {
+      if (response.error) {
+        console.error("createNeedsAnalysis failed:", response.error)
+      }
+      return response
+    })
+  }
+
+  return { createNeedsAnalysis, result }
 }

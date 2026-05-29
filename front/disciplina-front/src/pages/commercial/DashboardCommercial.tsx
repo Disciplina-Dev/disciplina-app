@@ -19,6 +19,7 @@ import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import DetailModal from '@/features/portefeuille/components/DetailModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
+import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import Button from '@/components/ui/Button'
 
 // ─── User switcher (copied from Portefeuille for testing/nav) ───────────────
@@ -74,12 +75,13 @@ export default function DashboardCommercial() {
   const [detailEntry, setDetailEntry] = useState<Entreprise | null>(null)
   const [editEntry, setEditEntry] = useState<Entreprise | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [abEntry, setAbEntry] = useState<Entreprise | null>(null)
 
   // 1. Filter companies by user permissions
   const myCompanies = useMemo(() => {
     // Amanda (2) and Lorenzo (5) can see all.
     // Brandon (3) and Emile (4) only see their own.
-    const isRestricted = currentUser.role === 'commercial' && currentUser.id !== 1
+    const isRestricted = currentUser.role?.toUpperCase() === 'COMMERCIAL' && String(currentUser.id) !== '1'
     if (isRestricted) {
       return companies.filter((c) => c.proprietaire_id === currentUser.id)
     }
@@ -129,12 +131,12 @@ export default function DashboardCommercial() {
 
   // 4. Compute performance per commercial (only visible for Admin/Responsable)
   const statsPerCommercial = useMemo(() => {
-    if (currentUser.role === 'commercial' && currentUser.id !== 1) return []
+    if (currentUser.role?.toUpperCase() === 'COMMERCIAL' && String(currentUser.id) !== '1') return []
 
     const map: Record<number, { id: number, name: string, total: number, oui: number, non: number, aReflechir: number, color: string }> = {}
 
     Object.values(USERS).forEach((u) => {
-      if (u.role === 'commercial' && u.id !== 1) {
+      if (u.role?.toUpperCase() === 'COMMERCIAL' && String(u.id) !== '1') {
         map[u.id] = { id: u.id, name: u.name, total: 0, oui: 0, non: 0, aReflechir: 0, color: u.color }
       }
     })
@@ -356,7 +358,7 @@ export default function DashboardCommercial() {
                 Aucun appel téléphonique
               </p>
               <p className="text-[13px] text-gray-400 mt-1 max-w-sm mx-auto">
-                {currentUser.role === 'commercial'
+                {currentUser.role?.toUpperCase() === 'COMMERCIAL'
                   ? "Vous n'avez appelé aucune entreprise cette semaine pour le moment. Commencez votre prospection !"
                   : "Aucune entreprise n'a été appelée récemment par les commerciaux."}
               </p>
@@ -388,6 +390,15 @@ export default function DashboardCommercial() {
           currentUser={currentUser}
           onClose={() => setDetailEntry(null)}
           onEdit={() => setEditEntry(detailEntry)}
+          onCreateAB={() => { setAbEntry(detailEntry); setDetailEntry(null) }}
+        />
+      )}
+      {abEntry && (
+        <NeedsAnalysisModal
+          entreprise={abEntry}
+          currentUser={currentUser}
+          onClose={() => setAbEntry(null)}
+          onSuccess={() => setAbEntry(null)}
         />
       )}
       {editEntry && (

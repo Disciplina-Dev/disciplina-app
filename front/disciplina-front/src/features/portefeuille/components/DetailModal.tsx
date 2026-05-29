@@ -34,6 +34,7 @@ interface Props {
   currentUser: AppUser
   onClose: () => void
   onEdit: () => void
+  onCreateAB: () => void
 }
 
 function Field({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | null | undefined }) {
@@ -93,14 +94,14 @@ function formatDate(iso: string | null | undefined) {
   }
 }
 
-export default function DetailModal({ entreprise, currentUser, onClose, onEdit }: Props) {
+export default function DetailModal({ entreprise, currentUser, onClose, onEdit, onCreateAB }: Props) {
   const status = STATUS_CONFIG[entreprise.status] ?? STATUS_CONFIG['Non']
   const owner = entreprise.proprietaire_id ? USERS[entreprise.proprietaire_id] : null
 
   const canEdit =
-    currentUser.role === 'admin' ||
-    currentUser.role === 'responsable' ||
-    entreprise.proprietaire_id === currentUser.id
+    currentUser.role?.toUpperCase() === 'ADMIN' ||
+    currentUser.role?.toUpperCase() === 'RH' ||
+    String(entreprise.proprietaire_id) === String(currentUser.id)
 
   return (
     <div
@@ -137,16 +138,26 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit }
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {canEdit && (
+            <div className="flex items-center gap-2">
               <Button
                 size="sm"
-                variant="secondary"
-                leftIcon={<Pencil className="h-3.5 w-3.5" />}
-                onClick={onEdit}
+                variant="primary"
+                leftIcon={<FileText className="h-3.5 w-3.5" />}
+                onClick={onCreateAB}
               >
-                Modifier
+                Créer une Analyse (AB)
               </Button>
-            )}
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  leftIcon={<Pencil className="h-3.5 w-3.5" />}
+                  onClick={onEdit}
+                >
+                  Modifier
+                </Button>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50"

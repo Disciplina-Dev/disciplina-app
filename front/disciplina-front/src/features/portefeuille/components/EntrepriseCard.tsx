@@ -55,9 +55,9 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
 
   const canClaim =
     isUnassigned &&
-    (currentUser.role === 'commercial' ||
-      currentUser.role === 'responsable' ||
-      currentUser.role === 'admin')
+    (currentUser.role?.toUpperCase() === 'COMMERCIAL' ||
+      currentUser.role?.toUpperCase() === 'RH' ||
+      currentUser.role?.toUpperCase() === 'ADMIN')
 
   const copyEmail = (e: React.MouseEvent) => {
     e.stopPropagation()

@@ -13,6 +13,7 @@ import { router as classmarkerRouter } from './rest/classmarker/route';
 import { router as classmarkerWebhookRouter } from './rest/classmarker/webhook.route';
 import { router as candidatesRestRouter } from './rest/candidates/route';
 import { router as sourcingRouter } from './rest/sourcing/route';
+import { router as yousignWebhookRouter } from './rest/yousign/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
 import { logger } from './external/logger/logger';
@@ -58,6 +59,7 @@ export async function startServer(): Promise<http.Server> {
     app.use('/api/webhooks', classmarkerWebhookRouter);
     app.use('/api/candidates', candidatesRestRouter);
     app.use('/api/sourcing', sourcingRouter);
+    app.use(yousignWebhookRouter);
     app.use(errorHandler);
 
     await connectMongoDB();

@@ -43,3 +43,43 @@ CREATE TABLE IF NOT EXISTS companies (
     conclusion VARCHAR(255) NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS needs_analysis (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    user_id INT NOT NULL,
+    
+    -- Etape 1: Identite & Responsable Recrutement
+    recruitment_responsible_name VARCHAR(255) DEFAULT NULL,
+    recruitment_responsible_phone VARCHAR(50) DEFAULT NULL,
+    recruitment_responsible_email VARCHAR(255) DEFAULT NULL,
+    
+    -- Etape 2: Le Poste & Les Missions
+    positions_count INT NOT NULL DEFAULT 1,
+    localisation ENUM('NORD', 'OUEST', 'SUD') NOT NULL,
+    training_domain ENUM('SECRETARIAT', 'VENTE') NOT NULL,
+    job_title VARCHAR(255) NOT NULL,
+    selected_missions JSON NOT NULL,
+    other_missions TEXT DEFAULT NULL,
+    
+    -- Etape 3: Exigences de l'Apprenti
+    education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') NOT NULL,
+    driving_license ENUM('OUI', 'OPTIONNEL') NOT NULL,
+    experience_required ENUM('DEBUTANT', 'OBLIGATOIRE') NOT NULL,
+    age_requirements JSON NOT NULL,
+    soft_skills TEXT DEFAULT NULL,
+    
+    -- Etape 4: Logique & Process RH
+    recruitment_method ENUM('ALL_CV', 'PRESELECTION', 'PRE_INTERVIEW') NOT NULL,
+    immersion_period ENUM('OUI', 'NON', 'A_DISCUTER') NOT NULL,
+    training_days JSON NOT NULL,
+    
+    -- Etape 5: Yousign & Statut
+    yousign_signature_request_id VARCHAR(255) DEFAULT NULL,
+    status ENUM('BROUILLON', 'EN_ATTENTE_SIGNATURE', 'SIGNE', 'EXPIRE') NOT NULL DEFAULT 'BROUILLON',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
