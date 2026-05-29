@@ -13,6 +13,7 @@ import DashboardCommercial from "@/pages/commercial/DashboardCommercial";
 import ListeAB from "@/pages/commercial/ListeAB";
 import CreateAB from "@/pages/commercial/CreateAB";
 import PortefeuilleEntreprises from "@/pages/commercial/PortefeuilleEntreprises";
+import Sourcing from "@/pages/commercial/sourcing";
 
 import RHLayout from "@/components/layout/RHLayout";
 import DashboardRH from "@/pages/rh/DashboardRH";
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin", element: <ListeAB /> },
       { path: "analyses-besoin/nouvelle", element: <CreateAB /> },
       { path: "portefeuille", element: <PortefeuilleEntreprises /> },
+      { path: "sourcing", element: <Sourcing /> },
     ],
   },
   {
