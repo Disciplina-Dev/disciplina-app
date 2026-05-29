@@ -17,6 +17,7 @@ interface SireneResult {
     codePostal: string | null
     commune: string | null
   }
+  alreadyExists?: boolean
 }
 
 type FormValues = {
@@ -80,7 +81,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
   // Two-step flow state
   const [step, setStep] = useState<'lookup' | 'form'>(mode === 'create' ? 'lookup' : 'form')
   const [siretInput, setSiretInput] = useState(prefillSiret ?? '')
-  const [lookupStatus, setLookupStatus] = useState<'idle' | 'loading' | 'notfound' | 'error'>('idle')
+  const [lookupStatus, setLookupStatus] = useState<'idle' | 'loading' | 'notfound' | 'error' | 'exists'>('idle')
   const [fromRegistry, setFromRegistry] = useState(false)
 
   const handleLookup = async () => {
@@ -94,6 +95,10 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       if (res.status === 404) { setLookupStatus('notfound'); return }
       if (!res.ok) { setLookupStatus('error'); return }
       const data = (await res.json()) as SireneResult
+      if (data.alreadyExists) {
+        setLookupStatus('exists')
+        return
+      }
       const name = data.denomination ?? data.nomPrenom ?? ''
       const street = [data.adresse.numeroVoie, data.adresse.typeVoie, data.adresse.libelleVoie]
         .filter(Boolean).join(' ')
@@ -214,6 +219,12 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                   <p className="flex items-center gap-1.5 text-xs font-medium text-danger">
                     <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
                     Erreur lors de la recherche — réessayez
+                  </p>
+                )}
+                {lookupStatus === 'exists' && (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
+                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                    Cette entreprise est déjà dans le portefeuille
                   </p>
                 )}
               </div>
