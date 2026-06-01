@@ -111,6 +111,14 @@ npm run test:watch
 
 The test environment is configured in `.env.back.example` — MySQL on `localhost:5001`, MongoDB on `localhost:27017`, test database `human_ressources_test`.
 
+To reproduce exactly what CI does (ephemeral databases, no persistent volumes), run from the project root:
+
+```sh
+docker compose -f docker-compose.test.yml up --build --force-recreate --abort-on-container-exit
+```
+
+CI runs automatically on every push and pull request (`.github/workflows/ci.yml`). Failing tests appear as inline annotations on the PR diff.
+
 ## Pre-commit hooks
 
 This project uses [pre-commit](https://pre-commit.com) to run Prettier and lightweight checks on staged files before each commit.

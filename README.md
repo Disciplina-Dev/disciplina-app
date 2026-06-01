@@ -40,6 +40,23 @@ docker compose up
 
 On subsequent starts, the seed script checks if data already exists and skips seeding.
 
+## Testing
+
+Backend tests are component tests — they boot the real Express app against real Dockerised databases. See [`back/HOWTOTEST.md`](./back/HOWTOTEST.md) for conventions and patterns.
+
+```sh
+# Start databases
+docker compose up -d sql-db nosql-db
+
+# Run the backend test suite
+cd back && npm test
+
+# Reproduce the CI stack locally (ephemeral DBs, no persistent volumes)
+docker compose -f docker-compose.test.yml up --build --force-recreate --abort-on-container-exit
+```
+
+CI runs automatically on every push and pull request via GitHub Actions (`.github/workflows/ci.yml`). Failing tests appear as inline annotations on the PR diff.
+
 ## Project Architecture
 
 ```
@@ -134,5 +151,7 @@ See the detailed documentation in each sub-project:
 
 - **Backend**: [`back/README.md`](./back/README.md) — API reference, architecture layers, command reference
 - **Backend conventions**: [`back/CONVENTION.md`](./back/CONVENTION.md) — code style, naming, error handling, auth flow
+- **Backend contribution guide**: [`back/HOWTOCONTRIBUTE.md`](./back/HOWTOCONTRIBUTE.md) — how to add features, refactor, fix bugs
+- **Backend testing guide**: [`back/HOWTOTEST.md`](./back/HOWTOTEST.md) — component test conventions and patterns
 - **Frontend**: [`front/disciplina-front/README.md`](./front/disciplina-front/README.md) — React + Vite setup
 - **Database schemas**: [`database/champs.md`](./database/champs.md) — form field reference per Titre Professionnel

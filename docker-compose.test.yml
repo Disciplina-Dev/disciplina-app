@@ -1,0 +1,75 @@
+name: disciplina-test
+
+services:
+  test-sql-db:
+    image: mysql:8.4.8
+    environment:
+      MYSQL_ROOT_PASSWORD: test-root-password
+    volumes:
+      - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest-root-password"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  test-nosql-db:
+    image: mongo:latest
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: test-root
+      MONGO_INITDB_ROOT_PASSWORD: test-root-password
+    volumes:
+      - ./database/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  test-backend:
+    build:
+      context: ./back/
+      dockerfile: Dockerfile
+    network_mode: host
+    depends_on:
+      test-sql-db:
+        condition: service_healthy
+      test-nosql-db:
+        condition: service_healthy
+    environment:
+      MYSQL_ROOT_PASSWORD: test-root-password
+      MYSQL_PORT: 3307
+      MONGO_ROOT_USERNAME: test-root
+      MONGO_ROOT_PASSWORD: test-root-password
+      MONGO_PORT: 27017
+      API_PORT: 4000
+      SESSION_SECRET: test-session-secret
+      JWT_SECRET: test-jwt-secret
+      MYSQL_USER: root
+      MYSQL_DATABASE: disciplina
+      GOOGLE_CLIENT_ID: test
+      GOOGLE_CLIENT_SECRET: test
+      REDIRECT_URI: http://localhost:5173/auth/google
+      GOOGLE_STATE_SECRET: test
+      SMTP_HOST: localhost
+      SMTP_PORT: 587
+      SMTP_SECURE: "false"
+      SMTP_USER: test
+      SMTP_PASS: test
+      SMTP_FROM: "test <test@test.com>"
+      CLASSMARKER_API_KEY: test
+      CLASSMARKER_API_SECRET: test
+      FILIZ_CLIENT_ID: test
+      FILIZ_CLIENT_SECRET: test
+      FILIZ_AUDIENCE: test
+      FILIZ_BASE_URI: http://localhost
+      FILIZ_AUTH_URI: http://localhost
+      INSEE_API_KEY: test-api-key
+    user: root
+    command: npm test

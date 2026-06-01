@@ -14,7 +14,7 @@ export default defineConfig({
                 singleThread: true,
             },
         },
-        reporters: [ 'dot', "json"],
+        reporters: process.env.CI ? ['github-actions', 'verbose'] : ['dot', 'json'],
         outputFile: './test/output.json',
     },
 });
