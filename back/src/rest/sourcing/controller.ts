@@ -3,10 +3,14 @@ import { AuthRequest } from '../middleware/auth';
 import { SireneService } from '../../external/insee/sirene.service';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
 import { DdgService } from '../../external/ddg/ddg.service';
+import { ScraperService } from '../../external/scraper/scraper.service';
+import { OllamaService } from '../../external/ollama/ollama.service';
 
 const sireneService = new SireneService();
 const companyRepository = new CompanyRepository();
 const ddgService = new DdgService();
+const scraperService = new ScraperService();
+const ollamaService = new OllamaService();
 
 export async function companiesByCommune(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -67,11 +71,27 @@ export async function additionalSearch(req: AuthRequest, res: Response): Promise
                 return;
             }
         }
-        const query = `${name}${address && typeof address === 'string' ? ' ' + address.trim() : ''}`;
-        const results = await ddgService.search(query);
-        const urls = results.map((r) => r.url);
 
-        res.json({ urls });
+        const query = `${name}${address && typeof address === 'string' ? ' ' + address.trim() : ''}`;
+
+        const ddgResults = await ddgService.search(query);
+        const urls = ddgResults.map((r) => r.url);
+
+        if (urls.length === 0) {
+            res.json({ contacts: [] });
+            return;
+        }
+
+        const scrapedPages = await scraperService.scrape(urls);
+
+        if (scrapedPages.length === 0) {
+            res.json({ contacts: [] });
+            return;
+        }
+
+        const contacts = await ollamaService.extractContacts(scrapedPages);
+
+        res.json({ contacts });
     } catch (error: any) {
         res.status(400).json({ error: error.message });
     }
