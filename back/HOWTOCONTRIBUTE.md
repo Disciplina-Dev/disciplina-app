@@ -168,9 +168,21 @@ Then write the component test at `src/rest/notes/__tests__/notes.test.ts` — se
 
 6. **Commit** — fix and test in the same commit.
 
+## CI
+
+Every push and pull request triggers the GitHub Actions workflow (`.github/workflows/ci.yml`). It runs the full backend test suite inside Docker using ephemeral databases (no persistent volumes). Failing tests appear as inline annotations on the PR diff — no need to dig through raw logs.
+
+To reproduce CI locally from the project root:
+
+```sh
+docker compose -f docker-compose.test.yml up --build --force-recreate --abort-on-container-exit
+```
+
+Exit code 0 = all tests pass. Non-zero = at least one test failed.
+
 ## Development Checklist
 
-- [ ] `docker compose up -d sql-db nosql-db` before running tests
+- [ ] `docker compose up -d sql-db nosql-db` before running tests locally
 - [ ] `npm run lint` — zero errors
 - [ ] `npm run format:check` — passes
 - [ ] `npm test` — all green

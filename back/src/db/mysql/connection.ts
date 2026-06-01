@@ -1,7 +1,6 @@
 import mysql, { Pool, PoolConnection } from 'mysql2/promise';
 import { env } from '../../config/env';
 
-console.log(env.MYSQL_HOST);
 const pool: Pool = mysql.createPool({
     host: env.MYSQL_HOST,
     port: process.env.NODE_ENV === 'test' ? env.MYSQL_PORT : 3306,

@@ -319,17 +319,19 @@ Same pattern for `external/crypto/signers.ts` when a test needs a known signatur
 
 ---
 
-## 12. CI (forward-looking)
+## 12. CI
 
-When CI lands, the recipe is:
+CI runs on every push and pull request via `.github/workflows/ci.yml`. It uses `docker-compose.test.yml` — a dedicated compose file with ephemeral databases (no persistent volumes) and a `test-backend` service that runs `npm ci && npm test`.
+
+To reproduce locally from the project root:
 
 ```sh
-docker compose up -d sql-db nosql-db
-# wait for healthchecks
-cd back && npm ci && npm run test
+docker compose -f docker-compose.test.yml up --build --force-recreate --abort-on-container-exit
 ```
 
-No workflow file is being added in this commit — just the contract.
+The `test-backend` container uses `network_mode: host` so that `localhost` resolves to the host's mapped DB ports — required because `vitest.config.ts` sets `NODE_ENV=test`, which causes `config/env.ts` to hardcode `localhost` as the DB host.
+
+Failing tests emit `::error file=...,line=...::` annotations via Vitest's built-in `github-actions` reporter (enabled automatically when `CI=true`).
 
 ---
 
