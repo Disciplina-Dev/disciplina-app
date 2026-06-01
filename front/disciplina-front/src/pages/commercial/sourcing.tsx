@@ -459,6 +459,33 @@ function EmptyState({ recents, examples, onPick, onClearRecents }: EmptyStatePro
   )
 }
 
+interface ContactCardProps {
+  name: string
+  value: string
+}
+
+function ContactCard({ name, value }: ContactCardProps) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    if (!navigator.clipboard) return
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1400)
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="bg-white border border-gray-100 rounded-[10px] px-4 py-3 flex flex-col gap-1.5 text-left hover:border-blue/30 transition-colors cursor-pointer"
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
+        {name}
+      </span>
+      <span className="text-[15px] font-medium text-gray-900 break-all">{value}</span>
+    </button>
+  )
+}
+
 function ModeTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
@@ -603,6 +630,7 @@ export default function Sourcing() {
   const [result, setResult] = useState<SireneEtablissement | null>(null)
   const [errKind, setErrKind] = useState<ErrKind>('none')
   const [additionalSearchLoading, setAdditionalSearchLoading] = useState(false)
+  const [contacts, setContacts] = useState<Array<{ name: string; value: string }> | null>(null)
 
   // Commune mode state
   const [communeQuery, setCommuneQuery] = useState('')
@@ -696,6 +724,7 @@ export default function Sourcing() {
     if (view !== 'empty') {
       setView('empty')
       setErrKind('none')
+      setContacts(null)
     }
   }
 
@@ -703,6 +732,7 @@ export default function Sourcing() {
     const targetResult = result || selectedCommune
     if (!targetResult) return
     setAdditionalSearchLoading(true)
+    setContacts(null)
     try {
       const res = await fetch(`${API_BASE}/api/sourcing/search`, {
         method: 'POST',
@@ -716,10 +746,11 @@ export default function Sourcing() {
           address: displayAddress(targetResult.adresse),
         }),
       })
-      const data = await res.json()
-      console.log('Recherche complémentaire result:', data)
+      const data = (await res.json()) as { contacts: Array<{ name: string; value: string }> }
+      setContacts(data.contacts)
     } catch (error) {
       console.error('Recherche complémentaire error:', error)
+      setContacts([])
     } finally {
       setAdditionalSearchLoading(false)
     }
@@ -752,11 +783,33 @@ export default function Sourcing() {
             </div>
             {view === 'loading' && <Skeleton />}
             {view === 'result' && result && (
-              <ResultCard
-                data={result}
-                onAdditionalSearch={doAdditionalSearch}
-                additionalSearchLoading={additionalSearchLoading}
-              />
+              <>
+                <ResultCard
+                  data={result}
+                  onAdditionalSearch={doAdditionalSearch}
+                  additionalSearchLoading={additionalSearchLoading}
+                />
+                {contacts && (
+                  <div className="mt-6 animate-[rise_0.3s_ease_both]">
+                    {contacts.length === 0 ? (
+                      <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
+                        <p className="text-[14px] text-gray-500">Aucune information de contact trouvée</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-[13px] font-semibold text-gray-700 mb-3">
+                          {contacts.length} information{contacts.length !== 1 ? 's' : ''} trouvée{contacts.length !== 1 ? 's' : ''}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                          {contacts.map((contact, idx) => (
+                            <ContactCard key={idx} name={contact.name} value={contact.value} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
             {view === 'notfound' && <NotFound kind={errKind} query={formatSiret(query)} />}
             {view === 'empty' && (
@@ -776,7 +829,12 @@ export default function Sourcing() {
             <div className="mb-6">
               <CommuneSearchBar
                 value={communeQuery}
-                onChange={(v) => { setCommuneQuery(v); if (communeView !== 'empty') setCommuneView('empty') }}
+                onChange={(v) => {
+                  setCommuneQuery(v)
+                  if (communeView !== 'empty') setCommuneView('empty')
+                  setContacts(null)
+                  setSelectedCommune(null)
+                }}
                 onSubmit={() => runCommune(communeQuery)}
                 busy={communeView === 'loading'}
               />
@@ -801,32 +859,57 @@ export default function Sourcing() {
                   onSelect={setSelectedCommune}
                 />
                 {selectedCommune && (
-                  <div className="mt-4 flex gap-3">
-                    <button
-                      type="button"
-                      onClick={doAdditionalSearch}
-                      disabled={additionalSearchLoading}
-                      className="flex-1 flex items-center justify-center gap-2 bg-blue text-white font-semibold text-[14px] py-[12px] px-4 rounded-[10px] hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default border-0 cursor-pointer transition-all"
-                    >
-                      {additionalSearchLoading ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
-                          <span>Recherche en cours...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Search className="w-4 h-4" />
-                          <span>Recherche complémentaire</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCommune(null)}
-                      className="px-4 py-[12px] border border-gray-200 text-gray-700 font-semibold text-[14px] rounded-[10px] hover:border-gray-300 active:translate-y-[1px] bg-white cursor-pointer transition-all"
-                    >
-                      Annuler
-                    </button>
+                  <div className="mt-4">
+                    <div className="flex gap-3 mb-4">
+                      <button
+                        type="button"
+                        onClick={doAdditionalSearch}
+                        disabled={additionalSearchLoading}
+                        className="flex-1 flex items-center justify-center gap-2 bg-blue text-white font-semibold text-[14px] py-[12px] px-4 rounded-[10px] hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default border-0 cursor-pointer transition-all"
+                      >
+                        {additionalSearchLoading ? (
+                          <>
+                            <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+                            <span>Recherche en cours...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Search className="w-4 h-4" />
+                            <span>Recherche complémentaire</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCommune(null)
+                          setContacts(null)
+                        }}
+                        className="px-4 py-[12px] border border-gray-200 text-gray-700 font-semibold text-[14px] rounded-[10px] hover:border-gray-300 active:translate-y-[1px] bg-white cursor-pointer transition-all"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                    {contacts && (
+                      <div className="animate-[rise_0.3s_ease_both]">
+                        {contacts.length === 0 ? (
+                          <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
+                            <p className="text-[14px] text-gray-500">Aucune information de contact trouvée</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-[13px] font-semibold text-gray-700 mb-3">
+                              {contacts.length} information{contacts.length !== 1 ? 's' : ''} trouvée{contacts.length !== 1 ? 's' : ''}
+                            </p>
+                            <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                              {contacts.map((contact, idx) => (
+                                <ContactCard key={idx} name={contact.name} value={contact.value} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
