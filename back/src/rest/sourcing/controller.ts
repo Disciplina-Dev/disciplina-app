@@ -67,7 +67,6 @@ export async function additionalSearch(req: AuthRequest, res: Response): Promise
                 return;
             }
         }
-
         const query = `${name}${address && typeof address === 'string' ? ' ' + address.trim() : ''}`;
         const results = await ddgService.search(query);
         const urls = results.map((r) => r.url);
