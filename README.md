@@ -155,3 +155,4 @@ See the detailed documentation in each sub-project:
 - **Backend testing guide**: [`back/HOWTOTEST.md`](./back/HOWTOTEST.md) — component test conventions and patterns
 - **Frontend**: [`front/disciplina-front/README.md`](./front/disciplina-front/README.md) — React + Vite setup
 - **Database schemas**: [`database/champs.md`](./database/champs.md) — form field reference per Titre Professionnel
+- **MongoDB schema**: [`database/mongodb/mongo-schema.md`](./database/mongodb/mongo-schema.md) — candidates and jobs collections documentation
