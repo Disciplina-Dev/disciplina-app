@@ -85,6 +85,8 @@ const data = {
 
     YOUSIGN_API_KEY: optionalString('YOUSIGN_API_KEY', 'sandbox_yousign_key_placeholder'),
     YOUSIGN_BASE_URL: stringWithDefault('YOUSIGN_BASE_URL', 'https://api-sandbox.yousign.app/v3'),
+
+    OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 };
 
 if (errors.length > 0) {
