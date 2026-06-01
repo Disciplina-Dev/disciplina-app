@@ -202,7 +202,13 @@ function CopyField({ label, value, mono, wide }: CopyFieldProps) {
   )
 }
 
-function ResultCard({ data }: { data: SireneEtablissement }) {
+interface ResultCardProps {
+  data: SireneEtablissement
+  onAdditionalSearch?: () => void
+  additionalSearchLoading?: boolean
+}
+
+function ResultCard({ data, onAdditionalSearch, additionalSearchLoading }: ResultCardProps) {
   const closed = data.etatAdministratif === 'F'
   const name = displayName(data)
   const legalShort = legalFormShort(data.categorieJuridique)
@@ -287,6 +293,29 @@ function ResultCard({ data }: { data: SireneEtablissement }) {
           </div>
         )}
       </div>
+
+      {onAdditionalSearch && (
+        <div className="bg-white py-4 px-[26px] border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onAdditionalSearch}
+            disabled={additionalSearchLoading}
+            className="w-full flex items-center justify-center gap-2 bg-blue text-white font-semibold text-[14px] py-[12px] px-4 rounded-[10px] hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default border-0 cursor-pointer transition-all"
+          >
+            {additionalSearchLoading ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+                <span>Recherche en cours...</span>
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4" />
+                <span>Recherche complémentaire</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </article>
   )
 }
@@ -508,7 +537,13 @@ function CommuneSkeleton() {
   )
 }
 
-function CommuneResultList({ result }: { result: SireneListResult }) {
+interface CommuneResultListProps {
+  result: SireneListResult
+  selectedSiret?: string
+  onSelect?: (e: SireneEtablissement) => void
+}
+
+function CommuneResultList({ result, selectedSiret, onSelect }: CommuneResultListProps) {
   return (
     <div>
       <p className="text-[13px] text-gray-500 mb-4 text-center">
@@ -521,10 +556,16 @@ function CommuneResultList({ result }: { result: SireneListResult }) {
           const closed = e.etatAdministratif === 'F'
           const name = displayName(e)
           const city = displayCity(e.adresse)
+          const isSelected = selectedSiret === e.siret
           return (
-            <div
+            <button
               key={e.siret}
-              className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both]"
+              type="button"
+              onClick={() => onSelect?.(e)}
+              className={[
+                'text-left bg-white border rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both] cursor-pointer transition-all border-0',
+                isSelected ? 'ring-2 ring-blue bg-blue-light/30' : 'border-gray-100 hover:border-blue/30',
+              ].join(' ')}
             >
               <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
                 <Building2 className="w-4 h-4" />
@@ -544,7 +585,7 @@ function CommuneResultList({ result }: { result: SireneListResult }) {
                 <span className={['w-[6px] h-[6px] rounded-full', closed ? 'bg-danger' : 'bg-success'].join(' ')} />
                 {closed ? 'Cessée' : 'En activité'}
               </span>
-            </div>
+            </button>
           )
         })}
       </div>
@@ -561,11 +602,13 @@ export default function Sourcing() {
   const [view, setView] = useState<View>('empty')
   const [result, setResult] = useState<SireneEtablissement | null>(null)
   const [errKind, setErrKind] = useState<ErrKind>('none')
+  const [additionalSearchLoading, setAdditionalSearchLoading] = useState(false)
 
   // Commune mode state
   const [communeQuery, setCommuneQuery] = useState('')
   const [communeView, setCommuneView] = useState<CommuneView>('empty')
   const [communeResult, setCommuneResult] = useState<SireneListResult | null>(null)
+  const [selectedCommune, setSelectedCommune] = useState<SireneEtablissement | null>(null)
   const [recents, setRecents] = useState<RecentEntry[]>(() => {
     try {
       const raw = localStorage.getItem(LS_KEY)
@@ -656,6 +699,32 @@ export default function Sourcing() {
     }
   }
 
+  const doAdditionalSearch = useCallback(async () => {
+    const targetResult = result || selectedCommune
+    if (!targetResult) return
+    setAdditionalSearchLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/sourcing/search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          siret: targetResult.siret,
+          name: displayName(targetResult),
+          address: displayAddress(targetResult.adresse),
+        }),
+      })
+      const data = await res.json()
+      console.log('Recherche complémentaire result:', data)
+    } catch (error) {
+      console.error('Recherche complémentaire error:', error)
+    } finally {
+      setAdditionalSearchLoading(false)
+    }
+  }, [result, selectedCommune, token])
+
   return (
     <div className="min-h-full bg-background">
       <style>{`
@@ -682,7 +751,13 @@ export default function Sourcing() {
               />
             </div>
             {view === 'loading' && <Skeleton />}
-            {view === 'result' && result && <ResultCard data={result} />}
+            {view === 'result' && result && (
+              <ResultCard
+                data={result}
+                onAdditionalSearch={doAdditionalSearch}
+                additionalSearchLoading={additionalSearchLoading}
+              />
+            )}
             {view === 'notfound' && <NotFound kind={errKind} query={formatSiret(query)} />}
             {view === 'empty' && (
               <EmptyState
@@ -718,7 +793,44 @@ export default function Sourcing() {
               </div>
             )}
             {communeView === 'loading' && <CommuneSkeleton />}
-            {communeView === 'results' && communeResult && <CommuneResultList result={communeResult} />}
+            {communeView === 'results' && communeResult && (
+              <>
+                <CommuneResultList
+                  result={communeResult}
+                  selectedSiret={selectedCommune?.siret}
+                  onSelect={setSelectedCommune}
+                />
+                {selectedCommune && (
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={doAdditionalSearch}
+                      disabled={additionalSearchLoading}
+                      className="flex-1 flex items-center justify-center gap-2 bg-blue text-white font-semibold text-[14px] py-[12px] px-4 rounded-[10px] hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default border-0 cursor-pointer transition-all"
+                    >
+                      {additionalSearchLoading ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+                          <span>Recherche en cours...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4" />
+                          <span>Recherche complémentaire</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCommune(null)}
+                      className="px-4 py-[12px] border border-gray-200 text-gray-700 font-semibold text-[14px] rounded-[10px] hover:border-gray-300 active:translate-y-[1px] bg-white cursor-pointer transition-all"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
             {communeView === 'notfound' && (
               <div className="text-center py-11 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
                 <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
