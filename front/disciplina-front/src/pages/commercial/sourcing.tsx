@@ -1118,71 +1118,54 @@ export default function Sourcing() {
               </div>
             )}
             {communeView === "loading" && <CommuneSkeleton />}
-            {communeView === "results" && communeResult && (
+            {communeView === "results" && communeResult && !selectedCommune && (
+              <CommuneResultList
+                result={communeResult}
+                selectedSiret={selectedCommune?.siret}
+                onSelect={setSelectedCommune}
+              />
+            )}
+            {communeView === "results" && selectedCommune && (
               <>
-                <CommuneResultList
-                  result={communeResult}
-                  selectedSiret={selectedCommune?.siret}
-                  onSelect={setSelectedCommune}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCommune(null);
+                    setContacts(null);
+                  }}
+                  className="mb-4 px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all"
+                >
+                  ← Retour à la liste
+                </button>
+                <ResultCard
+                  data={selectedCommune}
+                  onAdditionalSearch={doAdditionalSearch}
+                  additionalSearchLoading={additionalSearchLoading}
                 />
-                {selectedCommune && (
-                  <div className="mt-4">
-                    <div className="flex gap-3 mb-4">
-                      <button
-                        type="button"
-                        onClick={doAdditionalSearch}
-                        disabled={additionalSearchLoading}
-                        className="flex-1 flex items-center justify-center gap-2 bg-blue text-white font-semibold text-[14px] py-[12px] px-4 rounded-[10px] hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default border-0 cursor-pointer transition-all"
-                      >
-                        {additionalSearchLoading ? (
-                          <>
-                            <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
-                            <span>Recherche en cours...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Search className="w-4 h-4" />
-                            <span>Recherche complémentaire</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedCommune(null);
-                          setContacts(null);
-                        }}
-                        className="px-4 py-[12px] border border-gray-200 text-gray-700 font-semibold text-[14px] rounded-[10px] hover:border-gray-300 active:translate-y-[1px] bg-white cursor-pointer transition-all"
-                      >
-                        Annuler
-                      </button>
-                    </div>
-                    {contacts && (
-                      <div className="animate-[rise_0.3s_ease_both]">
-                        {contacts.length === 0 ? (
-                          <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
-                            <p className="text-[14px] text-gray-500">
-                              Aucune information de contact trouvée
-                            </p>
-                          </div>
-                        ) : (
-                          <div>
-                            <p className="text-[13px] font-semibold text-gray-700 mb-3">
-                              {contacts.length} information
-                              {contacts.length !== 1 ? "s" : ""} trouvée
-                              {contacts.length !== 1 ? "s" : ""}
-                            </p>
-                            <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                              {contacts.map((contact, idx) => (
-                                <ContactCard
-                                  key={idx}
-                                  name={contact.name}
-                                  value={contact.value}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                {contacts && (
+                  <div className="mt-6 animate-[rise_0.3s_ease_both]">
+                    {contacts.length === 0 ? (
+                      <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
+                        <p className="text-[14px] text-gray-500">
+                          Aucune information de contact trouvée
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-[13px] font-semibold text-gray-700 mb-3">
+                          {contacts.length} information
+                          {contacts.length !== 1 ? "s" : ""} trouvée
+                          {contacts.length !== 1 ? "s" : ""}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                          {contacts.map((contact, idx) => (
+                            <ContactCard
+                              key={idx}
+                              name={contact.name}
+                              value={contact.value}
+                            />
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
