@@ -5,6 +5,7 @@ import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { YousignService } from '../external/yousign/yousign.service';
 import { logger } from '../external/logger';
+import { PDFDocument } from 'pdf-lib';
 
 export class NeedsAnalysisService {
     private repository: NeedsAnalysisRepository;
@@ -79,12 +80,16 @@ export class NeedsAnalysisService {
             const signerEmail = createdDomain.recruitmentResponsibleEmail || company.email || 'recrutement@disciplina.local';
             logger.info(`[NeedsAnalysis] Initiating Yousign procedure`, { signerEmail, firstName, lastName });
 
+            const pdfDoc = await PDFDocument.load(pdfBuffer);
+            const lastPage = pdfDoc.getPageCount();
+
             yousignRequestId = await this.yousignService.initiateSignatureProcedure(
                 pdfBuffer,
                 `Analyse_Besoin_${company.name?.replace(/\s+/g, '_') || 'Entreprise'}_${id}.pdf`,
                 signerEmail,
                 firstName,
-                lastName
+                lastName,
+                lastPage
             );
             logger.info(`[NeedsAnalysis] Yousign procedure initiated`, { yousignRequestId });
         } catch (yousignError: any) {

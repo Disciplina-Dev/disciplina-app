@@ -23,7 +23,8 @@ export class YousignService {
         fileName: string,
         signerEmail: string,
         signerFirstName: string,
-        signerLastName: string
+        signerLastName: string,
+        lastPage: number = 1
     ): Promise<string | null> {
         // If the API key is not configured or left as placeholder, we mock the Yousign interaction in sandbox mode
         if (!env.YOUSIGN_API_KEY || env.YOUSIGN_API_KEY === 'sandbox_yousign_key_placeholder') {
@@ -99,9 +100,9 @@ export class YousignService {
                         {
                             type: 'signature',
                             document_id: documentId,
-                            page: 1,
-                            x: 70,
-                            y: 670 // placed neatly in the signature segment
+                            page: lastPage,
+                            x: 350,
+                            y: 550
                         }
                     ]
                 })
