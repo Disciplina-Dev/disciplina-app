@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from "react";
 import {
   Search,
   X,
@@ -11,127 +11,187 @@ import {
   ExternalLink,
   Mail,
   Phone,
-} from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
+} from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
-const API_BASE = 'http://localhost:4000'
-const LS_KEY = 'siret_recents_v1'
-const EXAMPLES = ['80339671900027', '91234567800019', '39282471400025']
-const MAX_RECENTS = 4
+const API_BASE = "http://localhost:4000";
+const LS_KEY = "siret_recents_v1";
+const EXAMPLES = ["80339671900027", "91234567800019", "39282471400025"];
+const MAX_RECENTS = 4;
 
 interface SireneAdresse {
-  numeroVoie: string | null
-  typeVoie: string | null
-  libelleVoie: string | null
-  codePostal: string | null
-  commune: string | null
-  codeCommune: string | null
+  numeroVoie: string | null;
+  typeVoie: string | null;
+  libelleVoie: string | null;
+  codePostal: string | null;
+  commune: string | null;
+  codeCommune: string | null;
 }
 
 interface SireneEtablissement {
-  siren: string
-  nic: string
-  siret: string
-  siegeSocial: boolean
-  etatAdministratif: 'A' | 'F'
-  categorieEntreprise: string | null
-  categorieJuridique: string | null
-  denomination: string | null
-  nomPrenom: string | null
-  adresse: SireneAdresse
-  alreadyExists?: boolean
+  siren: string;
+  nic: string;
+  siret: string;
+  siegeSocial: boolean;
+  etatAdministratif: "A" | "F";
+  categorieEntreprise: string | null;
+  categorieJuridique: string | null;
+  denomination: string | null;
+  nomPrenom: string | null;
+  adresse: SireneAdresse;
+  alreadyExists?: boolean;
 }
 
 interface RecentEntry {
-  name: string
-  siret: string
+  name: string;
+  siret: string;
 }
 
 interface SireneListHeader {
-  total: number
-  debut: number
-  nombre: number
+  total: number;
+  debut: number;
+  nombre: number;
 }
 
 interface SireneListResult {
-  header: SireneListHeader
-  etablissements: SireneEtablissement[]
+  header: SireneListHeader;
+  etablissements: SireneEtablissement[];
 }
 
-type View = 'empty' | 'loading' | 'result' | 'notfound'
-type ErrKind = 'invalid' | 'missing' | 'server' | 'none'
-type CommuneView = 'empty' | 'loading' | 'results' | 'notfound' | 'error'
+type View = "empty" | "loading" | "result" | "notfound";
+type ErrKind = "invalid" | "missing" | "server" | "none";
+type CommuneView = "empty" | "loading" | "results" | "notfound" | "error";
 
-const normalizeSiret = (raw: string): string => (raw || '').replace(/\D/g, '')
+const normalizeSiret = (raw: string): string => (raw || "").replace(/\D/g, "");
+
+const denormalizeCommune = (normalized: string): string => {
+  return normalized
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("-");
+};
 
 const formatSiret = (digits: string): string => {
-  const d = normalizeSiret(digits)
-  const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9), d.slice(9, 14)].filter(Boolean)
-  return parts.join(' ')
-}
+  const d = normalizeSiret(digits);
+  const parts = [
+    d.slice(0, 3),
+    d.slice(3, 6),
+    d.slice(6, 9),
+    d.slice(9, 14),
+  ].filter(Boolean);
+  return parts.join(" ");
+};
 
 const formatSiren = (digits: string): string => {
-  const d = normalizeSiret(digits)
-  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9)].filter(Boolean).join(' ')
-}
+  const d = normalizeSiret(digits);
+  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9)]
+    .filter(Boolean)
+    .join(" ");
+};
 
 const displayName = (e: SireneEtablissement): string =>
-  (e.denomination || e.nomPrenom || 'Établissement').trim()
+  (e.denomination || e.nomPrenom || "Établissement").trim();
 
 const displayCity = (a: SireneAdresse): string => {
-  if (!a.commune && !a.codePostal) return ''
-  if (a.commune && a.codePostal) return `${a.commune} (${a.codePostal})`
-  return a.commune || a.codePostal || ''
-}
+  if (!a.commune && !a.codePostal) return "";
+  if (a.commune && a.codePostal) return `${a.commune} (${a.codePostal})`;
+  return a.commune || a.codePostal || "";
+};
 
 const displayAddress = (a: SireneAdresse): string => {
-  const street = [a.numeroVoie, a.typeVoie, a.libelleVoie].filter(Boolean).join(' ').trim()
-  const city = displayCity(a)
-  return [street, city].filter(Boolean).join(', ')
-}
+  const street = [a.numeroVoie, a.typeVoie, a.libelleVoie]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const city = displayCity(a);
+  return [street, city].filter(Boolean).join(", ");
+};
 
 const LEGAL_FORMS: Record<string, string> = {
-  '5710': 'SAS',
-  '5720': 'SASU',
-  '5499': 'SARL',
-  '5498': 'SARL',
-  '5599': 'SA',
-  '5505': 'SA',
-  '1000': 'Entrepreneur individuel',
-  '5410': 'SARL',
-  '5710_LABEL': 'Société par actions simplifiée',
-}
+  "5710": "SAS",
+  "5720": "SASU",
+  "5499": "SARL",
+  "5498": "SARL",
+  "5599": "SA",
+  "5505": "SA",
+  "1000": "Entrepreneur individuel",
+  "5410": "SARL",
+  "5710_LABEL": "Société par actions simplifiée",
+};
+
+const REUNION_COMMUNES = [
+  "cilaos",
+  "entre-deux",
+  "la-plaine-des-cafres",
+  "la-possession",
+  "petite-ile",
+  "piton-saint-leu",
+  "saint-andre",
+  "sainte-marie",
+  "sainte-rose",
+  "sainte-suzanne",
+  "saint-benoit",
+  "saint-denis",
+  "saint-gilles-les-bains",
+  "saint-gilles-les-hauts",
+  "saint-joseph",
+  "saint-leu",
+  "saint-louis",
+  "saint-paul",
+  "saint-philippe",
+  "salazie",
+  "tampon",
+  "trois-bassins",
+];
 
 function legalFormShort(code: string | null): string {
-  if (!code) return '—'
-  return LEGAL_FORMS[code] || code
+  if (!code) return "—";
+  return LEGAL_FORMS[code] || code;
 }
 
-async function fetchCompaniesByCommune(commune: string, token: string | null): Promise<SireneListResult> {
-  const encoded = encodeURIComponent(commune.trim())
+async function fetchCompaniesByCommune(
+  commune: string,
+  token: string | null,
+): Promise<SireneListResult> {
+  const encoded = encodeURIComponent(commune.trim());
   const res = await fetch(`${API_BASE}/api/sourcing/${encoded}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  })
-  if (res.status === 404) throw new Error('notfound')
-  if (!res.ok) throw new Error('server')
-  return (await res.json()) as SireneListResult
+  });
+  if (res.status === 404) throw new Error("notfound");
+  if (!res.ok) throw new Error("server");
+  return (await res.json()) as SireneListResult;
 }
 
-function SiretSearchBar({ value, onChange, onSubmit, busy, error }: {
-  value: string; onChange: (v: string) => void; onSubmit: () => void; busy: boolean; error: boolean
+function SiretSearchBar({
+  value,
+  onChange,
+  onSubmit,
+  busy,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  busy: boolean;
+  error: boolean;
 }) {
-  const digits = normalizeSiret(value)
+  const digits = normalizeSiret(value);
   return (
     <form
       className={[
-        'flex items-center gap-2.5 bg-white border-[1.5px] rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms]',
+        "flex items-center gap-2.5 bg-white border-[1.5px] rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms]",
         error
-          ? 'border-danger shadow-[0_0_0_4px_var(--color-danger-bg)]'
-          : 'border-gray-100 focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]',
-      ].join(' ')}
-      onSubmit={(e) => { e.preventDefault(); onSubmit() }}
+          ? "border-danger shadow-[0_0_0_4px_var(--color-danger-bg)]"
+          : "border-gray-100 focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]",
+      ].join(" ")}
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
     >
-      <span className={['flex', error ? 'text-danger' : 'text-gray-500'].join(' ')}>
+      <span
+        className={["flex", error ? "text-danger" : "text-gray-500"].join(" ")}
+      >
         <Search className="w-5 h-5" />
       </span>
       <input
@@ -142,12 +202,14 @@ function SiretSearchBar({ value, onChange, onSubmit, busy, error }: {
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
-      <span className="font-mono text-[12px] text-gray-300 flex-shrink-0">{digits.length}/14</span>
+      <span className="font-mono text-[12px] text-gray-300 flex-shrink-0">
+        {digits.length}/14
+      </span>
       {value && (
         <button
           type="button"
           className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
-          onClick={() => onChange('')}
+          onClick={() => onChange("")}
           aria-label="Effacer"
         >
           <X className="w-4 h-4" />
@@ -158,31 +220,41 @@ function SiretSearchBar({ value, onChange, onSubmit, busy, error }: {
         disabled={busy}
         className="flex items-center gap-1.5 flex-shrink-0 border-0 cursor-pointer bg-blue text-white font-semibold text-[14px] py-[9px] px-4 rounded-[10px] min-w-[120px] justify-center hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default max-sm:min-w-[46px] max-sm:px-[9px]"
       >
-        {busy
-          ? <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
-          : <><span className="max-sm:hidden">Rechercher</span><ArrowRight className="w-4 h-4" /></>}
+        {busy ? (
+          <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+        ) : (
+          <>
+            <span className="max-sm:hidden">Rechercher</span>
+            <ArrowRight className="w-4 h-4" />
+          </>
+        )}
       </button>
     </form>
-  )
+  );
 }
 
 interface CopyFieldProps {
-  label: string
-  value: string
-  mono?: boolean
-  wide?: boolean
+  label: string;
+  value: string;
+  mono?: boolean;
+  wide?: boolean;
 }
 
 function CopyField({ label, value, mono, wide }: CopyFieldProps) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState(false);
   const copy = () => {
-    if (!navigator.clipboard) return
-    navigator.clipboard.writeText(value.replace(/\s/g, ''))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
-  }
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(value.replace(/\s/g, ""));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
   return (
-    <div className={['bg-white py-[18px] px-[26px]', wide ? 'col-span-full' : ''].join(' ')}>
+    <div
+      className={[
+        "bg-white py-[18px] px-[26px]",
+        wide ? "col-span-full" : "",
+      ].join(" ")}
+    >
       <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
         {label}
       </span>
@@ -191,32 +263,42 @@ function CopyField({ label, value, mono, wide }: CopyFieldProps) {
         onClick={copy}
         title="Copier"
       >
-        <span className={mono ? 'font-mono tracking-[-0.01em]' : ''}>{value}</span>
+        <span className={mono ? "font-mono tracking-[-0.01em]" : ""}>
+          {value}
+        </span>
         <span
           className={[
-            'flex transition-colors duration-150',
-            copied ? 'text-success' : 'text-gray-300 group-hover:text-blue',
-          ].join(' ')}
+            "flex transition-colors duration-150",
+            copied ? "text-success" : "text-gray-300 group-hover:text-blue",
+          ].join(" ")}
         >
-          {copied ? <Check className="w-[15px] h-[15px]" /> : <Copy className="w-[15px] h-[15px]" />}
+          {copied ? (
+            <Check className="w-[15px] h-[15px]" />
+          ) : (
+            <Copy className="w-[15px] h-[15px]" />
+          )}
         </span>
       </button>
     </div>
-  )
+  );
 }
 
 interface ResultCardProps {
-  data: SireneEtablissement
-  onAdditionalSearch?: () => void
-  additionalSearchLoading?: boolean
+  data: SireneEtablissement;
+  onAdditionalSearch?: () => void;
+  additionalSearchLoading?: boolean;
 }
 
-function ResultCard({ data, onAdditionalSearch, additionalSearchLoading }: ResultCardProps) {
-  const closed = data.etatAdministratif === 'F'
-  const name = displayName(data)
-  const legalShort = legalFormShort(data.categorieJuridique)
-  const city = displayCity(data.adresse)
-  const address = displayAddress(data.adresse)
+function ResultCard({
+  data,
+  onAdditionalSearch,
+  additionalSearchLoading,
+}: ResultCardProps) {
+  const closed = data.etatAdministratif === "F";
+  const name = displayName(data);
+  const legalShort = legalFormShort(data.categorieJuridique);
+  const city = displayCity(data.adresse);
+  const address = displayAddress(data.adresse);
 
   return (
     <article className="bg-white border border-gray-100 rounded-[20px] shadow-[0_1px_2px_rgba(13,13,13,0.04),0_8px_28px_rgba(13,13,13,0.06)] overflow-hidden animate-[rise_0.34s_cubic-bezier(0.2,0.7,0.3,1)_both]">
@@ -237,24 +319,24 @@ function ResultCard({ data, onAdditionalSearch, additionalSearchLoading }: Resul
           </div>
           {(city || data.siegeSocial) && (
             <p className="text-[13.5px] text-gray-500 mt-[5px] font-normal">
-              {data.siegeSocial && <>Siège social{city ? ' · ' : ''}</>}
+              {data.siegeSocial && <>Siège social{city ? " · " : ""}</>}
               {city}
             </p>
           )}
         </div>
         <span
           className={[
-            'inline-flex items-center gap-1.5 flex-shrink-0 text-[12.5px] font-semibold py-[5px] px-[11px] rounded-full',
-            closed ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success',
-          ].join(' ')}
+            "inline-flex items-center gap-1.5 flex-shrink-0 text-[12.5px] font-semibold py-[5px] px-[11px] rounded-full",
+            closed ? "bg-danger-bg text-danger" : "bg-success-bg text-success",
+          ].join(" ")}
         >
           <span
             className={[
-              'w-[7px] h-[7px] rounded-full',
-              closed ? 'bg-danger' : 'bg-success',
-            ].join(' ')}
+              "w-[7px] h-[7px] rounded-full",
+              closed ? "bg-danger" : "bg-success",
+            ].join(" ")}
           />
-          {closed ? 'Cessée' : 'En activité'}
+          {closed ? "Cessée" : "En activité"}
         </span>
         {data.alreadyExists && (
           <span className="inline-flex items-center gap-1.5 flex-shrink-0 text-[12.5px] font-semibold py-[5px] px-[11px] rounded-full bg-[#FFF3CD] text-[#856404]">
@@ -271,7 +353,9 @@ function ResultCard({ data, onAdditionalSearch, additionalSearchLoading }: Resul
             <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
               Adresse
             </span>
-            <p className="mt-2 text-[15px] font-medium text-gray-900">{address}</p>
+            <p className="mt-2 text-[15px] font-medium text-gray-900">
+              {address}
+            </p>
           </div>
         )}
         {data.categorieEntreprise && (
@@ -279,7 +363,9 @@ function ResultCard({ data, onAdditionalSearch, additionalSearchLoading }: Resul
             <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
               Catégorie d'entreprise
             </span>
-            <p className="mt-2 text-[15px] font-medium text-gray-900">{data.categorieEntreprise}</p>
+            <p className="mt-2 text-[15px] font-medium text-gray-900">
+              {data.categorieEntreprise}
+            </p>
           </div>
         )}
         {data.categorieJuridique && (
@@ -291,7 +377,9 @@ function ResultCard({ data, onAdditionalSearch, additionalSearchLoading }: Resul
               <span className="text-[18px] font-semibold text-blue bg-blue-light py-[2px] px-[9px] rounded-[6px] font-mono">
                 {data.categorieJuridique}
               </span>
-              <span className="text-[15px] font-medium text-gray-900">{legalShort}</span>
+              <span className="text-[15px] font-medium text-gray-900">
+                {legalShort}
+              </span>
             </div>
           </div>
         )}
@@ -320,57 +408,73 @@ function ResultCard({ data, onAdditionalSearch, additionalSearchLoading }: Resul
         </div>
       )}
     </article>
-  )
+  );
 }
 
 function Skeleton() {
-  const sk = 'block rounded-[6px] bg-[linear-gradient(90deg,var(--color-gray-50)_25%,var(--color-gray-100)_37%,var(--color-gray-50)_63%)] bg-[length:400%_100%] animate-[shimmer_1.3s_ease-in-out_infinite]'
+  const sk =
+    "block rounded-[6px] bg-[linear-gradient(90deg,var(--color-gray-50)_25%,var(--color-gray-100)_37%,var(--color-gray-50)_63%)] bg-[length:400%_100%] animate-[shimmer_1.3s_ease-in-out_infinite]";
   return (
     <article
       className="bg-white border border-gray-100 rounded-[20px] shadow-[0_1px_2px_rgba(13,13,13,0.04),0_8px_28px_rgba(13,13,13,0.06)] overflow-hidden"
       aria-busy="true"
     >
       <div className="flex items-center gap-4 py-6 px-[26px] bg-gradient-to-b from-blue-light to-white border-b border-gray-100">
-        <span className={`${sk} w-[52px] h-[52px] rounded-[10px] flex-shrink-0`} />
+        <span
+          className={`${sk} w-[52px] h-[52px] rounded-[10px] flex-shrink-0`}
+        />
         <div className="flex-1">
-          <span className={sk} style={{ width: '46%', height: 22 }} />
-          <span className={sk} style={{ width: '62%', height: 13, marginTop: 12 }} />
+          <span className={sk} style={{ width: "46%", height: 22 }} />
+          <span
+            className={sk}
+            style={{ width: "62%", height: 13, marginTop: 12 }}
+          />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-px bg-gray-100 max-sm:grid-cols-1">
         {[0, 1].map((i) => (
           <div className="bg-white py-[18px] px-[26px]" key={i}>
             <span className={sk} style={{ width: 60, height: 11 }} />
-            <span className={sk} style={{ width: '80%', height: 18, marginTop: 10 }} />
+            <span
+              className={sk}
+              style={{ width: "80%", height: 18, marginTop: 10 }}
+            />
           </div>
         ))}
         <div className="bg-white py-[18px] px-[26px] col-span-full">
           <span className={sk} style={{ width: 120, height: 11 }} />
-          <span className={sk} style={{ width: '70%', height: 18, marginTop: 10 }} />
+          <span
+            className={sk}
+            style={{ width: "70%", height: 18, marginTop: 10 }}
+          />
         </div>
       </div>
     </article>
-  )
+  );
 }
 
 interface NotFoundProps {
-  kind: ErrKind
-  query: string
+  kind: ErrKind;
+  query: string;
 }
 
 function NotFound({ kind, query }: NotFoundProps) {
-  let title = 'Aucun établissement trouvé'
+  let title = "Aucun établissement trouvé";
   let body: React.ReactNode = (
     <>
-      Aucune entreprise ne correspond au SIRET <b className="font-mono font-semibold text-gray-900">{query}</b> dans le registre INSEE.
+      Aucune entreprise ne correspond au SIRET{" "}
+      <b className="font-mono font-semibold text-gray-900">{query}</b> dans le
+      registre INSEE.
     </>
-  )
-  if (kind === 'invalid') {
-    title = 'Numéro SIRET incomplet'
-    body = 'Un SIRET valide comporte exactement 14 chiffres. Vérifiez la saisie et réessayez.'
-  } else if (kind === 'server') {
-    title = 'Erreur de connexion au registre'
-    body = "Impossible d'interroger le registre INSEE pour le moment. Réessayez dans quelques instants."
+  );
+  if (kind === "invalid") {
+    title = "Numéro SIRET incomplet";
+    body =
+      "Un SIRET valide comporte exactement 14 chiffres. Vérifiez la saisie et réessayez.";
+  } else if (kind === "server") {
+    title = "Erreur de connexion au registre";
+    body =
+      "Impossible d'interroger le registre INSEE pour le moment. Réessayez dans quelques instants.";
   }
 
   return (
@@ -378,20 +482,29 @@ function NotFound({ kind, query }: NotFoundProps) {
       <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
         <AlertTriangle className="w-7 h-7" />
       </span>
-      <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">{title}</h3>
-      <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">{body}</p>
+      <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+        {title}
+      </h3>
+      <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+        {body}
+      </p>
     </div>
-  )
+  );
 }
 
 interface EmptyStateProps {
-  recents: RecentEntry[]
-  examples: string[]
-  onPick: (siret: string) => void
-  onClearRecents: () => void
+  recents: RecentEntry[];
+  examples: string[];
+  onPick: (siret: string) => void;
+  onClearRecents: () => void;
 }
 
-function EmptyState({ recents, examples, onPick, onClearRecents }: EmptyStateProps) {
+function EmptyState({
+  recents,
+  examples,
+  onPick,
+  onClearRecents,
+}: EmptyStateProps) {
   return (
     <div className="text-center py-11 px-6 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
       <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-blue-light text-blue">
@@ -401,7 +514,8 @@ function EmptyState({ recents, examples, onPick, onClearRecents }: EmptyStatePro
         Recherchez une entreprise
       </h3>
       <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-        Saisissez un numéro SIRET à 14 chiffres pour afficher la dénomination, la forme juridique et l'adresse.
+        Saisissez un numéro SIRET à 14 chiffres pour afficher la dénomination,
+        la forme juridique et l'adresse.
       </p>
 
       <div className="flex items-center justify-center gap-2 flex-wrap mt-[26px]">
@@ -446,7 +560,9 @@ function EmptyState({ recents, examples, onPick, onClearRecents }: EmptyStatePro
                     <Building2 className="w-4 h-4" />
                   </span>
                   <span className="flex-1 flex flex-col gap-[2px] min-w-0">
-                    <span className="text-[14.5px] font-semibold text-gray-900">{r.name}</span>
+                    <span className="text-[14.5px] font-semibold text-gray-900">
+                      {r.name}
+                    </span>
                     <span className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
                       {formatSiret(r.siret)}
                     </span>
@@ -459,33 +575,39 @@ function EmptyState({ recents, examples, onPick, onClearRecents }: EmptyStatePro
         </div>
       )}
     </div>
-  )
+  );
 }
 
 interface ContactCardProps {
-  name: string
-  value: string
+  name: string;
+  value: string;
 }
 
-const isUrl = (v: string) => /^https?:\/\//i.test(v)
-const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
-const isPhone = (v: string) => /^\+?[\d][\d\s.\-()]{7,}$/.test(v)
+const isUrl = (v: string) => /^https?:\/\//i.test(v);
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const isPhone = (v: string) => /^\+?[\d][\d\s.\-()]{7,}$/.test(v);
 
 function ContactCard({ name, value }: ContactCardProps) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState(false);
 
   const href = isUrl(value)
     ? value
     : isEmail(value)
       ? `mailto:${value}`
       : isPhone(value)
-        ? `tel:${value.replace(/[^\d+]/g, '')}`
-        : null
+        ? `tel:${value.replace(/[^\d+]/g, "")}`
+        : null;
 
-  const Icon = isUrl(value) ? ExternalLink : isEmail(value) ? Mail : isPhone(value) ? Phone : Copy
+  const Icon = isUrl(value)
+    ? ExternalLink
+    : isEmail(value)
+      ? Mail
+      : isPhone(value)
+        ? Phone
+        : Copy;
 
   const cardClass =
-    'bg-white border border-gray-100 rounded-[10px] px-4 py-3 flex flex-col gap-1.5 text-left hover:border-blue/30 transition-colors cursor-pointer'
+    "bg-white border border-gray-100 rounded-[10px] px-4 py-3 flex flex-col gap-1.5 text-left hover:border-blue/30 transition-colors cursor-pointer";
 
   const body = (
     <>
@@ -499,75 +621,107 @@ function ContactCard({ name, value }: ContactCardProps) {
           <Icon className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
         )}
       </span>
-      <span className="text-[15px] font-medium text-gray-900 break-all">{value}</span>
+      <span className="text-[15px] font-medium text-gray-900 break-all">
+        {value}
+      </span>
     </>
-  )
+  );
 
   // Links / emails / phones are directly actionable.
   if (href) {
     return (
       <a
         href={href}
-        target={isUrl(value) ? '_blank' : undefined}
+        target={isUrl(value) ? "_blank" : undefined}
         rel="noopener noreferrer"
         className={cardClass}
       >
         {body}
       </a>
-    )
+    );
   }
 
   // Plain text (legal rep name, postal address…) stays copy-to-clipboard.
   const copy = () => {
-    if (!navigator.clipboard) return
-    navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
-  }
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
   return (
     <button type="button" onClick={copy} className={cardClass}>
       {body}
     </button>
-  )
+  );
 }
 
-function ModeTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function ModeTab({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        'px-5 py-2 rounded-full text-[13px] font-semibold transition-all duration-150 border',
+        "px-5 py-2 rounded-full text-[13px] font-semibold transition-all duration-150 border",
         active
-          ? 'bg-blue text-white border-blue shadow-[0_2px_8px_-2px_rgba(17,48,167,0.35)]'
-          : 'bg-white text-gray-500 border-gray-100 hover:border-blue/30 hover:text-blue',
-      ].join(' ')}
+          ? "bg-blue text-white border-blue shadow-[0_2px_8px_-2px_rgba(17,48,167,0.35)]"
+          : "bg-white text-gray-500 border-gray-100 hover:border-blue/30 hover:text-blue",
+      ].join(" ")}
     >
       {label}
     </button>
-  )
+  );
 }
 
-function CommuneSearchBar({ value, onChange, onSubmit, busy }: {
-  value: string; onChange: (v: string) => void; onSubmit: () => void; busy: boolean
+function CommuneSearchBar({
+  value,
+  onChange,
+  onSubmit,
+  busy,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  busy: boolean;
 }) {
   return (
     <form
       className="flex items-center gap-2.5 bg-white border-[1.5px] border-gray-100 rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
-      onSubmit={(e) => { e.preventDefault(); onSubmit() }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
     >
-      <span className="flex text-gray-500"><Search className="w-5 h-5" /></span>
-      <input
-        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 placeholder:text-gray-300 placeholder:font-normal"
-        placeholder="Nom de la commune (ex : Saint-Denis)"
+      <span className="flex text-gray-500">
+        <Search className="w-5 h-5" />
+      </span>
+      <select
+        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-      />
+      >
+        <option value="">Sélectionnez une commune</option>
+        {REUNION_COMMUNES.map((commune) => (
+          <option key={commune} value={commune}>
+            {commune
+              .split("-")
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+              .join("-")}
+          </option>
+        ))}
+      </select>
       {value && (
         <button
           type="button"
           className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
-          onClick={() => onChange('')}
+          onClick={() => onChange("")}
           aria-label="Effacer"
         >
           <X className="w-4 h-4" />
@@ -588,201 +742,246 @@ function CommuneSearchBar({ value, onChange, onSubmit, busy }: {
         )}
       </button>
     </form>
-  )
+  );
 }
 
 function CommuneSkeleton() {
-  const sk = 'block rounded-[6px] bg-[linear-gradient(90deg,var(--color-gray-50)_25%,var(--color-gray-100)_37%,var(--color-gray-50)_63%)] bg-[length:400%_100%] animate-[shimmer_1.3s_ease-in-out_infinite]'
+  const sk =
+    "block rounded-[6px] bg-[linear-gradient(90deg,var(--color-gray-50)_25%,var(--color-gray-100)_37%,var(--color-gray-50)_63%)] bg-[length:400%_100%] animate-[shimmer_1.3s_ease-in-out_infinite]";
   return (
     <div className="flex flex-col gap-2">
       {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4">
+        <div
+          key={i}
+          className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4"
+        >
           <span className={`${sk} w-9 h-9 rounded-[8px] flex-shrink-0`} />
           <div className="flex-1">
-            <span className={sk} style={{ width: '50%', height: 15 }} />
-            <span className={sk} style={{ width: '35%', height: 12, marginTop: 8 }} />
+            <span className={sk} style={{ width: "50%", height: 15 }} />
+            <span
+              className={sk}
+              style={{ width: "35%", height: 12, marginTop: 8 }}
+            />
           </div>
-          <span className={sk} style={{ width: 70, height: 24, borderRadius: 999 }} />
+          <span
+            className={sk}
+            style={{ width: 70, height: 24, borderRadius: 999 }}
+          />
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 interface CommuneResultListProps {
-  result: SireneListResult
-  selectedSiret?: string
-  onSelect?: (e: SireneEtablissement) => void
+  result: SireneListResult;
+  selectedSiret?: string;
+  onSelect?: (e: SireneEtablissement) => void;
 }
 
-function CommuneResultList({ result, selectedSiret, onSelect }: CommuneResultListProps) {
+function CommuneResultList({
+  result,
+  selectedSiret,
+  onSelect,
+}: CommuneResultListProps) {
   return (
     <div>
       <p className="text-[13px] text-gray-500 mb-4 text-center">
-        <span className="font-semibold text-gray-900">{result.header.nombre}</span>{' '}
-        établissement{result.header.nombre !== 1 ? 's' : ''} affiché{result.header.nombre !== 1 ? 's' : ''} sur{' '}
-        <span className="font-semibold text-gray-900">{result.header.total.toLocaleString('fr-FR')}</span> trouvés
+        <span className="font-semibold text-gray-900">
+          {result.header.nombre}
+        </span>{" "}
+        établissement{result.header.nombre !== 1 ? "s" : ""} affiché
+        {result.header.nombre !== 1 ? "s" : ""} sur{" "}
+        <span className="font-semibold text-gray-900">
+          {result.header.total.toLocaleString("fr-FR")}
+        </span>{" "}
+        trouvés
       </p>
       <div className="flex flex-col gap-2">
         {result.etablissements.map((e) => {
-          const closed = e.etatAdministratif === 'F'
-          const name = displayName(e)
-          const city = displayCity(e.adresse)
-          const isSelected = selectedSiret === e.siret
+          const closed = e.etatAdministratif === "F";
+          const name = displayName(e);
+          const city = displayCity(e.adresse);
+          const isSelected = selectedSiret === e.siret;
           return (
             <button
               key={e.siret}
               type="button"
               onClick={() => onSelect?.(e)}
               className={[
-                'text-left bg-white border rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both] cursor-pointer transition-all border-0',
-                isSelected ? 'ring-2 ring-blue bg-blue-light/30' : 'border-gray-100 hover:border-blue/30',
-              ].join(' ')}
+                "text-left bg-white border rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both] cursor-pointer transition-all border-0",
+                isSelected
+                  ? "ring-2 ring-blue bg-blue-light/30"
+                  : "border-gray-100 hover:border-blue/30",
+              ].join(" ")}
             >
               <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
                 <Building2 className="w-4 h-4" />
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold text-gray-900 truncate">{name}</p>
+                <p className="text-[15px] font-semibold text-gray-900 truncate">
+                  {name}
+                </p>
                 <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
-                  {formatSiret(e.siret)}{city ? ` · ${city}` : ''}
+                  {formatSiret(e.siret)}
+                  {city ? ` · ${city}` : ""}
                 </p>
               </div>
               <span
                 className={[
-                  'inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0',
-                  closed ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success',
-                ].join(' ')}
+                  "inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0",
+                  closed
+                    ? "bg-danger-bg text-danger"
+                    : "bg-success-bg text-success",
+                ].join(" ")}
               >
-                <span className={['w-[6px] h-[6px] rounded-full', closed ? 'bg-danger' : 'bg-success'].join(' ')} />
-                {closed ? 'Cessée' : 'En activité'}
+                <span
+                  className={[
+                    "w-[6px] h-[6px] rounded-full",
+                    closed ? "bg-danger" : "bg-success",
+                  ].join(" ")}
+                />
+                {closed ? "Cessée" : "En activité"}
               </span>
             </button>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 export default function Sourcing() {
-  const token = useAuthStore((s) => s.token)
+  const token = useAuthStore((s) => s.token);
 
   // SIRET mode state
-  const [mode, setMode] = useState<'siret' | 'commune'>('siret')
-  const [query, setQuery] = useState('')
-  const [view, setView] = useState<View>('empty')
-  const [result, setResult] = useState<SireneEtablissement | null>(null)
-  const [errKind, setErrKind] = useState<ErrKind>('none')
-  const [additionalSearchLoading, setAdditionalSearchLoading] = useState(false)
-  const [contacts, setContacts] = useState<Array<{ name: string; value: string }> | null>(null)
+  const [mode, setMode] = useState<"siret" | "commune">("siret");
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<View>("empty");
+  const [result, setResult] = useState<SireneEtablissement | null>(null);
+  const [errKind, setErrKind] = useState<ErrKind>("none");
+  const [additionalSearchLoading, setAdditionalSearchLoading] = useState(false);
+  const [contacts, setContacts] = useState<Array<{
+    name: string;
+    value: string;
+  }> | null>(null);
 
   // Commune mode state
-  const [communeQuery, setCommuneQuery] = useState('')
-  const [communeView, setCommuneView] = useState<CommuneView>('empty')
-  const [communeResult, setCommuneResult] = useState<SireneListResult | null>(null)
-  const [selectedCommune, setSelectedCommune] = useState<SireneEtablissement | null>(null)
+  const [communeQuery, setCommuneQuery] = useState("");
+  const [communeView, setCommuneView] = useState<CommuneView>("empty");
+  const [communeResult, setCommuneResult] = useState<SireneListResult | null>(
+    null,
+  );
+  const [selectedCommune, setSelectedCommune] =
+    useState<SireneEtablissement | null>(null);
   const [recents, setRecents] = useState<RecentEntry[]>(() => {
     try {
-      const raw = localStorage.getItem(LS_KEY)
-      return raw ? (JSON.parse(raw) as RecentEntry[]) : []
+      const raw = localStorage.getItem(LS_KEY);
+      return raw ? (JSON.parse(raw) as RecentEntry[]) : [];
     } catch {
-      return []
+      return [];
     }
-  })
+  });
 
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(recents))
+      localStorage.setItem(LS_KEY, JSON.stringify(recents));
     } catch {
       /* ignore */
     }
-  }, [recents])
+  }, [recents]);
 
   const pushRecent = useCallback((e: SireneEtablissement) => {
-    const entry: RecentEntry = { name: displayName(e), siret: normalizeSiret(e.siret) }
+    const entry: RecentEntry = {
+      name: displayName(e),
+      siret: normalizeSiret(e.siret),
+    };
     setRecents((prev) => {
-      const next = [entry, ...prev.filter((r) => r.siret !== entry.siret)]
-      return next.slice(0, MAX_RECENTS)
-    })
-  }, [])
+      const next = [entry, ...prev.filter((r) => r.siret !== entry.siret)];
+      return next.slice(0, MAX_RECENTS);
+    });
+  }, []);
 
   const run = useCallback(
     async (raw: string) => {
-      const digits = normalizeSiret(raw)
+      const digits = normalizeSiret(raw);
       if (digits.length !== 14) {
-        setErrKind('invalid')
-        setView('notfound')
-        return
+        setErrKind("invalid");
+        setView("notfound");
+        return;
       }
-      setErrKind('none')
-      setView('loading')
+      setErrKind("none");
+      setView("loading");
       try {
         const res = await fetch(`${API_BASE}/api/sourcing/${digits}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        })
+        });
         if (res.status === 404) {
-          setErrKind('missing')
-          setView('notfound')
-          return
+          setErrKind("missing");
+          setView("notfound");
+          return;
         }
         if (!res.ok) {
-          setErrKind('server')
-          setView('notfound')
-          return
+          setErrKind("server");
+          setView("notfound");
+          return;
         }
-        const data = (await res.json()) as SireneEtablissement
-        setResult(data)
-        setView('result')
-        pushRecent(data)
+        const data = (await res.json()) as SireneEtablissement;
+        setResult(data);
+        setView("result");
+        pushRecent(data);
       } catch {
-        setErrKind('server')
-        setView('notfound')
+        setErrKind("server");
+        setView("notfound");
       }
     },
-    [token, pushRecent]
-  )
+    [token, pushRecent],
+  );
 
-  const runCommune = useCallback(async (raw: string) => {
-    const trimmed = raw.trim()
-    if (!trimmed) return
-    setCommuneView('loading')
-    try {
-      const data = await fetchCompaniesByCommune(trimmed, token)
-      setCommuneResult(data)
-      setCommuneView(data.etablissements.length > 0 ? 'results' : 'notfound')
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'server'
-      setCommuneView(msg === 'notfound' ? 'notfound' : 'error')
-    }
-  }, [token])
+  const runCommune = useCallback(
+    async (raw: string) => {
+      const trimmed = raw.trim();
+      if (!trimmed) return;
+      setCommuneView("loading");
+      try {
+        const properName = denormalizeCommune(trimmed);
+        const data = await fetchCompaniesByCommune(properName, token);
+        setCommuneResult(data);
+        setCommuneView(data.etablissements.length > 0 ? "results" : "notfound");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "server";
+        setCommuneView(msg === "notfound" ? "notfound" : "error");
+      }
+    },
+    [token],
+  );
 
-  const submit = () => run(query)
+  const submit = () => run(query);
 
   const pick = (siret: string) => {
-    setQuery(formatSiret(siret))
-    run(siret)
-  }
+    setQuery(formatSiret(siret));
+    run(siret);
+  };
 
   const onChange = (v: string) => {
-    setQuery(v)
-    if (view !== 'empty') {
-      setView('empty')
-      setErrKind('none')
-      setContacts(null)
+    setQuery(v);
+    if (view !== "empty") {
+      setView("empty");
+      setErrKind("none");
+      setContacts(null);
     }
-  }
+  };
 
   const doAdditionalSearch = useCallback(async () => {
-    const targetResult = result || selectedCommune
-    if (!targetResult) return
-    setAdditionalSearchLoading(true)
-    setContacts(null)
+    const targetResult = result || selectedCommune;
+    if (!targetResult) return;
+    setAdditionalSearchLoading(true);
+    setContacts(null);
     try {
       const res = await fetch(`${API_BASE}/api/sourcing/search`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
@@ -790,16 +989,18 @@ export default function Sourcing() {
           name: displayName(targetResult),
           address: displayAddress(targetResult.adresse),
         }),
-      })
-      const data = (await res.json()) as { contacts: Array<{ name: string; value: string }> }
-      setContacts(data.contacts)
+      });
+      const data = (await res.json()) as {
+        contacts: Array<{ name: string; value: string }>;
+      };
+      setContacts(data.contacts);
     } catch (error) {
-      console.error('Recherche complémentaire error:', error)
-      setContacts([])
+      console.error("Recherche complémentaire error:", error);
+      setContacts([]);
     } finally {
-      setAdditionalSearchLoading(false)
+      setAdditionalSearchLoading(false);
     }
-  }, [result, selectedCommune, token])
+  }, [result, selectedCommune, token]);
 
   return (
     <div className="min-h-full bg-background">
@@ -810,24 +1011,32 @@ export default function Sourcing() {
       <main className="max-w-[760px] mx-auto px-6 pt-10 pb-20">
         {/* Mode tabs */}
         <div className="flex gap-2 mb-8 justify-center">
-          <ModeTab active={mode === 'siret'} label="Recherche par SIRET" onClick={() => setMode('siret')} />
-          <ModeTab active={mode === 'commune'} label="Recherche par commune" onClick={() => setMode('commune')} />
+          <ModeTab
+            active={mode === "siret"}
+            label="Recherche par SIRET"
+            onClick={() => setMode("siret")}
+          />
+          <ModeTab
+            active={mode === "commune"}
+            label="Recherche par commune"
+            onClick={() => setMode("commune")}
+          />
         </div>
 
         {/* SIRET mode */}
-        {mode === 'siret' && (
+        {mode === "siret" && (
           <>
             <div className="mb-6">
               <SiretSearchBar
                 value={query}
                 onChange={onChange}
                 onSubmit={submit}
-                busy={view === 'loading'}
-                error={view === 'notfound' && errKind === 'invalid'}
+                busy={view === "loading"}
+                error={view === "notfound" && errKind === "invalid"}
               />
             </div>
-            {view === 'loading' && <Skeleton />}
-            {view === 'result' && result && (
+            {view === "loading" && <Skeleton />}
+            {view === "result" && result && (
               <>
                 <ResultCard
                   data={result}
@@ -838,16 +1047,24 @@ export default function Sourcing() {
                   <div className="mt-6 animate-[rise_0.3s_ease_both]">
                     {contacts.length === 0 ? (
                       <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
-                        <p className="text-[14px] text-gray-500">Aucune information de contact trouvée</p>
+                        <p className="text-[14px] text-gray-500">
+                          Aucune information de contact trouvée
+                        </p>
                       </div>
                     ) : (
                       <div>
                         <p className="text-[13px] font-semibold text-gray-700 mb-3">
-                          {contacts.length} information{contacts.length !== 1 ? 's' : ''} trouvée{contacts.length !== 1 ? 's' : ''}
+                          {contacts.length} information
+                          {contacts.length !== 1 ? "s" : ""} trouvée
+                          {contacts.length !== 1 ? "s" : ""}
                         </p>
                         <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                           {contacts.map((contact, idx) => (
-                            <ContactCard key={idx} name={contact.name} value={contact.value} />
+                            <ContactCard
+                              key={idx}
+                              name={contact.name}
+                              value={contact.value}
+                            />
                           ))}
                         </div>
                       </div>
@@ -856,8 +1073,10 @@ export default function Sourcing() {
                 )}
               </>
             )}
-            {view === 'notfound' && <NotFound kind={errKind} query={formatSiret(query)} />}
-            {view === 'empty' && (
+            {view === "notfound" && (
+              <NotFound kind={errKind} query={formatSiret(query)} />
+            )}
+            {view === "empty" && (
               <EmptyState
                 recents={recents}
                 examples={EXAMPLES}
@@ -869,34 +1088,37 @@ export default function Sourcing() {
         )}
 
         {/* Commune mode */}
-        {mode === 'commune' && (
+        {mode === "commune" && (
           <div>
             <div className="mb-6">
               <CommuneSearchBar
                 value={communeQuery}
                 onChange={(v) => {
-                  setCommuneQuery(v)
-                  if (communeView !== 'empty') setCommuneView('empty')
-                  setContacts(null)
-                  setSelectedCommune(null)
+                  setCommuneQuery(v);
+                  if (communeView !== "empty") setCommuneView("empty");
+                  setContacts(null);
+                  setSelectedCommune(null);
                 }}
                 onSubmit={() => runCommune(communeQuery)}
-                busy={communeView === 'loading'}
+                busy={communeView === "loading"}
               />
             </div>
-            {communeView === 'empty' && (
+            {communeView === "empty" && (
               <div className="text-center py-11 animate-[rise_0.3s_ease_both]">
                 <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-blue-light text-blue">
                   <Building2 className="w-7 h-7" />
                 </span>
-                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">Recherchez par commune</h3>
+                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+                  Recherchez par commune
+                </h3>
                 <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-                  Saisissez le nom d'une commune pour lister les établissements enregistrés dans le registre INSEE.
+                  Saisissez le nom d'une commune pour lister les établissements
+                  enregistrés dans le registre INSEE.
                 </p>
               </div>
             )}
-            {communeView === 'loading' && <CommuneSkeleton />}
-            {communeView === 'results' && communeResult && (
+            {communeView === "loading" && <CommuneSkeleton />}
+            {communeView === "results" && communeResult && (
               <>
                 <CommuneResultList
                   result={communeResult}
@@ -927,8 +1149,8 @@ export default function Sourcing() {
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedCommune(null)
-                          setContacts(null)
+                          setSelectedCommune(null);
+                          setContacts(null);
                         }}
                         className="px-4 py-[12px] border border-gray-200 text-gray-700 font-semibold text-[14px] rounded-[10px] hover:border-gray-300 active:translate-y-[1px] bg-white cursor-pointer transition-all"
                       >
@@ -939,16 +1161,24 @@ export default function Sourcing() {
                       <div className="animate-[rise_0.3s_ease_both]">
                         {contacts.length === 0 ? (
                           <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
-                            <p className="text-[14px] text-gray-500">Aucune information de contact trouvée</p>
+                            <p className="text-[14px] text-gray-500">
+                              Aucune information de contact trouvée
+                            </p>
                           </div>
                         ) : (
                           <div>
                             <p className="text-[13px] font-semibold text-gray-700 mb-3">
-                              {contacts.length} information{contacts.length !== 1 ? 's' : ''} trouvée{contacts.length !== 1 ? 's' : ''}
+                              {contacts.length} information
+                              {contacts.length !== 1 ? "s" : ""} trouvée
+                              {contacts.length !== 1 ? "s" : ""}
                             </p>
                             <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                               {contacts.map((contact, idx) => (
-                                <ContactCard key={idx} name={contact.name} value={contact.value} />
+                                <ContactCard
+                                  key={idx}
+                                  name={contact.name}
+                                  value={contact.value}
+                                />
                               ))}
                             </div>
                           </div>
@@ -959,25 +1189,31 @@ export default function Sourcing() {
                 )}
               </>
             )}
-            {communeView === 'notfound' && (
+            {communeView === "notfound" && (
               <div className="text-center py-11 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
                 <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
                   <AlertTriangle className="w-7 h-7" />
                 </span>
-                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">Commune introuvable</h3>
+                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+                  Commune introuvable
+                </h3>
                 <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-                  Aucun établissement trouvé pour cette commune dans le registre INSEE.
+                  Aucun établissement trouvé pour cette commune dans le registre
+                  INSEE.
                 </p>
               </div>
             )}
-            {communeView === 'error' && (
+            {communeView === "error" && (
               <div className="text-center py-11 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
                 <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
                   <AlertTriangle className="w-7 h-7" />
                 </span>
-                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">Erreur de connexion</h3>
+                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+                  Erreur de connexion
+                </h3>
                 <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-                  Impossible d'interroger le registre INSEE. Réessayez dans quelques instants.
+                  Impossible d'interroger le registre INSEE. Réessayez dans
+                  quelques instants.
                 </p>
               </div>
             )}
@@ -985,5 +1221,5 @@ export default function Sourcing() {
         )}
       </main>
     </div>
-  )
+  );
 }
