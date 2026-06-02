@@ -36,6 +36,22 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+    volumes:
+      - ./ollama-data:/root/.ollama
+    networks:
+      - backend-net
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ollama list | grep -q qwen2.5"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull qwen2.5:3b && wait"]
   backend:
     build:
       context: ./back/
@@ -47,6 +63,8 @@ services:
       nosql-db:
         condition: service_healthy
         restart: true
+      ollama:
+        condition: service_healthy
     develop:
       watch:
         - action: sync
@@ -62,6 +80,8 @@ services:
     env_file:
       - ./.env
       - ./back/.env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
     networks:
       - backend-net
       - frontend-net
