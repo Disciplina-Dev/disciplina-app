@@ -1,3 +1,4 @@
+import * as cheerio from 'cheerio';
 import { logger } from '../logger';
 import { ScrapedPage } from './types';
 
@@ -8,6 +9,48 @@ export class ScraperService {
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'fr-FR,fr;q=0.9',
     };
+
+    /**
+     * Strip markup/noise from raw HTML and return collapsed plain text.
+     */
+    clean(html: string): string {
+        try {
+            const $ = cheerio.load(html);
+            $('script, style, noscript, svg, head, link, meta, iframe').remove();
+            const text = $('body').length ? $('body').text() : $.root().text();
+            return text.replace(/\s+/g, ' ').trim();
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            logger.warn({ error: errorMsg }, 'Scraper clean failed');
+            return '';
+        }
+    }
+
+    /**
+     * Collect absolute hrefs from anchor tags in raw HTML.
+     * Relative links are resolved against baseUrl; malformed ones are skipped.
+     */
+    extractLinks(html: string, baseUrl: string): string[] {
+        try {
+            const $ = cheerio.load(html);
+            const links = new Set<string>();
+            $('a[href]').each((_, el) => {
+                const href = $(el).attr('href');
+                if (!href) return;
+                try {
+                    const abs = new URL(href, baseUrl).toString();
+                    if (abs.startsWith('http')) links.add(abs);
+                } catch {
+                    // ignore malformed hrefs
+                }
+            });
+            return [...links];
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            logger.warn({ error: errorMsg }, 'Scraper extractLinks failed');
+            return [];
+        }
+    }
 
     async scrape(urls: string[]): Promise<ScrapedPage[]> {
         const results: ScrapedPage[] = [];

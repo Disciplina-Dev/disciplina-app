@@ -2,15 +2,11 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { SireneService } from '../../external/insee/sirene.service';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
-import { DdgService } from '../../external/ddg/ddg.service';
-import { ScraperService } from '../../external/scraper/scraper.service';
-import { OllamaService } from '../../external/ollama/ollama.service';
+import { SourcingService } from '../../services/SourcingService';
 
 const sireneService = new SireneService();
 const companyRepository = new CompanyRepository();
-const ddgService = new DdgService();
-const scraperService = new ScraperService();
-const ollamaService = new OllamaService();
+const sourcingService = new SourcingService();
 
 export async function companiesByCommune(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -58,7 +54,6 @@ export async function checkSiret(req: AuthRequest, res: Response): Promise<void>
 export async function additionalSearch(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { siret, name, address } = req.body;
-
         if (typeof name !== 'string' || !name.trim()) {
             res.status(400).json({ error: 'name is required and must be a non-empty string' });
             return;
@@ -72,25 +67,8 @@ export async function additionalSearch(req: AuthRequest, res: Response): Promise
             }
         }
 
-        const query = `${name}${address && typeof address === 'string' ? ' ' + address.trim() : ''}`;
-
-        const ddgResults = await ddgService.search(query);
-        const urls = ddgResults.map((r) => r.url);
-
-        if (urls.length === 0) {
-            res.json({ contacts: [] });
-            return;
-        }
-
-        const scrapedPages = await scraperService.scrape(urls);
-
-        if (scrapedPages.length === 0) {
-            res.json({ contacts: [] });
-            return;
-        }
-
-        const contacts = await ollamaService.extractContacts(scrapedPages);
-
+        const cleanAddress = address && typeof address === 'string' ? address.trim() : undefined;
+        const contacts = await sourcingService.findContacts(name.trim(), cleanAddress);
         res.json({ contacts });
     } catch (error: any) {
         res.status(400).json({ error: error.message });

@@ -46,7 +46,7 @@ services:
     ports:
       - "11434:11434"
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -sf http://localhost:11434/api/tags | grep -q qwen2.5"]
+      test: ["CMD", "sh", "-c", "ollama list | grep -q qwen2.5"]
       interval: 30s
       timeout: 10s
       retries: 20

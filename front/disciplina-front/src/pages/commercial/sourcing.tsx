@@ -8,6 +8,9 @@ import {
   ArrowRight,
   AlertTriangle,
   Building2,
+  ExternalLink,
+  Mail,
+  Phone,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 
@@ -464,8 +467,57 @@ interface ContactCardProps {
   value: string
 }
 
+const isUrl = (v: string) => /^https?:\/\//i.test(v)
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+const isPhone = (v: string) => /^\+?[\d][\d\s.\-()]{7,}$/.test(v)
+
 function ContactCard({ name, value }: ContactCardProps) {
   const [copied, setCopied] = useState(false)
+
+  const href = isUrl(value)
+    ? value
+    : isEmail(value)
+      ? `mailto:${value}`
+      : isPhone(value)
+        ? `tel:${value.replace(/[^\d+]/g, '')}`
+        : null
+
+  const Icon = isUrl(value) ? ExternalLink : isEmail(value) ? Mail : isPhone(value) ? Phone : Copy
+
+  const cardClass =
+    'bg-white border border-gray-100 rounded-[10px] px-4 py-3 flex flex-col gap-1.5 text-left hover:border-blue/30 transition-colors cursor-pointer'
+
+  const body = (
+    <>
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
+          {name}
+        </span>
+        {copied ? (
+          <Check className="w-3.5 h-3.5 text-success flex-shrink-0" />
+        ) : (
+          <Icon className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+        )}
+      </span>
+      <span className="text-[15px] font-medium text-gray-900 break-all">{value}</span>
+    </>
+  )
+
+  // Links / emails / phones are directly actionable.
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={isUrl(value) ? '_blank' : undefined}
+        rel="noopener noreferrer"
+        className={cardClass}
+      >
+        {body}
+      </a>
+    )
+  }
+
+  // Plain text (legal rep name, postal address…) stays copy-to-clipboard.
   const copy = () => {
     if (!navigator.clipboard) return
     navigator.clipboard.writeText(value)
@@ -473,15 +525,8 @@ function ContactCard({ name, value }: ContactCardProps) {
     setTimeout(() => setCopied(false), 1400)
   }
   return (
-    <button
-      type="button"
-      onClick={copy}
-      className="bg-white border border-gray-100 rounded-[10px] px-4 py-3 flex flex-col gap-1.5 text-left hover:border-blue/30 transition-colors cursor-pointer"
-    >
-      <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
-        {name}
-      </span>
-      <span className="text-[15px] font-medium text-gray-900 break-all">{value}</span>
+    <button type="button" onClick={copy} className={cardClass}>
+      {body}
     </button>
   )
 }
