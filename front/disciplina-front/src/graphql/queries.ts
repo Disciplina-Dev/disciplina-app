@@ -521,3 +521,46 @@ export const CREATE_NEEDS_ANALYSIS = gql`
   }
 `
 
+
+export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
+  query NeedsAnalysesByCompany($companyID: Int!) {
+    needsAnalysesByCompany(companyID: $companyID) {
+      id
+      jobTitle
+      positionsCount
+      status
+      createdAt
+    }
+  }
+`
+
+export const GET_NEEDS_ANALYSIS = gql`
+  query NeedsAnalysis($id: Int!) {
+    needsAnalysis(id: $id) {
+      id
+      companyID
+      userID
+      recruitmentResponsibleName
+      recruitmentResponsiblePhone
+      recruitmentResponsibleEmail
+      positionsCount
+      localisation
+      trainingDomain
+      jobTitle
+      selectedMissions
+      otherMissions
+      educationLevel
+      drivingLicense
+      experienceRequired
+      ageRequirements
+      softSkills
+      recruitmentMethod
+      immersionPeriod
+      trainingDays
+      yousignSignatureRequestID
+      status
+      createdAt
+      updatedAt
+    }
+  }
+`

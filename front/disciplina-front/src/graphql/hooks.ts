@@ -13,6 +13,8 @@ import {
   UPDATE_CANDIDATE,
   CREATE_CANDIDATE,
   CREATE_NEEDS_ANALYSIS,
+  GET_NEEDS_ANALYSES_BY_COMPANY,
+  GET_NEEDS_ANALYSIS,
 } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
@@ -468,4 +470,22 @@ export function useCreateNeedsAnalysis() {
   }
 
   return { createNeedsAnalysis, result }
+}
+
+export function useNeedsAnalysesByCompany(companyID: number | null) {
+  const [result] = useQuery({
+    query: GET_NEEDS_ANALYSES_BY_COMPANY,
+    variables: { companyID: companyID ?? 0 },
+    pause: companyID === null,
+  })
+  return result
+}
+
+export function useNeedsAnalysis(id: number | null) {
+  const [result] = useQuery({
+    query: GET_NEEDS_ANALYSIS,
+    variables: { id: id ?? 0 },
+    pause: id === null,
+  })
+  return result
 }
