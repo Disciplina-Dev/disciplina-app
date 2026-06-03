@@ -34,12 +34,24 @@ export class SireneService {
         accept: 'application/json',
         'X-INSEE-Api-Key-Integration': this.KEY,
     };
+    private lastRequestTime = 0;
+    private readonly REQUEST_DELAY_MS = 140;
+
+    private async respectRateLimit(): Promise<void> {
+        const now = Date.now();
+        const timeSinceLastRequest = now - this.lastRequestTime;
+        if (timeSinceLastRequest < this.REQUEST_DELAY_MS) {
+            await new Promise((resolve) => setTimeout(resolve, this.REQUEST_DELAY_MS - timeSinceLastRequest));
+        }
+        this.lastRequestTime = Date.now();
+    }
 
     async checkSiret(siret: string): Promise<SireneEtablissement> {
         if (!/^\d{14}$/.test(siret)) {
             throw new Error('SIRET must be a 14-digit string');
         }
 
+        await this.respectRateLimit();
         const url = `${this.API_BASE_URI}/siret/${siret}`;
         const response = await fetch(url, { headers: this.headers });
 
@@ -63,6 +75,7 @@ export class SireneService {
     async companiesByCommune(commune: string): Promise<SireneListResult> {
         const encoded = encodeURIComponent(commune);
         const url = `${this.API_BASE_URI}/siret?q=libelleCommuneEtablissement%3A${encoded}`;
+        await this.respectRateLimit();
         const response = await fetch(url, { headers: this.headers });
 
         if (response.status === 404) {
