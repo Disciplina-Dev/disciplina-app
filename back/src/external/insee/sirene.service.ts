@@ -85,7 +85,9 @@ export class SireneService {
                 debut: raw.header.debut,
                 nombre: raw.header.nombre,
             },
-            etablissements: raw.etablissements.map((e) => this.mapToDomain({ etablissement: e })),
+            etablissements: raw.etablissements
+                .map((e) => this.mapToDomain({ etablissement: e }))
+                .filter((e) => e.etatAdministratif !== 'F'),
         };
     }
 
