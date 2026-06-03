@@ -60,6 +60,7 @@ export interface SireneListHeader {
     total: number;
     debut: number;
     nombre: number;
+    offset: number;
 }
 
 export interface SireneListResult {
