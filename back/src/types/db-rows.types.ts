@@ -36,20 +36,28 @@ export interface NeedsAnalysisRow {
     id: number;
     company_id: number;
     user_id: number;
+    legal_rep_function: string | null;
     recruitment_responsible_name: string | null;
     recruitment_responsible_phone: string | null;
     recruitment_responsible_email: string | null;
+    recruitment_responsible_function: string | null;
+    company_sectors: string | null; // JSON string
+    company_description: string | null;
     positions_count: number;
     localisation: 'NORD' | 'OUEST' | 'SUD';
     training_domain: 'SECRETARIAT' | 'VENTE';
     job_title: string;
     selected_missions: string; // JSON string
     other_missions: string | null;
+    job_description_missions: string | null; // JSON string
+    job_description_other: string | null;
     education_level: 'BAC' | 'BAC_PLUS_2' | 'BAC_PLUS_3';
     driving_license: 'OUI' | 'OPTIONNEL';
     experience_required: 'DEBUTANT' | 'OBLIGATOIRE';
     age_requirements: string; // JSON string
     soft_skills: string | null;
+    schedule_options: string | null; // JSON string
+    additional_comments: string | null;
     recruitment_method: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW';
     immersion_period: 'OUI' | 'NON' | 'A_DISCUTER';
     training_days: string; // JSON string

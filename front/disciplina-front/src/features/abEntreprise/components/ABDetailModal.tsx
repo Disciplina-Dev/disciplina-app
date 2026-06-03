@@ -110,11 +110,27 @@ export default function ABDetailModal({ id, onClose }: Props) {
         {/* Body */}
         {ab && (
           <div className="overflow-y-auto flex-1 p-6 space-y-5">
+            {ab.legalRepFunction && (
+              <Section icon={<Users className="h-3.5 w-3.5" />} title="Représentant légal">
+                <Row label="Fonction" value={ab.legalRepFunction} />
+              </Section>
+            )}
+
             {(ab.recruitmentResponsibleName || ab.recruitmentResponsibleEmail) && (
               <Section icon={<Users className="h-3.5 w-3.5" />} title="Responsable recrutement">
-                <Row label="Nom"       value={ab.recruitmentResponsibleName} />
-                <Row label="Téléphone" value={ab.recruitmentResponsiblePhone} />
-                <Row label="Email"     value={ab.recruitmentResponsibleEmail} />
+                <Row label="Nom"      value={ab.recruitmentResponsibleName} />
+                <Row label="Fonction" value={ab.recruitmentResponsibleFunction} />
+                <Row label="Tél"      value={ab.recruitmentResponsiblePhone} />
+                <Row label="Email"    value={ab.recruitmentResponsibleEmail} />
+              </Section>
+            )}
+
+            {(ab.companySectors?.length > 0 || ab.companyDescription) && (
+              <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
+                {ab.companySectors?.length > 0 && (
+                  <Row label="Secteurs" value={ab.companySectors.join(', ')} />
+                )}
+                <Row label="Description" value={ab.companyDescription} />
               </Section>
             )}
 
@@ -127,7 +143,7 @@ export default function ABDetailModal({ id, onClose }: Props) {
               <Row label="Immersion"           value={LABELS.immersionPeriod[ab.immersionPeriod]} />
             </Section>
 
-            {(ab.selectedMissions?.length > 0 || ab.otherMissions) && (
+            {(ab.selectedMissions?.length > 0 || ab.jobDescriptionMissions?.length > 0 || ab.jobDescriptionOther) && (
               <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Missions">
                 {ab.selectedMissions?.length > 0 && (
                   <div className="py-2">
@@ -138,7 +154,19 @@ export default function ABDetailModal({ id, onClose }: Props) {
                     </ul>
                   </div>
                 )}
-                <Row label="Autres" value={ab.otherMissions} />
+                {ab.jobDescriptionMissions?.length > 0 && (
+                  <Row label="Types" value={ab.jobDescriptionMissions.join(', ')} />
+                )}
+                <Row label="Descriptif" value={ab.jobDescriptionOther} />
+              </Section>
+            )}
+
+            {(ab.scheduleOptions?.length > 0 || ab.additionalComments) && (
+              <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Conditions & commentaires">
+                {ab.scheduleOptions?.length > 0 && (
+                  <Row label="Conditions" value={ab.scheduleOptions.join(', ')} />
+                )}
+                <Row label="Commentaires" value={ab.additionalComments} />
               </Section>
             )}
 

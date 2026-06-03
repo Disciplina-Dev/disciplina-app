@@ -51,23 +51,31 @@ export const typeDefs = gql`
         id: Int!
         companyID: Int!
         userID: Int!
+        legalRepFunction: String
         recruitmentResponsibleName: String
         recruitmentResponsiblePhone: String
         recruitmentResponsibleEmail: String
+        recruitmentResponsibleFunction: String
+        companySectors: [String!]!
+        companyDescription: String
         positionsCount: Int!
         localisation: Localisation!
         trainingDomain: TrainingDomain!
         jobTitle: String!
         selectedMissions: [String!]!
         otherMissions: String
+        jobDescriptionMissions: [String!]!
+        jobDescriptionOther: String
         educationLevel: EducationLevel!
         drivingLicense: DrivingLicense!
         experienceRequired: ExperienceRequired!
         ageRequirements: [String!]!
         softSkills: String
+        scheduleOptions: [String!]!
+        additionalComments: String
         recruitmentMethod: RecruitmentMethod!
         immersionPeriod: ImmersionPeriod!
-        trainingDays: String! # Stringified JSON representation of the schedule grid
+        trainingDays: String!
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
         createdAt: String
@@ -77,23 +85,31 @@ export const typeDefs = gql`
     input NeedsAnalysisInput {
         companyID: Int
         userID: Int
+        legalRepFunction: String
         recruitmentResponsibleName: String
         recruitmentResponsiblePhone: String
         recruitmentResponsibleEmail: String
+        recruitmentResponsibleFunction: String
+        companySectors: [String!]
+        companyDescription: String
         positionsCount: Int
         localisation: Localisation
         trainingDomain: TrainingDomain
         jobTitle: String
         selectedMissions: [String!]
         otherMissions: String
+        jobDescriptionMissions: [String!]
+        jobDescriptionOther: String
         educationLevel: EducationLevel
         drivingLicense: DrivingLicense
         experienceRequired: ExperienceRequired
         ageRequirements: [String!]
         softSkills: String
+        scheduleOptions: [String!]
+        additionalComments: String
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
-        trainingDays: String # Stringified JSON
+        trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus
     }

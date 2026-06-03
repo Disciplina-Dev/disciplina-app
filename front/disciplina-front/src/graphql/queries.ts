@@ -494,29 +494,8 @@ export const CREATE_NEEDS_ANALYSIS = gql`
   mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
     createNeedsAnalysis(input: $input) {
       id
-      companyID
-      userID
-      recruitmentResponsibleName
-      recruitmentResponsiblePhone
-      recruitmentResponsibleEmail
-      positionsCount
-      localisation
-      trainingDomain
-      jobTitle
-      selectedMissions
-      otherMissions
-      educationLevel
-      drivingLicense
-      experienceRequired
-      ageRequirements
-      softSkills
-      recruitmentMethod
-      immersionPeriod
-      trainingDays
-      yousignSignatureRequestID
       status
       createdAt
-      updatedAt
     }
   }
 `
@@ -538,22 +517,27 @@ export const GET_NEEDS_ANALYSIS = gql`
   query NeedsAnalysis($id: Int!) {
     needsAnalysis(id: $id) {
       id
-      companyID
-      userID
+      legalRepFunction
       recruitmentResponsibleName
       recruitmentResponsiblePhone
       recruitmentResponsibleEmail
+      recruitmentResponsibleFunction
+      companySectors
+      companyDescription
       positionsCount
       localisation
       trainingDomain
       jobTitle
       selectedMissions
-      otherMissions
+      jobDescriptionMissions
+      jobDescriptionOther
       educationLevel
       drivingLicense
       experienceRequired
       ageRequirements
       softSkills
+      scheduleOptions
+      additionalComments
       recruitmentMethod
       immersionPeriod
       trainingDays

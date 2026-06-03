@@ -49,25 +49,35 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
     company_id INT NOT NULL,
     user_id INT NOT NULL,
     
-    -- Etape 1: Identite & Responsable Recrutement
+    -- Etape 1: Representant legal & Responsable Recrutement
+    legal_rep_function VARCHAR(255) DEFAULT NULL,
     recruitment_responsible_name VARCHAR(255) DEFAULT NULL,
     recruitment_responsible_phone VARCHAR(50) DEFAULT NULL,
     recruitment_responsible_email VARCHAR(255) DEFAULT NULL,
-    
-    -- Etape 2: Le Poste & Les Missions
+    recruitment_responsible_function VARCHAR(255) DEFAULT NULL,
+
+    -- Etape 2: Entreprise
+    company_sectors JSON DEFAULT NULL,
+    company_description TEXT DEFAULT NULL,
+
+    -- Etape 3: Le Poste & Les Missions
     positions_count INT NOT NULL DEFAULT 1,
     localisation ENUM('NORD', 'OUEST', 'SUD') NOT NULL,
     training_domain ENUM('SECRETARIAT', 'VENTE') NOT NULL,
     job_title VARCHAR(255) NOT NULL,
     selected_missions JSON NOT NULL,
     other_missions TEXT DEFAULT NULL,
-    
-    -- Etape 3: Exigences de l'Apprenti
+    job_description_missions JSON DEFAULT NULL,
+    job_description_other TEXT DEFAULT NULL,
+
+    -- Etape 4: Exigences de l'Apprenti
     education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') NOT NULL,
     driving_license ENUM('OUI', 'OPTIONNEL') NOT NULL,
     experience_required ENUM('DEBUTANT', 'OBLIGATOIRE') NOT NULL,
     age_requirements JSON NOT NULL,
     soft_skills TEXT DEFAULT NULL,
+    schedule_options JSON DEFAULT NULL,
+    additional_comments TEXT DEFAULT NULL,
     
     -- Etape 4: Logique & Process RH
     recruitment_method ENUM('ALL_CV', 'PRESELECTION', 'PRE_INTERVIEW') NOT NULL,

@@ -546,16 +546,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       return
     }
 
-    const otherParts = [
-      data.legalRepFunction       && `[Fonction représentant légal : ${data.legalRepFunction}]`,
-      companySectors.length       && `[Secteurs : ${companySectors.join(', ')}]`,
-      data.companyDescriptionOther && `[Description activité :\n${data.companyDescriptionOther}]`,
-      jobDescriptionMissions.length && `[Missions type : ${jobDescriptionMissions.join(', ')}]`,
-      data.jobDescriptionOther    && `[Descriptif missions :\n${data.jobDescriptionOther}]`,
-      scheduleOptions.length      && `[Conditions : ${scheduleOptions.join(', ')}]`,
-      data.additionalComments     && `[Commentaires :\n${data.additionalComments}]`,
-    ].filter(Boolean)
-    const otherMissions = otherParts.length > 0 ? otherParts.join('\n\n') : null
 
     const softSkillsFull = [
       ...data.softSkills,
@@ -578,23 +568,30 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       : { recruitmentResponsibleName: data.legalRepName, recruitmentResponsiblePhone: data.legalRepPhone, recruitmentResponsibleEmail: data.legalRepEmail }
 
     const response = await createNeedsAnalysis({
-      companyID:          parseInt(entreprise.id),
-      userID:             currentUser.id,
+      companyID:                        parseInt(entreprise.id),
+      userID:                           currentUser.id,
+      legalRepFunction:                 data.legalRepFunction || null,
       ...responsible,
-      positionsCount:     Number(data.positionsCount),
-      localisation:       data.localisation,
-      trainingDomain:     data.trainingDomain,
-      jobTitle:           data.jobTitle,
-      selectedMissions:   data.selectedMissions,
-      otherMissions,
-      educationLevel:     data.educationLevel,
-      drivingLicense:     data.drivingLicense,
-      experienceRequired: data.experienceRequired,
-      ageRequirements:    data.ageRequirements,
-      softSkills:         softSkillsFull,
-      recruitmentMethod:  data.recruitmentMethod,
-      immersionPeriod:    data.immersionPeriod,
-      trainingDays:       trainingDaysJson,
+      recruitmentResponsibleFunction:   data.isDifferentRecruitmentResponsible ? (data.recruitmentResponsibleFunction || null) : null,
+      companySectors:                   companySectors,
+      companyDescription:               data.companyDescriptionOther || null,
+      positionsCount:                   Number(data.positionsCount),
+      localisation:                     data.localisation,
+      trainingDomain:                   data.trainingDomain,
+      jobTitle:                         data.jobTitle,
+      selectedMissions:                 data.selectedMissions,
+      jobDescriptionMissions:           jobDescriptionMissions,
+      jobDescriptionOther:              data.jobDescriptionOther || null,
+      educationLevel:                   data.educationLevel,
+      drivingLicense:                   data.drivingLicense,
+      experienceRequired:               data.experienceRequired,
+      ageRequirements:                  data.ageRequirements,
+      softSkills:                       softSkillsFull,
+      scheduleOptions:                  scheduleOptions,
+      additionalComments:               data.additionalComments || null,
+      recruitmentMethod:                data.recruitmentMethod,
+      immersionPeriod:                  data.immersionPeriod,
+      trainingDays:                     trainingDaysJson,
     })
 
     if (response.error) { setSubmitError(response.error.message); return }

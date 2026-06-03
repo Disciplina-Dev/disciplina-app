@@ -70,19 +70,6 @@ function chkIn(value: string, arr: string[]): string {
     return (arr ?? []).includes(value) ? '●' : '○';
 }
 
-// ─── otherMissions parser ─────────────────────────────────────────────────────
-
-function parseOtherMissions(raw: string | null): Record<string, string> {
-    if (!raw) return {};
-    const result: Record<string, string> = {};
-    const regex = /\[([^\]:]+):\s*([\s\S]*?)\]/g;
-    let m;
-    while ((m = regex.exec(raw)) !== null) {
-        result[m[1].trim()] = m[2].trim();
-    }
-    return result;
-}
-
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
 function getLogoDataUrl(): string {
@@ -134,16 +121,14 @@ function sh(title: string): string {
 
 function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
     const days = parseDays(analysis.trainingDays);
-    const extra = parseOtherMissions(analysis.otherMissions);
 
-    // Fields packed inside otherMissions
-    const legalRepFunction     = extra['Fonction représentant légal'] ?? '';
-    const secteurs             = extra['Secteurs'] ?? '';
-    const descriptionActivite  = extra['Description activité'] ?? '';
-    const missionsType         = extra['Missions type'] ?? '';
-    const descriptifMissions   = extra['Descriptif missions'] ?? '';
-    const conditions           = extra['Conditions'] ?? '';
-    const commentaires         = extra['Commentaires'] ?? '';
+    const legalRepFunction    = analysis.legalRepFunction ?? '';
+    const secteurs            = (analysis.companySectors ?? []).join(', ');
+    const descriptionActivite = analysis.companyDescription ?? '';
+    const missionsType        = (analysis.jobDescriptionMissions ?? []).join(', ');
+    const descriptifMissions  = analysis.jobDescriptionOther ?? '';
+    const conditions          = (analysis.scheduleOptions ?? []).join(', ');
+    const commentaires        = analysis.additionalComments ?? '';
 
     const daysRows = Object.entries(days)
         .map(([day, val]) => `<div class="day-row"><span class="bullet">●</span>&nbsp;<strong>${day}&nbsp;:</strong> ${val}</div>`)
