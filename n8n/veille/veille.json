@@ -1,0 +1,210 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        704,
+        -48
+      ],
+      "id": "ca830a08-736e-49cf-85ee-c95d8fbbacec",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "filters": {
+          "labelIds": [
+            "Label_1040766315351854030"
+          ],
+          "readStatus": "unread"
+        }
+      },
+      "id": "21412e0f-e152-49dc-b95e-4c25c152c576",
+      "name": "Fetch Unread Veille Emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        928,
+        -48
+      ],
+      "webhookId": "eeaaa3f4-661f-42b4-9659-7a3cf4068411",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "SSFBQuykoL5wCA0D",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "emails",
+        "options": {}
+      },
+      "id": "4fe90980-c904-4e16-871c-8da5d7660bb3",
+      "name": "Aggregate All Emails",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "blob",
+              "value": "={{ $json.emails.map((e, i) => `=== EMAIL ${i + 1} ===\nSUJET: ${(e.Subject || '').replace(/^(\\s*(Fwd?|Re|TR|Fw)\\s*:\\s*)+/gi, '').trim()}\nDE: ${e.From || ''}\nDATE: ${DateTime.fromMillis(Number(e.internalDate)).toFormat('dd/MM/yyyy')}\nLIEN: https://mail.google.com/mail/u/0/#inbox/${e.id || ''}\nCONTENU:\n${e.text || e.body || e.snippet || ''}\n`).join('\\n') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "65c53f95-39a4-49cc-808b-6c4c1cc0d3ba",
+      "name": "Build Blob",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1376,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un assistant de veille professionnelle. Tu reçois un ensemble d'emails de veille. Pour chacun, tu dois extraire le maximum d'information utile, rédiger un résumé détaillé, puis composer un email HTML complet et professionnel.\n\nRègles de traitement du contenu :\n- Ignore toute mention de transfert, FWD, forward, ou de la personne qui a transféré\n- Ignore les entêtes techniques, pieds de page, liens de désinscription, boutons d'app\n- Si un email est un diff de page web (changedetection), interprète les changements et explique ce qui a évolué\n- Traite uniquement le contenu éditorial réel : articles, actualités, données chiffrées, analyses\n- Conserve les informations importantes : chiffres, dates, noms d'organisations, liens cités dans le contenu\n\nStructure de chaque carte d'email dans le HTML :\n1. Titre de l'email (sujet nettoyé) en <h2>\n2. Ligne source + date en petit gris\n3. Un paragraphe de résumé rédigé de 4 à 6 phrases qui synthétise le contexte, les enjeux et les points saillants\n4. Une liste <ul><li> des points clés avec <b> pour les termes importants — minimum 4 points, maximum 8\n5. Un lien \"Voir l'email original\" pointant vers le LIEN fourni dans les données\n\nRègles de mise en forme HTML :\n- Génère UNIQUEMENT du HTML valide, commence directement par <!DOCTYPE html>\n- Aucun markdown, aucun backtick, aucune phrase d'introduction ou de conclusion globale\n- Police Arial, sans-serif — largeur max 680px centrée, padding latéral 16px\n- Fond général blanc #ffffff\n- Header : bandeau #1a1a1a avec le titre \"Résumé de veille\" en blanc 20px et la date en dessous en #aaaaaa 12px, padding 24px\n- Pour chaque carte :\n    • Fond #f8f8f6, bordure gauche 3px solid #cccccc, border-radius 4px, padding 20px 24px, margin-bottom 24px\n    • <h2> couleur #1a1a1a, font-size 16px, font-weight 600, margin-bottom 4px\n    • Ligne source/date : font-size 12px, color #888888, margin-bottom 14px\n    • Paragraphe de résumé : font-size 14px, color #444444, line-height 1.7, margin-bottom 14px\n    • Liste <ul> : margin 0, padding-left 18px\n    • <li> : font-size 14px, color #333333, margin-bottom 6px, line-height 1.6\n    • Lien \"Voir l'email original\" : display inline-block, margin-top 14px, font-size 12px, color #555555, text-decoration underline\n- Séparateur <hr> style=\"border:none;border-top:1px solid #e8e8e8;margin:8px 0 24px\" entre chaque carte\n- Footer : centré, font-size 11px, color #aaaaaa, padding 24px, texte \"Généré automatiquement — Veille professionnelle\"\n- Le style est fixe et identique à chaque exécution, sans variation\n\nVoici les emails à traiter :\n\n{{ $json.blob }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1600,
+        -48
+      ],
+      "id": "41510542-f005-4981-ab64-11c439c27601",
+      "name": "LLM — Résumé + Mise en forme"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        144
+      ],
+      "id": "026aa6b4-d88a-40d7-a85a-6aee86b86ca6",
+      "name": "Mistral Cloud Chat Model",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "QnLu5GewkZqUw54z",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "epitechdisciplina.dev@gmail.com",
+        "subject": "=Résumé de Veille — {{ $now.toFormat('dd/MM/yyyy') }}",
+        "message": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f6698cc3-9bbc-4c10-a3a9-d522a416c56d",
+      "name": "Send Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1936,
+        -48
+      ],
+      "webhookId": "df3016d9-8b93-43a8-ba2d-b43160ccc594",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "SSFBQuykoL5wCA0D",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Fetch Unread Veille Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Unread Veille Emails": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Emails": {
+      "main": [
+        [
+          {
+            "node": "Build Blob",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Blob": {
+      "main": [
+        [
+          {
+            "node": "LLM — Résumé + Mise en forme",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM — Résumé + Mise en forme": {
+      "main": [
+        [
+          {
+            "node": "Send Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM — Résumé + Mise en forme",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "4dba934f3a16d8dd64145a32a705f436a9b3c1da1c1be3780887543831daa795"
+  }
+}

@@ -1,0 +1,313 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "1d222f9c-54db-46fd-994a-b633b5946abf",
+      "name": "⏰ Toutes les heures",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1536,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Abs NTC",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "1837600c-bc70-4c05-91ca-7484b56026ff",
+      "name": "📋 Lire NTC",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        880
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "kPrBcKRqiC06wuGS",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Abs AD",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "f5f51728-4bb0-4da3-b32f-4e726a9e24bd",
+      "name": "📋 Lire AD",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        1072
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "kPrBcKRqiC06wuGS",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Abs CC",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "efddd212-074b-4a49-b84a-73dda47da340",
+      "name": "📋 Lire CC",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        1264
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "kPrBcKRqiC06wuGS",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Abs REM",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "dff453ab-23de-4a97-950b-666ff45e0ef8",
+      "name": "📋 Lire REM",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        1456
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "kPrBcKRqiC06wuGS",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collecte les 4 feuilles déjà lues en amont et ajoute le tag _sheet\nconst sheets = [\n  { node: '📋 Lire NTC', name: 'NTC' },\n  { node: '📋 Lire AD',  name: 'AD'  },\n  { node: '📋 Lire CC',  name: 'CC'  },\n  { node: '📋 Lire REM', name: 'REM' }\n];\n\nconst results = [];\nfor (const s of sheets) {\n  try {\n    for (const i of $(s.node).all()) {\n      results.push({ json: { ...i.json, _sheet: s.name } });\n    }\n  } catch(e) {}\n}\nreturn results;"
+      },
+      "id": "8352a493-8aac-46e6-9ce3-9fd5dbf19095",
+      "name": "🔀 Fusionner tout",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const NIV_MAP = {\n  0: '1', 1: '1',\n  2: '2', 3: '2',\n  4: '3', 5: '3', 6: '3',\n  7: '+', 8: '+', 9: '+'\n};\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const row = item.json;\n  const allKeys = Object.keys(row);\n\n  // Mapping manuel par index de colonne (A=0, B=1, C=2, D=3...)\n  const colValues = allKeys.sort().map(k => row[k]);\n  const session = (colValues[0] || '').toString().trim();\n  const nom     = (colValues[1] || '').toString().trim();\n  const prenom  = (colValues[2] || '').toString().trim();\n\n  // Chercher le mail : première colonne contenant @\n  let mail = '';\n  for (const val of colValues) {\n    const strVal = (val || '').toString().trim();\n    if (strVal.includes('@')) {\n      mail = strVal;\n      break;\n    }\n  }\n\n  if (!nom || nom === 'NOM' || nom === 'Session') continue;\n\n  const feuille = (row['_sheet'] || '').toString().trim();\n\n  // Les colonnes \"Mail niv\" sont aux indices : 6, 9, 12, 15, 18, 21, 24, 27, 30, 33\n  // (chaque groupe de 3 : Date / Motif / Mail niv)\n  const mailNivIndices = [6, 9, 12, 15, 18, 21, 24, 27, 30, 33];\n\n  mailNivIndices.forEach((colIdx, idx) => {\n    const val = colValues[colIdx];\n    const isTRUE = (val === true || val === 'TRUE' || val === 'True' || val === 'true' || val === 1 || val === '1');\n    if (!isTRUE) return;\n\n    const niveau   = NIV_MAP[idx] || '+';\n    const dateVal  = (colValues[colIdx - 2] || '').toString().trim();\n    const motifVal = (colValues[colIdx - 1] || '').toString().trim();\n\n    // Filtrer : ne garder que si la case est cochée ET le motif est vide\n    if (motifVal !== '') return;\n\n    const nomPrenom = `${nom} ${prenom}`;\n    const sujet = `Mail niv${niveau} - apprenant ${nomPrenom}`;\n    const corps = `Bonjour,\\n\\nSuivi d'absence - Niveau ${niveau}\\n\\nApprenant(e) : ${nomPrenom}\\nSession      : ${session} (${feuille})\\nDate absence : ${dateVal}\\nMotif        : ${motifVal}\\n\\nCordialement`;\n    const uniqueKey = `${feuille}_${session}_${nom}_${prenom}_abs${idx}`;\n\n    results.push({ json: { sujet, corps, nom, prenom, session, feuille, niveau, dateAbs: dateVal, motif: motifVal, uniqueKey, mail } });\n  });\n}\n\nreturn results;"
+      },
+      "id": "5528df1a-d5fe-4d6f-867a-b0ecba99692a",
+      "name": "🔍 Extraire les cases TRUE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2208,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const store = $getWorkflowStaticData('global');\nif (!store.doneKeys) store.doneKeys = [];\n\nconst newItems = [];\nfor (const item of $input.all()) {\n  const k = item.json.uniqueKey;\n  if (!store.doneKeys.includes(k)) {\n    store.doneKeys.push(k);\n    newItems.push(item);\n  }\n}\n\nif (store.doneKeys.length > 5000) {\n  store.doneKeys = store.doneKeys.slice(-3000);\n}\n\nreturn newItems;"
+      },
+      "id": "b5ab0686-9ad3-4630-8439-037422e36dbe",
+      "name": "🔒 Dédupliquer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.sujet }}",
+        "message": "={{ $json.corps }}",
+        "options": {
+          "sendTo": "={{ $json.mail }}"
+        }
+      },
+      "id": "e688e4a5-333e-4963-95af-1d43fbf68d26",
+      "name": "✉️ Créer brouillon Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2656,
+        1168
+      ],
+      "webhookId": "9d79f25a-26f8-484f-bf9c-3a7ab1b2b909",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "SSFBQuykoL5wCA0D",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "⏰ Toutes les heures": {
+      "main": [
+        [
+          {
+            "node": "📋 Lire NTC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Lire AD",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Lire CC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Lire REM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Lire NTC": {
+      "main": [
+        [
+          {
+            "node": "🔀 Fusionner tout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Lire AD": {
+      "main": [
+        [
+          {
+            "node": "🔀 Fusionner tout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Lire CC": {
+      "main": [
+        [
+          {
+            "node": "🔀 Fusionner tout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Lire REM": {
+      "main": [
+        [
+          {
+            "node": "🔀 Fusionner tout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Fusionner tout": {
+      "main": [
+        [
+          {
+            "node": "🔍 Extraire les cases TRUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Extraire les cases TRUE": {
+      "main": [
+        [
+          {
+            "node": "🔒 Dédupliquer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔒 Dédupliquer": {
+      "main": [
+        [
+          {
+            "node": "✉️ Créer brouillon Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4dba934f3a16d8dd64145a32a705f436a9b3c1da1c1be3780887543831daa795"
+  }
+}
