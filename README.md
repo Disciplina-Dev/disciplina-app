@@ -35,7 +35,7 @@ docker compose up
 
 1. DB init scripts run automatically (MySQL schema + MongoDB collections with `$jsonSchema`)
 2. `startup-script` seeds data from CSV files into both databases
-3. Backend starts (4 Apollo GraphQL servers + REST routes)
+3. Backend starts (3 Apollo GraphQL servers + REST routes)
 4. Frontend starts (React + Vite)
 
 On subsequent starts, the seed script checks if data already exists and skips seeding.
