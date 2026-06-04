@@ -820,34 +820,38 @@ function CommuneResultList({
                   : "border-gray-100 hover:border-blue/30",
               ].join(" ")}
             >
-              <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
-                <Building2 className="w-4 h-4" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold text-gray-900 truncate">
-                  {name}
-                </p>
-                <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
-                  {formatSiret(e.siret)}
-                  {city ? ` · ${city}` : ""}
-                </p>
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
+                  <Building2 className="w-4 h-4" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-gray-900 truncate">
+                    {name}
+                  </p>
+                  <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
+                    {formatSiret(e.siret)}
+                    {city ? ` · ${city}` : ""}
+                  </p>
+                </div>
               </div>
-              <span
-                className={[
-                  "inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0",
-                  closed
-                    ? "bg-danger-bg text-danger"
-                    : "bg-success-bg text-success",
-                ].join(" ")}
-              >
+              <div>
                 <span
                   className={[
-                    "w-[6px] h-[6px] rounded-full",
-                    closed ? "bg-danger" : "bg-success",
+                    "inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0",
+                    closed
+                      ? "bg-danger-bg text-danger"
+                      : "bg-success-bg text-success",
                   ].join(" ")}
-                />
-                {closed ? "Cessée" : "En activité"}
-              </span>
+                >
+                  <span
+                    className={[
+                      "w-[6px] h-[6px] rounded-full",
+                      closed ? "bg-danger" : "bg-success",
+                    ].join(" ")}
+                  />
+                  {closed ? "Cessée" : "En activité"}
+                </span>
+              </div>
             </button>
           );
         })}
