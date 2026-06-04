@@ -6,6 +6,7 @@ import { YousignService } from '../../external/yousign/yousign.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
 import { logger } from '../../external/logger/logger';
 import { Role } from '../../types/user.types';
+import { notifyUser } from './sse';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();
 const userRepo = new UserRepository();
@@ -52,6 +53,14 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         // 2. Update status in Database
         await needsAnalysisRepo.update(analysis.id, { status: 'SIGNE' });
         logger.info(`Needs Analysis ID ${analysis.id} status updated to SIGNE`);
+
+        // 3a. Notify commercial via SSE (real-time in-app)
+        notifyUser(analysis.user_id, {
+            type: 'ab_signed',
+            abId: analysis.id,
+            jobTitle: analysis.job_title,
+            companyId: analysis.company_id,
+        });
 
         // 3. Download the signed PDF from Yousign
         const pdfBuffer = await yousignService.downloadSignedDocument(signatureRequestId);

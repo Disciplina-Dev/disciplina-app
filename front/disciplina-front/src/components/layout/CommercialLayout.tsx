@@ -1,7 +1,8 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search } from 'lucide-react'
+import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
+import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -27,6 +28,7 @@ export default function CommercialLayout() {
   const currentUser = useCurrentUser()
   const logout = useAuthStore(s => s.logout)
   const navigate = useNavigate()
+  const { notifications, dismiss } = useAbSignedNotification(currentUser?.id)
 
   const handleLogout = () => {
     logout()
@@ -91,6 +93,30 @@ export default function CommercialLayout() {
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         <Outlet />
       </main>
+
+      {/* AB signed toast notifications */}
+      {notifications.length > 0 && (
+        <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
+          {notifications.map((n) => (
+            <div
+              key={n.abId}
+              className="flex items-start gap-3 rounded-xl bg-white border border-green-200 shadow-lg px-4 py-3 min-w-[280px] max-w-sm"
+            >
+              <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900">AB signée !</p>
+                <p className="text-xs text-gray-500 truncate mt-0.5">{n.jobTitle}</p>
+              </div>
+              <button
+                onClick={() => dismiss(n.abId)}
+                className="text-gray-400 hover:text-gray-600 shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
