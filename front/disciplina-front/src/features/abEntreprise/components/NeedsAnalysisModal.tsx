@@ -80,7 +80,6 @@ const STEPS = [
   { id: 5, label: 'Poste',        icon: Briefcase },
   { id: 6, label: 'Apprenti',     icon: GraduationCap },
   { id: 7, label: 'Engagement',   icon: Shield },
-  { id: 8, label: 'Missions',     icon: ClipboardList },
 ]
 
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
@@ -88,10 +87,9 @@ const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   2: ['legalRepName', 'legalRepFunction', 'legalRepPhone', 'legalRepEmail'],
   3: [],
   4: ['positionsCount', 'localisation'],
-  5: ['jobTitle'],
-  6: ['trainingDomain', 'educationLevel', 'drivingLicense', 'experienceRequired', 'recruitmentMethod', 'immersionPeriod'],
+  5: ['trainingDomain', 'jobTitle'],
+  6: ['educationLevel', 'drivingLicense', 'experienceRequired', 'recruitmentMethod', 'immersionPeriod'],
   7: ['clausesAccepted'],
-  8: [],
 }
 
 const FONCTIONS = [
@@ -123,23 +121,10 @@ const SECTEURS = [
   'Agriculture / Agroalimentaire',
 ]
 
-const ALL_JOB_TITLES = [
-  // Secrétariat
-  'Secrétaire Assistant(e)',
-  'Assistant(e) de Direction',
-  'Assistant(e) Administratif(ve)',
-  'Assistant(e) de Gestion PME-PMI',
-  'Gestionnaire Administratif(ve)',
-  // Vente
-  'Conseiller(ère) Commercial(e)',
-  'Négociateur(trice) Technico-Commercial(e)',
-  'Responsable d\'Établissement Marchand',
-  'Attaché(e) Commercial(e)',
-  'Chargé(e) de Clientèle',
-  'Commercial(e) Terrain',
-  'Manager d\'Unité Marchande',
-  'Animateur(trice) des Ventes',
-]
+const JOB_TITLES_BY_DOMAIN: Record<'SECRETARIAT' | 'VENTE', string[]> = {
+  SECRETARIAT: ['Secrétaire Assistante', 'Assistante de Direction'],
+  VENTE: ['Conseiller Commercial', 'Négociateur Technico-Commercial', "Responsable d'Établissement Marchand"],
+}
 
 const SOFT_SKILLS_LIST = [
   'Rigueur et organisation',
@@ -513,10 +498,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
   const isDifferentResponsible  = watch('isDifferentRecruitmentResponsible')
   const trainingDomain          = watch('trainingDomain')
+  const jobTitle                = watch('jobTitle')
   const selectedMissions        = watch('selectedMissions') ?? []
   const ageRequirements         = watch('ageRequirements') ?? []
   const companySectors          = watch('companySectors') ?? []
-  const jobDescriptionMissions  = watch('jobDescriptionMissions') ?? []
   const softSkills              = watch('softSkills') ?? []
   const scheduleOptions         = watch('scheduleOptions') ?? []
   const positionsCount          = watch('positionsCount') ?? 1
@@ -580,7 +565,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       trainingDomain:                   data.trainingDomain,
       jobTitle:                         data.jobTitle,
       selectedMissions:                 data.selectedMissions,
-      jobDescriptionMissions:           jobDescriptionMissions,
+      jobDescriptionMissions:           [],
       jobDescriptionOther:              data.jobDescriptionOther || null,
       educationLevel:                   data.educationLevel,
       drivingLicense:                   data.drivingLicense,
@@ -760,22 +745,53 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
               <div className="flex flex-col gap-5">
                 <SectionTitle>Exigences du poste à pourvoir</SectionTitle>
 
-                <SelectField
-                  id="jobTitle"
-                  label="Intitulé du métier *"
-                  options={ALL_JOB_TITLES}
-                  error={errors.jobTitle?.message}
-                  required
-                  {...register('jobTitle', { required: 'Champ obligatoire' })}
-                />
+                {/* Domain first — drives job title options */}
+                <input type="hidden" {...register('trainingDomain', { required: 'Champ obligatoire' })} />
+                <RadioGroup label="Domaine de formation *" name="trainingDomain"
+                  options={[
+                    { value: 'SECRETARIAT', label: 'Secrétariat (Administratif)' },
+                    { value: 'VENTE',       label: 'Vente (Commercial)' },
+                  ]}
+                  value={watch('trainingDomain')}
+                  onChange={(v) => {
+                    setValue('trainingDomain', v, { shouldValidate: true })
+                    setValue('jobTitle', '', { shouldValidate: false })
+                    setValue('selectedMissions', [])
+                  }}
+                  error={errors.trainingDomain?.message} required />
 
-                <CheckboxGroup
-                  label="Missions principales (sélection rapide)"
-                  options={JOB_DESCRIPTION_OPTIONS}
-                  selected={jobDescriptionMissions}
-                  onChange={(v) => setValue('jobDescriptionMissions', v)}
-                  columns={2}
-                />
+                {/* Job title filtered by domain */}
+                {trainingDomain && (
+                  <SelectField
+                    id="jobTitle"
+                    label="Intitulé du métier *"
+                    options={JOB_TITLES_BY_DOMAIN[trainingDomain]}
+                    error={errors.jobTitle?.message}
+                    required
+                    {...register('jobTitle', {
+                      required: 'Champ obligatoire',
+                      onChange: () => setValue('selectedMissions', []),
+                    })}
+                  />
+                )}
+
+                {/* Missions specific to the selected job title */}
+                {jobTitle && trainingDomain && MISSIONS[trainingDomain]?.[jobTitle] && (
+                  <div className="flex flex-col gap-2">
+                    <CheckboxGroup
+                      label={`Missions à confier à l'apprenti — ${jobTitle}`}
+                      options={MISSIONS[trainingDomain][jobTitle]}
+                      selected={selectedMissions}
+                      onChange={(v) => setValue('selectedMissions', v)}
+                      columns={2}
+                    />
+                    {selectedMissions.length > 0 && (
+                      <p className="text-xs text-blue">
+                        {selectedMissions.length} mission{selectedMissions.length > 1 ? 's' : ''} sélectionnée{selectedMissions.length > 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="jobDescriptionOther" className="text-sm font-medium text-gray-700">
@@ -828,18 +844,11 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
               <div className="flex flex-col gap-5">
                 <SectionTitle>Exigences de l'apprenti</SectionTitle>
 
-                <input type="hidden" {...register('trainingDomain',     { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('educationLevel',     { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('drivingLicense',     { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('experienceRequired', { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('recruitmentMethod',  { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('immersionPeriod',    { required: 'Champ obligatoire' })} />
-
-                <RadioGroup label="Domaine de formation *" name="trainingDomain"
-                  options={[{ value: 'SECRETARIAT', label: 'Secrétariat' }, { value: 'VENTE', label: 'Vente' }]}
-                  value={watch('trainingDomain')}
-                  onChange={(v) => { setValue('trainingDomain', v, { shouldValidate: true }); setValue('selectedMissions', []) }}
-                  error={errors.trainingDomain?.message} required />
 
                 <RadioGroup label="Niveau de formation *" name="educationLevel"
                   options={[{ value: 'BAC', label: 'Niveau Bac' }, { value: 'BAC_PLUS_2', label: 'Bac +2' }, { value: 'BAC_PLUS_3', label: 'Bac +3' }]}
@@ -925,9 +934,14 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
             {/* ── Étape 7 : Engagement ─────────────────────────────────────── */}
             {currentStep === 7 && (
               <div className="flex flex-col gap-5">
-                <SectionTitle>Engagement et Clauses</SectionTitle>
+                <SectionTitle>Engagement sur l'évolution des missions</SectionTitle>
                 <div className="rounded-lg border border-blue-light bg-blue-light/40 p-4 text-sm leading-relaxed text-gray-700">
-                  L'entreprise reconnaît que les missions confiées à l'apprenti pourront évoluer progressivement, être adaptées et faire l'objet de réajustements en accord avec le centre de formation.
+                  <p className="font-semibold mb-2">L'entreprise reconnaît que les missions confiées à l'apprenti pourront :</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Évoluer progressivement en fonction de sa montée en compétences.</li>
+                    <li>Être adaptées afin de rester en cohérence avec le parcours de formation suivi.</li>
+                    <li>Faire l'objet de réajustements en accord avec le centre de formation, dans un souci de complémentarité entre la pratique en entreprise et les enseignements dispensés.</li>
+                  </ul>
                 </div>
                 <div className="flex flex-col gap-2">
                   <p className="text-sm font-bold text-gray-900">Clause de non-engagement et de confidentialité</p>
@@ -943,45 +957,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   <span className="text-sm text-gray-700">J'ai lu et j'accepte les clauses d'engagement et de confidentialité. *</span>
                 </label>
                 {errors.clausesAccepted && <p className="text-xs text-danger">Vous devez accepter les clauses pour continuer.</p>}
-              </div>
-            )}
-
-            {/* ── Étape 8 : Missions ───────────────────────────────────────── */}
-            {currentStep === 8 && (
-              <div className="flex flex-col gap-6">
-                <SectionTitle>
-                  Missions à confier à l'apprenti
-                  {trainingDomain && (
-                    <span className="ml-2 text-sm font-medium text-blue">
-                      — {trainingDomain === 'VENTE' ? 'Vente' : 'Secrétariat'}
-                    </span>
-                  )}
-                </SectionTitle>
-
-                {!trainingDomain && (
-                  <div className="rounded-lg border border-warning-bg bg-warning-bg p-4 text-sm text-warning">
-                    Veuillez d'abord sélectionner un domaine de formation à l'étape 6.
-                  </div>
-                )}
-
-                {trainingDomain && Object.entries(MISSIONS[trainingDomain]).map(([roleTitle, missions]) => (
-                  <div key={roleTitle} className="flex flex-col gap-3">
-                    <p className="text-sm font-bold text-gray-900">{roleTitle}</p>
-                    <CheckboxGroup
-                      options={missions}
-                      selected={selectedMissions}
-                      onChange={(v) => setValue('selectedMissions', v)}
-                      columns={2}
-                    />
-                  </div>
-                ))}
-
-                {selectedMissions.length > 0 && (
-                  <div className="rounded-lg border border-blue-light bg-blue-light/30 px-4 py-2.5 text-sm text-blue">
-                    {selectedMissions.length} mission{selectedMissions.length > 1 ? 's' : ''} sélectionnée{selectedMissions.length > 1 ? 's' : ''}
-                  </div>
-                )}
-
                 {submitError && (
                   <p className="rounded-lg border border-danger-bg bg-danger-bg px-4 py-2.5 text-sm text-danger">
                     {submitError}

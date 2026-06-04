@@ -15,6 +15,7 @@ import {
   Copy,
   Check,
   ClipboardList,
+  Trash2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { format } from 'date-fns'
@@ -23,7 +24,7 @@ import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
 import { USERS } from '@/store/authStore'
 import Button from '@/components/ui/Button'
-import { useNeedsAnalysesByCompany } from '@/graphql/hooks'
+import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 
 const STATUS_CONFIG = {
@@ -110,6 +111,23 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
   const abResult = useNeedsAnalysesByCompany(entreprise.id ? Number(entreprise.id) : null)
   const abList = abResult.data?.needsAnalysesByCompany ?? []
   const [selectedAbId, setSelectedAbId] = useState<number | null>(null)
+  const [selectedAbIds, setSelectedAbIds] = useState<Set<number>>(new Set())
+  const { deleteNeedsAnalysis } = useDeleteNeedsAnalysis()
+
+  const toggleSelect = (id: number) => {
+    setSelectedAbIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    await Promise.all([...selectedAbIds].map((id) => deleteNeedsAnalysis(id)))
+    setSelectedAbIds(new Set())
+    abResult.refetch()
+  }
 
   const canEdit =
     currentUser.role?.toUpperCase() === 'ADMIN' ||
@@ -241,10 +259,21 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
 
           {/* AB History */}
           <div className="mt-5 pt-5 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <ClipboardList className="h-3.5 w-3.5" />
-              Analyses du besoin
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                <ClipboardList className="h-3.5 w-3.5" />
+                Analyses du besoin
+              </p>
+              {selectedAbIds.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Supprimer ({selectedAbIds.size})
+                </button>
+              )}
+            </div>
             {abResult.fetching && (
               <p className="text-sm text-gray-400 italic">Chargement...</p>
             )}
@@ -255,17 +284,28 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
               <ul className="space-y-2">
                 {abList.map((ab: any) => {
                   const badge = STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']
+                  const isSelected = selectedAbIds.has(ab.id)
                   return (
                     <li
                       key={ab.id}
                       onClick={() => setSelectedAbId(ab.id)}
-                      className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 transition-colors"
+                      className={[
+                        'flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors',
+                        isSelected ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-blue-50',
+                      ].join(' ')}
                     >
-                      <div className="min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggleSelect(ab.id)}
+                        className="h-4 w-4 shrink-0 rounded border-gray-300 accent-blue cursor-pointer"
+                      />
+                      <div className="min-w-0 flex-1">
                         <span className="font-medium text-gray-900 truncate">{ab.jobTitle}</span>
                         <span className="ml-2 text-xs text-gray-400">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                      <div className="flex items-center gap-2 shrink-0">
                         {ab.createdAt && (
                           <span className="text-xs text-gray-400">{formatDate(ab.createdAt)}</span>
                         )}
@@ -279,7 +319,14 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
               </ul>
             )}
             {selectedAbId && (
-              <ABDetailModal id={selectedAbId} onClose={() => setSelectedAbId(null)} />
+              <ABDetailModal
+                id={selectedAbId}
+                onClose={() => setSelectedAbId(null)}
+                onDelete={() => {
+                  setSelectedAbId(null)
+                  abResult.refetch()
+                }}
+              />
             )}
           </div>
 

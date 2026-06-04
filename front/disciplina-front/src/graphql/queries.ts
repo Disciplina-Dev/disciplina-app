@@ -548,3 +548,9 @@ export const GET_NEEDS_ANALYSIS = gql`
     }
   }
 `
+
+export const DELETE_NEEDS_ANALYSIS = gql`
+  mutation DeleteNeedsAnalysis($id: Int!) {
+    deleteNeedsAnalysis(id: $id)
+  }
+`
