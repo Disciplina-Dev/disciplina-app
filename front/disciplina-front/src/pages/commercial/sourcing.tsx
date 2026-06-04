@@ -51,6 +51,7 @@ interface SireneListHeader {
   total: number;
   debut: number;
   nombre: number;
+  offset: number;
 }
 
 interface SireneListResult {
@@ -152,11 +153,15 @@ function legalFormShort(code: string | null): string {
 async function fetchCompaniesByCommune(
   commune: string,
   token: string | null,
+  offset = 0,
 ): Promise<SireneListResult> {
   const encoded = encodeURIComponent(commune.trim());
-  const res = await fetch(`${API_BASE}/api/sourcing/${encoded}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
+  const res = await fetch(
+    `${API_BASE}/api/sourcing/${encoded}?offset=${offset}`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    },
+  );
   if (res.status === 404) throw new Error("notfound");
   if (!res.ok) throw new Error("server");
   return (await res.json()) as SireneListResult;
@@ -815,34 +820,38 @@ function CommuneResultList({
                   : "border-gray-100 hover:border-blue/30",
               ].join(" ")}
             >
-              <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
-                <Building2 className="w-4 h-4" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold text-gray-900 truncate">
-                  {name}
-                </p>
-                <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
-                  {formatSiret(e.siret)}
-                  {city ? ` · ${city}` : ""}
-                </p>
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
+                  <Building2 className="w-4 h-4" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-gray-900 truncate">
+                    {name}
+                  </p>
+                  <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
+                    {formatSiret(e.siret)}
+                    {city ? ` · ${city}` : ""}
+                  </p>
+                </div>
               </div>
-              <span
-                className={[
-                  "inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0",
-                  closed
-                    ? "bg-danger-bg text-danger"
-                    : "bg-success-bg text-success",
-                ].join(" ")}
-              >
+              <div>
                 <span
                   className={[
-                    "w-[6px] h-[6px] rounded-full",
-                    closed ? "bg-danger" : "bg-success",
+                    "inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0",
+                    closed
+                      ? "bg-danger-bg text-danger"
+                      : "bg-success-bg text-success",
                   ].join(" ")}
-                />
-                {closed ? "Cessée" : "En activité"}
-              </span>
+                >
+                  <span
+                    className={[
+                      "w-[6px] h-[6px] rounded-full",
+                      closed ? "bg-danger" : "bg-success",
+                    ].join(" ")}
+                  />
+                  {closed ? "Cessée" : "En activité"}
+                </span>
+              </div>
             </button>
           );
         })}
@@ -872,6 +881,7 @@ export default function Sourcing() {
   const [communeResult, setCommuneResult] = useState<SireneListResult | null>(
     null,
   );
+  const [offsetHistory, setOffsetHistory] = useState<number[]>([]);
   const [selectedCommune, setSelectedCommune] =
     useState<SireneEtablissement | null>(null);
   const [recents, setRecents] = useState<RecentEntry[]>(() => {
@@ -943,9 +953,11 @@ export default function Sourcing() {
       const trimmed = raw.trim();
       if (!trimmed) return;
       setCommuneView("loading");
+      setOffsetHistory([]);
+      setSelectedCommune(null);
       try {
         const properName = denormalizeCommune(trimmed);
-        const data = await fetchCompaniesByCommune(properName, token);
+        const data = await fetchCompaniesByCommune(properName, token, 0);
         setCommuneResult(data);
         setCommuneView(data.etablissements.length > 0 ? "results" : "notfound");
       } catch (e: unknown) {
@@ -954,6 +966,47 @@ export default function Sourcing() {
       }
     },
     [token],
+  );
+
+  const loadNextPage = useCallback(
+    async () => {
+      if (!communeResult || !communeQuery) return;
+      const nextOffset =
+        communeResult.header.offset + communeResult.etablissements.length;
+      setOffsetHistory((h) => [...h, communeResult.header.offset]);
+      setCommuneView("loading");
+      setSelectedCommune(null);
+      try {
+        const properName = denormalizeCommune(communeQuery.trim());
+        const data = await fetchCompaniesByCommune(properName, token, nextOffset);
+        setCommuneResult(data);
+        setCommuneView("results");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "server";
+        setCommuneView(msg === "notfound" ? "notfound" : "error");
+      }
+    },
+    [communeQuery, communeResult, token],
+  );
+
+  const loadPrevPage = useCallback(
+    async () => {
+      if (!communeResult || !communeQuery || offsetHistory.length === 0) return;
+      const prevOffset = offsetHistory[offsetHistory.length - 1];
+      setOffsetHistory((h) => h.slice(0, -1));
+      setCommuneView("loading");
+      setSelectedCommune(null);
+      try {
+        const properName = denormalizeCommune(communeQuery.trim());
+        const data = await fetchCompaniesByCommune(properName, token, prevOffset);
+        setCommuneResult(data);
+        setCommuneView("results");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "server";
+        setCommuneView(msg === "notfound" ? "notfound" : "error");
+      }
+    },
+    [communeQuery, communeResult, offsetHistory, token],
   );
 
   const submit = () => run(query);
@@ -1119,11 +1172,35 @@ export default function Sourcing() {
             )}
             {communeView === "loading" && <CommuneSkeleton />}
             {communeView === "results" && communeResult && !selectedCommune && (
-              <CommuneResultList
-                result={communeResult}
-                selectedSiret={selectedCommune?.siret}
-                onSelect={setSelectedCommune}
-              />
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    type="button"
+                    onClick={loadPrevPage}
+                    disabled={offsetHistory.length === 0}
+                    className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    ← Page précédente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadNextPage}
+                    disabled={
+                      communeResult.header.offset +
+                        communeResult.etablissements.length >=
+                      communeResult.header.total
+                    }
+                    className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Page suivante →
+                  </button>
+                </div>
+                <CommuneResultList
+                  result={communeResult}
+                  selectedSiret={selectedCommune?.siret}
+                  onSelect={setSelectedCommune}
+                />
+              </div>
             )}
             {communeView === "results" && selectedCommune && (
               <>

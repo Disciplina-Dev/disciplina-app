@@ -11,7 +11,13 @@ const sourcingService = new SourcingService();
 export async function companiesByCommune(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { commune } = req.params;
-        const result = await sireneService.companiesByCommune(commune);
+        const rawOffset = req.query.offset;
+        const offset = rawOffset !== undefined ? parseInt(rawOffset as string, 10) : 0;
+        if (isNaN(offset) || offset < 0) {
+            res.status(400).json({ error: 'offset must be a non-negative integer' });
+            return;
+        }
+        const result = await sireneService.companiesByCommune(commune, offset);
 
         const checks = await Promise.all(result.etablissements.map((e) => companyRepository.findBySiret(e.siret)));
         const existingSet = new Set(result.etablissements.filter((_, i) => checks[i] !== null).map((e) => e.siret));

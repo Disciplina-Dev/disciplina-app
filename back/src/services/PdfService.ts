@@ -1,6 +1,5 @@
 import puppeteer from 'puppeteer';
 import PDFDocument from 'pdfkit';
-import { PDFDocument as LibPDFDocument } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import { Candidate } from '../types/candidate.types';
@@ -16,23 +15,23 @@ function esc(v: string | null | undefined): string {
 
 function label(v: string | null | undefined): string {
     const MAP: Record<string, string> = {
-        NORD:          'Nord',
-        OUEST:         'Ouest',
-        SUD:           'Sud',
-        SECRETARIAT:   'Secrétariat',
-        VENTE:         'Vente',
-        BAC:           'Niveau Bac',
-        BAC_PLUS_2:    'Niveau Bac + 2',
-        BAC_PLUS_3:    'Niveau Bac + 3',
-        OUI:           'Oui',
-        NON:           'Non',
-        OPTIONNEL:     'Optionnel',
-        DEBUTANT:      'Débutant',
-        OBLIGATOIRE:   'Obligatoire',
-        ALL_CV:        'Réception de tous les CV',
-        PRESELECTION:  'Présélection des CV par le centre de formation',
+        NORD: 'Nord',
+        OUEST: 'Ouest',
+        SUD: 'Sud',
+        SECRETARIAT: 'Secrétariat',
+        VENTE: 'Vente',
+        BAC: 'Niveau Bac',
+        BAC_PLUS_2: 'Niveau Bac + 2',
+        BAC_PLUS_3: 'Niveau Bac + 3',
+        OUI: 'Oui',
+        NON: 'Non',
+        OPTIONNEL: 'Optionnel',
+        DEBUTANT: 'Débutant',
+        OBLIGATOIRE: 'Obligatoire',
+        ALL_CV: 'Réception de tous les CV',
+        PRESELECTION: 'Présélection des CV par le centre de formation',
         PRE_INTERVIEW: 'Pré-entretien des CV par le centre de formation',
-        A_DISCUTER:    'A discuter ensemble',
+        A_DISCUTER: 'A discuter ensemble',
     };
     return MAP[v ?? ''] ?? esc(v);
 }
@@ -41,20 +40,20 @@ function parseDays(raw: string): Record<string, string> {
     try {
         const days: Record<string, string[]> = typeof raw === 'string' ? JSON.parse(raw) : raw;
         const FR: Record<string, string> = {
-            monday:    'Lundi',
-            tuesday:   'Mardi',
+            monday: 'Lundi',
+            tuesday: 'Mardi',
             wednesday: 'Mercredi',
-            thursday:  'Jeudi',
-            friday:    'Vendredi',
+            thursday: 'Jeudi',
+            friday: 'Vendredi',
         };
         const result: Record<string, string> = {};
         for (const [key, frLabel] of Object.entries(FR)) {
             const periods: string[] = days[key] ?? [];
-            if (periods.includes('PREFERE'))        result[frLabel] = 'Préféré';
-            else if (periods.length === 2)           result[frLabel] = 'Oui';
-            else if (periods.includes('MATIN'))      result[frLabel] = 'Matin';
+            if (periods.includes('PREFERE')) result[frLabel] = 'Préféré';
+            else if (periods.length === 2) result[frLabel] = 'Oui';
+            else if (periods.includes('MATIN')) result[frLabel] = 'Matin';
             else if (periods.includes('APRES_MIDI')) result[frLabel] = 'Après-midi';
-            else                                     result[frLabel] = 'Non';
+            else result[frLabel] = 'Non';
         }
         return result;
     } catch {
@@ -122,21 +121,22 @@ function sh(title: string): string {
 function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
     const days = parseDays(analysis.trainingDays);
 
-    const legalRepFunction    = analysis.legalRepFunction ?? '';
-    const secteurs            = (analysis.companySectors ?? []).join(', ');
+    const legalRepFunction = analysis.legalRepFunction ?? '';
+    const secteurs = (analysis.companySectors ?? []).join(', ');
     const descriptionActivite = analysis.companyDescription ?? '';
-    const missionsType        = (analysis.jobDescriptionMissions ?? []).join(', ');
-    const descriptifMissions  = analysis.jobDescriptionOther ?? '';
-    const conditions          = (analysis.scheduleOptions ?? []).join(', ');
-    const commentaires        = analysis.additionalComments ?? '';
+    const missionsType = (analysis.jobDescriptionMissions ?? []).join(', ');
+    const descriptifMissions = analysis.jobDescriptionOther ?? '';
+    const conditions = (analysis.scheduleOptions ?? []).join(', ');
+    const commentaires = analysis.additionalComments ?? '';
 
     const daysRows = Object.entries(days)
-        .map(([day, val]) => `<div class="day-row"><span class="bullet">●</span>&nbsp;<strong>${day}&nbsp;:</strong> ${val}</div>`)
+        .map(
+            ([day, val]) =>
+                `<div class="day-row"><span class="bullet">●</span>&nbsp;<strong>${day}&nbsp;:</strong> ${val}</div>`,
+        )
         .join('');
 
-    const missionItems = (analysis.selectedMissions ?? [])
-        .map(m => `<li>${esc(m)}</li>`)
-        .join('');
+    const missionItems = (analysis.selectedMissions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
 
     return `<!DOCTYPE html>
 <html lang="fr">
@@ -227,12 +227,12 @@ function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
 <!-- ═══ PAGE 1 — Identités ═══ -->
 <h1 class="main-title">Analyse du besoin de l'entreprise</h1>
 
-${sh('Identité de l\'entreprise')}
+${sh("Identité de l'entreprise")}
 ${fr('Dénomination ou raison sociale :', company.name)}
 ${fr('Numéro SIRET du siège social :', company.siret)}
 ${fr('Adresse du siège social :', company.address)}
-${company.ape   ? fr('Code APE :', company.ape)   : ''}
-${company.idcc  ? fr('IDCC :', company.idcc)      : ''}
+${company.ape ? fr('Code APE :', company.ape) : ''}
+${company.idcc ? fr('IDCC :', company.idcc) : ''}
 
 ${sh('Informations du représentant légal')}
 ${fr('Nom et prénom du représentant légal :', company.legalReferent)}
@@ -240,20 +240,24 @@ ${legalRepFunction ? fr('Fonction du représentant légal :', legalRepFunction) 
 ${fr('Téléphone du représentant légal :', company.phone)}
 ${fr('Courriel du représentant légal :', company.email)}
 
-${sh('Informations du responsable de recrutement <em style="font-weight:normal;font-size:9.5pt;">(si différent du représentant légal)</em>')}
+${sh(
+    'Informations du responsable de recrutement <em style="font-weight:normal;font-size:9.5pt;">(si différent du représentant légal)</em>',
+)}
 ${fr('Nom et prénom du responsable de recrutement :', analysis.recruitmentResponsibleName)}
 ${fr('Téléphone du responsable de recrutement :', analysis.recruitmentResponsiblePhone)}
 ${fr('Courriel du responsable de recrutement :', analysis.recruitmentResponsibleEmail)}
 
 <!-- ═══ PAGE 2 — Entreprise & Poste ═══ -->
 <div class="page-break">
-${sh('A propos de l\'entreprise')}
+${sh("A propos de l'entreprise")}
 <div class="field-row">
     <span class="field-label">Présentation de l'activité de l'entreprise :</span><br/>
     <span class="hint">(Brève description de l'activité principale de l'entreprise, des secteurs concernés, et de sa mission globale.)</span>
-    <div class="text-area">${[esc(company.mainActivity), esc(descriptionActivite)].filter(Boolean).join('\n') || '&nbsp;'}</div>
+    <div class="text-area">${
+        [esc(company.mainActivity), esc(descriptionActivite)].filter(Boolean).join('\n') || '&nbsp;'
+    }</div>
 </div>
-${secteurs      ? fr('Secteur(s) d\'activité :', secteurs) : (company.sector ? fr('Secteur d\'activité :', company.sector) : '')}
+${secteurs ? fr("Secteur(s) d'activité :", secteurs) : company.sector ? fr("Secteur d'activité :", company.sector) : ''}
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
 ${fr('Localisation du poste à pourvoir :', label(analysis.localisation))}
 
@@ -263,7 +267,7 @@ ${fr('Intitulé du métier :', analysis.jobTitle)}
     <span class="field-label">Description des missions :</span><br/>
     <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
     ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : ''}
-    ${missionsType    ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>`    : ''}
+    ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
     ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
     ${!missionItems && !missionsType && !descriptifMissions ? '<div class="text-area">&nbsp;</div>' : ''}
 </div>
@@ -281,7 +285,7 @@ ${fr('Intitulé du métier :', analysis.jobTitle)}
 
 <!-- ═══ PAGE 3 — Exigences apprenti ═══ -->
 <div class="page-break">
-${sh('Exigences de l\'apprenti')}
+${sh("Exigences de l'apprenti")}
 
 <div class="inline-row">
     <span class="field-label">Domaine de formation :</span>
@@ -318,8 +322,12 @@ ${sh('Exigences de l\'apprenti')}
 <div class="field-row">
     <span class="field-label">Méthode de recrutement :</span><br/>
     <div class="option-block">${chk(analysis.recruitmentMethod === 'ALL_CV')}&nbsp;Réception de tous les CV</div>
-    <div class="option-block">${chk(analysis.recruitmentMethod === 'PRESELECTION')}&nbsp;Présélection des CV par le centre de formation</div>
-    <div class="option-block">${chk(analysis.recruitmentMethod === 'PRE_INTERVIEW')}&nbsp;Pré-entretien des CV par le centre de formation</div>
+    <div class="option-block">${chk(
+        analysis.recruitmentMethod === 'PRESELECTION',
+    )}&nbsp;Présélection des CV par le centre de formation</div>
+    <div class="option-block">${chk(
+        analysis.recruitmentMethod === 'PRE_INTERVIEW',
+    )}&nbsp;Pré-entretien des CV par le centre de formation</div>
 </div>
 
 <div class="field-row">
@@ -334,7 +342,7 @@ ${sh('Exigences de l\'apprenti')}
     <div style="margin-top:4px;">${daysRows}</div>
 </div>
 
-${sh('Engagement sur l\'évolution des missions')}
+${sh("Engagement sur l'évolution des missions")}
 <div class="field-row">
     <p style="font-weight:bold;margin-bottom:8px;">L'entreprise reconnaît que les missions confiées à l'apprenti pourront :</p>
     <div class="option-block">○&nbsp;<strong>Évoluer progressivement</strong> en fonction de sa montée en compétences.</div>
@@ -434,16 +442,20 @@ export class PdfService {
                 if (candidate.education?.school_level || candidate.background?.last_diploma) {
                     doc.fontSize(16).text('Parcours', { underline: true });
                     doc.fontSize(12).moveDown(0.5);
-                    if (candidate.education?.school_level) doc.text(`Niveau d'étude : ${candidate.education.school_level}`);
-                    if (candidate.background?.last_diploma) doc.text(`Dernier diplôme : ${candidate.background.last_diploma}`);
+                    if (candidate.education?.school_level)
+                        doc.text(`Niveau d'étude : ${candidate.education.school_level}`);
+                    if (candidate.background?.last_diploma)
+                        doc.text(`Dernier diplôme : ${candidate.background.last_diploma}`);
                     doc.moveDown();
                 }
 
                 if (candidate.profile) {
                     doc.fontSize(16).text('Profil', { underline: true });
                     doc.fontSize(12).moveDown(0.5);
-                    if (candidate.profile.qualities?.length) doc.text(`Qualités : ${candidate.profile.qualities.join(', ')}`);
-                    if (candidate.profile.defects?.length) doc.text(`Axes d'amélioration : ${candidate.profile.defects.join(', ')}`);
+                    if (candidate.profile.qualities?.length)
+                        doc.text(`Qualités : ${candidate.profile.qualities.join(', ')}`);
+                    if (candidate.profile.defects?.length)
+                        doc.text(`Axes d'amélioration : ${candidate.profile.defects.join(', ')}`);
                     doc.moveDown();
                 }
 
@@ -478,12 +490,7 @@ export class PdfService {
 
         const browser = await puppeteer.launch({
             headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-            ],
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
         });
 
         let dynamicPdfBytes: Buffer;
