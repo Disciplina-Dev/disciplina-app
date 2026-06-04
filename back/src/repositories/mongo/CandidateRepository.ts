@@ -7,6 +7,7 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
     const result: FlattenedObject = {};
     for (const key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            if (key.startsWith('$') || key.startsWith('__')) continue;
             const value = obj[key];
             const newKey = parentKey ? `${parentKey}.${key}` : key;
             if (value && typeof value === 'object' && !Array.isArray(value)) {
