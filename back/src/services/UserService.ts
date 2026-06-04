@@ -5,6 +5,7 @@ import { User, Role } from '../types/user.types';
 import { UserRow } from '../types/db-rows.types';
 import { toUser } from './mappers/user.mapper';
 import { env } from '../config/env';
+import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto/token-cipher';
 import { map } from 'pdfkit';
 const SALT_ROUNDS = 10;
 
@@ -15,19 +16,24 @@ export class UserService {
         this.userRepository = new UserRepository();
     }
 
+    private decryptUserTokens(user: User): User {
+        const dec = (t: string | null | undefined) => (t && isEncryptedToken(t) ? decryptToken(t) : t ?? null);
+        return { ...user, oauthToken: dec(user.oauthToken), refreshToken: dec(user.refreshToken) };
+    }
+
     async findByEmail(email: string): Promise<User | null> {
         const row = await this.userRepository.findByEmail(email);
-        return row ? toUser(row) : null;
+        return row ? this.decryptUserTokens(toUser(row)) : null;
     }
 
     async findById(id: number): Promise<User | null> {
         const row = await this.userRepository.findById(id);
-        return row ? toUser(row) : null;
+        return row ? this.decryptUserTokens(toUser(row)) : null;
     }
 
     async findByRole(role: Role): Promise<User[] | null> {
         const row = await this.userRepository.findByRole(role);
-        return row ? row.map((user: UserRow) => toUser(user)) : null;
+        return row ? row.map((user: UserRow) => this.decryptUserTokens(toUser(user))) : null;
     }
 
     async register(email: string, name: string, passwordPlain: string, role: Role, sectors?: string[]): Promise<User> {
@@ -78,6 +84,7 @@ export class UserService {
     }
 
     async updateGoogleTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
-        await this.userRepository.updateTokens(id, oauthToken, refreshToken);
+        const enc = (t: string | null) => (t ? encryptToken(t) : null);
+        await this.userRepository.updateTokens(id, enc(oauthToken), enc(refreshToken));
     }
 }
