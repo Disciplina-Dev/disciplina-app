@@ -6,7 +6,6 @@ import { UserRow } from '../types/db-rows.types';
 import { toUser } from './mappers/user.mapper';
 import { env } from '../config/env';
 import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto/token-cipher';
-import { map } from 'pdfkit';
 const SALT_ROUNDS = 10;
 
 export class UserService {

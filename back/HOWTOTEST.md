@@ -2,7 +2,7 @@
 
 This guide is for contributors writing the first tests in `back/`. It is **opinionated** and **project-specific**. The goal is for any backend dev to be able to drop a new test file into the right place without rediscovering conventions every time.
 
-14 component tests for GraphQL candidates (`src/graphql/candidate/__tests__/`) are already in place as a reference. Drop new test files next to the feature they cover. No CI configured yet — requires Dockerised MySQL + MongoDB.
+14 component tests for GraphQL candidates (`src/graphql/candidate/__tests__/`) are already in place as a reference. Drop new test files next to the feature they cover. CI runs on every push via `.github/workflows/ci.yml` — requires Dockerised MySQL + MongoDB.
 
 ---
 
