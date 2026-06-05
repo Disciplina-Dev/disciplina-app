@@ -4,7 +4,13 @@ dotenv.config({
     path: ['.env', '../.env'],
 });
 
-const INSECURE_DEFAULTS = new Set(['super-secret-key-change-in-production', 'supersecret123', 'changeme']);
+const INSECURE_DEFAULTS = new Set([
+    'super-secret-key-change-in-production',
+    'supersecret123',
+    'changeme',
+    'change-this-relance-secret',
+    'change-this-google-state-secret',
+]);
 
 const errors: string[] = [];
 
@@ -109,6 +115,16 @@ if (INSECURE_DEFAULTS.has(data.JWT_SECRET)) {
 
 if (INSECURE_DEFAULTS.has(data.SESSION_SECRET)) {
     console.error('SESSION_SECRET is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.RELANCE_HMAC_SECRET)) {
+    console.error('RELANCE_HMAC_SECRET is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
+    console.error('GOOGLE_STATE_SECRET is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 
