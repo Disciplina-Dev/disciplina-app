@@ -58,6 +58,7 @@ function parseLogLevel(raw: string | undefined, nodeEnv: string): LogLevel {
 }
 
 const data = {
+    NODE_ENV: (process.env.NODE_ENV ?? 'development') as 'development' | 'production' | 'test',
     LOG_LEVEL: parseLogLevel(process.env.LOG_LEVEL, process.env.NODE_ENV ?? 'development'),
 
     API_PORT: numberWithDefault('API_PORT', 4000),
