@@ -3,6 +3,7 @@ import { UserService } from '../../services/UserService';
 import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
+import { logger } from '../../external/logger';
 
 const userService = new UserService();
 
@@ -16,7 +17,7 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
         const result = await userService.login(email, passwordPlain);
         res.json(result);
     } catch (error: any) {
-        console.error('Login error:', error);
+        logger.error({ err: error }, 'Auth: login failed');
         res.status(401).json({ error: error.message || 'Invalid credentials' });
     }
 }

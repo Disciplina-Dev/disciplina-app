@@ -315,9 +315,141 @@ For the complete JWT and Google OAuth flow (user-facing runtime narrative), see 
 
 ### Logger
 
-- Never use `console.log`, `console.warn`, or `console.error` inside `src/`
-- Always use the `logger` singleton from `external/logger/`
-- The only exception is `config/env.ts` where the logger is not yet available at startup
+**Never use `console.log`, `console.warn`, or `console.error` inside `src/`** — only in `config/env.ts` during startup validation.
+
+Always use the `logger` singleton from `external/logger/`. The logger is production-grade Pino with:
+
+**Configuration:**
+
+| Option | Value |
+|--------|-------|
+| **Log level** | Controlled via `LOG_LEVEL` env var (see below) |
+| **Base fields** | Every log includes `service: 'disciplina-api'`, `env`, `version` |
+| **Transport** | Pretty-printed colorized output in dev; raw JSON (ndjson) to stdout in production |
+| **PII redaction** | Automatic masking: `*.password`, `*.token`, `*.email`, `*.apiKey`, `req.headers.authorization`, etc. |
+| **Error serialization** | Stack traces only at `error`/`fatal` level; omitted at `warn` and below |
+
+**Environment variables:**
+
+```bash
+# Log level (default: 'info' in production, 'debug' in development)
+LOG_LEVEL=trace|debug|info|warn|error|fatal
+
+# Node environment (default: 'development')
+NODE_ENV=development|production|test
+```
+
+**Log level hierarchy:**
+
+| Level | Value | When to use |
+|-------|-------|-------------|
+| `fatal` | 60 | Process is about to crash |
+| `error` | 50 | Operation failed, requires investigation |
+| `warn` | 40 | Degraded operation, recoverable |
+| `info` | 30 | Normal significant events (default prod) |
+| `debug` | 20 | Verbose diagnostic info (default dev) |
+| `trace` | 10 | Extremely granular (queries, loop steps) |
+
+**Usage patterns:**
+
+```ts
+import { logger } from '../../external/logger';
+
+// ✅ Correct — with context object
+logger.info({ userId: 123 }, 'User logged in');
+logger.warn({ filePath }, 'File not found');
+logger.error({ err: error }, 'Operation failed');
+
+// ❌ Wrong — bare strings (use object syntax instead)
+logger.error(error);
+logger.error('message');
+
+// ❌ Wrong — console calls
+console.error(error);
+console.log(data);
+```
+
+**Canonical field schema (OTel Semantic Conventions):**
+
+When logging request-scoped data, use these standard field names:
+
+```ts
+// Request correlation (set automatically by pino-http middleware)
+req.id              // UUID, unique per HTTP request
+trace_id            // OTel trace ID (future use)
+
+// HTTP (OTel Semantic Conventions)
+http.method         // GET, POST, etc.
+http.url            // Full path with query string
+http.status_code    // Numeric response status
+http.request_id     // Same as req.id
+
+// Identity
+user.id             // Authenticated user's internal ID
+company.id          // Company context when applicable
+
+// Error (OTel Semantic Conventions)
+error.message       // err.message
+error.stack_trace   // err.stack (error/fatal level only)
+
+// Base (always present, added automatically)
+service             // 'disciplina-api'
+env                 // 'production' | 'development' | 'test'
+version             // From package.json
+```
+
+**Example — REST controller:**
+
+```ts
+import { logger } from '../../external/logger';
+
+export async function createUser(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const { email } = req.body;
+        logger.debug({ email }, 'Creating user');
+        const user = await userService.create(email);
+        logger.info({ userId: user.id, email }, 'User created');
+        res.json(user);
+    } catch (error: any) {
+        logger.error({ err: error, email }, 'User creation failed');
+        res.status(400).json({ error: error.message });
+    }
+}
+```
+
+**Example — Service layer:**
+
+```ts
+export class UserService {
+    async create(email: string): Promise<User> {
+        const existing = await this.repository.findByEmail(email);
+        if (existing) {
+            logger.warn({ email }, 'Email already registered');
+            throw new Error('Email already in use');
+        }
+        const user = await this.repository.create(email);
+        logger.info({ userId: user.id }, 'User persisted to database');
+        return user;
+    }
+}
+```
+
+**Auto-logged HTTP traffic:**
+
+Every HTTP request/response is automatically logged by the `pino-http` middleware:
+
+```json
+// Request received:
+{"level":"info","http.method":"POST","http.url":"/api/users","http.request_id":"550e8400-...","service":"disciplina-api","env":"development","version":"1.0.0"}
+
+// Response sent (includes responseTime):
+{"level":"info","http.status_code":201,"responseTime":42,"http.request_id":"550e8400-...","service":"disciplina-api","env":"development","version":"1.0.0"}
+```
+
+**Log output format:**
+
+- **Development** (`NODE_ENV != 'production'`): Pretty-printed with colors — human-readable
+- **Production**: ndjson (newline-delimited JSON) to stdout — parseable by log aggregators (Datadog, ELK, CloudWatch, etc.)
 
 ### Cryptography
 
@@ -366,12 +498,13 @@ The following violations of this CONVENTION.md have been identified in the codeb
 | 6 | `repositories/mysql/CompanyRepository.ts:1` | Stray unused `import { set } from 'mongoose'` — wrong layer | Boundary violation |
 | 7 | `rest/email/controller.ts` | `userService.findById()` called outside try/catch block | Error handling |
 | 8 | `rest/relance/controller.ts` | `sendRelance` and `handleResponse` missing `Promise<void>` return type | Type annotation |
-| 9 | `rest/auth/controller.ts:19` | `console.error` instead of `logger.error` | Logger usage |
-| 10 | `graphql/candidate/resolver.ts:44,105` | `console.error` instead of `logger.error` | Logger usage |
-| 11 | `db/mongo/connection.ts:195` | `console.warn` instead of `logger.warn` | Logger usage |
-| 12 | `types/candidate-templates.ts` | Filename does not follow `kebab-case.types.ts` pattern | Naming |
-| 13 | `services/mappers/candidate.mapper.ts` | Mapper function names don't follow `toX()` pattern; generic utilities mixed in | Naming / Design |
-| 14 | `services/CandidateService.ts` | Repository initialized as field, not in constructor | Minor deviation |
-| 15 | `repositories/mongo/CandidateRepository.ts`, `JobRepository.ts` | `flattenObject()` helper duplicated in both files (already documented as known quirk) | Code duplication |
+| 9 | `types/candidate-templates.ts` | Filename does not follow `kebab-case.types.ts` pattern | Naming |
+| 10 | `services/mappers/candidate.mapper.ts` | Mapper function names don't follow `toX()` pattern; generic utilities mixed in | Naming / Design |
+| 11 | `services/CandidateService.ts` | Repository initialized as field, not in constructor | Minor deviation |
+| 12 | `repositories/mongo/CandidateRepository.ts`, `JobRepository.ts` | `flattenObject()` helper duplicated in both files (already documented as known quirk) | Code duplication |
+
+**Recently fixed (June 8, 2026):**
+
+✅ Logger and console violations — all `console.error`, `console.warn`, `console.log` calls in `src/` replaced with `logger` calls
 
 ---

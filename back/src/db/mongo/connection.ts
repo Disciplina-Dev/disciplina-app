@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { env } from '../../config/env';
+import { logger } from '../../external/logger';
 
 const MONGO_URI = `mongodb://${env.MONGO_ROOT_USERNAME}:${env.MONGO_ROOT_PASSWORD}@${env.MONGO_HOST}:${env.MONGO_PORT}/${env.MONGO_DB_NAME}?authSource=admin`;
 
@@ -192,6 +193,6 @@ export async function connectMongoDB(): Promise<void> {
     try {
         await patchCandidatesValidator();
     } catch (err) {
-        console.warn('[MongoDB] Could not patch candidates validator:', err);
+        logger.warn({ err }, 'MongoDB: validator patch failed');
     }
 }
