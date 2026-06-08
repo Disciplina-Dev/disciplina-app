@@ -165,4 +165,6 @@ export interface Candidate {
     job_info?: JobInfo;
     synthesis?: Synthesis;
     pdf_link?: string;
+    cv_link?: string;
+    drive_folder_id?: string;
 }

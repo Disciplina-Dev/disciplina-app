@@ -12,6 +12,7 @@ import {
   GET_CANDIDATE_FULL,
   UPDATE_CANDIDATE,
   CREATE_CANDIDATE,
+  CREATE_CANDIDATE_DRIVE_FOLDER,
   CREATE_NEEDS_ANALYSIS,
   GET_NEEDS_ANALYSES_BY_COMPANY,
   GET_NEEDS_ANALYSIS,
@@ -326,6 +327,8 @@ function fromGql(c: any): Candidate {
         }
       : undefined,
     pdf_link: c.pdfLink,
+    cv_link: c.cvLink,
+    drive_folder_id: c.driveFolderId,
   }
 }
 
@@ -456,6 +459,23 @@ export function useCandidateFull(id: string) {
     error: result.error?.message ?? null,
     refetch: () => reexecute({ requestPolicy: 'network-only' }),
   }
+}
+
+export function useCreateCandidateDriveFolder() {
+  const [fetching, setFetching] = useState(false)
+
+  const createDriveFolder = async (id: string): Promise<{ pdfLink?: string; driveFolderId?: string } | null> => {
+    setFetching(true)
+    try {
+      const response = await candidateGraphqlClient.mutation(CREATE_CANDIDATE_DRIVE_FOLDER, { id })
+      if (response.error) throw new Error(response.error.message)
+      return response.data?.createCandidateDriveFolder ?? null
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  return { createDriveFolder, result: { fetching } }
 }
 
 export function useCreateNeedsAnalysis() {

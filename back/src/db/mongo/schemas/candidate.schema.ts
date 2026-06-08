@@ -185,6 +185,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         job_info: { type: jobInfoSchema },
         synthesis: { type: synthesisSchema },
         pdf_link: { type: String },
+        cv_link: { type: String },
+        drive_folder_id: { type: String },
         classmarker: { type: classMarkerResultSchema },
     },
     { collection: 'candidates' },

@@ -5,11 +5,11 @@ import { randomUUID } from 'crypto';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
-import { PdfService } from '../../services/PdfService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
+import { env } from '../../config/env';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
@@ -83,27 +83,22 @@ export const resolvers = {
             try {
                 const user = await userService.findById(context.user.id);
                 if (user && user.oauthToken) {
-                    const pdfBuffer = await PdfService.generateCandidatePdf(newCandidate);
-
                     const driveService = GoogleDriveService.fromTokens(
                         { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
                         persistRefreshedTokens(user.id),
                     );
 
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
-                    const folderId = await driveService.createFolder(folderName);
-                    const pdfLink = await driveService.uploadFile(
-                        `Dossier_${newCandidate.identity.full_name}.pdf`,
-                        'application/pdf',
-                        pdfBuffer,
-                        folderId,
+                    const folderId = await driveService.createFolder(
+                        folderName,
+                        env.DRIVE_CANDIDATS_NORD_FOLDER_ID,
                     );
 
-                    await candidateService.update(id, { pdf_link: pdfLink });
-                    newCandidate.pdf_link = pdfLink;
+                    await candidateService.update(id, { drive_folder_id: folderId });
+                    newCandidate.drive_folder_id = folderId;
                 }
             } catch (error) {
-                logger.error({ err: error }, 'PDF creation or Drive upload failed');
+                logger.error({ err: error }, 'Drive folder creation failed');
             }
 
             return candidateToGql(newCandidate);
@@ -128,6 +123,29 @@ export const resolvers = {
         deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH]);
             return candidateService.delete(id);
+        },
+
+        createCandidateDriveFolder: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuard(context.user, [Role.RH]);
+
+            const candidate = await candidateService.findById(id);
+            if (!candidate) throw new Error(`Candidate ${id} not found`);
+            if (candidate.drive_folder_id) return candidateToGql(candidate);
+
+            const user = await userService.findById(context.user.id);
+            if (!user || !user.oauthToken) throw new Error('Google Drive non connecté pour cet utilisateur');
+
+            const driveService = GoogleDriveService.fromTokens(
+                { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                persistRefreshedTokens(user.id),
+            );
+
+            const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
+            const folderId = await driveService.createFolder(folderName, env.DRIVE_CANDIDATS_NORD_FOLDER_ID);
+
+            const updated = await candidateService.update(id, { drive_folder_id: folderId });
+            if (!updated) throw new Error('Erreur lors de la mise à jour du candidat');
+            return candidateToGql(updated);
         },
     },
 };

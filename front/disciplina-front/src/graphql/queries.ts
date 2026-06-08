@@ -187,6 +187,16 @@ export const GET_CANDIDATES = gql`
   }
 `
 
+export const CREATE_CANDIDATE_DRIVE_FOLDER = gql`
+  mutation CreateCandidateDriveFolder($id: String!) {
+    createCandidateDriveFolder(id: $id) {
+      id
+      pdfLink
+      driveFolderId
+    }
+  }
+`
+
 export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {
@@ -236,6 +246,8 @@ export const GET_CANDIDATE_BY_ID = gql`
         geographicMobility
       }
       pdfLink
+      cvLink
+      driveFolderId
     }
   }
 `

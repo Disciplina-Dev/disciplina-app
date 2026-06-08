@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Save, Edit2, ExternalLink, ClipboardCheck,
-  QrCode, User, Loader2, AlertCircle, X,
+  QrCode, User, Loader2, AlertCircle, X, FolderPlus, Upload, FileText,
 } from 'lucide-react'
-import { useCandidateById, useUpdateCandidate } from '@/graphql/hooks'
+import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
+import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
 import Button from '@/components/ui/Button'
@@ -99,6 +100,8 @@ export default function FicheCandidat() {
   const navigate = useNavigate()
   const { candidate, loading, error } = useCandidateById(id ?? '')
   const { update } = useUpdateCandidate()
+  const { createDriveFolder } = useCreateCandidateDriveFolder()
+  const token = useAuthStore((s) => s.token)
 
   const [formData, setFormData] = useState<Candidate | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -106,6 +109,8 @@ export default function FicheCandidat() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
   const [showClassMarker, setShowClassMarker] = useState(false)
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [uploadingCV, setUploadingCV] = useState(false)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -165,6 +170,52 @@ export default function FicheCandidat() {
     setFormData(structuredClone(candidate))
     setIsEditing(false)
     setSaveError(null)
+  }
+
+  const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !formData) return
+    e.target.value = ''
+    setUploadingCV(true)
+    try {
+      const res = await fetch(`http://localhost:4000/api/candidates/${formData._id}/cv`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/pdf',
+          Authorization: `Bearer ${token}`,
+        },
+        body: file,
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Erreur upload CV')
+      }
+      const { fileLink } = await res.json()
+      setFormData(prev => prev ? { ...prev, cv_link: fileLink } : prev)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erreur upload CV')
+    } finally {
+      setUploadingCV(false)
+    }
+  }
+
+  const handleCreateDriveFolder = async () => {
+    if (!formData) return
+    setCreatingFolder(true)
+    try {
+      const result = await createDriveFolder(formData._id)
+      if (result) {
+        setFormData(prev => prev ? {
+          ...prev,
+          pdf_link: result.pdfLink ?? prev.pdf_link,
+          drive_folder_id: result.driveFolderId ?? prev.drive_folder_id,
+        } : prev)
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erreur lors de la création du dossier Drive')
+    } finally {
+      setCreatingFolder(false)
+    }
   }
 
   const { first, last } = splitFullName(formData.identity.full_name)
@@ -256,11 +307,27 @@ export default function FicheCandidat() {
 
         {/* ── Actions rapides ── */}
         <div className="flex flex-wrap gap-2">
-          {formData.pdf_link && (
+          {formData.drive_folder_id ? (
             <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={15} style={{ color: 'var(--color-purple)' }} />}
-              onClick={() => window.open(formData.pdf_link, '_blank')}>
+              onClick={() => window.open(`https://drive.google.com/drive/folders/${formData.drive_folder_id}`, '_blank')}>
               Drive
             </Button>
+          ) : (
+            <Button variant="secondary" size="sm" isLoading={creatingFolder}
+              leftIcon={<FolderPlus size={15} style={{ color: 'var(--color-purple)' }} />}
+              onClick={handleCreateDriveFolder}>
+              Créer dossier Drive
+            </Button>
+          )}
+          {formData.drive_folder_id && (
+            <>
+              <input id="cv-upload" type="file" accept="application/pdf" className="hidden" onChange={handleCVUpload} />
+              <Button variant="secondary" size="sm" isLoading={uploadingCV}
+                leftIcon={<Upload size={15} style={{ color: 'var(--color-purple)' }} />}
+                onClick={() => document.getElementById('cv-upload')?.click()}>
+                Importer CV
+              </Button>
+            </>
           )}
           <Button variant="secondary" size="sm" leftIcon={<ClipboardCheck size={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={() => navigate(`/rh/candidats/${formData._id}/questionnaire`)}>
@@ -584,6 +651,36 @@ export default function FicheCandidat() {
 
           {/* Résultat ClassMarker */}
           {id && <div className="md:col-span-2"><CandidateTestScore candidateId={id} /></div>}
+
+          {/* Visualisation CV */}
+          {formData.drive_folder_id && (
+            <Card className="md:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <SectionTitle>Visualisation du CV</SectionTitle>
+                <div className="flex items-center gap-2">
+                  <input id="cv-upload-bottom" type="file" accept="application/pdf" className="hidden" onChange={handleCVUpload} />
+                  <Button variant="secondary" size="sm" isLoading={uploadingCV}
+                    leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
+                    onClick={() => document.getElementById('cv-upload-bottom')?.click()}>
+                    {formData.cv_link ? 'Remplacer' : 'Importer CV'}
+                  </Button>
+                </div>
+              </div>
+              {formData.cv_link ? (
+                <iframe
+                  src={formData.cv_link.replace('/view', '/preview')}
+                  className="w-full rounded-lg border border-gray-100"
+                  style={{ height: '80vh' }}
+                  allow="autoplay"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
+                  <FileText size={32} className="text-gray-300" />
+                  <p className="text-sm text-gray-400">Aucun CV importé</p>
+                </div>
+              )}
+            </Card>
+          )}
 
         </div>
       </div>

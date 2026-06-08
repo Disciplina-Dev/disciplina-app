@@ -168,6 +168,8 @@ export const typeDefs = gql`
         jobInfo: JobInfo
         synthesis: CandidateSynthesis
         pdfLink: String
+        cvLink: String
+        driveFolderId: String
     }
 
     input IdentityInput {
@@ -321,5 +323,6 @@ export const typeDefs = gql`
         createCandidate(input: CreateCandidateInput!): Candidate!
         updateCandidate(id: String!, input: UpdateCandidateInput!): Candidate!
         deleteCandidate(id: String!): Boolean!
+        createCandidateDriveFolder(id: String!): Candidate!
     }
 `;

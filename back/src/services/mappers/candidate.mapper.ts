@@ -55,5 +55,7 @@ export function candidateToGql(candidate: Candidate): any {
         }) : null,
         synthesis: candidate.synthesis ? snakeToCamelCase(candidate.synthesis) : null,
         pdfLink: candidate.pdf_link || null,
+        cvLink: candidate.cv_link || null,
+        driveFolderId: candidate.drive_folder_id || null,
     };
 }
