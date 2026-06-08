@@ -83,5 +83,5 @@ export async function startServer(): Promise<http.Server> {
 }
 
 if (process.env.NODE_ENV !== 'test') {
-    startServer().catch((err) => logger.error(err, 'Startup error'));
+    startServer().catch((err) => logger.error({ err }, 'Startup error'));
 }

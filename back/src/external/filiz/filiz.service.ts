@@ -22,7 +22,7 @@ export class FilizService {
             if (json?.error) return null;
             return json.degrees;
         } catch (error) {
-            logger.error(error);
+            logger.error({ err: error }, 'FilizService: getDegreeIDs failed');
             return null;
         }
     }
@@ -48,7 +48,7 @@ export class FilizService {
 
             return results;
         } catch (error) {
-            logger.error(error);
+            logger.error({ err: error }, 'FilizService: getDegreesInfos failed');
             return null;
         }
     }
@@ -68,7 +68,6 @@ export class FilizService {
                 })
             ).json();
 
-            console.log('classes: ', classes);
             const results = Promise.all(
                 ((await classes) as any[]).map(async (c) => {
                     return fetch(`${env.FILIZ_BASE_URI}/api/class?classId=${c.classId}`, {
@@ -83,7 +82,7 @@ export class FilizService {
 
             return results;
         } catch (error) {
-            logger.error(error);
+            logger.error({ err: error }, 'FilizService: getClassInfos failed');
             return null;
         }
     }

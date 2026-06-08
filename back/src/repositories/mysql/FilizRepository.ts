@@ -21,7 +21,7 @@ export class FilizRepository {
             ]);
             return token;
         } catch (error) {
-            logger.error(error);
+            logger.error({ err: error }, 'FilizRepository: insertToken failed');
             return null;
         } finally {
             conn.release();
@@ -34,7 +34,7 @@ export class FilizRepository {
             const result = await conn.execute('DELETE FROM filiz WHERE expires_at < NOW()');
             return (result[0] as any).affectedRows > 0;
         } catch (error) {
-            logger.error(error);
+            logger.error({ err: error }, 'FilizRepository: deleteTokens failed');
             return false;
         } finally {
             conn.release();
