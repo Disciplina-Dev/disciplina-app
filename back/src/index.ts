@@ -16,6 +16,7 @@ import { router as sourcingRouter } from './rest/sourcing/route';
 import { router as yousignWebhookRouter } from './rest/yousign/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
+import { httpLogger } from './rest/middleware/httpLogger';
 import { logger } from './external/logger/logger';
 import { env } from './config/env';
 
@@ -27,6 +28,8 @@ declare module 'express-session' {
 
 export async function startServer(): Promise<http.Server> {
     const app: any = express();
+
+    app.use(httpLogger);
 
     app.use(
         cors({
