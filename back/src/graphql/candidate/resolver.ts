@@ -9,6 +9,7 @@ import { PdfService } from '../../services/PdfService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candidate.mapper';
+import { logger } from '../../external/logger';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
@@ -41,7 +42,7 @@ export const resolvers = {
             try {
                 return candidateToGql(candidate);
             } catch (err) {
-                console.error('[candidate resolver] candidateToGql failed for id:', id, err);
+                logger.error({ err, candidateId: id }, 'candidateToGql failed');
                 throw err;
             }
         },
@@ -102,7 +103,7 @@ export const resolvers = {
                     newCandidate.pdf_link = pdfLink;
                 }
             } catch (error) {
-                console.error("Erreur lors de la création du PDF ou de l'upload vers Drive :", error);
+                logger.error({ err: error }, 'PDF creation or Drive upload failed');
             }
 
             return candidateToGql(newCandidate);
