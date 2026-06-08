@@ -45,7 +45,21 @@ function numberWithDefault(key: string, fallback: number): number {
     return n;
 }
 
+const VALID_LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const;
+type LogLevel = (typeof VALID_LOG_LEVELS)[number];
+
+function parseLogLevel(raw: string | undefined, nodeEnv: string): LogLevel {
+    if (!raw) return nodeEnv === 'production' ? 'info' : 'debug';
+    if (!VALID_LOG_LEVELS.includes(raw as LogLevel)) {
+        errors.push(`Invalid LOG_LEVEL: "${raw}". Must be one of: ${VALID_LOG_LEVELS.join(', ')}`);
+        return nodeEnv === 'production' ? 'info' : 'debug';
+    }
+    return raw as LogLevel;
+}
+
 const data = {
+    LOG_LEVEL: parseLogLevel(process.env.LOG_LEVEL, process.env.NODE_ENV ?? 'development'),
+
     API_PORT: numberWithDefault('API_PORT', 4000),
 
     APP_BASE_URL: stringWithDefault('APP_BASE_URL', 'http://localhost:4000'),
@@ -127,12 +141,5 @@ if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
     console.error('GOOGLE_STATE_SECRET is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
-
-// if (!/^[0-9a-fA-F]{64}$/.test(data.OAUTH_ENCRYPTION_KEY)) {
-//     console.error(
-//         'OAUTH_ENCRYPTION_KEY must be a 64-character hex string (32 bytes). Generate with: openssl rand -hex 32',
-//     );
-//     if (process.env.NODE_ENV === 'production') process.exit(1);
-// }
 
 export const env = data;
