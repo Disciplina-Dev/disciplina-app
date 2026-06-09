@@ -64,6 +64,10 @@ const data = {
     API_PORT: numberWithDefault('API_PORT', 4000),
 
     APP_BASE_URL: stringWithDefault('APP_BASE_URL', 'http://localhost:4000'),
+    CORS_ORIGINS: stringWithDefault('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
     RELANCE_HMAC_SECRET: stringWithDefault('RELANCE_HMAC_SECRET', 'change-this-relance-secret'),
     GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
 
