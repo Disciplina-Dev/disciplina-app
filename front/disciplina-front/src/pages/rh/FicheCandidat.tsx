@@ -178,7 +178,7 @@ export default function FicheCandidat() {
     e.target.value = ''
     setUploadingCV(true)
     try {
-      const res = await fetch(`http://localhost:4000/api/candidates/${formData._id}/cv`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/cv`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/pdf',

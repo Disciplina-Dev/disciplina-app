@@ -1,7 +1,7 @@
 import type { ClassMarkerLink, ClassMarkerResult } from '@/types/classmarker';
 import { TitleProfessionalType } from '@/types/candidate';
 
-const API_BASE = 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_URL;
 
 async function authedFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_BASE}${path}`, {

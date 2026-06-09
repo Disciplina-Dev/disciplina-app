@@ -334,7 +334,7 @@ export default function Matching() {
 
   const [jobsResult] = useQuery({
     query: GET_JOBS,
-    context: { url: 'http://localhost:4000/api/graphql/jobs' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/jobs` },
   })
 
   const toggleJob = (id: string) => {

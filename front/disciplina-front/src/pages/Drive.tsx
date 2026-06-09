@@ -7,7 +7,7 @@ export default function Drive() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('http://localhost:4000/api/files', { credentials: 'include' })
+    fetch(`${import.meta.env.VITE_API_URL}/api/files`, { credentials: 'include' })
       .then(res => {
         if (res.status === 401) {
           navigate('/');
@@ -26,7 +26,7 @@ export default function Drive() {
   }, [navigate]);
 
   const handleLogout = () => {
-    fetch('http://localhost:4000/api/logout', { credentials: 'include' })
+    fetch(`${import.meta.env.VITE_API_URL}/api/logout`, { credentials: 'include' })
       .then(() => {
         navigate('/');
       });

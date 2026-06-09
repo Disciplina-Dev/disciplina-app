@@ -47,7 +47,7 @@ export default function Relance() {
     setResult(null)
     setError(null)
     try {
-      const res = await fetch('http://localhost:4000/api/relance/send', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/relance/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -14,21 +14,21 @@ const getFetchOptions = () => {
 }
 
 export const graphqlClient = new Client({
-  url: 'http://localhost:4000/api/graphql/companies',
+  url: `${import.meta.env.VITE_API_URL}/api/graphql/companies`,
   exchanges: [cacheExchange, fetchExchange],
   fetchOptions: getFetchOptions,
 })
 
 // Client dédié aux candidats (MongoDB – endpoint séparé)
 export const candidateGraphqlClient = new Client({
-  url: 'http://localhost:4000/api/graphql/candidates',
+  url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates`,
   exchanges: [cacheExchange, fetchExchange],
   fetchOptions: getFetchOptions,
 })
 
 // Client dédié aux jobs (matching – endpoint séparé)
 export const jobGraphqlClient = new Client({
-  url: 'http://localhost:4000/api/graphql/jobs',
+  url: `${import.meta.env.VITE_API_URL}/api/graphql/jobs`,
   exchanges: [cacheExchange, fetchExchange],
   fetchOptions: getFetchOptions,
 })

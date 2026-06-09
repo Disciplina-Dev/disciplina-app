@@ -58,7 +58,7 @@ export default function MailModal({ defaultTo = '', candidateName, onClose }: Ma
     }
 
     try {
-      const res = await fetch('http://localhost:4000/api/email/send', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

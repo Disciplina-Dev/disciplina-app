@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_URL;
 const LS_KEY = "siret_recents_v1";
 const EXAMPLES = ["80339671900027", "91234567800019", "39282471400025"];
 const MAX_RECENTS = 4;

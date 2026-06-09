@@ -378,7 +378,7 @@ function toGqlUpdateInput(c: Candidate): any {
 export function useCandidates() {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATES,
-    context: { url: 'http://localhost:4000/api/graphql/candidates' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
   })
 
   const candidates: Candidate[] = (result.data?.candidates ?? []).map(fromGql)
@@ -430,7 +430,7 @@ export function useCandidateById(id: string) {
   const [result] = useQuery({
     query: GET_CANDIDATE_BY_ID,
     variables: { id },
-    context: { url: 'http://localhost:4000/api/graphql/candidates' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
     pause: !id,
   })
 
@@ -447,7 +447,7 @@ export function useCandidateFull(id: string) {
   const [result, reexecute] = useQuery({
     query: GET_CANDIDATE_FULL,
     variables: { id },
-    context: { url: 'http://localhost:4000/api/graphql/candidates' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
     pause: !id,
   })
 

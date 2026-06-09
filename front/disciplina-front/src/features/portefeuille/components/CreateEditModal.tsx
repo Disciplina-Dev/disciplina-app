@@ -89,7 +89,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
     if (digits.length !== 14) return
     setLookupStatus('loading')
     try {
-      const res = await fetch(`http://localhost:4000/api/sourcing/${digits}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/sourcing/${digits}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
       if (res.status === 404) { setLookupStatus('notfound'); return }
@@ -280,7 +280,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                           if (mode !== 'create') return true
                           if (!/^\d{14}$/.test(value)) return true
                           try {
-                            const res = await fetch(`http://localhost:4000/api/sourcing/${value}`, {
+                            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/sourcing/${value}`, {
                               headers: token ? { Authorization: `Bearer ${token}` } : undefined,
                             })
                             if (!res.ok) return true

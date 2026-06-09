@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 
-const API_BASE = 'http://localhost:4000'
+const API_BASE = import.meta.env.VITE_API_URL
 
 export function useGoogleOAuthPopup() {
   const [isLoading, setIsLoading] = useState(false)
