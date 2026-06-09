@@ -22,9 +22,7 @@ function requireString(key: string): string {
     }
     return raw;
 }
-console.log(process.env.CI);
 const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
-console.log(IS_CI);
 
 function requireStringWithCIFallback(key: string, fallback: string): string {
     const raw = process.env[key];
@@ -86,8 +84,12 @@ const data = {
     MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
-    MYSQL_ROOT_PASSWORD: requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
+    MYSQL_ROOT_PASSWORD:
+        process.env.NODE_ENV === 'production'
+            ? optionalString('MYSQL_ROOT_PASSWORD') ?? ''
+            : requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
+    MYSQL_URI: optionalString('MYSQL_URI'),
 
     MONGO_URI: optionalString('MONGO_URI'),
     MONGO_ROOT_USERNAME:
@@ -167,6 +169,11 @@ if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
 
 if (data.NODE_ENV === 'production' && !data.MONGO_URI) {
     console.error('MONGO_URI is required in production');
+    process.exit(1);
+}
+
+if (data.NODE_ENV === 'production' && !data.MYSQL_URI) {
+    console.error('MYSQL_URI is required in production');
     process.exit(1);
 }
 
