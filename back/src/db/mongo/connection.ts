@@ -2,7 +2,10 @@ import mongoose from 'mongoose';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 
-const MONGO_URI = `mongodb://${env.MONGO_ROOT_USERNAME}:${env.MONGO_ROOT_PASSWORD}@${env.MONGO_HOST}:${env.MONGO_PORT}/${env.MONGO_DB_NAME}?authSource=admin`;
+const MONGO_URI =
+    env.NODE_ENV === 'production'
+        ? env.MONGO_URI!
+        : `mongodb://${env.MONGO_ROOT_USERNAME}:${env.MONGO_ROOT_PASSWORD}@${env.MONGO_HOST}:${env.MONGO_PORT}/${env.MONGO_DB_NAME}?authSource=admin`;
 
 /**
  * Patches the candidates collection validator to fix inconsistencies
