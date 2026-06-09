@@ -24,6 +24,7 @@ function requireString(key: string): string {
 }
 
 const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
+console.log(IS_CI);
 
 function requireStringWithCIFallback(key: string, fallback: string): string {
     const raw = process.env[key];
