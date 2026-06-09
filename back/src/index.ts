@@ -34,7 +34,20 @@ export async function startServer(): Promise<http.Server> {
 
     app.use(
         cors({
-            origin: ['http://localhost:3000', 'http://localhost:5173'],
+            origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+                // No Origin header: same-origin, curl, server-to-server
+                if (!origin) return callback(null, true);
+                let allowed = env.CORS_ORIGINS.includes(origin);
+                if (!allowed) {
+                    try {
+                        allowed = /\.vercel\.app$/.test(new URL(origin).hostname);
+                    } catch {
+                        allowed = false;
+                    }
+                }
+                if (allowed) return callback(null, true);
+                return callback(new Error(`CORS: origin ${origin} not allowed`));
+            },
             credentials: true,
         }),
     );
