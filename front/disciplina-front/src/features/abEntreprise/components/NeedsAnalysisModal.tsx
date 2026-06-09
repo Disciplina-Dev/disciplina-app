@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import {
   X, ChevronRight, ChevronLeft, Check,
   Building2, User, Users, Info, Briefcase,
-  GraduationCap, Shield, ClipboardList, Plus, Minus,
+  GraduationCap, Shield, Plus, Minus,
 } from 'lucide-react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
@@ -144,18 +144,6 @@ const SOFT_SKILLS_LIST = [
   'Sens des responsabilités',
 ]
 
-const JOB_DESCRIPTION_OPTIONS = [
-  'Accueil physique et téléphonique',
-  'Gestion administrative et rédaction',
-  'Gestion des agendas et rendez-vous',
-  'Traitement du courrier',
-  'Saisie et mise à jour de données',
-  'Relation client et conseil',
-  'Prospection et développement commercial',
-  'Suivi de dossiers et reporting',
-  'Organisation de réunions et événements',
-  'Gestion des stocks et approvisionnements',
-]
 
 const SCHEDULE_OPTIONS = [
   'Temps plein (35h)',
@@ -351,7 +339,7 @@ function NumberStepper({
 }
 
 function RadioGroup<T extends string>({
-  label, name, options, value, onChange, error, required,
+  label, name: _name, options, value, onChange, error, required,
 }: {
   label: string
   name: string

@@ -3,8 +3,6 @@ import {
   CandidateStatus,
   SchoolLevel,
   TrainingSite,
-  SkillLevel,
-  DiscoverySource,
 } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 

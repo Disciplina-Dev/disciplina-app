@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import type { EntrepriseFilters, EntrepriseStatus } from '@/types/entreprise'
-import { USERS } from '@/store/authStore'
+import { USERS, UserRole } from '@/store/authStore'
 
 const STATUS_OPTIONS: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir']
 
@@ -233,7 +233,7 @@ function DateRangeContent({
 // ─── Main FilterPanel ─────────────────────────────────────────────────────────
 export default function FilterPanel({ filters, secteurs, onChange, onReset, activeCount }: Props) {
   const commercials = Object.values(USERS)
-    .filter((u) => u.role !== 'admin')
+    .filter((u) => u.role !== UserRole.ADMIN)
     .map((u) => u.name)
 
   const toggleStatus = (s: EntrepriseStatus) => {

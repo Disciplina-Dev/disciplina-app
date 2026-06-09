@@ -479,6 +479,12 @@ export const GET_JOBS = gql`
       id
       companyName
       ageRange
+      desiredTP
+      desiredSex
+      drivingLicencseB
+      professionalExperience
+      status
+      localisation
     }
   }
 `
@@ -489,6 +495,37 @@ export const MATCH_JOB = gql`
       id
       companyName
       ageRange
+      desiredTP
+      desiredSex
+      drivingLicencseB
+      professionalExperience
+      status
+      localisation
+      matchedCandidate {
+        id
+        fullName
+        age
+        sex
+        city
+        email
+        phone
+      }
+    }
+  }
+`
+
+export const UNMATCH_JOB = gql`
+  mutation UnmatchJob($id: String!) {
+    unmatchJob(id: $id) {
+      id
+      companyName
+      ageRange
+      desiredTP
+      desiredSex
+      drivingLicencseB
+      professionalExperience
+      status
+      localisation
       matchedCandidate {
         id
         fullName

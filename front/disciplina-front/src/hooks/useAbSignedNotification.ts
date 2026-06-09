@@ -9,7 +9,7 @@ export interface AbSignedEvent {
   companyId: number
 }
 
-export function useAbSignedNotification(userID: number | null | undefined) {
+export function useAbSignedNotification(userID: string | null | undefined) {
   const [notifications, setNotifications] = useState<AbSignedEvent[]>([])
 
   useEffect(() => {

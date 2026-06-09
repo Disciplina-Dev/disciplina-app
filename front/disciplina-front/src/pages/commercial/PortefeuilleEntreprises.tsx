@@ -28,8 +28,8 @@ const PAGE_SIZE = 25
 // ─── User switcher ────────────────────────────────────────────────────────────
 function UserSwitcher() {
   const currentUserId = useAuthStore((s) => s.user?.id)
-  const setCurrentUser = useAuthStore((s) => s.set)
-  const user = USERS[currentUserId]
+  const setUser = useAuthStore((s) => s.setUser)
+  const user = USERS[currentUserId!]
 
   return (
     <div className="flex items-center gap-2.5">
@@ -40,7 +40,7 @@ function UserSwitcher() {
         {Object.values(USERS).map((u) => (
           <button
             key={u.id}
-            onClick={() => setCurrentUser(u.id)}
+            onClick={() => setUser(USERS[u.id])}
             title={`${u.name} — ${u.role}`}
             className={[
               'relative flex items-center gap-2 px-3.5 py-2.5 text-[12px] font-medium transition-all duration-150',
@@ -276,7 +276,7 @@ export default function PortefeuilleEntreprises() {
   const companies = usePortefeuilleStore((s) => s.companies)
   const { update } = useUpdateCompany();
   const { createCompany } = useCreateCompany();
-  const addCompany = usePortefeuilleStore((s) => s.addCompany)
+  const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
 
   const { loading } = useInitializePortfolio()
 
@@ -380,10 +380,7 @@ export default function PortefeuilleEntreprises() {
   }
 
   const handleClaim = (id: string, userId: number, userName: string) => {
-    updateCompany(id, {
-      proprietaire_id: userId,
-      commercial: userName,
-    })
+    updateCompany(id, { proprietaire_id: userId, commercial: userName })
   }
 
   const openCreate = (siret?: string) => {
@@ -513,9 +510,9 @@ export default function PortefeuilleEntreprises() {
               <EntrepriseCard
                 key={e.id}
                 entreprise={e}
-                currentUser={currentUser}
+                currentUser={currentUser!}
                 onClick={() => setDetailEntry(e)}
-                onClaim={() => handleClaim(e.id, currentUser.id, currentUser.name)}
+                onClaim={() => handleClaim(e.id, Number(currentUser!.id), currentUser!.name)}
               />
             ))}
           </div>
@@ -541,7 +538,7 @@ export default function PortefeuilleEntreprises() {
       {detailEntry && !editEntry && (
         <DetailModal
           entreprise={detailEntry}
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onClose={() => setDetailEntry(null)}
           onEdit={() => setEditEntry(detailEntry)}
           onCreateAB={() => { setAbEntry(detailEntry); setDetailEntry(null) }}
@@ -550,7 +547,7 @@ export default function PortefeuilleEntreprises() {
       {abEntry && (
         <NeedsAnalysisModal
           entreprise={abEntry}
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onClose={() => setAbEntry(null)}
           onSuccess={() => setAbEntry(null)}
         />
@@ -559,7 +556,7 @@ export default function PortefeuilleEntreprises() {
         <CreateEditModal
           mode="edit"
           initial={editEntry}
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onSave={handleSaveEdit}
           onClose={() => setEditEntry(null)}
         />
@@ -568,7 +565,7 @@ export default function PortefeuilleEntreprises() {
         <CreateEditModal
           mode="create"
           prefillSiret={prefillSiret}
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onSave={handleCreate}
           onClose={() => { setCreateOpen(false); setPrefillSiret(undefined) }}
         />

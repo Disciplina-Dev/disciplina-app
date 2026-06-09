@@ -5,7 +5,7 @@ import {
   X, Plus, SlidersHorizontal, Trash2,
   Phone, GraduationCap, Mail, Copy, Check, QrCode
 } from 'lucide-react';
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel, DiscoverySource } from '@/types/candidate';
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';

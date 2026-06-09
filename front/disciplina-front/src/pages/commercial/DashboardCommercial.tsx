@@ -25,8 +25,8 @@ import Button from '@/components/ui/Button'
 // ─── User switcher (copied from Portefeuille for testing/nav) ───────────────
 function UserSwitcher() {
   const currentUserId = useAuthStore((s) => s.user?.id)
-  const setCurrentUser = useAuthStore((s) => s.set)
-  const user = USERS[currentUserId]
+  const setUser = useAuthStore((s) => s.setUser)
+  const user = USERS[currentUserId!]
 
   return (
     <div className="flex items-center gap-2.5">
@@ -37,7 +37,7 @@ function UserSwitcher() {
         {Object.values(USERS).map((u) => (
           <button
             key={u.id}
-            onClick={() => setCurrentUser(u.id)}
+            onClick={() => setUser(USERS[u.id])}
             title={`${u.name} — ${u.role}`}
             className={[
               'relative flex items-center gap-2 px-3.5 py-2.5 text-[12px] font-medium transition-all duration-150',
@@ -81,9 +81,9 @@ export default function DashboardCommercial() {
   const myCompanies = useMemo(() => {
     // Amanda (2) and Lorenzo (5) can see all.
     // Brandon (3) and Emile (4) only see their own.
-    const isRestricted = currentUser.role?.toUpperCase() === 'COMMERCIAL' && String(currentUser.id) !== '1'
+    const isRestricted = currentUser!.role?.toUpperCase() === 'COMMERCIAL' && String(currentUser!.id) !== '1'
     if (isRestricted) {
-      return companies.filter((c) => c.proprietaire_id === currentUser.id)
+      return companies.filter((c) => c.proprietaire_id === Number(currentUser!.id))
     }
     return companies
   }, [companies, currentUser])
@@ -131,13 +131,13 @@ export default function DashboardCommercial() {
 
   // 4. Compute performance per commercial (only visible for Admin/Responsable)
   const statsPerCommercial = useMemo(() => {
-    if (currentUser.role?.toUpperCase() === 'COMMERCIAL' && String(currentUser.id) !== '1') return []
+    if (currentUser!.role?.toUpperCase() === 'COMMERCIAL' && String(currentUser!.id) !== '1') return []
 
     const map: Record<number, { id: number, name: string, total: number, oui: number, non: number, aReflechir: number, color: string }> = {}
 
     Object.values(USERS).forEach((u) => {
       if (u.role?.toUpperCase() === 'COMMERCIAL' && String(u.id) !== '1') {
-        map[u.id] = { id: u.id, name: u.name, total: 0, oui: 0, non: 0, aReflechir: 0, color: u.color }
+        map[Number(u.id)] = { id: Number(u.id), name: u.name, total: 0, oui: 0, non: 0, aReflechir: 0, color: u.color ?? '#9ca3af' }
       }
     })
 
@@ -149,8 +149,8 @@ export default function DashboardCommercial() {
         else if (c.status === 'Non') map[pId].non++
         else if (c.status === 'À Réfléchir') map[pId].aReflechir++
       } else if (pId) {
-        const fallbackColor = USERS[pId]?.color || '#9ca3af'
-        const fallbackName = USERS[pId]?.name || c.commercial || 'Inconnu'
+        const fallbackColor = USERS[String(pId)]?.color ?? '#9ca3af'
+        const fallbackName = USERS[String(pId)]?.name ?? c.commercial ?? 'Inconnu'
         map[pId] = { id: pId, name: fallbackName, total: 1, oui: c.status === 'Oui' ? 1 : 0, non: c.status === 'Non' ? 1 : 0, aReflechir: c.status === 'À Réfléchir' ? 1 : 0, color: fallbackColor }
       }
     })
@@ -179,8 +179,8 @@ export default function DashboardCommercial() {
 
   const handleClaim = (id: string) => {
     updateCompany(id, {
-      proprietaire_id: currentUser.id,
-      commercial: currentUser.name,
+      proprietaire_id: Number(currentUser!.id),
+      commercial: currentUser!.name,
     })
   }
 
@@ -358,7 +358,7 @@ export default function DashboardCommercial() {
                 Aucun appel téléphonique
               </p>
               <p className="text-[13px] text-gray-400 mt-1 max-w-sm mx-auto">
-                {currentUser.role?.toUpperCase() === 'COMMERCIAL'
+                {currentUser!.role?.toUpperCase() === 'COMMERCIAL'
                   ? "Vous n'avez appelé aucune entreprise cette semaine pour le moment. Commencez votre prospection !"
                   : "Aucune entreprise n'a été appelée récemment par les commerciaux."}
               </p>
@@ -373,7 +373,7 @@ export default function DashboardCommercial() {
               <EntrepriseCard
                 key={e.id}
                 entreprise={e}
-                currentUser={currentUser}
+                currentUser={currentUser!}
                 onClick={() => setDetailEntry(e)}
                 onClaim={() => handleClaim(e.id)}
               />
@@ -387,7 +387,7 @@ export default function DashboardCommercial() {
       {detailEntry && !editEntry && (
         <DetailModal
           entreprise={detailEntry}
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onClose={() => setDetailEntry(null)}
           onEdit={() => setEditEntry(detailEntry)}
           onCreateAB={() => { setAbEntry(detailEntry); setDetailEntry(null) }}
@@ -396,7 +396,7 @@ export default function DashboardCommercial() {
       {abEntry && (
         <NeedsAnalysisModal
           entreprise={abEntry}
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onClose={() => setAbEntry(null)}
           onSuccess={() => setAbEntry(null)}
         />
@@ -405,7 +405,7 @@ export default function DashboardCommercial() {
         <CreateEditModal
           mode="edit"
           initial={editEntry}
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onSave={handleSaveEdit}
           onClose={() => setEditEntry(null)}
         />
@@ -413,7 +413,7 @@ export default function DashboardCommercial() {
       {createOpen && (
         <CreateEditModal
           mode="create"
-          currentUser={currentUser}
+          currentUser={currentUser!}
           onSave={handleCreate}
           onClose={() => setCreateOpen(false)}
         />

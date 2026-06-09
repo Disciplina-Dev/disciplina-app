@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { X, Building2, ArrowRight, AlertTriangle } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { useAuthStore, USERS } from '@/store/authStore'
+import { useAuthStore, USERS, UserRole } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 
@@ -33,7 +33,7 @@ type FormValues = {
   note: string
   conclusion: string
   status: EntrepriseStatus
-  proprietaire_id: number
+  proprietaire_id: string
   date_relance: string
 }
 
@@ -55,7 +55,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
   const defaultOwner =
     mode === 'create'
       ? currentUser.id
-      : (initial?.proprietaire_id ?? currentUser.id)
+      : String(initial?.proprietaire_id ?? currentUser.id)
 
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     defaultValues: {
@@ -120,7 +120,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
     setStep('form')
   }
 
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit: SubmitHandler<FormValues> = async (values) => {
     const owner = USERS[values.proprietaire_id]
     await onSave({
       id: initial?.id,
@@ -136,7 +136,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       note: values.note || null,
       conclusion: values.conclusion || null,
       status: values.status,
-      proprietaire_id: owner?.id ?? null,
+      proprietaire_id: owner?.id ? Number(owner.id) : null,
       commercial: owner?.name ?? null,
       date_relance: values.date_relance ? new Date(values.date_relance).toISOString() : new Date().toISOString(),
       ...(mode === 'create' && {
@@ -380,7 +380,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       </label>
                       <select
                         id="proprietaire_id"
-                        disabled={currentUser.role === 'commercial'}
+                        disabled={currentUser.role === UserRole.COMMERCIAL}
                         className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue disabled:opacity-60 disabled:cursor-not-allowed"
                         {...register('proprietaire_id')}
                       >
@@ -390,7 +390,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                           </option>
                         ))}
                       </select>
-                      {currentUser.role === 'commercial' && (
+                      {currentUser.role === UserRole.COMMERCIAL && (
                         <p className="text-xs text-gray-500">Vous serez automatiquement défini comme propriétaire</p>
                       )}
                     </div>

@@ -23,7 +23,7 @@ export default function CreateAB() {
     return (
       <NeedsAnalysisModal
         entreprise={selected}
-        currentUser={currentUser}
+        currentUser={currentUser!}
         onClose={() => setSelected(null)}
         onSuccess={() => navigate('/commercial/analyses-besoin')}
       />

@@ -34,6 +34,7 @@ import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { UserRole } from "@/store/authStore";
 
 export const router = createBrowserRouter([
   {
@@ -50,7 +51,7 @@ export const router = createBrowserRouter([
       {
         path: "/register",
         element: (
-          <ProtectedRoute allowedRoles={['ADMIN']}>
+          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
             <RegisterPage />
           </ProtectedRoute>
         )
@@ -60,7 +61,7 @@ export const router = createBrowserRouter([
   {
     path: "/commercial",
     element: (
-      <ProtectedRoute allowedRoles={['COMMERCIAL']}>
+      <ProtectedRoute allowedRoles={[UserRole.COMMERCIAL]}>
         <CommercialLayout />
       </ProtectedRoute>
     ),
@@ -75,7 +76,7 @@ export const router = createBrowserRouter([
   {
     path: "/rh",
     element: (
-      <ProtectedRoute allowedRoles={['RH']}>
+      <ProtectedRoute allowedRoles={[UserRole.RH]}>
         <RHLayout />
       </ProtectedRoute>
     ),
@@ -94,7 +95,7 @@ export const router = createBrowserRouter([
   {
     path: "/entreprise",
     element: (
-      <ProtectedRoute allowedRoles={['ENTREPRISE']}>
+      <ProtectedRoute allowedRoles={[UserRole.ENTREPRISE]}>
         <EntrepriseLayout />
       </ProtectedRoute>
     ),

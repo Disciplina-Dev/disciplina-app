@@ -1197,7 +1197,7 @@ export default function Sourcing() {
                 </div>
                 <CommuneResultList
                   result={communeResult}
-                  selectedSiret={selectedCommune?.siret}
+                  selectedSiret={undefined}
                   onSelect={setSelectedCommune}
                 />
               </div>
