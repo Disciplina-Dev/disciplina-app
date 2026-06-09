@@ -22,7 +22,7 @@ function requireString(key: string): string {
     }
     return raw;
 }
-
+console.log(process.env.CI);
 const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
 console.log(IS_CI);
 
