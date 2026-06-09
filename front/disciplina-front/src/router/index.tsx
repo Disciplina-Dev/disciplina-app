@@ -1,6 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
 
-import SelectProfil from "@/pages/SelectProfil";
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 
@@ -38,14 +37,10 @@ import { UserRole } from "@/store/authStore";
 
 export const router = createBrowserRouter([
   {
-    path: "/",
-    element: <SelectProfil />,
-  },
-  {
     element: <AuthLayout />,
     children: [
   {
-    path: "/login", element: <LoginPage /> },
+    path: "/", element: <LoginPage /> },
   {
     path: "/auth/google", element: <GoogleAuthCallback /> },
       {

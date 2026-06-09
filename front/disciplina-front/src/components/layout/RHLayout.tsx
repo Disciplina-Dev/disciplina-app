@@ -30,7 +30,7 @@ export default function RHLayout() {
 
   const handleLogout = () => {
     logout()
-    navigate('/login')
+    navigate('/')
   }
 
   return (
