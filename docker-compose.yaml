@@ -94,14 +94,13 @@ services:
     depends_on:
       sql-db:
         condition: service_healthy
-      nosql-db:
-        condition: service_healthy
     env_file:
       - ./.env
     environment:
       MYSQL_USER: root
       MYSQL_DATABASE: disciplina
       MONGO_HOST: nosql-db
+      NODE_ENV: ${NODE_ENV:-development}
     restart: no
     networks:
       - backend-net

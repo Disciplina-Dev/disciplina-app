@@ -76,8 +76,15 @@ const data = {
     MYSQL_ROOT_PASSWORD: requireString('MYSQL_ROOT_PASSWORD'),
     MYSQL_DATABASE: requireString('MYSQL_DATABASE'),
 
-    MONGO_ROOT_USERNAME: requireString('MONGO_ROOT_USERNAME'),
-    MONGO_ROOT_PASSWORD: requireString('MONGO_ROOT_PASSWORD'),
+    MONGO_URI: optionalString('MONGO_URI'),
+    MONGO_ROOT_USERNAME:
+        process.env.NODE_ENV === 'production'
+            ? optionalString('MONGO_ROOT_USERNAME') ?? ''
+            : requireString('MONGO_ROOT_USERNAME'),
+    MONGO_ROOT_PASSWORD:
+        process.env.NODE_ENV === 'production'
+            ? optionalString('MONGO_ROOT_PASSWORD') ?? ''
+            : requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
     MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
@@ -143,6 +150,11 @@ if (INSECURE_DEFAULTS.has(data.RELANCE_HMAC_SECRET)) {
 if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
     console.error('GOOGLE_STATE_SECRET is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (data.NODE_ENV === 'production' && !data.MONGO_URI) {
+    console.error('MONGO_URI is required in production');
+    process.exit(1);
 }
 
 export const env = data;
