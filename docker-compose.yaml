@@ -108,6 +108,8 @@ services:
     build:
       context: ./front/disciplina-front
       dockerfile: Dockerfile
+    environment:
+      - VITE_API_URL=http://localhost:4000
     develop:
       watch:
         - path: ./front/disciplina-front/src

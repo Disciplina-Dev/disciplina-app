@@ -33,10 +33,12 @@ export default function LoginPage() {
       const { token, user } = data
       setAuth(token, user)
 
-      if (user.role === 'RH') {
+      if (user.role === 'RH' || user.role === 'ADMIN') {
         navigate('/rh')
       } else if (user.role === 'COMMERCIAL') {
         navigate('/commercial')
+      } else if (user.role === 'ENTREPRISE') {
+        navigate('/entreprise')
       } else {
         navigate('/')
       }
@@ -62,10 +64,11 @@ export default function LoginPage() {
         <InputField
           label="Adresse email"
           id="email"
+          name="email"
           type="email"
           placeholder="vous@exemple.fr"
           icon={<Mail size={18} />}
-          autoComplete="email"
+          autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -75,6 +78,7 @@ export default function LoginPage() {
           <PasswordInput
             label="Mot de passe"
             id="password"
+            name="password"
             placeholder="••••••••"
             autoComplete="current-password"
             value={passwordPlain}

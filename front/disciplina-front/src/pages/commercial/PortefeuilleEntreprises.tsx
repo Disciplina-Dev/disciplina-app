@@ -11,7 +11,7 @@ import {
 import { useState, useMemo, useCallback } from 'react'
 import { isSameDay, parseISO } from 'date-fns'
 import type { Entreprise, EntrepriseFilters } from '@/types/entreprise'
-import { useAuthStore, useCurrentUser, USERS } from '@/store/authStore'
+import { useCurrentUser } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
@@ -25,46 +25,6 @@ import { toCompany } from '@/types/companyMapper'
 
 const PAGE_SIZE = 25
 
-// ─── User switcher ────────────────────────────────────────────────────────────
-function UserSwitcher() {
-  const currentUserId = useAuthStore((s) => s.user?.id)
-  const setUser = useAuthStore((s) => s.setUser)
-  const user = USERS[currentUserId!]
-
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="hidden sm:block text-[11px] font-medium text-gray-400 uppercase tracking-wider">
-        Session
-      </span>
-      <div className="flex items-center rounded-xl border border-gray-100 bg-white overflow-hidden shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
-        {Object.values(USERS).map((u) => (
-          <button
-            key={u.id}
-            onClick={() => setUser(USERS[u.id])}
-            title={`${u.name} — ${u.role}`}
-            className={[
-              'relative flex items-center gap-2 px-3.5 py-2.5 text-[12px] font-medium transition-all duration-150',
-              'border-r border-gray-100 last:border-r-0',
-              u.id === user.id ? 'text-white' : 'text-gray-500 hover:bg-gray-50',
-            ].join(' ')}
-            style={u.id === user.id ? { backgroundColor: u.color } : undefined}
-          >
-            <span
-              className="flex h-5 w-5 items-center justify-center rounded-full text-white text-[9px] font-bold shrink-0"
-              style={{
-                backgroundColor:
-                  u.id === user.id ? 'rgba(255,255,255,0.25)' : u.color,
-              }}
-            >
-              {u.initials}
-            </span>
-            <span className="hidden md:block">{u.name}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // ─── SIRET Search ─────────────────────────────────────────────────────────────
 interface SiretSearchProps {
@@ -426,8 +386,6 @@ export default function PortefeuilleEntreprises() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <UserSwitcher />
-              <div className="h-6 w-px bg-gray-200 hidden sm:block" />
               <button
                 onClick={() => setShowSearch((v) => !v)}
                 className={[
