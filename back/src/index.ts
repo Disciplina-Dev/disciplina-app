@@ -2,6 +2,7 @@ import './config/env'; // validate env vars at startup
 import express, { Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
+import { connectMySQL } from './db/mysql/connection';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
@@ -78,6 +79,7 @@ export async function startServer(): Promise<http.Server> {
     app.use(yousignWebhookRouter);
     app.use(errorHandler);
 
+    await connectMySQL();
     await connectMongoDB();
 
     await CompanyAPI.start();

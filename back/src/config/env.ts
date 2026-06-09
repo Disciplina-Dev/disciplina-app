@@ -22,6 +22,17 @@ function requireString(key: string): string {
     }
     return raw;
 }
+const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
+
+function requireStringWithCIFallback(key: string, fallback: string): string {
+    const raw = process.env[key];
+    if (raw === undefined || raw === '') {
+        if (IS_CI) return fallback;
+        errors.push(`${key} is required`);
+        return '';
+    }
+    return raw;
+}
 
 function optionalString(key: string, fallback?: string): string | undefined {
     const raw = process.env[key];
@@ -77,8 +88,12 @@ const data = {
     MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
-    MYSQL_ROOT_PASSWORD: requireString('MYSQL_ROOT_PASSWORD'),
-    MYSQL_DATABASE: requireString('MYSQL_DATABASE'),
+    MYSQL_ROOT_PASSWORD:
+        process.env.NODE_ENV === 'production'
+            ? optionalString('MYSQL_ROOT_PASSWORD') ?? ''
+            : requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
+    MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
+    MYSQL_URI: optionalString('MYSQL_URI'),
 
     MONGO_URI: optionalString('MONGO_URI'),
     MONGO_ROOT_USERNAME:
@@ -93,8 +108,8 @@ const data = {
     MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
 
-    JWT_SECRET: requireString('JWT_SECRET'),
-    SESSION_SECRET: requireString('SESSION_SECRET'),
+    JWT_SECRET: requireStringWithCIFallback('JWT_SECRET', 'ci-jwt-secret'),
+    SESSION_SECRET: requireStringWithCIFallback('SESSION_SECRET', 'ci-session-secret'),
 
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
@@ -107,11 +122,11 @@ const data = {
     SMTP_PASS: optionalString('SMTP_PASS'),
     SMTP_FROM: optionalString('SMTP_FROM'),
 
-    FILIZ_CLIENT_ID: requireString('FILIZ_CLIENT_ID'),
-    FILIZ_CLIENT_SECRET: requireString('FILIZ_CLIENT_SECRET'),
-    FILIZ_AUDIENCE: requireString('FILIZ_AUDIENCE'),
+    FILIZ_CLIENT_ID: requireStringWithCIFallback('FILIZ_CLIENT_ID', 'ci-filiz-client-id'),
+    FILIZ_CLIENT_SECRET: requireStringWithCIFallback('FILIZ_CLIENT_SECRET', 'ci-filiz-secret'),
+    FILIZ_AUDIENCE: requireStringWithCIFallback('FILIZ_AUDIENCE', 'ci-filiz-audience'),
     FILIZ_BASE_URI: optionalString('FILIZ_BASE_URI', 'https://api.dev.partners.filiz.io'),
-    FILIZ_AUTH_URI: requireString('FILIZ_AUTH_URI'),
+    FILIZ_AUTH_URI: requireStringWithCIFallback('FILIZ_AUTH_URI', 'http://localhost/ci-filiz-auth'),
 
     INSEE_API_KEY: optionalString('INSEE_API_KEY'),
 
@@ -158,6 +173,11 @@ if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
 
 if (data.NODE_ENV === 'production' && !data.MONGO_URI) {
     console.error('MONGO_URI is required in production');
+    process.exit(1);
+}
+
+if (data.NODE_ENV === 'production' && !data.MYSQL_URI) {
+    console.error('MYSQL_URI is required in production');
     process.exit(1);
 }
 

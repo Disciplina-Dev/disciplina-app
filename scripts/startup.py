@@ -18,6 +18,7 @@ import sys
 import time
 import unicodedata
 import uuid
+from urllib.parse import urlparse
 
 import mysql.connector
 from dotenv import load_dotenv
@@ -86,13 +87,44 @@ def normalize_city(city: str) -> str:
 
 
 def get_mysql_connection():
-    return mysql.connector.connect(
-        host=os.getenv('MYSQL_HOST', 'localhost'),
-        port=3306,
-        user=os.getenv('MYSQL_USER', 'root'),
-        password=os.getenv('MYSQL_ROOT_PASSWORD'),
-        database=os.getenv('MYSQL_DATABASE', 'disciplina'),
-    )
+    node_env = os.getenv("NODE_ENV", "development")
+    if node_env == "production":
+        mysql_uri = os.getenv("MYSQL_URI")
+        if not mysql_uri:
+            raise ValueError("MYSQL_URI must be set in production mode")
+        parsed = urlparse(mysql_uri)
+        host = parsed.hostname or 'localhost'
+        port = parsed.port or 3306
+        user = parsed.username or 'root'
+        password = parsed.password or ''
+        database = parsed.path.lstrip('/') or 'disciplina'
+        return mysql.connector.connect(
+            host=host, port=port, user=user,
+            password=password, database=database,
+            ssl_disabled=False,
+            connection_timeout=10,
+        )
+    # development: use individual vars, retry until local container is ready
+    host = os.getenv('MYSQL_HOST', 'localhost')
+    port = int(os.getenv('MYSQL_PORT', '3306'))
+    user = os.getenv('MYSQL_USER', 'root')
+    password = os.getenv('MYSQL_ROOT_PASSWORD')
+    database = os.getenv('MYSQL_DATABASE', 'disciplina')
+    if not password:
+        raise ValueError("MYSQL_ROOT_PASSWORD must be set")
+    for attempt in range(1, 6):
+        try:
+            conn = mysql.connector.connect(
+                host=host, port=port, user=user,
+                password=password, database=database,
+            )
+            conn.ping()
+            return conn
+        except Exception:
+            if attempt == 5:
+                raise
+            print(f"MySQL not ready (attempt {attempt}/5), retrying in 3s...")
+            time.sleep(3)
 
 
 def get_mongo_connection():
@@ -128,11 +160,14 @@ def get_mongo_connection():
 def mysql_has_rows(table: str) -> bool:
     conn = get_mysql_connection()
     cursor = conn.cursor()
+    print("before users")
+    # cursor.execute("SELECT * FROM users")
     cursor.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
     row = cursor.fetchone()
     count = row[0] if row else 0
     cursor.close()
     conn.close()
+    print("after users")
     return count > 0
 
 
@@ -172,6 +207,7 @@ def import_companies(filepath: str) -> int:
         )
     """
     count = 0
+    print("start insertion")
     with open(filepath, "r", encoding="utf-8") as f:
         # print(f.)
         for row in csv.DictReader(f, delimiter=';'):
@@ -193,6 +229,7 @@ def import_companies(filepath: str) -> int:
                 count += 1
             except Exception as e:
                 print(f"  [WARN] Skipping company row: {e}")
+    print("end insertion")
     conn.commit()
     cursor.close()
     conn.close()
@@ -413,6 +450,7 @@ def main() -> int:
         print(f"  SKIP -- companies table already has data")
     else:
         try:
+            print("before inserting companies")
             n = import_companies(path)
             print(f"  OK -- {n} companies inserted")
         except Exception as e:

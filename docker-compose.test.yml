@@ -71,5 +71,6 @@ services:
       FILIZ_BASE_URI: http://localhost
       FILIZ_AUTH_URI: http://localhost
       INSEE_API_KEY: test-api-key
+      CI: true
     user: root
     command: npm test

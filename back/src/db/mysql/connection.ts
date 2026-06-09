@@ -1,16 +1,31 @@
 import mysql, { Pool, PoolConnection } from 'mysql2/promise';
 import { env } from '../../config/env';
+import { logger } from '../../external/logger';
 
-const pool: Pool = mysql.createPool({
-    host: env.MYSQL_HOST,
-    port: process.env.NODE_ENV === 'test' ? env.MYSQL_PORT : 3306,
-    user: 'root',
-    password: env.MYSQL_ROOT_PASSWORD,
-    database: 'disciplina',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-});
+const pool: Pool =
+    env.NODE_ENV === 'production'
+        ? mysql.createPool({
+              uri: env.MYSQL_URI!,
+              waitForConnections: true,
+              connectionLimit: 10,
+              queueLimit: 0,
+          })
+        : mysql.createPool({
+              host: env.MYSQL_HOST,
+              port: env.MYSQL_PORT,
+              user: env.MYSQL_USER,
+              password: env.MYSQL_ROOT_PASSWORD,
+              database: env.MYSQL_DATABASE,
+              waitForConnections: true,
+              connectionLimit: 10,
+              queueLimit: 0,
+          });
+
+export async function connectMySQL(): Promise<void> {
+    const conn = await pool.getConnection();
+    conn.release();
+    logger.info('MySQL connected');
+}
 
 export async function getConnection(): Promise<PoolConnection> {
     return pool.getConnection();
