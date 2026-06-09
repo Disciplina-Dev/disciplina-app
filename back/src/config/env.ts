@@ -76,7 +76,7 @@ const data = {
     API_PORT: numberWithDefault('API_PORT', 4000),
 
     APP_BASE_URL: stringWithDefault('APP_BASE_URL', 'http://localhost:4000'),
-    RELANCE_HMAC_SECRET: stringWithDefault('RELANCE_HMAC_SECRET', 'change-this-relance-secret'),
+    RELANCE_HMAC_SECRET: requireStringWithCIFallback('RELANCE_HMAC_SECRET', 'ci-relance-secret'),
     GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
 
     CLASSMARKER_API_NAME: optionalString('CLASSMARKER_API_NAME'),
