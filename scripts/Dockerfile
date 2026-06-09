@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY startup.py .
 COPY resource/ ./resource/
 
-CMD ["python", "startup.py"]
+CMD ["python", "-u", "startup.py"]

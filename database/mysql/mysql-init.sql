@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS filiz (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     token TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     expires_at DATETIME NOT NULL
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
     id INT AUTO_INCREMENT PRIMARY KEY,
     company_id INT NOT NULL,
     user_id INT NOT NULL,
-    
+
     -- Etape 1: Representant legal & Responsable Recrutement
     legal_rep_function VARCHAR(255) DEFAULT NULL,
     recruitment_responsible_name VARCHAR(255) DEFAULT NULL,
@@ -78,18 +79,18 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
     soft_skills TEXT DEFAULT NULL,
     schedule_options JSON DEFAULT NULL,
     additional_comments TEXT DEFAULT NULL,
-    
+
     -- Etape 4: Logique & Process RH
     recruitment_method ENUM('ALL_CV', 'PRESELECTION', 'PRE_INTERVIEW') NOT NULL,
     immersion_period ENUM('OUI', 'NON', 'A_DISCUTER') NOT NULL,
     training_days JSON NOT NULL,
-    
+
     -- Etape 5: Yousign & Statut
     yousign_signature_request_id VARCHAR(255) DEFAULT NULL,
     status ENUM('BROUILLON', 'EN_ATTENTE_SIGNATURE', 'SIGNE', 'EXPIRE') NOT NULL DEFAULT 'BROUILLON',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 );

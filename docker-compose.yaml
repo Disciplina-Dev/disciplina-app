@@ -91,9 +91,6 @@ services:
     build:
       context: ./scripts
       dockerfile: Dockerfile
-    depends_on:
-      sql-db:
-        condition: service_healthy
     env_file:
       - ./.env
     environment:
