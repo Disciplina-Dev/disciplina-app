@@ -35,6 +35,11 @@ export class UserService {
         return row ? row.map((user: UserRow) => this.decryptUserTokens(toUser(user))) : null;
     }
 
+    async findByRoles(roles: Role[]): Promise<User[]> {
+        const rows = await this.userRepository.findByRoles(roles);
+        return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
+    }
+
     async register(email: string, name: string, passwordPlain: string, role: Role, sectors?: string[]): Promise<User> {
         const existing = await this.userRepository.findByEmail(email);
         if (existing) {

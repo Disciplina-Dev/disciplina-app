@@ -3,146 +3,24 @@ import {
   Plus,
   Building2,
   X,
-  AlertCircle,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useState, useMemo, useCallback, useEffect } from 'react'
-import { isSameDay, parseISO } from 'date-fns'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { parseISO } from 'date-fns'
 import type { Entreprise, EntrepriseFilters } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
-import DetailModal from '@/features/portefeuille/components/DetailModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
-import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
-import { useUpdateCompany, useCreateCompany, useCompanyBySiret } from '@/graphql/hooks'
-import { toCompany, toEntreprise } from '@/types/companyMapper'
+import { useCreateCompany } from '@/graphql/hooks'
+import { toSlug } from '@/utils/slug'
+import { toCompany } from '@/types/companyMapper'
 
 const PAGE_SIZE = 25
-
-
-// ─── SIRET Search ─────────────────────────────────────────────────────────────
-interface SiretSearchProps {
-  onFound: (e: Entreprise) => void
-  onNotFound: (siret: string) => void
-}
-
-function SiretSearch({ onFound, onNotFound }: SiretSearchProps) {
-  const [value, setValue] = useState('')
-  const [result, setResult] = useState<'found' | 'not_found' | null>(null)
-  const [foundEntry, setFoundEntry] = useState<Entreprise | null>(null)
-  const { result: queryResult, searchBySiret } = useCompanyBySiret()
-  const salePersons = usePortefeuilleStore((s) => s.salePersons)
-
-  const handleSearch = useCallback(() => {
-    const trimmed = value.trim()
-    if (!trimmed) return
-    searchBySiret(trimmed)
-  }, [value, searchBySiret])
-
-  useEffect(() => {
-    if (queryResult.fetching) return
-    if (queryResult.error) {
-      setResult('not_found')
-      setFoundEntry(null)
-      return
-    }
-    if (queryResult.data?.companyBySiret) {
-      const company = queryResult.data.companyBySiret
-      const salePerson = salePersons.find((sp) => sp.id === company.userID)
-      const entreprise = toEntreprise(company, salePerson || null)
-      setResult('found')
-      setFoundEntry(entreprise)
-    } else {
-      setResult('not_found')
-      setFoundEntry(null)
-    }
-  }, [queryResult, salePersons])
-
-  const clear = () => {
-    setValue('')
-    setResult(null)
-    setFoundEntry(null)
-  }
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute inset-y-0 left-3.5 my-auto h-4 w-4 text-gray-300" />
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => { setValue(e.target.value); setResult(null) }}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Recherche par SIRET (14 chiffres)…"
-            className={[
-              'w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-[13px] text-gray-900',
-              'placeholder:text-gray-300 outline-none transition-all duration-150',
-              result === 'found' ? 'border-success/40' : result === 'not_found' ? 'border-warning/40' : 'border-gray-100',
-              'focus:border-blue focus:shadow-[0_0_0_3px_rgba(17,48,167,0.06)]',
-              'shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]',
-            ].join(' ')}
-          />
-          {result && (
-            <button
-              onClick={clear}
-              className="absolute inset-y-0 right-3 my-auto flex h-5 w-5 items-center justify-center rounded-full text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        <Button
-          onClick={handleSearch}
-          size="sm"
-          disabled={!value.trim() || queryResult.fetching}
-          className="rounded-xl px-4"
-        >
-          Rechercher
-        </Button>
-      </div>
-
-      {result === 'found' && foundEntry && (
-        <div className="flex items-center justify-between rounded-xl border border-success/20 bg-success-bg px-4 py-2.5 animate-[fadeIn_0.15s_ease-out]">
-          <div className="flex items-center gap-2.5">
-            <Building2 className="h-4 w-4 text-success shrink-0" />
-            <div>
-              <span className="text-[13px] font-semibold text-success">
-                {foundEntry.nom_commercial}
-              </span>
-              {foundEntry.commercial && (
-                <span className="text-[12px] text-success/70 ml-2">
-                  {foundEntry.commercial}
-                </span>
-              )}
-            </div>
-          </div>
-          <Button size="sm" variant="secondary" onClick={() => onFound(foundEntry)}>
-            Voir la fiche
-          </Button>
-        </div>
-      )}
-
-      {result === 'not_found' && (
-        <div className="flex items-center justify-between rounded-xl border border-warning/20 bg-warning-bg px-4 py-2.5 animate-[fadeIn_0.15s_ease-out]">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="h-4 w-4 text-warning shrink-0" />
-            <span className="text-[13px] text-warning font-medium">
-              SIRET introuvable dans le portefeuille
-            </span>
-          </div>
-          <Button size="sm" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => onNotFound(value.trim())}>
-            Créer une fiche
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function countActiveFilters(f: EntrepriseFilters): number {
@@ -150,7 +28,7 @@ function countActiveFilters(f: EntrepriseFilters): number {
   if (f.status.length) n++
   if (f.commercial) n++
   if (f.secteur) n++
-  if (f.relance_today) n++
+  if (f.relance_proche) n++
   if (f.unassigned_only) n++
   if (f.date_insertion_from) n++
   if (f.date_insertion_to) n++
@@ -168,22 +46,34 @@ function normalise(s: string) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PortefeuilleEntreprises() {
   const currentUser = useCurrentUser()
+  const navigate = useNavigate()
   const companies = usePortefeuilleStore((s) => s.companies)
-  const { update } = useUpdateCompany();
   const { createCompany } = useCreateCompany();
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
 
   const [afterCursor, setAfterCursor] = useState<string | undefined>(undefined)
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([])
-  const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor)
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(searchInput)
+      if (searchInput) {
+        setAfterCursor(undefined)
+        setCursorHistory([])
+      }
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [searchInput])
+
+  const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined)
 
   const [filters, setFilters] = useState<EntrepriseFilters>(EMPTY_FILTERS)
-  const [detailEntry, setDetailEntry] = useState<Entreprise | null>(null)
-  const [editEntry, setEditEntry] = useState<Entreprise | null>(null)
-  const [abEntry, setAbEntry] = useState<Entreprise | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
-  const [showSearch, setShowSearch] = useState(false)
 
   const allEntreprises = companies
 
@@ -200,9 +90,14 @@ export default function PortefeuilleEntreprises() {
       if (filters.status.length && !filters.status.includes(e.status)) return false
       if (filters.commercial && normalise(e.commercial ?? '') !== normalise(filters.commercial)) return false
       if (filters.secteur && normalise(e.secteur ?? '') !== normalise(filters.secteur)) return false
-      if (filters.relance_today && e.date_relance) {
-        try { if (!isSameDay(parseISO(e.date_relance), today)) return false }
-        catch { return false }
+      if (filters.relance_proche) {
+        if (!e.date_relance) return false
+        try {
+          const relance = parseISO(e.date_relance)
+          const diffMs = relance.getTime() - today.getTime()
+          const diffDays = diffMs / 86400000
+          if (diffDays < -2 || diffDays > 2) return false
+        } catch { return false }
       }
       if (filters.unassigned_only && e.proprietaire_id) return false
       if (filters.date_insertion_from && e.date_insertion) {
@@ -238,24 +133,6 @@ export default function PortefeuilleEntreprises() {
       return "Session expirée ou droits insuffisants. Veuillez vous reconnecter.";
     }
     return errorMsg;
-  }
-
-  const handleSaveEdit = async (data: Partial<Entreprise>) => {
-    if (!editEntry) return
-    const company = toCompany(data);
-    try {
-      const response = await update(Number(data.id), company);
-      if (response.error) {
-        const friendlyMsg = formatErrorMessage(response.error.message, data.siret);
-        alert(`Erreur lors de la modification : ${friendlyMsg}`);
-        return;
-      }
-      setEditEntry(null)
-      if (detailEntry?.id === editEntry.id) setDetailEntry({ ...detailEntry, ...data } as Entreprise)
-    } catch (err: any) {
-      console.error(err);
-      alert(`Erreur lors de la modification : ${err.message || err}`);
-    }
   }
 
   const handleCreate = async (data: Partial<Entreprise>) => {
@@ -337,19 +214,30 @@ export default function PortefeuilleEntreprises() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => setShowSearch((v) => !v)}
-                className={[
-                  'flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[12px] font-medium transition-all duration-150',
-                  'shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]',
-                  showSearch
-                    ? 'border-blue/30 bg-blue-light text-blue'
-                    : 'border-gray-100 bg-white text-gray-600 hover:border-gray-200',
-                ].join(' ')}
-              >
-                <Search className="h-4 w-4" />
-                <span className="hidden sm:block">Recherche SIRET</span>
-              </button>
+              <div className="relative">
+                <Search className="pointer-events-none absolute inset-y-0 left-3.5 my-auto h-4 w-4 text-gray-300" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Recherche par nom ou SIRET…"
+                  className={[
+                    'w-64 rounded-xl border bg-white py-2.5 pl-10 pr-8 text-[13px] text-gray-900',
+                    'placeholder:text-gray-300 outline-none transition-all duration-150',
+                    searchInput ? 'border-blue/30' : 'border-gray-100',
+                    'focus:border-blue focus:shadow-[0_0_0_3px_rgba(17,48,167,0.06)]',
+                    'shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]',
+                  ].join(' ')}
+                />
+                {searchInput && (
+                  <button
+                    onClick={() => setSearchInput('')}
+                    className="absolute inset-y-0 right-3 my-auto flex h-5 w-5 items-center justify-center rounded-full text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               <Button
                 leftIcon={<Plus className="h-4 w-4" />}
                 onClick={() => openCreate()}
@@ -359,16 +247,6 @@ export default function PortefeuilleEntreprises() {
               </Button>
             </div>
           </div>
-
-          {/* SIRET search (collapsible) */}
-          {showSearch && (
-            <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
-              <SiretSearch
-                onFound={(e) => { setDetailEntry(e); setShowSearch(false) }}
-                onNotFound={(siret) => { openCreate(siret); setShowSearch(false) }}
-              />
-            </div>
-          )}
 
           {/* Filter toolbar */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -420,7 +298,7 @@ export default function PortefeuilleEntreprises() {
                 key={e.id}
                 entreprise={e}
                 currentUser={currentUser!}
-                onClick={() => setDetailEntry(e)}
+                onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
                 onClaim={() => handleClaim(e.id, Number(currentUser!.id), currentUser!.name)}
               />
             ))}
@@ -428,7 +306,7 @@ export default function PortefeuilleEntreprises() {
         )}
 
         {/* ─── Pagination ──────────────────────────────────────────── */}
-        <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+        {!debouncedSearch && <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
           <button
             type="button"
             onClick={loadPrevPage}
@@ -445,36 +323,10 @@ export default function PortefeuilleEntreprises() {
           >
             Page suivante →
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* ─── Modals ──────────────────────────────────────────────── */}
-      {detailEntry && !editEntry && (
-        <DetailModal
-          entreprise={detailEntry}
-          currentUser={currentUser!}
-          onClose={() => setDetailEntry(null)}
-          onEdit={() => setEditEntry(detailEntry)}
-          onCreateAB={() => { setAbEntry(detailEntry); setDetailEntry(null) }}
-        />
-      )}
-      {abEntry && (
-        <NeedsAnalysisModal
-          entreprise={abEntry}
-          currentUser={currentUser!}
-          onClose={() => setAbEntry(null)}
-          onSuccess={() => setAbEntry(null)}
-        />
-      )}
-      {editEntry && (
-        <CreateEditModal
-          mode="edit"
-          initial={editEntry}
-          currentUser={currentUser!}
-          onSave={handleSaveEdit}
-          onClose={() => setEditEntry(null)}
-        />
-      )}
       {createOpen && (
         <CreateEditModal
           mode="create"

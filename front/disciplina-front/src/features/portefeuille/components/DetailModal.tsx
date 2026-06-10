@@ -131,7 +131,7 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
 
   const canEdit =
     currentUser.role?.toUpperCase() === 'ADMIN' ||
-    currentUser.role?.toUpperCase() === 'RH' ||
+    currentUser.role?.toUpperCase() === 'RESPONSABLE' ||
     String(entreprise.proprietaire_id) === String(currentUser.id)
 
   return (

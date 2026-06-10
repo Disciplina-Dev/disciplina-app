@@ -18,6 +18,12 @@ export class UserRepository {
         return result;
     }
 
+    async findByRoles(roles: Role[]): Promise<UserRow[]> {
+        if (roles.length === 0) return [];
+        const placeholders = roles.map(() => '?').join(', ');
+        return query<UserRow[]>(`SELECT * FROM users WHERE role IN (${placeholders})`, roles);
+    }
+
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
         const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(

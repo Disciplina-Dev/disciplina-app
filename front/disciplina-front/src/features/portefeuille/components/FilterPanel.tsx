@@ -34,7 +34,7 @@ export const EMPTY_FILTERS: EntrepriseFilters = {
   status: [],
   commercial: '',
   secteur: '',
-  relance_today: false,
+  relance_proche: false,
   unassigned_only: false,
   date_insertion_from: '',
   date_insertion_to: '',
@@ -233,7 +233,7 @@ function DateRangeContent({
 // ─── Main FilterPanel ─────────────────────────────────────────────────────────
 export default function FilterPanel({ filters, secteurs, onChange, onReset, activeCount }: Props) {
   const commercials = Object.values(USERS)
-    .filter((u) => u.role !== UserRole.ADMIN)
+    .filter((u) => u.role === UserRole.COMMERCIAL || u.role === UserRole.RESPONSABLE)
     .map((u) => u.name)
 
   const toggleStatus = (s: EntrepriseStatus) => {
@@ -321,12 +321,12 @@ export default function FilterPanel({ filters, secteurs, onChange, onReset, acti
         />
       </ChipDropdown>
 
-      {/* Relance aujourd'hui */}
+      {/* Relance proche ±2j */}
       <ToggleChip
         icon={<Bell className="h-3.5 w-3.5" />}
-        label="Relance aujourd'hui"
-        active={filters.relance_today}
-        onToggle={() => onChange({ ...filters, relance_today: !filters.relance_today })}
+        label="Relance ±2 jours"
+        active={filters.relance_proche}
+        onToggle={() => onChange({ ...filters, relance_proche: !filters.relance_proche })}
       />
 
       {/* Sans commercial */}

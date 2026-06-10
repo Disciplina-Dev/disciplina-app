@@ -9,6 +9,7 @@ const pool: Pool =
               waitForConnections: true,
               connectionLimit: 10,
               queueLimit: 0,
+              dateStrings: true,
           })
         : mysql.createPool({
               host: env.MYSQL_HOST,
@@ -19,6 +20,7 @@ const pool: Pool =
               waitForConnections: true,
               connectionLimit: 10,
               queueLimit: 0,
+              dateStrings: true,
           });
 
 export async function connectMySQL(): Promise<void> {

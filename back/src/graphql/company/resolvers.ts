@@ -22,6 +22,7 @@ interface CompanyInput {
     ape?: string | null;
     notes?: string | null;
     conclusion?: string | null;
+    relanceDate?: string | null;
 }
 
 function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
@@ -39,16 +40,17 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     if (input.ape !== undefined) row.ape = input.ape;
     if (input.notes !== undefined) row.notes = input.notes;
     if (input.conclusion !== undefined) row.conclusion = input.conclusion ?? 'À Réfléchir';
+    if (input.relanceDate !== undefined) row.relance_date = input.relanceDate ? input.relanceDate.slice(0, 10) : null;
     return row;
 }
 
 export const resolvers = {
     Query: {
-        companies: async (_: unknown, { first, after }: PaginationArgs, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
+        companies: async (_: unknown, { first, after, search }: PaginationArgs & { search?: string }, context: any) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
-            const companies = await companiesService.findAll(pageSize, after);
-            const conn = buildConnection(companies, (c) => String(c.id), pageSize);
+            const companies = await companiesService.findAll(pageSize, after, search);
+            const conn = buildConnection(companies, (c) => String(c.id), search ? companies.length : pageSize);
             const enrichedEdges = await Promise.all(
                 conn.edges.map(async (edge) => ({
                     ...edge,
@@ -62,17 +64,17 @@ export const resolvers = {
         },
 
         salePersons: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
-            return userService.findByRole(Role.COMMERCIAL);
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            return userService.findByRoles([Role.COMMERCIAL, Role.RESPONSABLE]);
         },
 
         salePerson: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return userService.findById(id);
         },
 
         companyByCommercial: async (_: unknown, { userID }: { userID: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             const companies = await companiesService.findByCommercial(userID);
             const result = [];
             for (const company of companies) {
@@ -86,7 +88,7 @@ export const resolvers = {
         },
 
         companyBySiret: async (_: unknown, { siret }: { siret: string }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             const company = await companiesService.findBySiret(siret);
             if (!company) return null;
             return {
@@ -96,7 +98,7 @@ export const resolvers = {
     },
     Mutation: {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             const rowData = mapInputToRow(input);
             const company = await companiesService.create(rowData);
             return {
@@ -104,16 +106,21 @@ export const resolvers = {
             };
         },
         updateCompany: async (_: unknown, { id, input }: { id: number; input: CompanyInput }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            if (context.user.role === Role.COMMERCIAL) {
+                const existing = await companiesService.findById(id);
+                if (existing?.userID && existing.userID !== context.user.id) {
+                    throw new Error('Forbidden: You can only edit your own companies');
+                }
+            }
             const rowData = mapInputToRow(input);
             const company = await companiesService.update(id, rowData);
-            const salePerson = company?.userID ? await userService.findById(company.userID) : null;
             return {
                 ...company,
             };
         },
         deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL]);
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return companiesService.delete(id);
         },
     },

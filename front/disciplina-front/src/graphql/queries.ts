@@ -21,8 +21,8 @@ export const GET_SALE_PERSON = gql`
 `
 
 export const GET_COMPANIES = gql`
-  query GetCompanies($first: Int, $after: String) {
-    companies(first: $first, after: $after) {
+  query GetCompanies($first: Int, $after: String, $search: String) {
+    companies(first: $first, after: $after, search: $search) {
       edges {
         cursor
         node {
@@ -41,6 +41,7 @@ export const GET_COMPANIES = gql`
             ape
             notes
             conclusion
+            relanceDate
           }
           salePerson {
             id
@@ -123,6 +124,7 @@ export const CREATE_COMPANY = gql`
       ape
       notes
       conclusion
+      relanceDate
     }
   }
 `
@@ -144,6 +146,7 @@ export const UPDATE_COMPANY = gql`
       ape
       notes
       conclusion
+      relanceDate
     }
   }
 `

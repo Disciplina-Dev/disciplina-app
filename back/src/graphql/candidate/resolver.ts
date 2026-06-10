@@ -31,12 +31,12 @@ interface UpdateCandidateInput {
 export const resolvers = {
     Query: {
         candidates: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidates = await candidateService.findAll();
             return candidates.map(candidateToGql);
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidate = await candidateService.findById(id);
             if (!candidate) return null;
             try {
@@ -47,7 +47,7 @@ export const resolvers = {
             }
         },
         candidateTemplate: async (_: unknown, { tpType }: { tpType: TitleProfessionalType }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const template = CANDIDATE_TEMPLATES[tpType];
             return {
                 tpType: template.tp_type,
@@ -63,7 +63,7 @@ export const resolvers = {
     },
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
 
@@ -109,7 +109,7 @@ export const resolvers = {
             { id, input }: { id: string; input: UpdateCandidateInput },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const snakeInput = camelToSnakeCase(input);
             const updated = await candidateService.update(id, snakeInput);
 
@@ -121,12 +121,12 @@ export const resolvers = {
         },
 
         deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return candidateService.delete(id);
         },
 
         createCandidateDriveFolder: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
 
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);

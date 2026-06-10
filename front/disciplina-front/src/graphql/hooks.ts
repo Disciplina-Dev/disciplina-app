@@ -170,6 +170,7 @@ export function useUpdateCompany() {
           commercial: salePerson?.name || null,
           proprietaire_contact: salePerson?.email || null,
           representant_legal: response.data.updateCompany.legalReferent || null,
+          date_relance: response.data.updateCompany.relanceDate ?? null,
         })
       }
       return response

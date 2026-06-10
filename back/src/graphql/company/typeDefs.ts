@@ -16,6 +16,7 @@ export const typeDefs = gql`
         ape: String
         notes: String
         conclusion: String
+        relanceDate: String
     }
 
     type CompanyWithSalePerson {
@@ -37,6 +38,7 @@ export const typeDefs = gql`
         ape: String
         notes: String
         conclusion: String
+        relanceDate: String
     }
 
     type CompanyEdge {
@@ -50,7 +52,7 @@ export const typeDefs = gql`
     }
 
     type Query {
-        companies(first: Int, after: String): CompanyConnection!
+        companies(first: Int, after: String, search: String): CompanyConnection!
         salePersons: [User!]!
         salePerson(id: Int!): User
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!

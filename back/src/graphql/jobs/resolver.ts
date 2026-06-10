@@ -8,21 +8,21 @@ const jobService = new JobService();
 export const resolvers = {
     Query: {
         jobs: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return await jobService.findAll();
         },
         matchJob: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return await jobService.find(id);
         },
     },
     Mutation: {
         updateJob: async (_: unknown, { id, job }: { id: string; job: Job }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return await jobService.update(id, job);
         },
         unmatch: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const job = (await jobService.find(id)) as Job | null;
             if (job) {
                 job.status = JobStatus.NOT_MATCHED;

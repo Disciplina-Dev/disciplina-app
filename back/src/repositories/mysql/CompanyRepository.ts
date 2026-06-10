@@ -3,7 +3,14 @@ import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 
 export class CompanyRepository {
-    async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string): Promise<CompaniesRow[]> {
+    async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string, search?: string): Promise<CompaniesRow[]> {
+        if (search && search.trim()) {
+            const pattern = `%${search.trim()}%`;
+            return query<CompaniesRow[]>(
+                'SELECT * FROM companies WHERE name LIKE ? OR siret LIKE ? ORDER BY id',
+                [pattern, pattern],
+            );
+        }
         const limit = (first + 1).toString();
         if (after) {
             const decodedId = Math.floor(Number(decodeCursor(after)));

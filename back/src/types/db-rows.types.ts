@@ -3,7 +3,7 @@ export interface UserRow {
     email: string;
     name: string;
     password?: string;
-    role: 'ADMIN' | 'COMMERCIAL' | 'RH';
+    role: 'ADMIN' | 'RESPONSABLE' | 'COMMERCIAL' | 'RH';
     sectors: string | null;
     oauth_token: string | null;
     refresh_token: string | null;
@@ -24,6 +24,7 @@ export interface CompaniesRow {
     ape: string | null;
     notes: string | null;
     conclusion: string | null;
+    relance_date: string | null;
 }
 
 export interface FilizRow {

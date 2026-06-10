@@ -8,6 +8,7 @@ import {
   MessageSquare,
   FileText,
   Hash,
+  Bell,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { Entreprise } from '@/types/entreprise'
@@ -53,10 +54,24 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
   const hasConclusion = !!entreprise.conclusion?.trim()
   const hasSuivi = hasNote || hasConclusion
 
+  const relanceLabel = (() => {
+    if (!entreprise.date_relance) return null
+    try {
+      const d = new Date(entreprise.date_relance)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const diffDays = Math.round((d.getTime() - today.getTime()) / 86400000)
+      const formatted = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      if (diffDays < -2) return { text: formatted, color: 'text-danger', bg: 'bg-danger-bg border-danger/20' }
+      if (diffDays <= 2) return { text: formatted, color: 'text-warning', bg: 'bg-warning-bg border-warning/20' }
+      return { text: formatted, color: 'text-gray-400', bg: 'bg-gray-50 border-gray-100' }
+    } catch { return null }
+  })()
+
   const canClaim =
     isUnassigned &&
     (currentUser.role?.toUpperCase() === 'COMMERCIAL' ||
-      currentUser.role?.toUpperCase() === 'RH' ||
+      currentUser.role?.toUpperCase() === 'RESPONSABLE' ||
       currentUser.role?.toUpperCase() === 'ADMIN')
 
   const copyEmail = (e: React.MouseEvent) => {
@@ -187,6 +202,18 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Relance badge ────────────────────────────────────── */}
+      {relanceLabel && (
+        <div className="mx-3 mb-2">
+          <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${relanceLabel.bg}`}>
+            <Bell className={`h-3 w-3 shrink-0 ${relanceLabel.color}`} />
+            <span className={`text-[11px] font-medium ${relanceLabel.color}`}>
+              Relance {relanceLabel.text}
+            </span>
+          </div>
         </div>
       )}
 
