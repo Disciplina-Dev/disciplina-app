@@ -1,9 +1,18 @@
 import { query, getConnection } from '../../db/mysql/connection';
 import { CompaniesRow } from '../../types/db-rows.types';
+import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 
 export class CompanyRepository {
-    async findAll(): Promise<CompaniesRow[]> {
-        return query<CompaniesRow[]>('SELECT * FROM companies');
+    async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string): Promise<CompaniesRow[]> {
+        const limit = (first + 1).toString();
+        if (after) {
+            const decodedId = Math.floor(Number(decodeCursor(after)));
+            return query<CompaniesRow[]>('SELECT * FROM companies WHERE id > ? ORDER BY id LIMIT ?', [
+                decodedId,
+                limit,
+            ]);
+        }
+        return query<CompaniesRow[]>('SELECT * FROM companies ORDER BY id LIMIT ?', [limit]);
     }
 
     async findByCommercial(userID: number): Promise<CompaniesRow[]> {

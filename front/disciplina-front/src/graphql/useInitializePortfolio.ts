@@ -3,13 +3,13 @@ import { useQuery } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { GET_COMPANIES, GET_SALE_PERSONS } from '@/graphql/queries'
 
-export function useInitializePortfolio() {
+export function useInitializePortfolio(first?: number, after?: string) {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
   const setSalePersons = usePortefeuilleStore((s) => s.setSalePersons)
   const setLoading = usePortefeuilleStore((s) => s.setLoading)
   const setError = usePortefeuilleStore((s) => s.setError)
 
-  const [companiesResult] = useQuery({ query: GET_COMPANIES })
+  const [companiesResult] = useQuery({ query: GET_COMPANIES, variables: { first, after } })
   const [salePersonsResult] = useQuery({ query: GET_SALE_PERSONS })
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function useInitializePortfolio() {
     setError(error || null)
 
     if (companiesResult.data?.companies) {
-      const entreprises = companiesResult.data.companies.map((c: any) => {
+      const entreprises = companiesResult.data.companies.edges.map(({ node: c }: any) => {
         const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(c.company.conclusion || '');
         return {
           id: String(c.company.id),
@@ -56,5 +56,6 @@ export function useInitializePortfolio() {
   return {
     loading: companiesResult.fetching || salePersonsResult.fetching,
     error: companiesResult.error?.message || salePersonsResult.error?.message,
+    pageInfo: companiesResult.data?.companies?.pageInfo,
   }
 }
