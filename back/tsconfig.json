@@ -15,11 +15,12 @@
     "moduleResolution": "node"
   },
   "include": [
-    "src/**/*",
-    "src/graphql/candidate/__tests__/query.test.ts"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "src/**/__tests__/**",
+    "src/**/*.test.ts"
   ]
 }
