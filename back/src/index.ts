@@ -27,7 +27,7 @@ declare module 'express-session' {
     }
 }
 
-export async function startServer(): Promise<http.Server> {
+export async function createApp(): Promise<express.Express> {
     const app: any = express();
 
     app.use(httpLogger);
@@ -91,12 +91,17 @@ export async function startServer(): Promise<http.Server> {
     await JobAPI.start();
     JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' });
 
+    return app;
+}
+
+export async function startServer(): Promise<http.Server> {
+    const app = await createApp();
     const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
     return server;
 }
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
     startServer().catch((err) => logger.error({ err }, 'Startup error'));
 }

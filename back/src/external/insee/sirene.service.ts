@@ -28,7 +28,7 @@ interface RawListResponse {
 }
 
 export class SireneService {
-    private KEY = env.INSEE_API_KEY;
+    private KEY = env.INSEE_API_KEY ?? '';
     private API_BASE_URI = 'https://api.insee.fr/api-sirene/3.11';
     private headers = {
         accept: 'application/json',
