@@ -2,13 +2,11 @@ import {
   Search,
   Plus,
   Building2,
-  ChevronLeft,
-  ChevronRight,
   X,
   AlertCircle,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { isSameDay, parseISO } from 'date-fns'
 import type { Entreprise, EntrepriseFilters } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
@@ -20,8 +18,8 @@ import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
-import { useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
-import { toCompany } from '@/types/companyMapper'
+import { useUpdateCompany, useCreateCompany, useCompanyBySiret } from '@/graphql/hooks'
+import { toCompany, toEntreprise } from '@/types/companyMapper'
 
 const PAGE_SIZE = 25
 
@@ -36,20 +34,33 @@ function SiretSearch({ onFound, onNotFound }: SiretSearchProps) {
   const [value, setValue] = useState('')
   const [result, setResult] = useState<'found' | 'not_found' | null>(null)
   const [foundEntry, setFoundEntry] = useState<Entreprise | null>(null)
-  const getCompanyBySiret = usePortefeuilleStore((s) => s.getCompanyBySiret)
+  const { result: queryResult, searchBySiret } = useCompanyBySiret()
+  const salePersons = usePortefeuilleStore((s) => s.salePersons)
 
   const handleSearch = useCallback(() => {
     const trimmed = value.trim()
     if (!trimmed) return
-    const entry = getCompanyBySiret(trimmed)
-    if (entry) {
+    searchBySiret(trimmed)
+  }, [value, searchBySiret])
+
+  useEffect(() => {
+    if (queryResult.fetching) return
+    if (queryResult.error) {
+      setResult('not_found')
+      setFoundEntry(null)
+      return
+    }
+    if (queryResult.data?.companyBySiret) {
+      const company = queryResult.data.companyBySiret
+      const salePerson = salePersons.find((sp) => sp.id === company.userID)
+      const entreprise = toEntreprise(company, salePerson || null)
       setResult('found')
-      setFoundEntry(entry)
+      setFoundEntry(entreprise)
     } else {
       setResult('not_found')
       setFoundEntry(null)
     }
-  }, [value, getCompanyBySiret])
+  }, [queryResult, salePersons])
 
   const clear = () => {
     setValue('')
@@ -88,7 +99,7 @@ function SiretSearch({ onFound, onNotFound }: SiretSearchProps) {
         <Button
           onClick={handleSearch}
           size="sm"
-          disabled={!value.trim()}
+          disabled={!value.trim() || queryResult.fetching}
           className="rounded-xl px-4"
         >
           Rechercher
@@ -133,82 +144,6 @@ function SiretSearch({ onFound, onNotFound }: SiretSearchProps) {
   )
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
-interface PaginationProps {
-  page: number
-  totalPages: number
-  total: number
-  onChange: (p: number) => void
-}
-
-function Pagination({ page, totalPages, total, onChange }: PaginationProps) {
-  if (totalPages <= 1) return null
-
-  const start = (page - 1) * PAGE_SIZE + 1
-  const end = Math.min(page * PAGE_SIZE, total)
-
-  const pages: (number | '…')[] = []
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i)
-  } else {
-    pages.push(1)
-    if (page > 3) pages.push('…')
-    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i)
-    if (page < totalPages - 2) pages.push('…')
-    pages.push(totalPages)
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-      <p className="text-[13px] text-gray-400">
-        <span className="font-medium text-gray-700">{start}–{end}</span>
-        {' '}sur{' '}
-        <span className="font-semibold text-gray-900">{total.toLocaleString('fr-FR')}</span>
-        {' '}entreprises
-      </p>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onChange(page - 1)}
-          disabled={page === 1}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-all hover:bg-white hover:border hover:border-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        {pages.map((p, i) =>
-          p === '…' ? (
-            <span
-              key={`ell-${i}`}
-              className="flex h-8 w-8 items-center justify-center text-[12px] text-gray-300"
-            >
-              …
-            </span>
-          ) : (
-            <button
-              key={p}
-              onClick={() => onChange(p as number)}
-              className={[
-                'flex h-8 w-8 items-center justify-center rounded-lg text-[13px] font-medium transition-all',
-                p === page
-                  ? 'bg-blue text-white shadow-[0_2px_8px_-2px_rgba(17,48,167,0.40)]'
-                  : 'text-gray-500 hover:bg-white hover:border hover:border-gray-100 hover:text-gray-900',
-              ].join(' ')}
-            >
-              {p}
-            </button>
-          )
-        )}
-        <button
-          onClick={() => onChange(page + 1)}
-          disabled={page === totalPages}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-all hover:bg-white hover:border hover:border-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function countActiveFilters(f: EntrepriseFilters): number {
   let n = 0
@@ -238,10 +173,11 @@ export default function PortefeuilleEntreprises() {
   const { createCompany } = useCreateCompany();
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
 
-  const { loading } = useInitializePortfolio()
+  const [afterCursor, setAfterCursor] = useState<string | undefined>(undefined)
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([])
+  const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor)
 
   const [filters, setFilters] = useState<EntrepriseFilters>(EMPTY_FILTERS)
-  const [page, setPage] = useState(1)
   const [detailEntry, setDetailEntry] = useState<Entreprise | null>(null)
   const [editEntry, setEditEntry] = useState<Entreprise | null>(null)
   const [abEntry, setAbEntry] = useState<Entreprise | null>(null)
@@ -260,7 +196,7 @@ export default function PortefeuilleEntreprises() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    return allEntreprises.filter((e) => {
+    return companies.filter((e) => {
       if (filters.status.length && !filters.status.includes(e.status)) return false
       if (filters.commercial && normalise(e.commercial ?? '') !== normalise(filters.commercial)) return false
       if (filters.secteur && normalise(e.secteur ?? '') !== normalise(filters.secteur)) return false
@@ -282,13 +218,13 @@ export default function PortefeuilleEntreprises() {
       }
       return true
     })
-  }, [allEntreprises, filters])
+  }, [companies, filters])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageEntries = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-
-  const handleFilterChange = (f: EntrepriseFilters) => { setFilters(f); setPage(1) }
+  const handleFilterChange = (f: EntrepriseFilters) => {
+    setFilters(f)
+    setAfterCursor(undefined)
+    setCursorHistory([])
+  }
 
   const formatErrorMessage = (errorMsg: string, siret?: string | null): string => {
     if (errorMsg.includes("Duplicate entry") && errorMsg.includes("companies.siret")) {
@@ -350,7 +286,22 @@ export default function PortefeuilleEntreprises() {
 
   const activeFilterCount = countActiveFilters(filters)
 
-  if (loading) {
+  const loadNextPage = () => {
+    if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) return
+    setCursorHistory((h) => [...h, afterCursor])
+    setAfterCursor(pageInfo.endCursor)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const loadPrevPage = () => {
+    if (cursorHistory.length === 0) return
+    const prev = cursorHistory[cursorHistory.length - 1]
+    setCursorHistory((h) => h.slice(0, -1))
+    setAfterCursor(prev)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (loading && companies.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
         <div className="flex flex-col items-center gap-4">
@@ -437,7 +388,7 @@ export default function PortefeuilleEntreprises() {
         </div>
 
         {/* ─── Cards grid ──────────────────────────────────────────── */}
-        {pageEntries.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 gap-5">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-light border border-blue/10">
               <Building2 className="h-7 w-7 text-blue" />
@@ -464,7 +415,7 @@ export default function PortefeuilleEntreprises() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {pageEntries.map((e) => (
+            {filtered.map((e) => (
               <EntrepriseCard
                 key={e.id}
                 entreprise={e}
@@ -477,19 +428,24 @@ export default function PortefeuilleEntreprises() {
         )}
 
         {/* ─── Pagination ──────────────────────────────────────────── */}
-        {filtered.length > PAGE_SIZE && (
-          <div className="mt-8 rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
-            <Pagination
-              page={safePage}
-              totalPages={totalPages}
-              total={filtered.length}
-              onChange={(p) => {
-                setPage(p)
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-            />
-          </div>
-        )}
+        <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+          <button
+            type="button"
+            onClick={loadPrevPage}
+            disabled={cursorHistory.length === 0 || loading}
+            className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ← Page précédente
+          </button>
+          <button
+            type="button"
+            onClick={loadNextPage}
+            disabled={!pageInfo?.hasNextPage || loading}
+            className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Page suivante →
+          </button>
+        </div>
       </div>
 
       {/* ─── Modals ──────────────────────────────────────────────── */}

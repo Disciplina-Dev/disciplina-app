@@ -10,8 +10,8 @@ export class CompaniesService {
         this.repository = new CompanyRepository();
     }
 
-    async findAll(): Promise<Companies[]> {
-        const rows = await this.repository.findAll();
+    async findAll(first?: number, after?: string): Promise<Companies[]> {
+        const rows = await this.repository.findAll(first, after);
         return rows.map(toCompanies);
     }
 

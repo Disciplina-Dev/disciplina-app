@@ -21,28 +21,39 @@ export const GET_SALE_PERSON = gql`
 `
 
 export const GET_COMPANIES = gql`
-  query GetCompanies {
-    companies {
-      company {
-        id
-        userID
-        legalReferent
-        name
-        phone
-        email
-        address
-        sector
-        mainActivity
-        siret
-        idcc
-        ape
-        notes
-        conclusion
+  query GetCompanies($first: Int, $after: String) {
+    companies(first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          company {
+            id
+            userID
+            legalReferent
+            name
+            phone
+            email
+            address
+            sector
+            mainActivity
+            siret
+            idcc
+            ape
+            notes
+            conclusion
+          }
+          salePerson {
+            id
+            email
+            name
+          }
+        }
       }
-      salePerson {
-        id
-        email
-        name
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
   }

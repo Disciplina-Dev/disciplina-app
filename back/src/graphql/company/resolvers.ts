@@ -3,6 +3,7 @@ import { CompaniesRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
+import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 
 const companiesService = new CompaniesService();
 const userService = new UserService();
@@ -43,18 +44,21 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
 
 export const resolvers = {
     Query: {
-        companies: async (_: unknown, __: unknown, context: any) => {
+        companies: async (_: unknown, { first, after }: PaginationArgs, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL]);
-            const companies = await companiesService.findAll();
-            const result = [];
-            for (const company of companies) {
-                const salePerson = await userService.findById(company.userID ?? 0);
-                result.push({
-                    company,
-                    salePerson,
-                });
-            }
-            return result;
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const companies = await companiesService.findAll(pageSize, after);
+            const conn = buildConnection(companies, (c) => String(c.id), pageSize);
+            const enrichedEdges = await Promise.all(
+                conn.edges.map(async (edge) => ({
+                    ...edge,
+                    node: {
+                        company: edge.node,
+                        salePerson: await userService.findById(edge.node.userID ?? 0),
+                    },
+                })),
+            );
+            return { ...conn, edges: enrichedEdges };
         },
 
         salePersons: async (_: unknown, __: unknown, context: any) => {

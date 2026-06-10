@@ -3,6 +3,7 @@ import { useQuery, useMutation } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import {
   GET_COMPANIES,
+  GET_COMPANY_BY_SIRET,
   GET_SALE_PERSONS,
   CREATE_COMPANY,
   UPDATE_COMPANY,
@@ -33,23 +34,23 @@ export function useCompanies() {
     if (result.error) {
       setError(result.error.message)
     } else if (result.data?.companies) {
-      const entreprises = result.data.companies.map((c: any) => ({
-        id: String(c.id),
-        nom_commercial: c.name,
-        proprietaire_contact: null,
-        commercial: null,
-        proprietaire_id: null,
-        representant_legal: c.company?.legalReferent || null,
-        telephone: c.phone,
-        email: c.email,
-        adresse: c.address,
-        secteur: c.sector,
-        metier: c.mainActivity,
-        siret: c.siret,
-        idcc: c.idcc,
-        note: c.notes,
-        conclusion: c.conclusion,
-        status: (c.conclusion as any) || 'À Réfléchir',
+      const entreprises = result.data.companies.edges.map(({ node: c }: any) => ({
+        id: String(c.company.id),
+        nom_commercial: c.company.name,
+        proprietaire_contact: c.salePerson?.email || null,
+        commercial: c.salePerson?.name || null,
+        proprietaire_id: c.salePerson?.id || null,
+        representant_legal: c.company.legalReferent || null,
+        telephone: c.company.phone,
+        email: c.company.email,
+        adresse: c.company.address,
+        secteur: c.company.sector,
+        metier: c.company.mainActivity,
+        siret: c.company.siret,
+        idcc: c.company.idcc,
+        note: c.company.notes,
+        conclusion: c.company.conclusion,
+        status: (c.company.conclusion as any) || 'À Réfléchir',
         date_insertion: new Date().toISOString().split('T')[0],
         date_relance: '',
       }))
@@ -79,6 +80,19 @@ export function useSalePersons() {
   return result
 }
 
+export function useCompanyBySiret() {
+  const [result, executeQuery] = useQuery({
+    query: GET_COMPANY_BY_SIRET,
+    variables: { siret: '' },
+    pause: true,
+  })
+
+  const searchBySiret = (siret: string) =>
+    executeQuery({ variables: { siret }, requestPolicy: 'network-only' })
+
+  return { result, searchBySiret }
+}
+
 export function useCreateCompany() {
   const addCompany = usePortefeuilleStore((s) => s.addCompany)
   const [result, executeMutation] = useMutation(CREATE_COMPANY)
@@ -93,7 +107,7 @@ export function useCreateCompany() {
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
-        
+
         const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(response.data.createCompany.conclusion || '');
         const company = {
           id: String(response.data.createCompany.id),

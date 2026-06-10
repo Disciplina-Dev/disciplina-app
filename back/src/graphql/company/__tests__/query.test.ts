@@ -23,13 +23,14 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: '{ companies { company { id name } salePerson { id email } } }',
+                query: '{ companies { edges { node { company { id name } salePerson { id email } } cursor } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
             }),
         });
         const json = await res.json();
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.companies).toEqual([]);
+        expect(json.data.companies.edges).toEqual([]);
+        expect(json.data.companies.pageInfo.hasNextPage).toBe(false);
     });
 
     it('returns all seeded companies with camelCase fields', async () => {
@@ -64,19 +65,19 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: '{ companies { company { id name siret mainActivity userID } salePerson { id } } }',
+                query: '{ companies { edges { node { company { id name siret mainActivity userID } salePerson { id } } cursor } pageInfo { hasNextPage } } }',
             }),
         });
         const json = await res.json();
 
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.companies).toHaveLength(2);
-        expect(json.data.companies[0].company.name).toBe(`Alpha Corp ${suffix}`);
-        expect(json.data.companies[0].company.mainActivity).toBe('RESTAURATION');
-        expect(json.data.companies[0].company.userID).toBeNull();
-        expect(json.data.companies[1].company.name).toBe(`Beta Corp ${suffix}`);
-        expect(json.data.companies[1].company.mainActivity).toBe('COMMERCE');
+        expect(json.data.companies.edges).toHaveLength(2);
+        expect(json.data.companies.edges[0].node.company.name).toBe(`Alpha Corp ${suffix}`);
+        expect(json.data.companies.edges[0].node.company.mainActivity).toBe('RESTAURATION');
+        expect(json.data.companies.edges[0].node.company.userID).toBeNull();
+        expect(json.data.companies.edges[1].node.company.name).toBe(`Beta Corp ${suffix}`);
+        expect(json.data.companies.edges[1].node.company.mainActivity).toBe('COMMERCE');
     });
 
     it('returns companies with associated salePerson', async () => {
@@ -115,17 +116,66 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: '{ companies { company { id name userID } salePerson { id email name } } }',
+                query: '{ companies { edges { node { company { id name userID } salePerson { id email name } } cursor } pageInfo { hasNextPage } } }',
             }),
         });
         const json = await res.json();
 
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.companies).toHaveLength(1);
-        expect(json.data.companies[0].company.userID).toBe(userID);
-        expect(json.data.companies[0].salePerson.email).toBe(`sp-${suffix}@test.local`);
-        expect(json.data.companies[0].salePerson.name).toBe(`Sale Person ${suffix}`);
+        expect(json.data.companies.edges).toHaveLength(1);
+        expect(json.data.companies.edges[0].node.company.userID).toBe(userID);
+        expect(json.data.companies.edges[0].node.salePerson.email).toBe(`sp-${suffix}@test.local`);
+        expect(json.data.companies.edges[0].node.salePerson.name).toBe(`Sale Person ${suffix}`);
+    });
+
+    it('paginates companies with first and after', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CompanyRepository();
+
+        for (let i = 0; i < 3; i++) {
+            await repo.create({
+                name: `Page Corp ${suffix}-${i}`,
+                siret: `${suffix}${i}000000000`.slice(0, 14),
+                address: 'Place',
+                sector: 'IT',
+                conclusion: 'conclusion',
+            });
+        }
+
+        const page1Res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                query: '{ companies(first: 2) { edges { cursor node { company { id name } } } pageInfo { hasNextPage endCursor } } }',
+            }),
+        });
+        const page1 = await page1Res.json();
+
+        expect(page1.errors).toBeUndefined();
+        expect(page1.data.companies.edges).toHaveLength(2);
+        expect(page1.data.companies.pageInfo.hasNextPage).toBe(true);
+
+        const page2Res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                query: `query($after: String!) { companies(first: 2, after: $after) { edges { node { company { id name } } } pageInfo { hasNextPage } } }`,
+                variables: { after: page1.data.companies.pageInfo.endCursor },
+            }),
+        });
+        const page2 = await page2Res.json();
+
+        expect(page2.errors).toBeUndefined();
+        expect(page2.data.companies.edges).toHaveLength(1);
+        expect(page2.data.companies.pageInfo.hasNextPage).toBe(false);
     });
 
     it('returns all sale persons', async () => {
@@ -349,7 +399,7 @@ describe('GraphQL company queries', () => {
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: '{ companies { company { id } } }' }),
+            body: JSON.stringify({ query: '{ companies { edges { node { company { id } } } } }' }),
         });
         const json = await res.json();
 

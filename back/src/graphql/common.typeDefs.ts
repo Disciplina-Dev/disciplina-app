@@ -13,4 +13,11 @@ export const UserTypeDefs = gql`
         name: String!
         role: UserRole!
     }
+
+    type PageInfo {
+        hasNextPage: Boolean!
+        hasPreviousPage: Boolean!
+        startCursor: String
+        endCursor: String
+    }
 `;

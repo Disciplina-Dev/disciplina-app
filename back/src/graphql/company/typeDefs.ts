@@ -39,8 +39,18 @@ export const typeDefs = gql`
         conclusion: String
     }
 
+    type CompanyEdge {
+        node: CompanyWithSalePerson!
+        cursor: String!
+    }
+
+    type CompanyConnection {
+        edges: [CompanyEdge!]!
+        pageInfo: PageInfo!
+    }
+
     type Query {
-        companies: [CompanyWithSalePerson]!
+        companies(first: Int, after: String): CompanyConnection!
         salePersons: [User!]!
         salePerson(id: Int!): User
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!
