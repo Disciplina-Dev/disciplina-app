@@ -23,6 +23,8 @@ interface CompanyInput {
     notes?: string | null;
     conclusion?: string | null;
     relanceDate?: string | null;
+    relanceType?: number | null;
+    relanceTemplateId?: string | null;
 }
 
 function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
@@ -41,6 +43,8 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     if (input.notes !== undefined) row.notes = input.notes;
     if (input.conclusion !== undefined) row.conclusion = input.conclusion ?? 'À Réfléchir';
     if (input.relanceDate !== undefined) row.relance_date = input.relanceDate ? input.relanceDate.slice(0, 10) : null;
+    if (input.relanceType !== undefined) row.relance_type = input.relanceType;
+    if (input.relanceTemplateId !== undefined) row.relance_template_id = input.relanceTemplateId;
     return row;
 }
 

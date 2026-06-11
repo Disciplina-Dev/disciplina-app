@@ -14,4 +14,6 @@ export interface Companies {
     notes: string | null;
     conclusion: string | null;
     relanceDate: string | null;
+    relanceType: number | null;
+    relanceTemplateId: string | null;
 }

@@ -22,5 +22,7 @@ export function toCompanies(row: CompaniesRow): Companies {
                 ? row.relance_date.toISOString().slice(0, 10)
                 : String(row.relance_date).slice(0, 10))
             : null,
+        relanceType: row.relance_type ?? null,
+        relanceTemplateId: row.relance_template_id ?? null,
     };
 }

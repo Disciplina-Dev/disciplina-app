@@ -6,6 +6,8 @@ import type { AppUser } from '@/store/authStore'
 import { useAuthStore, USERS, UserRole } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
+import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
+import { RELANCE_TYPES, computeRelanceDate } from '@/types/relance'
 
 interface SireneResult {
   denomination: string | null
@@ -35,6 +37,8 @@ type FormValues = {
   status: EntrepriseStatus
   proprietaire_id: string
   date_relance: string
+  type_relance: string
+  relance_template_id: string
 }
 
 interface Props {
@@ -51,6 +55,7 @@ const STATUS_OPTIONS: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir']
 export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode }: Props) {
   const token = useAuthStore((s) => s.token)
   const ownerList = Object.values(USERS)
+  const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
 
   const defaultOwner =
     mode === 'create'
@@ -75,6 +80,8 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       date_relance: initial?.date_relance
         ? initial.date_relance.slice(0, 10)
         : new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+      type_relance: initial?.type_relance ? String(initial.type_relance) : '',
+      relance_template_id: initial?.relance_template_id ?? '',
     },
   })
 
@@ -139,6 +146,8 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       proprietaire_id: owner?.id ? Number(owner.id) : null,
       commercial: owner?.name ?? null,
       date_relance: values.date_relance || null,
+      type_relance: values.type_relance ? Number(values.type_relance) : null,
+      relance_template_id: values.relance_template_id || null,
       ...(mode === 'create' && {
         date_insertion: new Date().toISOString(),
         proprietaire_contact: USERS[currentUser.id]?.email ?? null,
@@ -395,6 +404,28 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       )}
                     </div>
 
+                    {/* Type de relance — recalcule la date */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700" htmlFor="type_relance">
+                        Type de relance
+                      </label>
+                      <select
+                        id="type_relance"
+                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        {...register('type_relance', {
+                          onChange: (e) => {
+                            const typeId = e.target.value ? Number(e.target.value) : null
+                            if (typeId) setValue('date_relance', computeRelanceDate(typeId))
+                          },
+                        })}
+                      >
+                        <option value="">— Aucun —</option>
+                        {RELANCE_TYPES.map((t) => (
+                          <option key={t.id} value={t.id}>{t.label} · {t.description}</option>
+                        ))}
+                      </select>
+                    </div>
+
                     {/* Date relance */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-medium text-gray-700" htmlFor="date_relance">
@@ -406,6 +437,26 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                         className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
                         {...register('date_relance')}
                       />
+                    </div>
+
+                    {/* Mail type de relance */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700" htmlFor="relance_template_id">
+                        Mail type de relance
+                      </label>
+                      <select
+                        id="relance_template_id"
+                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        {...register('relance_template_id')}
+                      >
+                        <option value="">— Aucun —</option>
+                        {mailTemplates.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                      {mailTemplates.length === 0 && (
+                        <p className="text-xs text-gray-500">Aucun modèle — créez-en dans « Modèles mail »</p>
+                      )}
                     </div>
                   </div>
                 </div>

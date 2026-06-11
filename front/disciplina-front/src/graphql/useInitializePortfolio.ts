@@ -43,6 +43,8 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
           status: (isStatusOnly ? c.company.conclusion : 'À Réfléchir') || 'À Réfléchir',
           date_insertion: new Date().toISOString().split('T')[0],
           date_relance: c.company.relanceDate ?? null,
+          type_relance: c.company.relanceType ?? null,
+          relance_template_id: c.company.relanceTemplateId ?? null,
         }
       })
       setCompanies(entreprises)

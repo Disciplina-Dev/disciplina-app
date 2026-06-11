@@ -17,6 +17,8 @@ export const typeDefs = gql`
         notes: String
         conclusion: String
         relanceDate: String
+        relanceType: Int
+        relanceTemplateId: String
     }
 
     type CompanyWithSalePerson {
@@ -39,6 +41,8 @@ export const typeDefs = gql`
         notes: String
         conclusion: String
         relanceDate: String
+        relanceType: Int
+        relanceTemplateId: String
     }
 
     type CompanyEdge {

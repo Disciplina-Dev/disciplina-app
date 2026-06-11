@@ -30,6 +30,8 @@ import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
+import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
+import { RELANCE_TYPES, getRelanceType, computeRelanceDate } from '@/types/relance'
 import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 
@@ -125,6 +127,7 @@ export default function EntreprisePage() {
   const currentUser = useCurrentUser()
   const companies = usePortefeuilleStore((s) => s.companies)
   const { update } = useUpdateCompany()
+  const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
 
   const [abOpen, setAbOpen] = useState(false)
   const [mailOpen, setMailOpen] = useState(false)
@@ -373,6 +376,35 @@ export default function EntreprisePage() {
                   {/* Date insertion — read only */}
                   <ReadField icon={<Calendar className="h-4 w-4" />} label="Date d'insertion" value={formatDate(draft.date_insertion)} />
 
+                  {/* Type de relance — editable, recalcule la date */}
+                  <div className="flex gap-3">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><Bell className="h-4 w-4" /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Type de relance</p>
+                      {canEdit ? (
+                        <select
+                          value={draft.type_relance ?? ''}
+                          onChange={(e) => {
+                            const typeId = e.target.value ? Number(e.target.value) : null
+                            setDraft((d) => d ? {
+                              ...d,
+                              type_relance: typeId,
+                              date_relance: typeId ? computeRelanceDate(typeId) : d.date_relance,
+                            } : d)
+                          }}
+                          className={INLINE_INPUT}
+                        >
+                          <option value="">— Aucun —</option>
+                          {RELANCE_TYPES.map((t) => (
+                            <option key={t.id} value={t.id}>{t.label} · {t.description}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-sm text-gray-900">{getRelanceType(draft.type_relance)?.label ?? <span className="text-gray-300 italic text-xs">—</span>}</p>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Date relance — editable */}
                   <div className="flex gap-3">
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><Bell className="h-4 w-4" /></span>
@@ -387,6 +419,28 @@ export default function EntreprisePage() {
                         />
                       ) : (
                         <p className="text-sm text-gray-900">{formatDate(draft.date_relance) ?? <span className="text-gray-300 italic text-xs">—</span>}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Modèle de mail pour la relance */}
+                  <div className="flex gap-3">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><Mail className="h-4 w-4" /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Mail type de relance</p>
+                      {canEdit ? (
+                        <select
+                          value={draft.relance_template_id ?? ''}
+                          onChange={(e) => set('relance_template_id', e.target.value || null)}
+                          className={INLINE_INPUT}
+                        >
+                          <option value="">— Aucun —</option>
+                          {mailTemplates.map((t) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-sm text-gray-900">{mailTemplates.find((t) => t.id === draft.relance_template_id)?.name ?? <span className="text-gray-300 italic text-xs">—</span>}</p>
                       )}
                     </div>
                   </div>
@@ -490,6 +544,7 @@ export default function EntreprisePage() {
           defaultTo={draft.email ?? ''}
           candidateName={draft.nom_commercial ?? undefined}
           scope="commercial"
+          mode="draft"
           onClose={() => setMailOpen(false)}
         />
       )}

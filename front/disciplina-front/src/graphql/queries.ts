@@ -42,6 +42,8 @@ export const GET_COMPANIES = gql`
             notes
             conclusion
             relanceDate
+            relanceType
+            relanceTemplateId
           }
           salePerson {
             id
@@ -125,6 +127,8 @@ export const CREATE_COMPANY = gql`
       notes
       conclusion
       relanceDate
+      relanceType
+      relanceTemplateId
     }
   }
 `
@@ -147,6 +151,8 @@ export const UPDATE_COMPANY = gql`
       notes
       conclusion
       relanceDate
+      relanceType
+      relanceTemplateId
     }
   }
 `

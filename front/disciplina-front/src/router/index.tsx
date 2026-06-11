@@ -14,6 +14,7 @@ import CreateAB from "@/pages/commercial/CreateAB";
 import PortefeuilleEntreprises from "@/pages/commercial/PortefeuilleEntreprises";
 import EntreprisePage from "@/pages/commercial/EntreprisePage";
 import Sourcing from "@/pages/commercial/sourcing";
+import RelanceCommercial from "@/pages/commercial/RelanceCommercial";
 
 import RHLayout from "@/components/layout/RHLayout";
 import DashboardRH from "@/pages/rh/DashboardRH";
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
       { path: "portefeuille/:slug", element: <EntreprisePage /> },
       { path: "sourcing", element: <Sourcing /> },
       { path: "mail", element: <MailTemplates scope="commercial" /> },
+      { path: "relance", element: <RelanceCommercial /> },
     ],
   },
   {

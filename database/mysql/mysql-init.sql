@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS companies (
     notes TEXT DEFAULT NULL,
     conclusion VARCHAR(255) NOT NULL,
     relance_date DATE DEFAULT NULL,
+    relance_type TINYINT DEFAULT NULL,
+    relance_template_id VARCHAR(64) DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
 );
 

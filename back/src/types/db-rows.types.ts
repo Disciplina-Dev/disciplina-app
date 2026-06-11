@@ -24,7 +24,10 @@ export interface CompaniesRow {
     ape: string | null;
     notes: string | null;
     conclusion: string | null;
-    relance_date: string | null;
+    // mysql2 returns DATE columns as Date objects; raw SQL strings can also come back as string
+    relance_date: Date | string | null;
+    relance_type: number | null;
+    relance_template_id: string | null;
 }
 
 export interface FilizRow {
