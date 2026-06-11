@@ -1,4 +1,5 @@
 import { CompaniesService } from '../../services/CompaniesService';
+import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
 import { authGuard } from '../authGuard';
@@ -46,11 +47,21 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
 
 export const resolvers = {
     Query: {
-        companies: async (_: unknown, { first, after, search }: PaginationArgs & { search?: string }, context: any) => {
+        companies: async (_: unknown, { first, after, search, filters: filtersInput }: PaginationArgs & { search?: string; filters?: Record<string, unknown> }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
-            const companies = await companiesService.findAll(pageSize, after, search);
-            const conn = buildConnection(companies, (c) => String(c.id), search ? companies.length : pageSize);
+            const filters: CompanyFilters | undefined = filtersInput ? {
+                status: filtersInput.status as string[] | undefined,
+                userID: filtersInput.userID as number | undefined,
+                sector: filtersInput.sector as string | undefined,
+                relance: filtersInput.relance as string | undefined,
+                unassigned: filtersInput.unassigned as boolean | undefined,
+                createdFrom: filtersInput.createdFrom as string | undefined,
+                createdTo: filtersInput.createdTo as string | undefined,
+            } : undefined;
+            const companies = await companiesService.findAll(pageSize, after, search, filters);
+            const isRelanceMode = !!filters?.relance;
+            const conn = buildConnection(companies, (c) => String(c.id), (search || isRelanceMode) ? companies.length : pageSize);
             const enrichedEdges = await Promise.all(
                 conn.edges.map(async (edge) => ({
                     ...edge,

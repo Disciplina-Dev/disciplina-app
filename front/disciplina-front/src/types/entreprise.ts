@@ -1,4 +1,5 @@
 export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir'
+export type RelanceFilter = 'today' | 'past' | 'future'
 
 const saleUserData = [
   { id: 1, name: 'Pas de commerciaux' },
@@ -31,6 +32,7 @@ export interface Company {
   notes: string | null
   conclusion: string | null
   relanceDate: string | null
+  createdAt: string | null
 }
 
 export interface CompanyInput {
@@ -71,16 +73,16 @@ export interface Entreprise {
   note: string | null
   conclusion: string | null
   status: EntrepriseStatus
-  date_insertion: string
+  date_insertion: string | null
   date_relance: string | null
 }
 
 export type EntrepriseFilters = {
   siret: string
   status: EntrepriseStatus[]
-  commercial: string
+  commercial_id: number | null
   secteur: string
-  relance_proche: boolean
+  relance: RelanceFilter | ''
   unassigned_only: boolean
   date_insertion_from: string
   date_insertion_to: string

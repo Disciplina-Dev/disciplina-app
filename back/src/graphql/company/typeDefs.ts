@@ -17,6 +17,17 @@ export const typeDefs = gql`
         notes: String
         conclusion: String
         relanceDate: String
+        createdAt: String
+    }
+
+    input CompanyFiltersInput {
+        status: [String!]
+        userID: Int
+        sector: String
+        relance: String
+        unassigned: Boolean
+        createdFrom: String
+        createdTo: String
     }
 
     type CompanyWithSalePerson {
@@ -52,7 +63,7 @@ export const typeDefs = gql`
     }
 
     type Query {
-        companies(first: Int, after: String, search: String): CompanyConnection!
+        companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
         salePersons: [User!]!
         salePerson(id: Int!): User
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!

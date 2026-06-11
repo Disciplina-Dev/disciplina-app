@@ -82,6 +82,12 @@ export async function startServer(): Promise<http.Server> {
     await connectMySQL();
     await connectMongoDB();
 
+    // Prevent browser/proxy caching of GraphQL responses (auth-sensitive data)
+    app.use('/api/graphql', (_req, res, next) => {
+        res.setHeader('Cache-Control', 'no-store');
+        next();
+    });
+
     await CompanyAPI.start();
     CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies' });
 

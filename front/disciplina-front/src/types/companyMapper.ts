@@ -19,7 +19,7 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     note: company.notes,
     conclusion: isStatusOnly ? '' : company.conclusion,
     status: (isStatusOnly ? company.conclusion : 'À Réfléchir') as EntrepriseStatus,
-    date_insertion: new Date().toISOString().split('T')[0],
+    date_insertion: company.createdAt ?? null,
     date_relance: company.relanceDate ?? null,
   }
 }

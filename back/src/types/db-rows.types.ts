@@ -24,7 +24,8 @@ export interface CompaniesRow {
     ape: string | null;
     notes: string | null;
     conclusion: string | null;
-    relance_date: string | null;
+    relance_date: string | Date | null;
+    created_at?: string | Date;
 }
 
 export interface FilizRow {

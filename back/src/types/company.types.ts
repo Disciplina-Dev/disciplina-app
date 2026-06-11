@@ -14,4 +14,5 @@ export interface Companies {
     notes: string | null;
     conclusion: string | null;
     relanceDate: string | null;
+    createdAt: string | null;
 }

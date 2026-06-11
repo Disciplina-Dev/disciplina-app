@@ -22,5 +22,10 @@ export function toCompanies(row: CompaniesRow): Companies {
                 ? row.relance_date.toISOString().slice(0, 10)
                 : String(row.relance_date).slice(0, 10))
             : null,
+        createdAt: row.created_at
+            ? (row.created_at instanceof Date
+                ? row.created_at.toISOString().slice(0, 10)
+                : String(row.created_at).slice(0, 10))
+            : null,
     };
 }
