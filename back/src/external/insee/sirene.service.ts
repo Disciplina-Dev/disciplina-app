@@ -1,5 +1,5 @@
 import { env } from '../../config/env';
-import { SireneEtablissement, SireneRawResponse, SireneListResult } from './types';
+import { SireneEtablissement, SireneRawResponse, SireneListResult, SireneCriterion } from './types';
 
 interface RawListResponse {
     header: { total: number; debut: number; nombre: number };
@@ -26,6 +26,8 @@ interface RawListResponse {
         };
     }>;
 }
+
+const ALLOWED_CRITERIA_PARAMS = new Set(['libelleCommuneEtablissement', 'activitePrincipaleUniteLegale']);
 
 export class SireneService {
     private KEY = env.INSEE_API_KEY ?? '';
@@ -72,8 +74,17 @@ export class SireneService {
         return this.mapToDomain(raw);
     }
 
-    async companiesByCommune(commune: string, offset = 0): Promise<SireneListResult> {
-        const encoded = encodeURIComponent(commune);
+    async searchEstablishments(criteria: SireneCriterion[], offset = 0): Promise<SireneListResult> {
+        if (criteria.length === 0) {
+            throw new Error('At least one search criterion is required');
+        }
+        for (const c of criteria) {
+            if (!ALLOWED_CRITERIA_PARAMS.has(c.paramName)) {
+                throw new Error(`Unsupported search parameter: ${c.paramName}`);
+            }
+        }
+
+        const q = criteria.map((c) => `${c.paramName}%3A${encodeURIComponent(c.value.trim())}`).join('%20AND%20');
         const TARGET = 20;
         const active: SireneEtablissement[] = [];
         let currentDebut = offset;
@@ -81,11 +92,11 @@ export class SireneService {
 
         while (active.length < TARGET) {
             await this.respectRateLimit();
-            const url = `${this.API_BASE_URI}/siret?q=libelleCommuneEtablissement%3A${encoded}&debut=${currentDebut}&nombre=20`;
+            const url = `${this.API_BASE_URI}/siret?q=${q}&debut=${currentDebut}&nombre=20`;
             const response = await fetch(url, { headers: this.headers });
 
             if (response.status === 404) {
-                throw new Error('No establishments found for this commune');
+                throw new Error('No establishments found for the given criteria');
             }
             if (response.status === 401) {
                 throw new Error('Invalid INSEE API key');
@@ -110,7 +121,7 @@ export class SireneService {
         }
 
         if (active.length === 0) {
-            throw new Error('No establishments found for this commune');
+            throw new Error('No establishments found for the given criteria');
         }
 
         return {
