@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import type { Company, SalePerson, CompanyWithSalePerson } from "@/types/entreprise";
+import type { CompanyWithSalePerson } from "@/types/entreprise";
 import {
   Search,
   X,
