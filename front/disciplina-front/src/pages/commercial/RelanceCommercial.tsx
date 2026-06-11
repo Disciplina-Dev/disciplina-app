@@ -33,7 +33,8 @@ export default function RelanceCommercial() {
   const [mailFor, setMailFor] = useState<Entreprise | null>(null)
   const [rescheduling, setRescheduling] = useState<string | null>(null)
 
-  const today = new Date().toISOString().slice(0, 10)
+  // Local date (not UTC) so a relance set for "today" is due all day in the user's timezone
+  const today = format(new Date(), 'yyyy-MM-dd')
   const withRelance = companies.filter((c) => c.date_relance)
   const due = withRelance
     .filter((c) => c.date_relance! <= today)

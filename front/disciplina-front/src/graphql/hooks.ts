@@ -52,9 +52,9 @@ export function useCompanies() {
         conclusion: c.company.conclusion,
         status: (c.company.conclusion as any) || 'À Réfléchir',
         date_insertion: new Date().toISOString().split('T')[0],
-        date_relance: '',
-        type_relance: null,
-        relance_template_id: null,
+        date_relance: c.company.relanceDate ?? null,
+        type_relance: c.company.relanceType ?? null,
+        relance_template_id: c.company.relanceTemplateId ?? null,
       }))
       setCompanies(entreprises)
       setError(null)
@@ -129,9 +129,9 @@ export function useCreateCompany() {
           conclusion: isStatusOnly ? '' : response.data.createCompany.conclusion,
           status: (isStatusOnly ? response.data.createCompany.conclusion : 'À Réfléchir') as any,
           date_insertion: new Date().toISOString().split('T')[0],
-          date_relance: '',
-          type_relance: null,
-          relance_template_id: null,
+          date_relance: response.data.createCompany.relanceDate ?? null,
+          type_relance: response.data.createCompany.relanceType ?? null,
+          relance_template_id: response.data.createCompany.relanceTemplateId ?? null,
         }
         addCompany(company)
       }
