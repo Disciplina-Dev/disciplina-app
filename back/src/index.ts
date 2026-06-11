@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
 import { connectMySQL } from './db/mysql/connection';
+import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
@@ -80,6 +81,7 @@ export async function createApp(): Promise<express.Express> {
     app.use(errorHandler);
 
     await connectMySQL();
+    await runMysqlMigrations();
     await connectMongoDB();
 
     await CompanyAPI.start();
