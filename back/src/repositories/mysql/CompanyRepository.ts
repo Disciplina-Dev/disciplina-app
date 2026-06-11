@@ -100,6 +100,12 @@ export class CompanyRepository {
         return results.length > 0 ? results[0] : null;
     }
 
+    async findBySirets(sirets: string[]): Promise<CompaniesRow[]> {
+        if (sirets.length === 0) return [];
+        const placeholders = sirets.map(() => '?').join(', ');
+        return query<CompaniesRow[]>(`SELECT * FROM companies WHERE siret IN (${placeholders})`, sirets);
+    }
+
     async findById(id: number): Promise<CompaniesRow | null> {
         const results = await query<CompaniesRow[]>('SELECT * FROM companies WHERE id = ?', [id]);
         return results.length > 0 ? results[0] : null;

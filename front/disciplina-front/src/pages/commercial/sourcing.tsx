@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import type { CompanyWithSalePerson } from "@/types/entreprise";
 import {
   Search,
   X,
@@ -16,8 +17,8 @@ import { useAuthStore } from "@/store/authStore";
 import { NAF_CODES } from "@/data/nafCodes";
 
 const API_BASE = import.meta.env.VITE_API_URL;
-const LS_KEY = "siret_recents_v1";
-const EXAMPLES = ["80339671900027", "91234567800019", "39282471400025"];
+const LS_KEY = "siren_recents_v1";
+const EXAMPLES = ["803396719", "912345678", "392824714"];
 const MAX_RECENTS = 4;
 
 interface SireneAdresse {
@@ -45,7 +46,13 @@ interface SireneEtablissement {
 
 interface RecentEntry {
   name: string;
-  siret: string;
+  siren: string;
+}
+
+interface SirenSearchResult {
+  siren: string;
+  companiesWithSale: CompanyWithSalePerson[];
+  etablissements: SireneEtablissement[];
 }
 
 interface SireneListHeader {
@@ -191,7 +198,7 @@ function buildCriteria(commune: string, naf: string): SireneCriterion[] {
   return criteria;
 }
 
-function SiretSearchBar({
+function SirenSearchBar({
   value,
   onChange,
   onSubmit,
@@ -227,12 +234,12 @@ function SiretSearchBar({
         className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 placeholder:text-gray-300 placeholder:font-normal"
         inputMode="numeric"
         autoComplete="off"
-        placeholder="Entrez un numéro SIRET (14 chiffres)"
+        placeholder="Entrez un numéro SIREN (9 chiffres)"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
       <span className="font-mono text-[12px] text-gray-300 flex-shrink-0">
-        {digits.length}/14
+        {digits.length}/9
       </span>
       {value && (
         <button
@@ -491,15 +498,15 @@ function NotFound({ kind, query }: NotFoundProps) {
   let title = "Aucun établissement trouvé";
   let body: React.ReactNode = (
     <>
-      Aucune entreprise ne correspond au SIRET{" "}
+      Aucune entreprise ne correspond au SIREN{" "}
       <b className="font-mono font-semibold text-gray-900">{query}</b> dans le
       registre INSEE.
     </>
   );
   if (kind === "invalid") {
-    title = "Numéro SIRET incomplet";
+    title = "Numéro SIREN incomplet";
     body =
-      "Un SIRET valide comporte exactement 14 chiffres. Vérifiez la saisie et réessayez.";
+      "Un SIREN valide comporte exactement 9 chiffres. Vérifiez la saisie et réessayez.";
   } else if (kind === "server") {
     title = "Erreur de connexion au registre";
     body =
@@ -543,8 +550,8 @@ function EmptyState({
         Recherchez une entreprise
       </h3>
       <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-        Saisissez un numéro SIRET à 14 chiffres pour afficher la dénomination,
-        la forme juridique et l'adresse.
+        Saisissez un numéro SIREN à 9 chiffres pour afficher tous les établissements
+        de cette unité légale.
       </p>
 
       <div className="flex items-center justify-center gap-2 flex-wrap mt-[26px]">
@@ -558,7 +565,7 @@ function EmptyState({
             className="border border-gray-100 bg-white text-gray-700 text-[13px] font-semibold py-[7px] px-3 rounded-full cursor-pointer transition-all duration-150 font-mono tracking-[-0.01em] hover:border-blue hover:text-blue hover:bg-blue-light"
             onClick={() => onPick(s)}
           >
-            {formatSiret(s)}
+            {formatSiren(s)}
           </button>
         ))}
       </div>
@@ -579,11 +586,11 @@ function EmptyState({
           </div>
           <ul className="list-none flex flex-col gap-2 p-0">
             {recents.map((r) => (
-              <li key={r.siret}>
+              <li key={r.siren}>
                 <button
                   type="button"
                   className="w-full flex items-center gap-[13px] text-left cursor-pointer bg-white border border-gray-100 rounded-[10px] py-3 px-3.5 transition-all duration-150 hover:border-blue hover:shadow-[0_4px_14px_rgba(17,48,167,0.08)] hover:-translate-y-px"
-                  onClick={() => onPick(r.siret)}
+                  onClick={() => onPick(r.siren)}
                 >
                   <span className="w-[34px] h-[34px] flex-shrink-0 rounded-lg bg-gray-50 text-gray-500 flex items-center justify-center">
                     <Building2 className="w-4 h-4" />
@@ -593,7 +600,7 @@ function EmptyState({
                       {r.name}
                     </span>
                     <span className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
-                      {formatSiret(r.siret)}
+                      {formatSiren(r.siren)}
                     </span>
                   </span>
                   <ArrowRight className="w-4 h-4 text-gray-300" />
@@ -904,14 +911,42 @@ function CommuneResultList({
   );
 }
 
+function ExistingCompanyList({ items }: { items: CompanyWithSalePerson[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {items.map(({ company, salePerson }) => (
+        <div key={company.id} className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both]">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
+              <Building2 className="w-4 h-4" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[15px] font-semibold text-gray-900 truncate">{company.name}</p>
+              <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
+                {formatSiret(company.siret ?? "")}
+              </p>
+            </div>
+          </div>
+          {salePerson && (
+            <span className="inline-flex items-center text-[12px] font-semibold py-1 px-2.5 rounded-full bg-blue-light text-blue flex-shrink-0">
+              {salePerson.name}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Sourcing() {
   const token = useAuthStore((s) => s.token);
 
-  // SIRET mode state
-  const [mode, setMode] = useState<"siret" | "commune">("siret");
+  // SIREN mode state
+  const [mode, setMode] = useState<"siren" | "commune">("siren");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("empty");
-  const [result, setResult] = useState<SireneEtablissement | null>(null);
+  const [result, setResult] = useState<SirenSearchResult | null>(null);
+  const [selectedEtablissement, setSelectedEtablissement] = useState<SireneEtablissement | null>(null);
   const [errKind, setErrKind] = useState<ErrKind>("none");
   const [additionalSearchLoading, setAdditionalSearchLoading] = useState(false);
   const [contacts, setContacts] = useState<Array<{
@@ -946,13 +981,17 @@ export default function Sourcing() {
     }
   }, [recents]);
 
-  const pushRecent = useCallback((e: SireneEtablissement) => {
+  const pushRecent = useCallback((data: SirenSearchResult) => {
+    const name =
+      data.companiesWithSale[0]?.company.name ||
+      displayName(data.etablissements[0]) ||
+      "Entreprise";
     const entry: RecentEntry = {
-      name: displayName(e),
-      siret: normalizeSiret(e.siret),
+      name,
+      siren: data.siren,
     };
     setRecents((prev) => {
-      const next = [entry, ...prev.filter((r) => r.siret !== entry.siret)];
+      const next = [entry, ...prev.filter((r) => r.siren !== entry.siren)];
       return next.slice(0, MAX_RECENTS);
     });
   }, []);
@@ -960,13 +999,15 @@ export default function Sourcing() {
   const run = useCallback(
     async (raw: string) => {
       const digits = normalizeSiret(raw);
-      if (digits.length !== 14) {
+      if (digits.length !== 9) {
         setErrKind("invalid");
         setView("notfound");
         return;
       }
       setErrKind("none");
       setView("loading");
+      setSelectedEtablissement(null);
+      setContacts(null);
       try {
         const res = await fetch(`${API_BASE}/api/sourcing/${digits}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -981,7 +1022,7 @@ export default function Sourcing() {
           setView("notfound");
           return;
         }
-        const data = (await res.json()) as SireneEtablissement;
+        const data = (await res.json()) as SirenSearchResult;
         setResult(data);
         setView("result");
         pushRecent(data);
@@ -1057,9 +1098,9 @@ export default function Sourcing() {
 
   const submit = () => run(query);
 
-  const pick = (siret: string) => {
-    setQuery(formatSiret(siret));
-    run(siret);
+  const pick = (siren: string) => {
+    setQuery(formatSiren(siren));
+    run(siren);
   };
 
   const onChange = (v: string) => {
@@ -1068,11 +1109,12 @@ export default function Sourcing() {
       setView("empty");
       setErrKind("none");
       setContacts(null);
+      setSelectedEtablissement(null);
     }
   };
 
   const doAdditionalSearch = useCallback(async () => {
-    const targetResult = result || selectedCommune;
+    const targetResult = selectedEtablissement || selectedCommune;
     if (!targetResult) return;
     setAdditionalSearchLoading(true);
     setContacts(null);
@@ -1111,9 +1153,9 @@ export default function Sourcing() {
         {/* Mode tabs */}
         <div className="flex gap-2 mb-8 justify-center">
           <ModeTab
-            active={mode === "siret"}
-            label="Recherche par SIRET"
-            onClick={() => setMode("siret")}
+            active={mode === "siren"}
+            label="Recherche par SIREN"
+            onClick={() => setMode("siren")}
           />
           <ModeTab
             active={mode === "commune"}
@@ -1122,11 +1164,11 @@ export default function Sourcing() {
           />
         </div>
 
-        {/* SIRET mode */}
-        {mode === "siret" && (
+        {/* SIREN mode */}
+        {mode === "siren" && (
           <>
             <div className="mb-6">
-              <SiretSearchBar
+              <SirenSearchBar
                 value={query}
                 onChange={onChange}
                 onSubmit={submit}
@@ -1137,43 +1179,91 @@ export default function Sourcing() {
             {view === "loading" && <Skeleton />}
             {view === "result" && result && (
               <>
-                <ResultCard
-                  data={result}
-                  onAdditionalSearch={doAdditionalSearch}
-                  additionalSearchLoading={additionalSearchLoading}
-                />
-                {contacts && (
-                  <div className="mt-6 animate-[rise_0.3s_ease_both]">
-                    {contacts.length === 0 ? (
-                      <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
-                        <p className="text-[14px] text-gray-500">
-                          Aucune information de contact trouvée
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-[13px] font-semibold text-gray-700 mb-3">
-                          {contacts.length} information
-                          {contacts.length !== 1 ? "s" : ""} trouvée
-                          {contacts.length !== 1 ? "s" : ""}
-                        </p>
-                        <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                          {contacts.map((contact, idx) => (
-                            <ContactCard
-                              key={idx}
-                              name={contact.name}
-                              value={contact.value}
-                            />
-                          ))}
-                        </div>
+                {result.companiesWithSale.length === 0 && result.etablissements.length === 0 ? (
+                  <NotFound kind="missing" query={formatSiren(query)} />
+                ) : (
+                  <>
+                    {result.companiesWithSale.length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="text-[13px] font-semibold text-gray-700 mb-3">
+                          Existantes ({result.companiesWithSale.length})
+                        </h3>
+                        <ExistingCompanyList items={result.companiesWithSale} />
                       </div>
                     )}
-                  </div>
+                    {result.etablissements.length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="text-[13px] font-semibold text-gray-700 mb-3">
+                          Non existantes ({result.etablissements.length})
+                        </h3>
+                        {!selectedEtablissement ? (
+                          <CommuneResultList
+                            result={{
+                              header: {
+                                nombre: result.etablissements.length,
+                                total: result.etablissements.length,
+                                debut: 0,
+                                offset: 0,
+                              },
+                              etablissements: result.etablissements,
+                            }}
+                            onSelect={setSelectedEtablissement}
+                          />
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedEtablissement(null);
+                                setContacts(null);
+                              }}
+                              className="mb-4 px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all"
+                            >
+                              ← Retour à la liste
+                            </button>
+                            <ResultCard
+                              data={selectedEtablissement}
+                              onAdditionalSearch={doAdditionalSearch}
+                              additionalSearchLoading={additionalSearchLoading}
+                            />
+                            {contacts && (
+                              <div className="mt-6 animate-[rise_0.3s_ease_both]">
+                                {contacts.length === 0 ? (
+                                  <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
+                                    <p className="text-[14px] text-gray-500">
+                                      Aucune information de contact trouvée
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <p className="text-[13px] font-semibold text-gray-700 mb-3">
+                                      {contacts.length} information
+                                      {contacts.length !== 1 ? "s" : ""} trouvée
+                                      {contacts.length !== 1 ? "s" : ""}
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                                      {contacts.map((contact, idx) => (
+                                        <ContactCard
+                                          key={idx}
+                                          name={contact.name}
+                                          value={contact.value}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
             {view === "notfound" && (
-              <NotFound kind={errKind} query={formatSiret(query)} />
+              <NotFound kind={errKind} query={formatSiren(query)} />
             )}
             {view === "empty" && (
               <EmptyState

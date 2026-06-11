@@ -27,7 +27,7 @@ interface RawListResponse {
     }>;
 }
 
-const ALLOWED_CRITERIA_PARAMS = new Set(['libelleCommuneEtablissement', 'activitePrincipaleUniteLegale']);
+const ALLOWED_CRITERIA_PARAMS = new Set(['libelleCommuneEtablissement', 'activitePrincipaleUniteLegale', 'siren']);
 
 export class SireneService {
     private KEY = env.INSEE_API_KEY ?? '';
