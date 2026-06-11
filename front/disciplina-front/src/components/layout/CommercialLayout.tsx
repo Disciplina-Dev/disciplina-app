@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X } from 'lucide-react'
+import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X, Mail } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
@@ -49,6 +49,7 @@ export default function CommercialLayout() {
           <NavItem to="/commercial" end icon={<LayoutDashboard size={18} />} label="Dashboard" />
           <NavItem to="/commercial/portefeuille" icon={<Building2 size={18} />} label="Portefeuille" />
           <NavItem to="/commercial/sourcing" icon={<Search size={18} />} label="Sourcing SIRET" />
+          <NavItem to="/commercial/mail" icon={<Mail size={18} />} label="Modèles mail" />
         </nav>
 
         {/* Administration Nav */}

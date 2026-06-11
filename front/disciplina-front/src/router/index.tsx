@@ -68,6 +68,7 @@ export const router = createBrowserRouter([
       { path: "portefeuille", element: <PortefeuilleEntreprises /> },
       { path: "portefeuille/:slug", element: <EntreprisePage /> },
       { path: "sourcing", element: <Sourcing /> },
+      { path: "mail", element: <MailTemplates scope="commercial" /> },
     ],
   },
   {
@@ -85,7 +86,7 @@ export const router = createBrowserRouter([
       { path: "matching", element: <Matching /> },
       { path: "calendrier", element: <Calendrier /> },
       { path: "analyses-besoin", element: <ABEntreprisesRecues /> },
-      { path: "mail", element: <MailTemplates /> },
+      { path: "mail", element: <MailTemplates scope="rh" /> },
       { path: "relance", element: <Relance /> },
     ],
   },

@@ -29,6 +29,7 @@ import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany } f
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import Button from '@/components/ui/Button'
+import MailModal from '@/components/ui/MailModal'
 import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 
@@ -126,6 +127,7 @@ export default function EntreprisePage() {
   const { update } = useUpdateCompany()
 
   const [abOpen, setAbOpen] = useState(false)
+  const [mailOpen, setMailOpen] = useState(false)
   const [selectedAbId, setSelectedAbId] = useState<number | null>(null)
   const [selectedAbIds, setSelectedAbIds] = useState<Set<number>>(new Set())
   const [saving, setSaving] = useState(false)
@@ -271,6 +273,9 @@ export default function EntreprisePage() {
                 Enregistrer
               </button>
             )}
+            <Button size="sm" variant="secondary" leftIcon={<Mail className="h-3.5 w-3.5" />} onClick={() => setMailOpen(true)}>
+              Envoyer un mail
+            </Button>
             <Button size="sm" variant="primary" leftIcon={<FileText className="h-3.5 w-3.5" />} onClick={() => setAbOpen(true)}>
               Créer une Analyse (AB)
             </Button>
@@ -478,6 +483,15 @@ export default function EntreprisePage() {
 
       {abOpen && currentUser && (
         <NeedsAnalysisModal entreprise={baseEntreprise} currentUser={currentUser} onClose={() => setAbOpen(false)} onSuccess={() => setAbOpen(false)} />
+      )}
+
+      {mailOpen && (
+        <MailModal
+          defaultTo={draft.email ?? ''}
+          candidateName={draft.nom_commercial ?? undefined}
+          scope="commercial"
+          onClose={() => setMailOpen(false)}
+        />
       )}
     </div>
   )

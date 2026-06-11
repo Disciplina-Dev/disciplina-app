@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, X, Save, Mail, ImagePlus } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
-import { useMailTemplatesStore, type MailTemplate } from '@/store/mailTemplatesStore'
+import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
@@ -15,8 +15,8 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { name: '', subject: '', body: '' }
 
-export default function MailTemplates() {
-  const { templates, add, update, remove, signatureImage, setSignatureImage } = useMailTemplatesStore()
+export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
+  const { templates, add, update, remove, signatureImage, setSignatureImage } = useMailTemplatesStore(scope)
   const [editing, setEditing] = useState<MailTemplate | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)

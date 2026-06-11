@@ -2,20 +2,21 @@ import { useState } from 'react'
 import { X, Send, Paperclip, Trash2 } from 'lucide-react'
 import Button from './Button'
 import RichTextEditor from './RichTextEditor'
-import { useMailTemplatesStore } from '@/store/mailTemplatesStore'
+import { useMailTemplatesStore, type MailTemplatesScope } from '@/store/mailTemplatesStore'
 import { useAuthStore } from '@/store/authStore'
 
 interface MailModalProps {
   defaultTo?: string
   candidateName?: string
+  scope?: MailTemplatesScope
   onClose: () => void
 }
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue transition-colors'
 
-export default function MailModal({ defaultTo = '', candidateName, onClose }: MailModalProps) {
-  const { templates, signatureImage } = useMailTemplatesStore()
+export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', onClose }: MailModalProps) {
+  const { templates, signatureImage } = useMailTemplatesStore(scope)
   const token = useAuthStore((s) => s.token)
 
   const sigHtml = signatureImage
