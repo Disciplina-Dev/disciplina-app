@@ -3,11 +3,15 @@ import { AuthRequest } from '../middleware/auth';
 import { SireneService } from '../../external/insee/sirene.service';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
 import { SourcingService } from '../../services/SourcingService';
-import { SireneCriterion } from '../../external/insee/types';
+import { UserService } from '../../services/UserService';
+import { SireneCriterion, SireneEtablissement } from '../../external/insee/types';
+import { toCompanies } from '../../services/mappers/company.mapper';
+import { CompanyWithSalePerson, SirenSearchResult } from './types';
 
 const sireneService = new SireneService();
 const companyRepository = new CompanyRepository();
 const sourcingService = new SourcingService();
+const userService = new UserService();
 
 export async function companiesByMulticriteria(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -91,6 +95,44 @@ export async function additionalSearch(req: AuthRequest, res: Response): Promise
         const contacts = await sourcingService.findContacts(name.trim(), cleanAddress);
         res.json({ contacts });
     } catch (error: any) {
+        res.status(400).json({ error: error.message });
+    }
+}
+
+export async function searchBySiren(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const { siren } = req.params;
+        const result = await sireneService.searchEstablishments([{ paramName: 'siren', value: siren }]);
+
+        const sirets = result.etablissements.map((e) => e.siret);
+        const existingRows = await companyRepository.findBySirets(sirets);
+        const existingBySiret = new Map(existingRows.map((row) => [row.siret, row]));
+
+        const companiesWithSale: CompanyWithSalePerson[] = [];
+        const etablissements: SireneEtablissement[] = [];
+
+        for (const e of result.etablissements) {
+            const row = existingBySiret.get(e.siret);
+            if (!row) {
+                etablissements.push(e);
+                continue;
+            }
+            const company = toCompanies(row);
+            const user = await userService.findById(company.userID ?? 0);
+            const salePerson = user ? { id: user.id, email: user.email, name: user.name } : null;
+            companiesWithSale.push({ company, salePerson });
+        }
+
+        res.json({ siren, companiesWithSale, etablissements });
+    } catch (error: any) {
+        if (error.message === 'No establishments found for the given criteria') {
+            res.status(404).json({ error: error.message });
+            return;
+        }
+        if (error.message === 'Rate limit exceeded') {
+            res.status(429).json({ error: error.message });
+            return;
+        }
         res.status(400).json({ error: error.message });
     }
 }
