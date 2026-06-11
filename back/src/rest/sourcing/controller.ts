@@ -19,7 +19,9 @@ export async function companiesByCommune(req: AuthRequest, res: Response): Promi
         }
         const result = await sireneService.companiesByCommune(commune, offset);
 
-        const checks = await Promise.all(result.etablissements.map((e) => companyRepository.findBySiret(e.siret)));
+        const checks = await Promise.all(
+            result.etablissements.map((e) => companyRepository.findBySiret(`${e.siret.slice(0, 9)}%`)),
+        );
         const existingSet = new Set(result.etablissements.filter((_, i) => checks[i] !== null).map((e) => e.siret));
         result.etablissements = result.etablissements.filter((e) => !existingSet.has(e.siret));
         result.header.nombre = result.etablissements.length;
