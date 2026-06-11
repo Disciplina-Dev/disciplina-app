@@ -201,9 +201,9 @@ def import_companies(filepath: str) -> int:
     query = """
         INSERT IGNORE INTO companies (
             user_id, legal_referent, name, phone, email,
-            address, sector, main_activity, siret, idcc, notes, conclusion
+            address, sector, main_activity, siret, idcc, notes, conclusion, relance_date
         ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURDATE()
         )
     """
     count = 0

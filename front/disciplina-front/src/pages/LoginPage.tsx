@@ -33,9 +33,11 @@ export default function LoginPage() {
       const { token, user } = data
       setAuth(token, user)
 
-      if (user.role === 'RH' || user.role === 'ADMIN') {
+      if (user.role === 'RH') {
         navigate('/rh')
       } else if (user.role === 'COMMERCIAL') {
+        navigate('/commercial')
+      } else if (user.role === 'ADMIN' || user.role === 'RESPONSABLE') {
         navigate('/commercial')
       } else if (user.role === 'ENTREPRISE') {
         navigate('/entreprise')

@@ -3,13 +3,13 @@ import { useQuery } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { GET_COMPANIES, GET_SALE_PERSONS } from '@/graphql/queries'
 
-export function useInitializePortfolio(first?: number, after?: string) {
+export function useInitializePortfolio(first?: number, after?: string, search?: string) {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
   const setSalePersons = usePortefeuilleStore((s) => s.setSalePersons)
   const setLoading = usePortefeuilleStore((s) => s.setLoading)
   const setError = usePortefeuilleStore((s) => s.setError)
 
-  const [companiesResult] = useQuery({ query: GET_COMPANIES, variables: { first, after } })
+  const [companiesResult] = useQuery({ query: GET_COMPANIES, variables: { first: search ? undefined : first, after: search ? undefined : after, search: search || undefined } })
   const [salePersonsResult] = useQuery({ query: GET_SALE_PERSONS })
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function useInitializePortfolio(first?: number, after?: string) {
           conclusion: isStatusOnly ? '' : c.company.conclusion,
           status: (isStatusOnly ? c.company.conclusion : 'À Réfléchir') || 'À Réfléchir',
           date_insertion: new Date().toISOString().split('T')[0],
-          date_relance: '',
+          date_relance: c.company.relanceDate ?? null,
         }
       })
       setCompanies(entreprises)

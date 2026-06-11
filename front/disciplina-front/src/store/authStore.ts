@@ -2,10 +2,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export enum UserRole {
+  ADMIN = 'ADMIN',
+  RESPONSABLE = 'RESPONSABLE',
   COMMERCIAL = 'COMMERCIAL',
   RH = 'RH',
-  ADMIN = 'ADMIN',
-  ENTREPRISE = 'ENTREPRISE'
+  ENTREPRISE = 'ENTREPRISE',
 }
 
 export interface AppUser {
@@ -68,7 +69,7 @@ export const USERS: Record<string, AppUser> = {
   3: {
     id: '3',
     name: 'Amanda',
-    role: UserRole.RH,
+    role: UserRole.RESPONSABLE,
     email: 'sinaman.commercial@disciplina.re',
     color: '#EC4899',
     initials: 'A',

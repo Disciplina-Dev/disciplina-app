@@ -15,21 +15,27 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/" replace />
   }
 
-  // Admin access all paths conditionally
+  // ADMIN and RESPONSABLE bypass role checks on all routes except ADMIN-only
   if (user.role === 'ADMIN') {
     return <>{children}</>
   }
 
+  // RESPONSABLE can access COMMERCIAL and RH routes (not ADMIN-only)
+  const isAdminOnly = allowedRoles?.length === 1 && allowedRoles[0] === UserRole.ADMIN
+  if (user.role === 'RESPONSABLE' && !isAdminOnly) {
+    return <>{children}</>
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role as UserRole)) {
-    // Redirection logic
+    if (user.role === 'RESPONSABLE') {
+      return <Navigate to="/commercial" replace />
+    }
     if (user.role === 'RH') {
       return <Navigate to="/rh" replace />
     }
     if (user.role === 'COMMERCIAL') {
       return <Navigate to="/commercial" replace />
     }
-
-    // Fallback if neither
     return <Navigate to="/" replace />
   }
 

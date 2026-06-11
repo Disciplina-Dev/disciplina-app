@@ -20,7 +20,7 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     conclusion: isStatusOnly ? '' : company.conclusion,
     status: (isStatusOnly ? company.conclusion : 'À Réfléchir') as EntrepriseStatus,
     date_insertion: new Date().toISOString().split('T')[0],
-    date_relance: '',
+    date_relance: company.relanceDate ?? null,
   }
 }
 
@@ -41,6 +41,7 @@ export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
     idcc: entreprise.idcc || null,
     ape: null,
     notes: entreprise.note || null,
-    conclusion: entreprise.conclusion || entreprise.status || 'À Réfléchir'
+    conclusion: entreprise.conclusion || entreprise.status || 'À Réfléchir',
+    relanceDate: entreprise.date_relance || null,
   };
 };

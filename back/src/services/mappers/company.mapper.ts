@@ -17,5 +17,10 @@ export function toCompanies(row: CompaniesRow): Companies {
         ape: row.ape,
         notes: row.notes,
         conclusion: row.conclusion,
+        relanceDate: row.relance_date
+            ? (row.relance_date instanceof Date
+                ? row.relance_date.toISOString().slice(0, 10)
+                : String(row.relance_date).slice(0, 10))
+            : null,
     };
 }

@@ -30,6 +30,7 @@ export interface Company {
   ape: string | null
   notes: string | null
   conclusion: string | null
+  relanceDate: string | null
 }
 
 export interface CompanyInput {
@@ -45,6 +46,7 @@ export interface CompanyInput {
   ape: string | null
   notes: string | null
   conclusion: string | null
+  relanceDate: string | null
 }
 
 export interface CompanyWithSalePerson {
@@ -70,7 +72,7 @@ export interface Entreprise {
   conclusion: string | null
   status: EntrepriseStatus
   date_insertion: string
-  date_relance: string
+  date_relance: string | null
 }
 
 export type EntrepriseFilters = {
@@ -78,7 +80,7 @@ export type EntrepriseFilters = {
   status: EntrepriseStatus[]
   commercial: string
   secteur: string
-  relance_today: boolean
+  relance_proche: boolean
   unassigned_only: boolean
   date_insertion_from: string
   date_insertion_to: string

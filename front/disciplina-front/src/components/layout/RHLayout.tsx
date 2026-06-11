@@ -51,14 +51,16 @@ export default function RHLayout() {
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
         </nav>
 
-        {/* Administration Nav (Admin Only) */}
-        {currentUser?.role === 'ADMIN' && (
+        {/* Administration Nav */}
+        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
           <>
             <div className="mx-3 my-4 border-t border-gray-100" />
             <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
-              <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+              {currentUser?.role === 'ADMIN' && (
+                <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+              )}
             </nav>
           </>
         )}
@@ -75,8 +77,13 @@ export default function RHLayout() {
               <User size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{currentUser?.name}</p>
-              <p className="truncate text-[11px] font-medium text-gray-400 capitalize">{currentUser?.role}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{currentUser?.name}</p>
+                {currentUser?.role === 'RESPONSABLE' && (
+                  <span className="shrink-0 rounded-full bg-blue-light px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue">Resp.</span>
+                )}
+              </div>
+              <p className="truncate text-[11px] font-medium text-gray-400 capitalize">{currentUser?.role?.toLowerCase()}</p>
             </div>
             <button
               onClick={handleLogout}

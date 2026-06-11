@@ -138,7 +138,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       status: values.status,
       proprietaire_id: owner?.id ? Number(owner.id) : null,
       commercial: owner?.name ?? null,
-      date_relance: values.date_relance ? new Date(values.date_relance).toISOString() : new Date().toISOString(),
+      date_relance: values.date_relance || null,
       ...(mode === 'create' && {
         date_insertion: new Date().toISOString(),
         proprietaire_contact: USERS[currentUser.id]?.email ?? null,
