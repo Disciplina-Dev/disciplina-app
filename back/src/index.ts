@@ -1,5 +1,5 @@
 import './config/env'; // validate env vars at startup
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
 import { connectMySQL } from './db/mysql/connection';
@@ -83,6 +83,12 @@ export async function createApp(): Promise<express.Express> {
     await connectMySQL();
     await runMysqlMigrations();
     await connectMongoDB();
+
+    // Prevent browser/proxy caching of GraphQL responses (auth-sensitive data)
+    app.use('/api/graphql', (_req: Request, res: Response, next: NextFunction) => {
+        res.setHeader('Cache-Control', 'no-store');
+        next();
+    });
 
     await CompanyAPI.start();
     CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies' });

@@ -13,7 +13,9 @@ export interface Companies {
     ape: string | null;
     notes: string | null;
     conclusion: string | null;
+    status: string | null;
     relanceDate: string | null;
+    createdAt: string | null;
     relanceType: number | null;
     relanceTemplateId: string | null;
 }

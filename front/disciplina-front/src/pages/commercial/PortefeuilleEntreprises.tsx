@@ -7,11 +7,10 @@ import {
 } from 'lucide-react'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { parseISO } from 'date-fns'
-import type { Entreprise, EntrepriseFilters } from '@/types/entreprise'
+import type { EntrepriseFilters } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
-import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
+import { useInitializePortfolio, type ServerFilters } from '@/graphql/useInitializePortfolio'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
@@ -20,6 +19,8 @@ import { useCreateCompany } from '@/graphql/hooks'
 import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 import { formatErrorMessage } from '@/utils/companyErrors'
+import type { Entreprise } from '@/types/entreprise'
+import { SECTEUR_VALUES } from '@/types/entreprise'
 
 const PAGE_SIZE = 25
 
@@ -27,21 +28,26 @@ const PAGE_SIZE = 25
 function countActiveFilters(f: EntrepriseFilters): number {
   let n = 0
   if (f.status.length) n++
-  if (f.commercial) n++
+  if (f.commercial_id != null) n++
   if (f.secteur) n++
-  if (f.relance_proche) n++
+  if (f.relance) n++
   if (f.unassigned_only) n++
   if (f.date_insertion_from) n++
   if (f.date_insertion_to) n++
   return n
 }
 
-function normalise(s: string) {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .trim()
+function toServerFilters(f: EntrepriseFilters): ServerFilters | undefined {
+  if (countActiveFilters(f) === 0) return undefined
+  return {
+    status: f.status.length > 0 ? f.status : undefined,
+    userID: f.commercial_id ?? undefined,
+    sector: f.secteur || undefined,
+    relance: f.relance || undefined,
+    unassigned: f.unassigned_only || undefined,
+    createdFrom: f.date_insertion_from || undefined,
+    createdTo: f.date_insertion_to || undefined,
+  }
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -49,7 +55,8 @@ export default function PortefeuilleEntreprises() {
   const currentUser = useCurrentUser()
   const navigate = useNavigate()
   const companies = usePortefeuilleStore((s) => s.companies)
-  const { createCompany } = useCreateCompany();
+  const salePersons = usePortefeuilleStore((s) => s.salePersons)
+  const { createCompany } = useCreateCompany()
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
 
   const [afterCursor, setAfterCursor] = useState<string | undefined>(undefined)
@@ -70,51 +77,16 @@ export default function PortefeuilleEntreprises() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [searchInput])
 
-  const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined)
-
   const [filters, setFilters] = useState<EntrepriseFilters>(EMPTY_FILTERS)
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
 
-  const allEntreprises = companies
+  const serverFilters = useMemo(() => toServerFilters(filters), [filters])
+  const isRelanceMode = !!filters.relance
 
-  const secteurs = useMemo(() => {
-    const raw = new Set(allEntreprises.map((e) => e.secteur).filter(Boolean) as string[])
-    return Array.from(raw).sort((a, b) => a.localeCompare(b, 'fr'))
-  }, [allEntreprises])
+  const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters)
 
-  const filtered = useMemo(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    return companies.filter((e) => {
-      if (filters.status.length && !filters.status.includes(e.status)) return false
-      if (filters.commercial && normalise(e.commercial ?? '') !== normalise(filters.commercial)) return false
-      if (filters.secteur && normalise(e.secteur ?? '') !== normalise(filters.secteur)) return false
-      if (filters.relance_proche) {
-        if (!e.date_relance) return false
-        try {
-          const relance = parseISO(e.date_relance)
-          const diffMs = relance.getTime() - today.getTime()
-          const diffDays = diffMs / 86400000
-          if (diffDays < -2 || diffDays > 2) return false
-        } catch { return false }
-      }
-      if (filters.unassigned_only && e.proprietaire_id) return false
-      if (filters.date_insertion_from && e.date_insertion) {
-        try { if (parseISO(e.date_insertion) < new Date(filters.date_insertion_from)) return false }
-        catch { /* skip */ }
-      }
-      if (filters.date_insertion_to && e.date_insertion) {
-        try {
-          const to = new Date(filters.date_insertion_to)
-          to.setHours(23, 59, 59, 999)
-          if (parseISO(e.date_insertion) > to) return false
-        } catch { /* skip */ }
-      }
-      return true
-    })
-  }, [companies, filters])
+  const secteurs = SECTEUR_VALUES as unknown as string[]
 
   const handleFilterChange = (f: EntrepriseFilters) => {
     setFilters(f)
@@ -123,19 +95,19 @@ export default function PortefeuilleEntreprises() {
   }
 
   const handleCreate = async (data: Partial<Entreprise>) => {
-    const company = toCompany(data);
+    const company = toCompany(data)
     try {
-      const response = await createCompany(company);
+      const response = await createCompany(company)
       if (response.error) {
-        const friendlyMsg = formatErrorMessage(response.error.message, data.siret);
-        alert(`Erreur lors de la création : ${friendlyMsg}`);
-        return;
+        const friendlyMsg = formatErrorMessage(response.error.message, data.siret)
+        alert(`Erreur lors de la création : ${friendlyMsg}`)
+        return
       }
       setCreateOpen(false)
       setPrefillSiret(undefined)
     } catch (err: any) {
-      console.error(err);
-      alert(`Erreur lors de la création : ${err.message || err}`);
+      console.error(err)
+      alert(`Erreur lors de la création : ${err.message || err}`)
     }
   }
 
@@ -165,6 +137,8 @@ export default function PortefeuilleEntreprises() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const hidePagination = debouncedSearch || isRelanceMode
+
   if (loading && companies.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
@@ -192,8 +166,8 @@ export default function PortefeuilleEntreprises() {
                 Portefeuille entreprises
               </h1>
               <p className="mt-1.5 text-[13px] text-gray-400">
-                {filtered.length.toLocaleString('fr-FR')}{' '}
-                entreprise{filtered.length !== 1 ? 's' : ''}
+                {companies.length.toLocaleString('fr-FR')}{' '}
+                entreprise{companies.length !== 1 ? 's' : ''}
                 {activeFilterCount > 0 && (
                   <span className="ml-1 text-blue font-medium">— vue filtrée</span>
                 )}
@@ -245,6 +219,7 @@ export default function PortefeuilleEntreprises() {
             <FilterPanel
               filters={filters}
               secteurs={secteurs}
+              salePersons={salePersons}
               onChange={handleFilterChange}
               onReset={() => handleFilterChange(EMPTY_FILTERS)}
               activeCount={activeFilterCount}
@@ -253,7 +228,7 @@ export default function PortefeuilleEntreprises() {
         </div>
 
         {/* ─── Cards grid ──────────────────────────────────────────── */}
-        {filtered.length === 0 ? (
+        {companies.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 gap-5">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-light border border-blue/10">
               <Building2 className="h-7 w-7 text-blue" />
@@ -280,7 +255,7 @@ export default function PortefeuilleEntreprises() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {filtered.map((e) => (
+            {companies.map((e) => (
               <EntrepriseCard
                 key={e.id}
                 entreprise={e}
@@ -293,24 +268,26 @@ export default function PortefeuilleEntreprises() {
         )}
 
         {/* ─── Pagination ──────────────────────────────────────────── */}
-        {!debouncedSearch && <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
-          <button
-            type="button"
-            onClick={loadPrevPage}
-            disabled={cursorHistory.length === 0 || loading}
-            className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            ← Page précédente
-          </button>
-          <button
-            type="button"
-            onClick={loadNextPage}
-            disabled={!pageInfo?.hasNextPage || loading}
-            className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Page suivante →
-          </button>
-        </div>}
+        {!hidePagination && (
+          <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+            <button
+              type="button"
+              onClick={loadPrevPage}
+              disabled={cursorHistory.length === 0 || loading}
+              className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Page précédente
+            </button>
+            <button
+              type="button"
+              onClick={loadNextPage}
+              disabled={!pageInfo?.hasNextPage || loading}
+              className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Page suivante →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Modals ──────────────────────────────────────────────── */}

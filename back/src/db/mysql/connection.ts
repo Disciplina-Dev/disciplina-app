@@ -10,6 +10,7 @@ const pool: Pool =
               connectionLimit: 10,
               queueLimit: 0,
               dateStrings: true,
+              charset: 'utf8mb4',
           })
         : mysql.createPool({
               host: env.MYSQL_HOST,
@@ -21,6 +22,7 @@ const pool: Pool =
               connectionLimit: 10,
               queueLimit: 0,
               dateStrings: true,
+              charset: 'utf8mb4',
           });
 
 export async function connectMySQL(): Promise<void> {

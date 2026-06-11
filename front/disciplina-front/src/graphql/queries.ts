@@ -21,8 +21,8 @@ export const GET_SALE_PERSON = gql`
 `
 
 export const GET_COMPANIES = gql`
-  query GetCompanies($first: Int, $after: String, $search: String) {
-    companies(first: $first, after: $after, search: $search) {
+  query GetCompanies($first: Int, $after: String, $search: String, $filters: CompanyFiltersInput) {
+    companies(first: $first, after: $after, search: $search, filters: $filters) {
       edges {
         cursor
         node {
@@ -41,7 +41,9 @@ export const GET_COMPANIES = gql`
             ape
             notes
             conclusion
+            status
             relanceDate
+            createdAt
             relanceType
             relanceTemplateId
           }
@@ -78,6 +80,7 @@ export const GET_COMPANY_BY_SIRET = gql`
       ape
       notes
       conclusion
+      status
     }
   }
 `
@@ -99,6 +102,7 @@ export const GET_COMPANIES_BY_COMMERCIAL = gql`
         ape
         notes
         conclusion
+        status
       }
       salePerson {
         id
@@ -126,6 +130,7 @@ export const CREATE_COMPANY = gql`
       ape
       notes
       conclusion
+      status
       relanceDate
       relanceType
       relanceTemplateId
@@ -150,6 +155,7 @@ export const UPDATE_COMPANY = gql`
       ape
       notes
       conclusion
+      status
       relanceDate
       relanceType
       relanceTemplateId

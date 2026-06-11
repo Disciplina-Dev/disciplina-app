@@ -24,10 +24,12 @@ export interface CompaniesRow {
     ape: string | null;
     notes: string | null;
     conclusion: string | null;
+    status: string | null;
     // mysql2 returns DATE columns as Date objects; raw SQL strings can also come back as string
     relance_date: Date | string | null;
     relance_type: number | null;
     relance_template_id: string | null;
+    created_at?: string | Date;
 }
 
 export interface FilizRow {
@@ -67,7 +69,8 @@ export interface NeedsAnalysisRow {
     training_days: string; // JSON string
     yousign_signature_request_id: string | null;
     status: 'BROUILLON' | 'EN_ATTENTE_SIGNATURE' | 'SIGNE' | 'EXPIRE';
-    created_at?: Date;
-    updated_at?: Date;
+    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
+    created_at?: string | Date;
+    updated_at?: string | Date;
 }
 

@@ -38,7 +38,7 @@ describe('GraphQL company mutations', () => {
                             name: `Test Corp ${suffix}`,
                             siret,
                             address: '123 Rue de Paris',
-                            sector: 'TECHNOLOGY',
+                            sector: 'Ouest',
                             conclusion: 'Profile matches requirements',
                         },
                     },
@@ -52,7 +52,7 @@ describe('GraphQL company mutations', () => {
             expect(json.data.createCompany.name).toBe(`Test Corp ${suffix}`);
             expect(json.data.createCompany.siret).toBe(siret);
             expect(json.data.createCompany.address).toBe('123 Rue de Paris');
-            expect(json.data.createCompany.sector).toBe('TECHNOLOGY');
+            expect(json.data.createCompany.sector).toBe('Ouest');
             expect(json.data.createCompany.conclusion).toBe('Profile matches requirements');
             expect(json.data.createCompany.userID).toBeNull();
 
@@ -249,7 +249,7 @@ describe('GraphQL company mutations', () => {
                         id,
                         input: {
                             name: `Updated Corp ${suffix}`,
-                            sector: 'NEW_SECTOR',
+                            sector: 'Sud',
                             conclusion: 'Updated conclusion',
                         },
                     },
@@ -259,7 +259,7 @@ describe('GraphQL company mutations', () => {
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             expect(json.data.updateCompany.name).toBe(`Updated Corp ${suffix}`);
-            expect(json.data.updateCompany.sector).toBe('NEW_SECTOR');
+            expect(json.data.updateCompany.sector).toBe('Sud');
             expect(json.data.updateCompany.conclusion).toBe('Updated conclusion');
 
             // Verify via follow-up query
@@ -276,7 +276,7 @@ describe('GraphQL company mutations', () => {
             });
             const vjson = await verify.json();
             expect(vjson.data.companyBySiret.name).toBe(`Updated Corp ${suffix}`);
-            expect(vjson.data.companyBySiret.sector).toBe('NEW_SECTOR');
+            expect(vjson.data.companyBySiret.sector).toBe('Sud');
         });
 
         it('returns an error when updating a non-existent company', async () => {

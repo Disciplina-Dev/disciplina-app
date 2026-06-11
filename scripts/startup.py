@@ -44,6 +44,57 @@ SECTOR_ENUM = {
     "PHARMACIE", "BAZAR", "NONE",
 }
 
+# Zones commerciales (doivent matcher SECTEUR_VALUES côté front et
+# ALLOWED_SECTORS côté back)
+ZONE_NORD_EST = "Nord-Est"
+ZONE_OUEST = "Ouest"
+ZONE_SUD = "Sud"
+DEFAULT_ZONE = ZONE_NORD_EST
+
+CITY_TO_ZONE = {
+    # Nord-Est
+    "SAINT_DENIS": ZONE_NORD_EST,
+    "SAINTE_MARIE": ZONE_NORD_EST,
+    "SAINTE_SUZANNE": ZONE_NORD_EST,
+    "SAINT_ANDRE": ZONE_NORD_EST,
+    "BRAS_PANON": ZONE_NORD_EST,
+    "SALAZIE": ZONE_NORD_EST,
+    "SAINT_BENOIT": ZONE_NORD_EST,
+    "SAINTE_ANNE": ZONE_NORD_EST,
+    "LA_PLAINE_DES_PALMISTES": ZONE_NORD_EST,
+    "SAINTE_ROSE": ZONE_NORD_EST,
+    "SAINTE_CLOTILDE": ZONE_NORD_EST,
+    # Ouest
+    "SAINT_PAUL": ZONE_OUEST,
+    "LA_POSSESSION": ZONE_OUEST,
+    "LE_PORT": ZONE_OUEST,
+    "TROIS_BASSINS": ZONE_OUEST,
+    "SAINT_LEU": ZONE_OUEST,
+    # Sud
+    "SAINT_PIERRE": ZONE_SUD,
+    "CILAOS": ZONE_SUD,
+    "ETANG_SALE": ZONE_SUD,
+    "SAINT_LOUIS": ZONE_SUD,
+    "ENTRE_DEUX": ZONE_SUD,
+    "LES_AVIRONS": ZONE_SUD,
+    "LE_TAMPON": ZONE_SUD,
+    "SAINT_PHILLIPE": ZONE_SUD,
+    "SAINT_JOSEPH": ZONE_SUD,
+    "PETIT_ILE": ZONE_SUD,
+    # Aliases (orthographes rencontrées dans les CSV)
+    "SAINT_PHILIPPE": ZONE_SUD,
+    "PETITE_ILE": ZONE_SUD,
+    "L_ETANG_SALE": ZONE_SUD,
+    "LE_GUILLAUME": ZONE_OUEST,
+    "LA_SALINE": ZONE_OUEST,
+    "LA_SALINE_LES_BAINS": ZONE_OUEST,
+    "SAINT_GILLES": ZONE_OUEST,
+    "SAINT_GILLES_LES_BAINS": ZONE_OUEST,
+    "SAINT_GILLES_LES_HAUTS": ZONE_OUEST,
+    "LA_RIVIERE": ZONE_SUD,
+    "LA_RIVIERE_SAINT_LOUIS": ZONE_SUD,
+}
+
 LOCALISATION_ENUM = {
     "SAINT_DENIS", "SAINTE_MARIE", "SAINTE_SUZANNE", "SAINT_PAUL",
     "LA_POSSESSION", "LE_PORT", "TROIS_BASSINS", "SAINT_LEU",
@@ -81,6 +132,27 @@ def remove_accents(text: str) -> str:
 
 def normalize_city(city: str) -> str:
     return remove_accents(city.upper().replace("-", "_").replace(" ", "_"))
+
+
+def city_to_zone(city_raw: str) -> str:
+    """Map raw city name (ex: 'Saint-Denis') to commercial zone.
+
+    Unknown/empty cities fall back to DEFAULT_ZONE so the `sector`
+    column only ever contains Nord-Est / Ouest / Sud.
+    """
+    if not city_raw or not city_raw.strip():
+        return DEFAULT_ZONE
+    return CITY_TO_ZONE.get(normalize_city(city_raw.strip()), DEFAULT_ZONE)
+
+
+def build_company_notes(city_raw: str, note_raw: str) -> str:
+    """Keep the original city in the notes since `sector` becomes a zone."""
+    parts = []
+    if city_raw and city_raw.strip():
+        parts.append(f"Commune: {city_raw.strip()}")
+    if note_raw and note_raw.strip():
+        parts.append(note_raw.strip())
+    return "\n".join(parts)
 
 
 # -- DB connections --------------------------------------------------------------
@@ -195,15 +267,28 @@ def select_saler_id(name: str, email: str) -> int:
             return 2
 
 
+STATUS_VALUES = {'oui': 'Oui', 'non': 'Non', 'à réfléchir': 'À Réfléchir',
+                 'relance': 'Relance', 'réponds pas': 'Réponds pas', 'fermé': 'Fermé'}
+
+
+def split_conclusion_status(raw: str | None) -> tuple[str, str]:
+    """CSV 'Conclusion' may hold either a status value or free text."""
+    value = (raw or '').strip()
+    status = STATUS_VALUES.get(value.lower())
+    if status:
+        return '', status
+    return value, 'À Réfléchir'
+
+
 def import_companies(filepath: str) -> int:
     conn = get_mysql_connection()
     cursor = conn.cursor()
     query = """
         INSERT IGNORE INTO companies (
             user_id, legal_referent, name, phone, email,
-            address, sector, main_activity, siret, idcc, notes, conclusion, relance_date
+            address, sector, main_activity, siret, idcc, notes, conclusion, status, relance_date
         ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURDATE()
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURDATE()
         )
     """
     count = 0
@@ -212,6 +297,8 @@ def import_companies(filepath: str) -> int:
         # print(f.)
         for row in csv.DictReader(f, delimiter=';'):
             try:
+                city_raw = row.get("SECTEUR") or ''
+                conclusion, status = split_conclusion_status(row.get("Conclusion"))
                 cursor.execute(query, (
                     select_saler_id(row.get("Commercial"), row.get("Proprietaire du contact")),
                     row.get("Prenom"),
@@ -219,12 +306,13 @@ def import_companies(filepath: str) -> int:
                     row.get("Numero de telephone"),
                     row.get("Adresse e-mail"),
                     row.get("ADRESSE"),
-                    row.get("SECTEUR"),
+                    city_to_zone(city_raw),
                     row.get("METIER/Description"),
                     row.get("SIRET"),
                     row.get("IDCC"),
-                    row.get("Note a moi meme"),
-                    row.get("Conclusion")
+                    build_company_notes(city_raw, row.get("Note a moi meme") or ''),
+                    conclusion,
+                    status
                 ))
                 count += 1
             except Exception as e:

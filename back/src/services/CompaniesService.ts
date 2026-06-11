@@ -1,4 +1,4 @@
-import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
+import { CompanyRepository, CompanyFilters } from '../repositories/mysql/CompanyRepository';
 import { CompaniesRow } from '../types/db-rows.types';
 import { Companies } from '../types/company.types';
 import { toCompanies } from './mappers/company.mapper';
@@ -10,8 +10,8 @@ export class CompaniesService {
         this.repository = new CompanyRepository();
     }
 
-    async findAll(first?: number, after?: string, search?: string): Promise<Companies[]> {
-        const rows = await this.repository.findAll(first, after, search);
+    async findAll(first?: number, after?: string, search?: string, filters?: CompanyFilters): Promise<Companies[]> {
+        const rows = await this.repository.findAll(first, after, search, filters);
         return rows.map(toCompanies);
     }
 
@@ -63,9 +63,8 @@ export class CompaniesService {
         if (!id || id <= 0) {
             throw new Error('Valid company ID is required');
         }
-        const rows = await this.repository.findAll();
-        const exists = rows.some((c) => c.id === id);
-        if (!exists) {
+        const existing = await this.repository.findById(id);
+        if (!existing) {
             throw new Error('Company not found');
         }
         return this.repository.delete(id);

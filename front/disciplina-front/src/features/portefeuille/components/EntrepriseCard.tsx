@@ -9,6 +9,7 @@ import {
   FileText,
   Hash,
   Bell,
+  MapPin,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { Entreprise } from '@/types/entreprise'
@@ -42,6 +43,27 @@ const STATUS_CONFIG = {
     text: 'text-warning',
     pill: 'bg-warning-bg text-warning',
     ring: 'ring-warning/20',
+  },
+  Relance: {
+    label: 'Relance',
+    dot: 'bg-blue',
+    text: 'text-blue',
+    pill: 'bg-blue/10 text-blue',
+    ring: 'ring-blue/20',
+  },
+  'Réponds pas': {
+    label: 'Réponds pas',
+    dot: 'bg-gray-400',
+    text: 'text-gray-500',
+    pill: 'bg-gray-100 text-gray-500',
+    ring: 'ring-gray-300/30',
+  },
+  Fermé: {
+    label: 'Fermé',
+    dot: 'bg-gray-700',
+    text: 'text-gray-700',
+    pill: 'bg-gray-200 text-gray-700',
+    ring: 'ring-gray-400/30',
   },
 } as const
 
@@ -107,9 +129,10 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
               {entreprise.nom_commercial ?? '—'}
             </h4>
             {entreprise.secteur && (
-              <p className="mt-1 text-xs font-normal text-gray-400 truncate">
+              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-blue-light px-2 py-0.5 text-[11px] font-medium text-blue">
+                <MapPin className="h-3 w-3" />
                 {entreprise.secteur}
-              </p>
+              </span>
             )}
           </div>
 

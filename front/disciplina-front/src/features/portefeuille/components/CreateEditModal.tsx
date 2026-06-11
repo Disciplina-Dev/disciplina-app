@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Building2, ArrowRight, AlertTriangle } from 'lucide-react'
 import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
+import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
 import { useAuthStore, USERS, UserRole } from '@/store/authStore'
 import Button from '@/components/ui/Button'
@@ -50,7 +51,7 @@ interface Props {
   mode: 'create' | 'edit'
 }
 
-const STATUS_OPTIONS: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir']
+const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode }: Props) {
   const token = useAuthStore((s) => s.token)
@@ -69,7 +70,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       telephone: initial?.telephone ?? '',
       email: initial?.email ?? '',
       adresse: initial?.adresse ?? '',
-      secteur: initial?.secteur ?? '',
+      secteur: initial?.secteur ?? DEFAULT_SECTEUR,
       metier: initial?.metier ?? '',
       representant_legal: initial?.representant_legal ?? '',
       idcc: initial?.idcc ?? '',
@@ -114,7 +115,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       if (name) setValue('nom_commercial', name, { shouldValidate: true })
       setValue('siret', digits)
       if (fullAddress) setValue('adresse', fullAddress)
-      if (data.adresse.commune) setValue('secteur', data.adresse.commune)
+      if (data.adresse.commune) setValue('note', `Commune: ${data.adresse.commune}`)
       setFromRegistry(true)
       setStep('form')
     } catch {
@@ -327,12 +328,20 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       placeholder="Rue, CP, Ville"
                       {...register('adresse')}
                     />
-                    <InputField
-                      id="secteur"
-                      label="Secteur"
-                      placeholder="Ex: Saint-Denis"
-                      {...register('secteur')}
-                    />
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700" htmlFor="secteur">
+                        Secteur
+                      </label>
+                      <select
+                        id="secteur"
+                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        {...register('secteur')}
+                      >
+                        {SECTEUR_VALUES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
 

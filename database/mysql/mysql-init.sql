@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 CREATE DATABASE IF NOT EXISTS disciplina;
 USE disciplina;
 
@@ -35,16 +37,18 @@ CREATE TABLE IF NOT EXISTS companies (
     phone VARCHAR(50) DEFAULT NULL,
     email VARCHAR(255) DEFAULT NULL,
     address VARCHAR(255) NOT NULL,
-    sector VARCHAR(255) NOT NULL,
+    sector VARCHAR(255) NOT NULL DEFAULT 'Nord-Est',
     main_activity VARCHAR(255) DEFAULT NULL,
     siret CHAR(14) UNIQUE NOT NULL,
     idcc CHAR(4) DEFAULT NULL,
     ape CHAR(5) DEFAULT NULL,
     notes TEXT DEFAULT NULL,
-    conclusion VARCHAR(255) NOT NULL,
+    conclusion VARCHAR(255) NOT NULL DEFAULT '',
+    status VARCHAR(50) NOT NULL DEFAULT 'À Réfléchir',
     relance_date DATE DEFAULT NULL,
     relance_type TINYINT DEFAULT NULL,
     relance_template_id VARCHAR(64) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
 );
 

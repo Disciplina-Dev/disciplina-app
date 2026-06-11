@@ -3,7 +3,7 @@ import { mintToken } from '../../../../test/helpers/auth';
 import { JobRepository } from '../../../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
-import { JobStatus, DesiredSex, Localisation, Sector, Sex } from '../../../types/job.types';
+import { JobStatus, DesiredSex, Localisation, Sector } from '../../../types/job.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/jobs`;
 
