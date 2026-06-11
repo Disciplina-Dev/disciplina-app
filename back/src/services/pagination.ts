@@ -1,4 +1,4 @@
-import { Connection, DEFAULT_PAGE_SIZE, Edge, PageInfo } from '../types/pagination.types';
+import { Connection, DEFAULT_PAGE_SIZE } from '../types/pagination.types';
 
 export { DEFAULT_PAGE_SIZE } from '../types/pagination.types';
 export type { PaginationArgs, Connection, Edge, PageInfo } from '../types/pagination.types';

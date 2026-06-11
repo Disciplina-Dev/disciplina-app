@@ -178,7 +178,7 @@ def get_mysql_connection():
         )
     # development: use individual vars, retry until local container is ready
     host = os.getenv('MYSQL_HOST', 'localhost')
-    port = int(os.getenv('MYSQL_PORT', '3306'))
+    port = 3306
     user = os.getenv('MYSQL_USER', 'root')
     password = os.getenv('MYSQL_ROOT_PASSWORD')
     database = os.getenv('MYSQL_DATABASE', 'disciplina')

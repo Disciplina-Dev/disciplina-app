@@ -18,4 +18,17 @@ export class GoogleGmailService {
             requestBody: { raw: buildRawMessage(options) },
         });
     }
+
+    async createDraft(
+        creds: GoogleTokens,
+        options: SendEmailOptions,
+        onTokenRefresh?: GoogleTokenRefreshHandler,
+    ): Promise<void> {
+        const auth = this.oauth.forCredentials(creds, onTokenRefresh);
+        const gmail = google.gmail({ version: 'v1', auth });
+        await gmail.users.drafts.create({
+            userId: 'me',
+            requestBody: { message: { raw: buildRawMessage(options) } },
+        });
+    }
 }

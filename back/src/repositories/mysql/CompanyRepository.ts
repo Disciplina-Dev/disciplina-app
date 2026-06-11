@@ -20,10 +20,10 @@ export class CompanyRepository {
     async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string, search?: string, filters?: CompanyFilters): Promise<CompaniesRow[]> {
         if (search?.trim()) {
             const pattern = `%${search.trim()}%`;
-            return query<CompaniesRow[]>(
-                'SELECT * FROM companies WHERE name LIKE ? OR siret LIKE ? ORDER BY id',
-                [pattern, pattern],
-            );
+            return query<CompaniesRow[]>('SELECT * FROM companies WHERE name LIKE ? OR siret LIKE ? ORDER BY id', [
+                pattern,
+                pattern,
+            ]);
         }
 
         const conditions: string[] = [];
@@ -93,7 +93,10 @@ export class CompanyRepository {
     }
 
     async findBySiret(siret: string): Promise<CompaniesRow | null> {
-        const results = await query<CompaniesRow[]>('SELECT * FROM companies WHERE siret = ?', [siret]);
+        const sql = siret.includes('%')
+            ? 'SELECT * FROM companies WHERE siret LIKE ?'
+            : 'SELECT * FROM companies WHERE siret = ?';
+        const results = await query<CompaniesRow[]>(sql, [siret]);
         return results.length > 0 ? results[0] : null;
     }
 

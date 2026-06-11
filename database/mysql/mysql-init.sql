@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS companies (
     conclusion VARCHAR(255) NOT NULL DEFAULT '',
     status VARCHAR(50) NOT NULL DEFAULT 'À Réfléchir',
     relance_date DATE DEFAULT NULL,
+    relance_type TINYINT DEFAULT NULL,
+    relance_template_id VARCHAR(64) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
 );

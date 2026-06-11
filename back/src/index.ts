@@ -1,8 +1,9 @@
 import './config/env'; // validate env vars at startup
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
 import { connectMySQL } from './db/mysql/connection';
+import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
@@ -27,7 +28,7 @@ declare module 'express-session' {
     }
 }
 
-export async function startServer(): Promise<http.Server> {
+export async function createApp(): Promise<express.Express> {
     const app: any = express();
 
     app.use(httpLogger);
@@ -80,10 +81,11 @@ export async function startServer(): Promise<http.Server> {
     app.use(errorHandler);
 
     await connectMySQL();
+    await runMysqlMigrations();
     await connectMongoDB();
 
     // Prevent browser/proxy caching of GraphQL responses (auth-sensitive data)
-    app.use('/api/graphql', (_req, res, next) => {
+    app.use('/api/graphql', (_req: Request, res: Response, next: NextFunction) => {
         res.setHeader('Cache-Control', 'no-store');
         next();
     });
@@ -97,12 +99,17 @@ export async function startServer(): Promise<http.Server> {
     await JobAPI.start();
     JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' });
 
+    return app;
+}
+
+export async function startServer(): Promise<http.Server> {
+    const app = await createApp();
     const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
     return server;
 }
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
     startServer().catch((err) => logger.error({ err }, 'Startup error'));
 }

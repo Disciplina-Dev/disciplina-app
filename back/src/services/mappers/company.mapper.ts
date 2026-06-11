@@ -28,5 +28,7 @@ export function toCompanies(row: CompaniesRow): Companies {
                 ? row.created_at.toISOString().slice(0, 10)
                 : String(row.created_at).slice(0, 10))
             : null,
+        relanceType: row.relance_type ?? null,
+        relanceTemplateId: row.relance_template_id ?? null,
     };
 }

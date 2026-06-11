@@ -16,4 +16,6 @@ export interface Companies {
     status: string | null;
     relanceDate: string | null;
     createdAt: string | null;
+    relanceType: number | null;
+    relanceTemplateId: string | null;
 }

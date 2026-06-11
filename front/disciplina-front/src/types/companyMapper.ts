@@ -28,6 +28,8 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     status,
     date_insertion: company.createdAt ?? null,
     date_relance: company.relanceDate ?? null,
+    type_relance: company.relanceType ?? null,
+    relance_template_id: company.relanceTemplateId ?? null,
   }
 }
 
@@ -51,5 +53,7 @@ export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
     conclusion: entreprise.conclusion ?? '',
     status: entreprise.status || 'À Réfléchir',
     relanceDate: entreprise.date_relance || null,
+    relanceType: entreprise.type_relance ?? null,
+    relanceTemplateId: entreprise.relance_template_id || null,
   };
 };

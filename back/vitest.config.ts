@@ -1,6 +1,4 @@
 import { defineConfig } from 'vitest/config';
-import dotenv from 'dotenv';
-import { json } from 'stream/consumers';
 
 process.env.NODE_ENV = 'test';
 

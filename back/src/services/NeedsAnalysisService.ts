@@ -34,13 +34,13 @@ export class NeedsAnalysisService {
     }
 
     async create(data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
-        logger.info('[NeedsAnalysis] create() called', { companyID: data.companyID, userID: data.userID, jobTitle: data.jobTitle });
+        logger.info({ companyID: data.companyID, userID: data.userID, jobTitle: data.jobTitle }, '[NeedsAnalysis] create() called');
         this.validateData(data);
 
         // 1. Fetch Company details
         const company = await this.companiesService.findById(data.companyID!);
         if (!company) {
-            logger.error(`[NeedsAnalysis] Company not found`, { companyID: data.companyID });
+            logger.error({ companyID: data.companyID }, '[NeedsAnalysis] Company not found');
             throw new Error(`Company with ID ${data.companyID} not found`);
         }
         logger.info(`[NeedsAnalysis] Company found: ${company.name}`);
@@ -52,7 +52,7 @@ export class NeedsAnalysisService {
         };
         const rowData = toNeedsAnalysisRow(initialData);
         const id = await this.repository.create(rowData);
-        logger.info(`[NeedsAnalysis] Brouillon created in DB`, { id });
+        logger.info({ id }, '[NeedsAnalysis] Brouillon created in DB');
 
         const created = await this.repository.findById(id);
         if (!created) {
@@ -65,9 +65,9 @@ export class NeedsAnalysisService {
         try {
             logger.info(`[NeedsAnalysis] Generating PDF for analysis #${id}`);
             pdfBuffer = await PdfService.generateNeedsAnalysisPdf(createdDomain, company);
-            logger.info(`[NeedsAnalysis] PDF generated successfully`, { sizeBytes: pdfBuffer.length });
+            logger.info({ sizeBytes: pdfBuffer.length }, '[NeedsAnalysis] PDF generated successfully');
         } catch (pdfError: any) {
-            logger.error(`[NeedsAnalysis] PDF generation failed`, { error: pdfError.message });
+            logger.error({ err: pdfError }, '[NeedsAnalysis] PDF generation failed');
             throw new Error(`Failed to generate PDF document: ${pdfError.message}`);
         }
 
@@ -78,7 +78,7 @@ export class NeedsAnalysisService {
             const firstName = nameParts[0] || 'Responsable';
             const lastName = nameParts.slice(1).join(' ') || 'Recrutement';
             const signerEmail = createdDomain.recruitmentResponsibleEmail || company.email || 'recrutement@disciplina.local';
-            logger.info(`[NeedsAnalysis] Initiating Yousign procedure`, { signerEmail, firstName, lastName });
+            logger.info({ signerEmail, firstName, lastName }, '[NeedsAnalysis] Initiating Yousign procedure');
 
             const pdfDoc = await PDFDocument.load(pdfBuffer);
             const lastPage = pdfDoc.getPageCount();
@@ -91,9 +91,9 @@ export class NeedsAnalysisService {
                 lastName,
                 lastPage
             );
-            logger.info(`[NeedsAnalysis] Yousign procedure initiated`, { yousignRequestId });
+            logger.info({ yousignRequestId }, '[NeedsAnalysis] Yousign procedure initiated');
         } catch (yousignError: any) {
-            logger.error(`[NeedsAnalysis] Yousign failed`, { error: yousignError.message });
+            logger.error({ err: yousignError }, '[NeedsAnalysis] Yousign failed');
             throw new Error(`Failed to initiate signature request on Yousign: ${yousignError.message}`);
         }
 
@@ -105,14 +105,14 @@ export class NeedsAnalysisService {
             };
             const updateRowData = toNeedsAnalysisRow(updatePayload);
             await this.repository.update(id, updateRowData);
-            logger.info(`[NeedsAnalysis] Status updated to EN_ATTENTE_SIGNATURE`, { id, yousignRequestId });
+            logger.info({ id, yousignRequestId }, '[NeedsAnalysis] Status updated to EN_ATTENTE_SIGNATURE');
         }
 
         const finalCreated = await this.repository.findById(id);
         if (!finalCreated) {
             throw new Error('Failed to retrieve final needs analysis after update');
         }
-        logger.info(`[NeedsAnalysis] create() complete`, { id, status: finalCreated.status });
+        logger.info({ id, status: finalCreated.status }, '[NeedsAnalysis] create() complete');
         return toNeedsAnalysis(finalCreated);
     }
 

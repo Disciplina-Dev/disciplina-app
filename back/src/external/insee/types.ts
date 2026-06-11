@@ -67,3 +67,8 @@ export interface SireneListResult {
     header: SireneListHeader;
     etablissements: SireneEtablissement[];
 }
+
+export interface SireneCriterion {
+    paramName: string;
+    value: string;
+}

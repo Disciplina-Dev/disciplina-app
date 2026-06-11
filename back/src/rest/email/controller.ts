@@ -11,6 +11,14 @@ const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
     userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 export async function sendEmail(req: AuthRequest, res: Response): Promise<void> {
+    await handleEmail(req, res, 'send');
+}
+
+export async function createDraft(req: AuthRequest, res: Response): Promise<void> {
+    await handleEmail(req, res, 'draft');
+}
+
+async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draft'): Promise<void> {
     const { to, subject, body, attachment } = req.body;
 
     if (!to || !subject || !body) {
@@ -24,18 +32,21 @@ export async function sendEmail(req: AuthRequest, res: Response): Promise<void> 
         return;
     }
 
+    const options = {
+        to,
+        subject,
+        html: body,
+        text: body.replace(/<[^>]*>/g, ''),
+        attachment,
+    };
+    const creds = { access_token: user.oauthToken, refresh_token: user.refreshToken };
+
     try {
-        await gmailService.sendEmail(
-            { access_token: user.oauthToken, refresh_token: user.refreshToken },
-            {
-                to,
-                subject,
-                html: body,
-                text: body.replace(/<[^>]*>/g, ''),
-                attachment,
-            },
-            persistRefreshedTokens(user.id),
-        );
+        if (mode === 'draft') {
+            await gmailService.createDraft(creds, options, persistRefreshedTokens(user.id));
+        } else {
+            await gmailService.sendEmail(creds, options, persistRefreshedTokens(user.id));
+        }
         res.json({ success: true });
     } catch (err: any) {
         res.status(500).json({ error: err.message });

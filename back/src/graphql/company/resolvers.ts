@@ -25,6 +25,8 @@ interface CompanyInput {
     conclusion?: string | null;
     status?: string | null;
     relanceDate?: string | null;
+    relanceType?: number | null;
+    relanceTemplateId?: string | null;
 }
 
 const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
@@ -49,6 +51,8 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     if (input.conclusion !== undefined) row.conclusion = input.conclusion ?? '';
     if (input.status !== undefined) row.status = input.status && ALLOWED_STATUSES.has(input.status) ? input.status : DEFAULT_STATUS;
     if (input.relanceDate !== undefined) row.relance_date = input.relanceDate ? input.relanceDate.slice(0, 10) : null;
+    if (input.relanceType !== undefined) row.relance_type = input.relanceType;
+    if (input.relanceTemplateId !== undefined) row.relance_template_id = input.relanceTemplateId;
     return row;
 }
 

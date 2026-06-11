@@ -42,6 +42,8 @@ export interface Company {
   status: string | null
   relanceDate: string | null
   createdAt: string | null
+  relanceType: number | null
+  relanceTemplateId: string | null
 }
 
 export interface CompanyInput {
@@ -59,6 +61,8 @@ export interface CompanyInput {
   conclusion: string | null
   status: string | null
   relanceDate: string | null
+  relanceType: number | null
+  relanceTemplateId: string | null
 }
 
 export interface CompanyWithSalePerson {
@@ -85,6 +89,8 @@ export interface Entreprise {
   status: EntrepriseStatus
   date_insertion: string | null
   date_relance: string | null
+  type_relance: number | null
+  relance_template_id: string | null
 }
 
 export type EntrepriseFilters = {

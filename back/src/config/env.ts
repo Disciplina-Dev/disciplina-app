@@ -137,7 +137,7 @@ const data = {
 
     DRIVE_CANDIDATS_NORD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_FOLDER_ID'),
 
-    OAUTH_ENCRYPTION_KEY: optionalString(
+    OAUTH_ENCRYPTION_KEY: stringWithDefault(
         'OAUTH_ENCRYPTION_KEY',
         '7325fd3fc113dc0034d98ee93eb9a50fc4c71d2798c819bc4e3f7e7e2fb7a940',
     ),

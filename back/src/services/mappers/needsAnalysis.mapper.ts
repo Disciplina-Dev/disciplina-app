@@ -7,7 +7,7 @@ export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
         selectedMissions = typeof row.selected_missions === 'string'
             ? JSON.parse(row.selected_missions)
             : (row.selected_missions || []);
-    } catch (e) {
+    } catch {
         selectedMissions = [];
     }
 
@@ -16,7 +16,7 @@ export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
         ageRequirements = typeof row.age_requirements === 'string'
             ? JSON.parse(row.age_requirements)
             : (row.age_requirements || []);
-    } catch (e) {
+    } catch {
         ageRequirements = [];
     }
 
@@ -79,8 +79,8 @@ export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
         trainingDays,
         yousignSignatureRequestID: row.yousign_signature_request_id,
         status: row.status,
-        createdAt: row.created_at ? row.created_at.toISOString() : undefined,
-        updatedAt: row.updated_at ? row.updated_at.toISOString() : undefined,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : undefined,
+        updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
     };
 }
 
