@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Bell, Mail, Building2, CalendarClock, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -8,11 +8,23 @@ import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
 import { useUpdateCompany } from '@/graphql/hooks'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
-import { getRelanceType, computeRelanceDate } from '@/types/relance'
+import { getRelanceType, computeRelanceDate, RELANCE_TYPES } from '@/types/relance'
 import { toCompany } from '@/types/companyMapper'
 import { toSlug } from '@/utils/slug'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
+
+/** Groupe les entreprises par type de relance, dans l'ordre de RELANCE_TYPES (sans type en dernier) */
+function groupByType(list: Entreprise[]) {
+  const groups: { typeId: number | null; items: Entreprise[] }[] = []
+  for (const t of RELANCE_TYPES) {
+    const items = list.filter((c) => c.type_relance === t.id)
+    if (items.length > 0) groups.push({ typeId: t.id, items })
+  }
+  const untyped = list.filter((c) => !getRelanceType(c.type_relance))
+  if (untyped.length > 0) groups.push({ typeId: null, items: untyped })
+  return groups
+}
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return null
@@ -51,8 +63,31 @@ export default function RelanceCommercial() {
     setRescheduling(null)
   }
 
+  function TypeGroup({ typeId, count, children }: { typeId: number | null; count: number; children: ReactNode }) {
+    const type = getRelanceType(typeId ?? undefined)
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 mt-1">
+          {type ? (
+            <>
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${type.badge.bg} ${type.badge.text}`}>
+                {type.label}
+              </span>
+              <span className="text-xs text-gray-400">{type.description}</span>
+            </>
+          ) : (
+            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500">
+              Sans type
+            </span>
+          )}
+          <span className="ml-auto text-xs text-gray-400">{count}</span>
+        </div>
+        {children}
+      </div>
+    )
+  }
+
   function Row({ ent, isDue }: { ent: Entreprise; isDue: boolean }) {
-    const type = getRelanceType(ent.type_relance)
     const template = templates.find((t) => t.id === ent.relance_template_id)
     return (
       <div className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white px-5 py-4 hover:border-blue/20 transition-colors">
@@ -71,11 +106,6 @@ export default function RelanceCommercial() {
               <CalendarClock className="h-3.5 w-3.5" />
               {formatDate(ent.date_relance)}
             </span>
-            {type && (
-              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${type.badge.bg} ${type.badge.text}`}>
-                {type.label}
-              </span>
-            )}
             {template && (
               <span className="inline-flex items-center gap-1 text-xs text-gray-400">
                 <Mail className="h-3 w-3" />
@@ -142,7 +172,11 @@ export default function RelanceCommercial() {
                 Aucune relance en retard 🎉
               </div>
             ) : (
-              due.map((ent) => <Row key={ent.id} ent={ent} isDue />)
+              groupByType(due).map((group) => (
+                <TypeGroup key={group.typeId ?? 'none'} typeId={group.typeId} count={group.items.length}>
+                  {group.items.map((ent) => <Row key={ent.id} ent={ent} isDue />)}
+                </TypeGroup>
+              ))
             )}
           </section>
 
@@ -157,7 +191,11 @@ export default function RelanceCommercial() {
                 Aucune relance planifiée
               </div>
             ) : (
-              upcoming.map((ent) => <Row key={ent.id} ent={ent} isDue={false} />)
+              groupByType(upcoming).map((group) => (
+                <TypeGroup key={group.typeId ?? 'none'} typeId={group.typeId} count={group.items.length}>
+                  {group.items.map((ent) => <Row key={ent.id} ent={ent} isDue={false} />)}
+                </TypeGroup>
+              ))
             )}
           </section>
         </>
