@@ -1,11 +1,18 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface MailAttachment {
+  filename: string
+  contentType: string
+  content: string   // base64 (no data URL prefix)
+}
+
 export interface MailTemplate {
   id: string
   name: string
   subject: string
   body: string
+  attachment?: MailAttachment | null
 }
 
 export type MailTemplatesScope = 'rh' | 'commercial'

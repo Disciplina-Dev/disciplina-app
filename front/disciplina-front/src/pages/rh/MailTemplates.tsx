@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, Save, Mail, ImagePlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Save, Mail, ImagePlus, Paperclip } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
-import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
+import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope, type MailAttachment } from '@/store/mailTemplatesStore'
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
@@ -11,9 +11,13 @@ interface FormState {
   name: string
   subject: string
   body: string
+  attachment: MailAttachment | null
 }
 
-const EMPTY_FORM: FormState = { name: '', subject: '', body: '' }
+const EMPTY_FORM: FormState = { name: '', subject: '', body: '', attachment: null }
+
+// localStorage quota is ~5 MB for the whole store — keep template attachments small
+const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
 
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
   const { templates, add, update, remove, signatureImage, setSignatureImage } = useMailTemplatesStore(scope)
@@ -29,9 +33,27 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   }
 
   function openEdit(t: MailTemplate) {
-    setForm({ name: t.name, subject: t.subject, body: t.body })
+    setForm({ name: t.name, subject: t.subject, body: t.body, attachment: t.attachment ?? null })
     setEditing(t)
     setError(null)
+  }
+
+  function handleAttachmentFile(file: File | undefined) {
+    if (!file) return
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setError('Pièce jointe trop lourde (max 2 Mo pour un modèle).')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1]
+      setForm((f) => ({
+        ...f,
+        attachment: { filename: file.name, contentType: file.type || 'application/octet-stream', content: base64 },
+      }))
+      setError(null)
+    }
+    reader.readAsDataURL(file)
   }
 
   function closeForm() {
@@ -128,6 +150,28 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
               />
             </div>
 
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Pièce jointe (optionnelle)</label>
+              {form.attachment ? (
+                <div className="flex items-center gap-2 rounded-[10px] border border-gray-100 px-4 py-2.5">
+                  <Paperclip size={15} className="text-gray-400 shrink-0" />
+                  <span className="text-sm text-gray-700 flex-1 truncate">{form.attachment.filename}</span>
+                  <button
+                    onClick={() => setForm((f) => ({ ...f, attachment: null }))}
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 cursor-pointer rounded-[10px] border border-dashed border-gray-200 px-4 py-2.5 text-sm text-gray-400 hover:border-blue hover:text-blue transition-colors">
+                  <Paperclip size={15} />
+                  Joindre un document au modèle (max 2 Mo)
+                  <input type="file" className="hidden" onChange={(e) => handleAttachmentFile(e.target.files?.[0])} />
+                </label>
+              )}
+            </div>
+
             {error && <p className="text-xs text-red-500">{error}</p>}
 
             <div className="flex justify-end gap-2">
@@ -181,6 +225,12 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                   className="text-xs text-gray-400 line-clamp-2"
                   dangerouslySetInnerHTML={{ __html: t.body }}
                 />
+                {t.attachment && (
+                  <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <Paperclip size={12} />
+                    {t.attachment.filename}
+                  </span>
+                )}
               </div>
             ))}
           </div>

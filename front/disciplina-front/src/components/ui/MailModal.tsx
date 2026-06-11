@@ -2,20 +2,24 @@ import { useState } from 'react'
 import { X, Send, Paperclip, Trash2 } from 'lucide-react'
 import Button from './Button'
 import RichTextEditor from './RichTextEditor'
-import { useMailTemplatesStore, type MailTemplatesScope } from '@/store/mailTemplatesStore'
+import { useMailTemplatesStore, type MailTemplatesScope, type MailAttachment } from '@/store/mailTemplatesStore'
 import { useAuthStore } from '@/store/authStore'
 
 interface MailModalProps {
   defaultTo?: string
   candidateName?: string
   scope?: MailTemplatesScope
+  /** 'send' envoie directement, 'draft' crée un brouillon Gmail */
+  mode?: 'send' | 'draft'
+  /** Modèle appliqué à l'ouverture (objet, corps, pièce jointe) */
+  defaultTemplateId?: string
   onClose: () => void
 }
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue transition-colors'
 
-export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', onClose }: MailModalProps) {
+export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, onClose }: MailModalProps) {
   const { templates, signatureImage } = useMailTemplatesStore(scope)
   const token = useAuthStore((s) => s.token)
 
@@ -23,10 +27,12 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
     ? `<br/><img src="${signatureImage}" alt="signature" style="max-height:96px;max-width:320px"/>`
     : ''
 
+  const defaultTemplate = defaultTemplateId ? templates.find((t) => t.id === defaultTemplateId) : undefined
+
   const [to, setTo] = useState(defaultTo)
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState(sigHtml)
-  const [file, setFile] = useState<File | null>(null)
+  const [subject, setSubject] = useState(defaultTemplate?.subject ?? '')
+  const [body, setBody] = useState(defaultTemplate ? `${defaultTemplate.body}${sigHtml}` : sigHtml)
+  const [attachment, setAttachment] = useState<MailAttachment | null>(defaultTemplate?.attachment ?? null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
@@ -37,6 +43,17 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
     if (!t) return
     setSubject(t.subject)
     setBody(`${t.body}${sigHtml}`)
+    if (t.attachment) setAttachment(t.attachment)
+  }
+
+  function handleFile(file: File | undefined) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1]
+      setAttachment({ filename: file.name, contentType: file.type || 'application/octet-stream', content: base64 })
+    }
+    reader.readAsDataURL(file)
   }
 
   async function handleSend() {
@@ -47,25 +64,15 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
     setSending(true)
     setError(null)
 
-    let attachment: { filename: string; content: string; contentType: string } | undefined
-    if (file) {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-      attachment = { filename: file.name, content: base64, contentType: file.type }
-    }
-
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
+      const endpoint = mode === 'draft' ? '/api/email/draft' : '/api/email/send'
+      const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ to, subject, body, attachment }),
+        body: JSON.stringify({ to, subject, body, attachment: attachment ?? undefined }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erreur envoi')
@@ -95,7 +102,9 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
               <Send size={22} className="text-green-600" />
             </div>
-            <p className="font-medium text-gray-900">Mail envoyé avec succès</p>
+            <p className="font-medium text-gray-900">
+              {mode === 'draft' ? 'Brouillon créé dans Gmail' : 'Mail envoyé avec succès'}
+            </p>
             <Button variant="secondary" size="sm" onClick={onClose}>Fermer</Button>
           </div>
         ) : (
@@ -132,11 +141,11 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">Pièce jointe</label>
-              {file ? (
+              {attachment ? (
                 <div className="flex items-center gap-2 rounded-[10px] border border-gray-100 px-4 py-2.5">
                   <Paperclip size={15} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-700 flex-1 truncate">{file.name}</span>
-                  <button onClick={() => setFile(null)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <span className="text-sm text-gray-700 flex-1 truncate">{attachment.filename}</span>
+                  <button onClick={() => setAttachment(null)} className="text-gray-400 hover:text-red-500 transition-colors">
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -144,7 +153,7 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
                 <label className="flex items-center gap-2 cursor-pointer rounded-[10px] border border-dashed border-gray-200 px-4 py-2.5 text-sm text-gray-400 hover:border-blue hover:text-blue transition-colors">
                   <Paperclip size={15} />
                   Joindre un document
-                  <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                  <input type="file" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
                 </label>
               )}
             </div>
@@ -154,7 +163,7 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
             <div className="flex justify-end gap-2 pt-1 pb-1">
               <Button variant="secondary" size="sm" onClick={onClose}>Annuler</Button>
               <Button size="sm" leftIcon={<Send size={15} />} isLoading={sending} onClick={handleSend}>
-                Envoyer
+                {mode === 'draft' ? 'Créer le brouillon' : 'Envoyer'}
               </Button>
             </div>
           </div>

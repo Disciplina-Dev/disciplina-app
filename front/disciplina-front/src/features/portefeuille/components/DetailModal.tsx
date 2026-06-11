@@ -24,6 +24,7 @@ import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
 import { USERS } from '@/store/authStore'
 import Button from '@/components/ui/Button'
+import MailModal from '@/components/ui/MailModal'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 
@@ -112,6 +113,7 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
   const abList = abResult.data?.needsAnalysesByCompany ?? []
   const [selectedAbId, setSelectedAbId] = useState<number | null>(null)
   const [selectedAbIds, setSelectedAbIds] = useState<Set<number>>(new Set())
+  const [mailOpen, setMailOpen] = useState(false)
   const { deleteNeedsAnalysis } = useDeleteNeedsAnalysis()
 
   const toggleSelect = (id: number) => {
@@ -170,6 +172,14 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<Mail className="h-3.5 w-3.5" />}
+                onClick={() => setMailOpen(true)}
+              >
+                Envoyer un mail
+              </Button>
               <Button
                 size="sm"
                 variant="primary"
@@ -359,6 +369,18 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
           )}
         </div>
       </div>
+
+      {mailOpen && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <MailModal
+            defaultTo={entreprise.email ?? ''}
+            candidateName={entreprise.nom_commercial ?? undefined}
+            scope="commercial"
+            mode="draft"
+            onClose={() => setMailOpen(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }
