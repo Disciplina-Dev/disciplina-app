@@ -15,44 +15,25 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { NAF_CODES } from "@/data/nafCodes";
+import {
+  normalizeSiret,
+  formatSiret,
+  formatSiren,
+  displayName,
+  displayCity,
+  displayAddress,
+  type SireneEtablissement,
+  type SirenSearchResult,
+} from "@/types/sourcing";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const LS_KEY = "siren_recents_v1";
 const EXAMPLES = ["803396719", "912345678", "392824714"];
 const MAX_RECENTS = 4;
 
-interface SireneAdresse {
-  numeroVoie: string | null;
-  typeVoie: string | null;
-  libelleVoie: string | null;
-  codePostal: string | null;
-  commune: string | null;
-  codeCommune: string | null;
-}
-
-interface SireneEtablissement {
-  siren: string;
-  nic: string;
-  siret: string;
-  siegeSocial: boolean;
-  etatAdministratif: "A" | "F";
-  categorieEntreprise: string | null;
-  categorieJuridique: string | null;
-  denomination: string | null;
-  nomPrenom: string | null;
-  adresse: SireneAdresse;
-  alreadyExists?: boolean;
-}
-
 interface RecentEntry {
   name: string;
   siren: string;
-}
-
-interface SirenSearchResult {
-  siren: string;
-  companiesWithSale: CompanyWithSalePerson[];
-  etablissements: SireneEtablissement[];
 }
 
 interface SireneListHeader {
@@ -76,49 +57,11 @@ type View = "empty" | "loading" | "result" | "notfound";
 type ErrKind = "invalid" | "missing" | "server" | "none";
 type CommuneView = "empty" | "loading" | "results" | "notfound" | "error";
 
-const normalizeSiret = (raw: string): string => (raw || "").replace(/\D/g, "");
-
 const denormalizeCommune = (normalized: string): string => {
   return normalized
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join("-");
-};
-
-const formatSiret = (digits: string): string => {
-  const d = normalizeSiret(digits);
-  const parts = [
-    d.slice(0, 3),
-    d.slice(3, 6),
-    d.slice(6, 9),
-    d.slice(9, 14),
-  ].filter(Boolean);
-  return parts.join(" ");
-};
-
-const formatSiren = (digits: string): string => {
-  const d = normalizeSiret(digits);
-  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9)]
-    .filter(Boolean)
-    .join(" ");
-};
-
-const displayName = (e: SireneEtablissement): string =>
-  (e.denomination || e.nomPrenom || "Établissement").trim();
-
-const displayCity = (a: SireneAdresse): string => {
-  if (!a.commune && !a.codePostal) return "";
-  if (a.commune && a.codePostal) return `${a.commune} (${a.codePostal})`;
-  return a.commune || a.codePostal || "";
-};
-
-const displayAddress = (a: SireneAdresse): string => {
-  const street = [a.numeroVoie, a.typeVoie, a.libelleVoie]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-  const city = displayCity(a);
-  return [street, city].filter(Boolean).join(", ");
 };
 
 const LEGAL_FORMS: Record<string, string> = {
