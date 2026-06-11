@@ -3,14 +3,32 @@ import { useQuery } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { GET_COMPANIES, GET_SALE_PERSONS } from '@/graphql/queries'
 
-export function useInitializePortfolio(first?: number, after?: string, search?: string) {
+export interface ServerFilters {
+  status?: string[]
+  userID?: number
+  sector?: string
+  relance?: string
+  unassigned?: boolean
+  createdFrom?: string
+  createdTo?: string
+}
+
+export function useInitializePortfolio(first?: number, after?: string, search?: string, filters?: ServerFilters) {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
   const setSalePersons = usePortefeuilleStore((s) => s.setSalePersons)
   const setLoading = usePortefeuilleStore((s) => s.setLoading)
   const setError = usePortefeuilleStore((s) => s.setError)
 
-  const [companiesResult] = useQuery({ query: GET_COMPANIES, variables: { first: search ? undefined : first, after: search ? undefined : after, search: search || undefined } })
-  const [salePersonsResult] = useQuery({ query: GET_SALE_PERSONS })
+  const isRelanceMode = !!filters?.relance
+  const variables = {
+    first: (search || isRelanceMode) ? undefined : first,
+    after: (search || isRelanceMode) ? undefined : after,
+    search: search || undefined,
+    filters: filters && Object.values(filters).some(v => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0)) ? filters : undefined,
+  }
+
+  const [companiesResult] = useQuery({ query: GET_COMPANIES, variables, requestPolicy: 'network-only' })
+  const [salePersonsResult] = useQuery({ query: GET_SALE_PERSONS, requestPolicy: 'network-only' })
 
   useEffect(() => {
     const fetching = companiesResult.fetching || salePersonsResult.fetching
@@ -23,12 +41,11 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
 
     if (companiesResult.data?.companies) {
       const entreprises = companiesResult.data.companies.edges.map(({ node: c }: any) => {
-        const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(c.company.conclusion || '');
         return {
           id: String(c.company.id),
           nom_commercial: c.company.name,
           proprietaire_contact: c.salePerson?.email || null,
-          commercial:  c.salePerson?.name || null,
+          commercial: c.salePerson?.name || null,
           proprietaire_id: c.salePerson?.id || null,
           representant_legal: c.company?.legalReferent || null,
           telephone: c.company.phone,
@@ -39,9 +56,9 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
           siret: c.company.siret,
           idcc: c.company.idcc,
           note: c.company.notes,
-          conclusion: isStatusOnly ? '' : c.company.conclusion,
-          status: (isStatusOnly ? c.company.conclusion : 'À Réfléchir') || 'À Réfléchir',
-          date_insertion: new Date().toISOString().split('T')[0],
+          conclusion: c.company.conclusion,
+          status: c.company.status || 'À Réfléchir',
+          date_insertion: c.company.createdAt ? c.company.createdAt.slice(0, 10) : null,
           date_relance: c.company.relanceDate ?? null,
           type_relance: c.company.relanceType ?? null,
           relance_template_id: c.company.relanceTemplateId ?? null,

@@ -23,6 +23,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
+import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import { useCurrentUser, USERS } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
@@ -35,12 +36,15 @@ import { RELANCE_TYPES, getRelanceType, computeRelanceDate } from '@/types/relan
 import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 
-const STATUS_OPTIONS: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir']
+const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 const STATUS_CONFIG: Record<EntrepriseStatus, { bg: string; text: string; dot: string; border: string }> = {
   Oui:          { bg: 'bg-success-bg',  text: 'text-success',  dot: 'bg-success',  border: 'border-success/30' },
   Non:          { bg: 'bg-danger-bg',   text: 'text-danger',   dot: 'bg-danger',   border: 'border-danger/30' },
   'À Réfléchir':{ bg: 'bg-warning-bg',  text: 'text-warning',  dot: 'bg-warning',  border: 'border-warning/30' },
+  Relance:      { bg: 'bg-blue/10',     text: 'text-blue',     dot: 'bg-blue',     border: 'border-blue/30' },
+  'Réponds pas':{ bg: 'bg-gray-100',    text: 'text-gray-500', dot: 'bg-gray-400', border: 'border-gray-300' },
+  Fermé:        { bg: 'bg-gray-200',    text: 'text-gray-700', dot: 'bg-gray-700', border: 'border-gray-400' },
 }
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
@@ -250,17 +254,6 @@ export default function EntreprisePage() {
                     {draft.status}
                   </span>
                 )}
-                {canEdit ? (
-                  <input
-                    type="text"
-                    value={draft.secteur ?? ''}
-                    onChange={(e) => set('secteur', e.target.value)}
-                    placeholder="Secteur…"
-                    className="text-xs text-gray-500 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue outline-none transition-colors w-32"
-                  />
-                ) : (
-                  draft.secteur && <span className="text-xs text-gray-500">{draft.secteur}</span>
-                )}
               </div>
             </div>
           </div>
@@ -309,6 +302,23 @@ export default function EntreprisePage() {
                 <EditField icon={<MapPin className="h-4 w-4" />} label="Adresse" value={draft.adresse ?? ''} onChange={(v) => set('adresse', v)} />
               ) : (
                 <ReadField icon={<MapPin className="h-4 w-4" />} label="Adresse" value={draft.adresse} />
+              )}
+              {canEdit ? (
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><MapPin className="h-4 w-4" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Secteur</p>
+                    <select
+                      value={draft.secteur ?? DEFAULT_SECTEUR}
+                      onChange={(e) => set('secteur', e.target.value)}
+                      className={INLINE_INPUT}
+                    >
+                      {SECTEUR_VALUES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <ReadField icon={<MapPin className="h-4 w-4" />} label="Secteur" value={draft.secteur} />
               )}
               {canEdit ? (
                 <EditField icon={<Hash className="h-4 w-4" />} label="IDCC" value={draft.idcc ?? ''} onChange={(v) => set('idcc', v)} />

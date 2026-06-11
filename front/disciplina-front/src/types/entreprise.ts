@@ -1,4 +1,13 @@
-export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir'
+export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir' | 'Relance' | 'Réponds pas' | 'Fermé'
+
+export const STATUS_VALUES: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']
+
+export type Secteur = 'Nord-Est' | 'Ouest' | 'Sud'
+
+export const SECTEUR_VALUES: Secteur[] = ['Nord-Est', 'Ouest', 'Sud']
+
+export const DEFAULT_SECTEUR: Secteur = 'Nord-Est'
+export type RelanceFilter = 'today' | 'past' | 'future'
 
 const saleUserData = [
   { id: 1, name: 'Pas de commerciaux' },
@@ -30,7 +39,9 @@ export interface Company {
   ape: string | null
   notes: string | null
   conclusion: string | null
+  status: string | null
   relanceDate: string | null
+  createdAt: string | null
   relanceType: number | null
   relanceTemplateId: string | null
 }
@@ -48,6 +59,7 @@ export interface CompanyInput {
   ape: string | null
   notes: string | null
   conclusion: string | null
+  status: string | null
   relanceDate: string | null
   relanceType: number | null
   relanceTemplateId: string | null
@@ -75,7 +87,7 @@ export interface Entreprise {
   note: string | null
   conclusion: string | null
   status: EntrepriseStatus
-  date_insertion: string
+  date_insertion: string | null
   date_relance: string | null
   type_relance: number | null
   relance_template_id: string | null
@@ -84,9 +96,9 @@ export interface Entreprise {
 export type EntrepriseFilters = {
   siret: string
   status: EntrepriseStatus[]
-  commercial: string
+  commercial_id: number | null
   secteur: string
-  relance_proche: boolean
+  relance: RelanceFilter | ''
   unassigned_only: boolean
   date_insertion_from: string
   date_insertion_to: string

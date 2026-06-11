@@ -10,20 +10,30 @@ import {
   Check,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
-import type { EntrepriseFilters, EntrepriseStatus } from '@/types/entreprise'
-import { USERS, UserRole } from '@/store/authStore'
+import type { EntrepriseFilters, EntrepriseStatus, RelanceFilter, SalePerson } from '@/types/entreprise'
+import { STATUS_VALUES } from '@/types/entreprise'
 
-const STATUS_OPTIONS: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir']
+const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 const STATUS_DOT: Record<EntrepriseStatus, string> = {
   Oui: 'bg-success',
   Non: 'bg-danger',
   'À Réfléchir': 'bg-warning',
+  Relance: 'bg-blue',
+  'Réponds pas': 'bg-gray-400',
+  Fermé: 'bg-gray-700',
 }
+
+const RELANCE_OPTIONS: { value: RelanceFilter; label: string }[] = [
+  { value: 'today', label: "Aujourd'hui" },
+  { value: 'past', label: 'Passé' },
+  { value: 'future', label: 'À venir' },
+]
 
 interface Props {
   filters: EntrepriseFilters
   secteurs: string[]
+  salePersons: SalePerson[]
   onChange: (filters: EntrepriseFilters) => void
   onReset: () => void
   activeCount: number
@@ -32,9 +42,9 @@ interface Props {
 export const EMPTY_FILTERS: EntrepriseFilters = {
   siret: '',
   status: [],
-  commercial: '',
+  commercial_id: null,
   secteur: '',
-  relance_proche: false,
+  relance: '',
   unassigned_only: false,
   date_insertion_from: '',
   date_insertion_to: '',
@@ -165,29 +175,61 @@ function SelectContent({
   onChange,
   placeholder,
 }: {
-  options: string[]
-  value: string
-  onChange: (v: string) => void
+  options: { label: string; value: string | number }[]
+  value: string | number | null
+  onChange: (v: string | number | null) => void
   placeholder: string
 }) {
   return (
     <div className="py-1.5 max-h-60 overflow-y-auto">
       <button
-        onClick={() => onChange('')}
+        onClick={() => onChange(null)}
         className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors"
       >
         <span className="flex-1 text-left italic">{placeholder}</span>
-        {!value && <Check className="h-3.5 w-3.5 text-blue" />}
+        {value === null && <Check className="h-3.5 w-3.5 text-blue" />}
       </button>
       <div className="border-t border-gray-100 my-1" />
       {options.map((opt) => (
         <button
-          key={opt}
-          onClick={() => onChange(opt)}
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
           className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          <span className="flex-1 text-left">{opt}</span>
-          {value === opt && <Check className="h-3.5 w-3.5 text-blue" />}
+          <span className="flex-1 text-left">{opt.label}</span>
+          {value === opt.value && <Check className="h-3.5 w-3.5 text-blue" />}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── Relance dropdown content ─────────────────────────────────────────────────
+function RelanceContent({
+  value,
+  onChange,
+}: {
+  value: RelanceFilter | ''
+  onChange: (v: RelanceFilter | '') => void
+}) {
+  return (
+    <div className="py-1.5">
+      <button
+        onClick={() => onChange('')}
+        className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors"
+      >
+        <span className="flex-1 text-left italic">Toutes les relances</span>
+        {!value && <Check className="h-3.5 w-3.5 text-blue" />}
+      </button>
+      <div className="border-t border-gray-100 my-1" />
+      {RELANCE_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <span className="flex-1 text-left">{opt.label}</span>
+          {value === opt.value && <Check className="h-3.5 w-3.5 text-blue" />}
         </button>
       ))}
     </div>
@@ -231,11 +273,7 @@ function DateRangeContent({
 }
 
 // ─── Main FilterPanel ─────────────────────────────────────────────────────────
-export default function FilterPanel({ filters, secteurs, onChange, onReset, activeCount }: Props) {
-  const commercials = Object.values(USERS)
-    .filter((u) => u.role === UserRole.COMMERCIAL || u.role === UserRole.RESPONSABLE)
-    .map((u) => u.name)
-
+export default function FilterPanel({ filters, secteurs, salePersons, onChange, onReset, activeCount }: Props) {
   const toggleStatus = (s: EntrepriseStatus) => {
     const cur = filters.status
     onChange({
@@ -260,6 +298,17 @@ export default function FilterPanel({ filters, secteurs, onChange, onReset, acti
         : `Jusqu'au ${filters.date_insertion_to.slice(5)}`
     : undefined
 
+  const relanceLabel = filters.relance
+    ? RELANCE_OPTIONS.find(o => o.value === filters.relance)?.label
+    : undefined
+
+  const commercialLabel = filters.commercial_id != null
+    ? salePersons.find(sp => sp.id === filters.commercial_id)?.name
+    : undefined
+
+  const commercialOptions = salePersons.map(sp => ({ label: sp.name, value: sp.id }))
+  const secteurOptions = secteurs.map(s => ({ label: s, value: s }))
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
       {/* Statut */}
@@ -277,14 +326,14 @@ export default function FilterPanel({ filters, secteurs, onChange, onReset, acti
       <ChipDropdown
         icon={<User className="h-3.5 w-3.5" />}
         label="Commercial"
-        activeLabel={filters.commercial || undefined}
-        isActive={!!filters.commercial}
-        onClear={() => onChange({ ...filters, commercial: '' })}
+        activeLabel={commercialLabel}
+        isActive={filters.commercial_id != null}
+        onClear={() => onChange({ ...filters, commercial_id: null })}
       >
         <SelectContent
-          options={commercials}
-          value={filters.commercial}
-          onChange={(v) => onChange({ ...filters, commercial: v })}
+          options={commercialOptions}
+          value={filters.commercial_id}
+          onChange={(v) => onChange({ ...filters, commercial_id: v as number | null })}
           placeholder="Tous les commerciaux"
         />
       </ChipDropdown>
@@ -298,17 +347,17 @@ export default function FilterPanel({ filters, secteurs, onChange, onReset, acti
         onClear={() => onChange({ ...filters, secteur: '' })}
       >
         <SelectContent
-          options={secteurs}
-          value={filters.secteur}
-          onChange={(v) => onChange({ ...filters, secteur: v })}
+          options={secteurOptions}
+          value={filters.secteur || null}
+          onChange={(v) => onChange({ ...filters, secteur: (v as string) || '' })}
           placeholder="Tous les secteurs"
         />
       </ChipDropdown>
 
-      {/* Date insertion */}
+      {/* Création (date de création du dossier) */}
       <ChipDropdown
         icon={<CalendarDays className="h-3.5 w-3.5" />}
-        label="Insertion"
+        label="Création"
         activeLabel={dateInsertionLabel}
         isActive={dateInsertionActive}
         onClear={() => onChange({ ...filters, date_insertion_from: '', date_insertion_to: '' })}
@@ -321,13 +370,19 @@ export default function FilterPanel({ filters, secteurs, onChange, onReset, acti
         />
       </ChipDropdown>
 
-      {/* Relance proche ±2j */}
-      <ToggleChip
+      {/* Relance */}
+      <ChipDropdown
         icon={<Bell className="h-3.5 w-3.5" />}
-        label="Relance ±2 jours"
-        active={filters.relance_proche}
-        onToggle={() => onChange({ ...filters, relance_proche: !filters.relance_proche })}
-      />
+        label="Relance"
+        activeLabel={relanceLabel}
+        isActive={!!filters.relance}
+        onClear={() => onChange({ ...filters, relance: '' })}
+      >
+        <RelanceContent
+          value={filters.relance}
+          onChange={(v) => onChange({ ...filters, relance: v })}
+        />
+      </ChipDropdown>
 
       {/* Sans commercial */}
       <ToggleChip

@@ -2,24 +2,90 @@ import { query, getConnection } from '../../db/mysql/connection';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 
+const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
+const ALLOWED_RELANCE = new Set(['today', 'past', 'future']);
+const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
+
+export interface CompanyFilters {
+    status?: string[];
+    userID?: number | null;
+    sector?: string | null;
+    relance?: string | null;
+    unassigned?: boolean | null;
+    createdFrom?: string | null;
+    createdTo?: string | null;
+}
+
 export class CompanyRepository {
-    async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string, search?: string): Promise<CompaniesRow[]> {
-        if (search && search.trim()) {
+    async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string, search?: string, filters?: CompanyFilters): Promise<CompaniesRow[]> {
+        if (search?.trim()) {
             const pattern = `%${search.trim()}%`;
             return query<CompaniesRow[]>('SELECT * FROM companies WHERE name LIKE ? OR siret LIKE ? ORDER BY id', [
                 pattern,
                 pattern,
             ]);
         }
-        const limit = (first + 1).toString();
+
+        const conditions: string[] = [];
+        const params: unknown[] = [];
+
+        if (filters?.status?.length) {
+            const valid = filters.status.filter(s => ALLOWED_STATUSES.has(s));
+            if (valid.length) {
+                conditions.push(`status IN (${valid.map(() => '?').join(', ')})`);
+                params.push(...valid);
+            }
+        }
+
+        if (filters?.unassigned) {
+            conditions.push('user_id IS NULL');
+        } else if (filters?.userID != null) {
+            conditions.push('user_id = ?');
+            params.push(filters.userID);
+        }
+
+        if (filters?.sector && ALLOWED_SECTORS.has(filters.sector)) {
+            conditions.push('sector = ?');
+            params.push(filters.sector);
+        }
+
+        const relance = filters?.relance && ALLOWED_RELANCE.has(filters.relance) ? filters.relance : null;
+        if (relance === 'today') {
+            conditions.push('DATE(relance_date) = CURDATE()');
+        } else if (relance === 'past') {
+            conditions.push('relance_date < CURDATE()');
+        } else if (relance === 'future') {
+            conditions.push('relance_date > CURDATE()');
+        }
+
+        if (filters?.createdFrom) {
+            conditions.push('DATE(created_at) >= ?');
+            params.push(filters.createdFrom);
+        }
+        if (filters?.createdTo) {
+            conditions.push('DATE(created_at) <= ?');
+            params.push(filters.createdTo);
+        }
+
+        // Relance mode: return all sorted results, no cursor pagination
+        if (relance) {
+            const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+            const orderBy = relance === 'past'
+                ? 'ORDER BY relance_date DESC, id'
+                : 'ORDER BY relance_date ASC, id';
+            return query<CompaniesRow[]>(`SELECT * FROM companies ${where} ${orderBy}`, params);
+        }
+
+        // Cursor pagination
         if (after) {
             const decodedId = Math.floor(Number(decodeCursor(after)));
-            return query<CompaniesRow[]>('SELECT * FROM companies WHERE id > ? ORDER BY id LIMIT ?', [
-                decodedId,
-                limit,
-            ]);
+            conditions.push('id > ?');
+            params.push(decodedId);
         }
-        return query<CompaniesRow[]>('SELECT * FROM companies ORDER BY id LIMIT ?', [limit]);
+
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const limit = Math.max(1, Math.floor(Number(first)) + 1);
+        return query<CompaniesRow[]>(`SELECT * FROM companies ${where} ORDER BY id LIMIT ${limit}`, params);
     }
 
     async findByCommercial(userID: number): Promise<CompaniesRow[]> {

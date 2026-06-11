@@ -3,14 +3,13 @@ import { useAuthStore } from '@/store/authStore'
 
 const getFetchOptions = () => {
   const token = useAuthStore.getState().token
-  if (token) {
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
+  return {
+    method: 'POST' as const,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   }
-  return {}
 }
 
 export const graphqlClient = new Client({

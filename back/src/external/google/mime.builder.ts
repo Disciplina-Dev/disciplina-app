@@ -1,7 +1,7 @@
 import { SendEmailOptions } from './types';
 
 function encodeSubject(subject: string): string {
-    if (!/[^\x00-\x7F]/.test(subject)) return subject;
+    if (!/[^ -~]/.test(subject)) return subject;
     return `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`;
 }
 

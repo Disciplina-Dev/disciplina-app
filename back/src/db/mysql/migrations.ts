@@ -16,6 +16,7 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'companies', column: 'relance_date', definition: 'DATE DEFAULT NULL' },
     { table: 'companies', column: 'relance_type', definition: 'TINYINT DEFAULT NULL' },
     { table: 'companies', column: 'relance_template_id', definition: 'VARCHAR(64) DEFAULT NULL' },
+    { table: 'companies', column: 'created_at', definition: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
 ];
 
 export async function runMysqlMigrations(): Promise<void> {

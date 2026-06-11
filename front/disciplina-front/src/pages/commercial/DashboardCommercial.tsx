@@ -15,6 +15,8 @@ import type { Entreprise } from '@/types/entreprise'
 import { useCurrentUser, USERS } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
+import { useUpdateCompany } from '@/graphql/hooks'
+import { toCompany } from '@/types/companyMapper'
 
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import DetailModal from '@/features/portefeuille/components/DetailModal'
@@ -31,6 +33,7 @@ export default function DashboardCommercial() {
   const addCompany = usePortefeuilleStore((s) => s.addCompany)
 
   const { loading } = useInitializePortfolio()
+  const { update } = useUpdateCompany()
 
   const [detailEntry, setDetailEntry] = useState<Entreprise | null>(null)
   const [editEntry, setEditEntry] = useState<Entreprise | null>(null)
@@ -66,11 +69,11 @@ export default function DashboardCommercial() {
     if (weekCompanies.length === 0) {
       return [...myCompanies]
         .filter((c) => Boolean(c.conclusion) || c.status)
-        .sort((a, b) => new Date(b.date_insertion).getTime() - new Date(a.date_insertion).getTime())
+        .sort((a, b) => new Date(b.date_insertion ?? 0).getTime() - new Date(a.date_insertion ?? 0).getTime())
         .slice(0, 15)
     }
 
-    return weekCompanies.sort((a, b) => new Date(b.date_insertion).getTime() - new Date(a.date_insertion).getTime())
+    return weekCompanies.sort((a, b) => new Date(b.date_insertion ?? 0).getTime() - new Date(a.date_insertion ?? 0).getTime())
   }, [myCompanies])
 
   // 3. Compute stats
@@ -119,8 +122,13 @@ export default function DashboardCommercial() {
   }, [thisWeekCompanies, currentUser])
 
   // ─── Actions ─────────────────────────────────────────────────────────────
-  const handleSaveEdit = (data: Partial<Entreprise>) => {
+  const handleSaveEdit = async (data: Partial<Entreprise>) => {
     if (!editEntry) return
+    const response = await update(Number(editEntry.id), toCompany({ ...editEntry, ...data }))
+    if (response.error) {
+      alert(`Erreur lors de l'enregistrement : ${response.error.message}`)
+      return
+    }
     updateCompany(editEntry.id, data)
     setEditEntry(null)
     if (detailEntry?.id === editEntry.id) {
