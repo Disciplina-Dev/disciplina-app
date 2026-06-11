@@ -1,0 +1,43 @@
+export interface NafCode {
+  code: string;
+  libelle: string;
+}
+
+export const NAF_CODES: NafCode[] = [
+  { code: "88.10A", libelle: "Aide à domicile" },
+  { code: "73.11Z", libelle: "Activités des agences de publicité" },
+  { code: "78.10Z", libelle: "Activités des agences de placement de main-d'œuvre" },
+  { code: "78.20Z", libelle: "Activités des agences de travail temporaire" },
+  { code: "69.20Z", libelle: "Activités comptables" },
+  { code: "82.20Z", libelle: "Activités de centres d'appels" },
+  { code: "70.10Z", libelle: "Activités des sièges sociaux" },
+  { code: "64.20Z", libelle: "Activités des sociétés holding" },
+  { code: "86.21Z", libelle: "Activité des médecins généralistes" },
+  { code: "86.10Z", libelle: "Activités hospitalières" },
+  { code: "69.10Z", libelle: "Activités juridiques" },
+  { code: "90.01Z", libelle: "Arts du spectacle vivant" },
+  { code: "96.02A", libelle: "Coiffure" },
+  { code: "45.11Z", libelle: "Commerce de voitures et de véhicules automobiles légers" },
+  { code: "46.90Z", libelle: "Commerce de gros non spécialisé" },
+  { code: "62.02A", libelle: "Conseil en systèmes et logiciels informatiques" },
+  { code: "70.22Z", libelle: "Conseil pour les affaires et autres conseils de gestion" },
+  { code: "41.20A", libelle: "Construction de maisons individuelles" },
+  { code: "58.29C", libelle: "Édition de logiciels applicatifs" },
+  { code: "85.59A", libelle: "Formation continue d'adultes" },
+  { code: "87.10A", libelle: "Hébergement médicalisé pour personnes âgées" },
+  { code: "55.10Z", libelle: "Hôtels et hébergement similaire" },
+  { code: "47.11F", libelle: "Hypermarchés" },
+  { code: "71.12B", libelle: "Ingénierie, études techniques" },
+  { code: "68.20A", libelle: "Location de logements" },
+  { code: "68.20B", libelle: "Location de terrains et d'autres biens immobiliers" },
+  { code: "81.21Z", libelle: "Nettoyage courant des bâtiments" },
+  { code: "65.12Z", libelle: "Autres assurances" },
+  { code: "62.01Z", libelle: "Programmation informatique" },
+  { code: "56.10A", libelle: "Restauration traditionnelle" },
+  { code: "56.10C", libelle: "Restauration de type rapide" },
+  { code: "93.13Z", libelle: "Activités des centres de culture physique" },
+  { code: "63.11Z", libelle: "Traitement de données, hébergement et activités connexes" },
+  { code: "49.41A", libelle: "Transports routiers de fret interurbains" },
+  { code: "74.30Z", libelle: "Traduction et interprétation" },
+  { code: "43.21A", libelle: "Travaux d'installation électrique" },
+];

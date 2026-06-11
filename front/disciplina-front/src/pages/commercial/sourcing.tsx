@@ -13,6 +13,7 @@ import {
   Phone,
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
+import { NAF_CODES } from "@/data/nafCodes";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const LS_KEY = "siret_recents_v1";
@@ -57,6 +58,11 @@ interface SireneListHeader {
 interface SireneListResult {
   header: SireneListHeader;
   etablissements: SireneEtablissement[];
+}
+
+interface SireneCriterion {
+  paramName: string;
+  value: string;
 }
 
 type View = "empty" | "loading" | "result" | "notfound";
@@ -150,21 +156,39 @@ function legalFormShort(code: string | null): string {
   return LEGAL_FORMS[code] || code;
 }
 
-async function fetchCompaniesByCommune(
-  commune: string,
+async function fetchCompaniesByCriteria(
+  criteria: SireneCriterion[],
   token: string | null,
   offset = 0,
 ): Promise<SireneListResult> {
-  const encoded = encodeURIComponent(commune.trim());
   const res = await fetch(
-    `${API_BASE}/api/sourcing/${encoded}?offset=${offset}`,
+    `${API_BASE}/api/sourcing/multicriteria?offset=${offset}`,
     {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ criteria }),
     },
   );
   if (res.status === 404) throw new Error("notfound");
   if (!res.ok) throw new Error("server");
   return (await res.json()) as SireneListResult;
+}
+
+function buildCriteria(commune: string, naf: string): SireneCriterion[] {
+  const criteria: SireneCriterion[] = [];
+  if (commune.trim()) {
+    criteria.push({
+      paramName: "libelleCommuneEtablissement",
+      value: denormalizeCommune(commune.trim()),
+    });
+  }
+  if (naf.trim()) {
+    criteria.push({ paramName: "activitePrincipaleUniteLegale", value: naf.trim() });
+  }
+  return criteria;
 }
 
 function SiretSearchBar({
@@ -685,20 +709,25 @@ function ModeTab({
   );
 }
 
-function CommuneSearchBar({
-  value,
-  onChange,
+function MulticriteriaSearchBar({
+  communeValue,
+  onCommuneChange,
+  nafValue,
+  onNafChange,
   onSubmit,
   busy,
 }: {
-  value: string;
-  onChange: (v: string) => void;
+  communeValue: string;
+  onCommuneChange: (v: string) => void;
+  nafValue: string;
+  onNafChange: (v: string) => void;
   onSubmit: () => void;
   busy: boolean;
 }) {
+  const hasValue = !!(communeValue.trim() || nafValue.trim());
   return (
     <form
-      className="flex items-center gap-2.5 bg-white border-[1.5px] border-gray-100 rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
+      className="flex flex-col gap-2.5 sm:flex-row sm:items-center bg-white border-[1.5px] border-gray-100 rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit();
@@ -709,8 +738,8 @@ function CommuneSearchBar({
       </span>
       <select
         className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={communeValue}
+        onChange={(e) => onCommuneChange(e.target.value)}
       >
         <option value="">Sélectionnez une commune</option>
         {REUNION_COMMUNES.map((commune) => (
@@ -722,11 +751,26 @@ function CommuneSearchBar({
           </option>
         ))}
       </select>
-      {value && (
+      <select
+        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
+        value={nafValue}
+        onChange={(e) => onNafChange(e.target.value)}
+      >
+        <option value="">Tous secteurs (NAF)</option>
+        {NAF_CODES.map((n) => (
+          <option key={n.code} value={n.code}>
+            {n.libelle}
+          </option>
+        ))}
+      </select>
+      {hasValue && (
         <button
           type="button"
           className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
-          onClick={() => onChange("")}
+          onClick={() => {
+            onCommuneChange("");
+            onNafChange("");
+          }}
           aria-label="Effacer"
         >
           <X className="w-4 h-4" />
@@ -734,7 +778,7 @@ function CommuneSearchBar({
       )}
       <button
         type="submit"
-        disabled={busy || !value.trim()}
+        disabled={busy || !hasValue}
         className="flex items-center gap-1.5 flex-shrink-0 border-0 cursor-pointer bg-blue text-white font-semibold text-[14px] py-[9px] px-4 rounded-[10px] min-w-[120px] justify-center hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default max-sm:min-w-[46px] max-sm:px-[9px]"
       >
         {busy ? (
@@ -877,6 +921,7 @@ export default function Sourcing() {
 
   // Commune mode state
   const [communeQuery, setCommuneQuery] = useState("");
+  const [nafCode, setNafCode] = useState("");
   const [communeView, setCommuneView] = useState<CommuneView>("empty");
   const [communeResult, setCommuneResult] = useState<SireneListResult | null>(
     null,
@@ -949,15 +994,14 @@ export default function Sourcing() {
   );
 
   const runCommune = useCallback(
-    async (raw: string) => {
-      const trimmed = raw.trim();
-      if (!trimmed) return;
+    async () => {
+      const criteria = buildCriteria(communeQuery, nafCode);
+      if (criteria.length === 0) return;
       setCommuneView("loading");
       setOffsetHistory([]);
       setSelectedCommune(null);
       try {
-        const properName = denormalizeCommune(trimmed);
-        const data = await fetchCompaniesByCommune(properName, token, 0);
+        const data = await fetchCompaniesByCriteria(criteria, token, 0);
         setCommuneResult(data);
         setCommuneView(data.etablissements.length > 0 ? "results" : "notfound");
       } catch (e: unknown) {
@@ -965,20 +1009,21 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [token],
+    [communeQuery, nafCode, token],
   );
 
   const loadNextPage = useCallback(
     async () => {
-      if (!communeResult || !communeQuery) return;
+      if (!communeResult) return;
+      const criteria = buildCriteria(communeQuery, nafCode);
+      if (criteria.length === 0) return;
       const nextOffset =
         communeResult.header.offset + communeResult.etablissements.length;
       setOffsetHistory((h) => [...h, communeResult.header.offset]);
       setCommuneView("loading");
       setSelectedCommune(null);
       try {
-        const properName = denormalizeCommune(communeQuery.trim());
-        const data = await fetchCompaniesByCommune(properName, token, nextOffset);
+        const data = await fetchCompaniesByCriteria(criteria, token, nextOffset);
         setCommuneResult(data);
         setCommuneView("results");
       } catch (e: unknown) {
@@ -986,19 +1031,20 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, communeResult, token],
+    [communeQuery, nafCode, communeResult, token],
   );
 
   const loadPrevPage = useCallback(
     async () => {
-      if (!communeResult || !communeQuery || offsetHistory.length === 0) return;
+      if (!communeResult || offsetHistory.length === 0) return;
+      const criteria = buildCriteria(communeQuery, nafCode);
+      if (criteria.length === 0) return;
       const prevOffset = offsetHistory[offsetHistory.length - 1];
       setOffsetHistory((h) => h.slice(0, -1));
       setCommuneView("loading");
       setSelectedCommune(null);
       try {
-        const properName = denormalizeCommune(communeQuery.trim());
-        const data = await fetchCompaniesByCommune(properName, token, prevOffset);
+        const data = await fetchCompaniesByCriteria(criteria, token, prevOffset);
         setCommuneResult(data);
         setCommuneView("results");
       } catch (e: unknown) {
@@ -1006,7 +1052,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, communeResult, offsetHistory, token],
+    [communeQuery, nafCode, communeResult, offsetHistory, token],
   );
 
   const submit = () => run(query);
@@ -1071,7 +1117,7 @@ export default function Sourcing() {
           />
           <ModeTab
             active={mode === "commune"}
-            label="Recherche par commune"
+            label="Recherche multicritère"
             onClick={() => setMode("commune")}
           />
         </div>
@@ -1144,15 +1190,22 @@ export default function Sourcing() {
         {mode === "commune" && (
           <div>
             <div className="mb-6">
-              <CommuneSearchBar
-                value={communeQuery}
-                onChange={(v) => {
+              <MulticriteriaSearchBar
+                communeValue={communeQuery}
+                onCommuneChange={(v) => {
                   setCommuneQuery(v);
                   if (communeView !== "empty") setCommuneView("empty");
                   setContacts(null);
                   setSelectedCommune(null);
                 }}
-                onSubmit={() => runCommune(communeQuery)}
+                nafValue={nafCode}
+                onNafChange={(v) => {
+                  setNafCode(v);
+                  if (communeView !== "empty") setCommuneView("empty");
+                  setContacts(null);
+                  setSelectedCommune(null);
+                }}
+                onSubmit={() => runCommune()}
                 busy={communeView === "loading"}
               />
             </div>
@@ -1162,11 +1215,10 @@ export default function Sourcing() {
                   <Building2 className="w-7 h-7" />
                 </span>
                 <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
-                  Recherchez par commune
+                  Recherche multicritère
                 </h3>
                 <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-                  Saisissez le nom d'une commune pour lister les établissements
-                  enregistrés dans le registre INSEE.
+                  Sélectionnez une commune et/ou un secteur d'activité (NAF) pour lister les établissements enregistrés dans le registre INSEE.
                 </p>
               </div>
             )}
@@ -1255,11 +1307,10 @@ export default function Sourcing() {
                   <AlertTriangle className="w-7 h-7" />
                 </span>
                 <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
-                  Commune introuvable
+                  Aucun résultat
                 </h3>
                 <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-                  Aucun établissement trouvé pour cette commune dans le registre
-                  INSEE.
+                  Aucun établissement trouvé pour ces critères dans le registre INSEE.
                 </p>
               </div>
             )}
