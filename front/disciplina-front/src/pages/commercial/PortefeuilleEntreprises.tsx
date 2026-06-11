@@ -19,6 +19,7 @@ import { useCreateCompany } from '@/graphql/hooks'
 import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 import type { Entreprise } from '@/types/entreprise'
+import { SECTEUR_VALUES } from '@/types/entreprise'
 
 const PAGE_SIZE = 25
 
@@ -84,10 +85,7 @@ export default function PortefeuilleEntreprises() {
 
   const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters)
 
-  const secteurs = useMemo(() => {
-    const raw = new Set(companies.map((e) => e.secteur).filter(Boolean) as string[])
-    return Array.from(raw).sort((a, b) => a.localeCompare(b, 'fr'))
-  }, [companies])
+  const secteurs = SECTEUR_VALUES as unknown as string[]
 
   const handleFilterChange = (f: EntrepriseFilters) => {
     setFilters(f)

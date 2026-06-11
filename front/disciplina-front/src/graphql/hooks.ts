@@ -50,7 +50,7 @@ export function useCompanies() {
         idcc: c.company.idcc,
         note: c.company.notes,
         conclusion: c.company.conclusion,
-        status: (c.company.conclusion as any) || 'À Réfléchir',
+        status: (c.company.status as any) || 'À Réfléchir',
         date_insertion: new Date().toISOString().split('T')[0],
         date_relance: '',
       }))
@@ -108,7 +108,6 @@ export function useCreateCompany() {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
 
-        const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(response.data.createCompany.conclusion || '');
         const company = {
           id: String(response.data.createCompany.id),
           nom_commercial: response.data.createCompany.name,
@@ -124,8 +123,8 @@ export function useCreateCompany() {
           siret: response.data.createCompany.siret,
           idcc: response.data.createCompany.idcc,
           note: response.data.createCompany.notes,
-          conclusion: isStatusOnly ? '' : response.data.createCompany.conclusion,
-          status: (isStatusOnly ? response.data.createCompany.conclusion : 'À Réfléchir') as any,
+          conclusion: response.data.createCompany.conclusion,
+          status: (response.data.createCompany.status as any) || 'À Réfléchir',
           date_insertion: new Date().toISOString().split('T')[0],
           date_relance: '',
         }
@@ -153,7 +152,6 @@ export function useUpdateCompany() {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.updateCompany.userID);
 
-        const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(response.data.updateCompany.conclusion || '');
         updateCompany(String(id), {
           nom_commercial: response.data.updateCompany.name,
           telephone: response.data.updateCompany.phone,
@@ -164,8 +162,8 @@ export function useUpdateCompany() {
           siret: response.data.updateCompany.siret,
           idcc: response.data.updateCompany.idcc,
           note: response.data.updateCompany.notes,
-          conclusion: isStatusOnly ? '' : response.data.updateCompany.conclusion,
-          status: (isStatusOnly ? response.data.updateCompany.conclusion : 'À Réfléchir') as any,
+          conclusion: response.data.updateCompany.conclusion,
+          status: (response.data.updateCompany.status as any) || 'À Réfléchir',
           proprietaire_id: response.data.updateCompany.userID || null,
           commercial: salePerson?.name || null,
           proprietaire_contact: salePerson?.email || null,

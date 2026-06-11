@@ -16,6 +16,7 @@ export const typeDefs = gql`
         ape: String
         notes: String
         conclusion: String
+        status: String
         relanceDate: String
         createdAt: String
     }
@@ -49,6 +50,7 @@ export const typeDefs = gql`
         ape: String
         notes: String
         conclusion: String
+        status: String
         relanceDate: String
     }
 

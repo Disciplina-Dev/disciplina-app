@@ -41,6 +41,7 @@ export const GET_COMPANIES = gql`
             ape
             notes
             conclusion
+            status
             relanceDate
             createdAt
           }
@@ -77,6 +78,7 @@ export const GET_COMPANY_BY_SIRET = gql`
       ape
       notes
       conclusion
+      status
     }
   }
 `
@@ -98,6 +100,7 @@ export const GET_COMPANIES_BY_COMMERCIAL = gql`
         ape
         notes
         conclusion
+        status
       }
       salePerson {
         id
@@ -125,6 +128,7 @@ export const CREATE_COMPANY = gql`
       ape
       notes
       conclusion
+      status
       relanceDate
     }
   }
@@ -147,6 +151,7 @@ export const UPDATE_COMPANY = gql`
       ape
       notes
       conclusion
+      status
       relanceDate
     }
   }

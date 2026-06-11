@@ -1,7 +1,14 @@
 import type { Company, CompanyWithSalePerson, SalePerson, Entreprise, EntrepriseStatus, CompanyInput } from '@/types/entreprise'
+import { STATUS_VALUES } from '@/types/entreprise'
 
 export function toEntreprise(company: Company, salePerson: SalePerson | null): Entreprise {
-  const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(company.conclusion || '');
+  // Legacy rows stored the status in the conclusion column; fall back to it.
+  const legacyStatus = (STATUS_VALUES as string[]).includes(company.conclusion || '')
+    ? (company.conclusion as EntrepriseStatus)
+    : null;
+  const status = (STATUS_VALUES as string[]).includes(company.status || '')
+    ? (company.status as EntrepriseStatus)
+    : legacyStatus ?? 'À Réfléchir';
   return {
     id: String(company.id),
     nom_commercial: company.name,
@@ -17,8 +24,8 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     siret: company.siret,
     idcc: company.idcc,
     note: company.notes,
-    conclusion: isStatusOnly ? '' : company.conclusion,
-    status: (isStatusOnly ? company.conclusion : 'À Réfléchir') as EntrepriseStatus,
+    conclusion: legacyStatus ? '' : company.conclusion,
+    status,
     date_insertion: company.createdAt ?? null,
     date_relance: company.relanceDate ?? null,
   }
@@ -41,7 +48,8 @@ export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
     idcc: entreprise.idcc || null,
     ape: null,
     notes: entreprise.note || null,
-    conclusion: entreprise.conclusion || entreprise.status || 'À Réfléchir',
+    conclusion: entreprise.conclusion ?? '',
+    status: entreprise.status || 'À Réfléchir',
     relanceDate: entreprise.date_relance || null,
   };
 };

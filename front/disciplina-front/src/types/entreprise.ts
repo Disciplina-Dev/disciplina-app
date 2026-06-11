@@ -1,4 +1,12 @@
-export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir'
+export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir' | 'Relance' | 'Réponds pas' | 'Fermé'
+
+export const STATUS_VALUES: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']
+
+export type Secteur = 'Nord-Est' | 'Ouest' | 'Sud'
+
+export const SECTEUR_VALUES: Secteur[] = ['Nord-Est', 'Ouest', 'Sud']
+
+export const DEFAULT_SECTEUR: Secteur = 'Nord-Est'
 export type RelanceFilter = 'today' | 'past' | 'future'
 
 const saleUserData = [
@@ -31,6 +39,7 @@ export interface Company {
   ape: string | null
   notes: string | null
   conclusion: string | null
+  status: string | null
   relanceDate: string | null
   createdAt: string | null
 }
@@ -48,6 +57,7 @@ export interface CompanyInput {
   ape: string | null
   notes: string | null
   conclusion: string | null
+  status: string | null
   relanceDate: string | null
 }
 

@@ -31,6 +31,9 @@ const STATUS_CONFIG = {
   Oui: { bg: 'bg-success-bg', text: 'text-success', dot: 'bg-success' },
   Non: { bg: 'bg-danger-bg', text: 'text-danger', dot: 'bg-danger' },
   'À Réfléchir': { bg: 'bg-warning-bg', text: 'text-warning', dot: 'bg-warning' },
+  Relance: { bg: 'bg-blue/10', text: 'text-blue', dot: 'bg-blue' },
+  'Réponds pas': { bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400' },
+  Fermé: { bg: 'bg-gray-200', text: 'text-gray-700', dot: 'bg-gray-700' },
 } as const
 
 interface Props {

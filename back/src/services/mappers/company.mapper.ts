@@ -17,6 +17,7 @@ export function toCompanies(row: CompaniesRow): Companies {
         ape: row.ape,
         notes: row.notes,
         conclusion: row.conclusion,
+        status: row.status,
         relanceDate: row.relance_date
             ? (row.relance_date instanceof Date
                 ? row.relance_date.toISOString().slice(0, 10)

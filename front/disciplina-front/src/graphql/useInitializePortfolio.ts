@@ -41,7 +41,6 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
 
     if (companiesResult.data?.companies) {
       const entreprises = companiesResult.data.companies.edges.map(({ node: c }: any) => {
-        const isStatusOnly = ['Oui', 'Non', 'À Réfléchir'].includes(c.company.conclusion || '');
         return {
           id: String(c.company.id),
           nom_commercial: c.company.name,
@@ -57,8 +56,8 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
           siret: c.company.siret,
           idcc: c.company.idcc,
           note: c.company.notes,
-          conclusion: isStatusOnly ? '' : c.company.conclusion,
-          status: (isStatusOnly ? c.company.conclusion : 'À Réfléchir') || 'À Réfléchir',
+          conclusion: c.company.conclusion,
+          status: c.company.status || 'À Réfléchir',
           date_insertion: c.company.createdAt ? c.company.createdAt.slice(0, 10) : null,
           date_relance: c.company.relanceDate ?? null,
         }

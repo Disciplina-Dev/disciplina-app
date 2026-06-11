@@ -11,13 +11,17 @@ import {
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import type { EntrepriseFilters, EntrepriseStatus, RelanceFilter, SalePerson } from '@/types/entreprise'
+import { STATUS_VALUES } from '@/types/entreprise'
 
-const STATUS_OPTIONS: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir']
+const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 const STATUS_DOT: Record<EntrepriseStatus, string> = {
   Oui: 'bg-success',
   Non: 'bg-danger',
   'À Réfléchir': 'bg-warning',
+  Relance: 'bg-blue',
+  'Réponds pas': 'bg-gray-400',
+  Fermé: 'bg-gray-700',
 }
 
 const RELANCE_OPTIONS: { value: RelanceFilter; label: string }[] = [

@@ -2,8 +2,9 @@ import { query, getConnection } from '../../db/mysql/connection';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 
-const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir']);
+const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const ALLOWED_RELANCE = new Set(['today', 'past', 'future']);
+const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
 
 export interface CompanyFilters {
     status?: string[];
@@ -31,7 +32,7 @@ export class CompanyRepository {
         if (filters?.status?.length) {
             const valid = filters.status.filter(s => ALLOWED_STATUSES.has(s));
             if (valid.length) {
-                conditions.push(`conclusion IN (${valid.map(() => '?').join(', ')})`);
+                conditions.push(`status IN (${valid.map(() => '?').join(', ')})`);
                 params.push(...valid);
             }
         }
@@ -43,7 +44,7 @@ export class CompanyRepository {
             params.push(filters.userID);
         }
 
-        if (filters?.sector) {
+        if (filters?.sector && ALLOWED_SECTORS.has(filters.sector)) {
             conditions.push('sector = ?');
             params.push(filters.sector);
         }

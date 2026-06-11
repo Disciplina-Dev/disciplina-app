@@ -24,6 +24,7 @@ export interface CompaniesRow {
     ape: string | null;
     notes: string | null;
     conclusion: string | null;
+    status: string | null;
     relance_date: string | Date | null;
     created_at?: string | Date;
 }
