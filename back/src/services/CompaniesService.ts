@@ -86,7 +86,12 @@ export class CompaniesService {
         const blacklistEntries = await this.blacklistRepository.findBySiren(siren);
         const isBlacklisted = blacklistEntries.some((e) => e.all_blacklist === 1 || e.siret === siret);
         if (isBlacklisted) {
-            throw new Error('Cette entreprise est blacklistée');
+            const match =
+                blacklistEntries.find((e) => e.siret === siret) ?? blacklistEntries.find((e) => e.all_blacklist === 1);
+            const reason = match?.conclusion?.trim();
+            throw new Error(
+                reason ? `Cette entreprise est blacklistée : ${reason}` : 'Cette entreprise est blacklistée',
+            );
         }
 
         const id = await this.repository.create(data);

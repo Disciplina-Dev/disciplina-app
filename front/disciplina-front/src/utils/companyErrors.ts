@@ -9,6 +9,9 @@ export const formatErrorMessage = (errorMsg: string, siret?: string | null): str
   if (errorMsg.startsWith("SIRET invalide")) {
     return "Ce SIRET n'a pas pu être vérifié auprès du registre INSEE (introuvable ou service indisponible).";
   }
+  if (errorMsg.startsWith("Cette entreprise est blacklistée")) {
+    return errorMsg;
+  }
   if (errorMsg.includes("Unauthorized") || errorMsg.includes("Forbidden")) {
     return "Session expirée ou droits insuffisants. Veuillez vous reconnecter.";
   }

@@ -1,5 +1,6 @@
 import { CompaniesService } from '../../services/CompaniesService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { toBlacklistedCompany } from '../../services/mappers/company.mapper';
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
@@ -143,6 +144,18 @@ export const resolvers = {
                 ...company,
             };
         },
+
+        blacklistedCompanies: async (
+            _: unknown,
+            { first, after, search }: PaginationArgs & { search?: string },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const rows = await companiesBlacklistService.findAll(pageSize, after, search);
+            const companies = rows.map(toBlacklistedCompany);
+            return buildConnection(companies, (c) => String(c.id), search ? companies.length : pageSize);
+        },
     },
     Mutation: {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
@@ -178,6 +191,10 @@ export const resolvers = {
         ) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return companiesBlacklistService.blacklistCompany(id, reason, allBlacklist);
+        },
+        unblacklistCompany: async (_: unknown, { id }: { id: number }, context: any) => {
+            authGuard(context.user, [Role.RESPONSABLE]);
+            return companiesBlacklistService.unblacklistCompany(id);
         },
     },
 };
