@@ -39,6 +39,7 @@ import { toCompany, toEntrepriseFromCompanyWithSalePerson } from '@/types/compan
 import { normalizeSiret } from '@/types/sourcing'
 import type { SireneEtablissement } from '@/types/sourcing'
 import LinkedEstablishments from '@/features/portefeuille/components/LinkedEstablishments'
+import CompanyHistory from '@/features/portefeuille/components/CompanyHistory'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import BanCompanyModal from '@/features/portefeuille/components/BanCompanyModal'
 import { formatErrorMessage } from '@/utils/companyErrors'
@@ -598,6 +599,11 @@ export default function EntreprisePage() {
               onAdd={handleAddFromSiren}
               onOpenCompany={handleOpenLinkedCompany}
             />
+          )}
+
+          {/* Company History */}
+          {baseEntreprise && baseEntreprise.id && (
+            <CompanyHistory companyID={Number(baseEntreprise.id)} />
           )}
         </div>
       </div>

@@ -156,6 +156,11 @@ export const resolvers = {
             const companies = rows.map(toBlacklistedCompany);
             return buildConnection(companies, (c) => String(c.id), search ? companies.length : pageSize);
         },
+
+        companyHistory: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            return companiesService.getHistory(companyID);
+        },
     },
     Mutation: {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {

@@ -1,5 +1,5 @@
-import { CompaniesRow, CompaniesBlacklistRow } from '../../types/db-rows.types';
-import { Companies, BlacklistedCompany } from '../../types/company.types';
+import { CompaniesRow, CompaniesBlacklistRow, CompanyHistoryRow } from '../../types/db-rows.types';
+import { Companies, BlacklistedCompany, CompanyHistory } from '../../types/company.types';
 
 export function toCompanies(row: CompaniesRow): Companies {
     return {
@@ -37,5 +37,19 @@ export function toBlacklistedCompany(row: CompaniesBlacklistRow): BlacklistedCom
     return {
         ...toCompanies(row),
         allBlacklist: row.all_blacklist === 1,
+    };
+}
+
+export function toCompanyHistory(row: CompanyHistoryRow): CompanyHistory {
+    return {
+        id: row.id,
+        companyID: row.company_id,
+        updatedAt: row.updated_at
+            ? row.updated_at instanceof Date
+                ? row.updated_at.toISOString()
+                : String(row.updated_at)
+            : new Date().toISOString(),
+        updatedColumn: row.updated_column,
+        status: row.status,
     };
 }

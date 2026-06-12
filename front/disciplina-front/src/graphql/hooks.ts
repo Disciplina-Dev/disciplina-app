@@ -21,6 +21,7 @@ import {
   GET_NEEDS_ANALYSES_BY_COMPANY,
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
+  GET_COMPANY_HISTORY,
 } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
@@ -550,6 +551,15 @@ export function useCreateNeedsAnalysis() {
 export function useNeedsAnalysesByCompany(companyID: number | null) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_NEEDS_ANALYSES_BY_COMPANY,
+    variables: { companyID: companyID ?? 0 },
+    pause: companyID === null,
+  })
+  return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useCompanyHistory(companyID: number | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_COMPANY_HISTORY,
     variables: { companyID: companyID ?? 0 },
     pause: companyID === null,
   })

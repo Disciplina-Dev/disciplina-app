@@ -1,9 +1,10 @@
 import { CompanyRepository, CompanyFilters } from '../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
+import { CompanyHistoryRepository } from '../repositories/mysql/CompanyHistoryRepository';
 import { SireneService } from '../external/insee/sirene.service';
 import { CompaniesRow } from '../types/db-rows.types';
-import { Companies } from '../types/company.types';
-import { toCompanies } from './mappers/company.mapper';
+import { Companies, CompanyHistory } from '../types/company.types';
+import { toCompanies, toCompanyHistory } from './mappers/company.mapper';
 
 export interface CompanyStats {
     current: { userID: number | null; status: string | null; count: number }[];
@@ -14,11 +15,13 @@ export interface CompanyStats {
 export class CompaniesService {
     private repository: CompanyRepository;
     private blacklistRepository: CompanyBlacklistRepository;
+    private historyRepository: CompanyHistoryRepository;
     private sireneService: SireneService;
 
     constructor() {
         this.repository = new CompanyRepository();
         this.blacklistRepository = new CompanyBlacklistRepository();
+        this.historyRepository = new CompanyHistoryRepository();
         this.sireneService = new SireneService();
     }
 
@@ -110,11 +113,27 @@ export class CompaniesService {
         if (!existing) {
             throw new Error('Company not found');
         }
+
+        const changedColumns = Object.keys(data).filter((key) => {
+            const existingValue = existing[key as keyof CompaniesRow];
+            const incomingValue = data[key as keyof CompaniesRow];
+            return existingValue !== incomingValue;
+        });
+
         await this.repository.update(id, data);
         const updated = await this.repository.findById(id);
         if (!updated) {
             throw new Error('Company not found after update');
         }
+
+        if (changedColumns.length > 0) {
+            await this.historyRepository.create({
+                company_id: id,
+                updated_column: changedColumns.join(', '),
+                status: updated.status ?? existing.status ?? '',
+            });
+        }
+
         return toCompanies(updated);
     }
 
@@ -127,6 +146,18 @@ export class CompaniesService {
             throw new Error('Company not found');
         }
         return this.repository.delete(id);
+    }
+
+    async getHistory(companyID: number): Promise<CompanyHistory[]> {
+        if (!companyID || companyID <= 0) {
+            throw new Error('Valid company ID is required');
+        }
+        const existing = await this.repository.findById(companyID);
+        if (!existing) {
+            throw new Error('Company not found');
+        }
+        const rows = await this.historyRepository.findByCompanyId(companyID);
+        return rows.map(toCompanyHistory);
     }
 
     private validateCreateData(data: Partial<CompaniesRow>): void {
