@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { ChevronDown, History } from 'lucide-react'
 import { useCompanyHistory } from '@/graphql/hooks'
 import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return null
