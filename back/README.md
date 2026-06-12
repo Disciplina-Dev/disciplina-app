@@ -22,42 +22,56 @@ src/
     mongo/connection.ts Mongoose connection (DB: human_ressources)
     mongo/schemas/      Mongoose schemas for candidates & jobs
     mysql/connection.ts MySQL2 connection pool (DB: disciplina)
+    mysql/migrations.ts runMysqlMigrations() — auto-applies missing columns at boot
   external/             Third-party integrations & cross-cutting infrastructure
     google/             OAuth2 client, GoogleDriveService, GoogleGmailService, MIME builder, types
     crypto/             HmacService + domain signers (relance URL, Google OAuth state)
     logger/             pino logger instance
+    insee/              SireneService — INSEE Sirene API client (SIRET/SIREN lookup & search)
+    filiz/              FilizAuthClient + FilizService — Filiz ERP OAuth + degree/class APIs
   graphql/
     server.ts           3 separate ApolloServer instances on different paths
     context.ts          JWT extraction from Authorization header
     authGuard.ts        Role-based access guard
     company/            Companies GraphQL (MySQL)
+    needsAnalysis/      Needs-analysis GraphQL (MySQL) — merged into the companies server
     candidate/          Candidates GraphQL (MongoDB)
     jobs/               Jobs GraphQL + matching logic (MongoDB)
   repositories/
-    mysql/              Data access: UserRepository, CompanyRepository
+    mysql/              Data access: UserRepository, CompanyRepository, CompanyBlacklistRepository,
+                        NeedsAnalysisRepository, FilizRepository
     mongo/              Data access: CandidateRepository, JobRepository
-  services/             Business logic: CompaniesService, UserService, CandidateService,
-                        JobService, PdfService
+  services/             Business logic: CompaniesService, CompaniesBlacklistService, UserService,
+                        CandidateService, JobService, NeedsAnalysisService, PdfService,
+                        pagination (cursor pagination helpers)
     mappers/            Snake-case ↔ camelCase mappers for user, company, candidate
   rest/
     auth/               Login, register, Google OAuth
-    email/              Gmail email sending (via external/google)
+    email/              Gmail email sending + drafts (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
-    candidates/         Quick-create candidate endpoint
+    candidates/         Quick-create candidate endpoint + CV upload to Drive
     classmarker/        ClassMarker test links and webhooks
+    sourcing/           SIREN/SIRET/multicriteria prospecting search via INSEE, blacklist-aware
+    yousign/            Yousign signature webhook + SSE stream for needs-analysis signing
     middleware/         Auth (JWT), error handler & rate limiters
-  types/                Domain types: user, company, candidate, job, db-rows
+  types/                Domain types: user, company, candidate, job, needs-analysis, db-rows
 ```
 
 ## GraphQL endpoints
 
 | Path | Domain | Database |
 |------|--------|----------|
-| `/api/graphql/companies` | Companies + Users| MySQL |
+| `/api/graphql/companies` | Companies + Users + Needs Analysis | MySQL |
 | `/api/graphql/candidates` | Candidates | MongoDB |
 | `/api/graphql/jobs` | Jobs + candidate matching | MongoDB |
 
 All use the same JWT context (`back/src/graphql/context.ts`).
+
+The `/api/graphql/companies` server merges two domain modules into one Apollo instance
+(`graphql/server.ts`): `graphql/company/` (companies, users, `blacklistCompany`) and
+`graphql/needsAnalysis/` (the "Analyse de Besoin" form — `needsAnalyses`, `needsAnalysis(id)`,
+`needsAnalysesByCompany(companyID)`, `createNeedsAnalysis`, `updateNeedsAnalysis`,
+`deleteNeedsAnalysis`).
 
 ## REST endpoints
 
@@ -69,13 +83,21 @@ All use the same JWT context (`back/src/graphql/context.ts`).
 | POST | `/api/auth/google/token` | None | Exchange OAuth code for Google tokens |
 | GET | `/api/logout` | Session | Destroy session |
 | POST | `/api/email/send` | JWT | Send email (rate-limited: 20/15min) |
+| POST | `/api/email/draft` | JWT | Create a Gmail draft (supports an optional attachment) |
 | POST | `/api/relance/send` | JWT | Send relance emails (rate-limited: 5/hour) |
 | GET | `/api/relance/response` | None | Handle relance OUI/NON click-through |
 | GET | `/api/classmarker/links` | JWT (RH / ADMIN) | Get ClassMarker test links |
 | POST | `/api/webhooks/classmarker` | None | ClassMarker webhook (saves test result) |
 | GET | `/api/webhooks/classmarker/stream` | None | SSE stream for live ClassMarker results |
 | GET | `/api/webhooks/classmarker/result/:candidateId` | None | Fetch stored ClassMarker result |
+| POST | `/api/webhooks/yousign` | None | Yousign webhook — needs-analysis signature completed |
+| GET | `/api/webhooks/yousign/stream` | None | SSE stream of signature status for a commercial (`?userID=`) |
 | POST | `/api/candidates/quick-create` | JWT (RH / ADMIN) | Quick-create a candidate (dedup by name) |
+| POST | `/api/candidates/:id/cv` | JWT (RH / ADMIN) | Upload a candidate's CV (PDF) to their Google Drive folder |
+| POST | `/api/sourcing/search` | JWT | Find additional prospect contacts by name/address |
+| GET | `/api/sourcing/:siren` | JWT | Search establishments by SIREN; blacklist-aware (short-circuits if the whole SIREN is banned) |
+| GET | `/api/sourcing/:siret` | JWT | Validate a SIRET against INSEE; flags whether it's already in the portfolio |
+| POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria INSEE search (commune / NAF code / SIREN), excludes companies already in the portfolio |
 
 ## Commands
 
@@ -169,6 +191,20 @@ GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google
 APP_BASE_URL=http://localhost:4000
 RELANCE_HMAC_SECRET=change-this-relance-secret
 GOOGLE_STATE_SECRET=change-this-google-state-secret
+
+# INSEE Sirene API (optional — SIRET/SIREN lookup in external/insee/)
+INSEE_API_KEY=
+
+# Filiz ERP integration (external/filiz/) — required, CI uses fallback values
+FILIZ_CLIENT_ID=
+FILIZ_CLIENT_SECRET=
+FILIZ_AUDIENCE=
+FILIZ_BASE_URI=https://api.dev.partners.filiz.io
+FILIZ_AUTH_URI=
+
+# Yousign e-signature for needs-analysis (rest/yousign/) — sandbox defaults provided
+YOUSIGN_API_KEY=
+YOUSIGN_BASE_URL=https://api-sandbox.yousign.app/v3
 ```
 
 > Note: `SMTP_*` env vars are recognized but unused today. Email sending goes through Gmail OAuth (`external/google/gmail.service.ts`), not SMTP/Brevo/nodemailer.
@@ -182,9 +218,12 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 ## Databases
 
 ### MySQL (`disciplina`)
-- Tables: `companies`, `users`
+- Tables: `companies`, `companies_blacklist`, `users`, `needs_analysis`, `filiz`
 - Init: `database/mysql/mysql-init.sql`
 - Connection pool via `mysql2/promise` (10 connections)
+- `db/mysql/migrations.ts` (`runMysqlMigrations()`) runs at boot after connecting and adds any
+  columns from a hardcoded list that are missing on the live database — see
+  [`CONVENTION.md`](./CONVENTION.md#schema-migrations)
 
 ### MongoDB (`human_ressources`)
 - Collections: `candidates`, `jobs` (with `$jsonSchema` validation)
@@ -208,7 +247,8 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 - `jsonwebtoken` ^9.0 — JWT auth
 - `bcrypt` ^6.0 — Password hashing
 - `googleapis` ^171 — Google APIs (Drive, Calendar, Gmail)
-- `pdfkit` ^0.18 — PDF generation
+- `pdfkit` ^0.18 — PDF generation (candidate PDFs)
+- `pdf-lib` ^1.17 — PDF generation/manipulation (needs-analysis PDFs)
 - `pino` ^10.3 — Logging
 - `express-rate-limit` ^8.5 — Rate limiting
 - `express-session` ^1.19 — Session middleware
