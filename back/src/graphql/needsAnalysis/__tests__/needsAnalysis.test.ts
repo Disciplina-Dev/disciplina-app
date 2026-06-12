@@ -138,7 +138,8 @@ describe('GraphQL Needs Analysis integration', () => {
         expect(created.ageMin).toBe(18);
         expect(created.ageMax).toBe(27);
         expect(created.conditions).toBe('Temps plein, travail le samedi');
-        expect(created.status).toBe('EN_ATTENTE_SIGNATURE');
+        // No Yousign at creation anymore: the AB stays BROUILLON and the PDF is downloaded
+        expect(created.status).toBe('BROUILLON');
 
         const needsAnalysisId = created.id;
 
@@ -202,6 +203,16 @@ describe('GraphQL Needs Analysis integration', () => {
         expect(compJson.errors).toBeUndefined();
         expect(compJson.data.needsAnalysesByCompany).toHaveLength(1);
         expect(compJson.data.needsAnalysesByCompany[0].jobTitle).toBe('Apprenti Conseiller de Vente');
+
+        // REST: download the generated PDF
+        const pdfRes = await fetch(`http://localhost:${env.API_PORT}/api/needs-analysis/${needsAnalysisId}/pdf`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        expect(pdfRes.status).toBe(200);
+        expect(pdfRes.headers.get('content-type')).toContain('application/pdf');
+        const pdfBytes = Buffer.from(await pdfRes.arrayBuffer());
+        expect(pdfBytes.length).toBeGreaterThan(1000);
+        expect(pdfBytes.subarray(0, 5).toString()).toBe('%PDF-');
     });
 
     it('receives Yousign webhook and updates status to SIGNE', { timeout: 30000 }, async () => {
@@ -253,9 +264,36 @@ describe('GraphQL Needs Analysis integration', () => {
         const createJson = await createRes.json();
         expect(createJson.errors).toBeUndefined();
         const created = createJson.data.createNeedsAnalysis;
-        const yousignId = created.yousignSignatureRequestID;
-        expect(yousignId).toBeDefined();
-        expect(created.status).toBe('EN_ATTENTE_SIGNATURE');
+        expect(created.status).toBe('BROUILLON');
+
+        // Creation no longer triggers Yousign: simulate a manually initiated procedure
+        const yousignId = `mock-yousign-req-${suffix}`;
+        const updateMutation = `
+            mutation UpdateNeedsAnalysis($id: Int!, $input: NeedsAnalysisInput!) {
+                updateNeedsAnalysis(id: $id, input: $input) {
+                    id
+                    yousignSignatureRequestID
+                    status
+                }
+            }
+        `;
+        const updateRes = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                query: updateMutation,
+                variables: {
+                    id: created.id,
+                    input: { yousignSignatureRequestID: yousignId, status: 'EN_ATTENTE_SIGNATURE' },
+                },
+            }),
+        });
+        const updateJson = await updateRes.json();
+        expect(updateJson.errors).toBeUndefined();
+        expect(updateJson.data.updateNeedsAnalysis.status).toBe('EN_ATTENTE_SIGNATURE');
 
         // 2. Trigger Webhook call
         const webhookUrl = `http://localhost:${env.API_PORT}/api/webhooks/yousign`;

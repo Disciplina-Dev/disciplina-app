@@ -142,8 +142,14 @@ export class YousignService {
     }
 
     async downloadSignedDocument(signatureRequestId: string): Promise<Buffer | null> {
-        if (!env.YOUSIGN_API_KEY || env.YOUSIGN_API_KEY === 'sandbox_yousign_key_placeholder') {
-            logger.warn('YOUSIGN_API_KEY is placeholder. Returning a mock PDF buffer.');
+        // Mock IDs are only ever produced by initiateSignatureProcedure in mock mode:
+        // they don't exist on the real Yousign API, so short-circuit them too
+        if (
+            !env.YOUSIGN_API_KEY ||
+            env.YOUSIGN_API_KEY === 'sandbox_yousign_key_placeholder' ||
+            signatureRequestId.startsWith('mock-yousign-req-')
+        ) {
+            logger.warn('Yousign mock mode (placeholder key or mock request ID). Returning a mock PDF buffer.');
             return Buffer.from('mock-signed-pdf-content');
         }
 

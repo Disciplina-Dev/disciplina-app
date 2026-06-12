@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
+import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCreateNeedsAnalysis } from '@/graphql/hooks'
@@ -489,7 +490,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const validatePostes = (): boolean => {
     const errs = postes.map((p) => {
       if (!p.trainingDomain) return 'Sélectionnez le domaine de formation.'
-      if (!p.jobTitle) return 'Sélectionnez l\'intitulé du métier.'
+      if (!p.jobTitle) return 'Sélectionnez l\'intitulé de la formation.'
       if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
       if (!p.localisation) return 'Sélectionnez la localisation du poste.'
       return ''
@@ -570,8 +571,37 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     })
 
     if (response.error) { setSubmitError(response.error.message); return }
+
+    // Pas d'envoi Yousign pour l'instant : on télécharge le PDF généré
+    const createdId = response.data?.createNeedsAnalysis?.id
+    if (createdId) {
+      try {
+        await downloadPdf(createdId)
+      } catch {
+        setSubmitError('AB enregistrée, mais le téléchargement du PDF a échoué. Réessayez depuis la liste.')
+        return
+      }
+    }
+
     onSuccess()
     onClose()
+  }
+
+  const downloadPdf = async (id: number) => {
+    const token = useAuthStore.getState().token
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/needs-analysis/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) throw new Error(`PDF download failed: ${res.status}`)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Analyse_Besoin_${(entreprise.nom_commercial ?? 'Entreprise').replace(/\s+/g, '_')}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -721,7 +751,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     {poste.trainingDomain && (
                       <SelectField
                         id={`jobTitle-${index}`}
-                        label="Intitulé du métier *"
+                        label="Intitulé de la formation *"
                         options={JOB_TITLES_BY_DOMAIN[poste.trainingDomain]}
                         required
                         value={poste.jobTitle}
@@ -894,7 +924,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
             <Button variant="secondary" onClick={onClose}>Annuler</Button>
             <Button type="submit" isLoading={result.fetching} leftIcon={<Check size={16} />}>
-              Envoyer pour signature
+              Enregistrer et télécharger le PDF
             </Button>
           </div>
         </form>

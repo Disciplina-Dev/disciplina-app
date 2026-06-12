@@ -3,19 +3,15 @@ import { NeedsAnalysis } from '../types/needsAnalysis.types';
 import { toNeedsAnalysis, toNeedsAnalysisRow } from './mappers/needsAnalysis.mapper';
 import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
-import { YousignService } from '../external/yousign/yousign.service';
 import { logger } from '../external/logger';
-import { PDFDocument } from 'pdf-lib';
 
 export class NeedsAnalysisService {
     private repository: NeedsAnalysisRepository;
     private companiesService: CompaniesService;
-    private yousignService: YousignService;
 
     constructor() {
         this.repository = new NeedsAnalysisRepository();
         this.companiesService = new CompaniesService();
-        this.yousignService = new YousignService();
     }
 
     async findAll(): Promise<NeedsAnalysis[]> {
@@ -70,62 +66,25 @@ export class NeedsAnalysisService {
         if (!created) {
             throw new Error('Failed to retrieve created needs analysis');
         }
-        const createdDomain = toNeedsAnalysis(created);
+        logger.info({ id, status: created.status }, '[NeedsAnalysis] create() complete');
+        return toNeedsAnalysis(created);
+    }
 
-        // 3. Generate PDF Document
-        let pdfBuffer: Buffer;
-        try {
-            logger.info(`[NeedsAnalysis] Generating PDF for analysis #${id}`);
-            pdfBuffer = await PdfService.generateNeedsAnalysisPdf(createdDomain, company);
-            logger.info({ sizeBytes: pdfBuffer.length }, '[NeedsAnalysis] PDF generated successfully');
-        } catch (pdfError: any) {
-            logger.error({ err: pdfError }, '[NeedsAnalysis] PDF generation failed');
-            throw new Error(`Failed to generate PDF document: ${pdfError.message}`);
+    // Yousign sending is intentionally not wired up yet: the AB stays BROUILLON
+    // and the commercial downloads the PDF instead.
+    async generatePdf(id: number): Promise<{ buffer: Buffer; filename: string }> {
+        const row = await this.repository.findById(id);
+        if (!row) {
+            throw new Error('Needs analysis not found');
         }
-
-        // 4. Initiate Yousign signature procedure
-        let yousignRequestId: string | null = null;
-        try {
-            const nameParts = (createdDomain.recruitmentResponsibleName || 'Responsable Recrutement').trim().split(/\s+/);
-            const firstName = nameParts[0] || 'Responsable';
-            const lastName = nameParts.slice(1).join(' ') || 'Recrutement';
-            const signerEmail = createdDomain.recruitmentResponsibleEmail || company.email || 'recrutement@disciplina.local';
-            logger.info({ signerEmail, firstName, lastName }, '[NeedsAnalysis] Initiating Yousign procedure');
-
-            const pdfDoc = await PDFDocument.load(pdfBuffer);
-            const lastPage = pdfDoc.getPageCount();
-
-            yousignRequestId = await this.yousignService.initiateSignatureProcedure(
-                pdfBuffer,
-                `Analyse_Besoin_${company.name?.replace(/\s+/g, '_') || 'Entreprise'}_${id}.pdf`,
-                signerEmail,
-                firstName,
-                lastName,
-                lastPage
-            );
-            logger.info({ yousignRequestId }, '[NeedsAnalysis] Yousign procedure initiated');
-        } catch (yousignError: any) {
-            logger.error({ err: yousignError }, '[NeedsAnalysis] Yousign failed');
-            throw new Error(`Failed to initiate signature request on Yousign: ${yousignError.message}`);
+        const analysis = toNeedsAnalysis(row);
+        const company = await this.companiesService.findById(analysis.companyID);
+        if (!company) {
+            throw new Error(`Company with ID ${analysis.companyID} not found`);
         }
-
-        // 5. Update Needs Analysis with Yousign ID and change status to EN_ATTENTE_SIGNATURE
-        if (yousignRequestId) {
-            const updatePayload: Partial<NeedsAnalysis> = {
-                yousignSignatureRequestID: yousignRequestId,
-                status: 'EN_ATTENTE_SIGNATURE' as const
-            };
-            const updateRowData = toNeedsAnalysisRow(updatePayload);
-            await this.repository.update(id, updateRowData);
-            logger.info({ id, yousignRequestId }, '[NeedsAnalysis] Status updated to EN_ATTENTE_SIGNATURE');
-        }
-
-        const finalCreated = await this.repository.findById(id);
-        if (!finalCreated) {
-            throw new Error('Failed to retrieve final needs analysis after update');
-        }
-        logger.info({ id, status: finalCreated.status }, '[NeedsAnalysis] create() complete');
-        return toNeedsAnalysis(finalCreated);
+        const buffer = await PdfService.generateNeedsAnalysisPdf(analysis, company);
+        const filename = `Analyse_Besoin_${company.name?.replace(/\s+/g, '_') || 'Entreprise'}_${id}.pdf`;
+        return { buffer, filename };
     }
 
     async update(id: number, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {

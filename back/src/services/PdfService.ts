@@ -138,7 +138,7 @@ function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
         const missionItems = (p.selectedMissions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
         return `
 ${sh(title)}
-${fr('Intitulé du métier :', p.jobTitle)}
+${fr('Intitulé de la formation :', p.jobTitle)}
 <div class="inline-row">
     <span class="field-label">Domaine de formation :</span>
     <span class="option">${chk(p.trainingDomain === 'SECRETARIAT')}&nbsp;Secrétariat</span>
@@ -345,25 +345,10 @@ ${ageLine ? fr("Âge exigé de l'apprenti :", ageLine) : ''}
     <div style="margin-top:4px;">${daysRows}</div>
 </div>
 
-${sh("Engagement sur l'évolution des missions")}
-<div class="field-row">
-    <p style="font-weight:bold;margin-bottom:8px;">L'entreprise reconnaît que les missions confiées à l'apprenti pourront :</p>
-    <div class="option-block">○&nbsp;<strong>Évoluer progressivement</strong> en fonction de sa montée en compétences.</div>
-    <div class="option-block">○&nbsp;<strong>Être adaptées</strong> afin de rester en cohérence avec le parcours de formation suivi.</div>
-    <div class="option-block" style="max-width:95%;">○&nbsp;<strong>Faire l'objet de réajustements</strong> en accord avec le centre de formation, dans un souci de complémentarité entre la pratique en entreprise et les enseignements dispensés.</div>
-</div>
 </div>
 
-<!-- ═══ PAGE 4 — Clause légale & Contacts ═══ -->
+<!-- ═══ PAGE 4 — Contacts ═══ -->
 <div class="page-break">
-${sh('Clause de non-engagement et de confidentialité')}
-<div class="legal-text">
-    <p>Ce document est fourni à titre informatif et ne constitue en aucun cas un engagement obligatoire de la part de l'entreprise. DISCIPLINA s'engage à respecter la confidentialité des données reçues et garantit que celles-ci ne seront utilisées que dans le cadre du processus de recrutement décrit.</p>
-    <p>Les informations contenues dans ce document, ainsi que toutes les données échangées (y compris, mais sans s'y limiter, les CV, les lettres de motivation et autres documents personnels transmis), sont strictement confidentielles. Les informations personnelles, notamment les CV, ne peuvent être utilisées à d'autres fins ni être partagées avec des tiers sans le consentement explicite des personnes concernées.</p>
-    <p>De la même manière, nous demandons aux destinataires de ce document et des données transmises de respecter ces mêmes obligations de confidentialité. Toute utilisation non autorisée des données personnelles, y compris l'utilisation des CV à des fins autres que celles définies dans le cadre de cette collaboration, est formellement interdite et pourrait donner lieu à des sanctions.</p>
-    <p>Ce texte clarifie que le document n'a pas de caractère contraignant tout en soulignant l'importance de la confidentialité des données, notamment celles relatives aux candidats.</p>
-</div>
-
 <div class="contacts-section">
     <p class="contacts-title">Contacts</p>
     <p class="site-title">Fonction centrale : 8 rue Pondichéry, ZI La Mare, 97438 Ste Marie</p>
@@ -399,6 +384,23 @@ ${sh('Clause de non-engagement et de confidentialité')}
     <ul>
         <li>Céline BOYER en qualité de Responsable de recrutement : boyer.rh@disciplina.re / 0693 88 80 23</li>
     </ul>
+</div>
+</div>
+
+<!-- ═══ PAGE 5 — Engagement, clause & signature ═══ -->
+<div class="page-break">
+${sh("Engagement sur l'évolution des missions")}
+<div class="field-row">
+    <p style="font-weight:bold;margin-bottom:8px;">L'entreprise reconnaît que les missions confiées à l'apprenti pourront :</p>
+    <div class="option-block">●&nbsp;<strong>Évoluer progressivement</strong> en fonction de sa montée en compétences.</div>
+    <div class="option-block">●&nbsp;<strong>Être adaptées</strong> afin de rester en cohérence avec le parcours de formation suivi.</div>
+    <div class="option-block" style="max-width:95%;">●&nbsp;<strong>Faire l'objet de réajustements</strong> en accord avec le centre de formation, dans un souci de complémentarité entre la pratique en entreprise et les enseignements dispensés.</div>
+</div>
+
+${sh('Clause de non-engagement et de confidentialité')}
+<div class="legal-text">
+    <p>Les informations recueillies dans ce document sont strictement confidentielles et ne seront utilisées qu'à des fins de recrutement en apprentissage. La présente analyse du besoin ne constitue pas un engagement ferme de l'entreprise ni du centre de formation. Elle formalise uniquement l'intention d'explorer un parcours d'alternance sous réserve d'éligibilité des candidats et d'accord de financement OPCO. Toute diffusion des informations contenues dans ce document à des tiers est interdite sans accord préalable écrit des deux parties.</p>
+    <p>En signant ce document, l'entreprise reconnaît avoir pris connaissance de l'engagement sur l'évolution des missions et de la présente clause, et les accepte.</p>
 </div>
 
 <div style="display:flex;justify-content:flex-end;margin-top:36px;">
