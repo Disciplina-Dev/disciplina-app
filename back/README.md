@@ -42,7 +42,7 @@ src/
                         NeedsAnalysisRepository, FilizRepository
     mongo/              Data access: CandidateRepository, JobRepository
   services/             Business logic: CompaniesService, CompaniesBlacklistService, UserService,
-                        CandidateService, JobService, NeedsAnalysisService, PdfService,
+                        CandidateService, JobService, NeedsAnalysisService, KpiService, PdfService,
                         pagination (cursor pagination helpers)
     mappers/            Snake-case ↔ camelCase mappers for user, company, candidate
   rest/
@@ -53,7 +53,8 @@ src/
     classmarker/        ClassMarker test links and webhooks
     sourcing/           SIREN/SIRET/multicriteria prospecting search via INSEE, blacklist-aware
     yousign/            Yousign signature webhook + SSE stream for needs-analysis signing
-    middleware/         Auth (JWT), error handler & rate limiters
+    kpi/                Commercial KPI dashboard — manual entry + Excel import
+    middleware/         Auth (JWT), error handler, rate limiters & role guard
   types/                Domain types: user, company, candidate, job, needs-analysis, db-rows
 ```
 
@@ -98,6 +99,12 @@ The `/api/graphql/companies` server merges two domain modules into one Apollo in
 | GET | `/api/sourcing/:siren` | JWT | Search establishments by SIREN; blacklist-aware (short-circuits if the whole SIREN is banned) |
 | GET | `/api/sourcing/:siret` | JWT | Validate a SIRET against INSEE; flags whether it's already in the portfolio |
 | POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria INSEE search (commune / NAF code / SIREN), excludes companies already in the portfolio |
+| GET | `/api/kpi/years` | JWT (ADMIN / RESPONSABLE) | List years with KPI data |
+| GET | `/api/kpi/summary` | JWT (ADMIN / RESPONSABLE) | Annual KPI summary per commercial (`?year=&site=`) |
+| GET | `/api/kpi/monthly` | JWT (ADMIN / RESPONSABLE) | Monthly KPI breakdown (`?year=&site=`) |
+| GET | `/api/kpi/weekly` | JWT (ADMIN / RESPONSABLE) | Weekly KPI breakdown (`?year=&site=`) |
+| POST | `/api/kpi` | JWT (ADMIN / RESPONSABLE) | Manually upsert one KPI row |
+| POST | `/api/kpi/import` | JWT (ADMIN / RESPONSABLE) | Import KPI data from an uploaded Excel file (`multipart/form-data`, field `file`) |
 
 ## Commands
 
@@ -218,7 +225,7 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 ## Databases
 
 ### MySQL (`disciplina`)
-- Tables: `companies`, `companies_blacklist`, `users`, `needs_analysis`, `filiz`
+- Tables: `companies`, `companies_blacklist`, `users`, `needs_analysis`, `filiz`, `commercial_kpi`
 - Init: `database/mysql/mysql-init.sql`
 - Connection pool via `mysql2/promise` (10 connections)
 - `db/mysql/migrations.ts` (`runMysqlMigrations()`) runs at boot after connecting and adds any
@@ -249,6 +256,8 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 - `googleapis` ^171 — Google APIs (Drive, Calendar, Gmail)
 - `pdfkit` ^0.18 — PDF generation (candidate PDFs)
 - `pdf-lib` ^1.17 — PDF generation/manipulation (needs-analysis PDFs)
+- `multer` ^2.1 — multipart file upload (KPI Excel import)
+- `xlsx` ^0.18 — Excel parsing (KPI Excel import)
 - `pino` ^10.3 — Logging
 - `express-rate-limit` ^8.5 — Rate limiting
 - `express-session` ^1.19 — Session middleware

@@ -31,6 +31,8 @@ Stores complete candidate profiles including identity, education, support system
 | job_info | object | — | Job preferences and availability (see below) |
 | synthesis | object | — | Recruiter assessment and recommendations (see below) |
 | pdf_link | string | — | Link to generated candidate PDF |
+| cv_link | string | — | Link to the candidate's CV uploaded to Google Drive |
+| drive_folder_id | string | — | Google Drive folder ID holding the candidate's documents |
 | classmarker | object | — | ClassMarker test results (see below) |
 
 ### Embedded object: identity
