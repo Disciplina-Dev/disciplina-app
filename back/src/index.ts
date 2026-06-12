@@ -16,6 +16,7 @@ import { router as classmarkerWebhookRouter } from './rest/classmarker/webhook.r
 import { router as candidatesRestRouter } from './rest/candidates/route';
 import { router as sourcingRouter } from './rest/sourcing/route';
 import { router as yousignWebhookRouter } from './rest/yousign/route';
+import { router as kpiRouter } from './rest/kpi/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -78,6 +79,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/candidates', candidatesRestRouter);
     app.use('/api/sourcing', sourcingRouter);
     app.use(yousignWebhookRouter);
+    app.use('/api/kpi', kpiRouter);
     app.use(errorHandler);
 
     await connectMySQL();

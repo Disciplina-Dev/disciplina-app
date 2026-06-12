@@ -1,49 +1,93 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
-import { BarChart3, Users, Table2, AlertTriangle } from 'lucide-react'
+import { lazy, Suspense, useState } from 'react'
+import { BarChart3, Plus, ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
-import { useCurrentUser, UserRole, USERS } from '@/store/authStore'
-import { useCompanyStats } from '@/features/dashboard/useCompanyStats'
-import { TRACKED_COMMERCIALS, type PeriodMode } from '@/features/dashboard/stats'
-import KpiCards from '@/features/dashboard/components/KpiCards'
-import TeamStatusGrid from '@/features/dashboard/components/TeamStatusGrid'
-import TotalsTable from '@/features/dashboard/components/TotalsTable'
+import { useCurrentUser, UserRole } from '@/store/authStore'
+import { KPI_SITES, type KpiImportResult, type KpiMetricColumn, type KpiMetrics, type KpiSite } from '@/api/kpi'
+import { KPI_STATUS_METRICS } from '@/features/kpi/config'
+import { useKpiDashboard } from '@/features/kpi/useKpiDashboard'
+import KpiSummaryCards from '@/features/kpi/components/KpiSummaryCards'
+import KpiTable from '@/features/kpi/components/KpiTable'
+import KpiWeeklyTable from '@/features/kpi/components/KpiWeeklyTable'
+import KpiImportButton from '@/features/kpi/components/KpiImportButton'
+import KpiEntryModal, { type KpiEntryDraft } from '@/features/kpi/components/KpiEntryModal'
+import type { ChartMode } from '@/features/kpi/components/KpiStatusChart'
 
 // recharts est lourd : chargé à la demande pour ne pas grossir le bundle principal
-const PeriodBarChart = lazy(() => import('@/features/dashboard/components/PeriodBarChart'))
+const KpiStatusChart = lazy(() => import('@/features/kpi/components/KpiStatusChart'))
+const KpiYearComparison = lazy(() => import('@/features/kpi/components/KpiYearComparison'))
 
-// ─── Dashboard Commercial — vue analytique ──────────────────────────────────
+// ─── Dashboard Commercial — KPI annuels (réservé ADMIN / RESPONSABLE) ───────
 export default function DashboardCommercial() {
   const currentUser = useCurrentUser()
-  const currentYear = new Date().getFullYear()
-
-  const [year, setYear] = useState(currentYear)
-  const [mode, setMode] = useState<PeriodMode>('week')
-
-  const { stats, fetching, error } = useCompanyStats(year)
-
   const isManager =
     currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.RESPONSABLE
 
-  // Managers comparent toute l'équipe ; un commercial ne voit que ses propres chiffres
-  // (le backend filtre déjà côté serveur, ceci ne fait qu'aligner l'affichage).
-  const commercials = useMemo(() => {
-    if (isManager) return TRACKED_COMMERCIALS
-    const self = currentUser ? USERS[String(currentUser.id)] ?? currentUser : null
-    return self ? [self] : []
-  }, [isManager, currentUser])
+  if (!isManager) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
+        <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
+          <ShieldAlert className="h-8 w-8 text-gray-300" />
+          <h2 className="text-lg font-bold text-gray-900">Accès réservé</h2>
+          <p className="text-[13px] text-gray-500">
+            Le dashboard KPI est réservé aux administrateurs et responsables.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return <KpiDashboard />
+}
+
+function KpiDashboard() {
+  const currentYear = new Date().getFullYear()
+
+  const [year, setYear] = useState(currentYear)
+  const [site, setSite] = useState<KpiSite>('NORD')
+  const [chartMode, setChartMode] = useState<ChartMode>('commercial')
+  const [tableMode, setTableMode] = useState<'month' | 'week'>('month')
+  // Statuts cochés dans le diagramme ; par défaut seul « Oui » est affiché
+  const [visibleStatuses, setVisibleStatuses] = useState<KpiMetricColumn[]>(['count_oui'])
+  const [modalDraft, setModalDraft] = useState<KpiEntryDraft | null | 'new'>(null)
+  const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+
+  const { years, summary, previousSummary, weekly, fetching, error, refresh } = useKpiDashboard(year, site)
+
+  const toggleStatus = (key: KpiMetricColumn) => {
+    setVisibleStatuses((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    )
+  }
 
   // Années sélectionnables : celles présentes en base + l'année courante
-  const years = useMemo(() => {
-    const set = new Set<number>([currentYear, ...(stats?.years ?? [])])
-    return [...set].sort((a, b) => a - b)
-  }, [stats, currentYear])
+  const selectableYears = [...new Set([currentYear, ...years])].sort((a, b) => a - b)
 
-  if (fetching && !stats) {
+  const handleImported = (result: KpiImportResult) => {
+    setNotice(
+      result.errors.length > 0
+        ? {
+            kind: 'error',
+            text: `${result.imported} ligne(s) importée(s), ${result.errors.length} avertissement(s) : ${result.errors.slice(0, 3).join(' · ')}`,
+          }
+        : { kind: 'success', text: `${result.imported} ligne(s) importée(s) avec succès.` },
+    )
+    refresh()
+  }
+
+  const handleEditMonth = (userName: string, month: number, metrics: KpiMetrics) => {
+    setModalDraft({ userName, month, week: 0, metrics })
+  }
+
+  const handleEditWeek = (userName: string, month: number, week: number, metrics: KpiMetrics) => {
+    setModalDraft({ userName, month, week, metrics })
+  }
+
+  if (fetching && !summary) {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
         <div className="flex flex-col items-center gap-4">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue border-t-transparent" />
-          <p className="text-sm text-gray-400">Chargement du dashboard...</p>
+          <p className="text-sm text-gray-400">Chargement des KPI...</p>
         </div>
       </div>
     )
@@ -57,21 +101,36 @@ export default function DashboardCommercial() {
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
-              Vue d'ensemble
+              Suivi commercial
             </p>
             <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-gray-900">
-              Dashboard Commercial
+              Dashboard KPI
             </h1>
             <p className="mt-1.5 text-[13px] text-gray-400">
-              {isManager
-                ? 'Suivez les performances de toute l\'équipe.'
-                : 'Suivez vos performances commerciales.'}
+              Résultats annuels par commercial — site {site}, {year}.
             </p>
           </div>
 
-          {/* Sélecteur d'année */}
+          <div className="flex flex-wrap items-center gap-2">
+            <KpiImportButton
+              site={site}
+              onImported={handleImported}
+              onError={(text) => setNotice({ kind: 'error', text })}
+            />
+            <button
+              onClick={() => setModalDraft('new')}
+              className="flex items-center gap-2 rounded-lg bg-blue px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_1px_4px_-1px_rgba(0,0,0,0.08)] transition-colors hover:bg-blue-dark"
+            >
+              <Plus className="h-4 w-4" />
+              Saisie manuelle
+            </button>
+          </div>
+        </div>
+
+        {/* ─── Filtres année / site ────────────────────────────────────────── */}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
           <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
-            {years.map((y) => (
+            {selectableYears.map((y) => (
               <button
                 key={y}
                 onClick={() => setYear(y)}
@@ -83,90 +142,159 @@ export default function DashboardCommercial() {
               </button>
             ))}
           </div>
+
+          <div className="flex items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
+            {KPI_SITES.map((s) => (
+              <button
+                key={s}
+                onClick={() => setSite(s)}
+                className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                  s === site ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {error && (
-          <div className="mb-6 flex items-center gap-3 rounded-2xl border border-danger/20 bg-danger-bg p-4">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-danger" />
-            <p className="text-[13px] font-medium text-danger">
-              Erreur lors du chargement des statistiques : {error.message}
-            </p>
+        {/* ─── Notifications ───────────────────────────────────────────────── */}
+        {notice && (
+          <div
+            className={`mb-6 flex items-start gap-2 rounded-xl px-4 py-3 text-[13px] ${
+              notice.kind === 'success' ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'
+            }`}
+          >
+            {notice.kind === 'success'
+              ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+            <span>{notice.text}</span>
+            <button onClick={() => setNotice(null)} className="ml-auto font-semibold underline-offset-2 hover:underline">
+              Fermer
+            </button>
           </div>
         )}
 
-        {stats && (
-          <>
-            {/* ─── KPIs statuts (snapshot actuel) ──────────────────────────── */}
-            <section className="mb-10">
-              <div className="mb-4 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-gray-400" />
-                <h2 className="text-[18px] font-bold text-gray-900">Statuts actuels</h2>
-              </div>
-              <KpiCards current={stats.current} />
-            </section>
+        {error && (
+          <div className="mb-6 flex items-center gap-2 rounded-xl bg-danger-bg px-4 py-3 text-[13px] text-danger">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
 
-            {/* ─── Par commercial (managers uniquement) ────────────────────── */}
-            {isManager && (
-              <section className="mb-10">
-                <div className="mb-4 flex items-center gap-2">
-                  <Users className="h-5 w-5 text-gray-400" />
-                  <h2 className="text-[18px] font-bold text-gray-900">Par commercial</h2>
-                </div>
-                <TeamStatusGrid current={stats.current} />
-              </section>
-            )}
+        {summary && (
+          <div className="space-y-8">
+            {/* ─── Cartes de synthèse ──────────────────────────────────────── */}
+            <KpiSummaryCards totals={summary.totals} />
 
-            {/* ─── Comparatif par période ──────────────────────────────────── */}
-            <section className="mb-10">
+            {/* ─── Diagramme en bâtons ─────────────────────────────────────── */}
+            <section>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <h2 className="flex items-center gap-2 text-[17px] font-bold text-gray-900">
                   <BarChart3 className="h-5 w-5 text-gray-400" />
-                  <h2 className="text-[18px] font-bold text-gray-900">
-                    {isManager ? `Comparatif équipe — ${year}` : `Mon activité — ${year}`}
-                  </h2>
-                </div>
-
-                {/* Toggle semaine / mois */}
-                <div className="flex items-center gap-1 rounded-xl border border-gray-100 bg-white p-1">
-                  {(['week', 'month'] as PeriodMode[]).map((m) => (
+                  Statuts de réponse
+                </h2>
+                <div className="flex items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
+                  {([['commercial', 'Par commercial'], ['month', 'Par mois'], ['week', 'Par semaine']] as const).map(([m, label]) => (
                     <button
                       key={m}
-                      onClick={() => setMode(m)}
+                      onClick={() => setChartMode(m)}
                       className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                        m === mode ? 'bg-blue text-white' : 'text-gray-500 hover:bg-gray-50'
+                        m === chartMode ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
                       }`}
                     >
-                      {m === 'week' ? 'Par semaine' : 'Par mois'}
+                      {label}
                     </button>
                   ))}
                 </div>
               </div>
+              {/* Cases à cocher : statuts affichés dans le diagramme */}
+              <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-100 bg-white px-4 py-2.5 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
+                {KPI_STATUS_METRICS.map((metric) => (
+                  <label key={metric.key} className="flex cursor-pointer items-center gap-2 text-[13px] text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={visibleStatuses.includes(metric.key)}
+                      onChange={() => toggleStatus(metric.key)}
+                      className="h-3.5 w-3.5 accent-[var(--color-blue)]"
+                    />
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: metric.color }} />
+                    {metric.label}
+                  </label>
+                ))}
+              </div>
 
               <Suspense
                 fallback={
-                  <div className="flex h-[340px] items-center justify-center rounded-2xl border border-gray-100 bg-white">
+                  <div className="flex h-[360px] items-center justify-center rounded-2xl border border-gray-100 bg-white">
                     <div className="h-6 w-6 animate-spin rounded-full border-4 border-blue border-t-transparent" />
                   </div>
                 }
               >
-                <PeriodBarChart byPeriod={stats.byPeriod} commercials={commercials} mode={mode} year={year} />
+                <KpiStatusChart summary={summary} weekly={weekly} mode={chartMode} visibleStatuses={visibleStatuses} />
               </Suspense>
             </section>
 
-            {/* ─── Tableau des totaux ──────────────────────────────────────── */}
-            <section className="mb-10">
-              <div className="mb-4 flex items-center gap-2">
-                <Table2 className="h-5 w-5 text-gray-400" />
-                <h2 className="text-[18px] font-bold text-gray-900">
-                  Totaux {mode === 'week' ? 'hebdomadaires' : 'mensuels'} — {year}
+            {/* ─── Comparatif N-1 ──────────────────────────────────────────── */}
+            {previousSummary && (
+              <section>
+                <h2 className="mb-4 text-[17px] font-bold text-gray-900">
+                  Comparatif Global Oui — {year - 1} vs {year}
                 </h2>
-              </div>
-              <TotalsTable byPeriod={stats.byPeriod} commercials={commercials} mode={mode} year={year} />
-            </section>
-          </>
-        )}
+                <Suspense
+                  fallback={
+                    <div className="flex h-[300px] items-center justify-center rounded-2xl border border-gray-100 bg-white">
+                      <div className="h-6 w-6 animate-spin rounded-full border-4 border-blue border-t-transparent" />
+                    </div>
+                  }
+                >
+                  <KpiYearComparison year={year} current={summary} previous={previousSummary} />
+                </Suspense>
+              </section>
+            )}
 
+            {/* ─── Tableau détaillé (mensuel / hebdomadaire) ───────────────── */}
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-[17px] font-bold text-gray-900">
+                  {tableMode === 'month' ? 'Détail par commercial' : 'Détail par semaine'}
+                </h2>
+                <div className="flex items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
+                  {([['month', 'Par mois'], ['week', 'Par semaine']] as const).map(([m, label]) => (
+                    <button
+                      key={m}
+                      onClick={() => setTableMode(m)}
+                      className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                        m === tableMode ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {tableMode === 'month' ? (
+                <KpiTable users={summary.users} totals={summary.totals} onEdit={handleEditMonth} />
+              ) : (
+                <KpiWeeklyTable weeks={weekly?.weeks ?? []} onEdit={handleEditWeek} />
+              )}
+            </section>
+          </div>
+        )}
       </div>
+
+      {modalDraft !== null && (
+        <KpiEntryModal
+          year={year}
+          site={site}
+          draft={modalDraft === 'new' ? null : modalDraft}
+          onClose={() => setModalDraft(null)}
+          onSaved={() => {
+            setNotice({ kind: 'success', text: 'KPI enregistrés.' })
+            refresh()
+          }}
+        />
+      )}
     </div>
   )
 }
