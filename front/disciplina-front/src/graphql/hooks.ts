@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
+import { useBlacklistStore } from '@/store/blacklistStore'
 import {
   GET_COMPANIES,
   GET_COMPANY_BY_SIRET,
@@ -9,6 +10,7 @@ import {
   UPDATE_COMPANY,
   DELETE_COMPANY,
   BLACKLIST_COMPANY,
+  UNBLACKLIST_COMPANY,
   GET_CANDIDATES,
   GET_CANDIDATE_BY_ID,
   GET_CANDIDATE_FULL,
@@ -215,6 +217,22 @@ export function useBlacklistCompany() {
   }
 
   return { blacklistCompany, result }
+}
+
+export function useUnblacklistCompany() {
+  const removeCompany = useBlacklistStore((s) => s.removeCompany)
+  const [result, executeMutation] = useMutation(UNBLACKLIST_COMPANY)
+
+  const unblacklistCompany = (id: number) => {
+    return executeMutation({ id }).then((response) => {
+      if (response.data?.unblacklistCompany) {
+        removeCompany(String(id))
+      }
+      return response
+    })
+  }
+
+  return { unblacklistCompany, result }
 }
 
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────

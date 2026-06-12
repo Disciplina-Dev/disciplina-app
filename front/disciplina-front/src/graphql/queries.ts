@@ -195,6 +195,50 @@ export const BLACKLIST_COMPANY = gql`
   }
 `
 
+export const GET_BLACKLISTED_COMPANIES = gql`
+  query GetBlacklistedCompanies($first: Int, $after: String, $search: String) {
+    blacklistedCompanies(first: $first, after: $after, search: $search) {
+      edges {
+        cursor
+        node {
+          id
+          userID
+          legalReferent
+          name
+          phone
+          email
+          address
+          sector
+          mainActivity
+          siret
+          idcc
+          ape
+          notes
+          conclusion
+          status
+          relanceDate
+          createdAt
+          relanceType
+          relanceTemplateId
+          allBlacklist
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`
+
+export const UNBLACKLIST_COMPANY = gql`
+  mutation UnblacklistCompany($id: Int!) {
+    unblacklistCompany(id: $id)
+  }
+`
+
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
 export const GET_CANDIDATES = gql`

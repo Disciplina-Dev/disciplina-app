@@ -80,6 +80,7 @@ export default function PortefeuilleEntreprises() {
   const [filters, setFilters] = useState<EntrepriseFilters>(EMPTY_FILTERS)
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const serverFilters = useMemo(() => toServerFilters(filters), [filters])
   const isRelanceMode = !!filters.relance
@@ -96,18 +97,17 @@ export default function PortefeuilleEntreprises() {
 
   const handleCreate = async (data: Partial<Entreprise>) => {
     const company = toCompany(data)
+    setCreateError(null)
     try {
       const response = await createCompany(company)
       if (response.error) {
-        const friendlyMsg = formatErrorMessage(response.error.message, data.siret)
-        alert(`Erreur lors de la création : ${friendlyMsg}`)
+        setCreateError(formatErrorMessage(response.error.message, data.siret))
         return
       }
       setCreateOpen(false)
       setPrefillSiret(undefined)
     } catch (err: any) {
-      console.error(err)
-      alert(`Erreur lors de la création : ${err.message || err}`)
+      setCreateError(err.message || String(err))
     }
   }
 
@@ -297,7 +297,8 @@ export default function PortefeuilleEntreprises() {
           prefillSiret={prefillSiret}
           currentUser={currentUser!}
           onSave={handleCreate}
-          onClose={() => { setCreateOpen(false); setPrefillSiret(undefined) }}
+          submitError={createError}
+          onClose={() => { setCreateOpen(false); setPrefillSiret(undefined); setCreateError(null) }}
         />
       )}
     </div>

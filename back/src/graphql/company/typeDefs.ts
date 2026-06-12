@@ -68,6 +68,39 @@ export const typeDefs = gql`
         pageInfo: PageInfo!
     }
 
+    type BlacklistedCompany {
+        id: Int!
+        userID: Int
+        legalReferent: String
+        name: String
+        phone: String
+        email: String
+        address: String
+        sector: String
+        mainActivity: String
+        siret: String
+        idcc: String
+        ape: String
+        notes: String
+        conclusion: String
+        status: String
+        relanceDate: String
+        createdAt: String
+        relanceType: Int
+        relanceTemplateId: String
+        allBlacklist: Boolean!
+    }
+
+    type BlacklistedCompanyEdge {
+        node: BlacklistedCompany!
+        cursor: String!
+    }
+
+    type BlacklistedCompanyConnection {
+        edges: [BlacklistedCompanyEdge!]!
+        pageInfo: PageInfo!
+    }
+
     type StatusCount {
         userID: Int
         status: String
@@ -95,6 +128,7 @@ export const typeDefs = gql`
         salePerson(id: Int!): User
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!
         companyBySiret(siret: String!): Company
+        blacklistedCompanies(first: Int, after: String, search: String): BlacklistedCompanyConnection!
     }
 
     type Mutation {
@@ -102,5 +136,6 @@ export const typeDefs = gql`
         updateCompany(id: Int!, input: CompanyInput!): Company!
         deleteCompany(id: Int!): Boolean!
         blacklistCompany(id: Int!, reason: String!, allBlacklist: Boolean!): Boolean!
+        unblacklistCompany(id: Int!): Boolean!
     }
 `;

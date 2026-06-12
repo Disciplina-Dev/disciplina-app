@@ -1,5 +1,5 @@
-import { CompaniesRow } from '../../types/db-rows.types';
-import { Companies } from '../../types/company.types';
+import { CompaniesRow, CompaniesBlacklistRow } from '../../types/db-rows.types';
+import { Companies, BlacklistedCompany } from '../../types/company.types';
 
 export function toCompanies(row: CompaniesRow): Companies {
     return {
@@ -19,16 +19,23 @@ export function toCompanies(row: CompaniesRow): Companies {
         conclusion: row.conclusion,
         status: row.status,
         relanceDate: row.relance_date
-            ? (row.relance_date instanceof Date
+            ? row.relance_date instanceof Date
                 ? row.relance_date.toISOString().slice(0, 10)
-                : String(row.relance_date).slice(0, 10))
+                : String(row.relance_date).slice(0, 10)
             : null,
         createdAt: row.created_at
-            ? (row.created_at instanceof Date
+            ? row.created_at instanceof Date
                 ? row.created_at.toISOString().slice(0, 10)
-                : String(row.created_at).slice(0, 10))
+                : String(row.created_at).slice(0, 10)
             : null,
         relanceType: row.relance_type ?? null,
         relanceTemplateId: row.relance_template_id ?? null,
+    };
+}
+
+export function toBlacklistedCompany(row: CompaniesBlacklistRow): BlacklistedCompany {
+    return {
+        ...toCompanies(row),
+        allBlacklist: row.all_blacklist === 1,
     };
 }

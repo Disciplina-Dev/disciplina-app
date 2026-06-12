@@ -24,6 +24,7 @@ import {
   displayAddress,
   type SireneEtablissement,
   type SirenSearchResult,
+  type BlacklistedCompanyInfo,
 } from "@/types/sourcing";
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -467,6 +468,39 @@ function NotFound({ kind, query }: NotFoundProps) {
       <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
         {body}
       </p>
+    </div>
+  );
+}
+
+interface BlacklistedNoticeProps {
+  message?: string;
+  entries: BlacklistedCompanyInfo[];
+  query: string;
+}
+
+function BlacklistedNotice({ message, entries, query }: BlacklistedNoticeProps) {
+  return (
+    <div className="text-center py-11 px-6 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
+      <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
+        <AlertTriangle className="w-7 h-7" />
+      </span>
+      <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+        Entreprise blacklistée
+      </h3>
+      <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+        {message ?? `Cette entreprise (SIREN ${query}) est blacklistée, vous ne pouvez donc pas la prospecter.`}
+      </p>
+      {entries.length > 0 && (
+        <div className="mt-6 flex flex-col gap-2 text-left">
+          {entries.map((b, i) => (
+            <div key={`${b.siret}-${i}`} className="bg-danger-bg border border-danger/20 rounded-lg px-4 py-3">
+              <p className="text-sm font-semibold text-gray-900">{b.name ?? "Établissement"}</p>
+              <p className="text-xs text-gray-500 font-mono">{formatSiret(b.siret ?? "")}</p>
+              {b.conclusion && <p className="text-xs text-gray-500 mt-1">{b.conclusion}</p>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1122,7 +1156,13 @@ export default function Sourcing() {
             {view === "loading" && <Skeleton />}
             {view === "result" && result && (
               <>
-                {result.companiesWithSale.length === 0 && result.etablissements.length === 0 ? (
+                {result.allBlacklisted ? (
+                  <BlacklistedNotice
+                    message={result.message}
+                    entries={result.blacklisted}
+                    query={formatSiren(query)}
+                  />
+                ) : result.companiesWithSale.length === 0 && result.etablissements.length === 0 ? (
                   <NotFound kind="missing" query={formatSiren(query)} />
                 ) : (
                   <>

@@ -15,6 +15,7 @@ import PortefeuilleEntreprises from "@/pages/commercial/PortefeuilleEntreprises"
 import EntreprisePage from "@/pages/commercial/EntreprisePage";
 import Sourcing from "@/pages/commercial/sourcing";
 import RelanceCommercial from "@/pages/commercial/RelanceCommercial";
+import ListeNoire from "@/pages/commercial/ListeNoire";
 
 import RHLayout from "@/components/layout/RHLayout";
 import DashboardRH from "@/pages/rh/DashboardRH";
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin/nouvelle", element: <CreateAB /> },
       { path: "portefeuille", element: <PortefeuilleEntreprises /> },
       { path: "portefeuille/:slug", element: <EntreprisePage /> },
+      { path: "liste-noire", element: <ListeNoire /> },
       { path: "sourcing", element: <Sourcing /> },
       { path: "mail", element: <MailTemplates scope="commercial" /> },
       { path: "relance", element: <RelanceCommercial /> },
