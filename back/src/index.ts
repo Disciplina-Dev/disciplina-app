@@ -22,6 +22,7 @@ import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimi
 import { httpLogger } from './rest/middleware/httpLogger';
 import { logger } from './external/logger/logger';
 import { env } from './config/env';
+import { errorMonitor } from 'events';
 
 declare module 'express-session' {
     interface SessionData {
