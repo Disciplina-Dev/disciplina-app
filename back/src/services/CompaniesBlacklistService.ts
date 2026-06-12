@@ -44,12 +44,17 @@ export class CompaniesBlacklistService {
         const conn = await getConnection();
         try {
             await conn.beginTransaction();
-            console.log(toMove);
             for (const company of toMove) {
                 const existing = await this.blacklistRepository.findBySiret(company.siret ?? '');
-                console.log(company);
                 if (!existing) {
-                    await this.blacklistRepository.create(company);
+                    const blacklistData: Partial<CompaniesBlacklistRow> = {
+                        ...company,
+                        conclusion: reason,
+                        all_blacklist: allBlacklist ? 1 : 0,
+                    };
+                    delete blacklistData.id;
+                    delete blacklistData.created_at;
+                    await this.blacklistRepository.create(blacklistData);
                 }
                 await conn.execute('DELETE FROM companies WHERE id = ?', [company.id]);
             }

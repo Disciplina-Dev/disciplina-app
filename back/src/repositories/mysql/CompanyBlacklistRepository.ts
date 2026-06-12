@@ -20,9 +20,7 @@ export class CompanyBlacklistRepository {
             const placeholders = Object.keys(data)
                 .map(() => '?')
                 .join(', ');
-            console.log('fields: ', fields);
             const values = Object.values(data);
-            console.log('value: ', values);
             const result = await conn.execute(
                 `INSERT INTO companies_blacklist (${fields}) VALUES (${placeholders})`,
                 values,

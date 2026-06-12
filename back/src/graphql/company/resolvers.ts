@@ -170,7 +170,6 @@ export const resolvers = {
             context: any,
         ) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            console.log('there: ', id, reason, allBlacklist);
             return companiesBlacklistService.blacklistCompany(id, reason, allBlacklist);
         },
     },

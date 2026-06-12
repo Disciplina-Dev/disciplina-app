@@ -105,9 +105,7 @@ export async function searchBySiren(req: AuthRequest, res: Response): Promise<vo
     try {
         const { siren } = req.params;
 
-        console.log(siren);
         const { entries, allBlacklisted } = await companiesBlacklistService.findBySiren(siren);
-        console.log('entries: ', allBlacklisted);
         const blacklisted: BlacklistedCompanyInfo[] = entries.map((e) => ({
             name: e.name,
             siret: e.siret,
