@@ -4,14 +4,16 @@ import { SireneService } from '../../external/insee/sirene.service';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
 import { SourcingService } from '../../services/SourcingService';
 import { UserService } from '../../services/UserService';
+import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
 import { SireneCriterion, SireneEtablissement } from '../../external/insee/types';
 import { toCompanies } from '../../services/mappers/company.mapper';
-import { CompanyWithSalePerson, SirenSearchResult } from './types';
+import { CompanyWithSalePerson, SirenSearchResult, BlacklistedCompanyInfo } from './types';
 
 const sireneService = new SireneService();
 const companyRepository = new CompanyRepository();
 const sourcingService = new SourcingService();
 const userService = new UserService();
+const companiesBlacklistService = new CompaniesBlacklistService();
 
 export async function companiesByMulticriteria(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -102,16 +104,39 @@ export async function additionalSearch(req: AuthRequest, res: Response): Promise
 export async function searchBySiren(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { siren } = req.params;
-        const result = await sireneService.searchEstablishments([{ paramName: 'siren', value: siren }]);
 
-        const sirets = result.etablissements.map((e) => e.siret);
+        console.log(siren);
+        const { entries, allBlacklisted } = await companiesBlacklistService.findBySiren(siren);
+        console.log('entries: ', allBlacklisted);
+        const blacklisted: BlacklistedCompanyInfo[] = entries.map((e) => ({
+            name: e.name,
+            siret: e.siret,
+            conclusion: e.conclusion,
+        }));
+
+        if (allBlacklisted) {
+            const result: SirenSearchResult = {
+                siren,
+                companiesWithSale: [],
+                etablissements: [],
+                blacklisted,
+                allBlacklisted: true,
+                message: 'Cette entreprise est blacklisté vous ne pouvez donc pas la prospecter',
+            };
+            res.json(result);
+            return;
+        }
+
+        const sireneResult = await sireneService.searchEstablishments([{ paramName: 'siren', value: siren }]);
+
+        const sirets = sireneResult.etablissements.map((e) => e.siret);
         const existingRows = await companyRepository.findBySirets(sirets);
         const existingBySiret = new Map(existingRows.map((row) => [row.siret, row]));
 
         const companiesWithSale: CompanyWithSalePerson[] = [];
         const etablissements: SireneEtablissement[] = [];
 
-        for (const e of result.etablissements) {
+        for (const e of sireneResult.etablissements) {
             const row = existingBySiret.get(e.siret);
             if (!row) {
                 etablissements.push(e);
@@ -123,7 +148,14 @@ export async function searchBySiren(req: AuthRequest, res: Response): Promise<vo
             companiesWithSale.push({ company, salePerson });
         }
 
-        res.json({ siren, companiesWithSale, etablissements });
+        const result: SirenSearchResult = {
+            siren,
+            companiesWithSale,
+            etablissements,
+            blacklisted,
+            allBlacklisted: false,
+        };
+        res.json(result);
     } catch (error: any) {
         if (error.message === 'No establishments found for the given criteria') {
             res.status(404).json({ error: error.message });

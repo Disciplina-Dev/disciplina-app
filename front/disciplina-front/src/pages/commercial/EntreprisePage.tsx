@@ -17,6 +17,7 @@ import {
   Trash2,
   Save,
   Loader2,
+  Ban,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
@@ -39,6 +40,7 @@ import { normalizeSiret } from '@/types/sourcing'
 import type { SireneEtablissement } from '@/types/sourcing'
 import LinkedEstablishments from '@/features/portefeuille/components/LinkedEstablishments'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
+import BanCompanyModal from '@/features/portefeuille/components/BanCompanyModal'
 import { formatErrorMessage } from '@/utils/companyErrors'
 import type { CompanyWithSalePerson } from '@/types/entreprise'
 
@@ -148,6 +150,7 @@ export default function EntreprisePage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [addPrefillSiret, setAddPrefillSiret] = useState<string | undefined>()
+  const [banOpen, setBanOpen] = useState(false)
 
   const stateEntreprise = location.state?.entreprise as Entreprise | undefined
   const baseEntreprise: Entreprise | undefined =
@@ -314,6 +317,11 @@ export default function EntreprisePage() {
             <Button size="sm" variant="primary" leftIcon={<FileText className="h-3.5 w-3.5" />} onClick={() => setAbOpen(true)}>
               Créer une Analyse (AB)
             </Button>
+            {canEdit && (
+              <Button size="sm" variant="danger" leftIcon={<Ban className="h-3.5 w-3.5" />} onClick={() => setBanOpen(true)}>
+                Bannir
+              </Button>
+            )}
           </div>
         </div>
 
@@ -618,6 +626,14 @@ export default function EntreprisePage() {
             setAddModalOpen(false)
             setAddPrefillSiret(undefined)
           }}
+        />
+      )}
+
+      {banOpen && (
+        <BanCompanyModal
+          entreprise={draft}
+          onClose={() => setBanOpen(false)}
+          onSuccess={() => navigate('/commercial/portefeuille')}
         />
       )}
     </div>

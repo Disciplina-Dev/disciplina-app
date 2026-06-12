@@ -32,6 +32,10 @@ export interface CompaniesRow {
     created_at?: string | Date;
 }
 
+export interface CompaniesBlacklistRow extends CompaniesRow {
+    all_blacklist: number | null;
+}
+
 export interface FilizRow {
     token: string;
     created_at: Date;
@@ -73,4 +77,3 @@ export interface NeedsAnalysisRow {
     created_at?: string | Date;
     updated_at?: string | Date;
 }
-

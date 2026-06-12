@@ -17,8 +17,17 @@ export interface CompanyWithSalePerson {
     salePerson: SalePersonInfo | null;
 }
 
+export interface BlacklistedCompanyInfo {
+    name: string | null;
+    siret: string | null;
+    conclusion: string | null;
+}
+
 export interface SirenSearchResult {
     siren: string;
     companiesWithSale: CompanyWithSalePerson[];
     etablissements: SireneEtablissement[];
+    blacklisted: BlacklistedCompanyInfo[];
+    allBlacklisted: boolean;
+    message?: string;
 }
