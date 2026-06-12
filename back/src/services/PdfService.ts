@@ -65,10 +65,6 @@ function chk(selected: boolean): string {
     return selected ? '●' : '○';
 }
 
-function chkIn(value: string, arr: string[]): string {
-    return (arr ?? []).includes(value) ? '●' : '○';
-}
-
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
 function getLogoDataUrl(): string {
@@ -126,8 +122,39 @@ function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
     const descriptionActivite = analysis.companyDescription ?? '';
     const missionsType = (analysis.jobDescriptionMissions ?? []).join(', ');
     const descriptifMissions = analysis.jobDescriptionOther ?? '';
-    const conditions = (analysis.scheduleOptions ?? []).join(', ');
+    const conditions = analysis.conditions ?? (analysis.scheduleOptions ?? []).join(', ');
     const commentaires = analysis.additionalComments ?? '';
+
+    // Legacy rows have no positions array: rebuild one from the single-position columns
+    const positions = (analysis.positions?.length ? analysis.positions : [{
+        trainingDomain: analysis.trainingDomain,
+        jobTitle: analysis.jobTitle,
+        selectedMissions: analysis.selectedMissions ?? [],
+        localisation: analysis.localisation,
+    }]);
+
+    const positionBlocks = positions.map((p, i) => {
+        const title = positions.length > 1 ? `Poste ${i + 1} sur ${positions.length}` : 'Exigences du poste à pourvoir';
+        const missionItems = (p.selectedMissions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
+        return `
+${sh(title)}
+${fr('Intitulé du métier :', p.jobTitle)}
+<div class="inline-row">
+    <span class="field-label">Domaine de formation :</span>
+    <span class="option">${chk(p.trainingDomain === 'SECRETARIAT')}&nbsp;Secrétariat</span>
+    <span class="option">${chk(p.trainingDomain === 'VENTE')}&nbsp;Vente</span>
+</div>
+${fr('Localisation du poste :', label(p.localisation))}
+<div class="field-row">
+    <span class="field-label">Description des missions :</span><br/>
+    <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
+    ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : '<div class="text-area">&nbsp;</div>'}
+</div>`;
+    }).join('');
+
+    const ageLine = analysis.ageMin || analysis.ageMax
+        ? [analysis.ageMin ? `de ${analysis.ageMin} ans` : '', analysis.ageMax ? `à ${analysis.ageMax} ans` : ''].filter(Boolean).join(' ')
+        : (analysis.ageRequirements ?? []).join(', ');
 
     const daysRows = Object.entries(days)
         .map(
@@ -135,8 +162,6 @@ function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
                 `<div class="day-row"><span class="bullet">●</span>&nbsp;<strong>${day}&nbsp;:</strong> ${val}</div>`,
         )
         .join('');
-
-    const missionItems = (analysis.selectedMissions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
 
     return `<!DOCTYPE html>
 <html lang="fr">
@@ -259,18 +284,14 @@ ${sh("A propos de l'entreprise")}
 </div>
 ${secteurs ? fr("Secteur(s) d'activité :", secteurs) : company.sector ? fr("Secteur d'activité :", company.sector) : ''}
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
-${fr('Localisation du poste à pourvoir :', label(analysis.localisation))}
 
-${sh('Exigences du poste à pourvoir')}
-${fr('Intitulé du métier :', analysis.jobTitle)}
+${positionBlocks}
+${missionsType || descriptifMissions ? `
 <div class="field-row">
-    <span class="field-label">Description des missions :</span><br/>
-    <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
-    ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : ''}
+    <span class="field-label">Description complémentaire des missions :</span><br/>
     ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
     ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
-    ${!missionItems && !missionsType && !descriptifMissions ? '<div class="text-area">&nbsp;</div>' : ''}
-</div>
+</div>` : ''}
 <div class="field-row">
     <span class="field-label">Profils recherchés, compétences et savoir-être requises (techniques, comportementales, soft skills) :</span><br/>
     <span class="hint">(Préciser les formations et expériences professionnelles souhaitées, compétences techniques spécifiques requises, qualités personnelles recherchées, etc.)</span>
@@ -287,19 +308,6 @@ ${fr('Intitulé du métier :', analysis.jobTitle)}
 <div class="page-break">
 ${sh("Exigences de l'apprenti")}
 
-<div class="inline-row">
-    <span class="field-label">Domaine de formation :</span>
-    <span class="option">${chk(analysis.trainingDomain === 'SECRETARIAT')}&nbsp;Secrétariat</span>
-    <span class="option">${chk(analysis.trainingDomain === 'VENTE')}&nbsp;Vente</span>
-</div>
-
-<div class="inline-row">
-    <span class="field-label">Niveau de formation</span>
-    <span class="option">${chk(analysis.educationLevel === 'BAC')}&nbsp;Niveau Bac</span>
-    <span class="option">${chk(analysis.educationLevel === 'BAC_PLUS_2')}&nbsp;Niveau Bac + 2</span>
-    <span class="option">${chk(analysis.educationLevel === 'BAC_PLUS_3')}&nbsp;Niveau Bac + 3</span>
-</div>
-
 <div class="field-row">
     <span class="field-label">Permis :</span><br/>
     <div class="option-block">${chk(analysis.drivingLicense === 'OUI')}&nbsp;Oui</div>
@@ -312,12 +320,7 @@ ${sh("Exigences de l'apprenti")}
     <div class="option-block">${chk(analysis.experienceRequired === 'OBLIGATOIRE')}&nbsp;Obligatoire</div>
 </div>
 
-<div class="field-row">
-    <span class="field-label">Âge exigé de l'apprenti :</span><br/>
-    <div class="option-block">${chkIn('18 à 20 ans', analysis.ageRequirements ?? [])}&nbsp;18 à 20 ans</div>
-    <div class="option-block">${chkIn('21 à 25 ans', analysis.ageRequirements ?? [])}&nbsp;21 à 25 ans</div>
-    <div class="option-block">${chkIn('26 à 29 ans', analysis.ageRequirements ?? [])}&nbsp;26 à 29 ans</div>
-</div>
+${ageLine ? fr("Âge exigé de l'apprenti :", ageLine) : ''}
 
 <div class="field-row">
     <span class="field-label">Méthode de recrutement :</span><br/>

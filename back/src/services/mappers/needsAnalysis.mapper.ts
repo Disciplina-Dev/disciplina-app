@@ -1,5 +1,5 @@
 import { NeedsAnalysisRow } from '../../types/db-rows.types';
-import { NeedsAnalysis } from '../../types/needsAnalysis.types';
+import { NeedsAnalysis, NeedsAnalysisPosition } from '../../types/needsAnalysis.types';
 
 export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
     let selectedMissions: string[] = [];
@@ -48,6 +48,13 @@ export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
             : (row.schedule_options || []);
     } catch { scheduleOptions = []; }
 
+    let positions: NeedsAnalysisPosition[] = [];
+    try {
+        positions = typeof row.positions === 'string'
+            ? JSON.parse(row.positions)
+            : (row.positions || []);
+    } catch { positions = []; }
+
     return {
         id: row.id,
         companyID: row.company_id,
@@ -60,6 +67,7 @@ export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
         companySectors,
         companyDescription: row.company_description,
         positionsCount: row.positions_count,
+        positions,
         localisation: row.localisation,
         trainingDomain: row.training_domain,
         jobTitle: row.job_title,
@@ -71,8 +79,11 @@ export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
         drivingLicense: row.driving_license,
         experienceRequired: row.experience_required,
         ageRequirements,
+        ageMin: row.age_min,
+        ageMax: row.age_max,
         softSkills: row.soft_skills,
         scheduleOptions,
+        conditions: row.conditions,
         additionalComments: row.additional_comments,
         recruitmentMethod: row.recruitment_method,
         immersionPeriod: row.immersion_period,
@@ -103,6 +114,9 @@ export function toNeedsAnalysisRow(input: Partial<NeedsAnalysis>): Partial<Needs
     if (input.otherMissions !== undefined) row.other_missions = input.otherMissions;
     if (input.jobDescriptionOther !== undefined) row.job_description_other = input.jobDescriptionOther;
     if (input.educationLevel !== undefined) row.education_level = input.educationLevel;
+    if (input.ageMin !== undefined) row.age_min = input.ageMin;
+    if (input.ageMax !== undefined) row.age_max = input.ageMax;
+    if (input.conditions !== undefined) row.conditions = input.conditions;
     if (input.drivingLicense !== undefined) row.driving_license = input.drivingLicense;
     if (input.experienceRequired !== undefined) row.experience_required = input.experienceRequired;
     if (input.softSkills !== undefined) row.soft_skills = input.softSkills;
@@ -114,6 +128,9 @@ export function toNeedsAnalysisRow(input: Partial<NeedsAnalysis>): Partial<Needs
 
     if (input.selectedMissions !== undefined) {
         row.selected_missions = JSON.stringify(input.selectedMissions);
+    }
+    if (input.positions !== undefined) {
+        row.positions = JSON.stringify(input.positions);
     }
     if (input.companySectors !== undefined) {
         row.company_sectors = JSON.stringify(input.companySectors);

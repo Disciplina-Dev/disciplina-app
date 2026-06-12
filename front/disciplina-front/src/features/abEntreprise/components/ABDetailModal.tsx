@@ -72,8 +72,15 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
         thursday: 'Jeudi', friday: 'Vendredi',
       }
       const STATUS_LABELS: Record<string, string> = { OUI: '✓', NON: '✗', PREFERE: '~' }
+      const periodsToLabel = (v: unknown): string => {
+        if (Array.isArray(v)) {
+          if (v.includes('PREFERE')) return '~'
+          return v.length > 0 ? '✓' : '✗'
+        }
+        return STATUS_LABELS[v as string] ?? String(v)
+      }
       trainingDaysDisplay = Object.entries(days)
-        .map(([k, v]) => `${DAY_LABELS[k] ?? k}: ${STATUS_LABELS[v as string] ?? v}`)
+        .map(([k, v]) => `${DAY_LABELS[k] ?? k}: ${periodsToLabel(v)}`)
         .join('  •  ')
     } catch {
       trainingDaysDisplay = ab.trainingDays
@@ -177,25 +184,37 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
             )}
 
             <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Poste">
-              <Row label="Intitulé"            value={ab.jobTitle} />
               <Row label="Postes"              value={`${ab.positionsCount} poste${ab.positionsCount > 1 ? 's' : ''}`} />
-              <Row label="Localisation"        value={LABELS.localisation[ab.localisation]} />
-              <Row label="Domaine"             value={LABELS.trainingDomain[ab.trainingDomain]} />
               <Row label="Méthode recrutement" value={LABELS.recruitmentMethod[ab.recruitmentMethod]} />
               <Row label="Immersion"           value={LABELS.immersionPeriod[ab.immersionPeriod]} />
             </Section>
 
-            {(ab.selectedMissions?.length > 0 || ab.jobDescriptionMissions?.length > 0 || ab.jobDescriptionOther) && (
-              <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Missions">
-                {ab.selectedMissions?.length > 0 && (
+            {(ab.positions?.length > 0
+              ? ab.positions
+              : [{ trainingDomain: ab.trainingDomain, jobTitle: ab.jobTitle, selectedMissions: ab.selectedMissions ?? [], localisation: ab.localisation }]
+            ).map((p: { trainingDomain: string; jobTitle: string; selectedMissions: string[]; localisation: string }, i: number, arr: unknown[]) => (
+              <Section
+                key={i}
+                icon={<ClipboardList className="h-3.5 w-3.5" />}
+                title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
+              >
+                <Row label="Intitulé"     value={p.jobTitle} />
+                <Row label="Domaine"      value={LABELS.trainingDomain[p.trainingDomain]} />
+                <Row label="Localisation" value={LABELS.localisation[p.localisation]} />
+                {p.selectedMissions?.length > 0 && (
                   <div className="py-2">
                     <ul className="list-disc list-inside space-y-0.5">
-                      {ab.selectedMissions.map((m: string) => (
+                      {p.selectedMissions.map((m: string) => (
                         <li key={m} className="text-sm text-gray-900">{m}</li>
                       ))}
                     </ul>
                   </div>
                 )}
+              </Section>
+            ))}
+
+            {(ab.jobDescriptionMissions?.length > 0 || ab.jobDescriptionOther) && (
+              <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Missions complémentaires">
                 {ab.jobDescriptionMissions?.length > 0 && (
                   <Row label="Types" value={ab.jobDescriptionMissions.join(', ')} />
                 )}
@@ -203,21 +222,23 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
               </Section>
             )}
 
-            {(ab.scheduleOptions?.length > 0 || ab.additionalComments) && (
+            {(ab.conditions || ab.scheduleOptions?.length > 0 || ab.additionalComments) && (
               <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Conditions & commentaires">
-                {ab.scheduleOptions?.length > 0 && (
-                  <Row label="Conditions" value={ab.scheduleOptions.join(', ')} />
-                )}
+                <Row label="Conditions" value={ab.conditions ?? (ab.scheduleOptions?.length > 0 ? ab.scheduleOptions.join(', ') : null)} />
                 <Row label="Commentaires" value={ab.additionalComments} />
               </Section>
             )}
 
             <Section icon={<GraduationCap className="h-3.5 w-3.5" />} title="Profil apprenti">
-              <Row label="Niveau d'études" value={LABELS.educationLevel[ab.educationLevel]} />
+              {ab.educationLevel && (
+                <Row label="Niveau d'études" value={LABELS.educationLevel[ab.educationLevel]} />
+              )}
               <Row label="Permis B"        value={LABELS.drivingLicense[ab.drivingLicense]} />
               <Row label="Expérience"      value={LABELS.experienceRequired[ab.experienceRequired]} />
-              {ab.ageRequirements?.length > 0 && (
-                <Row label="Âge"           value={ab.ageRequirements.join(', ')} />
+              {(ab.ageMin || ab.ageMax) ? (
+                <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin} ans` : null, ab.ageMax ? `à ${ab.ageMax} ans` : null].filter(Boolean).join(' ')} />
+              ) : ab.ageRequirements?.length > 0 && (
+                <Row label="Âge" value={ab.ageRequirements.join(', ')} />
               )}
               <Row label="Soft skills"     value={ab.softSkills} />
             </Section>

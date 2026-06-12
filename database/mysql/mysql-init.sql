@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
 
     -- Etape 3: Le Poste & Les Missions
     positions_count INT NOT NULL DEFAULT 1,
+    positions JSON DEFAULT NULL,
     localisation ENUM('NORD', 'OUEST', 'SUD') NOT NULL,
     training_domain ENUM('SECRETARIAT', 'VENTE') NOT NULL,
     job_title VARCHAR(255) NOT NULL,
@@ -79,12 +80,15 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
     job_description_other TEXT DEFAULT NULL,
 
     -- Etape 4: Exigences de l'Apprenti
-    education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') NOT NULL,
+    education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') DEFAULT NULL,
     driving_license ENUM('OUI', 'OPTIONNEL') NOT NULL,
     experience_required ENUM('DEBUTANT', 'OBLIGATOIRE') NOT NULL,
     age_requirements JSON NOT NULL,
+    age_min INT DEFAULT NULL,
+    age_max INT DEFAULT NULL,
     soft_skills TEXT DEFAULT NULL,
     schedule_options JSON DEFAULT NULL,
+    conditions TEXT DEFAULT NULL,
     additional_comments TEXT DEFAULT NULL,
 
     -- Etape 4: Logique & Process RH

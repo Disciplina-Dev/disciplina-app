@@ -50,6 +50,7 @@ export interface NeedsAnalysisRow {
     company_sectors: string | null; // JSON string
     company_description: string | null;
     positions_count: number;
+    positions: string | null; // JSON string
     localisation: 'NORD' | 'OUEST' | 'SUD';
     training_domain: 'SECRETARIAT' | 'VENTE';
     job_title: string;
@@ -57,12 +58,15 @@ export interface NeedsAnalysisRow {
     other_missions: string | null;
     job_description_missions: string | null; // JSON string
     job_description_other: string | null;
-    education_level: 'BAC' | 'BAC_PLUS_2' | 'BAC_PLUS_3';
+    education_level: 'BAC' | 'BAC_PLUS_2' | 'BAC_PLUS_3' | null;
     driving_license: 'OUI' | 'OPTIONNEL';
     experience_required: 'DEBUTANT' | 'OBLIGATOIRE';
     age_requirements: string; // JSON string
+    age_min: number | null;
+    age_max: number | null;
     soft_skills: string | null;
     schedule_options: string | null; // JSON string
+    conditions: string | null;
     additional_comments: string | null;
     recruitment_method: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW';
     immersion_period: 'OUI' | 'NON' | 'A_DISCUTER';

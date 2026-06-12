@@ -47,6 +47,20 @@ export const typeDefs = gql`
         EXPIRE
     }
 
+    type NeedsAnalysisPosition {
+        trainingDomain: TrainingDomain!
+        jobTitle: String!
+        selectedMissions: [String!]!
+        localisation: Localisation!
+    }
+
+    input NeedsAnalysisPositionInput {
+        trainingDomain: TrainingDomain!
+        jobTitle: String!
+        selectedMissions: [String!]!
+        localisation: Localisation!
+    }
+
     type NeedsAnalysis {
         id: Int!
         companyID: Int!
@@ -59,6 +73,7 @@ export const typeDefs = gql`
         companySectors: [String!]!
         companyDescription: String
         positionsCount: Int!
+        positions: [NeedsAnalysisPosition!]!
         localisation: Localisation!
         trainingDomain: TrainingDomain!
         jobTitle: String!
@@ -66,12 +81,15 @@ export const typeDefs = gql`
         otherMissions: String
         jobDescriptionMissions: [String!]!
         jobDescriptionOther: String
-        educationLevel: EducationLevel!
+        educationLevel: EducationLevel
         drivingLicense: DrivingLicense!
         experienceRequired: ExperienceRequired!
         ageRequirements: [String!]!
+        ageMin: Int
+        ageMax: Int
         softSkills: String
         scheduleOptions: [String!]!
+        conditions: String
         additionalComments: String
         recruitmentMethod: RecruitmentMethod!
         immersionPeriod: ImmersionPeriod!
@@ -93,6 +111,7 @@ export const typeDefs = gql`
         companySectors: [String!]
         companyDescription: String
         positionsCount: Int
+        positions: [NeedsAnalysisPositionInput!]
         localisation: Localisation
         trainingDomain: TrainingDomain
         jobTitle: String
@@ -104,8 +123,11 @@ export const typeDefs = gql`
         drivingLicense: DrivingLicense
         experienceRequired: ExperienceRequired
         ageRequirements: [String!]
+        ageMin: Int
+        ageMax: Int
         softSkills: String
         scheduleOptions: [String!]
+        conditions: String
         additionalComments: String
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod

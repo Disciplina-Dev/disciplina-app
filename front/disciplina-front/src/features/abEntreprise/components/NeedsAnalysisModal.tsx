@@ -3,9 +3,7 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import {
-  X, ChevronRight, ChevronLeft, Check,
-  Building2, User, Users, Info, Briefcase,
-  GraduationCap, Shield, Plus, Minus,
+  X, Check, Briefcase, Plus, Minus,
 } from 'lucide-react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
@@ -16,6 +14,8 @@ import { useCreateNeedsAnalysis } from '@/graphql/hooks'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DayStatus = 'OUI' | 'NON' | 'PREFERE'
+type TrainingDomain = 'SECRETARIAT' | 'VENTE'
+type Localisation = 'NORD' | 'OUEST' | 'SUD'
 
 interface TrainingDaysState {
   monday: DayStatus
@@ -25,72 +25,46 @@ interface TrainingDaysState {
   friday: DayStatus
 }
 
+interface Poste {
+  trainingDomain: TrainingDomain | undefined
+  jobTitle: string
+  selectedMissions: string[]
+  localisation: Localisation | undefined
+}
+
 interface FormData {
-  // Étape 1
   companyName: string
   companySiret: string
   companyAddress: string
   companyPostalCode: string
   companyCommune: string
-  // Étape 2
   legalRepName: string
   legalRepFunction: string
+  legalRepFunctionOther: string
   legalRepPhone: string
   legalRepEmail: string
-  // Étape 3
   isDifferentRecruitmentResponsible: boolean
   recruitmentResponsibleName: string
   recruitmentResponsibleFunction: string
+  recruitmentResponsibleFunctionOther: string
   recruitmentResponsiblePhone: string
   recruitmentResponsibleEmail: string
-  // Étape 4
   companySectors: string[]
   companyDescriptionOther: string
-  positionsCount: number
-  localisation: 'NORD' | 'OUEST' | 'SUD'
-  // Étape 5
-  jobTitle: string
-  jobDescriptionMissions: string[]
   jobDescriptionOther: string
   softSkills: string[]
   softSkillsOther: string
-  scheduleOptions: string[]
+  conditions: string
   additionalComments: string
-  // Étape 6
-  trainingDomain: 'SECRETARIAT' | 'VENTE'
-  educationLevel: 'BAC' | 'BAC_PLUS_2' | 'BAC_PLUS_3'
   drivingLicense: 'OUI' | 'OPTIONNEL'
   experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE'
-  ageRequirements: string[]
+  ageMin: string
+  ageMax: string
   recruitmentMethod: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW'
   immersionPeriod: 'OUI' | 'NON' | 'A_DISCUTER'
-  // Étape 7
-  clausesAccepted: boolean
-  // Étape 8
-  selectedMissions: string[]
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const STEPS = [
-  { id: 1, label: 'Identité',     icon: Building2 },
-  { id: 2, label: 'Représentant', icon: User },
-  { id: 3, label: 'Recrutement',  icon: Users },
-  { id: 4, label: 'Entreprise',   icon: Info },
-  { id: 5, label: 'Poste',        icon: Briefcase },
-  { id: 6, label: 'Apprenti',     icon: GraduationCap },
-  { id: 7, label: 'Engagement',   icon: Shield },
-]
-
-const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
-  1: ['companyName', 'companySiret', 'companyAddress', 'companyPostalCode', 'companyCommune'],
-  2: ['legalRepName', 'legalRepFunction', 'legalRepPhone', 'legalRepEmail'],
-  3: [],
-  4: ['positionsCount', 'localisation'],
-  5: ['trainingDomain', 'jobTitle'],
-  6: ['educationLevel', 'drivingLicense', 'experienceRequired', 'recruitmentMethod', 'immersionPeriod'],
-  7: ['clausesAccepted'],
-}
 
 const FONCTIONS = [
   'Directeur(trice) Général(e)',
@@ -121,7 +95,7 @@ const SECTEURS = [
   'Agriculture / Agroalimentaire',
 ]
 
-const JOB_TITLES_BY_DOMAIN: Record<'SECRETARIAT' | 'VENTE', string[]> = {
+const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
   SECRETARIAT: ['Secrétaire Assistante', 'Assistante de Direction'],
   VENTE: ['Conseiller Commercial', 'Négociateur Technico-Commercial', "Responsable d'Établissement Marchand"],
 }
@@ -144,21 +118,7 @@ const SOFT_SKILLS_LIST = [
   'Sens des responsabilités',
 ]
 
-
-const SCHEDULE_OPTIONS = [
-  'Temps plein (35h)',
-  'Temps partiel',
-  'Horaires fixes (9h-17h)',
-  'Horaires décalés',
-  'Travail le samedi',
-  'Télétravail possible',
-  '100% présentiel',
-  'Véhicule de service fourni',
-  'Tickets restaurant',
-  'Mutuelle entreprise',
-]
-
-const MISSIONS: Record<'SECRETARIAT' | 'VENTE', Record<string, string[]>> = {
+const MISSIONS: Record<TrainingDomain, Record<string, string[]>> = {
   SECRETARIAT: {
     'Secrétaire Assistante': [
       'Accueil physique et téléphonique',
@@ -243,11 +203,18 @@ const MISSIONS: Record<'SECRETARIAT' | 'VENTE', Record<string, string[]>> = {
 
 const DAYS: { key: keyof TrainingDaysState; label: string }[] = [
   { key: 'monday',    label: 'Lundi' },
-  { key: 'tuesday',  label: 'Mardi' },
+  { key: 'tuesday',   label: 'Mardi' },
   { key: 'wednesday', label: 'Mercredi' },
-  { key: 'thursday', label: 'Jeudi' },
-  { key: 'friday',   label: 'Vendredi' },
+  { key: 'thursday',  label: 'Jeudi' },
+  { key: 'friday',    label: 'Vendredi' },
 ]
+
+const EMPTY_POSTE: Poste = {
+  trainingDomain: undefined,
+  jobTitle: '',
+  selectedMissions: [],
+  localisation: undefined,
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -339,10 +306,9 @@ function NumberStepper({
 }
 
 function RadioGroup<T extends string>({
-  label, name: _name, options, value, onChange, error, required,
+  label, options, value, onChange, error, required,
 }: {
   label: string
-  name: string
   options: { value: T; label: string }[]
   value: T | undefined
   onChange: (v: T) => void
@@ -425,6 +391,25 @@ function CheckboxGroup({
   )
 }
 
+function TextareaField({
+  id, label, optional, ...props
+}: {
+  id: string
+  label: string
+  optional?: boolean
+} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium text-gray-700">
+        {label} {optional && <span className="text-gray-400">(optionnel)</span>}
+      </label>
+      <textarea id={id}
+        className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-300 focus:border-blue"
+        {...props} />
+    </div>
+  )
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -437,15 +422,16 @@ interface Props {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, onSuccess }: Props) {
-  const [currentStep, setCurrentStep] = useState(1)
   const [trainingDays, setTrainingDays] = useState<TrainingDaysState>({
-    monday: 'NON', tuesday: 'NON', wednesday: 'NON', thursday: 'NON', friday: 'NON',
+    monday: 'OUI', tuesday: 'OUI', wednesday: 'OUI', thursday: 'OUI', friday: 'OUI',
   })
+  const [postes, setPostes] = useState<Poste[]>([{ ...EMPTY_POSTE }])
+  const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const { createNeedsAnalysis, result } = useCreateNeedsAnalysis()
 
-  const { register, watch, setValue, handleSubmit, trigger, formState: { errors } } = useForm<FormData>({
+  const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       companyName:        entreprise.nom_commercial ?? '',
       companySiret:       entreprise.siret ?? '',
@@ -454,71 +440,73 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companyCommune:     '',
       legalRepName:       entreprise.representant_legal ?? '',
       legalRepFunction:   '',
+      legalRepFunctionOther: '',
       legalRepPhone:      entreprise.telephone ?? '',
       legalRepEmail:      entreprise.email ?? '',
       isDifferentRecruitmentResponsible: false,
       recruitmentResponsibleName:     '',
       recruitmentResponsibleFunction: '',
+      recruitmentResponsibleFunctionOther: '',
       recruitmentResponsiblePhone:    '',
       recruitmentResponsibleEmail:    '',
       companySectors:           [],
       companyDescriptionOther:  '',
-      positionsCount:           1,
-      localisation:             undefined,
-      jobTitle:                 '',
-      jobDescriptionMissions:   [],
       jobDescriptionOther:      '',
       softSkills:               [],
       softSkillsOther:          '',
-      scheduleOptions:          [],
+      conditions:               '',
       additionalComments:       '',
-      trainingDomain:     undefined,
-      educationLevel:     undefined,
       drivingLicense:     undefined,
       experienceRequired: undefined,
-      ageRequirements:    [],
+      ageMin:             '',
+      ageMax:             '',
       recruitmentMethod:  undefined,
       immersionPeriod:    undefined,
-      clausesAccepted:    false,
-      selectedMissions:   [],
     },
   })
 
-  const isDifferentResponsible  = watch('isDifferentRecruitmentResponsible')
-  const trainingDomain          = watch('trainingDomain')
-  const jobTitle                = watch('jobTitle')
-  const selectedMissions        = watch('selectedMissions') ?? []
-  const ageRequirements         = watch('ageRequirements') ?? []
-  const companySectors          = watch('companySectors') ?? []
-  const softSkills              = watch('softSkills') ?? []
-  const scheduleOptions         = watch('scheduleOptions') ?? []
-  const positionsCount          = watch('positionsCount') ?? 1
+  const isDifferentResponsible = watch('isDifferentRecruitmentResponsible')
+  const legalRepFunction       = watch('legalRepFunction')
+  const responsibleFunction    = watch('recruitmentResponsibleFunction')
+  const companySectors         = watch('companySectors') ?? []
+  const softSkills             = watch('softSkills') ?? []
 
-  // ─── Navigation ─────────────────────────────────────────────────────────────
+  // ─── Postes ──────────────────────────────────────────────────────────────────
 
-  const goNext = async () => {
-    const fields = STEP_FIELDS[currentStep]
-    const valid = fields.length === 0 ? true : await trigger(fields)
-    if (!valid) return
-    setCurrentStep((s) => Math.min(s + 1, STEPS.length))
+  const setPostesCount = (count: number) => {
+    setPostes((prev) => {
+      if (count > prev.length) {
+        return [...prev, ...Array.from({ length: count - prev.length }, () => ({ ...EMPTY_POSTE }))]
+      }
+      return prev.slice(0, count)
+    })
   }
 
-  const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1))
+  const updatePoste = (index: number, patch: Partial<Poste>) => {
+    setPostes((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)))
+  }
+
+  const validatePostes = (): boolean => {
+    const errs = postes.map((p) => {
+      if (!p.trainingDomain) return 'Sélectionnez le domaine de formation.'
+      if (!p.jobTitle) return 'Sélectionnez l\'intitulé du métier.'
+      if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
+      if (!p.localisation) return 'Sélectionnez la localisation du poste.'
+      return ''
+    })
+    setPosteErrors(errs)
+    return errs.every((e) => !e)
+  }
 
   // ─── Submit ──────────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: FormData) => {
     setSubmitError(null)
 
-    if (!data.clausesAccepted) {
-      setSubmitError('Vous devez accepter les clauses pour continuer.')
+    if (!validatePostes()) {
+      setSubmitError('Veuillez compléter tous les postes.')
       return
     }
-    if (selectedMissions.length === 0) {
-      setSubmitError('Sélectionnez au moins une mission.')
-      return
-    }
-
 
     const softSkillsFull = [
       ...data.softSkills,
@@ -536,35 +524,49 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       friday:    dayToPeriods(trainingDays.friday),
     })
 
+    const resolveFunction = (fn: string, other: string) =>
+      fn === 'Autre' ? (other || null) : (fn || null)
+
     const responsible = data.isDifferentRecruitmentResponsible
-      ? { recruitmentResponsibleName: data.recruitmentResponsibleName, recruitmentResponsiblePhone: data.recruitmentResponsiblePhone, recruitmentResponsibleEmail: data.recruitmentResponsibleEmail }
-      : { recruitmentResponsibleName: data.legalRepName, recruitmentResponsiblePhone: data.legalRepPhone, recruitmentResponsibleEmail: data.legalRepEmail }
+      ? {
+          recruitmentResponsibleName: data.recruitmentResponsibleName,
+          recruitmentResponsiblePhone: data.recruitmentResponsiblePhone,
+          recruitmentResponsibleEmail: data.recruitmentResponsibleEmail,
+          recruitmentResponsibleFunction: resolveFunction(data.recruitmentResponsibleFunction, data.recruitmentResponsibleFunctionOther),
+        }
+      : {
+          recruitmentResponsibleName: data.legalRepName,
+          recruitmentResponsiblePhone: data.legalRepPhone,
+          recruitmentResponsibleEmail: data.legalRepEmail,
+          recruitmentResponsibleFunction: null,
+        }
 
     const response = await createNeedsAnalysis({
-      companyID:                        parseInt(entreprise.id),
-      userID:                           currentUser.id,
-      legalRepFunction:                 data.legalRepFunction || null,
+      companyID:          parseInt(entreprise.id),
+      userID:             currentUser.id,
+      legalRepFunction:   resolveFunction(data.legalRepFunction, data.legalRepFunctionOther),
       ...responsible,
-      recruitmentResponsibleFunction:   data.isDifferentRecruitmentResponsible ? (data.recruitmentResponsibleFunction || null) : null,
-      companySectors:                   companySectors,
-      companyDescription:               data.companyDescriptionOther || null,
-      positionsCount:                   Number(data.positionsCount),
-      localisation:                     data.localisation,
-      trainingDomain:                   data.trainingDomain,
-      jobTitle:                         data.jobTitle,
-      selectedMissions:                 data.selectedMissions,
-      jobDescriptionMissions:           [],
-      jobDescriptionOther:              data.jobDescriptionOther || null,
-      educationLevel:                   data.educationLevel,
-      drivingLicense:                   data.drivingLicense,
-      experienceRequired:               data.experienceRequired,
-      ageRequirements:                  data.ageRequirements,
-      softSkills:                       softSkillsFull,
-      scheduleOptions:                  scheduleOptions,
-      additionalComments:               data.additionalComments || null,
-      recruitmentMethod:                data.recruitmentMethod,
-      immersionPeriod:                  data.immersionPeriod,
-      trainingDays:                     trainingDaysJson,
+      companySectors:     companySectors,
+      companyDescription: data.companyDescriptionOther || null,
+      positionsCount:     postes.length,
+      positions:          postes.map((p) => ({
+        trainingDomain:   p.trainingDomain,
+        jobTitle:         p.jobTitle,
+        selectedMissions: p.selectedMissions,
+        localisation:     p.localisation,
+      })),
+      jobDescriptionMissions: [],
+      jobDescriptionOther:    data.jobDescriptionOther || null,
+      drivingLicense:         data.drivingLicense,
+      experienceRequired:     data.experienceRequired,
+      ageMin:                 data.ageMin ? Number(data.ageMin) : null,
+      ageMax:                 data.ageMax ? Number(data.ageMax) : null,
+      softSkills:             softSkillsFull,
+      conditions:             data.conditions || null,
+      additionalComments:     data.additionalComments || null,
+      recruitmentMethod:      data.recruitmentMethod,
+      immersionPeriod:        data.immersionPeriod,
+      trainingDays:           trainingDaysJson,
     })
 
     if (response.error) { setSubmitError(response.error.message); return }
@@ -589,34 +591,13 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           </button>
         </div>
 
-        {/* Stepper */}
-        <div className="border-b border-gray-100 bg-gray-50 px-6 py-3">
-          <div className="flex items-center gap-1 overflow-x-auto">
-            {STEPS.map((step, i) => {
-              const Icon = step.icon
-              const done   = currentStep > step.id
-              const active = currentStep === step.id
-              return (
-                <div key={step.id} className="flex items-center gap-1">
-                  <div className={['flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors', active ? 'bg-blue text-white' : done ? 'bg-blue-light text-blue' : 'text-gray-500'].join(' ')}>
-                    {done ? <Check size={12} strokeWidth={2.5} /> : <Icon size={12} />}
-                    <span className="hidden sm:inline">{step.label}</span>
-                    <span className="sm:hidden">{step.id}</span>
-                  </div>
-                  {i < STEPS.length - 1 && <div className={['h-px w-4 flex-shrink-0', done ? 'bg-blue' : 'bg-gray-200'].join(' ')} />}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Form */}
+        {/* Form — single scrollable page */}
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex flex-col gap-8">
 
-            {/* ── Étape 1 : Identité ────────────────────────────────────────── */}
-            {currentStep === 1 && (
-              <div className="flex flex-col gap-4">
+              {/* ── Identité de l'entreprise ─────────────────────────────────── */}
+              <section className="flex flex-col gap-4">
                 <SectionTitle>Identité de l'entreprise</SectionTitle>
                 <InputField id="companyName" label="Dénomination ou raison sociale *" error={errors.companyName?.message}
                   {...register('companyName', { required: 'Champ obligatoire' })} />
@@ -630,12 +611,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   <InputField id="companyCommune" label="Commune *" error={errors.companyCommune?.message}
                     {...register('companyCommune', { required: 'Champ obligatoire' })} />
                 </div>
-              </div>
-            )}
+              </section>
 
-            {/* ── Étape 2 : Représentant légal ─────────────────────────────── */}
-            {currentStep === 2 && (
-              <div className="flex flex-col gap-4">
+              {/* ── Représentant légal ───────────────────────────────────────── */}
+              <section className="flex flex-col gap-4">
                 <SectionTitle>Informations du représentant légal</SectionTitle>
                 <InputField id="legalRepName" label="Nom et prénom *" error={errors.legalRepName?.message}
                   {...register('legalRepName', { required: 'Champ obligatoire' })} />
@@ -643,18 +622,21 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   error={errors.legalRepFunction?.message}
                   required
                   {...register('legalRepFunction', { required: 'Champ obligatoire' })} />
+                {legalRepFunction === 'Autre' && (
+                  <InputField id="legalRepFunctionOther" label="Précisez la fonction *" placeholder="Ex : Responsable d'agence…"
+                    error={errors.legalRepFunctionOther?.message}
+                    {...register('legalRepFunctionOther', { required: legalRepFunction === 'Autre' ? 'Champ obligatoire' : false })} />
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <InputField id="legalRepPhone" label="Téléphone *" type="tel" error={errors.legalRepPhone?.message}
                     {...register('legalRepPhone', { required: 'Champ obligatoire', pattern: { value: /^[0-9+\s\-().]{8,20}$/, message: 'Numéro invalide' } })} />
                   <InputField id="legalRepEmail" label="Courriel *" type="email" error={errors.legalRepEmail?.message}
                     {...register('legalRepEmail', { required: 'Champ obligatoire', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email invalide' } })} />
                 </div>
-              </div>
-            )}
+              </section>
 
-            {/* ── Étape 3 : Responsable recrutement ────────────────────────── */}
-            {currentStep === 3 && (
-              <div className="flex flex-col gap-4">
+              {/* ── Responsable recrutement ──────────────────────────────────── */}
+              <section className="flex flex-col gap-4">
                 <SectionTitle>Responsable de recrutement</SectionTitle>
                 <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-100 bg-white p-4 hover:border-blue-light">
                   <div className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors', isDifferentResponsible ? 'border-blue bg-blue' : 'border-gray-300 bg-white'].join(' ')}>
@@ -670,6 +652,11 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       {...register('recruitmentResponsibleName', { required: isDifferentResponsible ? 'Champ obligatoire' : false })} />
                     <SelectField id="recruitmentResponsibleFunction" label="Fonction" options={FONCTIONS}
                       {...register('recruitmentResponsibleFunction')} />
+                    {responsibleFunction === 'Autre' && (
+                      <InputField id="recruitmentResponsibleFunctionOther" label="Précisez la fonction *" placeholder="Ex : Responsable d'agence…"
+                        error={errors.recruitmentResponsibleFunctionOther?.message}
+                        {...register('recruitmentResponsibleFunctionOther', { required: isDifferentResponsible && responsibleFunction === 'Autre' ? 'Champ obligatoire' : false })} />
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <InputField id="recruitmentResponsiblePhone" label="Téléphone *" type="tel" error={errors.recruitmentResponsiblePhone?.message}
                         {...register('recruitmentResponsiblePhone', { required: isDifferentResponsible ? 'Champ obligatoire' : false, pattern: { value: /^[0-9+\s\-().]{8,20}$/, message: 'Numéro invalide' } })} />
@@ -682,12 +669,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     Le représentant légal sera utilisé comme responsable de recrutement.
                   </div>
                 )}
-              </div>
-            )}
+              </section>
 
-            {/* ── Étape 4 : À propos de l'entreprise ───────────────────────── */}
-            {currentStep === 4 && (
-              <div className="flex flex-col gap-5">
+              {/* ── À propos de l'entreprise ─────────────────────────────────── */}
+              <section className="flex flex-col gap-5">
                 <SectionTitle>À propos de l'entreprise</SectionTitle>
 
                 <CheckboxGroup
@@ -698,98 +683,86 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   columns={2}
                 />
 
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="companyDescriptionOther" className="text-sm font-medium text-gray-700">
-                    Précisions complémentaires <span className="text-gray-400">(optionnel)</span>
-                  </label>
-                  <textarea id="companyDescriptionOther" rows={3}
-                    className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-300 focus:border-blue"
-                    placeholder="Mission globale, spécificités de l'entreprise…"
-                    {...register('companyDescriptionOther')} />
-                </div>
+                <TextareaField id="companyDescriptionOther" label="Précisions complémentaires" optional rows={3}
+                  placeholder="Mission globale, spécificités de l'entreprise…"
+                  {...register('companyDescriptionOther')} />
+              </section>
 
-                <input type="hidden" {...register('localisation', { required: 'Champ obligatoire' })} />
-                <RadioGroup
-                  label="Localisation du poste *"
-                  name="localisation"
-                  options={[{ value: 'NORD', label: 'Nord' }, { value: 'OUEST', label: 'Ouest' }, { value: 'SUD', label: 'Sud' }]}
-                  value={watch('localisation')}
-                  onChange={(v) => setValue('localisation', v, { shouldValidate: true })}
-                  error={errors.localisation?.message}
-                  required
-                />
+              {/* ── Postes à pourvoir ────────────────────────────────────────── */}
+              <section className="flex flex-col gap-5">
+                <SectionTitle>Poste(s) à pourvoir</SectionTitle>
 
                 <NumberStepper
                   label="Nombre de poste(s) à pourvoir *"
-                  value={positionsCount}
-                  onChange={(v) => setValue('positionsCount', v)}
+                  value={postes.length}
+                  onChange={setPostesCount}
+                  max={10}
                   required
                 />
-              </div>
-            )}
 
-            {/* ── Étape 5 : Exigences du poste ─────────────────────────────── */}
-            {currentStep === 5 && (
-              <div className="flex flex-col gap-5">
-                <SectionTitle>Exigences du poste à pourvoir</SectionTitle>
-
-                {/* Domain first — drives job title options */}
-                <input type="hidden" {...register('trainingDomain', { required: 'Champ obligatoire' })} />
-                <RadioGroup label="Domaine de formation *" name="trainingDomain"
-                  options={[
-                    { value: 'SECRETARIAT', label: 'Secrétariat (Administratif)' },
-                    { value: 'VENTE',       label: 'Vente (Commercial)' },
-                  ]}
-                  value={watch('trainingDomain')}
-                  onChange={(v) => {
-                    setValue('trainingDomain', v, { shouldValidate: true })
-                    setValue('jobTitle', '', { shouldValidate: false })
-                    setValue('selectedMissions', [])
-                  }}
-                  error={errors.trainingDomain?.message} required />
-
-                {/* Job title filtered by domain */}
-                {trainingDomain && (
-                  <SelectField
-                    id="jobTitle"
-                    label="Intitulé du métier *"
-                    options={JOB_TITLES_BY_DOMAIN[trainingDomain]}
-                    error={errors.jobTitle?.message}
-                    required
-                    {...register('jobTitle', {
-                      required: 'Champ obligatoire',
-                      onChange: () => setValue('selectedMissions', []),
-                    })}
-                  />
-                )}
-
-                {/* Missions specific to the selected job title */}
-                {jobTitle && trainingDomain && MISSIONS[trainingDomain]?.[jobTitle] && (
-                  <div className="flex flex-col gap-2">
-                    <CheckboxGroup
-                      label={`Missions à confier à l'apprenti — ${jobTitle}`}
-                      options={MISSIONS[trainingDomain][jobTitle]}
-                      selected={selectedMissions}
-                      onChange={(v) => setValue('selectedMissions', v)}
-                      columns={2}
-                    />
-                    {selectedMissions.length > 0 && (
-                      <p className="text-xs text-blue">
-                        {selectedMissions.length} mission{selectedMissions.length > 1 ? 's' : ''} sélectionnée{selectedMissions.length > 1 ? 's' : ''}
+                {postes.map((poste, index) => (
+                  <div key={index} className="flex flex-col gap-5 rounded-xl border border-gray-100 bg-white p-4">
+                    {postes.length > 1 && (
+                      <p className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                        <Briefcase size={14} className="text-blue" />
+                        Poste {index + 1}
                       </p>
                     )}
-                  </div>
-                )}
 
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="jobDescriptionOther" className="text-sm font-medium text-gray-700">
-                    Description complémentaire <span className="text-gray-400">(optionnel)</span>
-                  </label>
-                  <textarea id="jobDescriptionOther" rows={3}
-                    className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-300 focus:border-blue"
-                    placeholder="Responsabilités spécifiques, contexte…"
-                    {...register('jobDescriptionOther')} />
-                </div>
+                    <RadioGroup label="Domaine de formation *"
+                      options={[
+                        { value: 'SECRETARIAT' as const, label: 'Secrétariat (Administratif)' },
+                        { value: 'VENTE' as const,       label: 'Vente (Commercial)' },
+                      ]}
+                      value={poste.trainingDomain}
+                      onChange={(v) => updatePoste(index, { trainingDomain: v, jobTitle: '', selectedMissions: [] })}
+                      required />
+
+                    {poste.trainingDomain && (
+                      <SelectField
+                        id={`jobTitle-${index}`}
+                        label="Intitulé du métier *"
+                        options={JOB_TITLES_BY_DOMAIN[poste.trainingDomain]}
+                        required
+                        value={poste.jobTitle}
+                        onChange={(e) => updatePoste(index, { jobTitle: e.target.value, selectedMissions: [] })}
+                      />
+                    )}
+
+                    {poste.jobTitle && poste.trainingDomain && MISSIONS[poste.trainingDomain]?.[poste.jobTitle] && (
+                      <div className="flex flex-col gap-2">
+                        <CheckboxGroup
+                          label={`Missions à confier à l'apprenti — ${poste.jobTitle}`}
+                          options={MISSIONS[poste.trainingDomain][poste.jobTitle]}
+                          selected={poste.selectedMissions}
+                          onChange={(v) => updatePoste(index, { selectedMissions: v })}
+                          columns={2}
+                        />
+                        {poste.selectedMissions.length > 0 && (
+                          <p className="text-xs text-blue">
+                            {poste.selectedMissions.length} mission{poste.selectedMissions.length > 1 ? 's' : ''} sélectionnée{poste.selectedMissions.length > 1 ? 's' : ''}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <RadioGroup label="Localisation du poste *"
+                      options={[
+                        { value: 'NORD' as const,  label: 'Nord' },
+                        { value: 'OUEST' as const, label: 'Ouest' },
+                        { value: 'SUD' as const,   label: 'Sud' },
+                      ]}
+                      value={poste.localisation}
+                      onChange={(v) => updatePoste(index, { localisation: v })}
+                      required />
+
+                    {posteErrors[index] && <FieldError message={posteErrors[index]} />}
+                  </div>
+                ))}
+
+                <TextareaField id="jobDescriptionOther" label="Description complémentaire" optional rows={3}
+                  placeholder="Responsabilités spécifiques, contexte…"
+                  {...register('jobDescriptionOther')} />
 
                 <CheckboxGroup
                   label="Compétences et savoir-être attendus"
@@ -798,89 +771,80 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   onChange={(v) => setValue('softSkills', v)}
                   columns={2}
                 />
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="softSkillsOther" className="text-sm font-medium text-gray-700">
-                    Autre compétence <span className="text-gray-400">(optionnel)</span>
-                  </label>
-                  <input id="softSkillsOther" type="text"
-                    className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-300 focus:border-blue"
-                    placeholder="Ex : maîtrise d'un logiciel spécifique…"
-                    {...register('softSkillsOther')} />
-                </div>
+                <InputField id="softSkillsOther" label="Autre compétence (optionnel)"
+                  placeholder="Ex : maîtrise d'un logiciel spécifique…"
+                  {...register('softSkillsOther')} />
 
-                <CheckboxGroup
-                  label="Conditions du poste"
-                  options={SCHEDULE_OPTIONS}
-                  selected={scheduleOptions}
-                  onChange={(v) => setValue('scheduleOptions', v)}
-                  columns={2}
-                />
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="additionalComments" className="text-sm font-medium text-gray-700">
-                    Commentaires supplémentaires <span className="text-gray-400">(optionnel)</span>
-                  </label>
-                  <textarea id="additionalComments" rows={2}
-                    className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-300 focus:border-blue"
-                    placeholder="Salaire, avantages, informations spécifiques…"
-                    {...register('additionalComments')} />
-                </div>
-              </div>
-            )}
+                <TextareaField id="conditions" label="Conditions du poste" optional rows={3}
+                  placeholder="Horaires, télétravail, avantages, véhicule…"
+                  {...register('conditions')} />
 
-            {/* ── Étape 6 : Exigences de l'apprenti ────────────────────────── */}
-            {currentStep === 6 && (
-              <div className="flex flex-col gap-5">
+                <TextareaField id="additionalComments" label="Commentaires supplémentaires" optional rows={2}
+                  placeholder="Salaire, avantages, informations spécifiques…"
+                  {...register('additionalComments')} />
+              </section>
+
+              {/* ── Exigences de l'apprenti ──────────────────────────────────── */}
+              <section className="flex flex-col gap-5">
                 <SectionTitle>Exigences de l'apprenti</SectionTitle>
 
-                <input type="hidden" {...register('educationLevel',     { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('drivingLicense',     { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('experienceRequired', { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('recruitmentMethod',  { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('immersionPeriod',    { required: 'Champ obligatoire' })} />
 
-                <RadioGroup label="Niveau de formation *" name="educationLevel"
-                  options={[{ value: 'BAC', label: 'Niveau Bac' }, { value: 'BAC_PLUS_2', label: 'Bac +2' }, { value: 'BAC_PLUS_3', label: 'Bac +3' }]}
-                  value={watch('educationLevel')}
-                  onChange={(v) => setValue('educationLevel', v, { shouldValidate: true })}
-                  error={errors.educationLevel?.message} required />
-
-                <RadioGroup label="Permis de conduire B *" name="drivingLicense"
-                  options={[{ value: 'OUI', label: 'Obligatoire' }, { value: 'OPTIONNEL', label: 'Optionnel' }]}
+                <RadioGroup label="Permis de conduire B *"
+                  options={[{ value: 'OUI' as const, label: 'Obligatoire' }, { value: 'OPTIONNEL' as const, label: 'Optionnel' }]}
                   value={watch('drivingLicense')}
                   onChange={(v) => setValue('drivingLicense', v, { shouldValidate: true })}
                   error={errors.drivingLicense?.message} required />
 
-                <RadioGroup label="Expérience requise *" name="experienceRequired"
-                  options={[{ value: 'DEBUTANT', label: 'Débutant accepté' }, { value: 'OBLIGATOIRE', label: 'Expérience obligatoire' }]}
+                <RadioGroup label="Expérience requise *"
+                  options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}
                   value={watch('experienceRequired')}
                   onChange={(v) => setValue('experienceRequired', v, { shouldValidate: true })}
                   error={errors.experienceRequired?.message} required />
 
-                <CheckboxGroup
-                  label="Tranche(s) d'âge ciblée(s)"
-                  options={['18 à 20 ans', '21 à 25 ans', '26 à 29 ans']}
-                  selected={ageRequirements}
-                  onChange={(v) => setValue('ageRequirements', v)}
-                  columns={3}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    Âge souhaité <span className="text-gray-400">(optionnel)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <InputField id="ageMin" label="De (ans)" type="number" min={15} max={99} placeholder="18"
+                      error={errors.ageMin?.message}
+                      {...register('ageMin', {
+                        validate: (v) => !v || (Number(v) >= 15 && Number(v) <= 99) || 'Âge invalide',
+                      })} />
+                    <InputField id="ageMax" label="À (ans)" type="number" min={15} max={99} placeholder="29"
+                      error={errors.ageMax?.message}
+                      {...register('ageMax', {
+                        validate: (v, form) => {
+                          if (!v) return true
+                          if (Number(v) < 15 || Number(v) > 99) return 'Âge invalide'
+                          if (form.ageMin && Number(v) < Number(form.ageMin)) return 'Doit être ≥ âge min'
+                          return true
+                        },
+                      })} />
+                  </div>
+                </div>
 
-                <RadioGroup label="Méthode de recrutement *" name="recruitmentMethod"
+                <RadioGroup label="Méthode de recrutement *"
                   options={[
-                    { value: 'ALL_CV',        label: 'Tous les CV' },
-                    { value: 'PRESELECTION',  label: 'Présélection par le centre' },
-                    { value: 'PRE_INTERVIEW', label: 'Pré-entretien par le centre' },
+                    { value: 'ALL_CV' as const,        label: 'Tous les CV' },
+                    { value: 'PRESELECTION' as const,  label: 'Présélection par le centre' },
+                    { value: 'PRE_INTERVIEW' as const, label: 'Pré-entretien par le centre' },
                   ]}
                   value={watch('recruitmentMethod')}
                   onChange={(v) => setValue('recruitmentMethod', v, { shouldValidate: true })}
                   error={errors.recruitmentMethod?.message} required />
 
-                <RadioGroup label="Période d'immersion (PMSMP) *" name="immersionPeriod"
-                  options={[{ value: 'OUI', label: 'Oui' }, { value: 'NON', label: 'Non' }, { value: 'A_DISCUTER', label: 'À discuter' }]}
+                <RadioGroup label="Période d'immersion (PMSMP) *"
+                  options={[{ value: 'OUI' as const, label: 'Oui' }, { value: 'NON' as const, label: 'Non' }, { value: 'A_DISCUTER' as const, label: 'À discuter' }]}
                   value={watch('immersionPeriod')}
                   onChange={(v) => setValue('immersionPeriod', v, { shouldValidate: true })}
                   error={errors.immersionPeriod?.message} required />
 
-                {/* Grille jours */}
+                {/* Grille jours — tout à Oui par défaut */}
                 <div className="flex flex-col gap-2">
                   <p className="text-sm font-medium text-gray-700">Jours de formation possibles</p>
                   <div className="overflow-x-auto rounded-lg border border-gray-100">
@@ -916,58 +880,22 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     </table>
                   </div>
                 </div>
-              </div>
-            )}
+              </section>
 
-            {/* ── Étape 7 : Engagement ─────────────────────────────────────── */}
-            {currentStep === 7 && (
-              <div className="flex flex-col gap-5">
-                <SectionTitle>Engagement sur l'évolution des missions</SectionTitle>
-                <div className="rounded-lg border border-blue-light bg-blue-light/40 p-4 text-sm leading-relaxed text-gray-700">
-                  <p className="font-semibold mb-2">L'entreprise reconnaît que les missions confiées à l'apprenti pourront :</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>Évoluer progressivement en fonction de sa montée en compétences.</li>
-                    <li>Être adaptées afin de rester en cohérence avec le parcours de formation suivi.</li>
-                    <li>Faire l'objet de réajustements en accord avec le centre de formation, dans un souci de complémentarité entre la pratique en entreprise et les enseignements dispensés.</li>
-                  </ul>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-bold text-gray-900">Clause de non-engagement et de confidentialité</p>
-                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">
-                    Les informations recueillies dans ce document sont strictement confidentielles et ne seront utilisées qu'à des fins de recrutement en apprentissage. La présente analyse du besoin ne constitue pas un engagement ferme de l'entreprise ni du centre de formation. Elle formalise uniquement l'intention d'explorer un parcours d'alternance sous réserve d'éligibilité des candidats et d'accord de financement OPCO. Toute diffusion des informations contenues dans ce document à des tiers est interdite sans accord préalable écrit des deux parties.
-                  </div>
-                </div>
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-100 bg-white p-4 hover:border-blue-light">
-                  <div className={['mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors', watch('clausesAccepted') ? 'border-blue bg-blue' : 'border-gray-300 bg-white'].join(' ')}>
-                    {watch('clausesAccepted') && <Check size={12} className="text-white" strokeWidth={3} />}
-                  </div>
-                  <input type="checkbox" className="sr-only" {...register('clausesAccepted', { required: true })} />
-                  <span className="text-sm text-gray-700">J'ai lu et j'accepte les clauses d'engagement et de confidentialité. *</span>
-                </label>
-                {errors.clausesAccepted && <p className="text-xs text-danger">Vous devez accepter les clauses pour continuer.</p>}
-                {submitError && (
-                  <p className="rounded-lg border border-danger-bg bg-danger-bg px-4 py-2.5 text-sm text-danger">
-                    {submitError}
-                  </p>
-                )}
-              </div>
-            )}
+              {submitError && (
+                <p className="rounded-lg border border-danger-bg bg-danger-bg px-4 py-2.5 text-sm text-danger">
+                  {submitError}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
-            <Button variant="secondary" onClick={currentStep === 1 ? onClose : goPrev}
-              leftIcon={currentStep > 1 ? <ChevronLeft size={16} /> : undefined}>
-              {currentStep === 1 ? 'Annuler' : 'Précédent'}
+            <Button variant="secondary" onClick={onClose}>Annuler</Button>
+            <Button type="submit" isLoading={result.fetching} leftIcon={<Check size={16} />}>
+              Envoyer pour signature
             </Button>
-
-            {currentStep < STEPS.length ? (
-              <Button onClick={goNext} rightIcon={<ChevronRight size={16} />}>Suivant</Button>
-            ) : (
-              <Button type="submit" isLoading={result.fetching} leftIcon={<Check size={16} />}>
-                Envoyer pour signature
-              </Button>
-            )}
           </div>
         </form>
       </div>

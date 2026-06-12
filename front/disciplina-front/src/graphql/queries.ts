@@ -600,6 +600,12 @@ export const GET_NEEDS_ANALYSIS = gql`
       companySectors
       companyDescription
       positionsCount
+      positions {
+        trainingDomain
+        jobTitle
+        selectedMissions
+        localisation
+      }
       localisation
       trainingDomain
       jobTitle
@@ -610,8 +616,11 @@ export const GET_NEEDS_ANALYSIS = gql`
       drivingLicense
       experienceRequired
       ageRequirements
+      ageMin
+      ageMax
       softSkills
       scheduleOptions
+      conditions
       additionalComments
       recruitmentMethod
       immersionPeriod

@@ -44,24 +44,35 @@ describe('GraphQL Needs Analysis integration', () => {
         token = mintToken({ id: userId, email: `sp-${suffix}@test.local`, role: Role.COMMERCIAL });
     });
 
-    it('creates and retrieves a needs analysis record', async () => {
+    // PDF generation boots a real headless Chrome: allow well over the 5s default
+    it('creates and retrieves a needs analysis record', { timeout: 30000 }, async () => {
         const input = {
             companyID: companyId,
             userID: userId,
             recruitmentResponsibleName: 'Jean Dupont',
             recruitmentResponsiblePhone: '0692112233',
             recruitmentResponsibleEmail: 'jean.dupont@company.local',
-            positionsCount: 2,
-            localisation: 'NORD',
-            trainingDomain: 'VENTE',
-            jobTitle: 'Apprenti Conseiller de Vente',
-            selectedMissions: ['Accueil client', 'Mise en rayon'],
+            positions: [
+                {
+                    trainingDomain: 'VENTE',
+                    jobTitle: 'Apprenti Conseiller de Vente',
+                    selectedMissions: ['Accueil client', 'Mise en rayon'],
+                    localisation: 'NORD',
+                },
+                {
+                    trainingDomain: 'SECRETARIAT',
+                    jobTitle: 'Secrétaire Assistante',
+                    selectedMissions: ['Saisie de données'],
+                    localisation: 'SUD',
+                },
+            ],
             otherMissions: 'Encaissement ponctuel',
-            educationLevel: 'BAC',
             drivingLicense: 'OPTIONNEL',
             experienceRequired: 'DEBUTANT',
-            ageRequirements: ['18-25', '26+'],
+            ageMin: 18,
+            ageMax: 27,
             softSkills: 'Dynamique, souriant',
+            conditions: 'Temps plein, travail le samedi',
             recruitmentMethod: 'PRESELECTION',
             immersionPeriod: 'OUI',
             trainingDays: JSON.stringify({
@@ -80,7 +91,17 @@ describe('GraphQL Needs Analysis integration', () => {
                     userID
                     recruitmentResponsibleName
                     jobTitle
+                    positionsCount
+                    positions {
+                        trainingDomain
+                        jobTitle
+                        selectedMissions
+                        localisation
+                    }
                     selectedMissions
+                    ageMin
+                    ageMax
+                    conditions
                     trainingDays
                     status
                 }
@@ -107,8 +128,16 @@ describe('GraphQL Needs Analysis integration', () => {
         expect(created.id).toBeGreaterThan(0);
         expect(created.companyID).toBe(companyId);
         expect(created.recruitmentResponsibleName).toBe('Jean Dupont');
+        // Legacy single-position columns mirror the first position
         expect(created.jobTitle).toBe('Apprenti Conseiller de Vente');
         expect(created.selectedMissions).toEqual(['Accueil client', 'Mise en rayon']);
+        expect(created.positionsCount).toBe(2);
+        expect(created.positions).toHaveLength(2);
+        expect(created.positions[1].jobTitle).toBe('Secrétaire Assistante');
+        expect(created.positions[1].localisation).toBe('SUD');
+        expect(created.ageMin).toBe(18);
+        expect(created.ageMax).toBe(27);
+        expect(created.conditions).toBe('Temps plein, travail le samedi');
         expect(created.status).toBe('EN_ATTENTE_SIGNATURE');
 
         const needsAnalysisId = created.id;
@@ -175,7 +204,7 @@ describe('GraphQL Needs Analysis integration', () => {
         expect(compJson.data.needsAnalysesByCompany[0].jobTitle).toBe('Apprenti Conseiller de Vente');
     });
 
-    it('receives Yousign webhook and updates status to SIGNE', async () => {
+    it('receives Yousign webhook and updates status to SIGNE', { timeout: 30000 }, async () => {
         const input = {
             companyID: companyId,
             userID: userId,

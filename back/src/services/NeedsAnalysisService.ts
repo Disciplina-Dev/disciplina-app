@@ -46,8 +46,20 @@ export class NeedsAnalysisService {
         logger.info(`[NeedsAnalysis] Company found: ${company.name}`);
 
         // 2. Map input and create initial Brouillon in DB to get an ID
+        // Legacy single-position columns are NOT NULL: mirror the first position into them
+        const firstPosition = data.positions?.[0];
         const initialData = {
             ...data,
+            ...(firstPosition
+                ? {
+                      trainingDomain: data.trainingDomain ?? firstPosition.trainingDomain,
+                      jobTitle: data.jobTitle ?? firstPosition.jobTitle,
+                      selectedMissions: data.selectedMissions ?? firstPosition.selectedMissions,
+                      localisation: data.localisation ?? firstPosition.localisation,
+                      positionsCount: data.positionsCount ?? data.positions!.length,
+                  }
+                : {}),
+            ageRequirements: data.ageRequirements ?? [],
             status: 'BROUILLON' as const
         };
         const rowData = toNeedsAnalysisRow(initialData);
@@ -151,7 +163,7 @@ export class NeedsAnalysisService {
         if (!data.userID) {
             throw new Error('User ID is required');
         }
-        if (!data.jobTitle) {
+        if (!data.jobTitle && !data.positions?.[0]?.jobTitle) {
             throw new Error('Job title is required');
         }
     }
