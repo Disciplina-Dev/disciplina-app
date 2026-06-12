@@ -1,0 +1,186 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mintToken } from '../../../../test/helpers/auth';
+import { truncateMysql } from '../../../../test/helpers/db';
+import { env } from '../../../config/env';
+import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
+import { CompanyBlacklistRepository } from '../../../repositories/mysql/CompanyBlacklistRepository';
+import { SireneService } from '../../../external/insee/sirene.service';
+
+const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
+
+const MUTATION = `
+    mutation($input: CompanyInput!) {
+        createCompany(input: $input) { id name siret }
+    }
+`;
+
+function validEtablissement(siret: string) {
+    return {
+        siren: siret.slice(0, 9),
+        nic: siret.slice(9),
+        siret,
+        siegeSocial: true,
+        etatAdministratif: 'A' as const,
+        categorieEntreprise: null,
+        categorieJuridique: null,
+        denomination: 'Test Company',
+        nomPrenom: null,
+        adresse: {
+            numeroVoie: null,
+            typeVoie: null,
+            libelleVoie: null,
+            codePostal: null,
+            commune: null,
+            codeCommune: null,
+        },
+    };
+}
+
+async function createCompany(token: string, input: Record<string, unknown>) {
+    const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query: MUTATION, variables: { input } }),
+    });
+    return { res, json: await res.json() };
+}
+
+describe('createCompany INSEE + blacklist validation', () => {
+    let checkSiret: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(async () => {
+        await truncateMysql();
+        checkSiret = vi.spyOn(SireneService.prototype, 'checkSiret');
+    });
+
+    afterEach(() => {
+        checkSiret.mockRestore();
+    });
+
+    it('rejects when INSEE does not recognise the SIRET', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = Date.now();
+        const siret = `${suffix}0000000010`.slice(0, 14);
+        checkSiret.mockRejectedValue(new Error('SIRET not found'));
+
+        const { res, json } = await createCompany(token, {
+            name: `Unknown Corp ${suffix}`,
+            siret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/SIRET invalide/);
+        expect(checkSiret).toHaveBeenCalledWith(siret);
+    });
+
+    it('rejects when the SIRET is already in the portfolio', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = Date.now();
+        const siret = `${suffix}0000000011`.slice(0, 14);
+        checkSiret.mockResolvedValue(validEtablissement(siret));
+
+        await new CompanyRepository().create({
+            name: `Existing Corp ${suffix}`,
+            siret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+
+        const { res, json } = await createCompany(token, {
+            name: `Duplicate Corp ${suffix}`,
+            siret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/déjà dans le portefeuille/);
+    });
+
+    it('rejects when the whole SIREN is blacklisted', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const siren = Date.now().toString().slice(0, 9);
+        const blacklistedSiret = `${siren}00001`;
+        const newSiret = `${siren}00099`;
+        checkSiret.mockResolvedValue(validEtablissement(newSiret));
+
+        await new CompanyBlacklistRepository().create({
+            name: 'Blacklisted Unit',
+            siret: blacklistedSiret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'Banned previously',
+            all_blacklist: 1,
+        });
+
+        const { res, json } = await createCompany(token, {
+            name: 'New Establishment',
+            siret: newSiret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/blacklistée/);
+    });
+
+    it('rejects when the exact SIRET is blacklisted, even without all_blacklist', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const siren = Date.now().toString().slice(0, 9);
+        const siret = `${siren}00001`;
+        checkSiret.mockResolvedValue(validEtablissement(siret));
+
+        await new CompanyBlacklistRepository().create({
+            name: 'Blacklisted Establishment',
+            siret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'Banned previously',
+            all_blacklist: 0,
+        });
+
+        const { res, json } = await createCompany(token, {
+            name: 'New Establishment',
+            siret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/blacklistée/);
+    });
+
+    it('creates the company when INSEE confirms the SIRET and nothing is blacklisted', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = Date.now();
+        const siret = `${suffix}0000000012`.slice(0, 14);
+        checkSiret.mockResolvedValue(validEtablissement(siret));
+
+        const { res, json } = await createCompany(token, {
+            name: `Brand New Corp ${suffix}`,
+            siret,
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.createCompany.siret).toBe(siret);
+        expect(json.data.createCompany.name).toBe(`Brand New Corp ${suffix}`);
+    });
+});

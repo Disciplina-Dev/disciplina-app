@@ -17,7 +17,12 @@ export interface CompanyFilters {
 }
 
 export class CompanyRepository {
-    async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string, search?: string, filters?: CompanyFilters): Promise<CompaniesRow[]> {
+    async findAll(
+        first: number = DEFAULT_PAGE_SIZE,
+        after?: string,
+        search?: string,
+        filters?: CompanyFilters,
+    ): Promise<CompaniesRow[]> {
         if (search?.trim()) {
             const pattern = `%${search.trim()}%`;
             return query<CompaniesRow[]>('SELECT * FROM companies WHERE name LIKE ? OR siret LIKE ? ORDER BY id', [
@@ -30,7 +35,7 @@ export class CompanyRepository {
         const params: unknown[] = [];
 
         if (filters?.status?.length) {
-            const valid = filters.status.filter(s => ALLOWED_STATUSES.has(s));
+            const valid = filters.status.filter((s) => ALLOWED_STATUSES.has(s));
             if (valid.length) {
                 conditions.push(`status IN (${valid.map(() => '?').join(', ')})`);
                 params.push(...valid);
@@ -70,9 +75,7 @@ export class CompanyRepository {
         // Relance mode: return all sorted results, no cursor pagination
         if (relance) {
             const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-            const orderBy = relance === 'past'
-                ? 'ORDER BY relance_date DESC, id'
-                : 'ORDER BY relance_date ASC, id';
+            const orderBy = relance === 'past' ? 'ORDER BY relance_date DESC, id' : 'ORDER BY relance_date ASC, id';
             return query<CompaniesRow[]>(`SELECT * FROM companies ${where} ${orderBy}`, params);
         }
 
@@ -104,6 +107,10 @@ export class CompanyRepository {
         if (sirets.length === 0) return [];
         const placeholders = sirets.map(() => '?').join(', ');
         return query<CompaniesRow[]>(`SELECT * FROM companies WHERE siret IN (${placeholders})`, sirets);
+    }
+
+    async findAllBySiren(siren: string): Promise<CompaniesRow[]> {
+        return query<CompaniesRow[]>('SELECT * FROM companies WHERE siret LIKE ?', [`${siren}%`]);
     }
 
     async findById(id: number): Promise<CompaniesRow | null> {

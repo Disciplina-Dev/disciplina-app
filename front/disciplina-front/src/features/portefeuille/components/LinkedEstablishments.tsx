@@ -122,107 +122,153 @@ export default function LinkedEstablishments({
 
           {!loading && !error && result && (
             <>
-              {filteredCompanies.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                    Établissements existants dans le portefeuille
-                  </h4>
-                  <div className="flex flex-col gap-2">
-                    {filteredCompanies.map(({ company, salePerson }) => (
-                      <button
-                        key={company.id}
-                        type="button"
-                        onClick={() => onOpenCompany({ company, salePerson })}
-                        className="text-left bg-white border border-gray-100 rounded-lg px-4 py-3 flex items-center gap-3 hover:border-blue hover:shadow-sm transition-all cursor-pointer"
-                      >
-                        <span className="w-8 h-8 flex-shrink-0 rounded-md bg-blue-light text-blue flex items-center justify-center">
-                          <Building2 className="w-4 h-4" />
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {company.name}
-                          </p>
-                          <p className="text-xs text-gray-500 font-mono">
-                            {formatSiret(company.siret ?? "")}
-                          </p>
-                        </div>
-                        {salePerson && (
-                          <span className="inline-flex items-center text-xs font-semibold py-1 px-2 rounded-full bg-blue-light text-blue flex-shrink-0 whitespace-nowrap">
-                            {salePerson.name}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
+              {result.allBlacklisted ? (
+                <div className="text-center py-6 px-4 bg-danger-bg rounded-lg flex flex-col items-center gap-2">
+                  <AlertTriangle className="w-6 h-6 text-danger" />
+                  <p className="text-sm font-semibold text-danger">
+                    {result.message ?? 'Cette entreprise est blacklisté vous ne pouvez donc pas la prospecter'}
+                  </p>
                 </div>
-              )}
-
-              {filteredEtablissements.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                    Établissements à ajouter
-                  </h4>
-                  <div className="flex flex-col gap-2">
-                    {filteredEtablissements.map((etab) => {
-                      const name = displayName(etab);
-                      const address = displayAddress(etab.adresse);
-                      const closed = etab.etatAdministratif === "F";
-
-                      return (
-                        <div
-                          key={etab.siret}
-                          className="bg-white border border-gray-100 rounded-lg px-4 py-3 flex items-center gap-3 justify-between"
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <span className="w-8 h-8 flex-shrink-0 rounded-md bg-green-light text-success flex items-center justify-center">
+              ) : (
+                <>
+                  {result.blacklisted.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                        Entreprise blacklisté
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        {result.blacklisted.map((b, i) => (
+                          <div
+                            key={`${b.siret}-${i}`}
+                            className="bg-danger-bg border border-danger/20 rounded-lg px-4 py-3 flex items-center gap-3"
+                          >
+                            <span className="w-8 h-8 flex-shrink-0 rounded-md bg-danger-bg text-danger flex items-center justify-center">
                               <Building2 className="w-4 h-4" />
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-gray-900 truncate">
-                                {name}
+                                {b.name ?? 'Établissement'}
                               </p>
                               <p className="text-xs text-gray-500 font-mono">
-                                {formatSiret(etab.siret)}
+                                {formatSiret(b.siret ?? '')}
                               </p>
-                              {address && (
-                                <p className="text-xs text-gray-400 mt-1 truncate">
-                                  {address}
-                                </p>
+                              {b.conclusion && (
+                                <p className="text-xs text-gray-500 mt-1">{b.conclusion}</p>
                               )}
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span
-                              className={[
-                                "inline-flex items-center text-xs font-semibold py-1 px-2 rounded-full flex-shrink-0",
-                                closed
-                                  ? "bg-danger-bg text-danger"
-                                  : "bg-success-bg text-success",
-                              ].join(" ")}
-                            >
-                              {closed ? "Cessée" : "En activité"}
+                            <span className="inline-flex items-center text-xs font-semibold py-1 px-2 rounded-full bg-danger-bg text-danger flex-shrink-0">
+                              Blacklisté
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => onAdd(etab)}
-                              className="flex items-center gap-2 bg-blue text-white font-semibold text-sm py-1.5 px-3 rounded-lg hover:bg-blue-dark cursor-pointer transition-colors border-0 flex-shrink-0"
-                            >
-                              Ajouter
-                            </button>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              {filteredCompanies.length === 0 &&
-                filteredEtablissements.length === 0 && (
-                  <p className="text-center text-sm text-gray-500 py-4">
-                    Aucun autre établissement
-                  </p>
-                )}
+                  {filteredCompanies.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                        Établissements existants dans le portefeuille
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        {filteredCompanies.map(({ company, salePerson }) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            onClick={() => onOpenCompany({ company, salePerson })}
+                            className="text-left bg-white border border-gray-100 rounded-lg px-4 py-3 flex items-center gap-3 hover:border-blue hover:shadow-sm transition-all cursor-pointer"
+                          >
+                            <span className="w-8 h-8 flex-shrink-0 rounded-md bg-blue-light text-blue flex items-center justify-center">
+                              <Building2 className="w-4 h-4" />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
+                                {company.name}
+                              </p>
+                              <p className="text-xs text-gray-500 font-mono">
+                                {formatSiret(company.siret ?? "")}
+                              </p>
+                            </div>
+                            {salePerson && (
+                              <span className="inline-flex items-center text-xs font-semibold py-1 px-2 rounded-full bg-blue-light text-blue flex-shrink-0 whitespace-nowrap">
+                                {salePerson.name}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredEtablissements.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                        Établissements à ajouter
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        {filteredEtablissements.map((etab) => {
+                          const name = displayName(etab);
+                          const address = displayAddress(etab.adresse);
+                          const closed = etab.etatAdministratif === "F";
+
+                          return (
+                            <div
+                              key={etab.siret}
+                              className="bg-white border border-gray-100 rounded-lg px-4 py-3 flex items-center gap-3 justify-between"
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <span className="w-8 h-8 flex-shrink-0 rounded-md bg-green-light text-success flex items-center justify-center">
+                                  <Building2 className="w-4 h-4" />
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">
+                                    {name}
+                                  </p>
+                                  <p className="text-xs text-gray-500 font-mono">
+                                    {formatSiret(etab.siret)}
+                                  </p>
+                                  {address && (
+                                    <p className="text-xs text-gray-400 mt-1 truncate">
+                                      {address}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span
+                                  className={[
+                                    "inline-flex items-center text-xs font-semibold py-1 px-2 rounded-full flex-shrink-0",
+                                    closed
+                                      ? "bg-danger-bg text-danger"
+                                      : "bg-success-bg text-success",
+                                  ].join(" ")}
+                                >
+                                  {closed ? "Cessée" : "En activité"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => onAdd(etab)}
+                                  className="flex items-center gap-2 bg-blue text-white font-semibold text-sm py-1.5 px-3 rounded-lg hover:bg-blue-dark cursor-pointer transition-colors border-0 flex-shrink-0"
+                                >
+                                  Ajouter
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredCompanies.length === 0 &&
+                    filteredEtablissements.length === 0 &&
+                    result.blacklisted.length === 0 && (
+                      <p className="text-center text-sm text-gray-500 py-4">
+                        Aucun autre établissement
+                      </p>
+                    )}
+                </>
+              )}
             </>
           )}
 

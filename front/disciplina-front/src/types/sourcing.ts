@@ -23,10 +23,19 @@ export interface SireneEtablissement {
   alreadyExists?: boolean;
 }
 
+export interface BlacklistedCompanyInfo {
+  name: string | null;
+  siret: string | null;
+  conclusion: string | null;
+}
+
 export interface SirenSearchResult {
   siren: string;
   companiesWithSale: CompanyWithSalePerson[];
   etablissements: SireneEtablissement[];
+  blacklisted: BlacklistedCompanyInfo[];
+  allBlacklisted: boolean;
+  message?: string;
 }
 
 export const normalizeSiret = (raw: string): string =>
