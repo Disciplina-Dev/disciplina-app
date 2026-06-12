@@ -6,6 +6,9 @@ export const formatErrorMessage = (errorMsg: string, siret?: string | null): str
   if (errorMsg.includes("siret must be 14 characters") || errorMsg.includes("SIRET must be 14 characters")) {
     return "Le SIRET doit faire exactement 14 chiffres.";
   }
+  if (errorMsg.startsWith("SIRET invalide")) {
+    return "Ce SIRET n'a pas pu être vérifié auprès du registre INSEE (introuvable ou service indisponible).";
+  }
   if (errorMsg.includes("Unauthorized") || errorMsg.includes("Forbidden")) {
     return "Session expirée ou droits insuffisants. Veuillez vous reconnecter.";
   }

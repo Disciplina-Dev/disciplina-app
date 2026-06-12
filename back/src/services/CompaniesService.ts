@@ -1,18 +1,52 @@
 import { CompanyRepository, CompanyFilters } from '../repositories/mysql/CompanyRepository';
+import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
+import { SireneService } from '../external/insee/sirene.service';
 import { CompaniesRow } from '../types/db-rows.types';
 import { Companies } from '../types/company.types';
 import { toCompanies } from './mappers/company.mapper';
 
+export interface CompanyStats {
+    current: { userID: number | null; status: string | null; count: number }[];
+    byPeriod: { userID: number | null; status: string | null; week: number; month: number; count: number }[];
+    years: number[];
+}
+
 export class CompaniesService {
     private repository: CompanyRepository;
+    private blacklistRepository: CompanyBlacklistRepository;
+    private sireneService: SireneService;
 
     constructor() {
         this.repository = new CompanyRepository();
+        this.blacklistRepository = new CompanyBlacklistRepository();
+        this.sireneService = new SireneService();
     }
 
     async findAll(first?: number, after?: string, search?: string, filters?: CompanyFilters): Promise<Companies[]> {
         const rows = await this.repository.findAll(first, after, search, filters);
         return rows.map(toCompanies);
+    }
+
+    async getStats(year: number, userID?: number | null): Promise<CompanyStats> {
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+            throw new Error('Invalid year');
+        }
+        const [current, byPeriod, years] = await Promise.all([
+            this.repository.countByStatus(userID),
+            this.repository.countByPeriod(year, userID),
+            this.repository.availableYears(),
+        ]);
+        return {
+            current: current.map((r) => ({ userID: r.user_id, status: r.status, count: Number(r.count) })),
+            byPeriod: byPeriod.map((r) => ({
+                userID: r.user_id,
+                status: r.status,
+                week: Number(r.week),
+                month: Number(r.month),
+                count: Number(r.count),
+            })),
+            years,
+        };
     }
 
     async findByCommercial(userID: number): Promise<Companies[]> {
@@ -35,6 +69,26 @@ export class CompaniesService {
 
     async create(data: Partial<CompaniesRow>): Promise<Companies> {
         this.validateCreateData(data);
+        const siret = data.siret as string;
+
+        try {
+            await this.sireneService.checkSiret(siret);
+        } catch (error: any) {
+            throw new Error(`SIRET invalide : ${error.message}`);
+        }
+
+        const existing = await this.repository.findBySiret(siret);
+        if (existing) {
+            throw new Error('Ce SIRET est déjà dans le portefeuille');
+        }
+
+        const siren = siret.slice(0, 9);
+        const blacklistEntries = await this.blacklistRepository.findBySiren(siren);
+        const isBlacklisted = blacklistEntries.some((e) => e.all_blacklist === 1 || e.siret === siret);
+        if (isBlacklisted) {
+            throw new Error('Cette entreprise est blacklistée');
+        }
+
         const id = await this.repository.create(data);
         const created = await this.repository.findById(id);
         if (!created) {

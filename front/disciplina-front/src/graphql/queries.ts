@@ -64,6 +64,26 @@ export const GET_COMPANIES = gql`
   }
 `
 
+export const GET_COMPANY_STATS = gql`
+  query GetCompanyStats($year: Int!) {
+    companyStats(year: $year) {
+      current {
+        userID
+        status
+        count
+      }
+      byPeriod {
+        userID
+        status
+        week
+        month
+        count
+      }
+      years
+    }
+  }
+`
+
 export const GET_COMPANY_BY_SIRET = gql`
   query GetCompanyBySiret($siret: String!) {
     companyBySiret(siret: $siret) {
@@ -166,6 +186,12 @@ export const UPDATE_COMPANY = gql`
 export const DELETE_COMPANY = gql`
   mutation DeleteCompany($id: Int!) {
     deleteCompany(id: $id)
+  }
+`
+
+export const BLACKLIST_COMPANY = gql`
+  mutation BlacklistCompany($id: Int!, $reason: String!, $allBlacklist: Boolean!) {
+    blacklistCompany(id: $id, reason: $reason, allBlacklist: $allBlacklist)
   }
 `
 
