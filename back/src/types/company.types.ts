@@ -19,3 +19,7 @@ export interface Companies {
     relanceType: number | null;
     relanceTemplateId: string | null;
 }
+
+export interface BlacklistedCompany extends Companies {
+    allBlacklist: boolean;
+}

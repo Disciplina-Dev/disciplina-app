@@ -1,7 +1,7 @@
 import { getConnection } from '../db/mysql/connection';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
-import { CompaniesBlacklistRow } from '../types/db-rows.types';
+import { CompaniesBlacklistRow, CompaniesRow } from '../types/db-rows.types';
 
 export interface BlacklistLookupResult {
     entries: CompaniesBlacklistRow[];
@@ -23,6 +23,10 @@ export class CompaniesBlacklistService {
             entries,
             allBlacklisted: entries.some((e) => e.all_blacklist === 1),
         };
+    }
+
+    async findAll(first?: number, after?: string, search?: string): Promise<CompaniesBlacklistRow[]> {
+        return this.blacklistRepository.findAll(first, after, search);
     }
 
     async blacklistCompany(id: number, reason: string, allBlacklist: boolean): Promise<boolean> {
@@ -58,6 +62,45 @@ export class CompaniesBlacklistService {
                 }
                 await conn.execute('DELETE FROM companies WHERE id = ?', [company.id]);
             }
+
+            await conn.commit();
+            return true;
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    }
+
+    async unblacklistCompany(id: number): Promise<boolean> {
+        const entry = await this.blacklistRepository.findById(id);
+        if (!entry) {
+            throw new Error('Blacklisted company not found');
+        }
+        if (entry.siret) {
+            const existing = await this.companyRepository.findBySiret(entry.siret);
+            if (existing) {
+                throw new Error('A company with this SIRET already exists in the portfolio');
+            }
+        }
+
+        const conn = await getConnection();
+        try {
+            await conn.beginTransaction();
+
+            const data: Partial<CompaniesRow> = { ...entry };
+            delete (data as Partial<CompaniesBlacklistRow>).id;
+            delete (data as Partial<CompaniesBlacklistRow>).all_blacklist;
+            delete data.created_at;
+
+            const fields = Object.keys(data).join(', ');
+            const placeholders = Object.keys(data)
+                .map(() => '?')
+                .join(', ');
+            const values = Object.values(data);
+            await conn.execute(`INSERT INTO companies (${fields}) VALUES (${placeholders})`, values);
+            await conn.execute('DELETE FROM companies_blacklist WHERE id = ?', [id]);
 
             await conn.commit();
             return true;

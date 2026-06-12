@@ -93,6 +93,10 @@ export interface Entreprise {
   relance_template_id: string | null
 }
 
+export interface EntrepriseBlacklistee extends Entreprise {
+  all_blacklist: boolean
+}
+
 export type EntrepriseFilters = {
   siret: string
   status: EntrepriseStatus[]

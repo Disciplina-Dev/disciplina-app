@@ -49,11 +49,12 @@ interface Props {
   onSave: (data: Partial<Entreprise>) => void | Promise<void>
   onClose: () => void
   mode: 'create' | 'edit'
+  submitError?: string | null
 }
 
 const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
-export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode }: Props) {
+export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode, submitError }: Props) {
   const token = useAuthStore((s) => s.token)
   const ownerList = Object.values(USERS)
   const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
@@ -257,6 +258,11 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
             {/* Form */}
             <form onSubmit={handleSubmit(onSubmit)} className="overflow-y-auto flex-1 p-6">
               <div className="space-y-5">
+                {submitError && (
+                  <div className="rounded-xl border border-danger/20 bg-danger-bg px-4 py-2.5 text-sm text-danger">
+                    {submitError}
+                  </div>
+                )}
                 {/* Section: Identité */}
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
