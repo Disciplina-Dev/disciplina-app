@@ -17,6 +17,11 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'companies', column: 'relance_type', definition: 'TINYINT DEFAULT NULL' },
     { table: 'companies', column: 'relance_template_id', definition: 'VARCHAR(64) DEFAULT NULL' },
     { table: 'companies', column: 'created_at', definition: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+    // AB rework (2026-06-12): multi-position support, age range, free-text conditions
+    { table: 'needs_analysis', column: 'positions', definition: 'JSON DEFAULT NULL' },
+    { table: 'needs_analysis', column: 'age_min', definition: 'INT DEFAULT NULL' },
+    { table: 'needs_analysis', column: 'age_max', definition: 'INT DEFAULT NULL' },
+    { table: 'needs_analysis', column: 'conditions', definition: 'TEXT DEFAULT NULL' },
 ];
 
 /**
@@ -49,6 +54,32 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY unique_kpi (user_name, year, month, week, site),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+        )`,
+    },
+    {
+        table: 'companies_blacklist',
+        ddl: `CREATE TABLE IF NOT EXISTS companies_blacklist (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT,
+            legal_referent VARCHAR(255) DEFAULT NULL,
+            name VARCHAR(255) NOT NULL,
+            phone VARCHAR(50) DEFAULT NULL,
+            email VARCHAR(255) DEFAULT NULL,
+            address VARCHAR(255) NOT NULL,
+            sector VARCHAR(255) NOT NULL DEFAULT 'Nord-Est',
+            main_activity VARCHAR(255) DEFAULT NULL,
+            siret CHAR(14) UNIQUE NOT NULL,
+            idcc CHAR(4) DEFAULT NULL,
+            ape CHAR(5) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            conclusion VARCHAR(255) NOT NULL DEFAULT '',
+            status VARCHAR(50) NOT NULL DEFAULT 'À Réfléchir',
+            relance_date DATE DEFAULT NULL,
+            relance_type TINYINT DEFAULT NULL,
+            relance_template_id VARCHAR(64) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            all_blacklist TINYINT DEFAULT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
         )`,
     },
 ];
@@ -87,5 +118,17 @@ export async function runMysqlMigrations(): Promise<void> {
             'ALTER TABLE commercial_kpi DROP INDEX unique_kpi, ADD UNIQUE KEY unique_kpi (user_name, year, month, week, site)',
         );
         logger.info('MySQL migration: added commercial_kpi.week and widened unique_kpi');
+    }
+
+    // AB rework (2026-06-12): education_level was removed from the form, the
+    // column must accept NULL for new rows.
+    const educationLevel = await query<{ IS_NULLABLE: string }[]>(
+        "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'needs_analysis' AND COLUMN_NAME = 'education_level'",
+    );
+    if (educationLevel[0]?.IS_NULLABLE === 'NO') {
+        await query(
+            "ALTER TABLE needs_analysis MODIFY COLUMN education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') DEFAULT NULL",
+        );
+        logger.info('MySQL migration: needs_analysis.education_level is now nullable');
     }
 }
