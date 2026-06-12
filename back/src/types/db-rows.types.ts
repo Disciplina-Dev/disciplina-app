@@ -36,6 +36,14 @@ export interface CompaniesBlacklistRow extends CompaniesRow {
     all_blacklist: number | null;
 }
 
+export interface CompanyHistoryRow {
+    id: number;
+    company_id: number;
+    updated_at?: string | Date;
+    updated_column: string;
+    status: string;
+}
+
 export interface FilizRow {
     token: string;
     created_at: Date;

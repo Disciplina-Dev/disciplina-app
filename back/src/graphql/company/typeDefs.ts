@@ -121,6 +121,14 @@ export const typeDefs = gql`
         years: [Int!]!
     }
 
+    type CompanyHistory {
+        id: Int!
+        companyID: Int!
+        updatedAt: String!
+        updatedColumn: String!
+        status: String!
+    }
+
     type Query {
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
         companyStats(year: Int!): CompanyStats!
@@ -129,6 +137,7 @@ export const typeDefs = gql`
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!
         companyBySiret(siret: String!): Company
         blacklistedCompanies(first: Int, after: String, search: String): BlacklistedCompanyConnection!
+        companyHistory(companyID: Int!): [CompanyHistory!]!
     }
 
     type Mutation {

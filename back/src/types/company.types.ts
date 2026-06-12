@@ -23,3 +23,11 @@ export interface Companies {
 export interface BlacklistedCompany extends Companies {
     allBlacklist: boolean;
 }
+
+export interface CompanyHistory {
+    id: number;
+    companyID: number;
+    updatedAt: string;
+    updatedColumn: string;
+    status: string;
+}

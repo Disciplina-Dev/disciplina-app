@@ -658,6 +658,17 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
   }
 `
 
+export const GET_COMPANY_HISTORY = gql`
+  query CompanyHistory($companyID: Int!) {
+    companyHistory(companyID: $companyID) {
+      id
+      updatedAt
+      updatedColumn
+      status
+    }
+  }
+`
+
 export const GET_NEEDS_ANALYSIS = gql`
   query NeedsAnalysis($id: Int!) {
     needsAnalysis(id: $id) {

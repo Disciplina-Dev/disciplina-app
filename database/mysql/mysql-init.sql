@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS companies (
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS company_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_column TEXT NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS commercial_kpi (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,                          -- NULL = données importées d'anciens users
