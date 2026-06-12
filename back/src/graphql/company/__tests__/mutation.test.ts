@@ -1,12 +1,35 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
 import { Role } from '../../../types/user.types';
+import { SireneService } from '../../../external/insee/sirene.service';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
+
+function validEtablissement(siret: string) {
+    return {
+        siren: siret.slice(0, 9),
+        nic: siret.slice(9),
+        siret,
+        siegeSocial: true,
+        etatAdministratif: 'A' as const,
+        categorieEntreprise: null,
+        categorieJuridique: null,
+        denomination: 'Test Company',
+        nomPrenom: null,
+        adresse: {
+            numeroVoie: null,
+            typeVoie: null,
+            libelleVoie: null,
+            codePostal: null,
+            commune: null,
+            codeCommune: null,
+        },
+    };
+}
 
 describe('GraphQL company mutations', () => {
     beforeEach(async () => {
@@ -14,6 +37,17 @@ describe('GraphQL company mutations', () => {
     });
 
     describe('createCompany', () => {
+        let checkSiret: ReturnType<typeof vi.spyOn>;
+
+        beforeEach(() => {
+            checkSiret = vi.spyOn(SireneService.prototype, 'checkSiret');
+            checkSiret.mockImplementation((siret: string) => Promise.resolve(validEtablissement(siret)));
+        });
+
+        afterEach(() => {
+            checkSiret.mockRestore();
+        });
+
         it('creates a company with minimal required fields', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();

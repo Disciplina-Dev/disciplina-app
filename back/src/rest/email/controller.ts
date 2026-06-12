@@ -19,7 +19,7 @@ export async function createDraft(req: AuthRequest, res: Response): Promise<void
 }
 
 async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draft'): Promise<void> {
-    console.log("id est:", req.user.id)
+    console.log("id est:", req.user)
     const { to, subject, body, attachment } = req.body;
 
     if (!to || !subject || !body) {

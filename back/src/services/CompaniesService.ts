@@ -1,4 +1,6 @@
 import { CompanyRepository, CompanyFilters } from '../repositories/mysql/CompanyRepository';
+import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
+import { SireneService } from '../external/insee/sirene.service';
 import { CompaniesRow } from '../types/db-rows.types';
 import { Companies } from '../types/company.types';
 import { toCompanies } from './mappers/company.mapper';
@@ -11,9 +13,13 @@ export interface CompanyStats {
 
 export class CompaniesService {
     private repository: CompanyRepository;
+    private blacklistRepository: CompanyBlacklistRepository;
+    private sireneService: SireneService;
 
     constructor() {
         this.repository = new CompanyRepository();
+        this.blacklistRepository = new CompanyBlacklistRepository();
+        this.sireneService = new SireneService();
     }
 
     async findAll(first?: number, after?: string, search?: string, filters?: CompanyFilters): Promise<Companies[]> {
@@ -63,6 +69,26 @@ export class CompaniesService {
 
     async create(data: Partial<CompaniesRow>): Promise<Companies> {
         this.validateCreateData(data);
+        const siret = data.siret as string;
+
+        try {
+            await this.sireneService.checkSiret(siret);
+        } catch (error: any) {
+            throw new Error(`SIRET invalide : ${error.message}`);
+        }
+
+        const existing = await this.repository.findBySiret(siret);
+        if (existing) {
+            throw new Error('Ce SIRET est déjà dans le portefeuille');
+        }
+
+        const siren = siret.slice(0, 9);
+        const blacklistEntries = await this.blacklistRepository.findBySiren(siren);
+        const isBlacklisted = blacklistEntries.some((e) => e.all_blacklist === 1 || e.siret === siret);
+        if (isBlacklisted) {
+            throw new Error('Cette entreprise est blacklistée');
+        }
+
         const id = await this.repository.create(data);
         const created = await this.repository.findById(id);
         if (!created) {

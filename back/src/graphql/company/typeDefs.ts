@@ -101,5 +101,6 @@ export const typeDefs = gql`
         createCompany(input: CompanyInput!): Company!
         updateCompany(id: Int!, input: CompanyInput!): Company!
         deleteCompany(id: Int!): Boolean!
+        blacklistCompany(id: Int!, reason: String!, allBlacklist: Boolean!): Boolean!
     }
 `;

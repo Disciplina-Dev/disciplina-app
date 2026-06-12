@@ -17,6 +17,7 @@ import {
   Trash2,
   Save,
   Loader2,
+  Ban,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
@@ -26,7 +27,7 @@ import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import { useCurrentUser, USERS } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
-import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
+import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import Button from '@/components/ui/Button'
@@ -34,7 +35,14 @@ import MailModal from '@/components/ui/MailModal'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { RELANCE_TYPES, getRelanceType, computeRelanceDate } from '@/types/relance'
 import { toSlug } from '@/utils/slug'
-import { toCompany } from '@/types/companyMapper'
+import { toCompany, toEntrepriseFromCompanyWithSalePerson } from '@/types/companyMapper'
+import { normalizeSiret } from '@/types/sourcing'
+import type { SireneEtablissement } from '@/types/sourcing'
+import LinkedEstablishments from '@/features/portefeuille/components/LinkedEstablishments'
+import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
+import BanCompanyModal from '@/features/portefeuille/components/BanCompanyModal'
+import { formatErrorMessage } from '@/utils/companyErrors'
+import type { CompanyWithSalePerson } from '@/types/entreprise'
 
 const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
@@ -131,6 +139,7 @@ export default function EntreprisePage() {
   const currentUser = useCurrentUser()
   const companies = usePortefeuilleStore((s) => s.companies)
   const { update } = useUpdateCompany()
+  const { createCompany } = useCreateCompany()
   const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
 
   const [abOpen, setAbOpen] = useState(false)
@@ -139,6 +148,9 @@ export default function EntreprisePage() {
   const [selectedAbIds, setSelectedAbIds] = useState<Set<number>>(new Set())
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [addModalOpen, setAddModalOpen] = useState(false)
+  const [addPrefillSiret, setAddPrefillSiret] = useState<string | undefined>()
+  const [banOpen, setBanOpen] = useState(false)
 
   const stateEntreprise = location.state?.entreprise as Entreprise | undefined
   const baseEntreprise: Entreprise | undefined =
@@ -202,9 +214,39 @@ export default function EntreprisePage() {
     abResult.refetch()
   }
 
+  const handleAddFromSiren = (etab: SireneEtablissement) => {
+    setAddPrefillSiret(etab.siret)
+    setAddModalOpen(true)
+  }
+
+  const handleOpenLinkedCompany = (item: CompanyWithSalePerson) => {
+    const entreprise = toEntrepriseFromCompanyWithSalePerson(item)
+    navigate(`/commercial/portefeuille/${toSlug(entreprise.nom_commercial ?? entreprise.id)}`, {
+      state: { entreprise },
+    })
+  }
+
+  const handleCreateCompany = async (data: Partial<Entreprise>) => {
+    const company = toCompany(data)
+    try {
+      const response = await createCompany(company)
+      if (response.error) {
+        const friendlyMsg = formatErrorMessage(response.error.message, data.siret)
+        alert(`Erreur lors de la création : ${friendlyMsg}`)
+        return
+      }
+      setAddModalOpen(false)
+      setAddPrefillSiret(undefined)
+    } catch (err: any) {
+      console.error(err)
+      alert(`Erreur lors de la création : ${err.message || err}`)
+    }
+  }
+
   const statusCfg = STATUS_CONFIG[draft.status] ?? STATUS_CONFIG['Non']
   const owner = draft.proprietaire_id ? USERS[String(draft.proprietaire_id)] : null
   const commercialUsers = Object.values(USERS).filter((u) => u.role === 'COMMERCIAL' || u.role === 'RESPONSABLE')
+  const siren = draft.siret ? normalizeSiret(draft.siret).slice(0, 9) : null
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
@@ -275,6 +317,11 @@ export default function EntreprisePage() {
             <Button size="sm" variant="primary" leftIcon={<FileText className="h-3.5 w-3.5" />} onClick={() => setAbOpen(true)}>
               Créer une Analyse (AB)
             </Button>
+            {canEdit && (
+              <Button size="sm" variant="danger" leftIcon={<Ban className="h-3.5 w-3.5" />} onClick={() => setBanOpen(true)}>
+                Bannir
+              </Button>
+            )}
           </div>
         </div>
 
@@ -542,6 +589,16 @@ export default function EntreprisePage() {
               <ABDetailModal id={selectedAbId} onClose={() => setSelectedAbId(null)} onDelete={() => { setSelectedAbId(null); abResult.refetch() }} />
             )}
           </div>
+
+          {/* Établissements liés */}
+          {siren && siren.length === 9 && (
+            <LinkedEstablishments
+              siren={siren}
+              currentSiret={draft.siret ?? null}
+              onAdd={handleAddFromSiren}
+              onOpenCompany={handleOpenLinkedCompany}
+            />
+          )}
         </div>
       </div>
 
@@ -556,6 +613,27 @@ export default function EntreprisePage() {
           scope="commercial"
           mode="draft"
           onClose={() => setMailOpen(false)}
+        />
+      )}
+
+      {addModalOpen && currentUser && (
+        <CreateEditModal
+          mode="create"
+          prefillSiret={addPrefillSiret}
+          currentUser={currentUser}
+          onSave={handleCreateCompany}
+          onClose={() => {
+            setAddModalOpen(false)
+            setAddPrefillSiret(undefined)
+          }}
+        />
+      )}
+
+      {banOpen && (
+        <BanCompanyModal
+          entreprise={draft}
+          onClose={() => setBanOpen(false)}
+          onSuccess={() => navigate('/commercial/portefeuille')}
         />
       )}
     </div>

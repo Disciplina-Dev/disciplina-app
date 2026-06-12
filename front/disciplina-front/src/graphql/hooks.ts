@@ -8,6 +8,7 @@ import {
   CREATE_COMPANY,
   UPDATE_COMPANY,
   DELETE_COMPANY,
+  BLACKLIST_COMPANY,
   GET_CANDIDATES,
   GET_CANDIDATE_BY_ID,
   GET_CANDIDATE_FULL,
@@ -198,6 +199,22 @@ export function useDeleteCompany() {
   }
 
   return { deleteCompany, result }
+}
+
+export function useBlacklistCompany() {
+  const removeCompany = usePortefeuilleStore((s) => s.removeCompany)
+  const [result, executeMutation] = useMutation(BLACKLIST_COMPANY)
+
+  const blacklistCompany = (id: number, reason: string, allBlacklist: boolean) => {
+    return executeMutation({ id, reason, allBlacklist }).then((response) => {
+      if (response.data?.blacklistCompany) {
+        removeCompany(String(id))
+      }
+      return response
+    })
+  }
+
+  return { blacklistCompany, result }
 }
 
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────

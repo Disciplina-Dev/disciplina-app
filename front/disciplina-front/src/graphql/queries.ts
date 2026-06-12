@@ -189,6 +189,12 @@ export const DELETE_COMPANY = gql`
   }
 `
 
+export const BLACKLIST_COMPANY = gql`
+  mutation BlacklistCompany($id: Int!, $reason: String!, $allBlacklist: Boolean!) {
+    blacklistCompany(id: $id, reason: $reason, allBlacklist: $allBlacklist)
+  }
+`
+
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
 export const GET_CANDIDATES = gql`
