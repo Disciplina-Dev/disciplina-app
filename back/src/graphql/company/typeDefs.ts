@@ -68,8 +68,29 @@ export const typeDefs = gql`
         pageInfo: PageInfo!
     }
 
+    type StatusCount {
+        userID: Int
+        status: String
+        count: Int!
+    }
+
+    type PeriodStatusCount {
+        userID: Int
+        status: String
+        week: Int!
+        month: Int!
+        count: Int!
+    }
+
+    type CompanyStats {
+        current: [StatusCount!]!
+        byPeriod: [PeriodStatusCount!]!
+        years: [Int!]!
+    }
+
     type Query {
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
+        companyStats(year: Int!): CompanyStats!
         salePersons: [User!]!
         salePerson(id: Int!): User
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!

@@ -16,6 +16,20 @@ export interface CompanyFilters {
     createdTo?: string | null;
 }
 
+export interface StatusCountRow {
+    user_id: number | null;
+    status: string | null;
+    count: number;
+}
+
+export interface PeriodStatusCountRow {
+    user_id: number | null;
+    status: string | null;
+    week: number;
+    month: number;
+    count: number;
+}
+
 export class CompanyRepository {
     async findAll(first: number = DEFAULT_PAGE_SIZE, after?: string, search?: string, filters?: CompanyFilters): Promise<CompaniesRow[]> {
         if (search?.trim()) {
@@ -86,6 +100,40 @@ export class CompanyRepository {
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
         const limit = Math.max(1, Math.floor(Number(first)) + 1);
         return query<CompaniesRow[]>(`SELECT * FROM companies ${where} ORDER BY id LIMIT ${limit}`, params);
+    }
+
+    async countByStatus(userID?: number | null): Promise<StatusCountRow[]> {
+        const where = userID != null ? 'WHERE user_id = ?' : '';
+        const params = userID != null ? [userID] : [];
+        return query<StatusCountRow[]>(
+            `SELECT user_id, status, COUNT(*) AS count FROM companies ${where} GROUP BY user_id, status`,
+            params,
+        );
+    }
+
+    async countByPeriod(year: number, userID?: number | null): Promise<PeriodStatusCountRow[]> {
+        const conditions = ['created_at IS NOT NULL', 'YEAR(created_at) = ?'];
+        const params: unknown[] = [year];
+        if (userID != null) {
+            conditions.push('user_id = ?');
+            params.push(userID);
+        }
+        // WEEK(date, 3) = ISO-8601 week number (Monday-based), matches date-fns getISOWeek on the front
+        return query<PeriodStatusCountRow[]>(
+            `SELECT user_id, status, WEEK(created_at, 3) AS week, MONTH(created_at) AS month, COUNT(*) AS count
+             FROM companies
+             WHERE ${conditions.join(' AND ')}
+             GROUP BY user_id, status, week, month`,
+            params,
+        );
+    }
+
+    async availableYears(): Promise<number[]> {
+        const rows = await query<{ year: number }[]>(
+            'SELECT DISTINCT YEAR(created_at) AS year FROM companies WHERE created_at IS NOT NULL ORDER BY year DESC',
+            [],
+        );
+        return rows.map((r) => Number(r.year)).filter((y) => Number.isFinite(y));
     }
 
     async findByCommercial(userID: number): Promise<CompaniesRow[]> {

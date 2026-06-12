@@ -3,6 +3,12 @@ import { CompaniesRow } from '../types/db-rows.types';
 import { Companies } from '../types/company.types';
 import { toCompanies } from './mappers/company.mapper';
 
+export interface CompanyStats {
+    current: { userID: number | null; status: string | null; count: number }[];
+    byPeriod: { userID: number | null; status: string | null; week: number; month: number; count: number }[];
+    years: number[];
+}
+
 export class CompaniesService {
     private repository: CompanyRepository;
 
@@ -13,6 +19,28 @@ export class CompaniesService {
     async findAll(first?: number, after?: string, search?: string, filters?: CompanyFilters): Promise<Companies[]> {
         const rows = await this.repository.findAll(first, after, search, filters);
         return rows.map(toCompanies);
+    }
+
+    async getStats(year: number, userID?: number | null): Promise<CompanyStats> {
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+            throw new Error('Invalid year');
+        }
+        const [current, byPeriod, years] = await Promise.all([
+            this.repository.countByStatus(userID),
+            this.repository.countByPeriod(year, userID),
+            this.repository.availableYears(),
+        ]);
+        return {
+            current: current.map((r) => ({ userID: r.user_id, status: r.status, count: Number(r.count) })),
+            byPeriod: byPeriod.map((r) => ({
+                userID: r.user_id,
+                status: r.status,
+                week: Number(r.week),
+                month: Number(r.month),
+                count: Number(r.count),
+            })),
+            years,
+        };
     }
 
     async findByCommercial(userID: number): Promise<Companies[]> {

@@ -85,6 +85,13 @@ export const resolvers = {
             return { ...conn, edges: enrichedEdges };
         },
 
+        companyStats: async (_: unknown, { year }: { year: number }, context: any) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            // Plain COMMERCIAL users only get their own numbers; RESPONSABLE/ADMIN see the whole team
+            const restrictedTo = context.user.role === Role.COMMERCIAL ? Number(context.user.id) : null;
+            return companiesService.getStats(Math.floor(Number(year)), restrictedTo);
+        },
+
         salePersons: async (_: unknown, __: unknown, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return userService.findByRoles([Role.COMMERCIAL, Role.RESPONSABLE]);
