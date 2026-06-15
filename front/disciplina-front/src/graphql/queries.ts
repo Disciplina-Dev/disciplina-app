@@ -291,8 +291,8 @@ export const GET_CANDIDATES = gql`
 `
 
 export const GET_CANDIDATES_PAGE = gql`
-  query GetCandidatesPage($first: Int, $after: String) {
-    candidatesPage(first: $first, after: $after) {
+  query GetCandidatesPage($first: Int, $after: String, $search: String, $filters: CandidateFiltersInput) {
+    candidatesPage(first: $first, after: $after, search: $search, filters: $filters) {
       edges {
         cursor
         node {

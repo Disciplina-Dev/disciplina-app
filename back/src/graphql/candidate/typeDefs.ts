@@ -330,9 +330,17 @@ export const typeDefs = gql`
         pageInfo: PageInfo!
     }
 
+    input CandidateFiltersInput {
+        trainingSite: TrainingSite
+        status: CandidateStatus
+        schoolLevel: SchoolLevel
+        drivingLicenseB: Boolean
+        maxAge: Int
+    }
+
     type Query {
         candidates: [Candidate!]!
-        candidatesPage(first: Int, after: String): CandidateConnection!
+        candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate
         candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
     }
