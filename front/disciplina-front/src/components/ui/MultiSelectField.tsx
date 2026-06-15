@@ -8,6 +8,7 @@ type MultiSelectFieldProps = {
   value: string[]
   onChange: (value: string[]) => void
   placeholder?: string
+  getOptionLabel?: (option: string) => string
 }
 
 export default function MultiSelectField({
@@ -17,6 +18,7 @@ export default function MultiSelectField({
   value,
   onChange,
   placeholder = 'Sélectionner…',
+  getOptionLabel = (option) => option,
 }: MultiSelectFieldProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -66,7 +68,7 @@ export default function MultiSelectField({
                   onClick={() => toggle(opt)}
                   className="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm text-gray-900 hover:bg-gray-50"
                 >
-                  <span>{opt}</span>
+                  <span>{getOptionLabel(opt)}</span>
                   {selected && <Check className="h-4 w-4 shrink-0 text-blue" />}
                 </button>
               )
@@ -82,7 +84,7 @@ export default function MultiSelectField({
               key={v}
               className="inline-flex items-center gap-1 rounded-full bg-blue/10 px-2.5 py-0.5 text-xs font-medium text-blue"
             >
-              {v}
+              {getOptionLabel(v)}
               <button type="button" onClick={() => toggle(v)} className="hover:text-danger">
                 <X className="h-3 w-3" />
               </button>

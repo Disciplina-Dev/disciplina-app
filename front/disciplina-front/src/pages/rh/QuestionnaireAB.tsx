@@ -4,8 +4,8 @@ import { ArrowLeft, Plus, Trash2, Save, CheckCircle } from 'lucide-react'
 import InputField from '@/components/ui/InputField'
 import MultiSelectField from '@/components/ui/MultiSelectField'
 import Button from '@/components/ui/Button'
-import { cityFromPostalCode, NORTH_MOBILITY_COMMUNES } from '@/data/reunionCommunes'
-import { SkillLevel, TitleProfessionalType, TrainingSite } from '@/types/candidate'
+import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes'
+import { SkillLevel, TitleProfessionalType, TrainingSite, Localisation } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
 import { useCandidateFull } from '@/graphql/hooks'
 import { CANDIDATE_TEMPLATES, TP_TYPE_LABELS, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates'
@@ -58,7 +58,7 @@ interface FormState {
   skills: { competence: string; level: SkillLevel }[]
   // infos poste
   domain_motivation: string; questions_concerns: string
-  availability_date: string; geographic_mobility: string
+  availability_date: string; geographic_mobility: Localisation[]
   weekend_work: string
   // secteurs et compétences attendues
   desired_sectors: string[]; expected_company_skills: string[]
@@ -126,7 +126,7 @@ function initForm(c: Candidate): FormState {
     domain_motivation: c.job_info?.domain_motivation ?? '',
     questions_concerns: c.job_info?.questions_concerns ?? '',
     availability_date: c.job_info?.availability_date ?? '',
-    geographic_mobility: c.job_info?.geographic_mobility ?? '',
+    geographic_mobility: c.job_info?.geographic_mobility ?? [],
     weekend_work: c.job_info?.weekend_work == null ? '' : String(c.job_info.weekend_work),
     desired_sectors: c.desired_sectors ?? [],
     expected_company_skills: c.expected_company_skills ?? [],
@@ -220,7 +220,7 @@ function toGqlInput(f: FormState) {
       domainMotivation: f.domain_motivation || undefined,
       questionsConcerns: f.questions_concerns || undefined,
       availabilityDate: f.availability_date || undefined,
-      geographicMobility: f.geographic_mobility || undefined,
+      geographicMobility: f.geographic_mobility.length ? f.geographic_mobility : undefined,
       weekendWork: parseBool(f.weekend_work),
       discoverySource: f.discovery_source || undefined,
     },
@@ -663,9 +663,10 @@ export default function QuestionnaireAB() {
             <MultiSelectField
               id="geographic_mobility"
               label="Mobilité géographique"
-              options={NORTH_MOBILITY_COMMUNES}
-              value={form.geographic_mobility ? form.geographic_mobility.split(',').map(s => s.trim()).filter(Boolean) : []}
-              onChange={vals => set('geographic_mobility', vals.join(', '))}
+              options={Object.values(Localisation)}
+              value={form.geographic_mobility}
+              onChange={vals => set('geographic_mobility', vals as Localisation[])}
+              getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
             />
           </div>
           <RadioGroup

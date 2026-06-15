@@ -6,12 +6,12 @@ import {
   Phone, GraduationCap, Mail, Copy, Check, QrCode, Camera
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate';
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel, Localisation } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import MultiSelectField from '@/components/ui/MultiSelectField';
-import { cityFromPostalCode, NORTH_MOBILITY_COMMUNES } from '@/data/reunionCommunes';
+import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal';
 import { splitFullName } from '@/utils/classmarker';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
@@ -158,7 +158,7 @@ type ABForm = {
   skills: { competence: string; level: SkillLevel }[];
   // infos poste
   domainMotivation: string; questionsConcerns: string;
-  availabilityDate: string; geographicMobility: string; weekendWork: string;
+  availabilityDate: string; geographicMobility: Localisation[]; weekendWork: string;
   // secteurs + compétences attendues
   desiredSectors: string[]; expectedCompanySkills: string[];
   // découverte
@@ -185,7 +185,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     digitalSkills: '', readyForChallenges: '', hobbies: '',
     careerObjectives: '', desiredSkills: '', apprenticeshipMotivation: '', trainingExpectations: '',
     skills: tpl.defaultSkillsAssessment.map(s => ({ competence: s.competence, level: s.level })),
-    domainMotivation: '', questionsConcerns: '', availabilityDate: '', geographicMobility: '', weekendWork: '',
+    domainMotivation: '', questionsConcerns: '', availabilityDate: '', geographicMobility: [], weekendWork: '',
     desiredSectors: [], expectedCompanySkills: [],
     discoverySource: '',
   };
@@ -246,7 +246,7 @@ function toCreateInput(f: ABForm) {
       domainMotivation: f.domainMotivation || undefined,
       questionsConcerns: f.questionsConcerns || undefined,
       availabilityDate: f.availabilityDate || undefined,
-      geographicMobility: f.geographicMobility || undefined,
+      geographicMobility: f.geographicMobility.length ? f.geographicMobility : undefined,
       weekendWork: pb(f.weekendWork),
       discoverySource: f.discoverySource || undefined,
     },
@@ -511,9 +511,10 @@ function CreateCandidateModal({ onClose, onCreated }: CreateCandidateModalProps)
             <MultiSelectField
               id="cn-mob"
               label="Mobilité géographique"
-              options={NORTH_MOBILITY_COMMUNES}
-              value={form.geographicMobility ? form.geographicMobility.split(',').map(s => s.trim()).filter(Boolean) : []}
-              onChange={vals => set('geographicMobility', vals.join(', '))}
+              options={Object.values(Localisation)}
+              value={form.geographicMobility}
+              onChange={vals => set('geographicMobility', vals as Localisation[])}
+              getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
             />
           </div>
           <ABRadio label="Travailler le week-end est un inconvénient ?" name="wknd" value={form.weekendWork} onChange={v => set('weekendWork', v)} options={boolOpts} />
@@ -618,10 +619,7 @@ export default function ListeCandidats() {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor);
-  const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
-  const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Filters state
