@@ -9,6 +9,34 @@ export const typeDefs = gql`
         SA
     }
 
+    enum Localisation {
+        SAINT_DENIS
+        SAINTE_MARIE
+        SAINTE_SUZANNE
+        SAINT_PAUL
+        LA_POSSESSION
+        LE_PORT
+        TROIS_BASSINS
+        SAINT_LEU
+        SAINT_PIERRE
+        CILAOS
+        ETANG_SALE
+        SAINT_LOUIS
+        ENTRE_DEUX
+        LES_AVIRONS
+        LE_TAMPON
+        SAINT_PHILLIPE
+        SAINT_JOSEPH
+        PETIT_ILE
+        SAINTE_ROSE
+        SAINT_BENOIT
+        BRAS_PANON
+        SAINT_ANDRE
+        LA_PLAINE_DES_PALMISTES
+        SALAZIE
+        SAINTE_ANNE
+    }
+
     enum SchoolLevel {
         CAP_BEP_WITH_1Y_EXP
         PREMIERE_TERMINALE
@@ -121,7 +149,7 @@ export const typeDefs = gql`
         domainMotivation: String
         questionsConcerns: String
         availabilityDate: String
-        geographicMobility: String
+        geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
     }
@@ -240,7 +268,7 @@ export const typeDefs = gql`
         domainMotivation: String
         questionsConcerns: String
         availabilityDate: String
-        geographicMobility: String
+        geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
     }

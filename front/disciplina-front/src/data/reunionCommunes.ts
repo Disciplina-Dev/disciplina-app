@@ -1,5 +1,7 @@
 // La Réunion (974) — code postal → commune, et liste des communes pour la mobilité.
 
+import { Localisation } from '@/types/candidate'
+
 /** Code postal → nom de commune (La Réunion). Plusieurs codes peuvent pointer la même commune. */
 export const REUNION_POSTAL_TO_CITY: Record<string, string> = {
   // Saint-Denis
@@ -70,20 +72,31 @@ export function cityFromPostalCode(postalCode: string): string | undefined {
   return REUNION_POSTAL_TO_CITY[postalCode.trim()]
 }
 
-/**
- * Communes de l'arc nord de La Réunion (Sainte-Rose → Saint-Paul :
- * nord, nord-est, nord-ouest), pour la mobilité géographique.
- */
-export const NORTH_MOBILITY_COMMUNES: string[] = [
-  'Sainte-Rose',
-  'Saint-Benoît',
-  'Bras-Panon',
-  'Saint-André',
-  'Salazie',
-  'Sainte-Suzanne',
-  'Sainte-Marie',
-  'Saint-Denis',
-  'La Possession',
-  'Le Port',
-  'Saint-Paul',
-]
+/** Libellés FR des communes de La Réunion, indexés par l'enum `Localisation` (mobilité géographique). */
+export const LOCALISATION_LABELS: Record<Localisation, string> = {
+  [Localisation.SAINT_DENIS]: 'Saint-Denis',
+  [Localisation.SAINTE_MARIE]: 'Sainte-Marie',
+  [Localisation.SAINTE_SUZANNE]: 'Sainte-Suzanne',
+  [Localisation.SAINT_PAUL]: 'Saint-Paul',
+  [Localisation.LA_POSSESSION]: 'La Possession',
+  [Localisation.LE_PORT]: 'Le Port',
+  [Localisation.TROIS_BASSINS]: 'Trois-Bassins',
+  [Localisation.SAINT_LEU]: 'Saint-Leu',
+  [Localisation.SAINT_PIERRE]: 'Saint-Pierre',
+  [Localisation.CILAOS]: 'Cilaos',
+  [Localisation.ETANG_SALE]: "L'Étang-Salé",
+  [Localisation.SAINT_LOUIS]: 'Saint-Louis',
+  [Localisation.ENTRE_DEUX]: 'Entre-Deux',
+  [Localisation.LES_AVIRONS]: 'Les Avirons',
+  [Localisation.LE_TAMPON]: 'Le Tampon',
+  [Localisation.SAINT_PHILLIPE]: 'Saint-Philippe',
+  [Localisation.SAINT_JOSEPH]: 'Saint-Joseph',
+  [Localisation.PETIT_ILE]: 'Petite-Île',
+  [Localisation.SAINTE_ROSE]: 'Sainte-Rose',
+  [Localisation.SAINT_BENOIT]: 'Saint-Benoît',
+  [Localisation.BRAS_PANON]: 'Bras-Panon',
+  [Localisation.SAINT_ANDRE]: 'Saint-André',
+  [Localisation.LA_PLAINE_DES_PALMISTES]: 'La Plaine-des-Palmistes',
+  [Localisation.SALAZIE]: 'Salazie',
+  [Localisation.SAINTE_ANNE]: 'Sainte-Anne',
+}

@@ -34,6 +34,34 @@ export enum TrainingSite {
     SUD_SAINT_PIERRE = "SUD_SAINT_PIERRE"
 }
 
+export enum Localisation {
+    SAINT_DENIS = "SAINT_DENIS",
+    SAINTE_MARIE = "SAINTE_MARIE",
+    SAINTE_SUZANNE = "SAINTE_SUZANNE",
+    SAINT_PAUL = "SAINT_PAUL",
+    LA_POSSESSION = "LA_POSSESSION",
+    LE_PORT = "LE_PORT",
+    TROIS_BASSINS = "TROIS_BASSINS",
+    SAINT_LEU = "SAINT_LEU",
+    SAINT_PIERRE = "SAINT_PIERRE",
+    CILAOS = "CILAOS",
+    ETANG_SALE = "ETANG_SALE",
+    SAINT_LOUIS = "SAINT_LOUIS",
+    ENTRE_DEUX = "ENTRE_DEUX",
+    LES_AVIRONS = "LES_AVIRONS",
+    LE_TAMPON = "LE_TAMPON",
+    SAINT_PHILLIPE = "SAINT_PHILLIPE",
+    SAINT_JOSEPH = "SAINT_JOSEPH",
+    PETIT_ILE = "PETIT_ILE",
+    SAINTE_ROSE = "SAINTE_ROSE",
+    SAINT_BENOIT = "SAINT_BENOIT",
+    BRAS_PANON = "BRAS_PANON",
+    SAINT_ANDRE = "SAINT_ANDRE",
+    LA_PLAINE_DES_PALMISTES = "LA_PLAINE_DES_PALMISTES",
+    SALAZIE = "SALAZIE",
+    SAINTE_ANNE = "SAINTE_ANNE"
+}
+
 export enum SkillLevel {
     A = "A",
     ECA = "ECA",
@@ -119,7 +147,7 @@ export interface JobInfo {
     domain_motivation?: string;
     questions_concerns?: string;
     availability_date?: string;
-    geographic_mobility?: string;
+    geographic_mobility?: Localisation[];
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
 }
