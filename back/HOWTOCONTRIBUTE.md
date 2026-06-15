@@ -52,7 +52,14 @@ This guide connects architecture, conventions, and testing into one reference fo
 
 - **REST**: add `src/rest/<new-module>/route.ts` + `controller.ts`
 - **GraphQL**: add `src/graphql/<new-domain>/typeDefs.ts` + `resolver.ts`
-- **New third-party integration**: add `src/external/<vendor>/` with a `types.ts`
+- **New third-party integration**: add `src/external/<vendor>/` with a `types.ts` — e.g.
+  `external/insee/` (SireneService wrapping the INSEE Sirene API) and `external/filiz/`
+  (FilizAuthClient + FilizService wrapping the Filiz ERP API). If the third party only calls
+  *into* us (a webhook) rather than us calling out, it doesn't need an `external/` wrapper —
+  put the webhook handler directly in `src/rest/<vendor>/`, as `rest/yousign/` does.
+- **Real-time updates to the frontend**: use Server-Sent Events, following `rest/yousign/sse.ts`
+  — a per-user client registry (`addClient`/`removeClient`), a `GET .../stream?userID=` route that
+  sets SSE headers and a heartbeat `setInterval`, and `removeClient` on `req.on('close')`.
 - **None of the above**: discuss with the team before creating a new top-level folder under `src/`
 
 ## How to Add a New Feature
