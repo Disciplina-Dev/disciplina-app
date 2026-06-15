@@ -335,7 +335,9 @@ export const typeDefs = gql`
         status: CandidateStatus
         schoolLevel: SchoolLevel
         drivingLicenseB: Boolean
-        maxAge: Int
+        ageMin: Int
+        ageMax: Int
+        tpType: TitleProfessionalType
     }
 
     type Query {

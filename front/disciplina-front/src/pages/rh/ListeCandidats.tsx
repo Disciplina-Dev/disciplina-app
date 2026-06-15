@@ -591,14 +591,18 @@ function toServerFilters(filters: {
   status: CandidateStatus | '';
   schoolLevel: SchoolLevel | '';
   permis: 'all' | 'yes' | 'no';
-  maxAge: number | '';
+  ageMin: number | '';
+  ageMax: number | '';
+  tpType: TitleProfessionalType | '';
 }): CandidateServerFilters | undefined {
   const serverFilters: CandidateServerFilters = {
     trainingSite: filters.trainingSite || undefined,
     status: filters.status || undefined,
     schoolLevel: filters.schoolLevel || undefined,
     drivingLicenseB: filters.permis === 'all' ? undefined : filters.permis === 'yes',
-    maxAge: filters.maxAge || undefined,
+    ageMin: filters.ageMin || undefined,
+    ageMax: filters.ageMax || undefined,
+    tpType: filters.tpType || undefined,
   };
   const hasAny = Object.values(serverFilters).some(v => v !== undefined);
   return hasAny ? serverFilters : undefined;
@@ -619,7 +623,9 @@ export default function ListeCandidats() {
   const [filterSite, setFilterSite] = useState<TrainingSite | ''>('');
   const [filterPermis, setFilterPermis] = useState<'all' | 'yes' | 'no'>('all');
   const [filterLevel, setFilterLevel] = useState<SchoolLevel | ''>('');
+  const [filterMinAge, setFilterMinAge] = useState<number | ''>('');
   const [filterMaxAge, setFilterMaxAge] = useState<number | ''>('');
+  const [filterTpType, setFilterTpType] = useState<TitleProfessionalType | ''>('');
   const [filterStatus, setFilterStatus] = useState<CandidateStatus | ''>('');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -640,11 +646,11 @@ export default function ListeCandidats() {
   useEffect(() => {
     setAfterCursor(undefined);
     setCursorHistory([]);
-  }, [filterSite, filterPermis, filterLevel, filterMaxAge, filterStatus]);
+  }, [filterSite, filterPermis, filterLevel, filterMinAge, filterMaxAge, filterTpType, filterStatus]);
 
   const serverFilters = useMemo(
-    () => toServerFilters({ trainingSite: filterSite, status: filterStatus, schoolLevel: filterLevel, permis: filterPermis, maxAge: filterMaxAge }),
-    [filterSite, filterStatus, filterLevel, filterPermis, filterMaxAge],
+    () => toServerFilters({ trainingSite: filterSite, status: filterStatus, schoolLevel: filterLevel, permis: filterPermis, ageMin: filterMinAge, ageMax: filterMaxAge, tpType: filterTpType }),
+    [filterSite, filterStatus, filterLevel, filterPermis, filterMinAge, filterMaxAge, filterTpType],
   );
 
   const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
@@ -657,14 +663,16 @@ export default function ListeCandidats() {
     setLocalCandidates(prev => prev.map(c => c._id === id ? { ...c, status: newStatus } : c));
   };
 
-  const activeFiltersCount = [filterSite, filterLevel, filterStatus, filterMaxAge].filter(Boolean).length + (filterPermis !== 'all' ? 1 : 0);
+  const activeFiltersCount = [filterSite, filterLevel, filterStatus, filterMinAge, filterMaxAge, filterTpType].filter(Boolean).length + (filterPermis !== 'all' ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
     setFilterSite('');
     setFilterPermis('all');
     setFilterLevel('');
+    setFilterMinAge('');
     setFilterMaxAge('');
+    setFilterTpType('');
     setFilterStatus('');
   };
 
@@ -758,7 +766,7 @@ export default function ListeCandidats() {
       {/* Filter Panel */}
       {showFilters && (
         <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] animate-[fadeIn_0.15s_ease-out]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
 
             {/* Secteur */}
             <div className="flex flex-col gap-1.5">
@@ -795,6 +803,27 @@ export default function ListeCandidats() {
                 <option value="yes">Oui</option>
                 <option value="no">Non</option>
               </select>
+            </div>
+
+            {/* Type TP */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Type TP</label>
+              <select value={filterTpType} onChange={e => setFilterTpType(e.target.value as TitleProfessionalType)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+                <option value="">Tous les types</option>
+                {Object.values(TitleProfessionalType).map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </div>
+
+            {/* Age Min */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Âge min</label>
+              <input
+                type="number"
+                placeholder="Ex: 18"
+                value={filterMinAge}
+                onChange={e => setFilterMinAge(e.target.value ? Number(e.target.value) : '')}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+              />
             </div>
 
             {/* Age Max */}

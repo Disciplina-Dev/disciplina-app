@@ -55,7 +55,9 @@ export const resolvers = {
                       status: filtersInput.status,
                       schoolLevel: filtersInput.schoolLevel,
                       drivingLicenseB: filtersInput.drivingLicenseB,
-                      maxAge: filtersInput.maxAge,
+                      ageMin: filtersInput.ageMin,
+                      ageMax: filtersInput.ageMax,
+                      tpType: filtersInput.tpType,
                   }
                 : undefined;
             const candidates = await candidateService.findPage(pageSize, after, search, filters);

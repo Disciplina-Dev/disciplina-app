@@ -33,7 +33,9 @@ export interface CandidateServerFilters {
   status?: CandidateStatus
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
-  maxAge?: number
+  ageMin?: number
+  ageMax?: number
+  tpType?: TitleProfessionalType
 }
 import { candidateGraphqlClient } from './client'
 
@@ -256,7 +258,7 @@ function gqlStatusToFront(raw: string): CandidateStatus {
     CANCELLED: CandidateStatus.CANCELLED,
     MATCHED: CandidateStatus.MATCHED,
     CONTRACTED: CandidateStatus.CONTRACTED,
-    IMMERSING: CandidateStatus.MATCHED,
+    IMMERSING: CandidateStatus.IMMERSING,
     BANNED: CandidateStatus.BANNED,
   }
   return map[raw] ?? CandidateStatus.SEEKING
@@ -268,7 +270,8 @@ function frontStatusToGql(s: CandidateStatus): string {
     [CandidateStatus.SEEKING]: 'SEEKING',
     [CandidateStatus.NOT_SEEKING]: 'NOT_SEEKING',
     [CandidateStatus.CANCELLED]: 'CANCELLED',
-    [CandidateStatus.MATCHED]: 'IMMERSING',
+    [CandidateStatus.MATCHED]: 'MATCHED',
+    [CandidateStatus.IMMERSING]: 'IMMERSING',
     [CandidateStatus.CONTRACTED]: 'CONTRACTED',
     [CandidateStatus.BANNED]: 'BANNED',
   }

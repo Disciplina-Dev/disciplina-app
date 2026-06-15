@@ -7,7 +7,9 @@ export interface CandidateFilters {
     status?: string;
     schoolLevel?: string;
     drivingLicenseB?: boolean;
-    maxAge?: number;
+    ageMin?: number;
+    ageMax?: number;
+    tpType?: string;
 }
 
 function escapeRegexSpecialChars(value: string): string {
@@ -52,7 +54,13 @@ export class CandidateRepository {
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
-        if (filters?.maxAge != null) conditions.push({ 'identity.age': { $lte: filters.maxAge } });
+        if (filters?.tpType) conditions.push({ tp_type: filters.tpType });
+        if (filters?.ageMin != null || filters?.ageMax != null) {
+            const ageCondition: Record<string, number> = {};
+            if (filters.ageMin != null) ageCondition.$gte = filters.ageMin;
+            if (filters.ageMax != null) ageCondition.$lte = filters.ageMax;
+            conditions.push({ 'identity.age': ageCondition });
+        }
 
         if (after && !trimmedSearch) {
             conditions.push({ _id: { $gt: decodeCursor(after) } });
