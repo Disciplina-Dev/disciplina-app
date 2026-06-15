@@ -38,7 +38,7 @@ router.post(
     authenticate,
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.ADMIN) {
+        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -91,7 +91,7 @@ router.get(
     authenticate,
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.ADMIN) {
+        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -134,7 +134,7 @@ router.delete(
     authenticate,
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.ADMIN) {
+        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -174,7 +174,7 @@ router.post(
     upload.array('files', 20),
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.ADMIN) {
+        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -229,7 +229,7 @@ router.post(
     upload.single('photo'),
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.ADMIN) {
+        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -333,7 +333,7 @@ router.post(
     authenticate,
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.ADMIN) {
+        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
