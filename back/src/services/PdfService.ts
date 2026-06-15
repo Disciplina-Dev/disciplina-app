@@ -1,9 +1,35 @@
-import puppeteer from 'puppeteer';
+import type { Browser } from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
 import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
 import { NeedsAnalysis } from '../types/needsAnalysis.types';
+
+// ─── Browser launcher ─────────────────────────────────────────────────────────
+// Sur Vercel/Lambda (pas de Chromium système), on utilise @sparticuz/chromium
+// avec puppeteer-core. En local, on garde le Chromium fourni par puppeteer.
+async function launchBrowser(): Promise<Browser> {
+    const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_VERSION;
+
+    if (isServerless) {
+        const chromium = (await import('@sparticuz/chromium')).default;
+        const puppeteerCore = (await import('puppeteer-core')).default;
+        return puppeteerCore.launch({
+            args: chromium.args,
+            executablePath: await chromium.executablePath(),
+            headless: true,
+        }) as unknown as Promise<Browser>;
+    }
+
+    // Indirection volontaire: empêche le bundler Vercel (nft) d'embarquer le
+    // gros paquet `puppeteer` dans la fonction serverless (jamais utilisé là-bas).
+    const localModule = 'puppeteer';
+    const puppeteer = (await import(localModule)).default;
+    return puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    }) as unknown as Promise<Browser>;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -688,10 +714,7 @@ export class PdfService {
         const logoDataUrl = getLogoDataUrl();
         const html = buildCandidateHtml(candidate);
 
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-        });
+        const browser = await launchBrowser();
 
         try {
             const page = await browser.newPage();
@@ -716,10 +739,7 @@ export class PdfService {
         const logoDataUrl = getLogoDataUrl();
         const html = buildHtml(analysis, company);
 
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-        });
+        const browser = await launchBrowser();
 
         let dynamicPdfBytes: Buffer;
         try {
