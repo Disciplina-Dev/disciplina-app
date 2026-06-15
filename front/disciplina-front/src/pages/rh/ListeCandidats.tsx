@@ -9,6 +9,8 @@ import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, Skil
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
+import MultiSelectField from '@/components/ui/MultiSelectField';
+import { cityFromPostalCode, NORTH_MOBILITY_COMMUNES } from '@/data/reunionCommunes';
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal';
 import { splitFullName } from '@/utils/classmarker';
 import { useCandidates } from '@/graphql/hooks';
@@ -375,7 +377,12 @@ function CreateCandidateModal({ onClose, onCreated }: CreateCandidateModalProps)
             <InputField id="cn-dob" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
             <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} />
             <InputField id="cn-age" label="Âge" type="number" value={form.age} onChange={e => set('age', e.target.value)} />
-            <InputField id="cn-cp" label="Code postal" value={form.postalCode} onChange={e => set('postalCode', e.target.value)} />
+            <InputField id="cn-cp" label="Code postal" value={form.postalCode} onChange={e => {
+              const cp = e.target.value;
+              set('postalCode', cp);
+              const city = cityFromPostalCode(cp);
+              if (city) set('city', city);
+            }} />
             <InputField id="cn-city" label="Ville" value={form.city} onChange={e => set('city', e.target.value)} />
           </div>
 
@@ -500,7 +507,13 @@ function CreateCandidateModal({ onClose, onCreated }: CreateCandidateModalProps)
           <ABTextarea label="Questions / préoccupations" value={form.questionsConcerns} onChange={v => set('questionsConcerns', v)} />
           <div className="grid grid-cols-2 gap-3">
             <InputField id="cn-avail" label="Date de disponibilité" type="date" value={form.availabilityDate} onChange={e => set('availabilityDate', e.target.value)} />
-            <InputField id="cn-mob" label="Mobilité géographique" value={form.geographicMobility} onChange={e => set('geographicMobility', e.target.value)} />
+            <MultiSelectField
+              id="cn-mob"
+              label="Mobilité géographique"
+              options={NORTH_MOBILITY_COMMUNES}
+              value={form.geographicMobility ? form.geographicMobility.split(',').map(s => s.trim()).filter(Boolean) : []}
+              onChange={vals => set('geographicMobility', vals.join(', '))}
+            />
           </div>
           <ABRadio label="Travailler le week-end est un inconvénient ?" name="wknd" value={form.weekendWork} onChange={v => set('weekendWork', v)} options={boolOpts} />
 

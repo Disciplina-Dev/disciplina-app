@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Save, CheckCircle } from 'lucide-react'
 import InputField from '@/components/ui/InputField'
+import MultiSelectField from '@/components/ui/MultiSelectField'
 import Button from '@/components/ui/Button'
+import { cityFromPostalCode, NORTH_MOBILITY_COMMUNES } from '@/data/reunionCommunes'
 import { SkillLevel, TitleProfessionalType, TrainingSite } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
 import { useCandidateFull } from '@/graphql/hooks'
@@ -434,7 +436,12 @@ export default function QuestionnaireAB() {
             <InputField id="date_of_birth" label="Date de naissance" type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
             <InputField id="place_of_birth" label="Lieu de naissance" value={form.place_of_birth} onChange={e => set('place_of_birth', e.target.value)} />
             <InputField id="age" label="Âge" type="number" value={form.age} onChange={e => set('age', e.target.value)} />
-            <InputField id="postal_code" label="Code postal" value={form.postal_code} onChange={e => set('postal_code', e.target.value)} />
+            <InputField id="postal_code" label="Code postal" value={form.postal_code} onChange={e => {
+              const cp = e.target.value
+              set('postal_code', cp)
+              const city = cityFromPostalCode(cp)
+              if (city) set('city', city)
+            }} />
             <InputField id="city" label="Ville" value={form.city} onChange={e => set('city', e.target.value)} />
           </div>
         </Section>
@@ -653,7 +660,13 @@ export default function QuestionnaireAB() {
           <Textarea label="Questions / préoccupations concernant le déroulement de la formation" value={form.questions_concerns} onChange={v => set('questions_concerns', v)} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <InputField id="availability_date" label="Date de disponibilité pour commencer" type="date" value={form.availability_date} onChange={e => set('availability_date', e.target.value)} />
-            <InputField id="geographic_mobility" label="Mobilité géographique" value={form.geographic_mobility} onChange={e => set('geographic_mobility', e.target.value)} />
+            <MultiSelectField
+              id="geographic_mobility"
+              label="Mobilité géographique"
+              options={NORTH_MOBILITY_COMMUNES}
+              value={form.geographic_mobility ? form.geographic_mobility.split(',').map(s => s.trim()).filter(Boolean) : []}
+              onChange={vals => set('geographic_mobility', vals.join(', '))}
+            />
           </div>
           <RadioGroup
             label="Travailler le week-end représente-t-il un inconvénient ?"
