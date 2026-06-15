@@ -618,10 +618,7 @@ export default function ListeCandidats() {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor);
-  const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
-  const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Filters state
