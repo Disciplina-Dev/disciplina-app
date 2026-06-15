@@ -11,7 +11,9 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
             if (key.startsWith('$') || key.startsWith('__')) continue;
             const value = obj[key];
             const newKey = parentKey ? `${parentKey}.${key}` : key;
-            if (value && typeof value === 'object' && !Array.isArray(value)) {
+            if (value instanceof Date) {
+                result[newKey] = value;
+            } else if (value && typeof value === 'object' && !Array.isArray(value)) {
                 Object.assign(result, flattenObject(value, newKey));
             } else if (value) {
                 result[newKey] = value;

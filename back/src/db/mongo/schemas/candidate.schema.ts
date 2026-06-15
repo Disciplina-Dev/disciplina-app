@@ -35,6 +35,7 @@ const identitySchema = new Schema<Identity>(
         driving_license_b: { type: Boolean },
         transport_means: { type: String },
         psh_referral_request: { type: Boolean },
+        avatar_updated_at: { type: Date },
     },
     { _id: false },
 );
@@ -193,3 +194,24 @@ const candidateSchema = new Schema<Candidate & Document>(
 );
 
 export const CandidateModel = mongoose.models.Candidate || model<Candidate & Document>('Candidate', candidateSchema);
+
+interface CandidateAvatar {
+    candidate_id: string;
+    data: Buffer;
+    content_type: string;
+    updated_at: Date;
+}
+
+const candidateAvatarSchema = new Schema<CandidateAvatar & Document>(
+    {
+        candidate_id: { type: String, required: true, unique: true, index: true },
+        data: { type: Buffer, required: true },
+        content_type: { type: String, required: true },
+        updated_at: { type: Date, required: true },
+    },
+    { collection: 'candidate_avatars' },
+);
+
+export const CandidateAvatarModel =
+    mongoose.models.CandidateAvatar ||
+    model<CandidateAvatar & Document>('CandidateAvatar', candidateAvatarSchema);

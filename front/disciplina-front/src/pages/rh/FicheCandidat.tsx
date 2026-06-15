@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Save, Edit2, ExternalLink, ClipboardCheck,
   QrCode, User, Loader2, AlertCircle, X, FolderPlus, Upload, FileText,
-  File, FileImage, FileSpreadsheet, RefreshCw, Trash2,
+  File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera,
 } from 'lucide-react'
+import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
@@ -135,6 +136,7 @@ export default function FicheCandidat() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
   const [showClassMarker, setShowClassMarker] = useState(false)
+  const [capturingPhoto, setCapturingPhoto] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [uploadingCV, setUploadingCV] = useState(false)
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
@@ -331,11 +333,28 @@ export default function FicheCandidat() {
             </button>
 
             <div className="flex items-center gap-3">
-              <div
-                className="h-12 w-12 rounded-full flex items-center justify-center shrink-0"
-                style={{ backgroundColor: 'var(--color-purple-light)' }}
-              >
-                <User size={22} style={{ color: 'var(--color-purple)' }} />
+              <div className="relative h-12 w-12 shrink-0">
+                {formData.identity.avatar_url ? (
+                  <img
+                    src={formData.identity.avatar_url}
+                    alt={formData.identity.full_name}
+                    className="h-12 w-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="h-12 w-12 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: 'var(--color-purple-light)' }}
+                  >
+                    <User size={22} style={{ color: 'var(--color-purple)' }} />
+                  </div>
+                )}
+                <button
+                  title="Prendre une photo"
+                  onClick={() => setCapturingPhoto(true)}
+                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-purple text-white flex items-center justify-center ring-2 ring-white hover:bg-purple/90"
+                >
+                  <Camera size={11} />
+                </button>
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 leading-tight">
@@ -848,6 +867,21 @@ export default function FicheCandidat() {
           defaultTo={formData.identity.email}
           candidateName={formData.identity.full_name}
           onClose={() => setMailOpen(false)}
+        />
+      )}
+
+      {capturingPhoto && id && (
+        <WebcamCaptureModal
+          candidateId={id}
+          candidateName={formData.identity.full_name}
+          onClose={() => setCapturingPhoto(false)}
+          onUploaded={(updatedAt) => {
+            const url = `${import.meta.env.VITE_API_URL}/api/candidates/${id}/avatar?v=${encodeURIComponent(updatedAt)}`
+            setFormData(prev => prev ? {
+              ...prev,
+              identity: { ...prev.identity, avatar_updated_at: updatedAt, avatar_url: url },
+            } : prev)
+          }}
         />
       )}
 

@@ -13,6 +13,7 @@ import { logger } from '../../external/logger/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
+import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -218,6 +219,95 @@ router.post(
         }
     }
 );
+
+// Upload candidate avatar (webcam capture). Stores bytes in Mongo for serving,
+// and archives original to the candidate's Drive folder when available.
+router.post(
+    '/:id/avatar',
+    authenticate,
+    upload.single('photo'),
+    async (req: AuthRequest, res: Response) => {
+        const role = req.user?.role;
+        if (role !== Role.RH && role !== Role.ADMIN) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+
+        const { id } = req.params;
+        const file = req.file;
+
+        if (!file || file.size === 0) {
+            res.status(400).json({ error: 'No photo provided' });
+            return;
+        }
+        if (!file.mimetype.startsWith('image/')) {
+            res.status(400).json({ error: 'File must be an image' });
+            return;
+        }
+
+        try {
+            const candidate = await candidateService.findById(id);
+            if (!candidate) {
+                res.status(404).json({ error: 'Candidate not found' });
+                return;
+            }
+
+            const now = new Date();
+
+            await CandidateAvatarModel.findOneAndUpdate(
+                { candidate_id: id },
+                { candidate_id: id, data: file.buffer, content_type: file.mimetype, updated_at: now },
+                { upsert: true, new: true },
+            );
+
+            // Best-effort archive to Drive (non-blocking for the avatar feature).
+            if (candidate.drive_folder_id) {
+                try {
+                    const user = await userService.findById(req.user!.id);
+                    if (user?.oauthToken) {
+                        const driveService = GoogleDriveService.fromTokens(
+                            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                            persistRefreshedTokens(user.id),
+                        );
+                        const ext = file.mimetype.split('/')[1] ?? 'jpg';
+                        const fileName = `Photo_${candidate.identity.full_name}.${ext}`;
+                        await driveService.uploadFile(fileName, file.mimetype, file.buffer, candidate.drive_folder_id);
+                    }
+                } catch (driveErr) {
+                    logger.warn(driveErr, 'avatar Drive archive failed (avatar still saved)');
+                }
+            }
+
+            await candidateService.update(id, { identity: { avatar_updated_at: now } } as never);
+
+            res.json({ avatarUpdatedAt: now.toISOString() });
+        } catch (err) {
+            logger.error(err, 'upload avatar failed');
+            res.status(500).json({ error: 'Internal error' });
+        }
+    }
+);
+
+// Public: serve candidate avatar as an <img> source (no auth so it can be hot-linked).
+router.get('/:id/avatar', async (req, res: Response) => {
+    try {
+        const avatar = await CandidateAvatarModel.findOne({ candidate_id: req.params.id }).lean();
+        if (!avatar) {
+            res.status(404).end();
+            return;
+        }
+        // .lean() yields a BSON Binary, not a Node Buffer — coerce so Express sends raw bytes.
+        const raw = avatar.data as unknown as { buffer?: Buffer };
+        const buf = Buffer.isBuffer(avatar.data) ? avatar.data : Buffer.from(raw.buffer ?? (avatar.data as never));
+        res.setHeader('Content-Type', avatar.content_type);
+        res.setHeader('Content-Length', buf.length);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.end(buf);
+    } catch (err) {
+        logger.error(err, 'serve avatar failed');
+        res.status(500).end();
+    }
+});
 
 router.post(
     '/quick-create',
