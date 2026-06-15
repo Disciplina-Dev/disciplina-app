@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Save, Edit2, ExternalLink, ClipboardCheck,
   QrCode, User, Loader2, AlertCircle, X, FolderPlus, Upload, FileText,
+  File, FileImage, FileSpreadsheet, RefreshCw, Trash2,
 } from 'lucide-react'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
 import { useAuthStore } from '@/store/authStore'
@@ -60,6 +61,31 @@ const SCHOOL_LEVEL_LABELS: Record<SchoolLevel, string> = {
   [SchoolLevel.BAC_PLUS_3_PLUS]:               'Bac +3 ou plus',
 }
 
+// ─── Drive file types ─────────────────────────────────────────────────────────
+
+interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  size?: string
+  modifiedTime?: string
+  webViewLink?: string
+}
+
+function drivePreviewUrl(file: DriveFile): string {
+  if (file.webViewLink) {
+    return file.webViewLink.replace('/edit?', '/preview?').replace('/view?', '/preview?').replace('/edit', '/preview').replace('/view', '/preview')
+  }
+  return `https://drive.google.com/file/d/${file.id}/preview`
+}
+
+function DriveFileIcon({ mimeType }: { mimeType: string }) {
+  if (mimeType === 'application/pdf') return <FileText size={15} className="shrink-0 text-red-400" />
+  if (mimeType.startsWith('image/')) return <FileImage size={15} className="shrink-0 text-blue-400" />
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <FileSpreadsheet size={15} className="shrink-0 text-green-500" />
+  return <File size={15} className="shrink-0 text-gray-400" />
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const inputCls = 'mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-purple focus:outline-none focus:ring-2 focus:ring-purple/20 transition-colors'
@@ -111,10 +137,80 @@ export default function FicheCandidat() {
   const [showClassMarker, setShowClassMarker] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [uploadingCV, setUploadingCV] = useState(false)
+  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
+  const [loadingFiles, setLoadingFiles] = useState(false)
+  const [uploadingFiles, setUploadingFiles] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
   }, [candidate])
+
+  const fetchDriveFiles = async (candidateId: string) => {
+    setLoadingFiles(true)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${candidateId}/drive-files`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDriveFiles(data.files ?? [])
+        setSelectedFile(prev => prev ?? data.files?.[0] ?? null)
+      }
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
+
+  useEffect(() => {
+    if (formData?.drive_folder_id && id) {
+      fetchDriveFiles(id)
+    }
+  }, [formData?.drive_folder_id])
+
+  const handleDriveUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : []
+    if (files.length === 0 || !formData || !id) return
+    e.target.value = ''
+    setUploadingFiles(true)
+    try {
+      const body = new FormData()
+      files.forEach(f => body.append('files', f))
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/drive-upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Erreur upload')
+      }
+      await fetchDriveFiles(id)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erreur upload fichiers')
+    } finally {
+      setUploadingFiles(false)
+    }
+  }
+
+  const handleDeleteFile = async (file: DriveFile) => {
+    if (!id) return
+    if (!window.confirm(`Supprimer "${file.name}" du Drive ? Action irréversible.`)) return
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/drive-files/${file.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Erreur suppression')
+      }
+      setDriveFiles(prev => prev.filter(f => f.id !== file.id))
+      setSelectedFile(prev => (prev?.id === file.id ? null : prev))
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erreur suppression fichier')
+    }
+  }
 
   if (loading) {
     return (
@@ -652,33 +748,95 @@ export default function FicheCandidat() {
           {/* Résultat ClassMarker */}
           {id && <div className="md:col-span-2"><CandidateTestScore candidateId={id} /></div>}
 
-          {/* Visualisation CV */}
+          {/* Dossier Drive */}
           {formData.drive_folder_id && (
             <Card className="md:col-span-2">
               <div className="flex items-center justify-between mb-4">
-                <SectionTitle>Visualisation du CV</SectionTitle>
+                <SectionTitle>Dossier Drive</SectionTitle>
                 <div className="flex items-center gap-2">
                   <input id="cv-upload-bottom" type="file" accept="application/pdf" className="hidden" onChange={handleCVUpload} />
                   <Button variant="secondary" size="sm" isLoading={uploadingCV}
                     leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
                     onClick={() => document.getElementById('cv-upload-bottom')?.click()}>
-                    {formData.cv_link ? 'Remplacer' : 'Importer CV'}
+                    {formData.cv_link ? 'Remplacer CV' : 'Importer CV'}
+                  </Button>
+                  <input id="drive-upload" type="file" multiple className="hidden" onChange={handleDriveUpload} />
+                  <Button variant="secondary" size="sm" isLoading={uploadingFiles}
+                    leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
+                    onClick={() => document.getElementById('drive-upload')?.click()}>
+                    Ajouter fichiers
+                  </Button>
+                  <Button variant="secondary" size="sm" isLoading={loadingFiles}
+                    leftIcon={<RefreshCw size={14} style={{ color: 'var(--color-purple)' }} />}
+                    onClick={() => id && fetchDriveFiles(id)}>
+                    Actualiser
                   </Button>
                 </div>
               </div>
-              {formData.cv_link ? (
-                <iframe
-                  src={formData.cv_link.replace('/view', '/preview')}
-                  className="w-full rounded-lg border border-gray-100"
-                  style={{ height: '80vh' }}
-                  allow="autoplay"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16 gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
-                  <FileText size={32} className="text-gray-300" />
-                  <p className="text-sm text-gray-400">Aucun CV importé</p>
+
+              <div className="flex gap-4" style={{ height: '75vh' }}>
+                {/* Preview */}
+                <div className="flex-1 min-w-0">
+                  {selectedFile ? (
+                    <iframe
+                      key={selectedFile.id}
+                      src={drivePreviewUrl(selectedFile)}
+                      className="w-full h-full rounded-lg border border-gray-100"
+                      allow="autoplay"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
+                      <FileText size={32} className="text-gray-300" />
+                      <p className="text-sm text-gray-400">Sélectionner un fichier</p>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* File list */}
+                <div className="w-64 shrink-0 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50">
+                  {loadingFiles ? (
+                    <div className="flex items-center justify-center h-20 gap-2 text-gray-400 text-xs">
+                      <Loader2 size={14} className="animate-spin" />
+                      Chargement…
+                    </div>
+                  ) : driveFiles.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-20 gap-2 text-gray-400 text-xs">
+                      <File size={20} />
+                      Dossier vide
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100">
+                      {driveFiles.map(file => (
+                        <li key={file.id} className={`group flex items-center transition-colors hover:bg-white ${
+                          selectedFile?.id === file.id ? 'bg-white shadow-sm' : ''
+                        }`}>
+                          <button
+                            onClick={() => setSelectedFile(file)}
+                            className="flex-1 min-w-0 text-left px-3 py-2.5 flex items-start gap-2"
+                          >
+                            <DriveFileIcon mimeType={file.mimeType} />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-gray-800 truncate leading-tight">{file.name}</p>
+                              {file.modifiedTime && (
+                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                  {new Date(file.modifiedTime).toLocaleDateString('fr-FR')}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteFile(file)}
+                            title="Supprimer"
+                            className="shrink-0 p-2 text-gray-300 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
             </Card>
           )}
 
