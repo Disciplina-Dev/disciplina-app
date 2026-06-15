@@ -1,5 +1,4 @@
 import puppeteer from 'puppeteer';
-import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { Candidate } from '../types/candidate.types';
@@ -418,75 +417,299 @@ ${sh('Clause de non-engagement et de confidentialité')}
 </html>`;
 }
 
+// ─── Candidate AB (Analyse du Besoin) HTML builder ────────────────────────────
+
+const TP_LABELS: Record<string, string> = {
+    AD: 'AD — Assistant de Direction',
+    CC: 'CC — Conseiller Commercial',
+    NTC: 'NTC — Négociateur Technico-Commercial',
+    REM: "REM — Responsable d'Établissement Marchand",
+    SA: 'SA — Secrétaire Assistant',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+    SEEKING: 'En recherche',
+    NOT_SEEKING: 'Ne recherche pas',
+    CANCELLED: 'Rupture',
+    MATCHED: 'En relation',
+    CONTRACTED: 'Sous contrat',
+    IMMERSING: 'En immersion',
+    BANNED: 'Banni',
+};
+
+const SCHOOL_LEVEL_LABELS: Record<string, string> = {
+    CAP_BEP_WITH_1Y_EXP: "CAP / BEP avec 1 an d'expérience",
+    PREMIERE_TERMINALE: 'Première / Terminale',
+    PREMIERE_TERMINALE_WITH_1Y_EXP: "Première / Terminale avec 1 an d'expérience",
+    BAC: 'Bac',
+    BAC_WITH_1Y_EXP: "Bac avec 1 an d'expérience",
+    BAC_PLUS: 'Bac +',
+    BAC_PLUS_2: 'Bac + 2',
+    BAC_PLUS_2_PLUS: 'Bac + 2 et plus',
+    BAC_PLUS_3_PLUS: 'Bac + 3 et plus',
+};
+
+const TRAINING_SITE_LABELS: Record<string, string> = {
+    NORD_SAINTE_MARIE: 'Nord — Sainte-Marie',
+    OUEST_SAINT_PAUL: 'Ouest — Saint-Paul',
+    SUD_SAINT_PIERRE: 'Sud — Saint-Pierre',
+};
+
+const DISCOVERY_LABELS: Record<string, string> = {
+    SOCIAL_MEDIA: 'Réseaux sociaux',
+    FRANCE_TRAVAIL: 'France Travail',
+    MISSION_LOCALE: 'Mission Locale',
+    WORD_OF_MOUTH: 'Bouche à oreille',
+    KOANN: 'Koann',
+    OTHER: 'Autre',
+};
+
+const SKILL_LEVEL_LABELS: Record<string, string> = {
+    A: 'Acquis',
+    ECA: "En cours d'acquisition",
+    NA: 'Non acquis',
+    NE: 'Non évalué',
+};
+
+const LOCALISATION_LABELS: Record<string, string> = {
+    SAINT_DENIS: 'Saint-Denis', SAINTE_MARIE: 'Sainte-Marie', SAINTE_SUZANNE: 'Sainte-Suzanne',
+    SAINT_PAUL: 'Saint-Paul', LA_POSSESSION: 'La Possession', LE_PORT: 'Le Port',
+    TROIS_BASSINS: 'Trois-Bassins', SAINT_LEU: 'Saint-Leu', SAINT_PIERRE: 'Saint-Pierre',
+    CILAOS: 'Cilaos', ETANG_SALE: "L'Étang-Salé", SAINT_LOUIS: 'Saint-Louis',
+    ENTRE_DEUX: 'Entre-Deux', LES_AVIRONS: 'Les Avirons', LE_TAMPON: 'Le Tampon',
+    SAINT_PHILLIPE: 'Saint-Philippe', SAINT_JOSEPH: 'Saint-Joseph', PETIT_ILE: 'Petite-Île',
+    SAINTE_ROSE: 'Sainte-Rose', SAINT_BENOIT: 'Saint-Benoît', BRAS_PANON: 'Bras-Panon',
+    SAINT_ANDRE: 'Saint-André', LA_PLAINE_DES_PALMISTES: 'La Plaine-des-Palmistes',
+    SALAZIE: 'Salazie', SAINTE_ANNE: 'Sainte-Anne',
+};
+
+function fmtDate(d?: Date | string | null): string {
+    if (!d) return '';
+    const date = typeof d === 'string' ? new Date(d) : d;
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function yn(v?: boolean | null): string {
+    if (v === true) return 'Oui';
+    if (v === false) return 'Non';
+    return '—';
+}
+
+function buildCandidateHtml(c: Candidate): string {
+    const id = c.identity;
+    const skillRows = (c.skills_assessment ?? [])
+        .map(s => `<tr><td>${esc(s.competence)}</td><td class="lvl lvl-${s.level}">${SKILL_LEVEL_LABELS[s.level] ?? s.level}</td></tr>`)
+        .join('');
+
+    const expBlocks = (c.background?.professional_experiences ?? [])
+        .filter(e => e.position || e.company || e.duration || e.responsibilities)
+        .map(e => `
+            <div class="exp">
+                <div class="exp-head">${esc(e.position) || 'Poste'} ${e.company ? `— <span class="exp-co">${esc(e.company)}</span>` : ''}</div>
+                ${e.duration ? `<div class="exp-meta">${esc(e.duration)}</div>` : ''}
+                ${e.responsibilities ? `<div class="exp-resp">${esc(e.responsibilities)}</div>` : ''}
+            </div>`)
+        .join('');
+
+    const chips = (arr?: string[], cls = '') =>
+        (arr ?? []).filter(Boolean).map(v => `<span class="chip ${cls}">${esc(v)}</span>`).join('');
+
+    const mobility = (c.job_info?.geographic_mobility ?? []).map(m => LOCALISATION_LABELS[m] ?? m).join(', ');
+
+    const reco = c.synthesis?.pedagogical_recommendations;
+    const recoItems: Array<[boolean | undefined, string]> = reco ? [
+        [reco.office_tools_reinforcement, 'Renforcement des outils bureautiques'],
+        [reco.written_communication_support, 'Soutien à la communication écrite'],
+        [reco.oral_confidence_development, "Développement de la confiance à l'oral"],
+        [reco.time_management_support, 'Soutien à la gestion du temps'],
+        [reco.professional_posture_work, 'Travail sur la posture professionnelle'],
+        [reco.enhanced_company_immersion, "Immersion renforcée en entreprise"],
+        [reco.psh_specific_support, 'Accompagnement spécifique PSH'],
+        [reco.individual_follow_up, 'Suivi individualisé'],
+        [reco.language_training, 'Formation linguistique'],
+        [reco.stress_management_follow_up, 'Suivi en gestion du stress'],
+    ] : [];
+    const recoHtml = recoItems.filter(([on]) => on).map(([, lbl]) => `<li>${lbl}</li>`).join('');
+
+    // Construit une ligne d'info "label : value" seulement si value présente
+    const row = (lbl: string, val: string | number | null | undefined): string => {
+        const v = val === 0 ? '0' : (val ? String(val) : '');
+        if (!v) return '';
+        return `<div class="info-item"><span class="info-label">${lbl}</span><span class="info-value">${esc(v)}</span></div>`;
+    };
+
+    const block = (title: string, body: string): string =>
+        body.trim() ? `<div class="section"><div class="section-header">${title}</div>${body}</div>` : '';
+
+    const textField = (lbl: string, val?: string | null): string =>
+        val && val.trim() ? `<div class="field"><div class="field-title">${lbl}</div><div class="field-text">${esc(val)}</div></div>` : '';
+
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #1a1a1a; background: #fff; -webkit-print-color-adjust: exact; }
+
+  .title-band { background: #1130A7; color: #fff; padding: 14px 18px; border-radius: 8px; margin-bottom: 6px; }
+  .title-band h1 { font-size: 16pt; font-weight: bold; }
+  .title-band .sub { font-size: 9.5pt; opacity: .92; margin-top: 3px; }
+  .badges { margin-top: 8px; }
+  .badge { display: inline-block; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 8.5pt; font-weight: bold; padding: 2px 9px; border-radius: 20px; margin-right: 6px; }
+
+  .section { margin-top: 16px; break-inside: avoid; }
+  .section-header { background: #EEF1FB; border-left: 4px solid #1130A7; color: #1130A7; padding: 6px 12px; font-weight: bold; font-size: 11pt; margin-bottom: 10px; border-radius: 0 4px 4px 0; }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 22px; padding: 0 4px; }
+  .info-item { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid #ececec; font-size: 10pt; }
+  .info-label { color: #666; }
+  .info-value { font-weight: bold; text-align: right; }
+
+  .field { padding: 0 4px 8px; }
+  .field-title { font-size: 9pt; color: #666; font-weight: bold; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 2px; }
+  .field-text { font-size: 10pt; line-height: 1.55; white-space: pre-wrap; text-align: justify; }
+
+  .chips { padding: 2px 4px 4px; }
+  .chip { display: inline-block; background: #F0F0F0; color: #333; font-size: 9pt; padding: 3px 10px; border-radius: 20px; margin: 0 5px 5px 0; }
+  .chip.good { background: #E5F4EA; color: #1f7a3d; }
+  .chip.bad  { background: #FBEAEA; color: #b3261e; }
+  .chip.tech { background: #EAF0FB; color: #1130A7; }
+
+  table.skills { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  table.skills td { border: 1px solid #e2e2e2; padding: 6px 10px; }
+  table.skills td:first-child { width: 70%; }
+  .lvl { font-weight: bold; text-align: center; }
+  .lvl-A   { color: #1f7a3d; }
+  .lvl-ECA { color: #b8860b; }
+  .lvl-NA  { color: #b3261e; }
+  .lvl-NE  { color: #888; }
+
+  .exp { border: 1px solid #e8e8e8; border-radius: 6px; padding: 8px 11px; margin-bottom: 7px; break-inside: avoid; }
+  .exp-head { font-weight: bold; font-size: 10pt; }
+  .exp-co { color: #1130A7; }
+  .exp-meta { font-size: 9pt; color: #777; margin-top: 1px; }
+  .exp-resp { font-size: 9.5pt; margin-top: 4px; line-height: 1.5; }
+
+  ul.reco { margin: 0 4px; padding-left: 18px; line-height: 1.8; font-size: 10pt; }
+</style>
+</head>
+<body>
+
+  <div class="title-band">
+    <h1>${esc(id.full_name)}</h1>
+    <div class="sub">Analyse du Besoin — Dossier candidat${id.email ? ` · ${esc(id.email)}` : ''}${id.phone ? ` · ${esc(id.phone)}` : ''}</div>
+    <div class="badges">
+      <span class="badge">${TP_LABELS[c.tp_type] ? esc(c.tp_type) : esc(c.tp_type)}</span>
+      <span class="badge">${esc(STATUS_LABELS[c.status] ?? c.status)}</span>
+      ${c.training_site ? `<span class="badge">${esc(TRAINING_SITE_LABELS[c.training_site] ?? c.training_site)}</span>` : ''}
+    </div>
+  </div>
+
+  ${block('Identité &amp; contact', `<div class="info-grid">
+    ${row('Titre professionnel', TP_LABELS[c.tp_type] ?? c.tp_type)}
+    ${row('Statut', STATUS_LABELS[c.status] ?? c.status)}
+    ${row('Email', id.email)}
+    ${row('Téléphone', id.phone)}
+    ${row('Date de naissance', fmtDate(id.date_of_birth))}
+    ${row('Lieu de naissance', id.place_of_birth)}
+    ${row('Âge', id.age ? `${id.age} ans` : '')}
+    ${row('Ville', id.city)}
+    ${row('Code postal', id.postal_code)}
+    ${row('Permis B', id.driving_license_b == null ? '' : yn(id.driving_license_b))}
+    ${row('Moyen de transport', id.transport_means)}
+    ${row('Accompagnement PSH', id.psh_referral_request == null ? '' : yn(id.psh_referral_request))}
+  </div>`)}
+
+  ${block('Parcours &amp; prérequis', `<div class="info-grid">
+    ${row('Niveau de formation', c.education?.school_level ? (SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level) : '')}
+    ${row('Justificatif', c.education?.justification)}
+    ${row('Dernier diplôme', c.background?.last_diploma)}
+    ${row('Site de formation', c.training_site ? (TRAINING_SITE_LABELS[c.training_site] ?? c.training_site) : '')}
+  </div>${textField('Formations suivies auparavant', c.background?.previous_trainings)}`)}
+
+  ${block('Accompagnement &amp; dispositifs', `<div class="info-grid">
+    ${row('Inscrit à France Travail', c.support?.france_travail_registered == null ? '' : yn(c.support.france_travail_registered))}
+    ${row('Agence France Travail', c.support?.france_travail_agency)}
+    ${row('Inscrit à la Mission Locale', c.support?.mission_locale_registered == null ? '' : yn(c.support.mission_locale_registered))}
+    ${row('Ville Mission Locale', c.support?.mission_locale_city)}
+    ${row("Accord pour une immersion", c.immersion_agreement == null ? '' : yn(c.immersion_agreement))}
+  </div>`)}
+
+  ${block('Expériences professionnelles', expBlocks)}
+
+  ${block('Profil', `<div class="info-grid">
+    ${row('Niveau de français', c.profile?.french_level != null ? `${c.profile.french_level}/10` : '')}
+    ${row('Niveau d\'anglais', c.profile?.english_level != null ? `${c.profile.english_level}/10` : '')}
+    ${row('Autres langues', (c.profile?.other_languages ?? []).join(', '))}
+    ${row('Prêt(e) à relever des défis', c.profile?.ready_for_challenges == null ? '' : yn(c.profile.ready_for_challenges))}
+  </div>
+  ${c.profile?.qualities?.length ? `<div class="field"><div class="field-title">Qualités</div><div class="chips">${chips(c.profile.qualities, 'good')}</div></div>` : ''}
+  ${c.profile?.defects?.length ? `<div class="field"><div class="field-title">Axes d'amélioration</div><div class="chips">${chips(c.profile.defects, 'bad')}</div></div>` : ''}
+  ${c.profile?.digital_skills?.length ? `<div class="field"><div class="field-title">Compétences numériques</div><div class="chips">${chips(c.profile.digital_skills, 'tech')}</div></div>` : ''}
+  ${textField('Points forts &amp; axes d\'amélioration', c.profile?.strengths_and_improvements)}
+  ${textField('Hobbies / passions', c.profile?.hobbies)}`)}
+
+  ${block('Projets professionnels', `
+    ${textField('Objectifs de carrière', c.professional_projects?.career_objectives)}
+    ${textField('Compétences souhaitées', c.professional_projects?.desired_skills)}
+    ${textField("Motivations pour l'apprentissage", c.professional_projects?.apprenticeship_motivation)}
+    ${textField('Attentes vis-à-vis de la formation', c.professional_projects?.training_expectations)}`)}
+
+  ${block('Analyse des compétences', skillRows ? `<table class="skills"><tbody>${skillRows}</tbody></table>` : '')}
+
+  ${block('Informations sur le poste', `<div class="info-grid">
+    ${row('Date de disponibilité', fmtDate(c.job_info?.availability_date))}
+    ${row('Mobilité géographique', mobility)}
+    ${row('Travail le week-end gênant', c.job_info?.weekend_work == null ? '' : yn(c.job_info.weekend_work))}
+    ${row('Comment a connu Disciplina', c.job_info?.discovery_source ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source) : '')}
+  </div>
+  ${textField('Motivation pour ce domaine', c.job_info?.domain_motivation)}
+  ${textField('Questions / préoccupations', c.job_info?.questions_concerns)}
+  ${(c.desired_sectors?.length) ? `<div class="field"><div class="field-title">Secteurs souhaités</div><div class="chips">${chips(c.desired_sectors)}</div></div>` : ''}
+  ${(c.expected_company_skills?.length) ? `<div class="field"><div class="field-title">Compétences attendues en entreprise</div><div class="chips">${chips(c.expected_company_skills, 'tech')}</div></div>` : ''}`)}
+
+  ${block('Synthèse', `
+    ${textField('Conclusion de faisabilité', c.synthesis?.feasibility_conclusion)}
+    ${textField('Pertinence du parcours', c.synthesis?.pathway_relevance)}
+    ${textField('Besoins spécifiques', c.synthesis?.special_needs)}
+    ${recoHtml ? `<div class="field"><div class="field-title">Recommandations pédagogiques</div><ul class="reco">${recoHtml}</ul></div>` : ''}
+    ${textField('Autres recommandations', c.synthesis?.other_recommendations)}`)}
+
+</body>
+</html>`;
+}
+
 // ─── PdfService ───────────────────────────────────────────────────────────────
 
 export class PdfService {
-    static generateCandidatePdf(candidate: Candidate): Promise<Buffer> {
-        return new Promise((resolve, reject) => {
-            try {
-                const doc = new PDFDocument({ margin: 50 });
-                const buffers: Buffer[] = [];
+    static async generateCandidatePdf(candidate: Candidate): Promise<Buffer> {
+        const logoDataUrl = getLogoDataUrl();
+        const html = buildCandidateHtml(candidate);
 
-                doc.on('data', buffers.push.bind(buffers));
-                doc.on('end', () => resolve(Buffer.concat(buffers)));
-
-                doc.fontSize(20).text(`Dossier Candidat : ${candidate.identity.full_name}`, { align: 'center' });
-                doc.moveDown();
-
-                doc.fontSize(16).text('Informations Générales', { underline: true });
-                doc.fontSize(12).moveDown(0.5);
-                doc.text(`Email : ${candidate.identity.email}`);
-                doc.text(`Téléphone : ${candidate.identity.phone}`);
-                if (candidate.identity.city) doc.text(`Ville : ${candidate.identity.city}`);
-                if (candidate.identity.age) doc.text(`Âge : ${candidate.identity.age} ans`);
-                doc.text(`Type de Titre Professionnel (TP) : ${candidate.tp_type}`);
-                doc.text(`Statut : ${candidate.status}`);
-                if (candidate.training_site) doc.text(`Site de formation : ${candidate.training_site}`);
-                doc.moveDown();
-
-                if (candidate.education?.school_level || candidate.background?.last_diploma) {
-                    doc.fontSize(16).text('Parcours', { underline: true });
-                    doc.fontSize(12).moveDown(0.5);
-                    if (candidate.education?.school_level)
-                        doc.text(`Niveau d'étude : ${candidate.education.school_level}`);
-                    if (candidate.background?.last_diploma)
-                        doc.text(`Dernier diplôme : ${candidate.background.last_diploma}`);
-                    doc.moveDown();
-                }
-
-                if (candidate.profile) {
-                    doc.fontSize(16).text('Profil', { underline: true });
-                    doc.fontSize(12).moveDown(0.5);
-                    if (candidate.profile.qualities?.length)
-                        doc.text(`Qualités : ${candidate.profile.qualities.join(', ')}`);
-                    if (candidate.profile.defects?.length)
-                        doc.text(`Axes d'amélioration : ${candidate.profile.defects.join(', ')}`);
-                    doc.moveDown();
-                }
-
-                if (candidate.professional_projects?.career_objectives) {
-                    doc.fontSize(16).text('Projet Professionnel', { underline: true });
-                    doc.fontSize(12).moveDown(0.5);
-                    doc.text(`Objectifs : ${candidate.professional_projects.career_objectives}`);
-                    doc.moveDown();
-                }
-
-                if (candidate.synthesis?.pedagogical_recommendations) {
-                    doc.fontSize(16).text('Recommandations pédagogiques', { underline: true });
-                    doc.fontSize(12).moveDown(0.5);
-                    const reco = candidate.synthesis.pedagogical_recommendations;
-                    if (reco.office_tools_reinforcement) doc.text('- Renforcement bureautique');
-                    if (reco.written_communication_support) doc.text('- Soutien communication écrite');
-                    if (reco.oral_confidence_development) doc.text("- Développement confiance à l'oral");
-                    if (reco.time_management_support) doc.text('- Soutien gestion du temps');
-                    doc.moveDown();
-                }
-
-                doc.end();
-            } catch (error) {
-                reject(error);
-            }
+        const browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
         });
+
+        try {
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'domcontentloaded' });
+
+            const pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                displayHeaderFooter: true,
+                headerTemplate: buildHeaderTemplate(logoDataUrl),
+                footerTemplate: buildFooterTemplate(),
+                margin: { top: '38mm', right: '16mm', bottom: '25mm', left: '16mm' },
+            });
+
+            return Buffer.from(pdfBuffer);
+        } finally {
+            await browser.close();
+        }
     }
 
     static async generateNeedsAnalysisPdf(analysis: NeedsAnalysis, company: Companies): Promise<Buffer> {
