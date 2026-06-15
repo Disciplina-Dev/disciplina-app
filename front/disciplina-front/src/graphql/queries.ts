@@ -254,6 +254,7 @@ export const GET_CANDIDATES = gql`
       }
       identity {
         fullName
+        avatarUpdatedAt
         email
         phone
         drivingLicenseB
@@ -302,6 +303,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       trainingSite
       identity {
         fullName
+        avatarUpdatedAt
         email
         phone
         age
@@ -361,6 +363,7 @@ export const UPDATE_CANDIDATE = gql`
       }
       identity {
         fullName
+        avatarUpdatedAt
         email
         phone
         drivingLicenseB
@@ -402,6 +405,7 @@ export const CREATE_CANDIDATE = gql`
       }
       identity {
         fullName
+        avatarUpdatedAt
         email
         phone
         drivingLicenseB
@@ -442,6 +446,7 @@ export const GET_CANDIDATE_FULL = gql`
       expectedCompanySkills
       identity {
         fullName
+        avatarUpdatedAt
         email
         phone
         dateOfBirth

@@ -65,6 +65,7 @@ export interface Identity {
     driving_license_b?: boolean;
     transport_means?: string;
     psh_referral_request?: boolean;
+    avatar_updated_at?: Date;
 }
 
 export interface Education {
