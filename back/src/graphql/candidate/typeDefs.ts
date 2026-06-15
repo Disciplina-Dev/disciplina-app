@@ -179,6 +179,16 @@ export const typeDefs = gql`
         candidateSignature: String
     }
 
+    type MatchedJob {
+        id: String
+        companyName: String
+        sector: String
+        localisation: [Localisation]
+        desiredTP: TitleProfessionalType
+        ageRange: String
+        status: String
+    }
+
     type Candidate {
         id: String!
         status: CandidateStatus!
@@ -199,6 +209,7 @@ export const typeDefs = gql`
         pdfLink: String
         cvLink: String
         driveFolderId: String
+        matchedJobs: [MatchedJob]
     }
 
     input IdentityInput {
@@ -374,6 +385,7 @@ export const typeDefs = gql`
         candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate
         candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
+        matchCandidate(id: String!): Candidate!
     }
 
     type Mutation {

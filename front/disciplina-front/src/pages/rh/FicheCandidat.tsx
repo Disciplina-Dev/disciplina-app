@@ -6,6 +6,7 @@ import {
   File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
+import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
@@ -462,6 +463,11 @@ export default function FicheCandidat() {
 
         {/* ── Grid sections ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+          {/* Offres correspondantes */}
+          <div className="md:col-span-2">
+            <MatchedJobsList candidateId={id ?? ''} />
+          </div>
 
           {/* Identité & Contact */}
           <Card>

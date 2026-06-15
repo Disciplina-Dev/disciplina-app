@@ -7,7 +7,7 @@ import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
-import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candidate.mapper';
+import { camelToSnakeCase, candidateToGql, jobToMatchedJobGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { env } from '../../config/env';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
@@ -82,6 +82,13 @@ export const resolvers = {
                 throw err;
             }
         },
+        matchCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const candidate = await candidateService.findById(id);
+            if (!candidate) throw new Error(`Candidate ${id} not found`);
+            const matchedJobs = await candidateService.matchJobs(id);
+            return { ...candidateToGql(candidate), matchedJobs: matchedJobs.map(jobToMatchedJobGql) };
+        },
         candidateTemplate: async (_: unknown, { tpType }: { tpType: TitleProfessionalType }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const template = CANDIDATE_TEMPLATES[tpType];
@@ -134,7 +141,8 @@ export const resolvers = {
                 logger.error({ err: error }, 'Drive folder creation failed');
             }
 
-            return candidateToGql(newCandidate);
+            const matchedJobs = await candidateService.matchJobs(id);
+            return { ...candidateToGql(newCandidate), matchedJobs: matchedJobs.map(jobToMatchedJobGql) };
         },
 
         updateCandidate: async (

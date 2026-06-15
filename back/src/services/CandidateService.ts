@@ -1,8 +1,11 @@
 import { CandidateRepository, CandidateFilters } from '../repositories/mongo/CandidateRepository';
+import { JobRepository } from '../repositories/mongo/JobRepository';
 import { Candidate } from '../types/candidate.types';
+import { Job, Sector } from '../types/job.types';
 
 export class CandidateService {
     private repository = new CandidateRepository();
+    private jobRepository = new JobRepository();
 
     async findAll(): Promise<Candidate[]> {
         return this.repository.findAll();
@@ -26,5 +29,35 @@ export class CandidateService {
 
     async delete(id: string): Promise<boolean> {
         return this.repository.delete(id);
+    }
+
+    async matchJobs(id: string): Promise<Job[]> {
+        const candidate = await this.repository.findById(id);
+        if (!candidate) return [];
+
+        const jobs = await this.jobRepository.findAll();
+        return jobs.filter((job) => this.jobMatchesCandidate(job, candidate));
+    }
+
+    private jobMatchesCandidate(job: Job, candidate: Candidate): boolean {
+        if (job.desired_tp && job.desired_tp !== candidate.tp_type) return false;
+        if (job.driving_license_b && !candidate.identity.driving_license_b) return false;
+        if (job.desired_sex && job.desired_sex !== 'MIXTE' && job.desired_sex !== candidate.identity.sex) return false;
+
+        if (job.age_range && candidate.identity.age != null) {
+            const [min, max] = job.age_range.split('-').map(Number);
+            if (!isNaN(min) && !isNaN(max) && (candidate.identity.age < min || candidate.identity.age > max))
+                return false;
+        }
+
+        if (job.localisation?.length) {
+            const mobility = candidate.job_info?.geographic_mobility ?? [];
+            if (!job.localisation.every((loc) => mobility.includes(loc))) return false;
+        }
+
+        if (job.sector && job.sector !== Sector.NONE && !(candidate.desired_sectors ?? []).includes(job.sector))
+            return false;
+
+        return true;
     }
 }

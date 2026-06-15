@@ -177,6 +177,16 @@ export interface Synthesis {
     candidate_signature?: string;
 }
 
+export interface MatchedJob {
+    id: string;
+    companyName?: string;
+    sector?: string;
+    localisation?: Localisation[];
+    desiredTP?: TitleProfessionalType;
+    ageRange?: string;
+    status?: string;
+}
+
 export interface Candidate {
     _id: string;
     tp_type: TitleProfessionalType;
