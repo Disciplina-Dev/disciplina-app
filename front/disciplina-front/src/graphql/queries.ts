@@ -241,46 +241,73 @@ export const UNBLACKLIST_COMPANY = gql`
 
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
+const CANDIDATE_FIELDS = gql`
+  fragment CandidateFields on Candidate {
+    id
+    status
+    tpType
+    trainingSite
+    skillsAssessment {
+      competence
+      level
+    }
+    identity {
+      fullName
+      email
+      phone
+      drivingLicenseB
+      age
+      city
+    }
+    education {
+      schoolLevel
+    }
+    profile {
+      frenchLevel
+      englishLevel
+      qualities
+    }
+    synthesis {
+      feasibilityConclusion
+    }
+    professionalProjects {
+      careerObjectives
+      apprenticeshipMotivation
+    }
+    background {
+      lastDiploma
+    }
+    pdfLink
+  }
+`
+
 export const GET_CANDIDATES = gql`
   query GetCandidates {
     candidates {
-      id
-      status
-      tpType
-      trainingSite
-      skillsAssessment {
-        competence
-        level
-      }
-      identity {
-        fullName
-        email
-        phone
-        drivingLicenseB
-        age
-        city
-      }
-      education {
-        schoolLevel
-      }
-      profile {
-        frenchLevel
-        englishLevel
-        qualities
-      }
-      synthesis {
-        feasibilityConclusion
-      }
-      professionalProjects {
-        careerObjectives
-        apprenticeshipMotivation
-      }
-      background {
-        lastDiploma
-      }
-      pdfLink
+      ...CandidateFields
     }
   }
+  ${CANDIDATE_FIELDS}
+`
+
+export const GET_CANDIDATES_PAGE = gql`
+  query GetCandidatesPage($first: Int, $after: String) {
+    candidatesPage(first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          ...CandidateFields
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  ${CANDIDATE_FIELDS}
 `
 
 export const CREATE_CANDIDATE_DRIVE_FOLDER = gql`

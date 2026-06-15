@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal';
 import { splitFullName } from '@/utils/classmarker';
-import { useCandidates } from '@/graphql/hooks';
+import { useCandidatesPage } from '@/graphql/hooks';
 import { candidateGraphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE } from '@/graphql/queries';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
@@ -571,11 +571,15 @@ function CreateCandidateModal({ onClose, onCreated }: CreateCandidateModalProps)
   );
 }
 
+const PAGE_SIZE = 25;
+
 // --- Main Page Component ---
 
 export default function ListeCandidats() {
   const navigate = useNavigate();
-  const { candidates, loading, error, refetch } = useCandidates();
+  const [afterCursor, setAfterCursor] = useState<string | undefined>(undefined);
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([]);
+  const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor);
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -621,6 +625,21 @@ export default function ListeCandidats() {
     setFilterLevel('');
     setFilterMaxAge('');
     setFilterStatus('');
+  };
+
+  const loadNextPage = () => {
+    if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) return;
+    setCursorHistory(h => [...h, afterCursor]);
+    setAfterCursor(pageInfo.endCursor);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const loadPrevPage = () => {
+    if (cursorHistory.length === 0) return;
+    const prev = cursorHistory[cursorHistory.length - 1];
+    setCursorHistory(h => h.slice(0, -1));
+    setAfterCursor(prev);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Loading state
@@ -895,6 +914,26 @@ export default function ListeCandidats() {
             <p className="text-sm">Essayez de modifier votre recherche ou vos filtres.</p>
           </div>
         )}
+      </div>
+
+      {/* Pagination */}
+      <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
+        <button
+          type="button"
+          onClick={loadPrevPage}
+          disabled={cursorHistory.length === 0 || loading}
+          className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          ← Page précédente
+        </button>
+        <button
+          type="button"
+          onClick={loadNextPage}
+          disabled={!pageInfo?.hasNextPage || loading}
+          className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Page suivante →
+        </button>
       </div>
 
       {/* Create Modal */}

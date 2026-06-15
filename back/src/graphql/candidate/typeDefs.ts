@@ -313,8 +313,26 @@ export const typeDefs = gql`
         defaultSkillsAssessment: [SkillAssessment!]!
     }
 
+    type PageInfo {
+        hasNextPage: Boolean!
+        hasPreviousPage: Boolean!
+        startCursor: String
+        endCursor: String
+    }
+
+    type CandidateEdge {
+        node: Candidate!
+        cursor: String!
+    }
+
+    type CandidateConnection {
+        edges: [CandidateEdge!]!
+        pageInfo: PageInfo!
+    }
+
     type Query {
         candidates: [Candidate!]!
+        candidatesPage(first: Int, after: String): CandidateConnection!
         candidate(id: String!): Candidate
         candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
     }
