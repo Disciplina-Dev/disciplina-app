@@ -38,7 +38,10 @@ export class GoogleDriveService {
         return (response.data.files || []) as DriveFile[];
     }
 
-    async createFolder(folderName: string, parentFolderId?: string): Promise<string> {
+    async createFolder(
+        folderName: string,
+        parentFolderId?: string,
+    ): Promise<{ id: string; webViewLink: string }> {
         const fileMetadata: any = {
             name: folderName,
             mimeType: 'application/vnd.google-apps.folder',
@@ -48,9 +51,9 @@ export class GoogleDriveService {
         }
         const file = await this.drive.files.create({
             requestBody: fileMetadata,
-            fields: 'id',
+            fields: 'id, webViewLink',
         });
-        return file.data.id as string;
+        return { id: file.data.id as string, webViewLink: file.data.webViewLink as string };
     }
 
     async uploadFile(

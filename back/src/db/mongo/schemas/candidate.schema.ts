@@ -188,6 +188,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         pdf_link: { type: String },
         cv_link: { type: String },
         drive_folder_id: { type: String },
+        drive_folder_link: { type: String },
+        photo_link: { type: String },
         classmarker: { type: classMarkerResultSchema },
     },
     { collection: 'candidates' },
