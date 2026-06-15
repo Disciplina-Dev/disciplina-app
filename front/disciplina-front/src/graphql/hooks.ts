@@ -523,7 +523,7 @@ export function useCreateCandidate() {
 }
 
 export function useCandidateById(id: string) {
-  const [result] = useQuery({
+  const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATE_BY_ID,
     variables: { id },
     context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
@@ -536,6 +536,7 @@ export function useCandidateById(id: string) {
     candidate,
     loading: result.fetching,
     error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
   }
 }
 

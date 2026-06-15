@@ -53,6 +53,8 @@ export function candidateToGql(candidate: Candidate): any {
         pdfLink: candidate.pdf_link || null,
         cvLink: candidate.cv_link || null,
         driveFolderId: candidate.drive_folder_id || null,
+        driveFolderLink: candidate.drive_folder_link || null,
+        photoLink: candidate.photo_link || null,
     };
 }
 

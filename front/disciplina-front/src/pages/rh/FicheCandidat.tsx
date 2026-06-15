@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Mail, Save, Edit2, ExternalLink, ClipboardCheck,
-  QrCode, User, Loader2, AlertCircle, X, FolderPlus, Upload, FileText,
+  ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
+  QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, FileText,
   File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
+import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
@@ -128,14 +129,16 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 export default function FicheCandidat() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { candidate, loading, error } = useCandidateById(id ?? '')
+  const { candidate, loading, error, refetch } = useCandidateById(id ?? '')
   const { update } = useUpdateCandidate()
   const { createDriveFolder } = useCreateCandidateDriveFolder()
   const token = useAuthStore((s) => s.token)
 
   const [formData, setFormData] = useState<Candidate | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
+  // Édition de la fiche = même formulaire que la création (modal). L'édition inline
+  // n'est plus déclenchable : isEditing reste false (branches d'affichage uniquement).
+  const [isEditing] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
   const [showClassMarker, setShowClassMarker] = useState(false)
@@ -246,31 +249,11 @@ export default function FicheCandidat() {
   const updateProfile = (key: keyof NonNullable<Candidate['profile']>, value: unknown) =>
     setFormData(prev => prev ? { ...prev, profile: { ...(prev.profile ?? {}), [key]: value } } : prev)
 
-  const handleSave = async () => {
-    if (!formData) return
-    setSaving(true)
-    setSaveError(null)
-    try {
-      await update(formData._id, formData)
-      setIsEditing(false)
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleStatusChange = async (newStatus: CandidateStatus) => {
     if (!formData) return
     const updated = { ...formData, status: newStatus }
     setFormData(updated)
     try { await update(formData._id, updated) } catch { /* ignore */ }
-  }
-
-  const handleCancel = () => {
-    setFormData(structuredClone(candidate))
-    setIsEditing(false)
-    setSaveError(null)
   }
 
   const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -392,27 +375,9 @@ export default function FicheCandidat() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {!isEditing ? (
-              <Button size="sm" variant="secondary" leftIcon={<Edit2 size={15} />} onClick={() => setIsEditing(true)}>
-                Modifier
-              </Button>
-            ) : (
-              <>
-                <Button size="sm" variant="secondary" leftIcon={<X size={15} />} onClick={handleCancel}>
-                  Annuler
-                </Button>
-                <Button
-                  size="sm"
-                  isLoading={saving}
-                  leftIcon={<Save size={15} />}
-                  onClick={handleSave}
-                  style={{ backgroundColor: 'var(--color-purple)', color: '#fff' }}
-                  className="hover:opacity-90"
-                >
-                  Enregistrer
-                </Button>
-              </>
-            )}
+            <Button size="sm" variant="secondary" leftIcon={<Edit2 size={15} />} onClick={() => setEditOpen(true)}>
+              Modifier
+            </Button>
           </div>
         </div>
 
@@ -869,6 +834,17 @@ export default function FicheCandidat() {
 
         </div>
       </div>
+
+      {editOpen && (
+        <CandidateFormModal
+          candidate={formData}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setFormData(null)
+            refetch()
+          }}
+        />
+      )}
 
       {mailOpen && (
         <MailModal

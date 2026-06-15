@@ -210,6 +210,7 @@ export const typeDefs = gql`
         cvLink: String
         driveFolderId: String
         matchedJobs: [MatchedJob]
+        photoLink: String
     }
 
     input IdentityInput {

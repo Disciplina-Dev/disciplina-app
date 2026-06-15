@@ -21,12 +21,14 @@ export class GoogleDriveService {
     async listFiles(): Promise<DriveFile[]> {
         const response = await this.drive.files.list({
             fields: 'files(id, name, mimeType, size, modifiedTime, webViewLink)',
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
         });
         return (response.data.files || []) as DriveFile[];
     }
 
     async deleteFile(fileId: string): Promise<void> {
-        await this.drive.files.delete({ fileId });
+        await this.drive.files.delete({ fileId, supportsAllDrives: true });
     }
 
     async listFolderFiles(folderId: string): Promise<DriveFile[]> {
@@ -34,11 +36,16 @@ export class GoogleDriveService {
             q: `'${folderId}' in parents and trashed = false`,
             fields: 'files(id, name, mimeType, size, modifiedTime, webViewLink)',
             orderBy: 'modifiedTime desc',
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
         });
         return (response.data.files || []) as DriveFile[];
     }
 
-    async createFolder(folderName: string, parentFolderId?: string): Promise<string> {
+    async createFolder(
+        folderName: string,
+        parentFolderId?: string,
+    ): Promise<{ id: string; webViewLink: string }> {
         const fileMetadata: any = {
             name: folderName,
             mimeType: 'application/vnd.google-apps.folder',
@@ -48,9 +55,10 @@ export class GoogleDriveService {
         }
         const file = await this.drive.files.create({
             requestBody: fileMetadata,
-            fields: 'id',
+            fields: 'id, webViewLink',
+            supportsAllDrives: true,
         });
-        return file.data.id as string;
+        return { id: file.data.id as string, webViewLink: file.data.webViewLink as string };
     }
 
     async uploadFile(
@@ -69,6 +77,7 @@ export class GoogleDriveService {
             requestBody: fileMetadata,
             media: { mimeType, body: bufferStream },
             fields: 'id, webViewLink',
+            supportsAllDrives: true,
         });
 
         return { id: file.data.id as string, webViewLink: file.data.webViewLink as string };

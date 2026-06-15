@@ -51,6 +51,17 @@ export async function generateGoogleUri(req: AuthRequest, res: Response): Promis
     }
 }
 
+export async function disconnectGoogle(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        await userService.updateGoogleTokens(req.user.id, null, null);
+        const user = await userService.findById(req.user.id);
+        res.json(user);
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: google disconnect failed');
+        res.status(500).json({ error: error.message });
+    }
+}
+
 export async function handleGoogleToken(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { code, state } = req.body;
