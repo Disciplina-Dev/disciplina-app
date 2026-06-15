@@ -13,6 +13,7 @@ export interface DriveFile {
     mimeType: string;
     size?: string;
     modifiedTime?: string;
+    webViewLink?: string;
 }
 
 export interface SendEmailOptions {

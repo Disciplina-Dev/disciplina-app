@@ -1,5 +1,6 @@
 import express, { Router, Response } from 'express';
 import { randomUUID } from 'crypto';
+import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { Role } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
@@ -12,6 +13,8 @@ import { logger } from '../../external/logger/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 export const router: Router = express.Router();
 
@@ -69,13 +72,148 @@ router.post(
             );
 
             const fileName = `CV_${candidate.identity.full_name}.pdf`;
-            const fileLink = await driveService.uploadFile(fileName, 'application/pdf', pdfBuffer, candidate.drive_folder_id);
+            const { webViewLink: fileLink } = await driveService.uploadFile(fileName, 'application/pdf', pdfBuffer, candidate.drive_folder_id);
 
             await candidateService.update(id, { cv_link: fileLink });
 
             res.json({ fileLink });
         } catch (err) {
             logger.error(err, 'upload CV to Drive failed');
+            res.status(500).json({ error: 'Internal error' });
+        }
+    }
+);
+
+router.get(
+    '/:id/drive-files',
+    authenticate,
+    async (req: AuthRequest, res: Response) => {
+        const role = req.user?.role;
+        if (role !== Role.RH && role !== Role.ADMIN) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+
+        const { id } = req.params;
+
+        try {
+            const candidate = await candidateService.findById(id);
+            if (!candidate) {
+                res.status(404).json({ error: 'Candidate not found' });
+                return;
+            }
+            if (!candidate.drive_folder_id) {
+                res.json({ files: [] });
+                return;
+            }
+
+            const user = await userService.findById(req.user!.id);
+            if (!user || !user.oauthToken) {
+                res.status(400).json({ error: 'Google Drive non connecté' });
+                return;
+            }
+
+            const driveService = GoogleDriveService.fromTokens(
+                { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                persistRefreshedTokens(user.id),
+            );
+
+            const files = await driveService.listFolderFiles(candidate.drive_folder_id);
+            res.json({ files });
+        } catch (err) {
+            logger.error(err, 'list drive folder files failed');
+            res.status(500).json({ error: 'Internal error' });
+        }
+    }
+);
+
+router.delete(
+    '/:id/drive-files/:fileId',
+    authenticate,
+    async (req: AuthRequest, res: Response) => {
+        const role = req.user?.role;
+        if (role !== Role.RH && role !== Role.ADMIN) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+
+        const { id, fileId } = req.params;
+
+        try {
+            const candidate = await candidateService.findById(id);
+            if (!candidate) {
+                res.status(404).json({ error: 'Candidate not found' });
+                return;
+            }
+
+            const user = await userService.findById(req.user!.id);
+            if (!user || !user.oauthToken) {
+                res.status(400).json({ error: 'Google Drive non connecté' });
+                return;
+            }
+
+            const driveService = GoogleDriveService.fromTokens(
+                { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                persistRefreshedTokens(user.id),
+            );
+
+            await driveService.deleteFile(fileId);
+            res.json({ deleted: fileId });
+        } catch (err) {
+            logger.error(err, 'delete drive file failed');
+            res.status(500).json({ error: 'Internal error' });
+        }
+    }
+);
+
+router.post(
+    '/:id/drive-upload',
+    authenticate,
+    upload.array('files', 20),
+    async (req: AuthRequest, res: Response) => {
+        const role = req.user?.role;
+        if (role !== Role.RH && role !== Role.ADMIN) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+
+        const { id } = req.params;
+        const files = req.files as Express.Multer.File[];
+
+        if (!files || files.length === 0) {
+            res.status(400).json({ error: 'No files provided' });
+            return;
+        }
+
+        try {
+            const candidate = await candidateService.findById(id);
+            if (!candidate) {
+                res.status(404).json({ error: 'Candidate not found' });
+                return;
+            }
+            if (!candidate.drive_folder_id) {
+                res.status(400).json({ error: 'Candidate has no Drive folder' });
+                return;
+            }
+
+            const user = await userService.findById(req.user!.id);
+            if (!user || !user.oauthToken) {
+                res.status(400).json({ error: 'Google Drive non connecté' });
+                return;
+            }
+
+            const driveService = GoogleDriveService.fromTokens(
+                { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                persistRefreshedTokens(user.id),
+            );
+
+            const uploaded = await Promise.all(
+                files.map(f => driveService.uploadFile(f.originalname, f.mimetype, f.buffer, candidate.drive_folder_id!))
+            );
+
+            res.json({ uploaded });
+        } catch (err) {
+            logger.error(err, 'drive-upload failed');
             res.status(500).json({ error: 'Internal error' });
         }
     }
