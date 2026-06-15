@@ -13,3 +13,4 @@ graphify-out
 scripts/resource
 ollama-data
 .vercel
+docs
