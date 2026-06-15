@@ -11,6 +11,7 @@ import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candida
 import { logger } from '../../external/logger';
 import { env } from '../../config/env';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
+import { CandidateFilters } from '../../repositories/mongo/CandidateRepository';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
@@ -36,11 +37,35 @@ export const resolvers = {
             const candidates = await candidateService.findAll();
             return candidates.map(candidateToGql);
         },
-        candidatesPage: async (_: unknown, { first, after }: PaginationArgs, context: any) => {
+        candidatesPage: async (
+            _: unknown,
+            {
+                first,
+                after,
+                search,
+                filters: filtersInput,
+            }: PaginationArgs & { search?: string; filters?: CandidateFilters },
+            context: any,
+        ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
-            const candidates = await candidateService.findPage(pageSize, after);
-            const conn = buildConnection(candidates, (c) => String(c._id), pageSize);
+            const filters: CandidateFilters | undefined = filtersInput
+                ? {
+                      trainingSite: filtersInput.trainingSite,
+                      status: filtersInput.status,
+                      schoolLevel: filtersInput.schoolLevel,
+                      drivingLicenseB: filtersInput.drivingLicenseB,
+                      ageMin: filtersInput.ageMin,
+                      ageMax: filtersInput.ageMax,
+                      tpType: filtersInput.tpType,
+                  }
+                : undefined;
+            const candidates = await candidateService.findPage(pageSize, after, search, filters);
+            const conn = buildConnection(
+                candidates,
+                (c) => String(c._id),
+                search?.trim() ? candidates.length : pageSize,
+            );
             return {
                 edges: conn.edges.map((edge) => ({ ...edge, node: candidateToGql(edge.node) })),
                 pageInfo: conn.pageInfo,

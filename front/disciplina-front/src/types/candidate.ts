@@ -7,12 +7,13 @@ export enum TitleProfessionalType {
 }
 
 export enum CandidateStatus {
-    SEEKING = "Recherche", // le candidat recherche activement une alternance
-    NOT_SEEKING = "Ne recherche pas", // le candidat est indisponible
-    CANCELLED = "Rupture",       // Profil en cours de remplissage
-    MATCHED = "Immersion",   // Associé à une entreprise
-    CONTRACTED = "Contrat",      // Dossier sous contrat
-    BANNED = "Banni" // Banni
+    SEEKING = 'SEEKING',
+    NOT_SEEKING = 'NOT_SEEKING',
+    CANCELLED = 'CANCELLED',
+    MATCHED = 'MATCHED',
+    CONTRACTED = 'CONTRACTED',
+    IMMERSING = 'IMMERSING',
+    BANNED = 'BANNED',
 }
 
 export enum SchoolLevel {

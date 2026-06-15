@@ -26,7 +26,17 @@ import {
 } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
 import type { PageInfo } from '@/types/pagination'
-import { CandidateStatus, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
+import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
+
+export interface CandidateServerFilters {
+  trainingSite?: TrainingSite
+  status?: CandidateStatus
+  schoolLevel?: SchoolLevel
+  drivingLicenseB?: boolean
+  ageMin?: number
+  ageMax?: number
+  tpType?: TitleProfessionalType
+}
 import { candidateGraphqlClient } from './client'
 
 export function useCompanies() {
@@ -248,7 +258,7 @@ function gqlStatusToFront(raw: string): CandidateStatus {
     CANCELLED: CandidateStatus.CANCELLED,
     MATCHED: CandidateStatus.MATCHED,
     CONTRACTED: CandidateStatus.CONTRACTED,
-    IMMERSING: CandidateStatus.MATCHED,
+    IMMERSING: CandidateStatus.IMMERSING,
     BANNED: CandidateStatus.BANNED,
   }
   return map[raw] ?? CandidateStatus.SEEKING
@@ -260,7 +270,8 @@ function frontStatusToGql(s: CandidateStatus): string {
     [CandidateStatus.SEEKING]: 'SEEKING',
     [CandidateStatus.NOT_SEEKING]: 'NOT_SEEKING',
     [CandidateStatus.CANCELLED]: 'CANCELLED',
-    [CandidateStatus.MATCHED]: 'IMMERSING',
+    [CandidateStatus.MATCHED]: 'MATCHED',
+    [CandidateStatus.IMMERSING]: 'IMMERSING',
     [CandidateStatus.CONTRACTED]: 'CONTRACTED',
     [CandidateStatus.BANNED]: 'BANNED',
   }
@@ -456,10 +467,10 @@ export function useCandidates() {
  * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
  * Returns { candidates, pageInfo, loading, error, refetch }.
  */
-export function useCandidatesPage(first?: number, after?: string) {
+export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATES_PAGE,
-    variables: { first, after },
+    variables: { first, after, search, filters },
     context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
     requestPolicy: 'network-only',
   })

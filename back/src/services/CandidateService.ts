@@ -1,4 +1,4 @@
-import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
+import { CandidateRepository, CandidateFilters } from '../repositories/mongo/CandidateRepository';
 import { Candidate } from '../types/candidate.types';
 
 export class CandidateService {
@@ -8,8 +8,8 @@ export class CandidateService {
         return this.repository.findAll();
     }
 
-    async findPage(first: number, after?: string): Promise<Candidate[]> {
-        return this.repository.findPage(first, after);
+    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
+        return this.repository.findPage(first, after, search, filters);
     }
 
     async findById(id: string): Promise<Candidate | null> {

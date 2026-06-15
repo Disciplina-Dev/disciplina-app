@@ -24,6 +24,7 @@ const STATUS_LABELS: Record<CandidateStatus, string> = {
   [CandidateStatus.CANCELLED]:   'Rupture',
   [CandidateStatus.MATCHED]:     'Immersion',
   [CandidateStatus.CONTRACTED]:  'Sous contrat',
+  [CandidateStatus.IMMERSING]:   'Immersion',
   [CandidateStatus.BANNED]:      'Banni',
 }
 
@@ -33,6 +34,7 @@ const STATUS_COLORS: Record<CandidateStatus, string> = {
   [CandidateStatus.CANCELLED]:   'bg-warning text-white',
   [CandidateStatus.MATCHED]:     'bg-purple text-white',
   [CandidateStatus.CONTRACTED]:  'bg-success text-white',
+  [CandidateStatus.IMMERSING]:    'bg-purple text-white',
   [CandidateStatus.BANNED]:      'bg-danger text-white',
 }
 
