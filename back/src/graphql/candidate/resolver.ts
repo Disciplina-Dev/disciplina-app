@@ -132,10 +132,14 @@ export const resolvers = {
                     );
 
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
-                    const folderId = await driveService.createFolder(folderName, env.DRIVE_CANDIDATS_NORD_FOLDER_ID);
+                    const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
+                        folderName,
+                        env.DRIVE_CANDIDATS_NORD_FOLDER_ID,
+                    );
 
-                    await candidateService.update(id, { drive_folder_id: folderId });
+                    await candidateService.update(id, { drive_folder_id: folderId, drive_folder_link: folderLink });
                     newCandidate.drive_folder_id = folderId;
+                    newCandidate.drive_folder_link = folderLink;
                 }
             } catch (error) {
                 logger.error({ err: error }, 'Drive folder creation failed');
@@ -182,9 +186,15 @@ export const resolvers = {
             );
 
             const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
-            const folderId = await driveService.createFolder(folderName, env.DRIVE_CANDIDATS_NORD_FOLDER_ID);
+            const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
+                folderName,
+                env.DRIVE_CANDIDATS_NORD_FOLDER_ID,
+            );
 
-            const updated = await candidateService.update(id, { drive_folder_id: folderId });
+            const updated = await candidateService.update(id, {
+                drive_folder_id: folderId,
+                drive_folder_link: folderLink,
+            });
             if (!updated) throw new Error('Erreur lors de la mise à jour du candidat');
             return candidateToGql(updated);
         },
