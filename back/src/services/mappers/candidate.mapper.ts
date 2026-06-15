@@ -1,4 +1,5 @@
 import { Candidate } from '../../types/candidate.types';
+import { Job } from '../../types/job.types';
 
 export function camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -54,5 +55,17 @@ export function candidateToGql(candidate: Candidate): any {
         driveFolderId: candidate.drive_folder_id || null,
         driveFolderLink: candidate.drive_folder_link || null,
         photoLink: candidate.photo_link || null,
+    };
+}
+
+export function jobToMatchedJobGql(job: Job): object {
+    return {
+        id: job._id,
+        companyName: job.company_name,
+        sector: job.sector,
+        localisation: job.localisation,
+        desiredTP: job.desired_tp,
+        ageRange: job.age_range,
+        status: job.status,
     };
 }

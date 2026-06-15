@@ -548,6 +548,23 @@ export const GET_CANDIDATE_FULL = gql`
   }
 `
 
+export const MATCH_CANDIDATE = gql`
+  query MatchCandidate($id: String!) {
+    matchCandidate(id: $id) {
+      id
+      matchedJobs {
+        id
+        companyName
+        sector
+        localisation
+        desiredTP
+        ageRange
+        status
+      }
+    }
+  }
+`
+
 export const UPDATE_CANDIDATE_FULL = gql`
   mutation UpdateCandidateFull($id: String!, $input: UpdateCandidateInput!) {
     updateCandidate(id: $id, input: $input) {
