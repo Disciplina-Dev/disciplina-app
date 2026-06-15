@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
-  QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, FileText,
+  QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, Download, FileText,
   File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
@@ -144,6 +144,7 @@ export default function FicheCandidat() {
   const [capturingPhoto, setCapturingPhoto] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [uploadingCV, setUploadingCV] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
   const [uploadingFiles, setUploadingFiles] = useState(false)
@@ -282,6 +283,31 @@ export default function FicheCandidat() {
     }
   }
 
+  const handleDownloadPdf = async () => {
+    if (!formData) return
+    setDownloadingPdf(true)
+    setSaveError(null)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error('Erreur lors de la génération du PDF')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `AB_${formData.identity.full_name.replace(/\s+/g, '_')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erreur lors de la génération du PDF')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   const handleCreateDriveFolder = async () => {
     if (!formData) return
     setCreatingFolder(true)
@@ -414,6 +440,11 @@ export default function FicheCandidat() {
           <Button variant="secondary" size="sm" leftIcon={<ClipboardCheck size={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={() => navigate(`/rh/candidats/${formData._id}/questionnaire`)}>
             Analyse de Besoin
+          </Button>
+          <Button variant="secondary" size="sm" isLoading={downloadingPdf}
+            leftIcon={<Download size={15} style={{ color: 'var(--color-purple)' }} />}
+            onClick={handleDownloadPdf}>
+            Télécharger le PDF
           </Button>
           <Button variant="secondary" size="sm" leftIcon={<Mail size={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={() => setMailOpen(true)}>

@@ -5,6 +5,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { Role } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
+import { PdfService } from '../../services/PdfService';
 import {
     TitleProfessionalType,
     CandidateStatus,
@@ -31,6 +32,33 @@ const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
 function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
+
+// PDF de l'Analyse du Besoin (tous les éléments AB), en téléchargement
+router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => {
+    const role = req.user?.role;
+    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const { id } = req.params;
+    try {
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).json({ error: 'Candidate not found' });
+            return;
+        }
+
+        const pdfBuffer = await PdfService.generateCandidatePdf(candidate);
+        const safeName = candidate.identity.full_name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="AB_${safeName || 'candidat'}.pdf"`);
+        res.send(pdfBuffer);
+    } catch (err) {
+        logger.error({ err }, 'candidate AB PDF generation failed');
+        res.status(500).json({ error: 'Failed to generate PDF' });
+    }
+});
 
 router.post(
     '/:id/cv',
