@@ -63,6 +63,7 @@ export interface Identity {
     transport_means?: string;             // Moyens de transport habituels
     psh_referral_request?: boolean;       // Demande d'accompagnement PSH
     avatar_url?: string;
+    avatar_updated_at?: string;
 }
 
 export interface Education {

@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
   X, Plus, SlidersHorizontal, Trash2,
-  Phone, GraduationCap, Mail, Copy, Check, QrCode
+  Phone, GraduationCap, Mail, Copy, Check, QrCode, Camera
 } from 'lucide-react';
+import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
@@ -617,6 +618,10 @@ export default function ListeCandidats() {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor);
+  const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
+  const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
+  const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Filters state
@@ -882,17 +887,29 @@ export default function ListeCandidats() {
 
             {/* Card Header: Avatar */}
             <div className="mb-4 mt-2">
-              {candidate.identity.avatar_url ? (
-                <img
-                  src={candidate.identity.avatar_url}
-                  alt={candidate.identity.full_name}
-                  className="w-14 h-14 rounded-full object-cover ring-2 ring-gray-50 group-hover:ring-purple-light transition-all"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-full bg-purple-light flex items-center justify-center text-purple ring-2 ring-gray-50 group-hover:ring-purple-light transition-all">
-                  <User size={24} />
-                </div>
-              )}
+              <div className="relative w-14 h-14">
+                {candidate.identity.avatar_url ? (
+                  <img
+                    src={candidate.identity.avatar_url}
+                    alt={candidate.identity.full_name}
+                    className="w-14 h-14 rounded-full object-cover ring-2 ring-gray-50 group-hover:ring-purple-light transition-all"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-purple-light flex items-center justify-center text-purple ring-2 ring-gray-50 group-hover:ring-purple-light transition-all">
+                    <User size={24} />
+                  </div>
+                )}
+                <button
+                  title="Prendre une photo"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCapturePhotoFor(candidate);
+                  }}
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-purple text-white flex items-center justify-center ring-2 ring-white hover:bg-purple/90"
+                >
+                  <Camera size={12} />
+                </button>
+              </div>
             </div>
 
             {/* Card Body: Info */}
@@ -1013,6 +1030,25 @@ export default function ListeCandidats() {
         <CreateCandidateModal
           onClose={() => setShowCreateModal(false)}
           onCreated={() => refetch()}
+        />
+      )}
+
+      {capturePhotoFor && (
+        <WebcamCaptureModal
+          candidateId={capturePhotoFor._id}
+          candidateName={capturePhotoFor.identity.full_name}
+          onClose={() => setCapturePhotoFor(null)}
+          onUploaded={(updatedAt) => {
+            const cid = capturePhotoFor._id;
+            const url = `${import.meta.env.VITE_API_URL}/api/candidates/${cid}/avatar?v=${encodeURIComponent(updatedAt)}`;
+            setLocalCandidates((prev) =>
+              prev.map((c) =>
+                c._id === cid
+                  ? { ...c, identity: { ...c.identity, avatar_updated_at: updatedAt, avatar_url: url } }
+                  : c,
+              ),
+            );
+          }}
         />
       )}
 

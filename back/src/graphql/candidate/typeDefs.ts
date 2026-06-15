@@ -65,6 +65,7 @@ export const typeDefs = gql`
         drivingLicenseB: Boolean
         transportMeans: String
         pshReferralRequest: Boolean
+        avatarUpdatedAt: String
     }
 
     type CandidateEducation {

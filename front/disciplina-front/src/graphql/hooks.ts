@@ -309,6 +309,10 @@ function fromGql(c: any): Candidate {
       driving_license_b: c.identity.drivingLicenseB,
       transport_means: c.identity.transportMeans,
       psh_referral_request: c.identity.pshReferralRequest,
+      avatar_updated_at: c.identity.avatarUpdatedAt,
+      avatar_url: c.identity.avatarUpdatedAt
+        ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent(c.identity.avatarUpdatedAt)}`
+        : undefined,
     },
     education: c.education
       ? {
