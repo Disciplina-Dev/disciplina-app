@@ -292,15 +292,51 @@ describe('POST /api/email/send', () => {
 });
 ```
 
-Same pattern for `external/crypto/signers.ts` when a test needs a known signature (e.g. the relance HMAC, the Google OAuth state).
+Same pattern for `external/crypto/signers.ts` when a test needs a known signature (e.g. the relance HMAC, the Google OAuth state). `external/insee/` (`SireneService`) and `external/filiz/` (`FilizAuthClient`/`FilizService`) are also part of this boundary.
 
 **Rule:** if you find yourself wanting to mock a service, repository, or controller, stop. Either the code needs a refactor, or you're testing the wrong layer.
+
+### Mocking a singleton `external/` service: `vi.spyOn(Class.prototype, ...)`
+
+`vi.mock(...)` + `vi.hoisted(...)` factory mocks only work if the mocked module is imported
+*after* the mock is registered. Several services (e.g. `CompaniesService`, the sourcing
+controller) instantiate `SireneService` once at module-load time — by the time a test file's
+`vi.mock` factory runs, that singleton already holds a real instance, so the factory mock is never
+called.
+
+For these cases, mock the **prototype method** instead — it patches every existing instance
+regardless of when it was constructed:
+
+```ts
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { SireneService } from '../../../external/insee/sirene.service';
+
+describe('createCompany INSEE validation', () => {
+    let checkSiret: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        checkSiret = vi.spyOn(SireneService.prototype, 'checkSiret');
+        checkSiret.mockResolvedValue(/* SireneEtablissement */);
+    });
+
+    afterEach(() => {
+        checkSiret.mockRestore();
+    });
+
+    // ...
+});
+```
+
+Real examples: `src/graphql/company/__tests__/create-blacklist-validation.test.ts` and
+`src/rest/sourcing/__tests__/searchBySiren.test.ts`. This is the one sanctioned exception to the
+"no `vi.spyOn` on internals" rule below — it's still mocking the `external/` boundary, just via
+the prototype instead of a module factory.
 
 ---
 
 ## 10. Anti-patterns
 
-- **No `vi.spyOn` on internals.** Services, repositories, resolvers, controllers — all real. Spying makes tests brittle to refactors with no upside.
+- **No `vi.spyOn` on internals.** Services, repositories, resolvers, controllers — all real. Spying makes tests brittle to refactors with no upside. The one exception is spying on an `external/<vendor>/` class's prototype methods when a factory `vi.mock` can't reach an already-constructed singleton (see Section 9).
 - **No mocking of `mysql2` or `mongoose`.** Use the Dockerised DBs. In-memory fakes drift from the real engines and hide bugs.
 - **No sharing of dev `.env`.** Tests must point at `*_test` schemas. Misconfigure once and you wipe your dev data.
 - **No reading `req.user` shape in tests.** Go through the route with an `Authorization` header. The shape is an internal detail.

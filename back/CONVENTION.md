@@ -107,6 +107,13 @@ export const resolvers = {
 - First param `_` is unused parent
 - Auth guard: call `authGuard(context.user, [Role.XXX])` at the top of protected resolvers
 
+**Combining modules onto one Apollo server:** a single Apollo server can serve more than one
+domain module. `graphql/server.ts` merges `graphql/company/` and `graphql/needsAnalysis/` (both
+`typeDefs` arrays and `Query`/`Mutation` resolver maps) onto `/api/graphql/companies`, because
+needs-analysis is tightly coupled to companies (one analysis belongs to one company). Prefer this
+over adding a fourth Apollo server when the new module's data lives in the same database and is
+naturally scoped to an existing domain.
+
 ### 3. Services (`src/services/`)
 
 - Class-based, instantiate their repository in the constructor
@@ -154,7 +161,7 @@ external/
   google/
     oauth-client.ts   GoogleOAuthClient (auth URL, code exchange, credentialed-client + refresh hook) + `googleOAuth` singleton
     drive.service.ts  GoogleDriveService — Drive API wrapper
-    gmail.service.ts  GoogleGmailService — Gmail API wrapper (uses mime.builder)
+    gmail.service.ts  GoogleGmailService — Gmail API wrapper (uses mime.builder, sendEmail + createDraft)
     mime.builder.ts   buildRawMessage(options) — pure MIME assembly
     types.ts          GoogleTokens, GoogleTokenRefreshHandler, DriveFile, SendEmailOptions
   crypto/
@@ -164,7 +171,38 @@ external/
   logger/
     logger.ts         pino instance (pretty in dev)
     index.ts          Barrel
+  insee/
+    sirene.service.ts SireneService — INSEE Sirene API v3.11 client
+    types.ts          SireneEtablissement, SireneCriterion, SireneListResult, SireneAdresse, etc.
+  filiz/
+    auth-client.ts    FilizAuthClient — OAuth2 client-credentials token fetch/cache (via FilizRepository)
+    filiz.service.ts  FilizService — wraps the Filiz degree/class APIs
+    type.ts           FilizToken, FilizDegree, FilizClass
 ```
+
+### `insee/` — INSEE Sirene integration
+
+- `SireneService.checkSiret(siret: string): Promise<SireneEtablissement>` — validates a 14-digit
+  SIRET against `GET /api-sirene/3.11/siret/{siret}`. Throws `'SIRET not found'` (404),
+  `'Invalid INSEE API key'` (401), or `'Rate limit exceeded'` (429).
+- `SireneService.searchEstablishments(criteria: SireneCriterion[], offset?: number): Promise<SireneListResult>`
+  — multi-criteria search (`siren`, `libelleCommuneEtablissement`, `activitePrincipaleUniteLegale`
+  are the only accepted `paramName`s), paginates with a 140ms delay between INSEE requests, filters
+  to active establishments (`etatAdministratif !== 'F'`), caps results at 20.
+- Env: `INSEE_API_KEY` (optional — `external/insee/` is the only place it should be read).
+- Used by `CompaniesService.create()` (SIRET validation) and `rest/sourcing/controller.ts`
+  (search-by-SIREN, multicriteria search).
+
+### `filiz/` — Filiz ERP integration
+
+- `FilizAuthClient` — implements OAuth2 client-credentials flow against
+  `${FILIZ_AUTH_URI}/oauth/token`, caching the resulting token in the `filiz` MySQL table via
+  `FilizRepository` (`getToken`, `insertToken`, `deleteTokens`).
+- `FilizService.getDegreesInfos()` / `getClassInfos(degreeId)` — wrap
+  `${FILIZ_BASE_URI}/api/degree` and `${FILIZ_BASE_URI}/api/class`.
+- Env: `FILIZ_CLIENT_ID`, `FILIZ_CLIENT_SECRET`, `FILIZ_AUDIENCE`, `FILIZ_BASE_URI`,
+  `FILIZ_AUTH_URI` (all required; CI has fallback values in `config/env.ts`).
+- Not yet wired into a route/resolver — the service exists for upcoming features.
 
 **Rules:**
 - Callers import from the specific module file (`external/google/oauth-client`, `external/google/gmail.service`, etc.). No barrels under `external/google/` — they hide where the code lives. (`crypto/` and `logger/` keep their barrels because the public surface is genuinely one bag of small helpers.)
@@ -282,14 +320,31 @@ try {
 
 For table and collection names, see [`README.md`](./README.md#databases).
 
+### Schema migrations
+
+`mysql-init.sql` only runs against fresh Docker volumes — production databases and existing local
+dev volumes never re-run it, so new columns added there would be missing on those databases.
+`db/mysql/migrations.ts` (`runMysqlMigrations()`) runs once at boot, right after
+`connectMySQL()`: for each entry in the hardcoded `REQUIRED_COLUMNS` list (table, column,
+definition), it checks `INFORMATION_SCHEMA.COLUMNS` and runs `ALTER TABLE ... ADD COLUMN` if the
+column doesn't exist yet, logging each addition via `logger.info`.
+
+**Convention:** when adding a new column to an existing table, add it to **both**
+`mysql-init.sql` (fresh installs) **and** `REQUIRED_COLUMNS` in `db/mysql/migrations.ts` (existing
+installs). Table/column identifiers in `REQUIRED_COLUMNS` are hardcoded constants, never
+user input, so the string-built `ALTER TABLE` is safe.
+
 ## Authentication & authorization
 
 ### Role-based access
 
-- Three roles: `ADMIN`, `COMMERCIAL`, `RH` (or `ENTREPRISE` in some frontend code)
+- Four roles: `ADMIN`, `RESPONSABLE`, `COMMERCIAL`, `RH` (or `ENTREPRISE` in some frontend code)
 - `ADMIN` role bypasses all role checks
 - GraphQL: `authGuard(context.user, [Role.XXX])` at resolver level (call at the very first line of each protected resolver)
-- REST: inline checks like `if (req.user?.role !== 'ADMIN')` before executing protected logic
+- REST: inline checks like `if (req.user?.role !== 'ADMIN')` before executing protected logic, or
+  the `requireRoles(...roles)` middleware from `rest/middleware/roleGuard.ts` chained after
+  `authenticate` (e.g. `[authenticate, requireRoles('ADMIN', 'RESPONSABLE')]` — see
+  `rest/kpi/route.ts`)
 
 ### Google OAuth code patterns
 
@@ -502,9 +557,14 @@ The following violations of this CONVENTION.md have been identified in the codeb
 | 10 | `services/mappers/candidate.mapper.ts` | Mapper function names don't follow `toX()` pattern; generic utilities mixed in | Naming / Design |
 | 11 | `services/CandidateService.ts` | Repository initialized as field, not in constructor | Minor deviation |
 | 12 | `repositories/mongo/CandidateRepository.ts`, `JobRepository.ts` | `flattenObject()` helper duplicated in both files (already documented as known quirk) | Code duplication |
+| 13 | `rest/candidates/route.ts` (`/:id/cv`, `/quick-create`), `external/filiz/auth-client.ts` | `logger.error(err, 'message')` / `logger.error(error)` — bare error as first arg instead of `{ err: error }` | Logging |
 
 **Recently fixed (June 8, 2026):**
 
 ✅ Logger and console violations — all `console.error`, `console.warn`, `console.log` calls in `src/` replaced with `logger` calls
+
+**Recently fixed (June 12, 2026):**
+
+✅ `console.log("id est:", req.user)` in `rest/email/controller.ts` removed
 
 ---
