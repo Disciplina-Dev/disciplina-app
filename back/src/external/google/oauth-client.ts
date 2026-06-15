@@ -3,7 +3,9 @@ import { env } from '../../config/env';
 import { GoogleTokens, GoogleTokenRefreshHandler } from './types';
 
 const SCOPES = [
-    'https://www.googleapis.com/auth/drive.file',
+    // 'drive' (et non 'drive.file') requis pour écrire dans un dossier/Drive
+    // partagé existant non créé par l'app (ex: DRIVE_CANDIDATS_NORD_FOLDER_ID).
+    'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/gmail.modify',
 ] as const;
