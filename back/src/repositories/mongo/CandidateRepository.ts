@@ -1,5 +1,6 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { Candidate } from '../../types/candidate.types';
+import { decodeCursor } from '../../services/pagination';
 
 type FlattenedObject = Record<string, any>;
 
@@ -23,6 +24,14 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
 export class CandidateRepository {
     async findAll(): Promise<Candidate[]> {
         return CandidateModel.find().lean();
+    }
+
+    async findPage(first: number, after?: string): Promise<Candidate[]> {
+        const filter = after ? { _id: { $gt: decodeCursor(after) } } : {};
+        return CandidateModel.find(filter)
+            .sort({ _id: 1 })
+            .limit(first + 1)
+            .lean();
     }
 
     async findById(id: string): Promise<Candidate | null> {

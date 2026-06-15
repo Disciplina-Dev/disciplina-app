@@ -68,6 +68,52 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidates[1].tpType).toBe('CC');
     });
 
+    it('paginates candidates with cursors via candidatesPage', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `page-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        const ids = [`${suffix}-1`, `${suffix}-2`, `${suffix}-3`];
+        await Promise.all(
+            ids.map((id) =>
+                repo.create({
+                    _id: id,
+                    candidate_id: id,
+                    tp_type: TitleProfessionalType.AD,
+                    status: CandidateStatus.SEEKING,
+                    identity: { full_name: `Candidate ${id}`, email: `${id}@test.local`, phone: '0100000000' },
+                }),
+            ),
+        );
+
+        const query = `query($first: Int, $after: String) {
+            candidatesPage(first: $first, after: $after) {
+                edges { cursor node { id } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+        }`;
+
+        const firstPageRes = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ query, variables: { first: 2 } }),
+        });
+        const firstPage = (await firstPageRes.json()).data.candidatesPage;
+
+        expect(firstPage.edges).toHaveLength(2);
+        expect(firstPage.pageInfo.hasNextPage).toBe(true);
+
+        const secondPageRes = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ query, variables: { first: 2, after: firstPage.pageInfo.endCursor } }),
+        });
+        const secondPage = (await secondPageRes.json()).data.candidatesPage;
+
+        const seenIds = [...firstPage.edges, ...secondPage.edges].map((e: any) => e.node.id);
+        expect(seenIds).toEqual(expect.arrayContaining(ids));
+    });
+
     it('returns a candidate by id with camelCase fields', async () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
         const suffix = Date.now();

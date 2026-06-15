@@ -8,6 +8,10 @@ export class CandidateService {
         return this.repository.findAll();
     }
 
+    async findPage(first: number, after?: string): Promise<Candidate[]> {
+        return this.repository.findPage(first, after);
+    }
+
     async findById(id: string): Promise<Candidate | null> {
         return this.repository.findById(id);
     }

@@ -10,6 +10,7 @@ import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { env } from '../../config/env';
+import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
@@ -34,6 +35,16 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidates = await candidateService.findAll();
             return candidates.map(candidateToGql);
+        },
+        candidatesPage: async (_: unknown, { first, after }: PaginationArgs, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const candidates = await candidateService.findPage(pageSize, after);
+            const conn = buildConnection(candidates, (c) => String(c._id), pageSize);
+            return {
+                edges: conn.edges.map((edge) => ({ ...edge, node: candidateToGql(edge.node) })),
+                pageInfo: conn.pageInfo,
+            };
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
@@ -89,10 +100,7 @@ export const resolvers = {
                     );
 
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
-                    const folderId = await driveService.createFolder(
-                        folderName,
-                        env.DRIVE_CANDIDATS_NORD_FOLDER_ID,
-                    );
+                    const folderId = await driveService.createFolder(folderName, env.DRIVE_CANDIDATS_NORD_FOLDER_ID);
 
                     await candidateService.update(id, { drive_folder_id: folderId });
                     newCandidate.drive_folder_id = folderId;

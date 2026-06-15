@@ -12,6 +12,7 @@ import {
   BLACKLIST_COMPANY,
   UNBLACKLIST_COMPANY,
   GET_CANDIDATES,
+  GET_CANDIDATES_PAGE,
   GET_CANDIDATE_BY_ID,
   GET_CANDIDATE_FULL,
   UPDATE_CANDIDATE,
@@ -24,6 +25,7 @@ import {
   GET_COMPANY_HISTORY,
 } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
+import type { PageInfo } from '@/types/pagination'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
 import { candidateGraphqlClient } from './client'
 
@@ -440,6 +442,30 @@ export function useCandidates() {
 
   return {
     candidates,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+/**
+ * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
+ * Returns { candidates, pageInfo, loading, error, refetch }.
+ */
+export function useCandidatesPage(first?: number, after?: string) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CANDIDATES_PAGE,
+    variables: { first, after },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
+    requestPolicy: 'network-only',
+  })
+
+  const candidates: Candidate[] = (result.data?.candidatesPage?.edges ?? []).map((edge: { node: Record<string, unknown> }) => fromGql(edge.node))
+  const pageInfo: PageInfo | undefined = result.data?.candidatesPage?.pageInfo
+
+  return {
+    candidates,
+    pageInfo,
     loading: result.fetching,
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
