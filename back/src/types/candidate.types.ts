@@ -182,5 +182,7 @@ export interface Candidate {
     pdf_link?: string;
     cv_link?: string;
     drive_folder_id?: string;
+    drive_folder_link?: string;
+    photo_link?: string;
     classmarker?: ClassMarkerResult;
 }

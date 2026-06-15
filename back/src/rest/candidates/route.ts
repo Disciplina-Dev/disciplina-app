@@ -14,6 +14,7 @@ import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
+import { env } from '../../config/env';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -260,25 +261,42 @@ router.post(
                 { upsert: true, new: true },
             );
 
-            // Best-effort archive to Drive (non-blocking for the avatar feature).
-            if (candidate.drive_folder_id) {
-                try {
-                    const user = await userService.findById(req.user!.id);
-                    if (user?.oauthToken) {
-                        const driveService = GoogleDriveService.fromTokens(
-                            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                            persistRefreshedTokens(user.id),
-                        );
-                        const ext = file.mimetype.split('/')[1] ?? 'jpg';
-                        const fileName = `Photo_${candidate.identity.full_name}.${ext}`;
-                        await driveService.uploadFile(fileName, file.mimetype, file.buffer, candidate.drive_folder_id);
+            // Archive to Drive: create the candidate folder if missing, upload the photo
+            // into it, and persist both the folder link and the photo link on the profile.
+            // Best-effort — failure here must not break avatar saving.
+            const driveUpdate: Record<string, unknown> = {};
+            try {
+                const user = await userService.findById(req.user!.id);
+                if (user?.oauthToken) {
+                    const driveService = GoogleDriveService.fromTokens(
+                        { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                        persistRefreshedTokens(user.id),
+                    );
+
+                    let folderId = candidate.drive_folder_id;
+                    if (!folderId) {
+                        const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
+                        const folder = await driveService.createFolder(folderName, env.DRIVE_CANDIDATS_NORD_FOLDER_ID);
+                        folderId = folder.id;
+                        driveUpdate.drive_folder_id = folder.id;
+                        driveUpdate.drive_folder_link = folder.webViewLink;
                     }
-                } catch (driveErr) {
-                    logger.warn(driveErr, 'avatar Drive archive failed (avatar still saved)');
+
+                    const ext = file.mimetype.split('/')[1] ?? 'jpg';
+                    const fileName = `Photo_${candidate.identity.full_name}.${ext}`;
+                    const { webViewLink: photoLink } = await driveService.uploadFile(
+                        fileName,
+                        file.mimetype,
+                        file.buffer,
+                        folderId,
+                    );
+                    driveUpdate.photo_link = photoLink;
                 }
+            } catch (driveErr) {
+                logger.warn(driveErr, 'avatar Drive archive failed (avatar still saved)');
             }
 
-            await candidateService.update(id, { identity: { avatar_updated_at: now } } as never);
+            await candidateService.update(id, { identity: { avatar_updated_at: now }, ...driveUpdate } as never);
 
             res.json({ avatarUpdatedAt: now.toISOString() });
         } catch (err) {
