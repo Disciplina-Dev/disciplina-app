@@ -4,6 +4,7 @@ import { TitleProfessionalType } from '../../../types/candidate.types';
 
 const matchingCandidateSchema = new Schema<MatchingCandidate>(
     {
+        id: { type: String },
         full_name: { type: String },
         age: { type: Number },
         sex: { type: String },

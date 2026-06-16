@@ -745,6 +745,30 @@ export const UNMATCH_JOB = gql`
   }
 `
 
+export const REMOVE_CANDIDATE_FROM_JOB = gql`
+  mutation RemoveCandidateFromJob($jobId: String!, $candidateId: String!) {
+    removeCandidateFromJob(jobId: $jobId, candidateId: $candidateId) {
+      id
+      status
+      matchedCandidate {
+        id
+        fullName
+        age
+        sex
+        city
+        email
+        phone
+      }
+    }
+  }
+`
+
+export const GET_CANDIDATE_MATCHED_JOB_IDS = gql`
+  query GetCandidateMatchedJobIds($candidateId: String!) {
+    candidateMatchedJobIds(candidateId: $candidateId)
+  }
+`
+
 export const CREATE_NEEDS_ANALYSIS = gql`
   mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
     createNeedsAnalysis(input: $input) {

@@ -130,11 +130,14 @@ export const typeDefs = gql`
         jobs: [Job!]!
         matchJob(id: String!): Job!
         offerResponseLinks(jobId: String!, candidateId: String!): OfferLinks!
+        candidateMatchedJobIds(candidateId: String!): [String!]!
     }
 
     type Mutation {
         updateJob(id: String!, job: JobInput!): Job
         unmatch(id: String!): Job
+        unmatchJob(id: String!): Job
         addCandidateToJob(jobId: String!, candidateId: String!): Job
+        removeCandidateFromJob(jobId: String!, candidateId: String!): Job
     }
 `;

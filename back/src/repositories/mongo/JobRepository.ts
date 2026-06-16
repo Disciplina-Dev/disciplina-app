@@ -58,4 +58,17 @@ export class JobRepository {
             { new: true },
         ).lean();
     }
+
+    async clearMatchedCandidates(jobId: string): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            { _id: jobId },
+            { $set: { matched_candidate: [], status: JobStatus.NOT_MATCHED } },
+            { new: true },
+        ).lean();
+    }
+
+    async findJobIdsWithCandidate(candidateId: string): Promise<string[]> {
+        const jobs = await JobModel.find({ 'matched_candidate.id': candidateId }, { _id: 1 }).lean();
+        return jobs.map((j) => String(j._id));
+    }
 }

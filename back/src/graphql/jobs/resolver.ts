@@ -23,6 +23,10 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return jobService.offerResponseLinks(jobId, candidateId);
         },
+        candidateMatchedJobIds: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return jobService.getMatchedJobIds(candidateId);
+        },
     },
     Mutation: {
         updateJob: async (_: unknown, { id, job }: { id: string; job: Job }, context: any) => {
@@ -38,6 +42,10 @@ export const resolvers = {
             }
             return null;
         },
+        unmatchJob: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return jobService.unmatchAll(id);
+        },
         addCandidateToJob: async (
             _: unknown,
             { jobId, candidateId }: { jobId: string; candidateId: string },
@@ -45,6 +53,14 @@ export const resolvers = {
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return await jobService.addCandidate(jobId, candidateId);
+        },
+        removeCandidateFromJob: async (
+            _: unknown,
+            { jobId, candidateId }: { jobId: string; candidateId: string },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return jobService.removeCandidate(jobId, candidateId);
         },
     },
 };
