@@ -63,8 +63,8 @@ services:
       nosql-db:
         condition: service_healthy
         restart: true
-      ollama:
-        condition: service_healthy
+      # ollama:
+        # condition: service_healthy
     develop:
       watch:
         - action: sync

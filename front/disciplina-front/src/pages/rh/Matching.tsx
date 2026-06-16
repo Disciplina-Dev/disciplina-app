@@ -13,7 +13,6 @@ import {
   Loader2,
   AlertCircle,
   Info,
-  ShieldCheck,
   Briefcase,
   Car,
   ChevronRight,
@@ -23,6 +22,9 @@ import {
 import { GET_JOBS, MATCH_JOB } from '@/graphql/queries'
 import { jobGraphqlClient } from '@/graphql/client'
 import { useAuthStore } from '@/store/authStore'
+import { JobFilters } from '@/features/matching/components/JobFilters'
+import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
+import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +48,7 @@ interface Job {
   professionalExperience: boolean | null
   status: string | null
   localisation: string[] | null
+  sector: string | null
 }
 
 interface MatchJobResult extends Job {
@@ -564,6 +567,7 @@ function CandidatesPanel({
 export default function Matching() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [drawerJob, setDrawerJob] = useState<Job | null>(null)
+  const [filters, setFilters] = useState<JobFiltersType>(EMPTY_JOB_FILTERS)
 
   const token = useAuthStore((s) => s.token)
   const [jobsResult] = useQuery({
@@ -579,7 +583,8 @@ export default function Matching() {
   })
 
   const jobs: Job[] = jobsResult.data?.jobs ?? []
-  const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null
+  const filteredJobs = applyJobFilters(jobs, filters)
+  const selectedJob = filteredJobs.find((j) => j.id === selectedJobId) ?? null
 
   if (jobsResult.fetching) {
     return (
@@ -605,19 +610,16 @@ export default function Matching() {
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col">
       {/* Top bar */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Matching</h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              {jobs.length} offre{jobs.length > 1 ? 's' : ''} disponible{jobs.length > 1 ? 's' : ''}
+              {filteredJobs.length} offre{filteredJobs.length > 1 ? 's' : ''} ({jobs.length} total{jobs.length > 1 ? 's' : ''})
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <ShieldCheck size={14} className="text-success" />
-            <span>Tri front-end uniquement</span>
-          </div>
         </div>
+        <JobFilters filters={filters} onChange={setFilters} jobs={jobs} />
       </div>
 
       {/* Two-column layout */}
@@ -629,14 +631,14 @@ export default function Matching() {
               Offres entreprises
             </p>
           </div>
-          {jobs.length === 0 ? (
+          {filteredJobs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center px-6">
               <Building2 size={28} className="text-gray-300" />
-              <p className="text-sm text-gray-400">Aucune offre disponible</p>
+              <p className="text-sm text-gray-400">{jobs.length === 0 ? 'Aucune offre disponible' : 'Aucune offre ne correspond aux filtres'}</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2 px-4 pb-6">
-              {jobs.map((job) => (
+              {filteredJobs.map((job) => (
                 <JobCard
                   key={job.id}
                   job={job}
