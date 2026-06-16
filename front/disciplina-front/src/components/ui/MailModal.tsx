@@ -13,13 +13,16 @@ interface MailModalProps {
   mode?: 'send' | 'draft'
   /** Modèle appliqué à l'ouverture (objet, corps, pièce jointe) */
   defaultTemplateId?: string
+  defaultSubject?: string
+  defaultBody?: string
   onClose: () => void
+  onSent?: () => void
 }
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue transition-colors'
 
-export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, onClose }: MailModalProps) {
+export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, defaultSubject, defaultBody, onClose, onSent }: MailModalProps) {
   const { templates, signatureImage } = useMailTemplatesStore(scope)
   const token = useAuthStore((s) => s.token)
 
@@ -30,8 +33,8 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
   const defaultTemplate = defaultTemplateId ? templates.find((t) => t.id === defaultTemplateId) : undefined
 
   const [to, setTo] = useState(defaultTo)
-  const [subject, setSubject] = useState(defaultTemplate?.subject ?? '')
-  const [body, setBody] = useState(defaultTemplate ? `${defaultTemplate.body}${sigHtml}` : sigHtml)
+  const [subject, setSubject] = useState(defaultSubject ?? defaultTemplate?.subject ?? '')
+  const [body, setBody] = useState(defaultBody ?? (defaultTemplate ? `${defaultTemplate.body}${sigHtml}` : sigHtml))
   const [attachment, setAttachment] = useState<MailAttachment | null>(defaultTemplate?.attachment ?? null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +80,7 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erreur envoi')
       setSent(true)
+      onSent?.()
     } catch (err: any) {
       setError(err.message)
     } finally {
