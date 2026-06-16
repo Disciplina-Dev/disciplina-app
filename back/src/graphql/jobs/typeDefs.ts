@@ -4,7 +4,6 @@ export const typeDefs = gql`
     enum JobStatus {
         NOT_MATCHED
         MATCHED
-        ZERO_MATCHED
         CV_SEND
         IMMERSING
         CONTRACT
