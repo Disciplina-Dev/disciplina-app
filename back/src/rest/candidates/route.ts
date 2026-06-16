@@ -15,7 +15,7 @@ import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
-import { env } from '../../config/env';
+import { driveParentFolderForTp } from '../../external/google/drive.folders';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -304,7 +304,7 @@ router.post(
                     let folderId = candidate.drive_folder_id;
                     if (!folderId) {
                         const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
-                        const folder = await driveService.createFolder(folderName, env.DRIVE_CANDIDATS_NORD_FOLDER_ID);
+                        const folder = await driveService.createFolder(folderName, driveParentFolderForTp(candidate.tp_type));
                         folderId = folder.id;
                         driveUpdate.drive_folder_id = folder.id;
                         driveUpdate.drive_folder_link = folder.webViewLink;

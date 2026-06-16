@@ -135,7 +135,14 @@ const data = {
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 
+    // Dossier partagé racine "Candidat Nord" (fallback si pas de sous-dossier par TP).
     DRIVE_CANDIDATS_NORD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_FOLDER_ID'),
+    // Sous-dossiers par type de Titre Professionnel, dans "Candidat Nord".
+    DRIVE_CANDIDATS_NORD_AD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_AD_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_CC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CC_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_REM_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_REM_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_SA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_SA_FOLDER_ID'),
 
     OAUTH_ENCRYPTION_KEY: stringWithDefault(
         'OAUTH_ENCRYPTION_KEY',
