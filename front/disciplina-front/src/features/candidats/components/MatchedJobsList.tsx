@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle } from 'lucide-react'
-import { candidateGraphqlClient } from '@/graphql/client'
-import { MATCH_CANDIDATE } from '@/graphql/queries'
+import { Briefcase, RefreshCw, AlertTriangle, Plus, Check } from 'lucide-react'
+import { candidateGraphqlClient, jobGraphqlClient } from '@/graphql/client'
+import { MATCH_CANDIDATE, ADD_CANDIDATE_TO_JOB } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedJob } from '@/types/candidate'
@@ -19,6 +19,8 @@ export default function MatchedJobsList({ candidateId }: MatchedJobsListProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedJob[]>([])
+  const [addedJobIds, setAddedJobIds] = useState<Set<string>>(new Set())
+  const [addingJobId, setAddingJobId] = useState<string | null>(null)
 
   const fetchMatches = useCallback(async () => {
     setLoading(true)
@@ -40,6 +42,18 @@ export default function MatchedJobsList({ candidateId }: MatchedJobsListProps) {
   useEffect(() => {
     fetchMatches()
   }, [fetchMatches])
+
+  const handleAddToJob = async (jobId: string) => {
+    setAddingJobId(jobId)
+    try {
+      const result = await jobGraphqlClient.mutation(ADD_CANDIDATE_TO_JOB, { jobId, candidateId }).toPromise()
+      if (!result.error) {
+        setAddedJobIds((p) => new Set(p).add(jobId))
+      }
+    } finally {
+      setAddingJobId(null)
+    }
+  }
 
   return (
     <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -116,6 +130,21 @@ export default function MatchedJobsList({ candidateId }: MatchedJobsListProps) {
                   ))}
                 </div>
               </div>
+              {addedJobIds.has(job.id) ? (
+                <span className="flex items-center gap-1 text-xs font-medium text-success shrink-0">
+                  <Check className="w-3.5 h-3.5" /> Ajouté
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleAddToJob(job.id)}
+                  disabled={addingJobId === job.id}
+                  className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Ajouter
+                </button>
+              )}
             </div>
           ))}
         </div>

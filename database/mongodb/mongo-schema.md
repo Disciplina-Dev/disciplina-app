@@ -275,7 +275,6 @@ Stores company job postings for apprenticeships with candidate matching informat
 |-------|---------|
 | NOT_MATCHED | No suitable candidates found |
 | MATCHED | Candidates found and pending |
-| ZERO_MATCHED | Job had no matches |
 | CV_SEND | Candidates' CVs sent to company |
 | IMMERSING | Candidate in immersion |
 | CONTRACT | Contract signed |

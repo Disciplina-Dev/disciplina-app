@@ -1,7 +1,6 @@
 export enum JobStatus {
     NOT_MATCHED = 'NOT_MATCHED',
     MATCHED = 'MATCHED',
-    ZERO_MATCHED = 'ZERO_MATCHED',
     CV_SEND = 'CV_SEND',
     IMMERSING = 'IMMERSING',
     CONTRACT = 'CONTRACT',

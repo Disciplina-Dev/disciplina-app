@@ -1,7 +1,10 @@
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
-import { Candidate } from '../types/candidate.types';
-import { Job, JobStatus, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
+import { CandidateService } from './CandidateService';
+import { Candidate, CandidateStatus } from '../types/candidate.types';
+import { Job, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
+import { signMatchUrl } from '../external/crypto';
+import { env } from '../config/env';
 
 function matchingCandidateToGql(mc: MatchingCandidate): object {
     return {
@@ -15,7 +18,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
     };
 }
 
-export function toGql(job: Job): object {
+export function toGql(job: Job & { suggestedCandidates?: MatchingCandidate[] }): object {
     return {
         id: job._id,
         companyName: job.company_name,
@@ -29,6 +32,7 @@ export function toGql(job: Job): object {
         sector: job.sector,
         matched: job.matched,
         matchedCandidate: job.matched_candidate?.map(matchingCandidateToGql),
+        suggestedCandidates: job.suggestedCandidates?.map(matchingCandidateToGql),
     };
 }
 
@@ -47,9 +51,23 @@ function fromGql(data: any): Partial<Job> {
     };
 }
 
+function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
+    const loc = c.identity.city as keyof typeof Localisation;
+    return {
+        id: c._id,
+        full_name: c.identity.full_name,
+        age: c.identity.age,
+        city: Localisation[loc],
+        email: c.identity.email,
+        phone: c.identity.phone,
+        sex: c.identity.sex as Sex,
+    };
+}
+
 export class JobService {
     private repository = new JobRepository();
     private candidateRepository = new CandidateRepository();
+    private candidateService = new CandidateService();
 
     async findAll(): Promise<object[]> {
         const jobs = await this.repository.findAll();
@@ -71,25 +89,12 @@ export class JobService {
         }
 
         if (job.localisation?.length) filter['job_info.geographic_mobility'] = { $all: job.localisation };
-
         if (job.sector !== Sector.NONE) filter['desired_sectors'] = { $all: [job.sector] };
 
         const candidates = await this.candidateRepository.findByfilter(filter);
-        if (candidates.length > 0) job.status = JobStatus.MATCHED;
-        const matched: MatchingCandidate[] = candidates.map((c: Candidate) => {
-            const loc = c.identity.city as keyof typeof Localisation;
-            return {
-                id: c._id,
-                full_name: c.identity.full_name,
-                age: c.identity.age,
-                city: Localisation[loc],
-                email: c.identity.email,
-                phone: c.identity.phone,
-                sex: c.identity.sex as Sex,
-            };
-        });
+        const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
 
-        return toGql({ ...job, matched_candidate: matched });
+        return toGql({ ...job, suggestedCandidates });
     }
 
     async create(data: any): Promise<object> {
@@ -104,5 +109,26 @@ export class JobService {
 
     async delete(id: string): Promise<boolean> {
         return this.repository.delete(id);
+    }
+
+    async addCandidate(jobId: string, candidateId: string): Promise<object | null> {
+        const candidate = await this.candidateRepository.findById(candidateId);
+        if (!candidate) throw new Error('Candidat introuvable');
+
+        const matchingCandidate = candidateToMatchingCandidate(candidate);
+        const job = await this.repository.addMatchedCandidate(jobId, matchingCandidate);
+        if (!job) return null;
+
+        await this.candidateService.update(candidateId, { status: CandidateStatus.MATCHED });
+        return toGql(job);
+    }
+
+    offerResponseLinks(jobId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {
+        const sigOui = signMatchUrl(jobId, candidateId, 'oui');
+        const sigNon = signMatchUrl(jobId, candidateId, 'non');
+        return {
+            ouiUrl: `${env.APP_BASE_URL}/api/matching/response?jobId=${jobId}&candidateId=${candidateId}&answer=oui&sig=${sigOui}`,
+            nonUrl: `${env.APP_BASE_URL}/api/matching/response?jobId=${jobId}&candidateId=${candidateId}&answer=non&sig=${sigNon}`,
+        };
     }
 }

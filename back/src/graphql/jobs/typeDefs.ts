@@ -4,7 +4,6 @@ export const typeDefs = gql`
     enum JobStatus {
         NOT_MATCHED
         MATCHED
-        ZERO_MATCHED
         CV_SEND
         IMMERSING
         CONTRACT
@@ -83,6 +82,11 @@ export const typeDefs = gql`
         phone: String
     }
 
+    type OfferLinks {
+        ouiUrl: String!
+        nonUrl: String!
+    }
+
     type Job {
         id: String!
         companyName: String
@@ -95,6 +99,7 @@ export const typeDefs = gql`
         localisation: [Localisation]
         sector: Sector
         matchedCandidate: [MatchingCandidate]
+        suggestedCandidates: [MatchingCandidate]
     }
 
     input MatchingCandidateInput {
@@ -124,10 +129,12 @@ export const typeDefs = gql`
     type Query {
         jobs: [Job!]!
         matchJob(id: String!): Job!
+        offerResponseLinks(jobId: String!, candidateId: String!): OfferLinks!
     }
 
     type Mutation {
         updateJob(id: String!, job: JobInput!): Job
         unmatch(id: String!): Job
+        addCandidateToJob(jobId: String!, candidateId: String!): Job
     }
 `;

@@ -19,6 +19,7 @@ import { router as yousignWebhookRouter } from './rest/yousign/route';
 import { router as docusealWebhookRouter } from './rest/docuseal/route';
 import { router as kpiRouter } from './rest/kpi/route';
 import { router as needsAnalysisRouter } from './rest/needsAnalysis/route';
+import { router as matchingRouter } from './rest/matching/route';
 import { router as notificationsRouter } from './rest/notifications/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
@@ -86,6 +87,7 @@ export async function createApp(): Promise<express.Express> {
     app.use(docusealWebhookRouter);
     app.use('/api/kpi', kpiRouter);
     app.use('/api/needs-analysis', needsAnalysisRouter);
+    app.use(matchingRouter);
     app.use('/api/notifications', notificationsRouter);
     app.use(errorHandler);
 

@@ -1,5 +1,5 @@
 import { JobModel } from '../../db/mongo/schemas/job.schema';
-import { Job } from '../../types/job.types';
+import { Job, JobStatus, MatchingCandidate } from '../../types/job.types';
 
 type FlattenedObject = Record<string, any>;
 
@@ -41,5 +41,21 @@ export class JobRepository {
 
     async delete(id: string): Promise<boolean> {
         return (await JobModel.deleteOne({ _id: id })).deletedCount > 0;
+    }
+
+    async addMatchedCandidate(jobId: string, candidate: MatchingCandidate): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            { _id: jobId, 'matched_candidate.id': { $ne: candidate.id } },
+            { $push: { matched_candidate: candidate }, $set: { status: JobStatus.MATCHED } },
+            { new: true },
+        ).lean();
+    }
+
+    async removeMatchedCandidate(jobId: string, candidateId: string): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            { _id: jobId },
+            { $pull: { matched_candidate: { id: candidateId } } },
+            { new: true },
+        ).lean();
     }
 }

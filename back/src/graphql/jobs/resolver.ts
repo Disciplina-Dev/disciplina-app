@@ -15,6 +15,14 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return await jobService.find(id);
         },
+        offerResponseLinks: (
+            _: unknown,
+            { jobId, candidateId }: { jobId: string; candidateId: string },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return jobService.offerResponseLinks(jobId, candidateId);
+        },
     },
     Mutation: {
         updateJob: async (_: unknown, { id, job }: { id: string; job: Job }, context: any) => {
@@ -29,6 +37,14 @@ export const resolvers = {
                 return jobService.update(id, job);
             }
             return null;
+        },
+        addCandidateToJob: async (
+            _: unknown,
+            { jobId, candidateId }: { jobId: string; candidateId: string },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return await jobService.addCandidate(jobId, candidateId);
         },
     },
 };
