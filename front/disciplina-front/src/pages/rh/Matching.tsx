@@ -418,49 +418,71 @@ function JobCard({
 
 // ─── Right panel (candidates) ─────────────────────────────────────────────────
 
+function buildOfferMailBody(candidateName: string, jobCompany: string, ouiUrl: string, nonUrl: string): string {
+  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
+  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
+  p { line-height: 1.6; margin: 0 0 16px; }
+  .question { font-size: 17px; font-weight: 700; margin: 28px 0 24px; }
+  .buttons { display: flex; gap: 12px; margin: 28px 0; }
+  .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
+  .btn-oui { background: #60207E; color: #ffffff; }
+  .btn-non { background: #f3f4f6; color: #374151; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="logo">DISCIPLINA</div>
+  <p>Bonjour ${name},</p>
+  <p>Nous avons une offre en alternance qui pourrait vous correspondre chez <strong>${jobCompany}</strong>.</p>
+  <p class="question">Êtes-vous intéressé(e) par cette opportunité ?</p>
+  <div class="buttons">
+    <a href="${ouiUrl}" class="btn btn-oui">✓ &nbsp;Oui, je suis intéressé(e)</a>
+    <a href="${nonUrl}" class="btn btn-non">✗ &nbsp;Non, merci</a>
+  </div>
+  <p>Un simple clic suffit — nous prendrons contact avec vous rapidement.</p>
+  <div class="footer">Cordialement,<br>L'équipe DISCIPLINA</div>
+</body>
+</html>`
+}
+
 function CandidatesPanel({
   selectedJob,
 }: {
   selectedJob: Job | null
 }) {
-  const [_matchResult, setMatchResult] = useState<MatchJobResult | null>(null)
-  const [candidates, setCandidates] = useState<MatchedCandidate[]>([])
+  const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
+  const [savedCandidateIds, setSavedCandidateIds] = useState<Set<string>>(new Set())
   const [decisions, setDecisions] = useState<Record<string, CandidateDecision>>({})
   const [isMatching, setIsMatching] = useState(false)
   const [matchError, setMatchError] = useState<string | null>(null)
   const [hasMatched, setHasMatched] = useState(false)
   const [drawerCandidate, setDrawerCandidate] = useState<MatchedCandidate | null>(null)
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
+  const [mailCandidate, setMailCandidate] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
 
   const runMatch = useCallback(async (job: Job) => {
     setIsMatching(true)
     setMatchError(null)
     setHasMatched(false)
-    setCandidates([])
+    setSuggestedCandidates([])
+    setSavedCandidateIds(new Set())
     setDecisions({})
 
     try {
-      const token = useAuthStore.getState().token
-      const result = await jobGraphqlClient
-        .query(
-          MATCH_JOB,
-          { id: job.id },
-          {
-            fetchOptions: {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
-          }
-        )
-        .toPromise()
+      const result = await jobGraphqlClient.query(MATCH_JOB, { id: job.id }).toPromise()
       if (result.error) {
         setMatchError(result.error.message)
         return
       }
       if (result.data?.matchJob) {
         const data = result.data.matchJob as MatchJobResult
-        setMatchResult(data)
-        setCandidates(data.matchedCandidate ?? [])
+        setSuggestedCandidates(data.suggestedCandidates ?? [])
+        setSavedCandidateIds(new Set((data.matchedCandidate ?? []).map((c) => c.id)))
         setHasMatched(true)
       }
     } catch (err: any) {
@@ -470,7 +492,6 @@ function CandidatesPanel({
     }
   }, [])
 
-  // Auto-run matching when selectedJob changes
   useEffect(() => {
     if (selectedJob) runMatch(selectedJob)
   }, [selectedJob?.id])
@@ -478,11 +499,38 @@ function CandidatesPanel({
   const handleAccept = (id: string) => setDecisions((p) => ({ ...p, [id]: 'accepted' }))
   const handleDismiss = (id: string) => setDecisions((p) => ({ ...p, [id]: 'dismissed' }))
   const handleRemove = (id: string) => {
-    setCandidates((p) => p.filter((c) => c.id !== id))
+    setSuggestedCandidates((p) => p.filter((c) => c.id !== id))
     setDecisions((p) => { const n = { ...p }; delete n[id]; return n })
   }
 
-  const acceptedCount = Object.values(decisions).filter((d) => d === 'accepted').length
+  const handleSaveMatch = async (candidateId: string) => {
+    if (!selectedJob) return
+    setSavingIds((p) => new Set(p).add(candidateId))
+    try {
+      const result = await jobGraphqlClient.mutation(ADD_CANDIDATE_TO_JOB, { jobId: selectedJob.id, candidateId }).toPromise()
+      if (!result.error) {
+        setSavedCandidateIds((p) => new Set(p).add(candidateId))
+      }
+    } finally {
+      setSavingIds((p) => { const n = new Set(p); n.delete(candidateId); return n })
+    }
+  }
+
+  const handleOpenMail = async (candidate: MatchedCandidate) => {
+    if (!selectedJob) return
+    const result = await jobGraphqlClient.query(OFFER_RESPONSE_LINKS, { jobId: selectedJob.id, candidateId: candidate.id }).toPromise()
+    if (result.data?.offerResponseLinks) {
+      const { ouiUrl, nonUrl } = result.data.offerResponseLinks
+      setMailCandidate({ candidate, ouiUrl, nonUrl })
+    }
+  }
+
+  const handleMailSent = async () => {
+    if (!selectedJob) return
+    await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status: 'CV_SEND' } }).toPromise()
+  }
+
+  const acceptedCount = Object.values(decisions).filter((d) => d === 'accepted').length + savedCandidateIds.size
 
   if (!selectedJob) {
     return (
@@ -500,15 +548,14 @@ function CandidatesPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Panel header */}
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900 truncate">{selectedJob.companyName}</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Candidats matchés</p>
+          <p className="text-xs text-gray-400 mt-0.5">Candidats suggérés</p>
         </div>
         {hasMatched && !isMatching && (
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-gray-400">{candidates.length} résultat{candidates.length > 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">{suggestedCandidates.length} résultat{suggestedCandidates.length > 1 ? 's' : ''}</span>
             {acceptedCount > 0 && (
               <span className="flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-medium text-success">
                 <Check size={11} /> {acceptedCount} retenu{acceptedCount > 1 ? 's' : ''}
@@ -518,7 +565,6 @@ function CandidatesPanel({
         )}
       </div>
 
-      {/* Loading */}
       {isMatching && (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
           <div className="relative">
@@ -529,7 +575,6 @@ function CandidatesPanel({
         </div>
       )}
 
-      {/* Error */}
       {!isMatching && matchError && (
         <div className="flex items-start gap-2 rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
@@ -537,10 +582,9 @@ function CandidatesPanel({
         </div>
       )}
 
-      {/* Candidate list */}
       {!isMatching && hasMatched && !matchError && (
         <>
-          {candidates.length === 0 ? (
+          {suggestedCandidates.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                 <Users size={20} className="text-gray-300" />
@@ -550,15 +594,19 @@ function CandidatesPanel({
             </div>
           ) : (
             <div className="flex flex-col gap-3 overflow-y-auto pb-4">
-              {candidates.map((c) => (
+              {suggestedCandidates.map((c) => (
                 <CandidateCard
                   key={c.id}
                   candidate={c}
                   decision={decisions[c.id] ?? null}
+                  isSaved={savedCandidateIds.has(c.id)}
+                  isSaving={savingIds.has(c.id)}
                   onAccept={() => handleAccept(c.id)}
                   onDismiss={() => handleDismiss(c.id)}
                   onRemove={() => handleRemove(c.id)}
                   onInfo={() => setDrawerCandidate(c)}
+                  onSaveMatch={() => handleSaveMatch(c.id)}
+                  onSendMail={() => handleOpenMail(c)}
                 />
               ))}
             </div>
@@ -566,7 +614,6 @@ function CandidatesPanel({
         </>
       )}
 
-      {/* Candidate info drawer */}
       {drawerCandidate && (
         <InfoDrawer
           title={drawerCandidate.fullName}
@@ -580,6 +627,23 @@ function CandidatesPanel({
             { label: 'Ville', value: formatEnum(drawerCandidate.city) },
           ]}
           onClose={() => setDrawerCandidate(null)}
+        />
+      )}
+
+      {mailCandidate && (
+        <MailModal
+          defaultTo={mailCandidate.candidate.email}
+          candidateName={mailCandidate.candidate.fullName}
+          defaultSubject={`DISCIPLINA – Offre en alternance chez ${selectedJob?.companyName}`}
+          defaultBody={buildOfferMailBody(
+            mailCandidate.candidate.fullName,
+            selectedJob?.companyName ?? '',
+            mailCandidate.ouiUrl,
+            mailCandidate.nonUrl,
+          )}
+          scope="rh"
+          onClose={() => setMailCandidate(null)}
+          onSent={handleMailSent}
         />
       )}
     </div>
