@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import {
-  X, Check, Briefcase, Plus, Minus,
+  X, Check, Briefcase, Plus, Minus, PenLine,
 } from 'lucide-react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
@@ -429,6 +429,8 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const [postes, setPostes] = useState<Poste[]>([{ ...EMPTY_POSTE }])
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // Quelle action a déclenché la soumission : télécharger le PDF ou l'envoyer en signature.
+  const intentRef = useRef<'download' | 'sign'>('download')
 
   const { createNeedsAnalysis, result } = useCreateNeedsAnalysis()
 
@@ -572,19 +574,43 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
     if (response.error) { setSubmitError(response.error.message); return }
 
-    // Pas d'envoi Yousign pour l'instant : on télécharge le PDF généré
     const createdId = response.data?.createNeedsAnalysis?.id
     if (createdId) {
-      try {
-        await downloadPdf(createdId)
-      } catch {
-        setSubmitError('AB enregistrée, mais le téléchargement du PDF a échoué. Réessayez depuis la liste.')
-        return
+      if (intentRef.current === 'sign') {
+        try {
+          await sendForSignature(createdId)
+        } catch (err) {
+          setSubmitError(
+            err instanceof Error
+              ? `AB enregistrée, mais l'envoi en signature a échoué : ${err.message}`
+              : "AB enregistrée, mais l'envoi en signature a échoué. Réessayez depuis la liste.",
+          )
+          return
+        }
+      } else {
+        try {
+          await downloadPdf(createdId)
+        } catch {
+          setSubmitError('AB enregistrée, mais le téléchargement du PDF a échoué. Réessayez depuis la liste.')
+          return
+        }
       }
     }
 
     onSuccess()
     onClose()
+  }
+
+  const sendForSignature = async (id: number) => {
+    const token = useAuthStore.getState().token
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/needs-analysis/${id}/sign`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.error || `Envoi signature échoué (${res.status})`)
+    }
   }
 
   const downloadPdf = async (id: number) => {
@@ -921,11 +947,27 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
+          <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4">
             <Button variant="secondary" onClick={onClose}>Annuler</Button>
-            <Button type="submit" isLoading={result.fetching} leftIcon={<Check size={16} />}>
-              Enregistrer et télécharger le PDF
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="submit"
+                variant="secondary"
+                isLoading={result.fetching}
+                leftIcon={<Check size={16} />}
+                onClick={() => { intentRef.current = 'download' }}
+              >
+                Enregistrer & télécharger
+              </Button>
+              <Button
+                type="submit"
+                isLoading={result.fetching}
+                leftIcon={<PenLine size={16} />}
+                onClick={() => { intentRef.current = 'sign' }}
+              >
+                Enregistrer & envoyer en signature
+              </Button>
+            </div>
           </div>
         </form>
       </div>

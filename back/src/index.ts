@@ -16,6 +16,7 @@ import { router as classmarkerWebhookRouter } from './rest/classmarker/webhook.r
 import { router as candidatesRestRouter } from './rest/candidates/route';
 import { router as sourcingRouter } from './rest/sourcing/route';
 import { router as yousignWebhookRouter } from './rest/yousign/route';
+import { router as docusealWebhookRouter } from './rest/docuseal/route';
 import { router as kpiRouter } from './rest/kpi/route';
 import { router as needsAnalysisRouter } from './rest/needsAnalysis/route';
 import { router as notificationsRouter } from './rest/notifications/route';
@@ -82,6 +83,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/candidates', candidatesRestRouter);
     app.use('/api/sourcing', sourcingRouter);
     app.use(yousignWebhookRouter);
+    app.use(docusealWebhookRouter);
     app.use('/api/kpi', kpiRouter);
     app.use('/api/needs-analysis', needsAnalysisRouter);
     app.use('/api/notifications', notificationsRouter);

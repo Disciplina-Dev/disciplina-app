@@ -33,3 +33,33 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
         res.status(500).json({ error: 'Failed to generate PDF' });
     }
 }
+
+export async function sendSignature(req: AuthRequest, res: Response): Promise<void> {
+    const role = req.user?.role;
+    if (role !== Role.COMMERCIAL && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid needs analysis ID' });
+        return;
+    }
+
+    try {
+        const analysis = await needsAnalysisService.sendForSignature(id);
+        res.status(200).json(analysis);
+    } catch (error: any) {
+        logger.error({ err: error, id }, '[NeedsAnalysis] Send for signature failed');
+        if (error.message?.includes('not found')) {
+            res.status(404).json({ error: error.message });
+            return;
+        }
+        if (error.message?.includes('recruitment responsible email')) {
+            res.status(400).json({ error: 'Aucun email de responsable recrutement pour envoyer la signature' });
+            return;
+        }
+        res.status(500).json({ error: 'Failed to send for signature' });
+    }
+}
