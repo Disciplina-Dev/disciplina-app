@@ -334,7 +334,7 @@ db.createCollection('jobs', {
             "NONE"
           ]
         },
-        status: { enum: ["NOT_MATCHED", "MATCHED", "ZERO_MATCHED", "CV_SEND", "IMMERSING", "CONTRACT"] },
+        status: { enum: ["NOT_MATCHED", "MATCHED", "CV_SEND", "IMMERSING", "CONTRACT"] },
         localisation: {
           bsonType: "array",
           items: {
