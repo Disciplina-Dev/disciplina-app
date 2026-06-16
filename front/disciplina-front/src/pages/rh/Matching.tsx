@@ -166,23 +166,30 @@ function InfoDrawer({ title, subtitle, sections, onClose }: InfoDrawerProps) {
 function CandidateCard({
   candidate,
   decision,
+  isSaved,
+  isSaving,
   onAccept,
   onDismiss,
   onRemove,
   onInfo,
+  onSaveMatch,
+  onSendMail,
 }: {
   candidate: MatchedCandidate
   decision: CandidateDecision
+  isSaved: boolean
+  isSaving: boolean
   onAccept: () => void
   onDismiss: () => void
   onRemove: () => void
   onInfo: () => void
+  onSaveMatch: () => void
+  onSendMail: () => void
 }) {
   const isDismissing = decision === 'dismissed'
-  const isAccepted = decision === 'accepted'
+  const isAccepted = decision === 'accepted' || isSaved
 
   return (
-    // Outer wrapper handles the collapse animation only
     <div
       className={[
         'transition-all duration-500 ease-in-out',
@@ -192,7 +199,6 @@ function CandidateCard({
       ].join(' ')}
       onTransitionEnd={() => { if (isDismissing) onRemove() }}
     >
-      {/* Inner card — no overflow-hidden so content is never clipped */}
       <div
         className={[
           'rounded-xl border bg-white',
@@ -202,7 +208,6 @@ function CandidateCard({
         ].join(' ')}
       >
       <div className="p-4">
-        {/* Top row */}
         <div className="flex items-start gap-3 mb-3">
           <div className={[
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
@@ -216,7 +221,6 @@ function CandidateCard({
               {sexLabel(candidate.sex)}{candidate.age ? ` · ${candidate.age} ans` : ''}
             </p>
           </div>
-          {/* Info button */}
           <button
             onClick={onInfo}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors"
@@ -225,7 +229,6 @@ function CandidateCard({
           </button>
         </div>
 
-        {/* Details */}
         <div className="space-y-1.5 mb-3">
           {candidate.email && (
             <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -247,7 +250,6 @@ function CandidateCard({
           )}
         </div>
 
-        {/* Actions */}
         {!isAccepted && (
           <div className="flex gap-2">
             <button
@@ -264,9 +266,29 @@ function CandidateCard({
             </button>
           </div>
         )}
+
         {isAccepted && (
-          <div className="flex items-center gap-1.5 text-xs text-success font-medium">
-            <Check size={13} /> Retenu
+          <div className="flex flex-col gap-2">
+            {isSaved ? (
+              <div className="flex items-center gap-1.5 text-xs text-success font-medium">
+                <Check size={13} /> Retenu
+              </div>
+            ) : (
+              <button
+                onClick={onSaveMatch}
+                disabled={isSaving}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-success/30 bg-success-bg px-3 py-1.5 text-xs font-medium text-success transition-all hover:bg-success/10 active:scale-[0.97] disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                Enregistrer le match
+              </button>
+            )}
+            <button
+              onClick={onSendMail}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.97]"
+            >
+              <Mail size={13} /> Envoyer un mail
+            </button>
           </div>
         )}
       </div>
