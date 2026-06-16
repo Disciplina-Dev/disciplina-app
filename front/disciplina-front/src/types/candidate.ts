@@ -83,6 +83,7 @@ export interface Identity {
     date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
     age?: number;                         // Âge actuel (calculé ou fourni)
+    address?: string;                     // Adresse (numéro et rue)
     postal_code?: string;                 // Code postal
     city?: string;                        // Ville
     email: string;                        // Adresse email (requis, unique)
@@ -90,6 +91,7 @@ export interface Identity {
     driving_license_b?: boolean;          // Permis de conduire catégorie B
     transport_means?: string;             // Moyens de transport habituels
     psh_referral_request?: boolean;       // Demande d'accompagnement PSH
+    had_apprenticeship_contract?: boolean; // A déjà eu un contrat d'apprentissage
     avatar_url?: string;
     avatar_updated_at?: string;
 }

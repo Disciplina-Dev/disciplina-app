@@ -26,6 +26,7 @@ export function toGql(job: Job): object {
         professionalExperience: job.professional_experience,
         status: job.status,
         localisation: job.localisation,
+        sector: job.sector,
         matched: job.matched,
         matchedCandidate: job.matched_candidate?.map(matchingCandidateToGql),
     };
@@ -41,6 +42,7 @@ function fromGql(data: any): Partial<Job> {
         ...(data.professionalExperience !== undefined && { professional_experience: data.professionalExperience }),
         ...(data.status !== undefined && { status: data.status }),
         ...(data.localisation !== undefined && { localisation: data.localisation }),
+        ...(data.sector !== undefined && { sector: data.sector }),
         ...(data.matchedCandidate !== undefined && { matched_candidate: data.matchedCandidate }),
     };
 }
