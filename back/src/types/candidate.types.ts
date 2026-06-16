@@ -58,6 +58,7 @@ export interface Identity {
     place_of_birth?: string;
     age?: number;
     sex?: string;
+    address?: string;
     postal_code?: string;
     city?: string;
     email: string;
@@ -65,6 +66,7 @@ export interface Identity {
     driving_license_b?: boolean;
     transport_means?: string;
     psh_referral_request?: boolean;
+    had_apprenticeship_contract?: boolean;
     avatar_updated_at?: Date;
 }
 

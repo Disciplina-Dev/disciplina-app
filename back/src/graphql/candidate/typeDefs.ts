@@ -88,11 +88,13 @@ export const typeDefs = gql`
         dateOfBirth: String
         placeOfBirth: String
         age: Int
+        address: String
         postalCode: String
         city: String
         drivingLicenseB: Boolean
         transportMeans: String
         pshReferralRequest: Boolean
+        hadApprenticeshipContract: Boolean
         avatarUpdatedAt: String
     }
 
@@ -220,11 +222,13 @@ export const typeDefs = gql`
         dateOfBirth: String
         placeOfBirth: String
         age: Int
+        address: String
         postalCode: String
         city: String
         drivingLicenseB: Boolean
         transportMeans: String
         pshReferralRequest: Boolean
+        hadApprenticeshipContract: Boolean
     }
 
     input EducationInput {
