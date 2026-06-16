@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
+import { JobRepository } from '../../../repositories/mongo/JobRepository';
 import { env } from '../../../config/env';
-import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
+import { CandidateStatus, TitleProfessionalType, TrainingSite } from '../../../types/candidate.types';
+import { JobStatus, DesiredSex, Localisation, Sector } from '../../../types/job.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -204,5 +206,271 @@ describe('GraphQL candidate queries', () => {
         expect(res.status).toBe(200);
         expect(json.errors).toBeDefined();
         expect(json.errors[0].message).toMatch(/unauthorized/i);
+    });
+});
+
+describe('candidateStats', () => {
+    it('returns total and breakdowns by status, tpType, and trainingSite', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `stats-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-1`,
+            candidate_id: `${suffix}-1`,
+            tp_type: TitleProfessionalType.REM,
+            status: CandidateStatus.SEEKING,
+            training_site: TrainingSite.SUD_SAINT_PIERRE,
+            identity: { full_name: `Stats A ${suffix}`, email: `sa-${suffix}@test.local`, phone: '0600000000' },
+        });
+        await repo.create({
+            _id: `${suffix}-2`,
+            candidate_id: `${suffix}-2`,
+            tp_type: TitleProfessionalType.REM,
+            status: CandidateStatus.MATCHED,
+            training_site: TrainingSite.SUD_SAINT_PIERRE,
+            identity: { full_name: `Stats B ${suffix}`, email: `sb-${suffix}@test.local`, phone: '0600000001' },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `{ candidateStats { total byStatus { key count } byTpType { key count } byTrainingSite { key count } byTpAndStatus { tpType status count } } }`,
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const s = json.data.candidateStats;
+        expect(s.total).toBeGreaterThanOrEqual(2);
+        expect(s.byStatus.find((b: any) => b.key === 'SEEKING')?.count).toBeGreaterThanOrEqual(1);
+        expect(s.byStatus.find((b: any) => b.key === 'MATCHED')?.count).toBeGreaterThanOrEqual(1);
+        expect(s.byTpType.find((b: any) => b.key === 'REM')?.count).toBeGreaterThanOrEqual(2);
+        expect(s.byTrainingSite.find((b: any) => b.key === 'SUD_SAINT_PIERRE')?.count).toBeGreaterThanOrEqual(2);
+        const tpStatus = s.byTpAndStatus.find((b: any) => b.tpType === 'REM' && b.status === 'SEEKING');
+        expect(tpStatus?.count).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe('matchCandidate', () => {
+    it('returns matched jobs for a compatible candidate', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `mc-${Date.now()}`;
+        const candidateRepo = new CandidateRepository();
+        const jobRepo = new JobRepository();
+
+        const candidateId = `cand-mc-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_type: TitleProfessionalType.NTC,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Match Me ${suffix}`,
+                email: `matchme-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 28,
+                driving_license_b: true,
+                sex: DesiredSex.MIXTE,
+            },
+            desired_sectors: [Sector.STATION],
+            job_info: { geographic_mobility: [Localisation.SAINT_BENOIT] },
+        });
+
+        const jobId = `job-mc-${suffix}`;
+        await jobRepo.create({
+            _id: jobId,
+            company_name: `Match Corp ${suffix}`,
+            desired_tp: TitleProfessionalType.NTC,
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            localisation: [Localisation.SAINT_BENOIT],
+            sector: Sector.STATION,
+            status: JobStatus.NOT_MATCHED,
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchCandidate(id: $id) { id matchedJobs { id companyName } } }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchCandidate.id).toBe(candidateId);
+        expect(json.data.matchCandidate.matchedJobs).toContainEqual(
+            expect.objectContaining({ id: jobId, companyName: `Match Corp ${suffix}` }),
+        );
+    });
+
+    it('errors when candidate is not found', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchCandidate(id: $id) { id } }`,
+                variables: { id: 'ghost-candidate-id' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/not found/i);
+    });
+});
+
+describe('candidatesPage with filters', () => {
+    it('filters by tpType', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `flt-tp-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-rem-1`,
+            candidate_id: `${suffix}-rem-1`,
+            tp_type: TitleProfessionalType.SA,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-TP-${suffix} A`, email: `ftp-a-${suffix}@test.local`, phone: '0600000000' },
+        });
+        await repo.create({
+            _id: `${suffix}-rem-2`,
+            candidate_id: `${suffix}-rem-2`,
+            tp_type: TitleProfessionalType.SA,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-TP-${suffix} B`, email: `ftp-b-${suffix}@test.local`, phone: '0600000001' },
+        });
+        await repo.create({
+            _id: `${suffix}-other`,
+            candidate_id: `${suffix}-other`,
+            tp_type: TitleProfessionalType.NTC,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-TP-${suffix} C`, email: `ftp-c-${suffix}@test.local`, phone: '0600000002' },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id tpType } }
+                    }
+                }`,
+                variables: { search: `FLT-TP-${suffix}`, filters: { tpType: 'SA' } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(2);
+        expect(nodes.every((n: any) => n.tpType === 'SA')).toBe(true);
+        expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-1`);
+        expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-2`);
+    });
+
+    it('filters by status', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `flt-st-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-seeking`,
+            candidate_id: `${suffix}-seeking`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-ST-${suffix} SEEK`, email: `fst-s-${suffix}@test.local`, phone: '0600000000' },
+        });
+        await repo.create({
+            _id: `${suffix}-matched`,
+            candidate_id: `${suffix}-matched`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.MATCHED,
+            identity: { full_name: `FLT-ST-${suffix} MATCH`, email: `fst-m-${suffix}@test.local`, phone: '0600000001' },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id status } }
+                    }
+                }`,
+                variables: { search: `FLT-ST-${suffix}`, filters: { status: 'SEEKING' } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].id).toBe(`${suffix}-seeking`);
+        expect(nodes[0].status).toBe('SEEKING');
+    });
+
+    it('filters by drivingLicenseB', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `flt-dl-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-with`,
+            candidate_id: `${suffix}-with`,
+            tp_type: TitleProfessionalType.CC,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-DL-${suffix} YES`,
+                email: `fdl-y-${suffix}@test.local`,
+                phone: '0600000000',
+                driving_license_b: true,
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-without`,
+            candidate_id: `${suffix}-without`,
+            tp_type: TitleProfessionalType.CC,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-DL-${suffix} NO`,
+                email: `fdl-n-${suffix}@test.local`,
+                phone: '0600000001',
+                driving_license_b: false,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id identity { drivingLicenseB } } }
+                    }
+                }`,
+                variables: { search: `FLT-DL-${suffix}`, filters: { drivingLicenseB: true } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].id).toBe(`${suffix}-with`);
+        expect(nodes[0].identity.drivingLicenseB).toBe(true);
     });
 });

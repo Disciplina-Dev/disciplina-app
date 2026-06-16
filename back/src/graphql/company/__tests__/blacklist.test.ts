@@ -164,3 +164,65 @@ describe('GraphQL blacklistCompany mutation', () => {
         expect(json.errors[0].message).toMatch(/forbidden/i);
     });
 });
+
+describe('GraphQL unblacklistCompany mutation', () => {
+    beforeEach(async () => {
+        await truncateMysql();
+    });
+
+    it('restores a blacklisted company to the portfolio', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = Date.now();
+        const blacklistRepo = new CompanyBlacklistRepository();
+        const companyRepo = new CompanyRepository();
+
+        const siret = `${suffix}0000000009`.slice(0, 14);
+        const blacklistedId = await blacklistRepo.create({
+            name: `Restore Corp ${suffix}`,
+            siret,
+            address: 'Restore Street',
+            sector: 'IT',
+            conclusion: 'Was banned',
+            all_blacklist: 0,
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `mutation($id: Int!) { unblacklistCompany(id: $id) }`,
+                variables: { id: blacklistedId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.unblacklistCompany).toBe(true);
+
+        const restored = await companyRepo.findBySiret(siret);
+        expect(restored).not.toBeNull();
+        expect(restored!.name).toBe(`Restore Corp ${suffix}`);
+
+        const stillBlacklisted = await blacklistRepo.findById(blacklistedId);
+        expect(stillBlacklisted).toBeNull();
+    });
+
+    it('errors when the blacklisted company does not exist', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `mutation($id: Int!) { unblacklistCompany(id: $id) }`,
+                variables: { id: 99999 },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/not found/i);
+    });
+});

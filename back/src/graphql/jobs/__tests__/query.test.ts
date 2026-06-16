@@ -169,7 +169,7 @@ describe('GraphQL job queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `query($id: String!) { matchJob(id: $id) { id companyName matchedCandidate { id fullName age } } }`,
+                query: `query($id: String!) { matchJob(id: $id) { id companyName suggestedCandidates { id fullName age } } }`,
                 variables: { id: jobId },
             }),
         });
@@ -177,8 +177,8 @@ describe('GraphQL job queries', () => {
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
         expect(json.data.matchJob.id).toBe(jobId);
-        expect(json.data.matchJob.matchedCandidate.length).toBeGreaterThanOrEqual(1);
-        expect(json.data.matchJob.matchedCandidate[0].fullName).toBe(`Jane ${suffix}`);
+        expect(json.data.matchJob.suggestedCandidates.length).toBeGreaterThanOrEqual(1);
+        expect(json.data.matchJob.suggestedCandidates[0].fullName).toBe(`Jane ${suffix}`);
     });
 
     it('errors when job not found', async () => {
@@ -212,5 +212,56 @@ describe('GraphQL job queries', () => {
         expect(res.status).toBe(200);
         expect(json.errors).toBeDefined();
         expect(json.errors[0].message).toMatch(/unauthorized/i);
+    });
+
+    describe('candidateMatchedJobIds', () => {
+        it('returns job ids where the candidate is in matched_candidate', async () => {
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new JobRepository();
+
+            const jobId = `job-mids-${suffix}`;
+            const candidateId = `cand-mids-${suffix}`;
+
+            await repo.create({ _id: jobId, status: JobStatus.NOT_MATCHED });
+            await repo.addMatchedCandidate(jobId, {
+                id: candidateId,
+                full_name: `Eve ${suffix}`,
+                age: 24,
+                email: `eve-${suffix}@test.local`,
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    query: `query($candidateId: String!) { candidateMatchedJobIds(candidateId: $candidateId) }`,
+                    variables: { candidateId },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.candidateMatchedJobIds).toContain(jobId);
+        });
+
+        it('returns an empty array when candidate has no matched jobs', async () => {
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    query: `query($candidateId: String!) { candidateMatchedJobIds(candidateId: $candidateId) }`,
+                    variables: { candidateId: 'no-match-candidate' },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.candidateMatchedJobIds).toEqual([]);
+        });
     });
 });

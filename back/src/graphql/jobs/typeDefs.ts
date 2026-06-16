@@ -135,7 +135,6 @@ export const typeDefs = gql`
 
     type Mutation {
         updateJob(id: String!, job: JobInput!): Job
-        unmatch(id: String!): Job
         unmatchJob(id: String!): Job
         addCandidateToJob(jobId: String!, candidateId: String!): Job
         removeCandidateFromJob(jobId: String!, candidateId: String!): Job
