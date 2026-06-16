@@ -7,6 +7,7 @@ export async function truncateMysql(): Promise<void> {
     try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
         await conn.query('TRUNCATE TABLE needs_analysis');
+        await conn.query('TRUNCATE TABLE company_history');
         await conn.query('TRUNCATE TABLE companies');
         await conn.query('TRUNCATE TABLE companies_blacklist');
         await conn.query('TRUNCATE TABLE users');
