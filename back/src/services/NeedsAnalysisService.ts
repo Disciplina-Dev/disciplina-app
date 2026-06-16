@@ -4,6 +4,11 @@ import { toNeedsAnalysis, toNeedsAnalysisRow } from './mappers/needsAnalysis.map
 import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
+import { JobRepository } from '../repositories/mongo/JobRepository';
+import { UserRepository } from '../repositories/mysql/UserRepository';
+import { NotificationService } from './NotificationService';
+import { buildJobsFromAb } from './mappers/abToJob';
+import { Role } from '../types/user.types';
 import { logger } from '../external/logger';
 
 /** Estimation du nombre de pages d'un PDF (objets `/Type /Page`). Min 1. */
@@ -16,11 +21,17 @@ export class NeedsAnalysisService {
     private repository: NeedsAnalysisRepository;
     private companiesService: CompaniesService;
     private docusealService: DocuSealService;
+    private jobRepository: JobRepository;
+    private userRepository: UserRepository;
+    private notificationService: NotificationService;
 
     constructor() {
         this.repository = new NeedsAnalysisRepository();
         this.companiesService = new CompaniesService();
         this.docusealService = new DocuSealService();
+        this.jobRepository = new JobRepository();
+        this.userRepository = new UserRepository();
+        this.notificationService = new NotificationService();
     }
 
     async findAll(): Promise<NeedsAnalysis[]> {
@@ -133,16 +144,49 @@ export class NeedsAnalysisService {
             countPdfPages(buffer),
         );
 
+        const wasDraft = row.status === 'BROUILLON';
+
         await this.repository.update(id, {
             status: 'EN_ATTENTE_SIGNATURE',
             yousign_signature_request_id: submissionId,
         });
+
+        // Au premier envoi : créer les offres de matching et notifier les RH.
+        // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.
+        if (wasDraft) {
+            await this.createMatchingJobsAndNotifyRh(analysis, company.name || 'Entreprise').catch((err) => {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to create matching jobs / notify RH');
+            });
+        }
 
         const updated = await this.repository.findById(id);
         if (!updated) {
             throw new Error('Needs analysis not found after update');
         }
         return toNeedsAnalysis(updated);
+    }
+
+    /** Crée une offre de matching par poste et notifie tous les RH (cloche CRM). */
+    private async createMatchingJobsAndNotifyRh(analysis: NeedsAnalysis, companyName: string): Promise<void> {
+        const jobs = buildJobsFromAb(analysis, companyName);
+        await Promise.all(jobs.map((job) => this.jobRepository.create(job)));
+        logger.info({ id: analysis.id, count: jobs.length }, '[NeedsAnalysis] Matching jobs created from AB');
+
+        const rhUsers = (await this.userRepository.findByRole(Role.RH)) ?? [];
+        const positionsLabel = `${jobs.length} poste${jobs.length > 1 ? 's' : ''}`;
+        await Promise.all(
+            rhUsers.map((user) =>
+                this.notificationService.create({
+                    userId: user.id,
+                    type: 'ab_ready_for_matching',
+                    level: 'info',
+                    title: 'Nouvelle analyse du besoin à matcher',
+                    message: `${companyName} — ${positionsLabel} à pourvoir`,
+                    link: '/rh/matching',
+                }),
+            ),
+        );
+        logger.info({ id: analysis.id, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
     }
 
     async update(id: number, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
