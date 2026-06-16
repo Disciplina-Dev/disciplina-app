@@ -9,12 +9,30 @@ import { NeedsAnalysis } from '../types/needsAnalysis.types';
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // Sur Vercel/Lambda (pas de Chromium système), on utilise @sparticuz/chromium
 // avec puppeteer-core. En local, on garde le Chromium fourni par puppeteer.
+// Import dynamique natif : `@sparticuz/chromium` et `puppeteer-core` sont des
+// modules ESM-only. Avec TypeScript en CommonJS, un `import()` classique est
+// transpilé en `require()` (→ ERR_REQUIRE_ESM). Passer par `Function` empêche
+// cette transpilation et conserve un vrai `import()` ESM à l'exécution.
+const nativeImport: (specifier: string) => Promise<any> = new Function(
+    'specifier',
+    'return import(specifier)',
+) as (specifier: string) => Promise<any>;
+
+// Branche morte (jamais exécutée) : le traceur de dépendances de Vercel (nft)
+// ne voit pas l'import dynamique via `Function`, donc on garde ici des `import()`
+// statiques pour qu'il embarque bien ces paquets ESM dans la fonction.
+/* istanbul ignore next */
+if ((globalThis as { __nftTraceOnly__?: boolean }).__nftTraceOnly__) {
+    void import('@sparticuz/chromium');
+    void import('puppeteer-core');
+}
+
 async function launchBrowser(): Promise<Browser> {
     const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_VERSION;
 
     if (isServerless) {
-        const chromium = (await import('@sparticuz/chromium')).default;
-        const puppeteerCore = (await import('puppeteer-core')).default;
+        const chromium = (await nativeImport('@sparticuz/chromium')).default;
+        const puppeteerCore = (await nativeImport('puppeteer-core')).default;
         return puppeteerCore.launch({
             args: chromium.args,
             executablePath: await chromium.executablePath(),
@@ -24,8 +42,7 @@ async function launchBrowser(): Promise<Browser> {
 
     // Indirection volontaire: empêche le bundler Vercel (nft) d'embarquer le
     // gros paquet `puppeteer` dans la fonction serverless (jamais utilisé là-bas).
-    const localModule = 'puppeteer';
-    const puppeteer = (await import(localModule)).default;
+    const puppeteer = (await nativeImport('puppeteer')).default;
     return puppeteer.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
