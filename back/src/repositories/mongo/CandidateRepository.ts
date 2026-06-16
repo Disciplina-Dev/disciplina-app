@@ -16,6 +16,13 @@ function escapeRegexSpecialChars(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Date à laquelle un candidat né aurait exactement `years` ans aujourd'hui. */
+function yearsAgo(years: number): Date {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - years);
+    return d;
+}
+
 type FlattenedObject = Record<string, any>;
 
 function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
@@ -58,10 +65,28 @@ export class CandidateRepository {
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
         if (filters?.tpType) conditions.push({ tp_type: filters.tpType });
         if (filters?.ageMin != null || filters?.ageMax != null) {
+            // Âge dérivé de la date de naissance (toujours à jour). Fallback sur l'âge
+            // stocké pour les candidats sans date de naissance.
+            const dobCondition: Record<string, Date> = {};
             const ageCondition: Record<string, number> = {};
-            if (filters.ageMin != null) ageCondition.$gte = filters.ageMin;
-            if (filters.ageMax != null) ageCondition.$lte = filters.ageMax;
-            conditions.push({ 'identity.age': ageCondition });
+            if (filters.ageMin != null) {
+                // âge >= ageMin → né au plus tard il y a ageMin ans
+                dobCondition.$lte = yearsAgo(filters.ageMin);
+                ageCondition.$gte = filters.ageMin;
+            }
+            if (filters.ageMax != null) {
+                // âge <= ageMax → né au plus tôt il y a (ageMax + 1) ans + 1 jour
+                const earliest = yearsAgo(filters.ageMax + 1);
+                earliest.setDate(earliest.getDate() + 1);
+                dobCondition.$gte = earliest;
+                ageCondition.$lte = filters.ageMax;
+            }
+            conditions.push({
+                $or: [
+                    { 'identity.date_of_birth': dobCondition },
+                    { 'identity.date_of_birth': null, 'identity.age': ageCondition },
+                ],
+            });
         }
 
         if (after && !trimmedSearch) {

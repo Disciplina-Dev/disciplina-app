@@ -12,6 +12,7 @@ import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } f
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
+import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
@@ -390,6 +391,11 @@ export default function FicheCandidat() {
                   <span className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[formData.tp_type]}`}>
                     {formData.tp_type}
                   </span>
+                  {isSenior(computeAge(formData.identity.date_of_birth) ?? formData.identity.age) && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+                      Senior
+                    </span>
+                  )}
                   {formData.training_site && (
                     <span className="text-xs text-gray-400">
                       {TRAINING_SITE_LABELS[formData.training_site]}
@@ -491,10 +497,10 @@ export default function FicheCandidat() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Âge">
-                  {isEditing ? (
-                    <input type="number" className={inputCls} value={formData.identity.age ?? ''}
-                      onChange={e => updateIdentity('age', e.target.value ? Number(e.target.value) : undefined)} />
-                  ) : <p className={valueCls}>{formData.identity.age ? `${formData.identity.age} ans` : '—'}</p>}
+                  {(() => {
+                    const liveAge = computeAge(formData.identity.date_of_birth) ?? formData.identity.age
+                    return <p className={valueCls}>{liveAge != null ? `${liveAge} ans` : '—'}</p>
+                  })()}
                 </Field>
                 <Field label="Ville">
                   {isEditing ? (
