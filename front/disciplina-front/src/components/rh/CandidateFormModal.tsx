@@ -10,6 +10,7 @@ import { splitFullName } from '@/utils/classmarker';
 import { candidateGraphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL } from '@/graphql/queries';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
+import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
 
 // ─── Form helpers ───────────────────────────────────────────────────────────
@@ -406,9 +407,14 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           <div className="grid grid-cols-2 gap-3">
             <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
             <InputField id="cn-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
-            <InputField id="cn-dob" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
+            <InputField id="cn-dob" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={e => {
+              const dob = e.target.value;
+              set('dateOfBirth', dob);
+              const age = computeAge(dob);
+              set('age', age != null ? String(age) : '');
+            }} />
             <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} />
-            <InputField id="cn-age" label="Âge" type="number" value={form.age} onChange={e => set('age', e.target.value)} />
+            <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-gray-50 text-gray-500" />
             <div className="col-span-2">
               <InputField id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={e => set('address', e.target.value)} />
             </div>
