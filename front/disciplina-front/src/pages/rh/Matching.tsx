@@ -18,13 +18,15 @@ import {
   ChevronRight,
   Badge,
   UserCheck,
+  Plus,
 } from 'lucide-react'
-import { GET_JOBS, MATCH_JOB } from '@/graphql/queries'
+import { GET_JOBS, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB } from '@/graphql/queries'
 import { jobGraphqlClient } from '@/graphql/client'
 import { useAuthStore } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
+import MailModal from '@/components/ui/MailModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,7 @@ interface Job {
 
 interface MatchJobResult extends Job {
   matchedCandidate: MatchedCandidate[]
+  suggestedCandidates: MatchedCandidate[]
 }
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
@@ -86,7 +89,6 @@ function statusChip(status: string | null): { label: string; cls: string } {
   const map: Record<string, { label: string; cls: string }> = {
     NOT_MATCHED: { label: 'Non matché', cls: 'bg-gray-100 text-gray-600' },
     MATCHED: { label: 'Matché', cls: 'bg-blue-light text-blue' },
-    ZERO_MATCHED: { label: 'Zéro match', cls: 'bg-warning-bg text-warning' },
     CV_SEND: { label: 'CV envoyé', cls: 'bg-purple-light text-purple' },
     IMMERSING: { label: 'En immersion', cls: 'bg-pink-light text-pink' },
     CONTRACT: { label: 'Sous contrat', cls: 'bg-success-bg text-success' },
