@@ -479,11 +479,13 @@ export const GET_CANDIDATE_FULL = gql`
         dateOfBirth
         placeOfBirth
         age
+        address
         postalCode
         city
         drivingLicenseB
         transportMeans
         pshReferralRequest
+        hadApprenticeshipContract
       }
       education { schoolLevel justification }
       support {

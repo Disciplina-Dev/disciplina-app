@@ -503,6 +503,12 @@ export default function FicheCandidat() {
                   ) : <p className={valueCls}>{formData.identity.city || '—'}</p>}
                 </Field>
               </div>
+              <Field label="Adresse (numéro et rue)">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.identity.address ?? ''}
+                    onChange={e => updateIdentity('address', e.target.value)} />
+                ) : <p className={valueCls}>{formData.identity.address || '—'}</p>}
+              </Field>
               <Field label="Code postal">
                 {isEditing ? (
                   <input className={inputCls} value={formData.identity.postal_code ?? ''}
@@ -526,6 +532,15 @@ export default function FicheCandidat() {
                   ) : <p className={valueCls}>{formData.identity.transport_means || '—'}</p>}
                 </Field>
               </div>
+              <Field label="A déjà eu un contrat d'apprentissage">
+                {isEditing ? (
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="rounded" checked={!!formData.identity.had_apprenticeship_contract}
+                      onChange={e => updateIdentity('had_apprenticeship_contract', e.target.checked)} />
+                    <span className="text-sm text-gray-700">Oui</span>
+                  </label>
+                ) : <p className={valueCls}>{formData.identity.had_apprenticeship_contract ? 'Oui' : 'Non'}</p>}
+              </Field>
             </div>
           </Card>
 

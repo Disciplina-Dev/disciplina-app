@@ -42,13 +42,15 @@ db.createCollection('candidates', {
             place_of_birth: { bsonType: "string" },
             age: { bsonType: "int" },
             sex: { enum: ["FILLE", "GARCON"] },
+            address: { bsonType: "string" },
             postal_code: { bsonType: "string" },
             city: { bsonType: "string" },
             email: { bsonType: "string" },
             phone: { bsonType: "string" },
             driving_license_b: { bsonType: "bool" },
             transport_means: { bsonType: "string" },
-            psh_referral_request: { bsonType: "bool" }
+            psh_referral_request: { bsonType: "bool" },
+            had_apprenticeship_contract: { bsonType: "bool" }
           }
         },
 
