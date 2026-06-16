@@ -59,6 +59,14 @@ export function useNotifications() {
     void refresh()
   }, [refresh])
 
+  // Polling de secours : sur un backend serverless (Vercel), le SSE ne traverse
+  // pas les instances. On rafraîchit périodiquement pour garantir l'arrivée des notifs.
+  useEffect(() => {
+    if (!token) return
+    const interval = setInterval(() => { void refresh() }, 45000)
+    return () => clearInterval(interval)
+  }, [token, refresh])
+
   // Flux temps réel
   useEffect(() => {
     if (!userId) return
