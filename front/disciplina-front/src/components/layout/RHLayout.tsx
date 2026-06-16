@@ -2,6 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -97,9 +98,14 @@ export default function RHLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
-        <Outlet />
-      </main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center justify-end border-b border-gray-100 bg-white px-6">
+          <NotificationBell accent="#60207E" />
+        </header>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

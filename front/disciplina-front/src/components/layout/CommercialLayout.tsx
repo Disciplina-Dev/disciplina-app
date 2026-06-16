@@ -3,6 +3,7 @@ import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, Chec
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -100,9 +101,14 @@ export default function CommercialLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
-        <Outlet />
-      </main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center justify-end border-b border-gray-100 bg-white px-6">
+          <NotificationBell accent="#1130A7" />
+        </header>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <Outlet />
+        </main>
+      </div>
 
       {/* AB signed toast notifications */}
       {notifications.length > 0 && (
