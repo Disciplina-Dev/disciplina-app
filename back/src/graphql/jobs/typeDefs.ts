@@ -52,6 +52,27 @@ export const typeDefs = gql`
         GARCON
     }
 
+    enum Sector {
+        BOULANGERIE
+        RESTAURATION
+        STATION
+        PAP
+        LIBRE_SERVICE
+        TELEPHONIE
+        AUTO
+        COMMERCIAL
+        BIJOUX
+        COSMETIQUE
+        IMMOBILIER
+        ASSURANCE
+        ANIMAUX
+        SPORT
+        ENFANT
+        PHARMACIE
+        BAZAR
+        NONE
+    }
+
     type MatchingCandidate {
         id: String
         fullName: String
@@ -72,6 +93,7 @@ export const typeDefs = gql`
         professionalExperience: Boolean
         status: JobStatus
         localisation: [Localisation]
+        sector: Sector
         matchedCandidate: [MatchingCandidate]
     }
 
@@ -95,6 +117,7 @@ export const typeDefs = gql`
         professionalExperience: Boolean
         status: JobStatus
         localisation: [Localisation]
+        sector: Sector
         matchedCandidate: [MatchingCandidateInput]
     }
 

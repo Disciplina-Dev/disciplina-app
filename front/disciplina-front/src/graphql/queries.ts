@@ -632,6 +632,7 @@ export const GET_JOBS = gql`
       professionalExperience
       status
       localisation
+      sector
     }
   }
 `
@@ -648,6 +649,7 @@ export const MATCH_JOB = gql`
       professionalExperience
       status
       localisation
+      sector
       matchedCandidate {
         id
         fullName
