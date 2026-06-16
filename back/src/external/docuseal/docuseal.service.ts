@@ -6,6 +6,24 @@ const MOCK_PREFIX = 'mock-docuseal-sub-';
 
 const SIGNER_ROLE = 'Responsable';
 
+// Email "à signer" envoyé par DocuSeal au signataire.
+// Variables disponibles : {{template.name}}, {{submitter.link}}, {{account.name}}.
+const SIGNATURE_EMAIL_SUBJECT = 'Signature de votre Analyse du Besoin';
+const SIGNATURE_EMAIL_BODY = [
+    'Bonjour,',
+    '',
+    'Dans le cadre de votre projet de recrutement en apprentissage avec Disciplina,',
+    'nous vous invitons à signer électroniquement votre Analyse du Besoin.',
+    '',
+    'Cliquez sur le bouton ci-dessous pour consulter et signer le document :',
+    '{{submitter.link}}',
+    '',
+    "La signature est simple, rapide et n'engendre aucun frais.",
+    '',
+    "Cordialement,",
+    "L'équipe Disciplina",
+].join('\n');
+
 /**
  * Wrapper de l'API DocuSeal (https://www.docuseal.com/docs/api).
  *
@@ -97,6 +115,10 @@ export class DocuSealService {
                 body: JSON.stringify({
                     template_id: templateId,
                     send_email: true,
+                    message: {
+                        subject: SIGNATURE_EMAIL_SUBJECT,
+                        body: SIGNATURE_EMAIL_BODY,
+                    },
                     submitters: [{ role: SIGNER_ROLE, email: signerEmail, name: signerName }],
                 }),
             });
