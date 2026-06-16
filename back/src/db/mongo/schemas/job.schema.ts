@@ -6,7 +6,7 @@ const matchingCandidateSchema = new Schema<MatchingCandidate>(
     {
         full_name: { type: String },
         age: { type: Number },
-        sex: { type: Boolean },
+        sex: { type: String },
         city: { type: String, enum: Object.values(Localisation) },
         email: { type: String },
         phone: { type: String },

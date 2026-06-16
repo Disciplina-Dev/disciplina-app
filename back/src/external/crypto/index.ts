@@ -1,2 +1,9 @@
 export { HmacService, hmac } from './hmac.service';
-export { signRelanceUrl, verifyRelanceUrl, signGoogleState, verifyGoogleState } from './signers';
+export {
+    signRelanceUrl,
+    verifyRelanceUrl,
+    signMatchUrl,
+    verifyMatchUrl,
+    signGoogleState,
+    verifyGoogleState,
+} from './signers';
