@@ -385,7 +385,27 @@ export const typeDefs = gql`
         tpType: TitleProfessionalType
     }
 
+    type StatBucket {
+        key: String!
+        count: Int!
+    }
+
+    type TpStatusBucket {
+        tpType: String!
+        status: String!
+        count: Int!
+    }
+
+    type CandidateStats {
+        total: Int!
+        byStatus: [StatBucket!]!
+        byTpType: [StatBucket!]!
+        byTrainingSite: [StatBucket!]!
+        byTpAndStatus: [TpStatusBucket!]!
+    }
+
     type Query {
+        candidateStats: CandidateStats!
         candidates: [Candidate!]!
         candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate

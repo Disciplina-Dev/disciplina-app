@@ -2,6 +2,33 @@ import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { Candidate } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 
+export interface StatBucket {
+    key: string;
+    count: number;
+}
+
+export interface TpStatusBucket {
+    tpType: string;
+    status: string;
+    count: number;
+}
+
+export interface CandidateStats {
+    total: number;
+    byStatus: StatBucket[];
+    byTpType: StatBucket[];
+    byTrainingSite: StatBucket[];
+    byTpAndStatus: TpStatusBucket[];
+}
+
+interface RawStats {
+    total: { count: number }[];
+    byStatus: { _id: unknown; count: number }[];
+    byTpType: { _id: unknown; count: number }[];
+    byTrainingSite: { _id: unknown; count: number }[];
+    byTpAndStatus: { _id: { tpType: unknown; status: unknown }; count: number }[];
+}
+
 export interface CandidateFilters {
     trainingSite?: string;
     status?: string;
@@ -103,6 +130,43 @@ export class CandidateRepository {
 
     async findById(id: string): Promise<Candidate | null> {
         return CandidateModel.findById(id).lean();
+    }
+
+    /**
+     * Statistiques agrégées des candidats, calculées côté MongoDB via un seul
+     * pipeline `$facet` (aucun document n'est rapatrié dans Node). Renvoie les
+     * répartitions par statut, par type de TP, par site de formation, ainsi que
+     * le croisement statut × TP pour les graphiques empilés.
+     */
+    async stats(): Promise<CandidateStats> {
+        const [result] = await CandidateModel.aggregate<RawStats>([
+            {
+                $facet: {
+                    total: [{ $count: 'count' }],
+                    byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+                    byTpType: [{ $group: { _id: '$tp_type', count: { $sum: 1 } } }],
+                    byTrainingSite: [{ $group: { _id: '$training_site', count: { $sum: 1 } } }],
+                    byTpAndStatus: [
+                        { $group: { _id: { tpType: '$tp_type', status: '$status' }, count: { $sum: 1 } } },
+                    ],
+                },
+            },
+        ]);
+
+        const toBuckets = (rows: { _id: unknown; count: number }[]) =>
+            rows
+                .filter((r) => r._id != null)
+                .map((r) => ({ key: String(r._id), count: r.count }));
+
+        return {
+            total: result?.total[0]?.count ?? 0,
+            byStatus: toBuckets(result?.byStatus ?? []),
+            byTpType: toBuckets(result?.byTpType ?? []),
+            byTrainingSite: toBuckets(result?.byTrainingSite ?? []),
+            byTpAndStatus: (result?.byTpAndStatus ?? [])
+                .filter((r) => r._id?.tpType != null && r._id?.status != null)
+                .map((r) => ({ tpType: String(r._id.tpType), status: String(r._id.status), count: r.count })),
+        };
     }
 
     async findByfilter(filter: Record<string, any>): Promise<Candidate[]> {
