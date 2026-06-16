@@ -657,6 +657,51 @@ export const MATCH_JOB = gql`
         email
         phone
       }
+      suggestedCandidates {
+        id
+        fullName
+        age
+        sex
+        city
+        email
+        phone
+      }
+    }
+  }
+`
+
+export const ADD_CANDIDATE_TO_JOB = gql`
+  mutation AddCandidateToJob($jobId: String!, $candidateId: String!) {
+    addCandidateToJob(jobId: $jobId, candidateId: $candidateId) {
+      id
+      status
+      matchedCandidate {
+        id
+        fullName
+        age
+        sex
+        city
+        email
+        phone
+      }
+    }
+  }
+`
+
+export const OFFER_RESPONSE_LINKS = gql`
+  query OfferResponseLinks($jobId: String!, $candidateId: String!) {
+    offerResponseLinks(jobId: $jobId, candidateId: $candidateId) {
+      ouiUrl
+      nonUrl
+    }
+  }
+`
+
+export const UPDATE_JOB = gql`
+  mutation UpdateJob($id: String!, $job: JobInput!) {
+    updateJob(id: $id, job: $job) {
+      id
+      status
     }
   }
 `
