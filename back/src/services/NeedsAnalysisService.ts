@@ -172,7 +172,8 @@ export class NeedsAnalysisService {
         await Promise.all(jobs.map((job) => this.jobRepository.create(job)));
         logger.info({ id: analysis.id, count: jobs.length }, '[NeedsAnalysis] Matching jobs created from AB');
 
-        const rhUsers = (await this.userRepository.findByRole(Role.RH)) ?? [];
+        // RH + Responsables + Admin : tous ont accès à l'espace de matching.
+        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
         const positionsLabel = `${jobs.length} poste${jobs.length > 1 ? 's' : ''}`;
         await Promise.all(
             rhUsers.map((user) =>
