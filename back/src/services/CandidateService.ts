@@ -1,4 +1,4 @@
-import { CandidateRepository, CandidateFilters } from '../repositories/mongo/CandidateRepository';
+import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { Candidate } from '../types/candidate.types';
 import { Job, Sector } from '../types/job.types';
@@ -18,6 +18,10 @@ export class CandidateService {
 
     async findById(id: string): Promise<Candidate | null> {
         return this.repository.findById(id);
+    }
+
+    async stats(): Promise<CandidateStats> {
+        return this.repository.stats();
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {

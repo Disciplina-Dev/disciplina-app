@@ -71,6 +71,10 @@ export const resolvers = {
                 pageInfo: conn.pageInfo,
             };
         },
+        candidateStats: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return candidateService.stats();
+        },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidate = await candidateService.findById(id);
