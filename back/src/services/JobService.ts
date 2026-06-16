@@ -2,7 +2,7 @@ import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateStatus } from '../types/candidate.types';
-import { Job, JobStatus, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
+import { Job, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
 import { signMatchUrl } from '../external/crypto';
 import { env } from '../config/env';
 
