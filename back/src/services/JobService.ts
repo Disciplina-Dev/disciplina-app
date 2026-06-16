@@ -2,7 +2,7 @@ import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateStatus } from '../types/candidate.types';
-import { Job, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
+import { Job, JobStatus, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
 import { signMatchUrl } from '../external/crypto';
 import { env } from '../config/env';
 
@@ -121,6 +121,25 @@ export class JobService {
 
         await this.candidateService.update(candidateId, { status: CandidateStatus.MATCHED });
         return toGql(job);
+    }
+
+    async removeCandidate(jobId: string, candidateId: string): Promise<object | null> {
+        const job = await this.repository.removeMatchedCandidate(jobId, candidateId);
+        if (!job) return null;
+        if ((job.matched_candidate ?? []).length === 0) {
+            const updated = await this.repository.update(jobId, { status: JobStatus.NOT_MATCHED } as any);
+            return updated ? toGql(updated) : toGql(job);
+        }
+        return toGql(job);
+    }
+
+    async unmatchAll(jobId: string): Promise<object | null> {
+        const job = await this.repository.clearMatchedCandidates(jobId);
+        return job ? toGql(job) : null;
+    }
+
+    async getMatchedJobIds(candidateId: string): Promise<string[]> {
+        return this.repository.findJobIdsWithCandidate(candidateId);
     }
 
     offerResponseLinks(jobId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {

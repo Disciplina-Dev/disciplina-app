@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle, Plus, Check } from 'lucide-react'
+import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck } from 'lucide-react'
 import { candidateGraphqlClient, jobGraphqlClient } from '@/graphql/client'
 import { MATCH_CANDIDATE, ADD_CANDIDATE_TO_JOB } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
@@ -8,6 +8,7 @@ import type { MatchedJob } from '@/types/candidate'
 
 interface MatchedJobsListProps {
   candidateId: string
+  confirmedJobIds?: Set<string>
 }
 
 function formatSector(raw?: string): string {
@@ -15,11 +16,11 @@ function formatSector(raw?: string): string {
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export default function MatchedJobsList({ candidateId }: MatchedJobsListProps) {
+export default function MatchedJobsList({ candidateId, confirmedJobIds }: MatchedJobsListProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedJob[]>([])
-  const [addedJobIds, setAddedJobIds] = useState<Set<string>>(new Set())
+  const [addedJobIds, setAddedJobIds] = useState<Set<string>>(confirmedJobIds ?? new Set())
   const [addingJobId, setAddingJobId] = useState<string | null>(null)
 
   const fetchMatches = useCallback(async () => {
@@ -130,7 +131,11 @@ export default function MatchedJobsList({ candidateId }: MatchedJobsListProps) {
                   ))}
                 </div>
               </div>
-              {addedJobIds.has(job.id) ? (
+              {confirmedJobIds?.has(job.id) ? (
+                <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success shrink-0">
+                  <UserCheck className="w-3.5 h-3.5" /> Matché
+                </span>
+              ) : addedJobIds.has(job.id) ? (
                 <span className="flex items-center gap-1 text-xs font-medium text-success shrink-0">
                   <Check className="w-3.5 h-3.5" /> Ajouté
                 </span>

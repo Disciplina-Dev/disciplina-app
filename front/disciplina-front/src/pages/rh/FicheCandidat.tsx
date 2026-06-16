@@ -9,6 +9,8 @@ import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
+import { jobGraphqlClient } from '@/graphql/client'
+import { GET_CANDIDATE_MATCHED_JOB_IDS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
@@ -151,6 +153,7 @@ export default function FicheCandidat() {
   const [loadingFiles, setLoadingFiles] = useState(false)
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null)
+  const [confirmedJobIds, setConfirmedJobIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -177,6 +180,15 @@ export default function FicheCandidat() {
       fetchDriveFiles(id)
     }
   }, [formData?.drive_folder_id])
+
+  useEffect(() => {
+    if (!id) return
+    jobGraphqlClient.query(GET_CANDIDATE_MATCHED_JOB_IDS, { candidateId: id }).toPromise().then((result) => {
+      if (result.data?.candidateMatchedJobIds) {
+        setConfirmedJobIds(new Set(result.data.candidateMatchedJobIds as string[]))
+      }
+    })
+  }, [id])
 
   const handleDriveUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : []
@@ -468,7 +480,7 @@ export default function FicheCandidat() {
 
           {/* Offres correspondantes */}
           <div className="md:col-span-2">
-            <MatchedJobsList candidateId={id ?? ''} />
+            <MatchedJobsList candidateId={id ?? ''} confirmedJobIds={confirmedJobIds} />
           </div>
 
           {/* Identité & Contact */}
