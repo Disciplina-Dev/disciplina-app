@@ -282,6 +282,18 @@ const CANDIDATE_FIELDS = gql`
   }
 `
 
+export const GET_CANDIDATE_STATS = gql`
+  query GetCandidateStats {
+    candidateStats {
+      total
+      byStatus { key count }
+      byTpType { key count }
+      byTrainingSite { key count }
+      byTpAndStatus { tpType status count }
+    }
+  }
+`
+
 export const GET_CANDIDATES = gql`
   query GetCandidates {
     candidates {
@@ -479,11 +491,13 @@ export const GET_CANDIDATE_FULL = gql`
         dateOfBirth
         placeOfBirth
         age
+        address
         postalCode
         city
         drivingLicenseB
         transportMeans
         pshReferralRequest
+        hadApprenticeshipContract
       }
       education { schoolLevel justification }
       support {

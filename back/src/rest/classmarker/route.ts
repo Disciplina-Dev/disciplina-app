@@ -12,7 +12,7 @@ export const router: Router = express.Router();
 
 router.get('/links', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.ADMIN) {
+    if (role !== Role.RH && role !== Role.ADMIN && role !== Role.RESPONSABLE) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }

@@ -1,0 +1,119 @@
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Bell, Check, CheckCheck } from 'lucide-react'
+import { useNotifications, type AppNotification, type NotificationLevel } from '@/hooks/useNotifications'
+
+const LEVEL_DOT: Record<NotificationLevel, string> = {
+  info: 'bg-blue-500',
+  success: 'bg-green-500',
+  warning: 'bg-amber-500',
+  error: 'bg-red-500',
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return "À l'instant"
+  if (m < 60) return `Il y a ${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `Il y a ${h} h`
+  const d = Math.floor(h / 24)
+  return `Il y a ${d} j`
+}
+
+export default function NotificationBell({ accent = '#60207E' }: { accent?: string }) {
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!open) return
+    const onClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  const handleClick = (n: AppNotification) => {
+    if (!n.read) void markRead(n.id)
+    if (n.link) {
+      setOpen(false)
+      navigate(n.link)
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        title="Notifications"
+        aria-label="Notifications"
+      >
+        <Bell size={19} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-100 bg-white shadow-lg z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <span className="text-sm font-bold text-gray-900">Notifications</span>
+            {unreadCount > 0 && (
+              <button
+                onClick={() => void markAllRead()}
+                className="flex items-center gap-1 text-[11px] font-semibold hover:underline"
+                style={{ color: accent }}
+              >
+                <CheckCheck size={13} /> Tout marquer lu
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-96 overflow-y-auto">
+            {notifications.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-gray-400">Aucune notification</div>
+            ) : (
+              notifications.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => handleClick(n)}
+                  className={[
+                    'flex w-full items-start gap-3 px-4 py-3 text-left border-b border-gray-50 transition-colors hover:bg-gray-50',
+                    n.read ? 'bg-white' : 'bg-blue-50/60',
+                  ].join(' ')}
+                >
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${LEVEL_DOT[n.level] ?? LEVEL_DOT.info}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-[13px] ${n.read ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
+                      {n.title}
+                    </p>
+                    {n.message && <p className="mt-0.5 line-clamp-2 text-[12px] text-gray-500">{n.message}</p>}
+                    <p className="mt-1 text-[11px] text-gray-400">{timeAgo(n.createdAt)}</p>
+                  </div>
+                  {!n.read && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void markRead(n.id)
+                      }}
+                      className="mt-0.5 shrink-0 rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600"
+                      title="Marquer comme lu"
+                    >
+                      <Check size={14} />
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

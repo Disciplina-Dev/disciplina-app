@@ -251,7 +251,7 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
 
             {ab.yousignSignatureRequestID && (
               <Section icon={<Hash className="h-3.5 w-3.5" />} title="Signature électronique">
-                <Row label="ID Yousign" value={ab.yousignSignatureRequestID} />
+                <Row label="Référence" value={ab.yousignSignatureRequestID} />
               </Section>
             )}
           </div>

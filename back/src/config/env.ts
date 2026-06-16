@@ -133,9 +133,21 @@ const data = {
     YOUSIGN_API_KEY: optionalString('YOUSIGN_API_KEY', 'sandbox_yousign_key_placeholder'),
     YOUSIGN_BASE_URL: stringWithDefault('YOUSIGN_BASE_URL', 'https://api-sandbox.yousign.app/v3'),
 
+    // DocuSeal e-signature. Override base URL with https://api.docuseal.eu (EU)
+    // or a self-hosted instance URL as needed.
+    DOCUSEAL_API_KEY: optionalString('DOCUSEAL_API_KEY', 'docuseal_key_placeholder'),
+    DOCUSEAL_BASE_URL: stringWithDefault('DOCUSEAL_BASE_URL', 'https://api.docuseal.com'),
+
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 
+    // Dossier partagé racine "Candidat Nord" (fallback si pas de sous-dossier par TP).
     DRIVE_CANDIDATS_NORD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_FOLDER_ID'),
+    // Sous-dossiers par type de Titre Professionnel, dans "Candidat Nord".
+    DRIVE_CANDIDATS_NORD_AD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_AD_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_CC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CC_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_REM_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_REM_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_SA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_SA_FOLDER_ID'),
 
     OAUTH_ENCRYPTION_KEY: stringWithDefault(
         'OAUTH_ENCRYPTION_KEY',

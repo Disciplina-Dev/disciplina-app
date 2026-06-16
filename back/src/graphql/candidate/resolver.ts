@@ -9,7 +9,7 @@ import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql, jobToMatchedJobGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
-import { env } from '../../config/env';
+import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { CandidateFilters } from '../../repositories/mongo/CandidateRepository';
 
@@ -70,6 +70,10 @@ export const resolvers = {
                 edges: conn.edges.map((edge) => ({ ...edge, node: candidateToGql(edge.node) })),
                 pageInfo: conn.pageInfo,
             };
+        },
+        candidateStats: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return candidateService.stats();
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
@@ -134,7 +138,7 @@ export const resolvers = {
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
                     const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                         folderName,
-                        env.DRIVE_CANDIDATS_NORD_FOLDER_ID,
+                        driveParentFolderForTp(newCandidate.tp_type),
                     );
 
                     await candidateService.update(id, { drive_folder_id: folderId, drive_folder_link: folderLink });
@@ -188,7 +192,7 @@ export const resolvers = {
             const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
             const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                 folderName,
-                env.DRIVE_CANDIDATS_NORD_FOLDER_ID,
+                driveParentFolderForTp(candidate.tp_type),
             );
 
             const updated = await candidateService.update(id, {

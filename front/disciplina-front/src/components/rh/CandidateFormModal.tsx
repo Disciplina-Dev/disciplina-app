@@ -10,6 +10,7 @@ import { splitFullName } from '@/utils/classmarker';
 import { candidateGraphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL } from '@/graphql/queries';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
+import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
 
 // ─── Form helpers ───────────────────────────────────────────────────────────
@@ -66,8 +67,9 @@ type ABForm = {
   // identité
   fullName: string; email: string; phone: string;
   dateOfBirth: string; placeOfBirth: string; age: string;
-  postalCode: string; city: string;
+  address: string; postalCode: string; city: string;
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
+  hadApprenticeshipContract: string;
   // TP + statut
   tpType: TitleProfessionalType; status: string;
   // éducation
@@ -106,8 +108,9 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
     fullName: '', email: '', phone: '',
-    dateOfBirth: '', placeOfBirth: '', age: '', postalCode: '', city: '',
+    dateOfBirth: '', placeOfBirth: '', age: '', address: '', postalCode: '', city: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
+    hadApprenticeshipContract: '',
     tpType, status: 'SEEKING',
     schoolLevel: '', schoolJustification: '',
     trainingSite: '',
@@ -145,11 +148,13 @@ function candidateToForm(c: Candidate): ABForm {
     dateOfBirth: c.identity.date_of_birth ?? '',
     placeOfBirth: c.identity.place_of_birth ?? '',
     age: c.identity.age != null ? String(c.identity.age) : '',
+    address: c.identity.address ?? '',
     postalCode: c.identity.postal_code ?? '',
     city: c.identity.city ?? '',
     drivingLicenseB: bs(c.identity.driving_license_b),
     transportMeans: c.identity.transport_means ?? '',
     pshReferralRequest: bs(c.identity.psh_referral_request),
+    hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
     tpType: c.tp_type,
     status: statusKey,
     schoolLevel: c.education?.school_level ?? '',
@@ -212,11 +217,13 @@ function toServerInput(f: ABForm) {
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       age: f.age ? parseInt(f.age) : undefined,
+      address: f.address || undefined,
       postalCode: f.postalCode || undefined,
       city: f.city || undefined,
       drivingLicenseB: pb(f.drivingLicenseB),
       transportMeans: f.transportMeans || undefined,
       pshReferralRequest: pb(f.pshReferralRequest),
+      hadApprenticeshipContract: pb(f.hadApprenticeshipContract),
     },
     education: { schoolLevel: f.schoolLevel || undefined, justification: f.schoolJustification || undefined },
     support: {
@@ -400,9 +407,17 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           <div className="grid grid-cols-2 gap-3">
             <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
             <InputField id="cn-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
-            <InputField id="cn-dob" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
+            <InputField id="cn-dob" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={e => {
+              const dob = e.target.value;
+              set('dateOfBirth', dob);
+              const age = computeAge(dob);
+              set('age', age != null ? String(age) : '');
+            }} />
             <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} />
-            <InputField id="cn-age" label="Âge" type="number" value={form.age} onChange={e => set('age', e.target.value)} />
+            <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-gray-50 text-gray-500" />
+            <div className="col-span-2">
+              <InputField id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={e => set('address', e.target.value)} />
+            </div>
             <InputField id="cn-cp" label="Code postal" value={form.postalCode} onChange={e => {
               const cp = e.target.value;
               set('postalCode', cp);
@@ -418,6 +433,7 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]} />
           <InputField id="cn-transport" label="Moyen de transport" value={form.transportMeans} onChange={e => set('transportMeans', e.target.value)} />
           <ABRadio label="Souhait de mise en relation avec le Référent PSH ?" name="psh" value={form.pshReferralRequest} onChange={v => set('pshReferralRequest', v)} options={boolOpts} />
+          <ABRadio label="A déjà eu un contrat d'apprentissage ?" name="appr" value={form.hadApprenticeshipContract} onChange={v => set('hadApprenticeshipContract', v)} options={boolOpts} />
 
           {/* Prérequis */}
           <ABSectionTitle title="Parcours et prérequis" />

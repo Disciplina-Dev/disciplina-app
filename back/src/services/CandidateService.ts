@@ -1,7 +1,8 @@
-import { CandidateRepository, CandidateFilters } from '../repositories/mongo/CandidateRepository';
+import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { Candidate } from '../types/candidate.types';
 import { Job, Sector } from '../types/job.types';
+import { computeAge } from '../utils/age';
 
 export class CandidateService {
     private repository = new CandidateRepository();
@@ -17,6 +18,10 @@ export class CandidateService {
 
     async findById(id: string): Promise<Candidate | null> {
         return this.repository.findById(id);
+    }
+
+    async stats(): Promise<CandidateStats> {
+        return this.repository.stats();
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {
@@ -44,10 +49,10 @@ export class CandidateService {
         if (job.driving_license_b && !candidate.identity.driving_license_b) return false;
         if (job.desired_sex && job.desired_sex !== 'MIXTE' && job.desired_sex !== candidate.identity.sex) return false;
 
-        if (job.age_range && candidate.identity.age != null) {
+        const candidateAge = computeAge(candidate.identity.date_of_birth) ?? candidate.identity.age;
+        if (job.age_range && candidateAge != null) {
             const [min, max] = job.age_range.split('-').map(Number);
-            if (!isNaN(min) && !isNaN(max) && (candidate.identity.age < min || candidate.identity.age > max))
-                return false;
+            if (!isNaN(min) && !isNaN(max) && (candidateAge < min || candidateAge > max)) return false;
         }
 
         if (job.localisation?.length) {

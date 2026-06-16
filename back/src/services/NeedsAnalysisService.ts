@@ -3,15 +3,24 @@ import { NeedsAnalysis } from '../types/needsAnalysis.types';
 import { toNeedsAnalysis, toNeedsAnalysisRow } from './mappers/needsAnalysis.mapper';
 import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
+import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { logger } from '../external/logger';
+
+/** Estimation du nombre de pages d'un PDF (objets `/Type /Page`). Min 1. */
+function countPdfPages(buffer: Buffer): number {
+    const matches = buffer.toString('latin1').match(/\/Type\s*\/Page[^s]/g);
+    return matches && matches.length > 0 ? matches.length : 1;
+}
 
 export class NeedsAnalysisService {
     private repository: NeedsAnalysisRepository;
     private companiesService: CompaniesService;
+    private docusealService: DocuSealService;
 
     constructor() {
         this.repository = new NeedsAnalysisRepository();
         this.companiesService = new CompaniesService();
+        this.docusealService = new DocuSealService();
     }
 
     async findAll(): Promise<NeedsAnalysis[]> {
@@ -85,6 +94,55 @@ export class NeedsAnalysisService {
         const buffer = await PdfService.generateNeedsAnalysisPdf(analysis, company);
         const filename = `Analyse_Besoin_${company.name?.replace(/\s+/g, '_') || 'Entreprise'}_${id}.pdf`;
         return { buffer, filename };
+    }
+
+    /**
+     * Génère l'AB en PDF et l'envoie en signature électronique via DocuSeal au
+     * responsable recrutement. Passe le statut à EN_ATTENTE_SIGNATURE et stocke
+     * l'identifiant de submission.
+     */
+    async sendForSignature(id: number): Promise<NeedsAnalysis> {
+        const row = await this.repository.findById(id);
+        if (!row) {
+            throw new Error('Needs analysis not found');
+        }
+        const analysis = toNeedsAnalysis(row);
+
+        const signerEmail = analysis.recruitmentResponsibleEmail;
+        if (!signerEmail) {
+            throw new Error('No recruitment responsible email to send the signature request to');
+        }
+
+        const company = await this.companiesService.findById(analysis.companyID);
+        if (!company) {
+            throw new Error(`Company with ID ${analysis.companyID} not found`);
+        }
+
+        const buffer = await PdfService.generateNeedsAnalysisPdf(analysis, company);
+        const filename = `Analyse_Besoin_${company.name?.replace(/\s+/g, '_') || 'Entreprise'}_${id}.pdf`;
+
+        const [firstName, ...rest] = (analysis.recruitmentResponsibleName ?? '').trim().split(/\s+/);
+        const lastName = rest.join(' ');
+
+        const submissionId = await this.docusealService.initiateSignatureProcedure(
+            buffer,
+            filename,
+            signerEmail,
+            firstName || 'Responsable',
+            lastName || 'Recrutement',
+            countPdfPages(buffer),
+        );
+
+        await this.repository.update(id, {
+            status: 'EN_ATTENTE_SIGNATURE',
+            yousign_signature_request_id: submissionId,
+        });
+
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        return toNeedsAnalysis(updated);
     }
 
     async update(id: number, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {

@@ -12,6 +12,7 @@ import {
   BLACKLIST_COMPANY,
   UNBLACKLIST_COMPANY,
   GET_CANDIDATES,
+  GET_CANDIDATE_STATS,
   GET_CANDIDATES_PAGE,
   GET_CANDIDATE_BY_ID,
   GET_CANDIDATE_FULL,
@@ -304,11 +305,13 @@ function fromGql(c: any): Candidate {
       date_of_birth: c.identity.dateOfBirth,
       place_of_birth: c.identity.placeOfBirth,
       age: c.identity.age,
+      address: c.identity.address,
       postal_code: c.identity.postalCode,
       city: c.identity.city,
       driving_license_b: c.identity.drivingLicenseB,
       transport_means: c.identity.transportMeans,
       psh_referral_request: c.identity.pshReferralRequest,
+      had_apprenticeship_contract: c.identity.hadApprenticeshipContract,
       avatar_updated_at: c.identity.avatarUpdatedAt,
       avatar_url: c.identity.avatarUpdatedAt
         ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent(c.identity.avatarUpdatedAt)}`
@@ -416,7 +419,11 @@ function toGqlUpdateInput(c: Candidate): any {
       phone: c.identity.phone,
       ...(c.identity.driving_license_b !== undefined && { drivingLicenseB: c.identity.driving_license_b }),
       ...(c.identity.age !== undefined && { age: c.identity.age }),
+      ...(c.identity.address !== undefined && { address: c.identity.address }),
       ...(c.identity.city !== undefined && { city: c.identity.city }),
+      ...(c.identity.had_apprenticeship_contract !== undefined && {
+        hadApprenticeshipContract: c.identity.had_apprenticeship_contract,
+      }),
     },
     ...(c.education && {
       education: {
@@ -447,6 +454,40 @@ function toGqlUpdateInput(c: Candidate): any {
  * Fetches candidates from the dedicated MongoDB GraphQL endpoint.
  * Returns { candidates, loading, error, refetch }.
  */
+export interface StatBucket {
+  key: string
+  count: number
+}
+
+export interface TpStatusBucket {
+  tpType: string
+  status: string
+  count: number
+}
+
+export interface CandidateStats {
+  total: number
+  byStatus: StatBucket[]
+  byTpType: StatBucket[]
+  byTrainingSite: StatBucket[]
+  byTpAndStatus: TpStatusBucket[]
+}
+
+/** Statistiques agrégées des candidats (endpoint MongoDB dédié). */
+export function useCandidateStats() {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CANDIDATE_STATS,
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
+  })
+
+  return {
+    stats: (result.data?.candidateStats as CandidateStats | undefined) ?? null,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
 export function useCandidates() {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATES,
