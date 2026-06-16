@@ -18,6 +18,7 @@ import { router as sourcingRouter } from './rest/sourcing/route';
 import { router as yousignWebhookRouter } from './rest/yousign/route';
 import { router as kpiRouter } from './rest/kpi/route';
 import { router as needsAnalysisRouter } from './rest/needsAnalysis/route';
+import { router as matchingRouter } from './rest/matching/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -83,6 +84,7 @@ export async function createApp(): Promise<express.Express> {
     app.use(yousignWebhookRouter);
     app.use('/api/kpi', kpiRouter);
     app.use('/api/needs-analysis', needsAnalysisRouter);
+    app.use(matchingRouter);
     app.use(errorHandler);
 
     await connectMySQL();
