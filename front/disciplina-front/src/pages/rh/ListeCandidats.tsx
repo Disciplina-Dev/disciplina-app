@@ -11,27 +11,9 @@ import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } fro
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
+import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 
 // --- Helpers ---
-
-const getStatusColors = (status: CandidateStatus) => {
-  switch (status) {
-    case CandidateStatus.SEEKING:
-      return 'bg-blue';
-    case CandidateStatus.MATCHED:
-      return 'bg-purple';
-    case CandidateStatus.CONTRACTED:
-      return 'bg-success';
-    case CandidateStatus.NOT_SEEKING:
-      return 'bg-gray-500';
-    case CandidateStatus.CANCELLED:
-      return 'bg-warning';
-    case CandidateStatus.BANNED:
-      return 'bg-danger';
-    default:
-      return 'bg-gray-400';
-  }
-};
 
 const getTpTypeColors = (tpType: TitleProfessionalType) => {
   switch (tpType) {
@@ -264,7 +246,7 @@ export default function ListeCandidats() {
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Statut</label>
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as CandidateStatus)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="">Tous les statuts</option>
-                {Object.values(CandidateStatus).map(status => <option key={status} value={status}>{status}</option>)}
+                {Object.values(CandidateStatus).map(status => <option key={status} value={status}>{CANDIDATE_STATUS_LABELS[status]}</option>)}
               </select>
             </div>
 
@@ -345,7 +327,7 @@ export default function ListeCandidats() {
             className="group relative bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-purple/30 transition-all cursor-pointer flex flex-col h-full overflow-hidden"
           >
             {/* Status Corner Badge */}
-            <div className={`absolute top-0 right-0 px-4 py-1.5 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-opacity hover:opacity-90 cursor-pointer z-10 ${getStatusColors(candidate.status)}`}>
+            <div className={`absolute top-0 right-0 px-4 py-1.5 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-opacity hover:opacity-90 cursor-pointer z-10 ${CANDIDATE_STATUS_BADGE_CLASS[candidate.status]}`}>
               <select
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 value={candidate.status}
@@ -356,10 +338,10 @@ export default function ListeCandidats() {
                 onClick={(e) => e.stopPropagation()}
               >
                 {Object.values(CandidateStatus).map(status => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{CANDIDATE_STATUS_LABELS[status]}</option>
                 ))}
               </select>
-              {candidate.status}
+              {CANDIDATE_STATUS_LABELS[candidate.status]}
             </div>
 
             {/* Card Header: Avatar */}

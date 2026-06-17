@@ -54,7 +54,7 @@ export const typeDefs = gql`
         NOT_SEEKING
         CANCELLED
         MATCHED
-        CONTRACTED
+        CONTRACT
         IMMERSING
         BANNED
     }

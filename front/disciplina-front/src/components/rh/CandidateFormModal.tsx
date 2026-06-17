@@ -12,6 +12,7 @@ import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL } from '@/graphql/queries';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
+import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 
 // ─── Form helpers ───────────────────────────────────────────────────────────
 
@@ -392,12 +393,9 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
               {Object.values(TitleProfessionalType).map(t => <option key={t} value={t}>{t}</option>)}
             </ABSelectField>
             <ABSelectField id="cn-status" label="Statut *" value={form.status} onChange={v => set('status', v)}>
-              <option value="SEEKING">Recherche</option>
-              <option value="NOT_SEEKING">Ne recherche pas</option>
-              <option value="MATCHED">Immersion</option>
-              <option value="CONTRACTED">Contrat</option>
-              <option value="CANCELLED">Rupture</option>
-              <option value="BANNED">Banni</option>
+              {CANDIDATE_STATUS_ORDER.map(s => (
+                <option key={s} value={s}>{CANDIDATE_STATUS_LABELS[s]}</option>
+              ))}
             </ABSelectField>
           </div>
 
