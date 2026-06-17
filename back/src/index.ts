@@ -22,7 +22,7 @@ import { router as needsAnalysisRouter } from './rest/needsAnalysis/route';
 import { router as matchingRouter } from './rest/matching/route';
 import { router as notificationsRouter } from './rest/notifications/route';
 import { errorHandler } from './rest/middleware/errorHandler';
-import { emailRateLimiter, relanceRateLimiter } from './rest/middleware/rateLimiter';
+import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
 import { logger } from './external/logger/logger';
 import { env } from './config/env';
@@ -94,6 +94,8 @@ export async function createApp(): Promise<express.Express> {
     await connectMySQL();
     await runMysqlMigrations();
     await connectMongoDB();
+
+    app.use('/api/graphql', graphqlRateLimiter);
 
     // Prevent browser/proxy caching of GraphQL responses (auth-sensitive data)
     app.use('/api/graphql', (_req: Request, res: Response, next: NextFunction) => {
