@@ -10,6 +10,7 @@ const INSECURE_DEFAULTS = new Set([
     'changeme',
     'change-this-relance-secret',
     'change-this-google-state-secret',
+    '7325fd3fc113dc0034d98ee93eb9a50fc4c71d2798c819bc4e3f7e7e2fb7a940',
 ]);
 
 const errors: string[] = [];
@@ -149,10 +150,7 @@ const data = {
     DRIVE_CANDIDATS_NORD_REM_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_REM_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_SA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_SA_FOLDER_ID'),
 
-    OAUTH_ENCRYPTION_KEY: stringWithDefault(
-        'OAUTH_ENCRYPTION_KEY',
-        '7325fd3fc113dc0034d98ee93eb9a50fc4c71d2798c819bc4e3f7e7e2fb7a940',
-    ),
+    OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
 };
 
 if (errors.length > 0) {
@@ -180,6 +178,11 @@ if (INSECURE_DEFAULTS.has(data.RELANCE_HMAC_SECRET)) {
 
 if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
     console.error('GOOGLE_STATE_SECRET is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.OAUTH_ENCRYPTION_KEY)) {
+    console.error('OAUTH_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 
