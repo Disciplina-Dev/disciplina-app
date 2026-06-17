@@ -1,11 +1,12 @@
 import express, { Router, Request, Response } from 'express';
 import { handleYousignWebhook } from './controller';
 import { addClient, removeClient } from './sse';
+import { yousignWebhookGuard } from '../middleware/webhookSignature';
+import { env } from '../../config/env';
 
 export const router: Router = Router();
 
-// Webhook endpoint for Yousign callback notifications
-router.post('/api/webhooks/yousign', express.json(), handleYousignWebhook);
+router.post('/api/webhooks/yousign', ...yousignWebhookGuard(env.YOUSIGN_WEBHOOK_SECRET), handleYousignWebhook);
 
 // SSE stream — commercial subscribes with their userID
 router.get('/api/webhooks/yousign/stream', (req: Request, res: Response) => {
@@ -24,7 +25,11 @@ router.get('/api/webhooks/yousign/stream', (req: Request, res: Response) => {
 
     addClient(userID, res);
     const heartbeat = setInterval(() => {
-        try { res.write(': ping\n\n'); } catch { /* ignore */ }
+        try {
+            res.write(': ping\n\n');
+        } catch {
+            /* ignore */
+        }
     }, 30000);
 
     req.on('close', () => {

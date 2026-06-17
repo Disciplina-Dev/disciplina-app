@@ -4,6 +4,7 @@ import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
+import { toUserResponse } from '../../services/mappers/user.mapper';
 
 const userService = new UserService();
 
@@ -15,7 +16,7 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
             return;
         }
         const result = await userService.login(email, passwordPlain);
-        res.json(result);
+        res.json({ token: result.token, user: toUserResponse(result.user) });
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: login failed');
         res.status(401).json({ error: error.message || 'Invalid credentials' });
@@ -34,7 +35,7 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
             return;
         }
         const user = await userService.register(email, name, passwordPlain, role, sectors);
-        res.status(201).json(user);
+        res.status(201).json(toUserResponse(user));
     } catch (error: any) {
         res.status(400).json({ error: error.message });
     }
@@ -55,7 +56,7 @@ export async function disconnectGoogle(req: AuthRequest, res: Response): Promise
     try {
         await userService.updateGoogleTokens(req.user.id, null, null);
         const user = await userService.findById(req.user.id);
-        res.json(user);
+        res.json(user ? toUserResponse(user) : null);
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: google disconnect failed');
         res.status(500).json({ error: error.message });
@@ -77,7 +78,7 @@ export async function handleGoogleToken(req: AuthRequest, res: Response): Promis
         const tokens = await googleOAuth.exchangeCode(code);
         await userService.updateGoogleTokens(result.userId, tokens.access_token ?? null, tokens.refresh_token ?? null);
         const user = await userService.findById(result.userId);
-        res.json(user);
+        res.json(user ? toUserResponse(user) : null);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

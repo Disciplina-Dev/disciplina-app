@@ -166,6 +166,11 @@ export const resolvers = {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             const rowData = mapInputToRow(input);
+            if (context.user.role === Role.COMMERCIAL) {
+                rowData.user_id = context.user.id;
+            } else if (context.user.role === Role.RESPONSABLE && rowData.user_id === undefined) {
+                rowData.user_id = context.user.id;
+            }
             const company = await companiesService.create(rowData);
             return {
                 ...company,
@@ -187,6 +192,12 @@ export const resolvers = {
         },
         deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            if (context.user.role === Role.COMMERCIAL) {
+                const existing = await companiesService.findById(id);
+                if (existing?.userID && existing.userID !== context.user.id) {
+                    throw new Error('Forbidden: You can only delete your own companies');
+                }
+            }
             return companiesService.delete(id);
         },
         blacklistCompany: async (

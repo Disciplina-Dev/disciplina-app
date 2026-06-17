@@ -2,12 +2,14 @@ import express, { Router, Request, Response } from 'express';
 import { logger } from '../../external/logger/logger';
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { addClient, removeClient, notifyCandidate } from './sse';
+import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
+import { env } from '../../config/env';
 
 export const router: Router = express.Router();
 
 router.post(
     '/classmarker',
-    express.json({ limit: '256kb' }),
+    ...classmarkerWebhookGuard(env.CLASSMARKER_WEBHOOK_SECRET),
     async (req: Request, res: Response) => {
         res.status(200).json({ received: true });
 
@@ -20,7 +22,7 @@ router.post(
                     cm_user_id: result?.cm_user_id,
                     percentage: result?.percentage,
                 },
-                'ClassMarker webhook received'
+                'ClassMarker webhook received',
             );
 
             if (payload_status !== 'live') return;
@@ -34,22 +36,24 @@ router.post(
                 points_available: typeof result.points_available === 'number' ? result.points_available : undefined,
                 passed: typeof result.passed === 'boolean' ? result.passed : undefined,
                 test_name: test?.test_name ?? undefined,
-                completed_at: typeof result.time_finished === 'number'
-                    ? new Date(result.time_finished * 1000)
-                    : new Date(),
+                completed_at:
+                    typeof result.time_finished === 'number' ? new Date(result.time_finished * 1000) : new Date(),
                 duration: typeof result.duration === 'string' ? result.duration : undefined,
             };
 
             const updated = await CandidateModel.findByIdAndUpdate(
                 candidateId,
                 { $set: { classmarker: data } },
-                { returnDocument: 'after' }
+                { returnDocument: 'after' },
             );
             if (!updated) {
                 logger.warn({ candidateId }, 'ClassMarker webhook: candidate not found');
                 return;
             }
-            logger.info({ candidateId, percentage: data.percentage, passed: data.passed }, 'ClassMarker result saved to DB');
+            logger.info(
+                { candidateId, percentage: data.percentage, passed: data.passed },
+                'ClassMarker result saved to DB',
+            );
 
             notifyCandidate(candidateId, {
                 percentage: data.percentage,
@@ -63,7 +67,7 @@ router.post(
         } catch (err) {
             logger.error(err, 'ClassMarker webhook handling failed');
         }
-    }
+    },
 );
 
 router.get('/classmarker/stream', (req: Request, res: Response) => {
@@ -82,7 +86,11 @@ router.get('/classmarker/stream', (req: Request, res: Response) => {
 
     addClient(candidateId, res);
     const heartbeat = setInterval(() => {
-        try { res.write(': ping\n\n'); } catch { /* ignore */ }
+        try {
+            res.write(': ping\n\n');
+        } catch {
+            /* ignore */
+        }
     }, 30000);
 
     req.on('close', () => {

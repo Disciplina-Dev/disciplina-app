@@ -19,6 +19,14 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
         return;
     }
 
+    if (role === Role.COMMERCIAL) {
+        const analysis = await needsAnalysisService.findById(id);
+        if (analysis?.userID && analysis.userID !== req.user?.id) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+    }
+
     try {
         const { buffer, filename } = await needsAnalysisService.generatePdf(id);
         res.setHeader('Content-Type', 'application/pdf');
@@ -45,6 +53,14 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
     if (!Number.isInteger(id) || id <= 0) {
         res.status(400).json({ error: 'Invalid needs analysis ID' });
         return;
+    }
+
+    if (role === Role.COMMERCIAL) {
+        const analysis = await needsAnalysisService.findById(id);
+        if (analysis?.userID && analysis.userID !== req.user?.id) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
     }
 
     try {
