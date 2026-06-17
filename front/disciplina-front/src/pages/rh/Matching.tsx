@@ -23,7 +23,8 @@ import {
   Trash2,
   MailCheck,
 } from 'lucide-react'
-import { GET_JOBS, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB } from '@/graphql/queries'
+import { GET_JOBS, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
+import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { jobGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore } from '@/store/authStore'
@@ -43,6 +44,7 @@ interface MatchedCandidate {
   city: string
   email: string
   phone: string
+  status?: string
 }
 
 interface Job {
@@ -176,7 +178,14 @@ function RetainedCandidateRow({
         <UserCheck size={14} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-gray-900 truncate">{candidate.fullName}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-gray-900 truncate">{candidate.fullName}</p>
+          {candidate.status && (
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[candidate.status as MatchedCandidateStatus] ?? 'bg-gray-100 text-gray-600'}`}>
+              {MATCHED_CANDIDATE_STATUS_LABELS[candidate.status as MatchedCandidateStatus] ?? candidate.status}
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-3 mt-0.5">
           {candidate.email && (
             <span className="flex items-center gap-1 text-xs text-gray-500">
@@ -920,6 +929,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ to: candidate.email, subject, body }),
           })
+          await jobGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
         }
       } catch {
         // continue with next candidate on error
@@ -928,7 +938,13 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
 
     await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status: 'CV_SEND' } }).toPromise()
-    if (jobData) setJobData({ ...jobData, status: 'CV_SEND' })
+    if (jobData) {
+      setJobData({
+        ...jobData,
+        status: 'CV_SEND',
+        matchedCandidate: (jobData.matchedCandidate ?? []).map((c) => ({ ...c, status: MatchedCandidateStatus.OFFER_SEND })),
+      })
+    }
     setIsMailingAll(false)
     setMailAllProgress(null)
   }
@@ -942,9 +958,21 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
   }
 
-  const handleMailSent = async () => {
+  const handleMailSent = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
-    await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status: 'CV_SEND' } }).toPromise()
+    await Promise.all([
+      jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status: 'CV_SEND' } }).toPromise(),
+      jobGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise(),
+    ])
+    if (jobData) {
+      setJobData({
+        ...jobData,
+        status: 'CV_SEND',
+        matchedCandidate: (jobData.matchedCandidate ?? []).map((c) =>
+          c.id === candidate.id ? { ...c, status: MatchedCandidateStatus.OFFER_SEND } : c
+        ),
+      })
+    }
   }
 
   if (!selectedJob) {
@@ -1037,7 +1065,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           )}
           scope="rh"
           onClose={() => setMailState(null)}
-          onSent={handleMailSent}
+          onSent={() => handleMailSent(mailState.candidate)}
         />
       )}
     </div>

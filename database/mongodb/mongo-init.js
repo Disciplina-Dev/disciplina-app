@@ -380,7 +380,8 @@ db.createCollection('jobs', {
               sex: { enum: ["FILLE", "GARCON"] },
               city: { bsonType: "string" },
               email: { bsonType: "string" },
-              phone: { bsonType: "string" }
+              phone: { bsonType: "string" },
+              status: { enum: ["RETAINED", "OFFER_SEND", "ACCEPTED", "DECLINED"] }
             }
           }
         }
