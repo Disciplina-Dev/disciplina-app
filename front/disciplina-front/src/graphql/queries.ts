@@ -670,6 +670,7 @@ export const MATCH_JOB = gql`
         city
         email
         phone
+        status
       }
       suggestedCandidates {
         id
@@ -697,6 +698,7 @@ export const ADD_CANDIDATE_TO_JOB = gql`
         city
         email
         phone
+        status
       }
     }
   }
@@ -740,6 +742,7 @@ export const UNMATCH_JOB = gql`
         city
         email
         phone
+        status
       }
     }
   }
@@ -758,6 +761,25 @@ export const REMOVE_CANDIDATE_FROM_JOB = gql`
         city
         email
         phone
+        status
+      }
+    }
+  }
+`
+
+export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
+  mutation UpdateMatchedCandidateStatus($jobId: String!, $candidateId: String!, $status: MatchedCandidateStatus!) {
+    updateMatchedCandidateStatus(jobId: $jobId, candidateId: $candidateId, status: $status) {
+      id
+      matchedCandidate {
+        id
+        fullName
+        age
+        sex
+        city
+        email
+        phone
+        status
       }
     }
   }

@@ -1,5 +1,13 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
-import { Job, JobStatus, DesiredSex, Localisation, MatchingCandidate, Sector } from '../../../types/job.types';
+import {
+    Job,
+    JobStatus,
+    DesiredSex,
+    Localisation,
+    MatchedCandidateStatus,
+    MatchingCandidate,
+    Sector,
+} from '../../../types/job.types';
 import { TitleProfessionalType } from '../../../types/candidate.types';
 
 const matchingCandidateSchema = new Schema<MatchingCandidate>(
@@ -11,6 +19,7 @@ const matchingCandidateSchema = new Schema<MatchingCandidate>(
         city: { type: String, enum: Object.values(Localisation) },
         email: { type: String },
         phone: { type: String },
+        status: { type: String, enum: Object.values(MatchedCandidateStatus) },
     },
     { _id: false },
 );

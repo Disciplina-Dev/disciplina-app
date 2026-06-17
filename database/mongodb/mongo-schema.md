@@ -200,10 +200,20 @@ Stores company job postings for apprenticeships with candidate matching informat
 | city | string | — | enum: Localisation |
 | email | string | — | Candidate email |
 | phone | string | — | Candidate phone |
+| status | string | — | enum: MatchedCandidateStatus |
 
 ---
 
 ## Enums reference
+
+### MatchedCandidateStatus
+
+| Value | Meaning |
+|-------|---------|
+| RETAINED | Candidate retained for the offer |
+| OFFER_SEND | Offer email sent, awaiting response |
+| ACCEPTED | Candidate accepted the offer |
+| DECLINED | Candidate declined the offer |
 
 ### CandidateStatus
 

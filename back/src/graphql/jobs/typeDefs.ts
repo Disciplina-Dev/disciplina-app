@@ -9,6 +9,13 @@ export const typeDefs = gql`
         CONTRACT
     }
 
+    enum MatchedCandidateStatus {
+        RETAINED
+        OFFER_SEND
+        ACCEPTED
+        DECLINED
+    }
+
     enum Localisation {
         SAINT_DENIS
         SAINTE_MARIE
@@ -80,6 +87,7 @@ export const typeDefs = gql`
         city: Localisation
         email: String
         phone: String
+        status: MatchedCandidateStatus
     }
 
     type OfferLinks {
@@ -110,6 +118,7 @@ export const typeDefs = gql`
         city: Localisation
         email: String
         phone: String
+        status: MatchedCandidateStatus
     }
 
     input JobInput {
@@ -138,5 +147,6 @@ export const typeDefs = gql`
         unmatchJob(id: String!): Job
         addCandidateToJob(jobId: String!, candidateId: String!): Job
         removeCandidateFromJob(jobId: String!, candidateId: String!): Job
+        updateMatchedCandidateStatus(jobId: String!, candidateId: String!, status: MatchedCandidateStatus!): Job
     }
 `;

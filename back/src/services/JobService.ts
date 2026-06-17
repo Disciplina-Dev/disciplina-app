@@ -2,7 +2,15 @@ import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateStatus } from '../types/candidate.types';
-import { Job, JobStatus, Localisation, MatchingCandidate, Sector, Sex } from '../types/job.types';
+import {
+    Job,
+    JobStatus,
+    Localisation,
+    MatchedCandidateStatus,
+    MatchingCandidate,
+    Sector,
+    Sex,
+} from '../types/job.types';
 import { signMatchUrl } from '../external/crypto';
 import { env } from '../config/env';
 
@@ -15,6 +23,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         city: mc.city,
         email: mc.email,
         phone: mc.phone,
+        status: mc.status,
     };
 }
 
@@ -61,6 +70,7 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
         email: c.identity.email,
         phone: c.identity.phone,
         sex: c.identity.sex as Sex,
+        status: MatchedCandidateStatus.RETAINED,
     };
 }
 
@@ -140,6 +150,15 @@ export class JobService {
 
     async getMatchedJobIds(candidateId: string): Promise<string[]> {
         return this.repository.findJobIdsWithCandidate(candidateId);
+    }
+
+    async updateMatchedCandidateStatus(jobId: string, candidateId: string, status: string): Promise<object | null> {
+        const job = await this.repository.setMatchedCandidateStatus(
+            jobId,
+            candidateId,
+            status as MatchedCandidateStatus,
+        );
+        return job ? toGql(job) : null;
     }
 
     offerResponseLinks(jobId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {

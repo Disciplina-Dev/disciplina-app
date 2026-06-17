@@ -1,5 +1,5 @@
 import { JobModel } from '../../db/mongo/schemas/job.schema';
-import { Job, JobStatus, MatchingCandidate } from '../../types/job.types';
+import { Job, JobStatus, MatchedCandidateStatus, MatchingCandidate } from '../../types/job.types';
 
 type FlattenedObject = Record<string, any>;
 
@@ -63,6 +63,18 @@ export class JobRepository {
         return JobModel.findOneAndUpdate(
             { _id: jobId },
             { $set: { matched_candidate: [], status: JobStatus.NOT_MATCHED } },
+            { new: true },
+        ).lean();
+    }
+
+    async setMatchedCandidateStatus(
+        jobId: string,
+        candidateId: string,
+        status: MatchedCandidateStatus,
+    ): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            { _id: jobId, 'matched_candidate.id': candidateId },
+            { $set: { 'matched_candidate.$.status': status } },
             { new: true },
         ).lean();
     }

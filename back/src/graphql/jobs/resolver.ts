@@ -52,5 +52,13 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return jobService.removeCandidate(jobId, candidateId);
         },
+        updateMatchedCandidateStatus: async (
+            _: unknown,
+            { jobId, candidateId, status }: { jobId: string; candidateId: string; status: string },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return jobService.updateMatchedCandidateStatus(jobId, candidateId, status);
+        },
     },
 };

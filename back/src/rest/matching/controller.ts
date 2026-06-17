@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { verifyMatchUrl } from '../../external/crypto';
 import { JobRepository } from '../../repositories/mongo/JobRepository';
+import { MatchedCandidateStatus } from '../../types/job.types';
 import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 
@@ -23,9 +24,8 @@ export async function handleMatchResponse(req: Request, res: Response) {
     }
 
     try {
-        if (answer === 'non') {
-            await jobRepository.removeMatchedCandidate(jobId, candidateId);
-        }
+        const status = answer === 'oui' ? MatchedCandidateStatus.ACCEPTED : MatchedCandidateStatus.DECLINED;
+        await jobRepository.setMatchedCandidateStatus(jobId, candidateId, status);
         logger.info({ jobId, candidateId, answer }, '[matching] response handled');
     } catch (err) {
         logger.error({ err }, '[matching] response error');
@@ -33,9 +33,9 @@ export async function handleMatchResponse(req: Request, res: Response) {
     }
 
     const message =
-        answer === 'non'
-            ? 'Merci pour votre retour. Votre candidature a été retirée de cette offre.'
-            : 'Merci ! Votre candidature reste active pour cette offre.';
+        answer === 'oui'
+            ? 'Merci ! Votre acceptation a bien été enregistrée.'
+            : 'Merci pour votre retour. Votre refus a bien été enregistré.';
 
     res.send(confirmationPage(message, true));
 }

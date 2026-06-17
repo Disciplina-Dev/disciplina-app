@@ -6,6 +6,13 @@ export enum JobStatus {
     CONTRACT = 'CONTRACT',
 }
 
+export enum MatchedCandidateStatus {
+    RETAINED = 'RETAINED',
+    OFFER_SEND = 'OFFER_SEND',
+    ACCEPTED = 'ACCEPTED',
+    DECLINED = 'DECLINED',
+}
+
 export enum DesiredSex {
     MIXTE = 'MIXTE',
     FILLE = 'FILLE',
@@ -75,6 +82,7 @@ export interface MatchingCandidate {
     city?: Localisation;
     email?: string;
     phone?: string;
+    status?: MatchedCandidateStatus;
 }
 
 export interface Job {
