@@ -251,34 +251,6 @@ export function useUnblacklistCompany() {
 
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
-/** Maps backend status enum (English) → frontend enum (French labels) */
-function gqlStatusToFront(raw: string): CandidateStatus {
-  const map: Record<string, CandidateStatus> = {
-    SEEKING: CandidateStatus.SEEKING,
-    NOT_SEEKING: CandidateStatus.NOT_SEEKING,
-    CANCELLED: CandidateStatus.CANCELLED,
-    MATCHED: CandidateStatus.MATCHED,
-    CONTRACTED: CandidateStatus.CONTRACTED,
-    IMMERSING: CandidateStatus.IMMERSING,
-    BANNED: CandidateStatus.BANNED,
-  }
-  return map[raw] ?? CandidateStatus.SEEKING
-}
-
-/** Maps frontend status (French labels) → backend enum (English) */
-function frontStatusToGql(s: CandidateStatus): string {
-  const map: Record<CandidateStatus, string> = {
-    [CandidateStatus.SEEKING]: 'SEEKING',
-    [CandidateStatus.NOT_SEEKING]: 'NOT_SEEKING',
-    [CandidateStatus.CANCELLED]: 'CANCELLED',
-    [CandidateStatus.MATCHED]: 'MATCHED',
-    [CandidateStatus.IMMERSING]: 'IMMERSING',
-    [CandidateStatus.CONTRACTED]: 'CONTRACTED',
-    [CandidateStatus.BANNED]: 'BANNED',
-  }
-  return map[s] ?? 'SEEKING'
-}
-
 function mapTpType(raw: string): TitleProfessionalType {
   return (TitleProfessionalType as any)[raw] ?? TitleProfessionalType.CC
 }
@@ -293,7 +265,7 @@ function fromGql(c: any): Candidate {
   return {
     _id: c.id,
     tp_type: mapTpType(c.tpType),
-    status: gqlStatusToFront(c.status),
+    status: c.status as CandidateStatus,
     training_site: c.trainingSite,
     immersion_agreement: c.immersionAgreement,
     desired_sectors: c.desiredSectors,
@@ -411,7 +383,7 @@ function fromGql(c: any): Candidate {
 function toGqlUpdateInput(c: Candidate): any {
   return {
     tpType: c.tp_type,
-    status: frontStatusToGql(c.status),
+    status: c.status,
     ...(c.training_site !== undefined && { trainingSite: c.training_site }),
     identity: {
       fullName: c.identity.full_name,

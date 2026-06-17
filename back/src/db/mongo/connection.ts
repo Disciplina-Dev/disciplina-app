@@ -24,7 +24,7 @@ async function patchCandidatesValidator(): Promise<void> {
                     created_at: { bsonType: 'date' },
                     created_by: { bsonType: 'string' },
                     status: {
-                        enum: ['SEEKING', 'NOT_SEEKING', 'CANCELLED', 'MATCHED', 'CONTRACTED', 'IMMERSING', 'BANNED'],
+                        enum: ['SEEKING', 'NOT_SEEKING', 'CANCELLED', 'MATCHED', 'CONTRACT', 'IMMERSING', 'BANNED'],
                     },
                     tp_type: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] },
                     training_site: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },

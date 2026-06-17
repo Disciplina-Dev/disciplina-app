@@ -13,7 +13,7 @@ export enum CandidateStatus {
     NOT_SEEKING = 'NOT_SEEKING',
     CANCELLED = 'CANCELLED',
     MATCHED = 'MATCHED',
-    CONTRACTED = 'CONTRACTED',
+    CONTRACT = 'CONTRACT',
     IMMERSING = 'IMMERSING',
     BANNED = 'BANNED',
 }

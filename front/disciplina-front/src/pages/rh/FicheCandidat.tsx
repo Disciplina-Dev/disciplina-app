@@ -20,28 +20,9 @@ import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
 import { splitFullName } from '@/utils/classmarker'
+import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STATUS_LABELS: Record<CandidateStatus, string> = {
-  [CandidateStatus.SEEKING]:     'En recherche',
-  [CandidateStatus.NOT_SEEKING]: 'Indisponible',
-  [CandidateStatus.CANCELLED]:   'Rupture',
-  [CandidateStatus.MATCHED]:     'Immersion',
-  [CandidateStatus.CONTRACTED]:  'Sous contrat',
-  [CandidateStatus.IMMERSING]:   'Immersion',
-  [CandidateStatus.BANNED]:      'Banni',
-}
-
-const STATUS_COLORS: Record<CandidateStatus, string> = {
-  [CandidateStatus.SEEKING]:     'bg-blue text-white',
-  [CandidateStatus.NOT_SEEKING]: 'bg-gray-400 text-white',
-  [CandidateStatus.CANCELLED]:   'bg-warning text-white',
-  [CandidateStatus.MATCHED]:     'bg-purple text-white',
-  [CandidateStatus.CONTRACTED]:  'bg-success text-white',
-  [CandidateStatus.IMMERSING]:    'bg-purple text-white',
-  [CandidateStatus.BANNED]:      'bg-danger text-white',
-}
 
 const TP_COLORS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.AD]:  'bg-teal-50 text-teal-700 ring-teal-200',
@@ -50,6 +31,10 @@ const TP_COLORS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.REM]: 'bg-lime-50 text-lime-700 ring-lime-200',
   [TitleProfessionalType.SA]:  'bg-slate-50 text-slate-700 ring-slate-200',
 }
+
+const getStatusLabel = (status: CandidateStatus): string => CANDIDATE_STATUS_LABELS[status]
+
+const getStatusColor = (status: CandidateStatus): string => CANDIDATE_STATUS_BADGE_CLASS[status]
 
 const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: 'Nord – Sainte-Marie',
@@ -393,11 +378,11 @@ export default function FicheCandidat() {
                       onChange={e => handleStatusChange(e.target.value as CandidateStatus)}
                     >
                       {Object.values(CandidateStatus).map(s => (
-                        <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                        <option key={s} value={s}>{getStatusLabel(s)}</option>
                       ))}
                     </select>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider ${STATUS_COLORS[formData.status]}`}>
-                      {STATUS_LABELS[formData.status]}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider ${getStatusColor(formData.status)}`}>
+                      {getStatusLabel(formData.status)}
                     </span>
                   </div>
                   <span className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[formData.tp_type]}`}>

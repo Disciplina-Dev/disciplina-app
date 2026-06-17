@@ -85,7 +85,7 @@ export const mockCandidates: Candidate[] = [
   {
     _id: "cand-004",
     tp_type: TitleProfessionalType.REM,
-    status: CandidateStatus.CONTRACTED,
+    status: CandidateStatus.CONTRACT,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {
       full_name: "Mathéo Lebon",
@@ -235,7 +235,7 @@ export const mockCandidates: Candidate[] = [
   {
     _id: "cand-010",
     tp_type: TitleProfessionalType.REM,
-    status: CandidateStatus.CONTRACTED,
+    status: CandidateStatus.CONTRACT,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {
       full_name: "Arthur Morel",
@@ -310,7 +310,7 @@ export const mockCandidates: Candidate[] = [
   {
     _id: "cand-013",
     tp_type: TitleProfessionalType.CC,
-    status: CandidateStatus.CONTRACTED,
+    status: CandidateStatus.CONTRACT,
     training_site: TrainingSite.OUEST_SAINT_PAUL,
     identity: {
       full_name: "Sarah Ethève",

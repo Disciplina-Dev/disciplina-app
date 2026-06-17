@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useCandidateStats, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
+import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 
 // --- Charte graphique (cf. index.css) ---
 const COLORS = {
@@ -35,37 +36,6 @@ const COLORS = {
   gray500: '#6B6B6B',
   grid: '#E8E8E4',
 };
-
-const STATUS_LABELS: Record<string, string> = {
-  [CandidateStatus.SEEKING]: 'En recherche',
-  [CandidateStatus.NOT_SEEKING]: 'En veille',
-  [CandidateStatus.CANCELLED]: 'Annulé',
-  [CandidateStatus.MATCHED]: 'Matché',
-  [CandidateStatus.CONTRACTED]: 'En contrat',
-  [CandidateStatus.IMMERSING]: 'En immersion',
-  [CandidateStatus.BANNED]: 'Banni',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  [CandidateStatus.SEEKING]: COLORS.blue,
-  [CandidateStatus.MATCHED]: COLORS.purple,
-  [CandidateStatus.CONTRACTED]: COLORS.success,
-  [CandidateStatus.NOT_SEEKING]: COLORS.gray500,
-  [CandidateStatus.CANCELLED]: COLORS.warning,
-  [CandidateStatus.IMMERSING]: COLORS.pink,
-  [CandidateStatus.BANNED]: COLORS.danger,
-};
-
-// Ordre d'affichage stable des statuts.
-const STATUS_ORDER = [
-  CandidateStatus.SEEKING,
-  CandidateStatus.MATCHED,
-  CandidateStatus.IMMERSING,
-  CandidateStatus.CONTRACTED,
-  CandidateStatus.NOT_SEEKING,
-  CandidateStatus.CANCELLED,
-  CandidateStatus.BANNED,
-] as string[];
 
 const TP_LABELS: Record<string, string> = {
   [TitleProfessionalType.AD]: 'AD · Administrateur',
@@ -144,11 +114,11 @@ export default function DashboardRH() {
   const statusData = useMemo(() => {
     if (!stats) return [];
     const idx = indexBuckets(stats.byStatus);
-    return STATUS_ORDER.filter((s) => idx[s]).map((s) => ({
+    return CANDIDATE_STATUS_ORDER.filter((s) => idx[s]).map((s) => ({
       key: s,
-      name: STATUS_LABELS[s] ?? s,
+      name: CANDIDATE_STATUS_LABELS[s] ?? s,
       value: idx[s],
-      color: STATUS_COLORS[s] ?? COLORS.gray500,
+      color: CANDIDATE_STATUS_CHART_COLOR[s] ?? COLORS.gray500,
     }));
   }, [stats]);
 
@@ -180,7 +150,7 @@ export default function DashboardRH() {
     });
     return TP_ORDER.map((tp) => ({
       name: tp,
-      ...STATUS_ORDER.reduce<Record<string, number>>((acc, s) => {
+      ...CANDIDATE_STATUS_ORDER.reduce<Record<string, number>>((acc, s) => {
         acc[s] = matrix[tp]?.[s] ?? 0;
         return acc;
       }, {}),
@@ -189,11 +159,11 @@ export default function DashboardRH() {
 
   // Statuts réellement présents (pour ne pas afficher de séries vides).
   const activeStatuses = useMemo(
-    () => STATUS_ORDER.filter((s) => statusData.some((d) => d.key === s)),
+    () => CANDIDATE_STATUS_ORDER.filter((s) => statusData.some((d) => d.key === s)),
     [statusData],
   );
 
-  const contracted = stats?.byStatus.find((b) => b.key === CandidateStatus.CONTRACTED)?.count ?? 0;
+  const contracted = stats?.byStatus.find((b) => b.key === CandidateStatus.CONTRACT)?.count ?? 0;
   const seeking = stats?.byStatus.find((b) => b.key === CandidateStatus.SEEKING)?.count ?? 0;
   const immersing = stats?.byStatus.find((b) => b.key === CandidateStatus.IMMERSING)?.count ?? 0;
 
@@ -311,8 +281,8 @@ export default function DashboardRH() {
                   key={s}
                   dataKey={s}
                   stackId="tp"
-                  name={STATUS_LABELS[s] ?? s}
-                  fill={STATUS_COLORS[s] ?? COLORS.gray500}
+                  name={CANDIDATE_STATUS_LABELS[s] ?? s}
+                  fill={CANDIDATE_STATUS_CHART_COLOR[s] ?? COLORS.gray500}
                 />
               ))}
             </BarChart>

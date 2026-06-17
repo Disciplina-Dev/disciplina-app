@@ -13,10 +13,9 @@ import { NeedsAnalysis } from '../types/needsAnalysis.types';
 // modules ESM-only. Avec TypeScript en CommonJS, un `import()` classique est
 // transpilé en `require()` (→ ERR_REQUIRE_ESM). Passer par `Function` empêche
 // cette transpilation et conserve un vrai `import()` ESM à l'exécution.
-const nativeImport: (specifier: string) => Promise<any> = new Function(
-    'specifier',
-    'return import(specifier)',
-) as (specifier: string) => Promise<any>;
+const nativeImport: (specifier: string) => Promise<any> = new Function('specifier', 'return import(specifier)') as (
+    specifier: string,
+) => Promise<any>;
 
 // Branche morte (jamais exécutée) : le traceur de dépendances de Vercel (nft)
 // ne voit pas l'import dynamique via `Function`, donc on garde ici des `import()`
@@ -169,17 +168,23 @@ function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
     const commentaires = analysis.additionalComments ?? '';
 
     // Legacy rows have no positions array: rebuild one from the single-position columns
-    const positions = (analysis.positions?.length ? analysis.positions : [{
-        trainingDomain: analysis.trainingDomain,
-        jobTitle: analysis.jobTitle,
-        selectedMissions: analysis.selectedMissions ?? [],
-        localisation: analysis.localisation,
-    }]);
+    const positions = analysis.positions?.length
+        ? analysis.positions
+        : [
+              {
+                  trainingDomain: analysis.trainingDomain,
+                  jobTitle: analysis.jobTitle,
+                  selectedMissions: analysis.selectedMissions ?? [],
+                  localisation: analysis.localisation,
+              },
+          ];
 
-    const positionBlocks = positions.map((p, i) => {
-        const title = positions.length > 1 ? `Poste ${i + 1} sur ${positions.length}` : 'Exigences du poste à pourvoir';
-        const missionItems = (p.selectedMissions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
-        return `
+    const positionBlocks = positions
+        .map((p, i) => {
+            const title =
+                positions.length > 1 ? `Poste ${i + 1} sur ${positions.length}` : 'Exigences du poste à pourvoir';
+            const missionItems = (p.selectedMissions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
+            return `
 ${sh(title)}
 ${fr('Intitulé de la formation :', p.jobTitle)}
 <div class="inline-row">
@@ -193,11 +198,15 @@ ${fr('Localisation du poste :', label(p.localisation))}
     <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
     ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : '<div class="text-area">&nbsp;</div>'}
 </div>`;
-    }).join('');
+        })
+        .join('');
 
-    const ageLine = analysis.ageMin || analysis.ageMax
-        ? [analysis.ageMin ? `de ${analysis.ageMin} ans` : '', analysis.ageMax ? `à ${analysis.ageMax} ans` : ''].filter(Boolean).join(' ')
-        : (analysis.ageRequirements ?? []).join(', ');
+    const ageLine =
+        analysis.ageMin || analysis.ageMax
+            ? [analysis.ageMin ? `de ${analysis.ageMin} ans` : '', analysis.ageMax ? `à ${analysis.ageMax} ans` : '']
+                  .filter(Boolean)
+                  .join(' ')
+            : (analysis.ageRequirements ?? []).join(', ');
 
     const daysRows = Object.entries(days)
         .map(
@@ -329,12 +338,16 @@ ${secteurs ? fr("Secteur(s) d'activité :", secteurs) : company.sector ? fr("Sec
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
 
 ${positionBlocks}
-${missionsType || descriptifMissions ? `
+${
+    missionsType || descriptifMissions
+        ? `
 <div class="field-row">
     <span class="field-label">Description complémentaire des missions :</span><br/>
     ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
     ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
-</div>` : ''}
+</div>`
+        : ''
+}
 <div class="field-row">
     <span class="field-label">Profils recherchés, compétences et savoir-être requises (techniques, comportementales, soft skills) :</span><br/>
     <span class="hint">(Préciser les formations et expériences professionnelles souhaitées, compétences techniques spécifiques requises, qualités personnelles recherchées, etc.)</span>
@@ -476,7 +489,7 @@ const STATUS_LABELS: Record<string, string> = {
     NOT_SEEKING: 'Ne recherche pas',
     CANCELLED: 'Rupture',
     MATCHED: 'En relation',
-    CONTRACTED: 'Sous contrat',
+    CONTRACT: 'En contrat',
     IMMERSING: 'En immersion',
     BANNED: 'Banni',
 };
@@ -516,15 +529,31 @@ const SKILL_LEVEL_LABELS: Record<string, string> = {
 };
 
 const LOCALISATION_LABELS: Record<string, string> = {
-    SAINT_DENIS: 'Saint-Denis', SAINTE_MARIE: 'Sainte-Marie', SAINTE_SUZANNE: 'Sainte-Suzanne',
-    SAINT_PAUL: 'Saint-Paul', LA_POSSESSION: 'La Possession', LE_PORT: 'Le Port',
-    TROIS_BASSINS: 'Trois-Bassins', SAINT_LEU: 'Saint-Leu', SAINT_PIERRE: 'Saint-Pierre',
-    CILAOS: 'Cilaos', ETANG_SALE: "L'Étang-Salé", SAINT_LOUIS: 'Saint-Louis',
-    ENTRE_DEUX: 'Entre-Deux', LES_AVIRONS: 'Les Avirons', LE_TAMPON: 'Le Tampon',
-    SAINT_PHILLIPE: 'Saint-Philippe', SAINT_JOSEPH: 'Saint-Joseph', PETIT_ILE: 'Petite-Île',
-    SAINTE_ROSE: 'Sainte-Rose', SAINT_BENOIT: 'Saint-Benoît', BRAS_PANON: 'Bras-Panon',
-    SAINT_ANDRE: 'Saint-André', LA_PLAINE_DES_PALMISTES: 'La Plaine-des-Palmistes',
-    SALAZIE: 'Salazie', SAINTE_ANNE: 'Sainte-Anne',
+    SAINT_DENIS: 'Saint-Denis',
+    SAINTE_MARIE: 'Sainte-Marie',
+    SAINTE_SUZANNE: 'Sainte-Suzanne',
+    SAINT_PAUL: 'Saint-Paul',
+    LA_POSSESSION: 'La Possession',
+    LE_PORT: 'Le Port',
+    TROIS_BASSINS: 'Trois-Bassins',
+    SAINT_LEU: 'Saint-Leu',
+    SAINT_PIERRE: 'Saint-Pierre',
+    CILAOS: 'Cilaos',
+    ETANG_SALE: "L'Étang-Salé",
+    SAINT_LOUIS: 'Saint-Louis',
+    ENTRE_DEUX: 'Entre-Deux',
+    LES_AVIRONS: 'Les Avirons',
+    LE_TAMPON: 'Le Tampon',
+    SAINT_PHILLIPE: 'Saint-Philippe',
+    SAINT_JOSEPH: 'Saint-Joseph',
+    PETIT_ILE: 'Petite-Île',
+    SAINTE_ROSE: 'Sainte-Rose',
+    SAINT_BENOIT: 'Saint-Benoît',
+    BRAS_PANON: 'Bras-Panon',
+    SAINT_ANDRE: 'Saint-André',
+    LA_PLAINE_DES_PALMISTES: 'La Plaine-des-Palmistes',
+    SALAZIE: 'Salazie',
+    SAINTE_ANNE: 'Sainte-Anne',
 };
 
 function fmtDate(d?: Date | string | null): string {
@@ -540,7 +569,6 @@ function yn(v?: boolean | null): string {
     return '—';
 }
 
-
 // ─── Candidate AB PDF (pdfkit, pur JS — fonctionne en serverless) ──────────────
 
 function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
@@ -551,7 +579,9 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     const bottom = doc.page.height - doc.page.margins.bottom;
     const id = c.identity;
 
-    const ensure = (h: number) => { if (doc.y + h > bottom) doc.addPage(); };
+    const ensure = (h: number) => {
+        if (doc.y + h > bottom) doc.addPage();
+    };
 
     const section = (title: string) => {
         ensure(46);
@@ -559,16 +589,22 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
         const y = doc.y;
         doc.save().rect(left, y, contentW, 20).fill('#EEF1FB').restore();
         doc.save().rect(left, y, 4, 20).fill(BLUE).restore();
-        doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(11).text(title, left + 12, y + 5, { width: contentW - 18 });
+        doc.fillColor(BLUE)
+            .font('Helvetica-Bold')
+            .fontSize(11)
+            .text(title, left + 12, y + 5, { width: contentW - 18 });
         doc.y = y + 27;
         doc.fillColor('#000000').font('Helvetica').fontSize(10);
     };
 
     const kv = (lbl: string, value?: string | number | null) => {
-        const v = value === 0 ? '0' : (value ? String(value) : '');
+        const v = value === 0 ? '0' : value ? String(value) : '';
         if (!v) return;
         ensure(16);
-        doc.font('Helvetica-Bold').fillColor('#555555').fontSize(10).text(`${lbl} : `, left, doc.y, { continued: true });
+        doc.font('Helvetica-Bold')
+            .fillColor('#555555')
+            .fontSize(10)
+            .text(`${lbl} : `, left, doc.y, { continued: true });
         doc.font('Helvetica').fillColor('#111111').text(v);
     };
 
@@ -590,9 +626,15 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     const bandTop = doc.y;
     const bandH = 58;
     doc.save().rect(left, bandTop, contentW, bandH).fill(BLUE).restore();
-    doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(17).text(id.full_name, left + 14, bandTop + 10, { width: contentW - 28 });
+    doc.fillColor('#ffffff')
+        .font('Helvetica-Bold')
+        .fontSize(17)
+        .text(id.full_name, left + 14, bandTop + 10, { width: contentW - 28 });
     const sub = `Analyse du Besoin${id.email ? '   ·   ' + id.email : ''}${id.phone ? '   ·   ' + id.phone : ''}`;
-    doc.fillColor('#dfe4f6').font('Helvetica').fontSize(9).text(sub, left + 14, bandTop + 35, { width: contentW - 28 });
+    doc.fillColor('#dfe4f6')
+        .font('Helvetica')
+        .fontSize(9)
+        .text(sub, left + 14, bandTop + 35, { width: contentW - 28 });
     doc.y = bandTop + bandH + 12;
 
     const badges = [TP_LABELS[c.tp_type] ?? c.tp_type, STATUS_LABELS[c.status] ?? c.status];
@@ -617,30 +659,38 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
 
     // ── Parcours ──
     section('Parcours & prérequis');
-    kv('Niveau de formation', c.education?.school_level ? (SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level) : '');
+    kv(
+        'Niveau de formation',
+        c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level : '',
+    );
     kv('Justificatif', c.education?.justification);
     kv('Dernier diplôme', c.background?.last_diploma);
-    kv('Site de formation', c.training_site ? (TRAINING_SITE_LABELS[c.training_site] ?? c.training_site) : '');
+    kv('Site de formation', c.training_site ? TRAINING_SITE_LABELS[c.training_site] ?? c.training_site : '');
     para('Formations suivies auparavant', c.background?.previous_trainings);
 
     // ── Accompagnement ──
     section('Accompagnement & dispositifs');
-    if (c.support?.france_travail_registered != null) kv('Inscrit à France Travail', yn(c.support.france_travail_registered));
+    if (c.support?.france_travail_registered != null)
+        kv('Inscrit à France Travail', yn(c.support.france_travail_registered));
     kv('Agence France Travail', c.support?.france_travail_agency);
-    if (c.support?.mission_locale_registered != null) kv('Inscrit à la Mission Locale', yn(c.support.mission_locale_registered));
+    if (c.support?.mission_locale_registered != null)
+        kv('Inscrit à la Mission Locale', yn(c.support.mission_locale_registered));
     kv('Ville Mission Locale', c.support?.mission_locale_city);
     if (c.immersion_agreement != null) kv('Accord pour une immersion', yn(c.immersion_agreement));
 
     // ── Expériences ──
-    const exps = (c.background?.professional_experiences ?? []).filter(e => e.position || e.company || e.duration || e.responsibilities);
+    const exps = (c.background?.professional_experiences ?? []).filter(
+        (e) => e.position || e.company || e.duration || e.responsibilities,
+    );
     if (exps.length) {
         section('Expériences professionnelles');
-        exps.forEach(e => {
+        exps.forEach((e) => {
             ensure(40);
             const head = [e.position, e.company].filter(Boolean).join(' — ') || 'Poste';
             doc.font('Helvetica-Bold').fillColor('#111111').fontSize(10).text(head, left, doc.y);
             if (e.duration) doc.font('Helvetica-Oblique').fillColor('#777777').fontSize(9).text(e.duration);
-            if (e.responsibilities) doc.font('Helvetica').fillColor('#333333').fontSize(9.5).text(e.responsibilities, { align: 'justify' });
+            if (e.responsibilities)
+                doc.font('Helvetica').fillColor('#333333').fontSize(9.5).text(e.responsibilities, { align: 'justify' });
             doc.moveDown(0.5);
         });
     }
@@ -654,7 +704,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     listLine('Qualités', c.profile?.qualities);
     listLine("Axes d'amélioration", c.profile?.defects);
     listLine('Compétences numériques', c.profile?.digital_skills);
-    para('Points forts & axes d\'amélioration', c.profile?.strengths_and_improvements);
+    para("Points forts & axes d'amélioration", c.profile?.strengths_and_improvements);
     para('Hobbies / passions', c.profile?.hobbies);
 
     // ── Projets ──
@@ -668,13 +718,20 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     const skills = c.skills_assessment ?? [];
     if (skills.length) {
         section('Analyse des compétences');
-        skills.forEach(s => {
+        skills.forEach((s) => {
             ensure(18);
             const y = doc.y;
-            doc.font('Helvetica').fillColor('#111111').fontSize(10).text(s.competence, left, y, { width: contentW - 130 });
+            doc.font('Helvetica')
+                .fillColor('#111111')
+                .fontSize(10)
+                .text(s.competence, left, y, { width: contentW - 130 });
             const lineY = y;
-            const lvlColor = s.level === 'A' ? '#1f7a3d' : s.level === 'ECA' ? '#b8860b' : s.level === 'NA' ? '#b3261e' : '#888888';
-            doc.font('Helvetica-Bold').fillColor(lvlColor).fontSize(10).text(SKILL_LEVEL_LABELS[s.level] ?? s.level, right - 120, lineY, { width: 120, align: 'right' });
+            const lvlColor =
+                s.level === 'A' ? '#1f7a3d' : s.level === 'ECA' ? '#b8860b' : s.level === 'NA' ? '#b3261e' : '#888888';
+            doc.font('Helvetica-Bold')
+                .fillColor(lvlColor)
+                .fontSize(10)
+                .text(SKILL_LEVEL_LABELS[s.level] ?? s.level, right - 120, lineY, { width: 120, align: 'right' });
             doc.moveDown(0.25);
             doc.fillColor('#000000');
         });
@@ -683,10 +740,15 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     // ── Infos poste ──
     section('Informations sur le poste');
     kv('Date de disponibilité', fmtDate(c.job_info?.availability_date));
-    const mobility = (c.job_info?.geographic_mobility ?? []).map(m => LOCALISATION_LABELS[m] ?? m).join(', ');
+    const mobility = (c.job_info?.geographic_mobility ?? []).map((m) => LOCALISATION_LABELS[m] ?? m).join(', ');
     kv('Mobilité géographique', mobility);
     if (c.job_info?.weekend_work != null) kv('Travail le week-end gênant', yn(c.job_info.weekend_work));
-    kv('Comment a connu Disciplina', c.job_info?.discovery_source ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source) : '');
+    kv(
+        'Comment a connu Disciplina',
+        c.job_info?.discovery_source
+            ? DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source
+            : '',
+    );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);
     para('Questions / préoccupations', c.job_info?.questions_concerns);
     listLine('Secteurs souhaités', c.desired_sectors);
@@ -714,10 +776,16 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
         const on = items.filter(([v]) => v).map(([, l]) => l);
         if (on.length) {
             ensure(28);
-            doc.font('Helvetica-Bold').fillColor('#666666').fontSize(8.5).text('RECOMMANDATIONS PÉDAGOGIQUES', left, doc.y);
+            doc.font('Helvetica-Bold')
+                .fillColor('#666666')
+                .fontSize(8.5)
+                .text('RECOMMANDATIONS PÉDAGOGIQUES', left, doc.y);
             doc.moveDown(0.15);
             doc.font('Helvetica').fillColor('#111111').fontSize(10);
-            on.forEach(l => { ensure(14); doc.text(`•  ${l}`, left, doc.y); });
+            on.forEach((l) => {
+                ensure(14);
+                doc.text(`•  ${l}`, left, doc.y);
+            });
             doc.moveDown(0.4);
         }
     }

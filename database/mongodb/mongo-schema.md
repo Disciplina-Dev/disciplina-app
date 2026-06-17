@@ -213,7 +213,7 @@ Stores company job postings for apprenticeships with candidate matching informat
 | NOT_SEEKING | Not looking at this time |
 | CANCELLED | Candidacy cancelled |
 | MATCHED | Matched with a company |
-| CONTRACTED | Contract signed |
+| CONTRACT | Contract signed |
 | IMMERSING | In immersion period |
 | BANNED | Ineligible for support |
 
