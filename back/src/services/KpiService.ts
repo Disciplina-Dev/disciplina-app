@@ -1,15 +1,8 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { KpiRepository } from '../repositories/mysql/KpiRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { Role } from '../types/user.types';
-import {
-    KpiRow,
-    KpiSite,
-    KpiUpsertInput,
-    KpiMetricColumn,
-    KPI_METRIC_COLUMNS,
-    KPI_SITES,
-} from '../types/kpi.types';
+import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, KPI_SITES } from '../types/kpi.types';
 
 export interface KpiMonthEntry {
     month: number;
@@ -84,13 +77,13 @@ function normalize(value: unknown): string {
 
 /** "Catégorie" cell → commercial_kpi column. Keys are normalized cell text. */
 const CATEGORY_TO_COLUMN: Record<string, KpiMetricColumn> = {
-    'oui': 'count_oui',
+    oui: 'count_oui',
     'oui of': 'count_oui_of',
-    'non': 'count_non',
+    non: 'count_non',
     'ne repond pas': 'count_ne_repond_pas',
     'ne reponds pas': 'count_ne_repond_pas',
     'a reflechir': 'count_a_reflechir',
-    'relance': 'count_relance',
+    relance: 'count_relance',
     'total d appel': 'total_appels',
     'total d appels': 'total_appels',
     'total appel': 'total_appels',
@@ -108,8 +101,18 @@ const CATEGORY_TO_COLUMN: Record<string, KpiMetricColumn> = {
 };
 
 const MONTH_NAMES = [
-    'janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin',
-    'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre',
+    'janvier',
+    'fevrier',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'aout',
+    'septembre',
+    'octobre',
+    'novembre',
+    'decembre',
 ];
 
 /** Header cells (and beyond) that end the commercial-name columns. */
@@ -189,7 +192,10 @@ export class KpiService {
 
     async manualUpsert(data: KpiUpsertInput): Promise<void> {
         this.validateInput(data);
-        await this.kpiRepository.upsert({ ...data, user_id: data.user_id ?? (await this.resolveUserId(data.user_name)) });
+        await this.kpiRepository.upsert({
+            ...data,
+            user_id: data.user_id ?? (await this.resolveUserId(data.user_name)),
+        });
     }
 
     /**
@@ -216,15 +222,20 @@ export class KpiService {
         if (!KPI_SITES.includes(site as KpiSite)) {
             throw new Error(`Invalid site '${site}', expected one of ${KPI_SITES.join(', ')}`);
         }
-        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
         const errors: string[] = [];
 
-        const moisSheets = workbook.SheetNames.filter((n) => /mois/i.test(n));
-        const semSheets = workbook.SheetNames.filter((n) => /sem/i.test(n));
+        const moisSheets = workbook.worksheets.filter((ws) => /mois/i.test(ws.name)).map((ws) => ws.name);
+        const semSheets = workbook.worksheets.filter((ws) => /sem/i.test(ws.name)).map((ws) => ws.name);
         if (moisSheets.length === 0 && semSheets.length === 0) {
             return {
                 imported: 0,
-                errors: [`No 'C.R Mois' or 'C.R Sem.' sheet found (sheets: ${workbook.SheetNames.join(', ')})`],
+                errors: [
+                    `No 'C.R Mois' or 'C.R Sem.' sheet found (sheets: ${workbook.worksheets
+                        .map((ws) => ws.name)
+                        .join(', ')})`,
+                ],
             };
         }
 
@@ -306,7 +317,7 @@ export class KpiService {
 
     /** Parses one transposed sheet. `weekly` switches period parsing from month names to week labels. */
     private parseSheet(
-        workbook: XLSX.WorkBook,
+        workbook: ExcelJS.Workbook,
         sheetName: string,
         weekly: boolean,
         errors: string[],
@@ -317,9 +328,16 @@ export class KpiService {
             return null;
         }
 
-        const matrix: unknown[][] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
-            header: 1,
-            defval: null,
+        const ws = workbook.getWorksheet(sheetName);
+        if (!ws) {
+            errors.push(`Sheet '${sheetName}': sheet not found, skipped`);
+            return null;
+        }
+
+        const matrix: unknown[][] = [];
+        ws.eachRow({ includeEmpty: true }, (row) => {
+            const vals = row.values as unknown[];
+            matrix.push(vals.slice(1).map((v) => v ?? null));
         });
 
         // Header row: 'Catégorie' in column B; commercial names start in column C
@@ -370,7 +388,9 @@ export class KpiService {
             const column = CATEGORY_TO_COLUMN[normalize(cells[1])];
             if (!column) continue;
             if (!month || (weekly && !week)) {
-                errors.push(`${sheetName} row ${r + 1}: category outside a ${weekly ? 'week' : 'month'} block, skipped`);
+                errors.push(
+                    `${sheetName} row ${r + 1}: category outside a ${weekly ? 'week' : 'month'} block, skipped`,
+                );
                 continue;
             }
 
@@ -412,7 +432,8 @@ export class KpiService {
         if (!KPI_SITES.includes(data.site)) throw new Error(`Invalid site, expected one of ${KPI_SITES.join(', ')}`);
         for (const c of KPI_METRIC_COLUMNS) {
             const value = data[c];
-            if (value != null && (!Number.isInteger(value) || value < 0)) throw new Error(`Invalid ${c}: must be a non-negative integer`);
+            if (value != null && (!Number.isInteger(value) || value < 0))
+                throw new Error(`Invalid ${c}: must be a non-negative integer`);
         }
     }
 
