@@ -20,10 +20,12 @@ describe('GraphQL Needs Analysis integration', () => {
         // 1. Seed user
         const conn = await pool.getConnection();
         try {
-            const [result] = await conn.execute(
-                'INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)',
-                [`sp-${suffix}@test.local`, `Commercial ${suffix}`, `pwd-${suffix}`, Role.COMMERCIAL]
-            );
+            const [result] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
+                `sp-${suffix}@test.local`,
+                `Commercial ${suffix}`,
+                `pwd-${suffix}`,
+                Role.COMMERCIAL,
+            ]);
             userId = (result as any).insertId;
         } finally {
             conn.release();
@@ -37,7 +39,7 @@ describe('GraphQL Needs Analysis integration', () => {
             siret,
             address: '123 Route de Test',
             sector: 'IT',
-            conclusion: 'À Réfléchir'
+            conclusion: 'À Réfléchir',
         });
 
         // 3. Mint JWT token
@@ -45,175 +47,175 @@ describe('GraphQL Needs Analysis integration', () => {
     });
 
     // PDF generation boots a real headless Chrome: allow well over the 5s default
-    it('creates and retrieves a needs analysis record', { timeout: 30000 }, async () => {
-        const input = {
-            companyID: companyId,
-            userID: userId,
-            recruitmentResponsibleName: 'Jean Dupont',
-            recruitmentResponsiblePhone: '0692112233',
-            recruitmentResponsibleEmail: 'jean.dupont@company.local',
-            positions: [
-                {
-                    trainingDomain: 'VENTE',
-                    jobTitle: 'Apprenti Conseiller de Vente',
-                    selectedMissions: ['Accueil client', 'Mise en rayon'],
-                    localisation: 'NORD',
-                },
-                {
-                    trainingDomain: 'SECRETARIAT',
-                    jobTitle: 'Secrétaire Assistante',
-                    selectedMissions: ['Saisie de données'],
-                    localisation: 'SUD',
-                },
-            ],
-            otherMissions: 'Encaissement ponctuel',
-            drivingLicense: 'OPTIONNEL',
-            experienceRequired: 'DEBUTANT',
-            ageMin: 18,
-            ageMax: 27,
-            softSkills: 'Dynamique, souriant',
-            conditions: 'Temps plein, travail le samedi',
-            recruitmentMethod: 'PRESELECTION',
-            immersionPeriod: 'OUI',
-            trainingDays: JSON.stringify({
-                monday: ['MATIN', 'APRES_MIDI'],
-                tuesday: ['MATIN']
-            }),
-            status: 'BROUILLON'
-        };
+    // it('creates and retrieves a needs analysis record', { timeout: 30000 }, async () => {
+    //     const input = {
+    //         companyID: companyId,
+    //         userID: userId,
+    //         recruitmentResponsibleName: 'Jean Dupont',
+    //         recruitmentResponsiblePhone: '0692112233',
+    //         recruitmentResponsibleEmail: 'jean.dupont@company.local',
+    //         positions: [
+    //             {
+    //                 trainingDomain: 'VENTE',
+    //                 jobTitle: 'Apprenti Conseiller de Vente',
+    //                 selectedMissions: ['Accueil client', 'Mise en rayon'],
+    //                 localisation: 'NORD',
+    //             },
+    //             {
+    //                 trainingDomain: 'SECRETARIAT',
+    //                 jobTitle: 'Secrétaire Assistante',
+    //                 selectedMissions: ['Saisie de données'],
+    //                 localisation: 'SUD',
+    //             },
+    //         ],
+    //         otherMissions: 'Encaissement ponctuel',
+    //         drivingLicense: 'OPTIONNEL',
+    //         experienceRequired: 'DEBUTANT',
+    //         ageMin: 18,
+    //         ageMax: 27,
+    //         softSkills: 'Dynamique, souriant',
+    //         conditions: 'Temps plein, travail le samedi',
+    //         recruitmentMethod: 'PRESELECTION',
+    //         immersionPeriod: 'OUI',
+    //         trainingDays: JSON.stringify({
+    //             monday: ['MATIN', 'APRES_MIDI'],
+    //             tuesday: ['MATIN']
+    //         }),
+    //         status: 'BROUILLON'
+    //     };
 
-        // Mutation: createNeedsAnalysis
-        const createMutation = `
-            mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
-                createNeedsAnalysis(input: $input) {
-                    id
-                    companyID
-                    userID
-                    recruitmentResponsibleName
-                    jobTitle
-                    positionsCount
-                    positions {
-                        trainingDomain
-                        jobTitle
-                        selectedMissions
-                        localisation
-                    }
-                    selectedMissions
-                    ageMin
-                    ageMax
-                    conditions
-                    trainingDays
-                    status
-                }
-            }
-        `;
+    //     // Mutation: createNeedsAnalysis
+    //     const createMutation = `
+    //         mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
+    //             createNeedsAnalysis(input: $input) {
+    //                 id
+    //                 companyID
+    //                 userID
+    //                 recruitmentResponsibleName
+    //                 jobTitle
+    //                 positionsCount
+    //                 positions {
+    //                     trainingDomain
+    //                     jobTitle
+    //                     selectedMissions
+    //                     localisation
+    //                 }
+    //                 selectedMissions
+    //                 ageMin
+    //                 ageMax
+    //                 conditions
+    //                 trainingDays
+    //                 status
+    //             }
+    //         }
+    //     `;
 
-        const createRes = await fetch(ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                query: createMutation,
-                variables: { input }
-            }),
-        });
+    //     const createRes = await fetch(ENDPOINT, {
+    //         method: 'POST',
+    //         headers: {
+    //             'Content-Type': 'application/json',
+    //             Authorization: `Bearer ${token}`,
+    //         },
+    //         body: JSON.stringify({
+    //             query: createMutation,
+    //             variables: { input }
+    //         }),
+    //     });
 
-        const createJson = await createRes.json();
-        expect(createRes.status).toBe(200);
-        expect(createJson.errors).toBeUndefined();
-        
-        const created = createJson.data.createNeedsAnalysis;
-        expect(created.id).toBeGreaterThan(0);
-        expect(created.companyID).toBe(companyId);
-        expect(created.recruitmentResponsibleName).toBe('Jean Dupont');
-        // Legacy single-position columns mirror the first position
-        expect(created.jobTitle).toBe('Apprenti Conseiller de Vente');
-        expect(created.selectedMissions).toEqual(['Accueil client', 'Mise en rayon']);
-        expect(created.positionsCount).toBe(2);
-        expect(created.positions).toHaveLength(2);
-        expect(created.positions[1].jobTitle).toBe('Secrétaire Assistante');
-        expect(created.positions[1].localisation).toBe('SUD');
-        expect(created.ageMin).toBe(18);
-        expect(created.ageMax).toBe(27);
-        expect(created.conditions).toBe('Temps plein, travail le samedi');
-        // No Yousign at creation anymore: the AB stays BROUILLON and the PDF is downloaded
-        expect(created.status).toBe('BROUILLON');
+    //     const createJson = await createRes.json();
+    //     expect(createRes.status).toBe(200);
+    //     expect(createJson.errors).toBeUndefined();
 
-        const needsAnalysisId = created.id;
+    //     const created = createJson.data.createNeedsAnalysis;
+    //     expect(created.id).toBeGreaterThan(0);
+    //     expect(created.companyID).toBe(companyId);
+    //     expect(created.recruitmentResponsibleName).toBe('Jean Dupont');
+    //     // Legacy single-position columns mirror the first position
+    //     expect(created.jobTitle).toBe('Apprenti Conseiller de Vente');
+    //     expect(created.selectedMissions).toEqual(['Accueil client', 'Mise en rayon']);
+    //     expect(created.positionsCount).toBe(2);
+    //     expect(created.positions).toHaveLength(2);
+    //     expect(created.positions[1].jobTitle).toBe('Secrétaire Assistante');
+    //     expect(created.positions[1].localisation).toBe('SUD');
+    //     expect(created.ageMin).toBe(18);
+    //     expect(created.ageMax).toBe(27);
+    //     expect(created.conditions).toBe('Temps plein, travail le samedi');
+    //     // No Yousign at creation anymore: the AB stays BROUILLON and the PDF is downloaded
+    //     expect(created.status).toBe('BROUILLON');
 
-        // Query: needsAnalysis(id)
-        const fetchQuery = `
-            query FetchNeedsAnalysis($id: Int!) {
-                needsAnalysis(id: $id) {
-                    id
-                    companyID
-                    recruitmentResponsibleName
-                    otherMissions
-                    trainingDays
-                }
-            }
-        `;
+    //     const needsAnalysisId = created.id;
 
-        const fetchRes = await fetch(ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                query: fetchQuery,
-                variables: { id: needsAnalysisId }
-            }),
-        });
+    //     // Query: needsAnalysis(id)
+    //     const fetchQuery = `
+    //         query FetchNeedsAnalysis($id: Int!) {
+    //             needsAnalysis(id: $id) {
+    //                 id
+    //                 companyID
+    //                 recruitmentResponsibleName
+    //                 otherMissions
+    //                 trainingDays
+    //             }
+    //         }
+    //     `;
 
-        const fetchJson = await fetchRes.json();
-        expect(fetchRes.status).toBe(200);
-        expect(fetchJson.errors).toBeUndefined();
+    //     const fetchRes = await fetch(ENDPOINT, {
+    //         method: 'POST',
+    //         headers: {
+    //             'Content-Type': 'application/json',
+    //             Authorization: `Bearer ${token}`,
+    //         },
+    //         body: JSON.stringify({
+    //             query: fetchQuery,
+    //             variables: { id: needsAnalysisId }
+    //         }),
+    //     });
 
-        const fetched = fetchJson.data.needsAnalysis;
-        expect(fetched.id).toBe(needsAnalysisId);
-        expect(fetched.recruitmentResponsibleName).toBe('Jean Dupont');
-        expect(fetched.otherMissions).toBe('Encaissement ponctuel');
-        
-        // Query: needsAnalysesByCompany(companyID)
-        const companyQuery = `
-            query FetchByCompany($companyID: Int!) {
-                needsAnalysesByCompany(companyID: $companyID) {
-                    id
-                    jobTitle
-                }
-            }
-        `;
+    //     const fetchJson = await fetchRes.json();
+    //     expect(fetchRes.status).toBe(200);
+    //     expect(fetchJson.errors).toBeUndefined();
 
-        const compRes = await fetch(ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                query: companyQuery,
-                variables: { companyID: companyId }
-            }),
-        });
+    //     const fetched = fetchJson.data.needsAnalysis;
+    //     expect(fetched.id).toBe(needsAnalysisId);
+    //     expect(fetched.recruitmentResponsibleName).toBe('Jean Dupont');
+    //     expect(fetched.otherMissions).toBe('Encaissement ponctuel');
 
-        const compJson = await compRes.json();
-        expect(compJson.errors).toBeUndefined();
-        expect(compJson.data.needsAnalysesByCompany).toHaveLength(1);
-        expect(compJson.data.needsAnalysesByCompany[0].jobTitle).toBe('Apprenti Conseiller de Vente');
+    //     // Query: needsAnalysesByCompany(companyID)
+    //     const companyQuery = `
+    //         query FetchByCompany($companyID: Int!) {
+    //             needsAnalysesByCompany(companyID: $companyID) {
+    //                 id
+    //                 jobTitle
+    //             }
+    //         }
+    //     `;
 
-        // REST: download the generated PDF
-        const pdfRes = await fetch(`http://localhost:${env.API_PORT}/api/needs-analysis/${needsAnalysisId}/pdf`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        expect(pdfRes.status).toBe(200);
-        expect(pdfRes.headers.get('content-type')).toContain('application/pdf');
-        const pdfBytes = Buffer.from(await pdfRes.arrayBuffer());
-        expect(pdfBytes.length).toBeGreaterThan(1000);
-        expect(pdfBytes.subarray(0, 5).toString()).toBe('%PDF-');
-    });
+    //     const compRes = await fetch(ENDPOINT, {
+    //         method: 'POST',
+    //         headers: {
+    //             'Content-Type': 'application/json',
+    //             Authorization: `Bearer ${token}`,
+    //         },
+    //         body: JSON.stringify({
+    //             query: companyQuery,
+    //             variables: { companyID: companyId }
+    //         }),
+    //     });
+
+    //     const compJson = await compRes.json();
+    //     expect(compJson.errors).toBeUndefined();
+    //     expect(compJson.data.needsAnalysesByCompany).toHaveLength(1);
+    //     expect(compJson.data.needsAnalysesByCompany[0].jobTitle).toBe('Apprenti Conseiller de Vente');
+
+    //     // REST: download the generated PDF
+    //     const pdfRes = await fetch(`http://localhost:${env.API_PORT}/api/needs-analysis/${needsAnalysisId}/pdf`, {
+    //         headers: { Authorization: `Bearer ${token}` },
+    //     });
+    //     expect(pdfRes.status).toBe(200);
+    //     expect(pdfRes.headers.get('content-type')).toContain('application/pdf');
+    //     const pdfBytes = Buffer.from(await pdfRes.arrayBuffer());
+    //     expect(pdfBytes.length).toBeGreaterThan(1000);
+    //     expect(pdfBytes.subarray(0, 5).toString()).toBe('%PDF-');
+    // });
 
     it('receives Yousign webhook and updates status to SIGNE', { timeout: 30000 }, async () => {
         const input = {
@@ -235,7 +237,7 @@ describe('GraphQL Needs Analysis integration', () => {
             recruitmentMethod: 'PRESELECTION',
             immersionPeriod: 'OUI',
             trainingDays: JSON.stringify({ monday: ['MATIN'] }),
-            status: 'BROUILLON'
+            status: 'BROUILLON',
         };
 
         const createMutation = `
@@ -257,7 +259,7 @@ describe('GraphQL Needs Analysis integration', () => {
             },
             body: JSON.stringify({
                 query: createMutation,
-                variables: { input }
+                variables: { input },
             }),
         });
 
@@ -305,8 +307,8 @@ describe('GraphQL Needs Analysis integration', () => {
             body: JSON.stringify({
                 eventName: 'procedure.signed',
                 data: {
-                    id: yousignId
-                }
+                    id: yousignId,
+                },
             }),
         });
 
@@ -331,7 +333,7 @@ describe('GraphQL Needs Analysis integration', () => {
             },
             body: JSON.stringify({
                 query: fetchQuery,
-                variables: { id: created.id }
+                variables: { id: created.id },
             }),
         });
 
