@@ -1,7 +1,8 @@
-import express, { Router } from 'express';
+import { Router } from 'express';
 import { handleDocusealWebhook } from './controller';
+import { docusealWebhookGuard } from '../middleware/webhookSignature';
+import { env } from '../../config/env';
 
 export const router: Router = Router();
 
-// Webhook DocuSeal (signature terminée).
-router.post('/api/webhooks/docuseal', express.json(), handleDocusealWebhook);
+router.post('/api/webhooks/docuseal', ...docusealWebhookGuard(env.DOCUSEAL_WEBHOOK_SECRET), handleDocusealWebhook);

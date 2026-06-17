@@ -86,6 +86,7 @@ const data = {
     CLASSMARKER_API_NAME: optionalString('CLASSMARKER_API_NAME'),
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
+    CLASSMARKER_WEBHOOK_SECRET: optionalString('CLASSMARKER_WEBHOOK_SECRET'),
     MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
@@ -133,11 +134,13 @@ const data = {
 
     YOUSIGN_API_KEY: optionalString('YOUSIGN_API_KEY', 'sandbox_yousign_key_placeholder'),
     YOUSIGN_BASE_URL: stringWithDefault('YOUSIGN_BASE_URL', 'https://api-sandbox.yousign.app/v3'),
+    YOUSIGN_WEBHOOK_SECRET: optionalString('YOUSIGN_WEBHOOK_SECRET'),
 
     // DocuSeal e-signature. Override base URL with https://api.docuseal.eu (EU)
     // or a self-hosted instance URL as needed.
     DOCUSEAL_API_KEY: optionalString('DOCUSEAL_API_KEY', 'docuseal_key_placeholder'),
     DOCUSEAL_BASE_URL: stringWithDefault('DOCUSEAL_BASE_URL', 'https://api.docuseal.com'),
+    DOCUSEAL_WEBHOOK_SECRET: optionalString('DOCUSEAL_WEBHOOK_SECRET'),
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 
