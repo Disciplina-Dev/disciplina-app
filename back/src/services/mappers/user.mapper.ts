@@ -1,5 +1,5 @@
 import { UserRow } from '../../types/db-rows.types';
-import { User, Role } from '../../types/user.types';
+import { User, Role, UserResponse } from '../../types/user.types';
 
 export function toUser(row: UserRow): User {
     let parsedSectors: string[] | null = null;
@@ -19,5 +19,15 @@ export function toUser(row: UserRow): User {
         sectors: parsedSectors,
         oauthToken: row.oauth_token,
         refreshToken: row.refresh_token,
+    };
+}
+
+export function toUserResponse(user: User): UserResponse {
+    return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        sectors: user.sectors,
     };
 }

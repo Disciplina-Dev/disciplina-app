@@ -15,3 +15,11 @@ export interface User {
     refreshToken?: string | null;
     password?: string;
 }
+
+export interface UserResponse {
+    id: number;
+    email: string;
+    name: string;
+    role: Role;
+    sectors: string[] | null;
+}
