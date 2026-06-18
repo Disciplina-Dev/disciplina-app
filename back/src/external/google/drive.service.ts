@@ -24,6 +24,7 @@ export class GoogleDriveService {
             supportsAllDrives: true,
             includeItemsFromAllDrives: true,
         });
+        console.log(response.data.files as DriveFile[]);
         return (response.data.files || []) as DriveFile[];
     }
 
@@ -42,10 +43,7 @@ export class GoogleDriveService {
         return (response.data.files || []) as DriveFile[];
     }
 
-    async createFolder(
-        folderName: string,
-        parentFolderId?: string,
-    ): Promise<{ id: string; webViewLink: string }> {
+    async createFolder(folderName: string, parentFolderId?: string): Promise<{ id: string; webViewLink: string }> {
         const fileMetadata: any = {
             name: folderName,
             mimeType: 'application/vnd.google-apps.folder',

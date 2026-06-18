@@ -1,6 +1,7 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { Candidate } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
+import { after } from 'cheerio/dist/commonjs/api/manipulation';
 
 export interface StatBucket {
     key: string;
@@ -63,7 +64,7 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
                 result[newKey] = value;
             } else if (value && typeof value === 'object' && !Array.isArray(value)) {
                 Object.assign(result, flattenObject(value, newKey));
-            } else if (value) {
+            } else if (value || value === '') {
                 result[newKey] = value;
             }
         }
@@ -146,17 +147,13 @@ export class CandidateRepository {
                     byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
                     byTpType: [{ $group: { _id: '$tp_type', count: { $sum: 1 } } }],
                     byTrainingSite: [{ $group: { _id: '$training_site', count: { $sum: 1 } } }],
-                    byTpAndStatus: [
-                        { $group: { _id: { tpType: '$tp_type', status: '$status' }, count: { $sum: 1 } } },
-                    ],
+                    byTpAndStatus: [{ $group: { _id: { tpType: '$tp_type', status: '$status' }, count: { $sum: 1 } } }],
                 },
             },
         ]);
 
         const toBuckets = (rows: { _id: unknown; count: number }[]) =>
-            rows
-                .filter((r) => r._id != null)
-                .map((r) => ({ key: String(r._id), count: r.count }));
+            rows.filter((r) => r._id != null).map((r) => ({ key: String(r._id), count: r.count }));
 
         return {
             total: result?.total[0]?.count ?? 0,
@@ -180,7 +177,11 @@ export class CandidateRepository {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
-        return CandidateModel.findOneAndUpdate({ _id: id }, { $set: flattenObject(data) }, { new: true }).lean();
+        return CandidateModel.findOneAndUpdate(
+            { _id: id },
+            { $set: flattenObject(data) },
+            { returnDocument: 'after' },
+        ).lean();
     }
 
     async delete(id: string): Promise<boolean> {
