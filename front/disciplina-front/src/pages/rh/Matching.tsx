@@ -24,11 +24,11 @@ import {
   MailCheck,
   FileText,
 } from 'lucide-react'
-import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
+import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
 import { JobStatus } from '@/features/matching/constants/jobEnums'
-import { jobGraphqlClient, graphqlClient } from '@/graphql/client'
+import { jobGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
@@ -163,11 +163,13 @@ function CandidateInfoDrawer({ candidate, onClose }: InfoDrawerProps) {
 
 function RetainedCandidateRow({
   candidate,
+  hasMissingCv,
   onInfo,
   onSendMail,
   onRemove,
 }: {
   candidate: MatchedCandidate
+  hasMissingCv: boolean
   onInfo: () => void
   onSendMail: () => void
   onRemove: () => void
@@ -198,6 +200,11 @@ function RetainedCandidateRow({
             </span>
           )}
         </div>
+        {hasMissingCv && (
+          <p className="flex items-center gap-1 mt-1 text-[11px] font-medium text-danger">
+            <AlertCircle size={10} /> Aucun CV sur le Drive du candidat
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <button
@@ -597,6 +604,7 @@ function RetainedCandidatesSection({
   isUnmatching,
   isMailingAll,
   mailAllProgress,
+  missingCvCandidateIds,
   onInfo,
   onSendMail,
   onRemove,
@@ -607,6 +615,7 @@ function RetainedCandidatesSection({
   isUnmatching: boolean
   isMailingAll: boolean
   mailAllProgress: { sent: number; total: number } | null
+  missingCvCandidateIds: Set<string>
   onInfo: (c: MatchedCandidate) => void
   onSendMail: (c: MatchedCandidate) => void
   onRemove: (c: MatchedCandidate) => void
@@ -658,6 +667,7 @@ function RetainedCandidatesSection({
             <RetainedCandidateRow
               key={c.id}
               candidate={c}
+              hasMissingCv={missingCvCandidateIds.has(c.id)}
               onInfo={() => onInfo(c)}
               onSendMail={() => onSendMail(c)}
               onRemove={() => onRemove(c)}
@@ -744,6 +754,12 @@ function buildCandidateListMailBody(companyName: string, candidates: MatchedCand
 async function resolveCompanyEmail(companyName: string): Promise<string> {
   const result = await graphqlClient.query(GET_COMPANIES, { search: companyName, first: 1 }).toPromise()
   return result.data?.companies?.edges?.[0]?.node?.company?.email ?? ''
+}
+
+async function hasCandidateCv(candidateId: string): Promise<boolean> {
+  const result = await candidateGraphqlClient.query(GET_CANDIDATE_CV_STATUS, { id: candidateId }).toPromise()
+  console.log("result: ", result);
+  return Boolean(result.data?.candidate?.cvLink)
 }
 
 function MatchingSection({
@@ -898,6 +914,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [mailState, setMailState] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
   const [cvMailState, setCvMailState] = useState<{ to: string; candidates: MatchedCandidate[] } | null>(null)
   const [isResolvingCompany, setIsResolvingCompany] = useState(false)
+  const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
   const token = useAuthStore((s) => s.token)
 
   const loadJobData = useCallback(async (job: Job) => {
@@ -1004,9 +1021,19 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     setIsMailingAll(true)
     setMailAllProgress({ sent: 0, total: retained.length })
 
+    const missingCvIds = new Set<string>()
+    const sentIds = new Set<string>()
+
     for (let i = 0; i < retained.length; i++) {
       const candidate = retained[i]
       try {
+        const hasCv = await hasCandidateCv(candidate.id)
+        if (!hasCv) {
+          missingCvIds.add(candidate.id)
+          setMailAllProgress({ sent: i + 1, total: retained.length })
+          continue
+        }
+
         const linksResult = await jobGraphqlClient.query(OFFER_RESPONSE_LINKS, { jobId: selectedJob.id, candidateId: candidate.id }).toPromise()
         if (linksResult.data?.offerResponseLinks) {
           const { ouiUrl, nonUrl } = linksResult.data.offerResponseLinks
@@ -1018,6 +1045,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
             body: JSON.stringify({ to: candidate.email, subject, body }),
           })
           await jobGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
+          sentIds.add(candidate.id)
         }
       } catch {
         // continue with next candidate on error
@@ -1025,10 +1053,14 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
       setMailAllProgress({ sent: i + 1, total: retained.length })
     }
 
+    setMissingCvCandidateIds(missingCvIds)
+
     if (jobData) {
       setJobData({
         ...jobData,
-        matchedCandidate: (jobData.matchedCandidate ?? []).map((c) => ({ ...c, status: MatchedCandidateStatus.OFFER_SEND })),
+        matchedCandidate: (jobData.matchedCandidate ?? []).map((c) =>
+          sentIds.has(c.id) ? { ...c, status: MatchedCandidateStatus.OFFER_SEND } : c
+        ),
       })
     }
     setIsMailingAll(false)
@@ -1037,6 +1069,14 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
   const handleOpenMail = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
+
+    const hasCv = await hasCandidateCv(candidate.id)
+    if (!hasCv) {
+      setMissingCvCandidateIds((p) => new Set(p).add(candidate.id))
+      return
+    }
+    setMissingCvCandidateIds((p) => { const n = new Set(p); n.delete(candidate.id); return n })
+
     const result = await jobGraphqlClient.query(OFFER_RESPONSE_LINKS, { jobId: selectedJob.id, candidateId: candidate.id }).toPromise()
     if (result.data?.offerResponseLinks) {
       const { ouiUrl, nonUrl } = result.data.offerResponseLinks
@@ -1126,6 +1166,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         isUnmatching={isUnmatching}
         isMailingAll={isMailingAll}
         mailAllProgress={mailAllProgress}
+        missingCvCandidateIds={missingCvCandidateIds}
         onInfo={setDrawerCandidate}
         onSendMail={handleOpenMail}
         onRemove={handleRemoveCandidate}

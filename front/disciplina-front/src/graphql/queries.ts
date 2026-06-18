@@ -389,6 +389,15 @@ export const GET_CANDIDATE_BY_ID = gql`
   }
 `
 
+export const GET_CANDIDATE_CV_STATUS = gql`
+  query GetCandidateCvStatus($id: String!) {
+    candidate(id: $id) {
+      id
+      cvLink
+    }
+  }
+`
+
 export const UPDATE_CANDIDATE = gql`
   mutation UpdateCandidate($id: String!, $input: UpdateCandidateInput!) {
     updateCandidate(id: $id, input: $input) {

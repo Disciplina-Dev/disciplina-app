@@ -220,6 +220,7 @@ export default function FicheCandidat() {
       }
       setDriveFiles(prev => prev.filter(f => f.id !== file.id))
       setSelectedFile(prev => (prev?.id === file.id ? null : prev))
+      setFormData(prev => (prev && file.webViewLink === prev.cv_link ? { ...prev, cv_link: '' } : prev))
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Erreur suppression fichier')
     }
