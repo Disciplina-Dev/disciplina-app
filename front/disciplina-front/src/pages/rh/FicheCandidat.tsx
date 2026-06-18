@@ -19,6 +19,7 @@ import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
+import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
 
@@ -121,6 +122,11 @@ export default function FicheCandidat() {
   const { update } = useUpdateCandidate()
   const { createDriveFolder } = useCreateCandidateDriveFolder()
   const token = useAuthStore((s) => s.token)
+  // Verdict du test : la moyenne est à 50%. L'AB n'est possible que si le candidat
+  // a réussi au moins un test (>= 50%).
+  const { result: testResult } = useClassMarkerResult(id)
+  const testPassed =
+    !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
 
   const [formData, setFormData] = useState<Candidate | null>(null)
   // Édition de la fiche = même formulaire que la création (modal). L'édition inline
@@ -442,6 +448,8 @@ export default function FicheCandidat() {
             </>
           )}
           <Button variant="secondary" size="sm" leftIcon={<ClipboardCheck size={15} style={{ color: 'var(--color-purple)' }} />}
+            disabled={!testPassed}
+            title={testPassed ? undefined : 'Indisponible : le candidat n’a réussi aucun test (moyenne < 50%)'}
             onClick={() => navigate(`/rh/candidats/${formData._id}/questionnaire`)}>
             Analyse de Besoin
           </Button>

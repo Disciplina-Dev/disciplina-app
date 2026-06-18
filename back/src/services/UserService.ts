@@ -40,6 +40,18 @@ export class UserService {
         return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
     }
 
+    /**
+     * Renvoie le premier utilisateur (parmi les rôles donnés, dans l'ordre)
+     * disposant de jetons Google valides. Utilisé par les traitements sans
+     * contexte utilisateur (webhooks) pour agir sur le Drive partagé.
+     */
+    async findFirstGoogleConnectedUser(roles: Role[]): Promise<User | null> {
+        const users = await this.findByRoles(roles);
+        // refreshToken peut être null (Google ne le renvoie qu'au 1er consentement) :
+        // un access_token suffit, comme la route /drive-files.
+        return users.find((u) => u.oauthToken) ?? null;
+    }
+
     async register(email: string, name: string, passwordPlain: string, role: Role, sectors?: string[]): Promise<User> {
         const existing = await this.userRepository.findByEmail(email);
         if (existing) {
