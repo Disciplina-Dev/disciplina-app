@@ -1,6 +1,7 @@
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
+import { RhKpiService } from '../../services/RhKpiService';
 import { randomUUID } from 'crypto';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
@@ -15,6 +16,14 @@ import { CandidateFilters } from '../../repositories/mongo/CandidateRepository';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
+const rhKpiService = new RhKpiService();
+
+/** Statuts candidat suivis dans les KPI RH (transition entrante = +1). */
+const STATUS_KPI_COLUMN: Partial<Record<CandidateStatus, 'immersions' | 'contracts' | 'ruptures'>> = {
+    [CandidateStatus.IMMERSING]: 'immersions',
+    [CandidateStatus.CONTRACTED]: 'contracts',
+    [CandidateStatus.CANCELLED]: 'ruptures',
+};
 
 const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
     userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
@@ -160,10 +169,20 @@ export const resolvers = {
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const snakeInput = camelToSnakeCase(input);
+            // Statut avant mise à jour, pour ne compter que les vraies transitions entrantes.
+            const previousStatus = snakeInput.status
+                ? (await candidateService.findById(id))?.status
+                : undefined;
             const updated = await candidateService.update(id, snakeInput);
 
             if (!updated) {
                 throw new Error(`Candidate with id ${id} not found`);
+            }
+
+            // KPI RH : transition de statut vers immersion / contrat / rupture (compté pour le RH agissant).
+            const column = STATUS_KPI_COLUMN[updated.status];
+            if (column && snakeInput.status && previousStatus !== updated.status) {
+                await rhKpiService.bump(Number(context.user.id), new Date(), { [column]: 1 });
             }
 
             return candidateToGql(updated);

@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
+import PublicBooking from "@/pages/booking/PublicBooking";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -108,6 +109,10 @@ export const router = createBrowserRouter([
       { path: "rendez-vous", element: <GestionRDV /> },
       { path: "profils", element: <ProfilsMatches /> },
     ],
+  },
+  {
+    path: "/booking/:slug",
+    element: <PublicBooking />,
   },
   {
     path: "*",

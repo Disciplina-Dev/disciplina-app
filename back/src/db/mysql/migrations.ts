@@ -30,6 +30,28 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
  */
 const REQUIRED_TABLES: { table: string; ddl: string }[] = [
     {
+        // KPI RH agrégés par utilisateur (RH) et par bucket (année ISO / mois / semaine ISO).
+        // Une ligne = un (user, year, month, week) ; les compteurs sont incrémentés au fil des actions.
+        table: 'rh_kpi',
+        ddl: `CREATE TABLE IF NOT EXISTS rh_kpi (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            year SMALLINT NOT NULL,
+            month TINYINT NOT NULL,
+            week TINYINT NOT NULL,
+            interviews_placed INT NOT NULL DEFAULT 0,
+            interviews_attended INT NOT NULL DEFAULT 0,
+            interviews_noshow INT NOT NULL DEFAULT 0,
+            immersions INT NOT NULL DEFAULT 0,
+            contracts INT NOT NULL DEFAULT 0,
+            ruptures INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_rh_kpi (user_id, year, month, week),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+        )`,
+    },
+    {
         table: 'commercial_kpi',
         ddl: `CREATE TABLE IF NOT EXISTS commercial_kpi (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -80,6 +102,27 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             all_blacklist TINYINT DEFAULT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Public booking ("Calendly"-style) settings per RH/responsable.
+        table: 'booking_settings',
+        ddl: `CREATE TABLE IF NOT EXISTS booking_settings (
+            user_id INT PRIMARY KEY,
+            slug VARCHAR(32) NOT NULL UNIQUE,
+            enabled TINYINT NOT NULL DEFAULT 1,
+            duration_min INT NOT NULL DEFAULT 30,
+            buffer_min INT NOT NULL DEFAULT 0,
+            timezone VARCHAR(64) NOT NULL DEFAULT 'Indian/Reunion',
+            min_notice_hours INT NOT NULL DEFAULT 12,
+            max_days_ahead INT NOT NULL DEFAULT 30,
+            -- { "1": [["09:00","12:00"],["14:00","18:00"]], ... } clé = jour ISO 1=lun..7=dim
+            working_hours JSON DEFAULT NULL,
+            title VARCHAR(255) NOT NULL DEFAULT 'Rendez-vous',
+            location VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
         )`,
     },
 ];
