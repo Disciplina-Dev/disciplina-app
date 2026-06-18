@@ -25,6 +25,8 @@ import {
 } from 'lucide-react'
 import { GET_JOBS, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
+import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
+import { JobStatus } from '@/features/matching/constants/jobEnums'
 import { jobGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore } from '@/store/authStore'
@@ -93,14 +95,11 @@ function tpLabel(raw: string | null | undefined): string {
 }
 
 function statusChip(status: string | null): { label: string; cls: string } {
-  const map: Record<string, { label: string; cls: string }> = {
-    NOT_MATCHED: { label: 'Non matché', cls: 'bg-gray-100 text-gray-600' },
-    MATCHED: { label: 'Matché', cls: 'bg-blue-light text-blue' },
-    CV_SEND: { label: 'CV envoyé', cls: 'bg-purple-light text-purple' },
-    IMMERSING: { label: 'En immersion', cls: 'bg-pink-light text-pink' },
-    CONTRACT: { label: 'Sous contrat', cls: 'bg-success-bg text-success' },
-  }
-  return status ? (map[status] ?? { label: formatEnum(status), cls: 'bg-gray-100 text-gray-600' }) : { label: '—', cls: 'bg-gray-100 text-gray-600' }
+  if (!status) return { label: '—', cls: 'bg-gray-100 text-gray-600' }
+  const jobStatus = status as JobStatus
+  return JOB_STATUS_LABELS[jobStatus]
+    ? { label: JOB_STATUS_LABELS[jobStatus], cls: JOB_STATUS_BADGE_CLASS[jobStatus] }
+    : { label: formatEnum(status), cls: 'bg-gray-100 text-gray-600' }
 }
 
 function locLabel(raw: string): string {
@@ -454,7 +453,7 @@ function JobCard({
 
 // ─── Job Details Section ──────────────────────────────────────────────────────
 
-function JobDetailsSection({ job }: { job: MatchJobResult }) {
+function JobDetailsSection({ job, onSetStatus }: { job: MatchJobResult; onSetStatus: (status: JobStatus) => void }) {
   const chip = statusChip(job.status)
 
   return (
@@ -468,6 +467,24 @@ function JobDetailsSection({ job }: { job: MatchJobResult }) {
           <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
             {chip.label}
           </span>
+        </div>
+      </div>
+
+      <div className="mb-4 pb-4 border-b border-gray-50">
+        <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">Étape manuelle</p>
+        <div className="flex flex-wrap gap-1.5">
+          {MANUAL_JOB_STATUSES.map((status) => (
+            <button
+              key={status}
+              onClick={() => onSetStatus(status)}
+              disabled={job.status === status}
+              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                job.status === status ? JOB_STATUS_BADGE_CLASS[status] : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {JOB_STATUS_LABELS[status]}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -937,11 +954,9 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
       setMailAllProgress({ sent: i + 1, total: retained.length })
     }
 
-    await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status: 'CV_SEND' } }).toPromise()
     if (jobData) {
       setJobData({
         ...jobData,
-        status: 'CV_SEND',
         matchedCandidate: (jobData.matchedCandidate ?? []).map((c) => ({ ...c, status: MatchedCandidateStatus.OFFER_SEND })),
       })
     }
@@ -960,18 +975,22 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
   const handleMailSent = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
-    await Promise.all([
-      jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status: 'CV_SEND' } }).toPromise(),
-      jobGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise(),
-    ])
+    await jobGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
     if (jobData) {
       setJobData({
         ...jobData,
-        status: 'CV_SEND',
         matchedCandidate: (jobData.matchedCandidate ?? []).map((c) =>
           c.id === candidate.id ? { ...c, status: MatchedCandidateStatus.OFFER_SEND } : c
         ),
       })
+    }
+  }
+
+  const handleSetManualStatus = async (status: JobStatus) => {
+    if (!selectedJob) return
+    const result = await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status } }).toPromise()
+    if (!result.error && jobData) {
+      setJobData({ ...jobData, status })
     }
   }
 
@@ -1011,7 +1030,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <JobDetailsSection job={jobData} />
+      <JobDetailsSection job={jobData} onSetStatus={handleSetManualStatus} />
 
       <RetainedCandidatesSection
         candidates={jobData.matchedCandidate ?? []}

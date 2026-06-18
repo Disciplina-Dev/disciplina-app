@@ -161,7 +161,7 @@ describe('GraphQL job mutations', () => {
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.addCandidateToJob.status).toBe('MATCHED');
+            expect(json.data.addCandidateToJob.status).toBe('NOT_MATCHED');
             expect(json.data.addCandidateToJob.matchedCandidate).toHaveLength(1);
             expect(json.data.addCandidateToJob.matchedCandidate[0].id).toBe(candidateId);
             expect(json.data.addCandidateToJob.matchedCandidate[0].fullName).toBe(`Alice ${suffix}`);
@@ -252,7 +252,7 @@ describe('GraphQL job mutations', () => {
             expect(json.errors).toBeUndefined();
             expect(json.data.removeCandidateFromJob.matchedCandidate).toHaveLength(1);
             expect(json.data.removeCandidateFromJob.matchedCandidate[0].id).toBe(`cand-b-${suffix}`);
-            expect(json.data.removeCandidateFromJob.status).toBe('MATCHED');
+            expect(json.data.removeCandidateFromJob.status).toBe('NOT_MATCHED');
         });
     });
 

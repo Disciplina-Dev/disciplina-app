@@ -46,7 +46,7 @@ export class JobRepository {
     async addMatchedCandidate(jobId: string, candidate: MatchingCandidate): Promise<Job | null> {
         return JobModel.findOneAndUpdate(
             { _id: jobId, 'matched_candidate.id': { $ne: candidate.id } },
-            { $push: { matched_candidate: candidate }, $set: { status: JobStatus.MATCHED } },
+            { $push: { matched_candidate: candidate } },
             { new: true },
         ).lean();
     }
