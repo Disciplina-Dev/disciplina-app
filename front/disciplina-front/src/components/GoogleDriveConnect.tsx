@@ -24,7 +24,7 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
 
-  const isConnected = !!user?.oauthToken
+  const isConnected = !!user?.googleConnected
 
   const handleConnect = async () => {
     setErrorMsg(null)
@@ -51,7 +51,7 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
       if (!res.ok) {
         throw new Error(data.error || 'Erreur lors de la déconnexion')
       }
-      useAuthStore.getState().updateUser({ oauthToken: undefined })
+      useAuthStore.getState().updateUser({ googleConnected: false })
     } catch (err: any) {
       setErrorMsg(err.message || 'Une erreur inattendue est survenue')
     } finally {

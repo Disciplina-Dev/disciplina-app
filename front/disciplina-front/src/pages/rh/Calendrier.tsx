@@ -166,16 +166,22 @@ export default function Calendrier() {
   const [users, setUsers] = useState<CalendarUser[]>([])
   const [visible, setVisible] = useState<Set<number>>(new Set())
 
-  useEffect(() => {
+  const loadUsers = useCallback(async () => {
     if (!token) return
-    fetchCalendarUsers(token)
-      .then((list) => {
-        setUsers(list)
-        // Par défaut on affiche son propre agenda connecté.
-        setVisible(new Set(list.filter((u) => u.isSelf && u.connected).map((u) => u.id)))
-      })
-      .catch(() => { /* géré via état notConnected au chargement des events */ })
+    try {
+      const list = await fetchCalendarUsers(token)
+      setUsers(list)
+      // Par défaut on affiche son propre agenda connecté.
+      setVisible(new Set(list.filter((u) => u.isSelf && u.connected).map((u) => u.id)))
+    } catch {
+      /* géré via état notConnected au chargement des events */
+    }
   }, [token])
+
+  useEffect(() => { void loadUsers() }, [loadUsers])
+
+  // Self non connecté à Google → on invite à connecter plutôt qu'afficher une grille vide.
+  const selfDisconnected = users.some((u) => u.isSelf && !u.connected)
 
   const toggleUser = (id: number) =>
     setVisible((prev) => {
@@ -294,8 +300,8 @@ export default function Calendrier() {
         </div>
       </div>
 
-      {notConnected ? (
-        <ConnectPrompt onConnect={connectGoogle} isConnecting={isConnecting} onDone={load} />
+      {(notConnected || selfDisconnected) ? (
+        <ConnectPrompt onConnect={connectGoogle} isConnecting={isConnecting} onDone={loadUsers} />
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl bg-danger-bg p-3 text-[13px] text-danger">
           <AlertCircle size={16} /> {error}
