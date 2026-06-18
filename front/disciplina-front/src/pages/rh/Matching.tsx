@@ -22,12 +22,13 @@ import {
   RefreshCw,
   Trash2,
   MailCheck,
+  FileText,
 } from 'lucide-react'
-import { GET_JOBS, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
+import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
 import { JobStatus } from '@/features/matching/constants/jobEnums'
-import { jobGraphqlClient } from '@/graphql/client'
+import { jobGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
@@ -453,21 +454,46 @@ function JobCard({
 
 // ─── Job Details Section ──────────────────────────────────────────────────────
 
-function JobDetailsSection({ job, onSetStatus }: { job: MatchJobResult; onSetStatus: (status: JobStatus) => void }) {
+function JobDetailsSection({
+  job,
+  onSetStatus,
+  hasAcceptedCandidates,
+  isResolvingCompany,
+  onSendCvsToCompany,
+}: {
+  job: MatchJobResult
+  onSetStatus: (status: JobStatus) => void
+  hasAcceptedCandidates: boolean
+  isResolvingCompany: boolean
+  onSendCvsToCompany: () => void
+}) {
   const chip = statusChip(job.status)
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="flex items-start gap-3 mb-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-light text-blue">
-          <Building2 size={20} />
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-light text-blue">
+            <Building2 size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-bold text-gray-900 truncate">{job.companyName}</h2>
+            <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
+              {chip.label}
+            </span>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base font-bold text-gray-900 truncate">{job.companyName}</h2>
-          <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
-            {chip.label}
-          </span>
-        </div>
+        {hasAcceptedCandidates && (
+          <button
+            onClick={onSendCvsToCompany}
+            disabled={isResolvingCompany}
+            className="flex shrink-0 items-center gap-2 rounded-xl border border-blue/20 px-4 py-2 text-sm font-semibold text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
+            title="Envoyer les CV des candidats acceptés à l'entreprise"
+          >
+            {isResolvingCompany ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+            Envoie des CV
+          </button>
+        )}
       </div>
 
       <div className="mb-4 pb-4 border-b border-gray-50">
@@ -677,6 +703,49 @@ function buildOfferMailBody(candidateName: string, jobCompany: string, ouiUrl: s
 </html>`
 }
 
+function buildCandidateRow(c: MatchedCandidate): string {
+  return `<tr>
+    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.fullName}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.age ?? '—'}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${sexLabel(c.sex)}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${formatEnum(c.city)}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.email}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.phone}</td>
+  </tr>`
+}
+
+function buildCandidateListMailBody(companyName: string, candidates: MatchedCandidate[]): string {
+  const rows = candidates.map(buildCandidateRow).join('')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
+  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
+  p { line-height: 1.6; margin: 0 0 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; background: #f3f4f6; color: #374151; font-weight: 700; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="logo">DISCIPLINA</div>
+  <p>Bonjour,</p>
+  <p>Voici la liste des candidats retenus pour votre offre chez <strong>${companyName}</strong> :</p>
+  <table>
+    <thead><tr><th>Nom</th><th>Âge</th><th>Sexe</th><th>Ville</th><th>Email</th><th>Téléphone</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">Cordialement,<br>L'équipe DISCIPLINA</div>
+</body>
+</html>`
+}
+
+async function resolveCompanyEmail(companyName: string): Promise<string> {
+  const result = await graphqlClient.query(GET_COMPANIES, { search: companyName, first: 1 }).toPromise()
+  return result.data?.companies?.edges?.[0]?.node?.company?.email ?? ''
+}
+
 function MatchingSection({
   suggestedCandidates,
   savedCandidateIds,
@@ -827,6 +896,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
   const [drawerCandidate, setDrawerCandidate] = useState<MatchedCandidate | null>(null)
   const [mailState, setMailState] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
+  const [cvMailState, setCvMailState] = useState<{ to: string; candidates: MatchedCandidate[] } | null>(null)
+  const [isResolvingCompany, setIsResolvingCompany] = useState(false)
   const token = useAuthStore((s) => s.token)
 
   const loadJobData = useCallback(async (job: Job) => {
@@ -986,6 +1057,18 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
   }
 
+  const handleSendCvsToCompany = async () => {
+    if (!jobData) return
+    const accepted = (jobData.matchedCandidate ?? []).filter((c) => c.status === MatchedCandidateStatus.ACCEPTED)
+    setIsResolvingCompany(true)
+    try {
+      const to = await resolveCompanyEmail(jobData.companyName)
+      setCvMailState({ to, candidates: accepted })
+    } finally {
+      setIsResolvingCompany(false)
+    }
+  }
+
   const handleSetManualStatus = async (status: JobStatus) => {
     if (!selectedJob) return
     const result = await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status } }).toPromise()
@@ -1030,7 +1113,13 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <JobDetailsSection job={jobData} onSetStatus={handleSetManualStatus} />
+      <JobDetailsSection
+        job={jobData}
+        onSetStatus={handleSetManualStatus}
+        hasAcceptedCandidates={(jobData.matchedCandidate ?? []).some((c) => c.status === MatchedCandidateStatus.ACCEPTED)}
+        isResolvingCompany={isResolvingCompany}
+        onSendCvsToCompany={handleSendCvsToCompany}
+      />
 
       <RetainedCandidatesSection
         candidates={jobData.matchedCandidate ?? []}
@@ -1085,6 +1174,16 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           scope="rh"
           onClose={() => setMailState(null)}
           onSent={() => handleMailSent(mailState.candidate)}
+        />
+      )}
+
+      {cvMailState && (
+        <MailModal
+          defaultTo={cvMailState.to}
+          defaultSubject={`Candidats retenus – ${jobData.companyName}`}
+          defaultBody={buildCandidateListMailBody(jobData.companyName, cvMailState.candidates)}
+          scope="rh"
+          onClose={() => setCvMailState(null)}
         />
       )}
     </div>
