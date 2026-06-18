@@ -19,7 +19,7 @@ export async function createDraft(req: AuthRequest, res: Response): Promise<void
 }
 
 async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draft'): Promise<void> {
-    const { to, subject, body, attachment } = req.body;
+    const { to, subject, body, attachments } = req.body;
 
     if (!to || !subject || !body) {
         res.status(400).json({ error: 'Champs manquants : to, subject, body' });
@@ -37,7 +37,7 @@ async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draf
         subject,
         html: body,
         text: body.replace(/<[^>]*>/g, ''),
-        attachment,
+        attachments,
     };
     const creds = { access_token: user.oauthToken, refresh_token: user.refreshToken };
 

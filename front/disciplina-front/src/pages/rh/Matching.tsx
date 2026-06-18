@@ -35,6 +35,7 @@ import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
+import type { MailAttachment } from '@/store/mailTemplatesStore'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -762,6 +763,15 @@ async function hasCandidateCv(candidateId: string): Promise<boolean> {
   return Boolean(result.data?.candidate?.cvLink)
 }
 
+async function fetchCandidateCvAttachment(candidateId: string, token: string | null): Promise<MailAttachment | null> {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${candidateId}/cv-file`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  return { filename: data.filename, contentType: data.contentType, content: data.content }
+}
+
 function MatchingSection({
   suggestedCandidates,
   savedCandidateIds,
@@ -912,7 +922,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
   const [drawerCandidate, setDrawerCandidate] = useState<MatchedCandidate | null>(null)
   const [mailState, setMailState] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
-  const [cvMailState, setCvMailState] = useState<{ to: string; candidates: MatchedCandidate[] } | null>(null)
+  const [cvMailState, setCvMailState] = useState<{ to: string; candidates: MatchedCandidate[]; attachments: MailAttachment[] } | null>(null)
   const [isResolvingCompany, setIsResolvingCompany] = useState(false)
   const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
   const token = useAuthStore((s) => s.token)
@@ -1103,7 +1113,17 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     setIsResolvingCompany(true)
     try {
       const to = await resolveCompanyEmail(jobData.companyName)
-      setCvMailState({ to, candidates: accepted })
+
+      const missingCvIds = new Set<string>()
+      const attachments: MailAttachment[] = []
+      for (const candidate of accepted) {
+        const attachment = await fetchCandidateCvAttachment(candidate.id, token)
+        if (attachment) attachments.push(attachment)
+        else missingCvIds.add(candidate.id)
+      }
+      setMissingCvCandidateIds(missingCvIds)
+
+      setCvMailState({ to, candidates: accepted, attachments })
     } finally {
       setIsResolvingCompany(false)
     }
@@ -1223,6 +1243,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           defaultTo={cvMailState.to}
           defaultSubject={`Candidats retenus – ${jobData.companyName}`}
           defaultBody={buildCandidateListMailBody(jobData.companyName, cvMailState.candidates)}
+          defaultAttachments={cvMailState.attachments}
           scope="rh"
           onClose={() => setCvMailState(null)}
         />

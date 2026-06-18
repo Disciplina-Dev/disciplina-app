@@ -15,6 +15,7 @@ interface MailModalProps {
   defaultTemplateId?: string
   defaultSubject?: string
   defaultBody?: string
+  defaultAttachments?: MailAttachment[]
   onClose: () => void
   onSent?: () => void
 }
@@ -22,7 +23,7 @@ interface MailModalProps {
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue transition-colors'
 
-export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, defaultSubject, defaultBody, onClose, onSent }: MailModalProps) {
+export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, defaultSubject, defaultBody, defaultAttachments, onClose, onSent }: MailModalProps) {
   const { templates, signatureImage } = useMailTemplatesStore(scope)
   const token = useAuthStore((s) => s.token)
 
@@ -35,7 +36,9 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
   const [to, setTo] = useState(defaultTo)
   const [subject, setSubject] = useState(defaultSubject ?? defaultTemplate?.subject ?? '')
   const [body, setBody] = useState(defaultBody ?? (defaultTemplate ? `${defaultTemplate.body}${sigHtml}` : sigHtml))
-  const [attachment, setAttachment] = useState<MailAttachment | null>(defaultTemplate?.attachment ?? null)
+  const [attachments, setAttachments] = useState<MailAttachment[]>(
+    defaultAttachments ?? (defaultTemplate?.attachment ? [defaultTemplate.attachment] : []),
+  )
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
@@ -46,7 +49,7 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
     if (!t) return
     setSubject(t.subject)
     setBody(`${t.body}${sigHtml}`)
-    if (t.attachment) setAttachment(t.attachment)
+    if (t.attachment) setAttachments((prev) => [...prev, t.attachment as MailAttachment])
   }
 
   function handleFile(file: File | undefined) {
@@ -54,9 +57,13 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
     const reader = new FileReader()
     reader.onload = () => {
       const base64 = (reader.result as string).split(',')[1]
-      setAttachment({ filename: file.name, contentType: file.type || 'application/octet-stream', content: base64 })
+      setAttachments((prev) => [...prev, { filename: file.name, contentType: file.type || 'application/octet-stream', content: base64 }])
     }
     reader.readAsDataURL(file)
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
   async function handleSend() {
@@ -75,7 +82,7 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ to, subject, body, attachment: attachment ?? undefined }),
+        body: JSON.stringify({ to, subject, body, attachments: attachments.length ? attachments : undefined }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erreur envoi')
@@ -144,22 +151,21 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Pièce jointe</label>
-              {attachment ? (
-                <div className="flex items-center gap-2 rounded-[10px] border border-gray-100 px-4 py-2.5">
+              <label className="text-sm font-medium text-gray-700">Pièces jointes</label>
+              {attachments.map((a, i) => (
+                <div key={`${a.filename}-${i}`} className="flex items-center gap-2 rounded-[10px] border border-gray-100 px-4 py-2.5">
                   <Paperclip size={15} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-700 flex-1 truncate">{attachment.filename}</span>
-                  <button onClick={() => setAttachment(null)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <span className="text-sm text-gray-700 flex-1 truncate">{a.filename}</span>
+                  <button onClick={() => removeAttachment(i)} className="text-gray-400 hover:text-red-500 transition-colors">
                     <Trash2 size={15} />
                   </button>
                 </div>
-              ) : (
-                <label className="flex items-center gap-2 cursor-pointer rounded-[10px] border border-dashed border-gray-200 px-4 py-2.5 text-sm text-gray-400 hover:border-blue hover:text-blue transition-colors">
-                  <Paperclip size={15} />
-                  Joindre un document
-                  <input type="file" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-                </label>
-              )}
+              ))}
+              <label className="flex items-center gap-2 cursor-pointer rounded-[10px] border border-dashed border-gray-200 px-4 py-2.5 text-sm text-gray-400 hover:border-blue hover:text-blue transition-colors">
+                <Paperclip size={15} />
+                Joindre un document
+                <input type="file" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+              </label>
             </div>
 
             {error && <p className="text-xs text-red-500">{error}</p>}

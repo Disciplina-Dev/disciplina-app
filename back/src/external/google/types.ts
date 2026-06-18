@@ -21,9 +21,9 @@ export interface SendEmailOptions {
     subject: string;
     html: string;
     text: string;
-    attachment?: {
+    attachments?: {
         filename: string;
         content: string;
         contentType?: string;
-    };
+    }[];
 }

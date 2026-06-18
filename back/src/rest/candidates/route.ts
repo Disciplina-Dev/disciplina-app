@@ -9,7 +9,7 @@ import { PdfService } from '../../services/PdfService';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
 import { logger } from '../../external/logger/logger';
 import { UserService } from '../../services/UserService';
-import { GoogleDriveService } from '../../external/google/drive.service';
+import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
@@ -115,6 +115,56 @@ router.post(
         }
     },
 );
+
+router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response) => {
+    const role = req.user?.role;
+    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const { id } = req.params;
+
+    try {
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).json({ error: 'Candidate not found' });
+            return;
+        }
+        if (!candidate.cv_link) {
+            res.status(404).json({ error: 'CV introuvable' });
+            return;
+        }
+
+        const fileId = extractDriveFileId(candidate.cv_link);
+        if (!fileId) {
+            res.status(404).json({ error: 'CV introuvable' });
+            return;
+        }
+
+        const user = await userService.findById(req.user!.id);
+        if (!user || !user.oauthToken) {
+            res.status(400).json({ error: 'Google Drive non connecté' });
+            return;
+        }
+
+        const driveService = GoogleDriveService.fromTokens(
+            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+            persistRefreshedTokens(user.id),
+        );
+
+        const { buffer, mimeType } = await driveService.downloadFile(fileId);
+
+        res.json({
+            filename: `CV_${candidate.identity.full_name}.pdf`,
+            contentType: mimeType,
+            content: buffer.toString('base64'),
+        });
+    } catch (err) {
+        logger.error(err, 'download candidate CV failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+});
 
 router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
