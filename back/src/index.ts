@@ -18,9 +18,12 @@ import { router as sourcingRouter } from './rest/sourcing/route';
 import { router as yousignWebhookRouter } from './rest/yousign/route';
 import { router as docusealWebhookRouter } from './rest/docuseal/route';
 import { router as kpiRouter } from './rest/kpi/route';
+import { router as rhKpiRouter } from './rest/rh-kpi/route';
 import { router as needsAnalysisRouter } from './rest/needsAnalysis/route';
 import { router as matchingRouter } from './rest/matching/route';
 import { router as notificationsRouter } from './rest/notifications/route';
+import { router as calendarRouter } from './rest/calendar/route';
+import { router as bookingRouter } from './rest/booking/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -86,9 +89,12 @@ export async function createApp(): Promise<express.Express> {
     app.use(yousignWebhookRouter);
     app.use(docusealWebhookRouter);
     app.use('/api/kpi', kpiRouter);
+    app.use('/api/rh-kpi', rhKpiRouter);
     app.use('/api/needs-analysis', needsAnalysisRouter);
     app.use(matchingRouter);
     app.use('/api/notifications', notificationsRouter);
+    app.use('/api/calendar', calendarRouter);
+    app.use('/api/booking', bookingRouter);
     app.use(errorHandler);
 
     await connectMySQL();

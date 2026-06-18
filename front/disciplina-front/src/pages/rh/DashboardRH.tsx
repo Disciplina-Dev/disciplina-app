@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useCandidateStats, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 
@@ -203,6 +204,11 @@ export default function DashboardRH() {
         >
           <RefreshCw size={16} /> Actualiser
         </button>
+      </div>
+
+      {/* KPI RH par semaine / mois / année */}
+      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+        <RhKpiPanel />
       </div>
 
       {/* KPI */}

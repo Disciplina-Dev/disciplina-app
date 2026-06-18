@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing } from 'lucide-react'
+import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
@@ -48,6 +48,7 @@ export default function RHLayout() {
           <NavItem to="/rh" end icon={<LayoutDashboard size={18} />} label="Dashboard" />
           <NavItem to="/rh/candidats" icon={<Users size={18} />} label="Candidats" />
           <NavItem to="/rh/matching" icon={<Repeat2 size={18} />} label="Matching" />
+          <NavItem to="/rh/calendrier" icon={<CalendarDays size={18} />} label="Calendrier" />
           <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
         </nav>

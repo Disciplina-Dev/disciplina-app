@@ -76,6 +76,7 @@ const data = {
     API_PORT: numberWithDefault('API_PORT', 4000),
 
     APP_BASE_URL: stringWithDefault('APP_BASE_URL', 'http://localhost:4000'),
+    FRONTEND_BASE_URL: stringWithDefault('FRONTEND_BASE_URL', 'http://localhost:5173'),
     CORS_ORIGINS: stringWithDefault('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
         .split(',')
         .map((s) => s.trim())
