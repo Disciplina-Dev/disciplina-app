@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
 import { verifyMatchUrl } from '../../external/crypto';
-import { JobRepository } from '../../repositories/mongo/JobRepository';
+import { JobService } from '../../services/JobService';
 import { MatchedCandidateStatus } from '../../types/job.types';
 import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 
-const jobRepository = new JobRepository();
+const jobService = new JobService();
 
 export async function handleMatchResponse(req: Request, res: Response) {
     const { jobId, candidateId, answer, sig } = req.query as {
@@ -25,7 +25,7 @@ export async function handleMatchResponse(req: Request, res: Response) {
 
     try {
         const status = answer === 'oui' ? MatchedCandidateStatus.ACCEPTED : MatchedCandidateStatus.DECLINED;
-        await jobRepository.setMatchedCandidateStatus(jobId, candidateId, status);
+        await jobService.updateMatchedCandidateStatus(jobId, candidateId, status);
         logger.info({ jobId, candidateId, answer }, '[matching] response handled');
     } catch (err) {
         logger.error({ err }, '[matching] response error');

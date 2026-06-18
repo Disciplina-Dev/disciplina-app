@@ -74,6 +74,16 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
     };
 }
 
+export function deriveJobStatus(matchedCandidates: MatchingCandidate[], currentStatus?: JobStatus): JobStatus {
+    if (matchedCandidates.length === 0) return JobStatus.NOT_MATCHED;
+
+    const manualStages = [JobStatus.CV_SEND, JobStatus.IMMERSING, JobStatus.CONTRACT];
+    if (currentStatus && manualStages.includes(currentStatus)) return currentStatus;
+
+    const hasAccepted = matchedCandidates.some((c) => c.status === MatchedCandidateStatus.ACCEPTED);
+    return hasAccepted ? JobStatus.MATCHED : JobStatus.NOT_MATCHED;
+}
+
 export class JobService {
     private repository = new JobRepository();
     private candidateRepository = new CandidateRepository();
@@ -130,17 +140,13 @@ export class JobService {
         if (!job) return null;
 
         await this.candidateService.update(candidateId, { status: CandidateStatus.MATCHED });
-        return toGql(job);
+        return toGql(await this.syncDerivedStatus(jobId, job));
     }
 
     async removeCandidate(jobId: string, candidateId: string): Promise<object | null> {
         const job = await this.repository.removeMatchedCandidate(jobId, candidateId);
         if (!job) return null;
-        if ((job.matched_candidate ?? []).length === 0) {
-            const updated = await this.repository.update(jobId, { status: JobStatus.NOT_MATCHED } as any);
-            return updated ? toGql(updated) : toGql(job);
-        }
-        return toGql(job);
+        return toGql(await this.syncDerivedStatus(jobId, job));
     }
 
     async unmatchAll(jobId: string): Promise<object | null> {
@@ -158,7 +164,15 @@ export class JobService {
             candidateId,
             status as MatchedCandidateStatus,
         );
-        return job ? toGql(job) : null;
+        if (!job) return null;
+        return toGql(await this.syncDerivedStatus(jobId, job));
+    }
+
+    private async syncDerivedStatus(jobId: string, job: Job): Promise<Job> {
+        const derived = deriveJobStatus(job.matched_candidate ?? [], job.status);
+        if (derived === job.status) return job;
+        const updated = await this.repository.update(jobId, { status: derived });
+        return updated ?? job;
     }
 
     offerResponseLinks(jobId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {
