@@ -29,5 +29,6 @@ export function toUserResponse(user: User): UserResponse {
         name: user.name,
         role: user.role,
         sectors: user.sectors,
+        googleConnected: Boolean(user.oauthToken),
     };
 }

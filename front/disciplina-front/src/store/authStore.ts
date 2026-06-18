@@ -16,6 +16,7 @@ export interface AppUser {
   role: UserRole
   sectors?: string[]
   oauthToken?: string
+  googleConnected?: boolean
   color?: string
   initials?: string
 }

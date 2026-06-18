@@ -22,4 +22,5 @@ export interface UserResponse {
     name: string;
     role: Role;
     sectors: string[] | null;
+    googleConnected: boolean;
 }
