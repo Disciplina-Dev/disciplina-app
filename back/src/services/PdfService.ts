@@ -792,9 +792,220 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     para('Autres recommandations', c.synthesis?.other_recommendations);
 }
 
+// ─── ClassMarker results PDF (pdfkit, pur JS — fonctionne en serverless) ───────
+
+// Le texte des questions ClassMarker est du HTML (balises + entités). On le
+// réduit en texte brut lisible pour le PDF.
+function htmlToText(raw?: string | null): string {
+    if (!raw) return '';
+    return raw
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<\/(p|div|li)>/gi, ' ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#0?39;|&apos;/gi, "'")
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
+    const BLUE = '#1130A7';
+    const GREEN = '#1f7a3d';
+    const RED = '#b3261e';
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const contentW = right - left;
+    const id = c.identity;
+    const r = c.classmarker ?? {};
+
+    // ── Bandeau titre ──
+    const bandTop = doc.y;
+    const bandH = 58;
+    doc.save().rect(left, bandTop, contentW, bandH).fill(BLUE).restore();
+    doc.fillColor('#ffffff')
+        .font('Helvetica-Bold')
+        .fontSize(17)
+        .text(id.full_name, left + 14, bandTop + 10, { width: contentW - 28 });
+    const sub = `Résultats du test${id.email ? '   ·   ' + id.email : ''}${id.phone ? '   ·   ' + id.phone : ''}`;
+    doc.fillColor('#dfe4f6')
+        .font('Helvetica')
+        .fontSize(9)
+        .text(sub, left + 14, bandTop + 35, { width: contentW - 28 });
+    doc.y = bandTop + bandH + 18;
+
+    // ── Nom du test ──
+    if (r.test_name) {
+        doc.font('Helvetica-Bold').fontSize(13).fillColor('#111111').text(r.test_name, left, doc.y);
+        doc.moveDown(0.6);
+    }
+
+    // ── Résultat principal (score + verdict) ──
+    const boxTop = doc.y;
+    const boxH = 70;
+    const passed = r.passed === true;
+    const verdictColor = r.passed === undefined ? BLUE : passed ? GREEN : RED;
+    doc.save().rect(left, boxTop, contentW, boxH).fill('#F4F6FC').restore();
+    doc.save().rect(left, boxTop, 4, boxH).fill(verdictColor).restore();
+
+    const pct = typeof r.percentage === 'number' ? `${r.percentage}%` : '—';
+    doc.fillColor(verdictColor).font('Helvetica-Bold').fontSize(34).text(pct, left + 18, boxTop + 14, { width: 160 });
+
+    if (r.passed !== undefined) {
+        doc.fillColor(verdictColor)
+            .font('Helvetica-Bold')
+            .fontSize(13)
+            .text(passed ? 'RÉUSSI' : 'ÉCHOUÉ', left + 190, boxTop + 16);
+    }
+    if (typeof r.points_scored === 'number' && typeof r.points_available === 'number') {
+        doc.fillColor('#333333')
+            .font('Helvetica')
+            .fontSize(11)
+            .text(`Score : ${r.points_scored} / ${r.points_available} points`, left + 190, boxTop + 40);
+    }
+    doc.y = boxTop + boxH + 22;
+    doc.fillColor('#000000');
+
+    // ── Détails ──
+    const kv = (lbl: string, value?: string | number | null) => {
+        const v = value === 0 ? '0' : value ? String(value) : '';
+        if (!v) return;
+        doc.font('Helvetica-Bold')
+            .fillColor('#555555')
+            .fontSize(10)
+            .text(`${lbl} : `, left, doc.y, { continued: true });
+        doc.font('Helvetica').fillColor('#111111').text(v);
+        doc.moveDown(0.4);
+    };
+
+    kv('Pourcentage', typeof r.percentage === 'number' ? `${r.percentage}%` : null);
+    kv('Verdict', r.passed === undefined ? null : passed ? 'Réussi' : 'Échoué');
+    kv('Durée', r.duration);
+    kv('Date de passage', fmtDate(r.completed_at));
+
+    // ── Questions & réponses ──
+    const questions = r.questions ?? [];
+    if (questions.length) {
+        const bottom = doc.page.height - doc.page.margins.bottom - 24;
+        const ensure = (h: number) => {
+            if (doc.y + h > bottom) doc.addPage();
+        };
+
+        doc.moveDown(0.6);
+        ensure(28);
+        const hy = doc.y;
+        doc.save().rect(left, hy, contentW, 20).fill('#EEF1FB').restore();
+        doc.save().rect(left, hy, 4, 20).fill(BLUE).restore();
+        doc.fillColor(BLUE)
+            .font('Helvetica-Bold')
+            .fontSize(11)
+            .text('Questions & réponses', left + 12, hy + 5, { width: contentW - 18 });
+        doc.y = hy + 28;
+        doc.fillColor('#000000');
+
+        questions.forEach((q, i) => {
+            const opts = (q.options ?? {}) as Record<string, unknown>;
+            const isFreetext = q.question_type === 'freetext' || Array.isArray(opts.exact_match);
+            const status = q.result === 'correct' ? 'correct' : q.result === 'unanswered' ? 'unanswered' : 'incorrect';
+            const statusColor = status === 'correct' ? GREEN : status === 'unanswered' ? '#888888' : RED;
+            const statusIcon = status === 'correct' ? '✓' : status === 'unanswered' ? '○' : '✗';
+            const statusLabel =
+                status === 'correct' ? 'Correct' : status === 'unanswered' ? 'Sans réponse' : 'Incorrect';
+
+            ensure(54);
+
+            // Intitulé
+            doc.font('Helvetica-Bold')
+                .fillColor('#111111')
+                .fontSize(10)
+                .text(`${i + 1}. ${htmlToText(q.question)}`, left, doc.y, { width: contentW });
+            doc.moveDown(0.2);
+
+            if (isFreetext) {
+                // freetext : réponses acceptées + réponse candidat
+                const accepted = Array.isArray(opts.exact_match)
+                    ? (opts.exact_match as Array<{ content: string }>).map((e) => e.content).filter(Boolean)
+                    : [];
+                doc.font('Helvetica').fontSize(9.5);
+                if (q.user_response) {
+                    doc.fillColor('#333333').text(`Réponse du candidat : ${q.user_response}`, left + 12, doc.y, {
+                        width: contentW - 12,
+                    });
+                }
+                if (accepted.length) {
+                    doc.fillColor('#555555').text(`Réponse(s) acceptée(s) : ${accepted.join(', ')}`, left + 12, doc.y, {
+                        width: contentW - 12,
+                    });
+                }
+            } else {
+                // multiplechoice : liste des options, marquage candidat / bonne réponse
+                doc.font('Helvetica').fontSize(9.5);
+                Object.entries(opts).forEach(([key, val]) => {
+                    if (typeof val !== 'string') return;
+                    const isCorrect = key === q.correct_option;
+                    const isChosen = key === q.user_response;
+                    const marks = [isChosen ? 'choix du candidat' : '', isCorrect ? 'bonne réponse' : '']
+                        .filter(Boolean)
+                        .join(', ');
+                    const color = isCorrect ? GREEN : isChosen ? RED : '#333333';
+                    ensure(14);
+                    doc.fillColor(color).text(
+                        `${key}. ${htmlToText(val)}${marks ? `  (${marks})` : ''}`,
+                        left + 12,
+                        doc.y,
+                        { width: contentW - 12 },
+                    );
+                });
+            }
+
+            // Statut + points
+            const pts =
+                typeof q.points_scored === 'number' && typeof q.points_available === 'number'
+                    ? `  —  ${q.points_scored}/${q.points_available} pt`
+                    : '';
+            ensure(14);
+            doc.font('Helvetica-Bold')
+                .fillColor(statusColor)
+                .fontSize(9)
+                .text(`${statusIcon} ${statusLabel}${pts}`, left + 12, doc.y, { width: contentW - 12 });
+            doc.moveDown(0.6);
+            doc.fillColor('#000000');
+        });
+    }
+
+    // ── Pied de page ──
+    doc.font('Helvetica-Oblique')
+        .fillColor('#888888')
+        .fontSize(8)
+        .text(`Document généré le ${fmtDate(new Date())} — DISCIPLINA`, left, doc.page.height - doc.page.margins.bottom - 14, {
+            width: contentW,
+            align: 'center',
+        });
+}
+
 // ─── PdfService ───────────────────────────────────────────────────────────────
 
 export class PdfService {
+    static generateClassMarkerPdf(candidate: Candidate): Promise<Buffer> {
+        return new Promise((resolve, reject) => {
+            try {
+                const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 50, left: 50, right: 50 } });
+                const chunks: Buffer[] = [];
+                doc.on('data', (d: Buffer) => chunks.push(d));
+                doc.on('end', () => resolve(Buffer.concat(chunks)));
+                doc.on('error', reject);
+
+                renderClassMarkerPdf(doc, candidate);
+                doc.end();
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
     static generateCandidatePdf(candidate: Candidate): Promise<Buffer> {
         return new Promise((resolve, reject) => {
             try {

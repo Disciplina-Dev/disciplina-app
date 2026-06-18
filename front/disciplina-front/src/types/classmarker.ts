@@ -13,4 +13,5 @@ export interface ClassMarkerResult {
   points_scored?: number;
   points_available?: number;
   duration?: string | null;
+  pdf_link?: string | null;
 }

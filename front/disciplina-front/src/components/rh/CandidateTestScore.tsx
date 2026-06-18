@@ -1,4 +1,4 @@
-import { ClipboardCheck, Clock, Calendar, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { ClipboardCheck, Clock, Calendar, Loader2, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 
 interface CandidateTestScoreProps {
@@ -100,6 +100,19 @@ export default function CandidateTestScore({ candidateId }: CandidateTestScorePr
               </span>
             )}
           </div>
+
+          {result?.pdf_link && (
+            <a
+              href={result.pdf_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+              style={{ backgroundColor: 'var(--color-purple-light)', color: purple }}
+            >
+              <FileText size={13} />
+              Voir le PDF des résultats
+            </a>
+          )}
         </div>
       )}
     </div>

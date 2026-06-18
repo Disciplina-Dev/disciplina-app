@@ -153,6 +153,19 @@ export interface Synthesis {
     candidate_signature?: string;
 }
 
+export interface ClassMarkerQuestion {
+    question_id?: number;
+    question_type?: string;
+    question?: string;
+    // multiplechoice : { A: '...', B: '...' } ; freetext : { exact_match: [{ content }] }
+    options?: Record<string, string> | { exact_match?: Array<{ content: string }> };
+    correct_option?: string;
+    user_response?: string;
+    points_scored?: number;
+    points_available?: number;
+    result?: string; // 'correct' | 'incorrect' | 'unanswered'
+}
+
 export interface ClassMarkerResult {
     percentage?: number;
     points_scored?: number;
@@ -161,6 +174,8 @@ export interface ClassMarkerResult {
     test_name?: string;
     completed_at?: Date;
     duration?: string;
+    pdf_link?: string;
+    questions?: ClassMarkerQuestion[];
 }
 
 export interface Candidate {

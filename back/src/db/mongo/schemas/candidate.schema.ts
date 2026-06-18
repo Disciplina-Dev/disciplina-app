@@ -164,6 +164,8 @@ const classMarkerResultSchema = new Schema<ClassMarkerResult>(
         test_name: { type: String },
         completed_at: { type: Date },
         duration: { type: String },
+        pdf_link: { type: String },
+        questions: { type: [Schema.Types.Mixed], default: undefined },
     },
     { _id: false },
 );

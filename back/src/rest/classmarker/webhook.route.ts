@@ -4,6 +4,66 @@ import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { addClient, removeClient, notifyCandidate } from './sse';
 import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
 import { env } from '../../config/env';
+import { PdfService } from '../../services/PdfService';
+import { UserService } from '../../services/UserService';
+import { GoogleDriveService } from '../../external/google/drive.service';
+import { GoogleTokens } from '../../external/google/types';
+import { Role } from '../../types/user.types';
+import { Candidate } from '../../types/candidate.types';
+import { driveParentFolderForTp } from '../../external/google/drive.folders';
+
+const userService = new UserService();
+
+const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
+    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+
+/**
+ * Génère le PDF des résultats et le dépose dans le dossier Drive du candidat.
+ * Best-effort : toute erreur est journalisée sans interrompre le webhook.
+ * Le webhook n'ayant pas de contexte utilisateur, on agit via les jetons Google
+ * d'un utilisateur RH/Responsable/Admin connecté (Drive partagé).
+ */
+async function uploadResultPdf(candidate: Candidate): Promise<void> {
+    const driveUser = await userService.findFirstGoogleConnectedUser([Role.RH, Role.RESPONSABLE, Role.ADMIN]);
+    if (!driveUser) {
+        logger.warn('ClassMarker PDF: no Google-connected user available, skipping upload');
+        return;
+    }
+
+    const driveService = GoogleDriveService.fromTokens(
+        { access_token: driveUser.oauthToken!, refresh_token: driveUser.refreshToken ?? undefined },
+        persistRefreshedTokens(driveUser.id),
+    );
+
+    // Crée le dossier Drive du candidat s'il n'existe pas encore (même schéma de
+    // nommage que les autres flux : "<Nom> - <8 premiers caractères de l'id>").
+    const candidateId = String(candidate._id);
+    const update: Record<string, unknown> = {};
+    let folderId = candidate.drive_folder_id;
+    if (!folderId) {
+        const folderName = `${candidate.identity.full_name} - ${candidateId.substring(0, 8)}`;
+        const folder = await driveService.createFolder(folderName, driveParentFolderForTp(candidate.tp_type));
+        folderId = folder.id;
+        update.drive_folder_id = folder.id;
+        update.drive_folder_link = folder.webViewLink;
+        logger.info({ candidateId: candidate._id, folderId }, 'ClassMarker PDF: created candidate Drive folder');
+    }
+
+    const pdfBuffer = await PdfService.generateClassMarkerPdf(candidate);
+    const safeName = candidate.identity.full_name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
+    const fileName = `Resultats_test_${safeName || 'candidat'}.pdf`;
+
+    const { webViewLink } = await driveService.uploadFile(fileName, 'application/pdf', pdfBuffer, folderId);
+
+    update['classmarker.pdf_link'] = webViewLink;
+    await CandidateModel.findByIdAndUpdate(candidate._id, { $set: update });
+
+    // Pousse le lien PDF aux clients SSE déjà connectés : le 1er notify (score)
+    // part avant l'upload, donc sans pdf_link. Sans ce 2e notify, le bouton
+    // "Voir le PDF" n'apparaît qu'après un rechargement de page.
+    notifyCandidate(candidateId, { pdf_link: webViewLink });
+    logger.info({ candidateId, webViewLink }, 'ClassMarker result PDF uploaded to Drive');
+}
 
 export const router: Router = express.Router();
 
@@ -15,7 +75,7 @@ router.post(
 
         try {
             const body = req.body ?? {};
-            const { payload_status, result, test } = body;
+            const { payload_status, result, test, questions } = body;
             logger.info(
                 {
                     payload_status,
@@ -34,11 +94,14 @@ router.post(
                 percentage: result.percentage,
                 points_scored: typeof result.points_scored === 'number' ? result.points_scored : undefined,
                 points_available: typeof result.points_available === 'number' ? result.points_available : undefined,
-                passed: typeof result.passed === 'boolean' ? result.passed : undefined,
+                // La moyenne du test = 50%. ClassMarker renvoie passed=true même à 35%
+                // (passmark configuré à 0), donc on dérive le verdict du pourcentage.
+                passed: typeof result.percentage === 'number' ? result.percentage >= 50 : undefined,
                 test_name: test?.test_name ?? undefined,
                 completed_at:
                     typeof result.time_finished === 'number' ? new Date(result.time_finished * 1000) : new Date(),
                 duration: typeof result.duration === 'string' ? result.duration : undefined,
+                questions: Array.isArray(questions) ? questions : undefined,
             };
 
             const updated = await CandidateModel.findByIdAndUpdate(
@@ -64,6 +127,12 @@ router.post(
                 points_available: data.points_available,
                 duration: data.duration ?? null,
             });
+
+            try {
+                await uploadResultPdf(updated.toObject() as Candidate);
+            } catch (pdfErr) {
+                logger.error(pdfErr, 'ClassMarker result PDF generation/upload failed');
+            }
         } catch (err) {
             logger.error(err, 'ClassMarker webhook handling failed');
         }
