@@ -10,11 +10,22 @@ import { NotificationService } from './NotificationService';
 import { buildJobsFromAb } from './mappers/abToJob';
 import { Role } from '../types/user.types';
 import { logger } from '../external/logger';
+import { PDFDocument } from 'pdf-lib';
 
-/** Estimation du nombre de pages d'un PDF (objets `/Type /Page`). Min 1. */
-function countPdfPages(buffer: Buffer): number {
-    const matches = buffer.toString('latin1').match(/\/Type\s*\/Page[^s]/g);
-    return matches && matches.length > 0 ? matches.length : 1;
+/**
+ * Nombre de pages d'un PDF. Min 1.
+ * pdf-lib lit la structure réelle du document : fiable même quand Puppeteer
+ * compresse les objets en `object streams` (où `/Type /Page` n'apparaît pas en
+ * clair, ce qui faisait échouer l'ancien comptage par regex).
+ */
+async function countPdfPages(buffer: Buffer): Promise<number> {
+    try {
+        const pdf = await PDFDocument.load(buffer);
+        return Math.max(1, pdf.getPageCount());
+    } catch (err) {
+        logger.error({ err }, '[NeedsAnalysis] Failed to count PDF pages, defaulting to 1');
+        return 1;
+    }
 }
 
 export class NeedsAnalysisService {
@@ -141,7 +152,7 @@ export class NeedsAnalysisService {
             signerEmail,
             firstName || 'Responsable',
             lastName || 'Recrutement',
-            countPdfPages(buffer),
+            await countPdfPages(buffer),
         );
 
         const wasDraft = row.status === 'BROUILLON';

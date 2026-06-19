@@ -82,15 +82,16 @@ export class DocuSealService {
                                     name: 'Signature',
                                     type: 'signature',
                                     role: SIGNER_ROLE,
-                                    // Bas-droite de la dernière page, aligné sur le bloc
-                                    // « Signature et cachet de l'entreprise » du PDF (right 48%).
+                                    // Bas-droite de la dernière page, dans la zone
+                                    // « Signature électronique de l'entreprise » du PDF
+                                    // (bloc right ~48%, hauteur ~120px en bas de page).
                                     areas: [
                                         {
                                             page: Math.max(0, lastPage - 1),
-                                            x: 0.55,
-                                            y: 0.85,
-                                            w: 0.33,
-                                            h: 0.06,
+                                            x: 0.52,
+                                            y: 0.8,
+                                            w: 0.36,
+                                            h: 0.1,
                                         },
                                     ],
                                 },
