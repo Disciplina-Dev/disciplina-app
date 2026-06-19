@@ -85,9 +85,10 @@ export class DocuSealService {
                                     // Bas-droite de la dernière page, dans la zone
                                     // « Signature électronique de l'entreprise » du PDF
                                     // (bloc right ~48%, hauteur ~120px en bas de page).
+                                    // DocuSeal numérote les pages à partir de 1 (pas 0-based).
                                     areas: [
                                         {
-                                            page: Math.max(0, lastPage - 1),
+                                            page: Math.max(1, lastPage),
                                             x: 0.52,
                                             y: 0.8,
                                             w: 0.36,
