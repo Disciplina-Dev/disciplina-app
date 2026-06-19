@@ -459,12 +459,13 @@ ${sh('Clause de non-engagement et de confidentialité')}
     <p>En signant ce document, l'entreprise reconnaît avoir pris connaissance de l'engagement sur l'évolution des missions et de la présente clause, et les accepte.</p>
 </div>
 
+<!-- Zone signature : remplie par la signature électronique DocuSeal.
+     Les coordonnées du champ DocuSeal (docuseal.service.ts) ciblent ce bloc
+     bas-droite (right ~48%, hauteur ~120px). -->
 <div style="display:flex;justify-content:flex-end;margin-top:36px;">
     <div style="width:48%;border-top:1px solid #888;padding-top:12px;">
-        <p style="font-weight:bold;font-size:10.5pt;margin-bottom:14px;">Fait à :</p>
-        <p style="font-weight:bold;font-size:10.5pt;margin-bottom:32px;">Le :</p>
-        <p style="font-weight:bold;font-size:10.5pt;">Signature et cachet de l'entreprise</p>
-        <div style="height:60px;"></div>
+        <p style="font-weight:bold;font-size:10.5pt;margin-bottom:8px;">Signature électronique de l'entreprise</p>
+        <div style="height:120px;"></div>
     </div>
 </div>
 </div>
