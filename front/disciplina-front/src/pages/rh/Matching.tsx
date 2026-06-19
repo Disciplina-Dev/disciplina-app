@@ -31,7 +31,7 @@ import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONS
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { PROPOSED_CANDIDATE_ANSWER_LABELS, PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS, ProposedCandidateAnswer } from '@/constants/proposedCandidateAnswer'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
-import { JobStatus } from '@/features/matching/constants/jobEnums'
+import { JobStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { jobGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore } from '@/store/authStore'
@@ -40,6 +40,7 @@ import type { JobFilters as JobFiltersType } from '@/features/matching/services/
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
+import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -699,8 +700,34 @@ function RetainedCandidatesSection({
 
 // ─── Matching Section ─────────────────────────────────────────────────────────
 
-function buildOfferMailBody(candidateName: string, jobCompany: string, ouiUrl: string, nonUrl: string): string {
+function formatOfferDetails(sector: string | null, localisation: string[] | null, desiredTP: string | null): string {
+  const parts: string[] = []
+  if (desiredTP && TP_TYPE_LABELS[desiredTP as keyof typeof TP_TYPE_LABELS]) {
+    parts.push(TP_TYPE_LABELS[desiredTP as keyof typeof TP_TYPE_LABELS])
+  }
+  if (sector) {
+    parts.push(formatEnumLabel(sector))
+  }
+  if (localisation && localisation.length > 0) {
+    const locations = localisation
+      .map((loc) => LOCALISATION_LABELS[loc as keyof typeof LOCALISATION_LABELS])
+      .filter(Boolean)
+      .join(', ')
+    if (locations) parts.push(locations)
+  }
+  return parts.join(' • ')
+}
+
+function buildOfferMailBody(
+  candidateName: string,
+  sector: string | null,
+  localisation: string[] | null,
+  desiredTP: string | null,
+  ouiUrl: string,
+  nonUrl: string,
+): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const offerDetails = formatOfferDetails(sector, localisation, desiredTP)
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -708,6 +735,7 @@ function buildOfferMailBody(candidateName: string, jobCompany: string, ouiUrl: s
   body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
   .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
   p { line-height: 1.6; margin: 0 0 16px; }
+  .offer-details { background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0; font-weight: 500; color: #374151; }
   .question { font-size: 17px; font-weight: 700; margin: 28px 0 24px; }
   .buttons { display: flex; gap: 12px; margin: 28px 0; }
   .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
@@ -719,7 +747,8 @@ function buildOfferMailBody(candidateName: string, jobCompany: string, ouiUrl: s
 <body>
   <div class="logo">DISCIPLINA</div>
   <p>Bonjour ${name},</p>
-  <p>Nous avons une offre en alternance qui pourrait vous correspondre chez <strong>${jobCompany}</strong>.</p>
+  <p>Nous avons une offre en alternance qui pourrait vous correspondre.</p>
+  <div class="offer-details">${offerDetails}</div>
   <p class="question">Êtes-vous intéressé(e) par cette opportunité ?</p>
   <div class="buttons">
     <a href="${ouiUrl}" class="btn btn-oui">✓ &nbsp;Oui, je suis intéressé(e)</a>
@@ -1171,8 +1200,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         const linksResult = await jobGraphqlClient.query(OFFER_RESPONSE_LINKS, { jobId: selectedJob.id, candidateId: candidate.id }).toPromise()
         if (linksResult.data?.offerResponseLinks) {
           const { ouiUrl, nonUrl } = linksResult.data.offerResponseLinks
-          const subject = `DISCIPLINA – Offre en alternance chez ${jobData.companyName}`
-          const body = buildOfferMailBody(candidate.fullName, jobData.companyName, ouiUrl, nonUrl)
+          const subject = `DISCIPLINA – Offre en alternance`
+          const body = buildOfferMailBody(candidate.fullName, jobData.sector, jobData.localisation, jobData.desiredTP, ouiUrl, nonUrl)
           await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1361,10 +1390,12 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         <MailModal
           defaultTo={mailState.candidate.email}
           candidateName={mailState.candidate.fullName}
-          defaultSubject={`DISCIPLINA – Offre en alternance chez ${jobData.companyName}`}
+          defaultSubject={`DISCIPLINA – Offre en alternance`}
           defaultBody={buildOfferMailBody(
             mailState.candidate.fullName,
-            jobData.companyName,
+            jobData.sector,
+            jobData.localisation,
+            jobData.desiredTP,
             mailState.ouiUrl,
             mailState.nonUrl,
           )}
