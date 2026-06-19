@@ -64,7 +64,8 @@ export class UserService {
             email,
             name,
             password: hashedPassword,
-            role,
+            // ENTREPRISE_GUEST est un rôle de session JWT, jamais enregistré en base
+            role: role as UserRow['role'],
             sectors: sectors && sectors.length > 0 ? JSON.stringify(sectors) : null,
             oauth_token: null,
             refresh_token: null,

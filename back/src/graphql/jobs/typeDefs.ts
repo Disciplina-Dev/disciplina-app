@@ -79,6 +79,12 @@ export const typeDefs = gql`
         NONE
     }
 
+    enum ProposedCandidateAnswer {
+        REFUSED
+        ACCEPTED
+        FAVORITE
+    }
+
     type MatchingCandidate {
         id: String
         fullName: String
@@ -88,6 +94,24 @@ export const typeDefs = gql`
         email: String
         phone: String
         status: MatchedCandidateStatus
+    }
+
+    type ProposedCandidate {
+        id: String
+        fullName: String
+        age: Int
+        sex: Sex
+        city: Localisation
+        email: String
+        phone: String
+        description: String
+        answer: ProposedCandidateAnswer
+        interviewSlots: [String]
+    }
+
+    input ProposedCandidateInput {
+        id: String!
+        description: String
     }
 
     type OfferLinks {
@@ -108,6 +132,7 @@ export const typeDefs = gql`
         sector: Sector
         matchedCandidate: [MatchingCandidate]
         suggestedCandidates: [MatchingCandidate]
+        proposedCandidate: [ProposedCandidate]
     }
 
     input MatchingCandidateInput {
@@ -148,5 +173,6 @@ export const typeDefs = gql`
         addCandidateToJob(jobId: String!, candidateId: String!): Job
         removeCandidateFromJob(jobId: String!, candidateId: String!): Job
         updateMatchedCandidateStatus(jobId: String!, candidateId: String!, status: MatchedCandidateStatus!): Job
+        createMatchSession(jobId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
     }
 `;

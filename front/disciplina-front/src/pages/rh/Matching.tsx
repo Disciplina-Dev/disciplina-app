@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Building2,
   Users,
@@ -22,10 +23,13 @@ import {
   RefreshCw,
   Trash2,
   MailCheck,
-  FileText,
+  Send,
+  Heart,
+  CalendarClock,
 } from 'lucide-react'
-import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS } from '@/graphql/queries'
+import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
+import { PROPOSED_CANDIDATE_ANSWER_LABELS, PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS, ProposedCandidateAnswer } from '@/constants/proposedCandidateAnswer'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
 import { JobStatus } from '@/features/matching/constants/jobEnums'
 import { jobGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
@@ -35,7 +39,6 @@ import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
-import type { MailAttachment } from '@/store/mailTemplatesStore'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -64,9 +67,23 @@ interface Job {
   sector: string | null
 }
 
+interface ProposedCandidate {
+  id: string
+  fullName: string
+  age: number
+  sex: string
+  city: string
+  email: string
+  phone: string
+  description: string | null
+  answer: ProposedCandidateAnswer | null
+  interviewSlots: string[] | null
+}
+
 interface MatchJobResult extends Job {
   matchedCandidate: MatchedCandidate[]
   suggestedCandidates: MatchedCandidate[]
+  proposedCandidate: ProposedCandidate[]
 }
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
@@ -466,14 +483,14 @@ function JobDetailsSection({
   job,
   onSetStatus,
   hasAcceptedCandidates,
-  isResolvingCompany,
-  onSendCvsToCompany,
+  isCreatingSession,
+  onProposeCandidates,
 }: {
   job: MatchJobResult
   onSetStatus: (status: JobStatus) => void
   hasAcceptedCandidates: boolean
-  isResolvingCompany: boolean
-  onSendCvsToCompany: () => void
+  isCreatingSession: boolean
+  onProposeCandidates: () => void
 }) {
   const chip = statusChip(job.status)
 
@@ -493,13 +510,13 @@ function JobDetailsSection({
         </div>
         {hasAcceptedCandidates && (
           <button
-            onClick={onSendCvsToCompany}
-            disabled={isResolvingCompany}
+            onClick={onProposeCandidates}
+            disabled={isCreatingSession}
             className="flex shrink-0 items-center gap-2 rounded-xl border border-blue/20 px-4 py-2 text-sm font-semibold text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
-            title="Envoyer les CV des candidats acceptés à l'entreprise"
+            title="Proposer les candidats acceptés à l'entreprise via un lien sécurisé"
           >
-            {isResolvingCompany ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-            Envoie des CV
+            {isCreatingSession ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            Proposer les candidats
           </button>
         )}
       </div>
@@ -714,44 +731,6 @@ function buildOfferMailBody(candidateName: string, jobCompany: string, ouiUrl: s
 </html>`
 }
 
-function buildCandidateRow(c: MatchedCandidate): string {
-  return `<tr>
-    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.fullName}</td>
-    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.age ?? '—'}</td>
-    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${sexLabel(c.sex)}</td>
-    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${formatEnum(c.city)}</td>
-    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.email}</td>
-    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${c.phone}</td>
-  </tr>`
-}
-
-function buildCandidateListMailBody(companyName: string, candidates: MatchedCandidate[]): string {
-  const rows = candidates.map(buildCandidateRow).join('')
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
-  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
-  p { line-height: 1.6; margin: 0 0 16px; }
-  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
-  th { text-align: left; padding: 10px 12px; background: #f3f4f6; color: #374151; font-weight: 700; }
-  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
-</style>
-</head>
-<body>
-  <div class="logo">DISCIPLINA</div>
-  <p>Bonjour,</p>
-  <p>Voici la liste des candidats retenus pour votre offre chez <strong>${companyName}</strong> :</p>
-  <table>
-    <thead><tr><th>Nom</th><th>Âge</th><th>Sexe</th><th>Ville</th><th>Email</th><th>Téléphone</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <div class="footer">Cordialement,<br>L'équipe DISCIPLINA</div>
-</body>
-</html>`
-}
-
 async function resolveCompanyEmail(companyName: string): Promise<string> {
   const result = await graphqlClient.query(GET_COMPANIES, { search: companyName, first: 1 }).toPromise()
   return result.data?.companies?.edges?.[0]?.node?.company?.email ?? ''
@@ -759,17 +738,26 @@ async function resolveCompanyEmail(companyName: string): Promise<string> {
 
 async function hasCandidateCv(candidateId: string): Promise<boolean> {
   const result = await candidateGraphqlClient.query(GET_CANDIDATE_CV_STATUS, { id: candidateId }).toPromise()
-  console.log("result: ", result);
   return Boolean(result.data?.candidate?.cvLink)
 }
 
-async function fetchCandidateCvAttachment(candidateId: string, token: string | null): Promise<MailAttachment | null> {
-  const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${candidateId}/cv-file`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  return { filename: data.filename, contentType: data.contentType, content: data.content }
+function buildInterviewDatesMailBody(companyName: string, candidateName: string, slots: string[]): string {
+  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const items = slots
+    .map((s) => `<li>${new Date(s).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</li>`)
+    .join('')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937;">
+  <div style="color:#60207E;font-weight:800;font-size:20px;margin-bottom:28px;">DISCIPLINA</div>
+  <p>Bonjour ${name},</p>
+  <p>L'entreprise <strong>${companyName}</strong> souhaite vous rencontrer. Voici les créneaux d'entretien proposés :</p>
+  <ul>${items}</ul>
+  <p>Merci de nous indiquer le créneau qui vous convient.</p>
+  <p style="margin-top:40px;color:#9ca3af;font-size:12px;">Cordialement,<br>L'équipe DISCIPLINA</p>
+</body>
+</html>`
 }
 
 function MatchingSection({
@@ -906,6 +894,140 @@ function MatchingSection({
 
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
+function formatSlot(iso: string): string {
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function ProposedCandidatesSection({
+  candidates,
+  onSendDates,
+}: {
+  candidates: ProposedCandidate[]
+  onSendDates: (candidate: ProposedCandidate) => void
+}) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <Heart size={15} className="text-purple" />
+        <h3 className="text-sm font-semibold text-gray-800">Candidats proposés</h3>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">{candidates.length}</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {candidates.map((c) => {
+          const slots = c.interviewSlots ?? []
+          const canSendDates = (c.answer === ProposedCandidateAnswer.ACCEPTED || c.answer === ProposedCandidateAnswer.FAVORITE) && slots.length > 0
+          return (
+            <div key={c.id} className="rounded-lg border border-gray-100 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-gray-900">{c.fullName}</p>
+                {c.answer ? (
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS[c.answer]}`}>
+                    {PROPOSED_CANDIDATE_ANSWER_LABELS[c.answer]}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-medium text-gray-500">En attente</span>
+                )}
+              </div>
+              {slots.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {slots.map((s) => (
+                    <span key={s} className="inline-flex items-center gap-1 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+                      <CalendarClock size={11} /> {formatSlot(s)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {canSendDates && (
+                <button
+                  onClick={() => onSendDates(c)}
+                  className="mt-2 flex items-center gap-1.5 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
+                >
+                  <Mail size={12} /> Envoyer les dates au candidat
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ProposeCandidatesModal({
+  candidates,
+  isSubmitting,
+  onSubmit,
+  onClose,
+}: {
+  candidates: MatchedCandidate[]
+  isSubmitting: boolean
+  onSubmit: (descriptions: Record<string, string>) => void
+  onClose: () => void
+}) {
+  const [descriptions, setDescriptions] = useState<Record<string, string>>({})
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-100 p-5">
+          <h2 className="text-base font-bold text-gray-900">Proposer les candidats à l'entreprise</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          <p className="mb-4 text-[13px] text-gray-500">
+            Ajoutez une note pour chaque candidat. Un lien sécurisé sera envoyé à l'entreprise pour qu'elle réponde.
+          </p>
+          <div className="flex flex-col gap-4">
+            {candidates.map((c) => (
+              <div key={c.id}>
+                <p className="mb-1 text-[13px] font-semibold text-gray-800">{c.fullName}</p>
+                <textarea
+                  value={descriptions[c.id] ?? ''}
+                  onChange={(e) => setDescriptions((p) => ({ ...p, [c.id]: e.target.value }))}
+                  placeholder="Note / point fort du candidat (optionnel)"
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-gray-100 p-4">
+          <button onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] font-semibold text-gray-600 hover:bg-gray-50">
+            Annuler
+          </button>
+          <button
+            onClick={() => onSubmit(descriptions)}
+            disabled={isSubmitting || candidates.length === 0}
+            className="flex items-center gap-2 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white hover:bg-purple-dark disabled:opacity-60"
+          >
+            {isSubmitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Envoyer le lien
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProposeResultModal({ companyName, onClose }: { companyName: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-600">
+          <Check size={30} />
+        </div>
+        <p className="mt-3 text-[16px] font-extrabold text-gray-900">Lien envoyé</p>
+        <p className="mt-1 text-[13px] text-gray-500">
+          Un lien sécurisé a été envoyé à {companyName}. Vous serez notifié dès sa réponse.
+        </p>
+        <button onClick={onClose} className="mt-4 w-full rounded-lg bg-purple px-4 py-2.5 text-[14px] font-bold text-white hover:bg-purple-dark">
+          Fermer
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
@@ -922,8 +1044,10 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
   const [drawerCandidate, setDrawerCandidate] = useState<MatchedCandidate | null>(null)
   const [mailState, setMailState] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
-  const [cvMailState, setCvMailState] = useState<{ to: string; candidates: MatchedCandidate[]; attachments: MailAttachment[] } | null>(null)
-  const [isResolvingCompany, setIsResolvingCompany] = useState(false)
+  const [proposeState, setProposeState] = useState<{ candidates: MatchedCandidate[]; descriptions: Record<string, string> } | null>(null)
+  const [proposeResult, setProposeResult] = useState<{ signature: string } | null>(null)
+  const [isCreatingSession, setIsCreatingSession] = useState(false)
+  const [datesMailState, setDatesMailState] = useState<ProposedCandidate | null>(null)
   const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
   const token = useAuthStore((s) => s.token)
 
@@ -1107,26 +1231,31 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
   }
 
-  const handleSendCvsToCompany = async () => {
+  const handleOpenProposeCandidates = () => {
     if (!jobData) return
     const accepted = (jobData.matchedCandidate ?? []).filter((c) => c.status === MatchedCandidateStatus.ACCEPTED)
-    setIsResolvingCompany(true)
+    setProposeState({ candidates: accepted, descriptions: {} })
+  }
+
+  const handleCreateMatchSession = async (descriptions: Record<string, string>) => {
+    if (!jobData || !proposeState) return
+    setIsCreatingSession(true)
     try {
-      const to = await resolveCompanyEmail(jobData.companyName)
-
-      const missingCvIds = new Set<string>()
-      const attachments: MailAttachment[] = []
-      for (const candidate of accepted) {
-        const attachment = await fetchCandidateCvAttachment(candidate.id, token)
-        if (attachment) attachments.push(attachment)
-        else missingCvIds.add(candidate.id)
-      }
-      setMissingCvCandidateIds(missingCvIds)
-
-      setCvMailState({ to, candidates: accepted, attachments })
+      const companyEmail = await resolveCompanyEmail(jobData.companyName)
+      const candidates = proposeState.candidates.map((c) => ({ id: c.id, description: descriptions[c.id] ?? '' }))
+      const result = await jobGraphqlClient
+        .mutation(CREATE_MATCH_SESSION, { jobId: jobData.id, companyEmail, candidates })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+      setProposeState(null)
+      setProposeResult({ signature: result.data?.createMatchSession ?? '' })
     } finally {
-      setIsResolvingCompany(false)
+      setIsCreatingSession(false)
     }
+  }
+
+  const handleSendInterviewDates = (candidate: ProposedCandidate) => {
+    setDatesMailState(candidate)
   }
 
   const handleSetManualStatus = async (status: JobStatus) => {
@@ -1177,8 +1306,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         job={jobData}
         onSetStatus={handleSetManualStatus}
         hasAcceptedCandidates={(jobData.matchedCandidate ?? []).some((c) => c.status === MatchedCandidateStatus.ACCEPTED)}
-        isResolvingCompany={isResolvingCompany}
-        onSendCvsToCompany={handleSendCvsToCompany}
+        isCreatingSession={isCreatingSession}
+        onProposeCandidates={handleOpenProposeCandidates}
       />
 
       <RetainedCandidatesSection
@@ -1193,6 +1322,13 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         onUnmatchAll={handleUnmatchAll}
         onMailAll={handleMailAll}
       />
+
+      {(jobData.proposedCandidate?.length ?? 0) > 0 && (
+        <ProposedCandidatesSection
+          candidates={jobData.proposedCandidate}
+          onSendDates={handleSendInterviewDates}
+        />
+      )}
 
       <MatchingSection
         suggestedCandidates={suggestedCandidates}
@@ -1238,14 +1374,31 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         />
       )}
 
-      {cvMailState && (
+      {proposeState && (
+        <ProposeCandidatesModal
+          candidates={proposeState.candidates}
+          isSubmitting={isCreatingSession}
+          onSubmit={handleCreateMatchSession}
+          onClose={() => setProposeState(null)}
+        />
+      )}
+
+      {proposeResult && (
+        <ProposeResultModal companyName={jobData.companyName} onClose={() => setProposeResult(null)} />
+      )}
+
+      {datesMailState && (
         <MailModal
-          defaultTo={cvMailState.to}
-          defaultSubject={`Candidats retenus – ${jobData.companyName}`}
-          defaultBody={buildCandidateListMailBody(jobData.companyName, cvMailState.candidates)}
-          defaultAttachments={cvMailState.attachments}
+          defaultTo={datesMailState.email}
+          candidateName={datesMailState.fullName}
+          defaultSubject={`DISCIPLINA – Proposition d'entretien chez ${jobData.companyName}`}
+          defaultBody={buildInterviewDatesMailBody(
+            jobData.companyName,
+            datesMailState.fullName,
+            datesMailState.interviewSlots ?? [],
+          )}
           scope="rh"
-          onClose={() => setCvMailState(null)}
+          onClose={() => setDatesMailState(null)}
         />
       )}
     </div>
@@ -1255,6 +1408,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Matching() {
+  const [searchParams] = useSearchParams()
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [filters, setFilters] = useState<JobFiltersType>(EMPTY_JOB_FILTERS)
 
@@ -1269,7 +1423,9 @@ export default function Matching() {
 
   const jobs: Job[] = jobsResult.data?.jobs ?? []
   const filteredJobs = applyJobFilters(jobs, filters)
-  const selectedJob = filteredJobs.find((j) => j.id === selectedJobId) ?? null
+  // ?job= (lien de notification) sert d'offre présélectionnée tant qu'aucune sélection manuelle
+  const effectiveJobId = selectedJobId ?? searchParams.get('job')
+  const selectedJob = filteredJobs.find((j) => j.id === effectiveJobId) ?? null
 
   if (jobsResult.fetching) {
     return (

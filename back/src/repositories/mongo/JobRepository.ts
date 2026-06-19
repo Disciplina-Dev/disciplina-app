@@ -1,5 +1,12 @@
 import { JobModel } from '../../db/mongo/schemas/job.schema';
-import { Job, JobStatus, MatchedCandidateStatus, MatchingCandidate } from '../../types/job.types';
+import {
+    Job,
+    JobStatus,
+    MatchedCandidateStatus,
+    MatchingCandidate,
+    ProposedCandidate,
+    ProposedCandidateAnswer,
+} from '../../types/job.types';
 
 type FlattenedObject = Record<string, any>;
 
@@ -75,6 +82,29 @@ export class JobRepository {
         return JobModel.findOneAndUpdate(
             { _id: jobId, 'matched_candidate.id': candidateId },
             { $set: { 'matched_candidate.$.status': status } },
+            { new: true },
+        ).lean();
+    }
+
+    async setProposedCandidates(jobId: string, proposed: ProposedCandidate[]): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            { _id: jobId },
+            { $set: { proposed_candidate: proposed, status: JobStatus.CV_SEND } },
+            { new: true },
+        ).lean();
+    }
+
+    async setProposedCandidateAnswer(
+        jobId: string,
+        candidateId: string,
+        answer: ProposedCandidateAnswer,
+        interviewSlots?: string[],
+    ): Promise<Job | null> {
+        const update: Record<string, unknown> = { 'proposed_candidate.$.answer': answer };
+        if (interviewSlots) update['proposed_candidate.$.interview_slots'] = interviewSlots;
+        return JobModel.findOneAndUpdate(
+            { _id: jobId, 'proposed_candidate.id': candidateId },
+            { $set: update },
             { new: true },
         ).lean();
     }

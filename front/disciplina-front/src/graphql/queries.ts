@@ -690,7 +690,25 @@ export const MATCH_JOB = gql`
         email
         phone
       }
+      proposedCandidate {
+        id
+        fullName
+        age
+        sex
+        city
+        email
+        phone
+        description
+        answer
+        interviewSlots
+      }
     }
+  }
+`
+
+export const CREATE_MATCH_SESSION = gql`
+  mutation CreateMatchSession($jobId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!) {
+    createMatchSession(jobId: $jobId, companyEmail: $companyEmail, candidates: $candidates)
   }
 `
 
