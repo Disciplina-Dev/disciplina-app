@@ -80,4 +80,20 @@ export class GoogleDriveService {
 
         return { id: file.data.id as string, webViewLink: file.data.webViewLink as string };
     }
+
+    async downloadFile(fileId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+        const response = await this.drive.files.get(
+            { fileId, alt: 'media', supportsAllDrives: true },
+            { responseType: 'arraybuffer' },
+        );
+        return {
+            buffer: Buffer.from(response.data as ArrayBuffer),
+            mimeType: (response.headers['content-type'] as string) || 'application/pdf',
+        };
+    }
+}
+
+export function extractDriveFileId(webViewLink: string): string | null {
+    const match = webViewLink.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
 }

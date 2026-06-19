@@ -7,12 +7,12 @@ function encodeSubject(subject: string): string {
 
 export function buildRawMessage(options: SendEmailOptions): string {
     const boundary = '==Disciplina==';
-    const hasAttachment = !!(options.attachment?.content && options.attachment?.filename);
+    const attachments = (options.attachments ?? []).filter((a) => a.content && a.filename);
     const subject = encodeSubject(options.subject);
 
     let message: string;
 
-    if (!hasAttachment) {
+    if (attachments.length === 0) {
         message = [
             'MIME-Version: 1.0',
             `To: ${options.to}`,
@@ -22,6 +22,18 @@ export function buildRawMessage(options: SendEmailOptions): string {
             options.html,
         ].join('\r\n');
     } else {
+        const attachmentParts = attachments.map((attachment) =>
+            [
+                `--${boundary}`,
+                `Content-Type: ${attachment.contentType || 'application/octet-stream'}`,
+                'Content-Transfer-Encoding: base64',
+                `Content-Disposition: attachment; filename="${attachment.filename}"`,
+                '',
+                attachment.content,
+                '',
+            ].join('\r\n'),
+        );
+
         message = [
             'MIME-Version: 1.0',
             `To: ${options.to}`,
@@ -33,13 +45,7 @@ export function buildRawMessage(options: SendEmailOptions): string {
             '',
             options.html,
             '',
-            `--${boundary}`,
-            `Content-Type: ${options.attachment!.contentType || 'application/octet-stream'}`,
-            'Content-Transfer-Encoding: base64',
-            `Content-Disposition: attachment; filename="${options.attachment!.filename}"`,
-            '',
-            options.attachment!.content,
-            '',
+            ...attachmentParts,
             `--${boundary}--`,
         ].join('\r\n');
     }
