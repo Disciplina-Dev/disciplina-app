@@ -13,6 +13,12 @@ export enum MatchedCandidateStatus {
     DECLINED = 'DECLINED',
 }
 
+export enum ProposedCandidateAnswer {
+    REFUSED = 'REFUSED',
+    ACCEPTED = 'ACCEPTED',
+    FAVORITE = 'FAVORITE',
+}
+
 export enum DesiredSex {
     MIXTE = 'MIXTE',
     FILLE = 'FILLE',
@@ -85,6 +91,13 @@ export interface MatchingCandidate {
     status?: MatchedCandidateStatus;
 }
 
+export interface ProposedCandidate extends MatchingCandidate {
+    description?: string;
+    cv_webview?: string;
+    answer?: ProposedCandidateAnswer | null;
+    interview_slots?: string[];
+}
+
 export interface Job {
     _id?: string;
     company_name?: string;
@@ -98,4 +111,5 @@ export interface Job {
     localisation?: Localisation[];
     matched?: boolean;
     matched_candidate?: MatchingCandidate[];
+    proposed_candidate?: ProposedCandidate[];
 }

@@ -7,3 +7,5 @@ export {
     signGoogleState,
     verifyGoogleState,
 } from './signers';
+export { generateSignature, generateNumericCode, generateIdentifier } from './generators';
+export { timingSafeEqualString } from './compare';

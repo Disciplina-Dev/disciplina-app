@@ -105,6 +105,24 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Session de portail entreprise (acceptation interactive des candidats).
+        // Une ligne = un lien envoyé à une entreprise pour répondre aux candidats proposés d'un job.
+        table: 'match_link',
+        ddl: `CREATE TABLE IF NOT EXISTS match_link (
+            signature CHAR(64) PRIMARY KEY,
+            code CHAR(6) NOT NULL,
+            identifier VARCHAR(32) NOT NULL,
+            rh_email VARCHAR(255) NOT NULL,
+            company_email VARCHAR(255) NOT NULL,
+            job_uuid VARCHAR(64) NOT NULL,
+            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
+            attempts TINYINT NOT NULL DEFAULT 0,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`,
+    },
+    {
         // Public booking ("Calendly"-style) settings per RH/responsable.
         table: 'booking_settings',
         ddl: `CREATE TABLE IF NOT EXISTS booking_settings (

@@ -1,8 +1,12 @@
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
 import { JobService } from '../../services/JobService';
+import { MatchLinkService } from '../../services/MatchLinkService';
+import { MatchMailService } from '../../services/MatchMailService';
 
 const jobService = new JobService();
+const matchLinkService = new MatchLinkService();
+const matchMailService = new MatchMailService();
 
 export const resolvers = {
     Query: {
@@ -59,6 +63,25 @@ export const resolvers = {
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return jobService.updateMatchedCandidateStatus(jobId, candidateId, status);
+        },
+        createMatchSession: async (
+            _: unknown,
+            {
+                jobId,
+                companyEmail,
+                candidates,
+            }: { jobId: string; companyEmail: string; candidates: { id: string; description?: string }[] },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const credentials = await matchLinkService.createSession({
+                jobId,
+                rhEmail: context.user.email,
+                companyEmail,
+                candidates,
+            });
+            await matchMailService.sendInvitation(credentials);
+            return credentials.signature;
         },
     },
 };

@@ -3,6 +3,8 @@ export enum Role {
     RESPONSABLE = 'RESPONSABLE',
     COMMERCIAL = 'COMMERCIAL',
     RH = 'RH',
+    // Rôle non persistant : vit uniquement dans le JWT d'une session de portail entreprise (match_link).
+    ENTREPRISE_GUEST = 'ENTREPRISE_GUEST',
 }
 
 export interface User {

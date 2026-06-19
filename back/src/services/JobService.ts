@@ -8,6 +8,7 @@ import {
     Localisation,
     MatchedCandidateStatus,
     MatchingCandidate,
+    ProposedCandidate,
     Sector,
     Sex,
 } from '../types/job.types';
@@ -27,6 +28,15 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
     };
 }
 
+function proposedCandidateToGql(pc: ProposedCandidate): object {
+    return {
+        ...matchingCandidateToGql(pc),
+        description: pc.description,
+        answer: pc.answer,
+        interviewSlots: pc.interview_slots,
+    };
+}
+
 export function toGql(job: Job & { suggestedCandidates?: MatchingCandidate[] }): object {
     return {
         id: job._id,
@@ -42,6 +52,7 @@ export function toGql(job: Job & { suggestedCandidates?: MatchingCandidate[] }):
         matched: job.matched,
         matchedCandidate: job.matched_candidate?.map(matchingCandidateToGql),
         suggestedCandidates: job.suggestedCandidates?.map(matchingCandidateToGql),
+        proposedCandidate: job.proposed_candidate?.map(proposedCandidateToGql),
     };
 }
 

@@ -6,6 +6,8 @@ import {
     Localisation,
     MatchedCandidateStatus,
     MatchingCandidate,
+    ProposedCandidate,
+    ProposedCandidateAnswer,
     Sector,
 } from '../../../types/job.types';
 import { TitleProfessionalType } from '../../../types/candidate.types';
@@ -24,6 +26,24 @@ const matchingCandidateSchema = new Schema<MatchingCandidate>(
     { _id: false },
 );
 
+const proposedCandidateSchema = new Schema<ProposedCandidate>(
+    {
+        id: { type: String },
+        full_name: { type: String },
+        age: { type: Number },
+        sex: { type: String },
+        city: { type: String, enum: Object.values(Localisation) },
+        email: { type: String },
+        phone: { type: String },
+        status: { type: String, enum: Object.values(MatchedCandidateStatus) },
+        description: { type: String },
+        cv_webview: { type: String },
+        answer: { type: String, enum: Object.values(ProposedCandidateAnswer), default: null },
+        interview_slots: { type: [String] },
+    },
+    { _id: false },
+);
+
 const jobSchema = new Schema<Job & Document>(
     {
         _id: { type: String },
@@ -37,6 +57,7 @@ const jobSchema = new Schema<Job & Document>(
         status: { type: String, enum: Object.values(JobStatus) },
         localisation: { type: [String], enum: Object.values(Localisation) },
         matched_candidate: { type: [matchingCandidateSchema] },
+        proposed_candidate: { type: [proposedCandidateSchema] },
     },
     { collection: 'jobs' },
 );

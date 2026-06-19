@@ -9,6 +9,21 @@ export interface UserRow {
     refresh_token: string | null;
 }
 
+export interface MatchLinkRow {
+    signature: string;
+    code: string;
+    identifier: string;
+    rh_email: string;
+    company_email: string;
+    job_uuid: string;
+    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
+    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
+    expires_at: string | Date;
+    created_at?: string | Date;
+    updated_at?: string | Date;
+}
+
 export interface CompaniesRow {
     id: number;
     user_id: number | null;
