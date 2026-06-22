@@ -41,6 +41,12 @@ declare module 'express-session' {
 export async function createApp(): Promise<express.Express> {
     const app: any = express();
 
+    // Derrière le proxy Vercel (un seul hop) : faire confiance au 1er proxy pour
+    // que req.ip = vraie IP client (X-Forwarded-For). Sans ça, express-rate-limit
+    // voit l'IP du proxy → un seul compteur partagé par TOUS les users → 429
+    // collectif, et émet un ValidationError X-Forwarded-For à chaque requête.
+    app.set('trust proxy', 1);
+
     app.use(httpLogger);
 
     app.use(
