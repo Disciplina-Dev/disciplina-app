@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
+import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
 import { jobGraphqlClient } from '@/graphql/client'
@@ -794,6 +795,9 @@ export default function FicheCandidat() {
               </Field>
             </div>
           </Card>
+
+          {/* Historique du candidat */}
+          {id && <div className="md:col-span-2"><CandidateHistory candidateId={id} /></div>}
 
           {/* Résultat ClassMarker */}
           {id && <div className="md:col-span-2"><CandidateTestScore candidateId={id} /></div>}

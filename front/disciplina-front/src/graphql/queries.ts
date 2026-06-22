@@ -818,6 +818,36 @@ export const GET_CANDIDATE_MATCHED_JOB_IDS = gql`
   }
 `
 
+export const GET_CANDIDATE_HISTORY = gql`
+  query CandidateHistory($candidateId: String!) {
+    candidateHistory(candidateId: $candidateId) {
+      id
+      type
+      description
+      ownerEmail
+      createdAt
+    }
+  }
+`
+
+export const ADD_CANDIDATE_HISTORY_ENTRY = gql`
+  mutation AddCandidateHistoryEntry($candidateId: String!, $description: String!) {
+    addCandidateHistoryEntry(candidateId: $candidateId, description: $description) {
+      id
+      type
+      description
+      ownerEmail
+      createdAt
+    }
+  }
+`
+
+export const DELETE_CANDIDATE_HISTORY_ENTRY = gql`
+  mutation DeleteCandidateHistoryEntry($id: String!) {
+    deleteCandidateHistoryEntry(id: $id)
+  }
+`
+
 export const CREATE_NEEDS_ANALYSIS = gql`
   mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
     createNeedsAnalysis(input: $input) {

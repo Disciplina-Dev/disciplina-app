@@ -404,6 +404,20 @@ export const typeDefs = gql`
         byTpAndStatus: [TpStatusBucket!]!
     }
 
+    enum CandidateHistoryType {
+        RH
+        CANDIDATE
+        COMPANY
+    }
+
+    type CandidateHistoryEntry {
+        id: ID!
+        type: CandidateHistoryType!
+        description: String!
+        ownerEmail: String
+        createdAt: String!
+    }
+
     type Query {
         candidateStats: CandidateStats!
         candidates: [Candidate!]!
@@ -411,6 +425,7 @@ export const typeDefs = gql`
         candidate(id: String!): Candidate
         candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
         matchCandidate(id: String!): Candidate!
+        candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
     }
 
     type Mutation {
@@ -418,5 +433,7 @@ export const typeDefs = gql`
         updateCandidate(id: String!, input: UpdateCandidateInput!): Candidate!
         deleteCandidate(id: String!): Boolean!
         createCandidateDriveFolder(id: String!): Candidate!
+        addCandidateHistoryEntry(candidateId: String!, description: String!): CandidateHistoryEntry!
+        deleteCandidateHistoryEntry(id: String!): Boolean!
     }
 `;

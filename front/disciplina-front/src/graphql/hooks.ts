@@ -24,8 +24,11 @@ import {
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   GET_COMPANY_HISTORY,
+  GET_CANDIDATE_HISTORY,
+  ADD_CANDIDATE_HISTORY_ENTRY,
+  DELETE_CANDIDATE_HISTORY_ENTRY,
 } from '@/graphql/queries'
-import type { Candidate } from '@/types/candidate'
+import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
 import type { PageInfo } from '@/types/pagination'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
 
@@ -586,6 +589,41 @@ export function useCreateCandidateDriveFolder() {
   }
 
   return { createDriveFolder, result: { fetching } }
+}
+
+export function useCandidateHistory(candidateId: string | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CANDIDATE_HISTORY,
+    variables: { candidateId: candidateId ?? '' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
+    pause: candidateId === null,
+  })
+
+  const history: CandidateHistoryEntry[] = result.data?.candidateHistory ?? []
+  console.log(result);
+
+  return {
+    history,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+export function useAddCandidateHistoryEntry() {
+  const addHistoryEntry = (candidateId: string, description: string) => {
+    return candidateGraphqlClient.mutation(ADD_CANDIDATE_HISTORY_ENTRY, { candidateId, description })
+  }
+
+  return { addHistoryEntry }
+}
+
+export function useDeleteCandidateHistoryEntry() {
+  const deleteHistoryEntry = (id: string) => {
+    return candidateGraphqlClient.mutation(DELETE_CANDIDATE_HISTORY_ENTRY, { id })
+  }
+
+  return { deleteHistoryEntry }
 }
 
 export function useCreateNeedsAnalysis() {

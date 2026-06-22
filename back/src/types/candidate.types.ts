@@ -203,3 +203,18 @@ export interface Candidate {
     photo_link?: string;
     classmarker?: ClassMarkerResult;
 }
+
+export enum CandidateHistoryType {
+    RH = 'RH',
+    CANDIDATE = 'CANDIDATE',
+    COMPANY = 'COMPANY',
+}
+
+export interface CandidateHistoryEntry {
+    _id: string;
+    candidate_id: string;
+    type: CandidateHistoryType;
+    description: string;
+    owner_email: string | null;
+    created_at: Date;
+}

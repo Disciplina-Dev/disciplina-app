@@ -210,3 +210,17 @@ export interface Candidate {
     cv_link?: string;
     drive_folder_id?: string;
 }
+
+export enum CandidateHistoryType {
+    RH = 'RH',
+    CANDIDATE = 'CANDIDATE',
+    COMPANY = 'COMPANY',
+}
+
+export interface CandidateHistoryEntry {
+    id: string;
+    type: CandidateHistoryType;
+    description: string;
+    ownerEmail: string | null;
+    createdAt: string;
+}
