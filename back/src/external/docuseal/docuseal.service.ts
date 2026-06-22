@@ -16,7 +16,9 @@ const MANDAT_FILENAME = 'Mandat pour la publication d’une offre d’emploi (1)
 /** Charge le PDF du mandat depuis back/assets. Renvoie null si introuvable. */
 function loadMandatPdf(): Buffer | null {
     try {
-        const mandatPath = path.join(__dirname, '../../assets', MANDAT_FILENAME);
+        // docuseal.service.ts est à src/external/docuseal → remonter 3 niveaux
+        // pour atteindre back/assets (idem dist/external/docuseal en prod).
+        const mandatPath = path.join(__dirname, '../../../assets', MANDAT_FILENAME);
         return fs.readFileSync(mandatPath);
     } catch (err) {
         logger.error({ err }, '[DocuSeal] Mandat PDF introuvable dans assets/');
@@ -76,7 +78,7 @@ const SIGNATURE_EMAIL_BODY = [
     '',
     "La signature est simple, rapide et n'engendre aucun frais.",
     '',
-    "Cordialement,",
+    'Cordialement,',
     "L'équipe Disciplina",
 ].join('\n');
 
@@ -204,7 +206,7 @@ export class DocuSealService {
             const submissionId =
                 Array.isArray(submitters) && submitters.length > 0
                     ? submitters[0].submission_id
-                    : submitters?.submission_id ?? submitters?.id;
+                    : (submitters?.submission_id ?? submitters?.id);
 
             if (!submissionId) {
                 throw new Error('DocuSeal submission created but no submission id was returned');
