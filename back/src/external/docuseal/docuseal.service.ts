@@ -150,6 +150,15 @@ export class DocuSealService {
                 logger.warn('[DocuSeal] Mandat non joint (PDF introuvable) — envoi de l’AB seule.');
             }
 
+            logger.info(
+                {
+                    docCount: documents.length,
+                    docNames: documents.map((d) => (d as { name?: string }).name),
+                    mandatLoaded: !!mandatBuffer,
+                },
+                '[DocuSeal] documents préparés pour le template',
+            );
+
             const templateRes = await fetch(`${base}/templates/pdf`, {
                 method: 'POST',
                 headers: this.headers({ 'Content-Type': 'application/json' }),
@@ -166,7 +175,17 @@ export class DocuSealService {
 
             const template = await templateRes.json();
             const templateId = template.id;
-            logger.info(`DocuSeal template created with ID: ${templateId}`);
+            logger.info(
+                {
+                    templateId,
+                    templateDocCount: Array.isArray(template.documents) ? template.documents.length : undefined,
+                    templateDocNames: Array.isArray(template.documents)
+                        ? template.documents.map((d: { name?: string }) => d.name)
+                        : undefined,
+                    schemaCount: Array.isArray(template.schema) ? template.schema.length : undefined,
+                },
+                '[DocuSeal] template créé',
+            );
 
             // 2. Créer la submission et envoyer l'email au signataire.
             logger.info(`Creating DocuSeal submission for ${signerEmail}...`);
@@ -233,6 +252,15 @@ export class DocuSealService {
 
             const submission = await res.json();
             const documents: Array<{ name?: string; url?: string }> = submission.documents ?? [];
+            logger.info(
+                {
+                    submissionId,
+                    docCount: documents.length,
+                    docs: documents.map((d) => ({ name: d.name, hasUrl: !!d.url })),
+                    hasCombined: !!submission.combined_document_url,
+                },
+                '[DocuSeal] documents signés reçus',
+            );
             const withUrl = documents.filter((d) => d.url);
             if (withUrl.length === 0) {
                 throw new Error('No signed document URL found in DocuSeal submission');
