@@ -297,6 +297,20 @@ ${fr('Localisation du poste :', label(p.localisation))}
   .sig-section p { font-weight: bold; font-size: 11pt; margin-bottom: 24px; }
 
   .page-break { break-before: page; }
+
+  /* Page signature dédiée : occupe toute la hauteur imprimable (A4 - marges
+     haut/bas = 297 - 38 - 25 = 234mm) et épingle le bloc en bas à droite.
+     Garantit que la signature est toujours seule sur la DERNIÈRE page, donc
+     que le champ DocuSeal (page = lastPage) tombe au bon endroit. */
+  .sig-page {
+    break-before: page;
+    min-height: 234mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+  }
+  .sig-page .sig-block { width: 48%; border-top: 1px solid #888; padding-top: 12px; }
 </style>
 </head>
 <body>
@@ -458,16 +472,17 @@ ${sh('Clause de non-engagement et de confidentialité')}
     <p>Les informations recueillies dans ce document sont strictement confidentielles et ne seront utilisées qu'à des fins de recrutement en apprentissage. La présente analyse du besoin ne constitue pas un engagement ferme de l'entreprise ni du centre de formation. Elle formalise uniquement l'intention d'explorer un parcours d'alternance sous réserve d'éligibilité des candidats et d'accord de financement OPCO. Toute diffusion des informations contenues dans ce document à des tiers est interdite sans accord préalable écrit des deux parties.</p>
     <p>En signant ce document, l'entreprise reconnaît avoir pris connaissance de l'engagement sur l'évolution des missions et de la présente clause, et les accepte.</p>
 </div>
+</div>
 
-<!-- Zone signature : remplie par la signature électronique DocuSeal.
-     Les coordonnées du champ DocuSeal (docuseal.service.ts) ciblent ce bloc
-     bas-droite (right ~48%, hauteur ~120px). -->
-<div style="display:flex;justify-content:flex-end;margin-top:36px;">
-    <div style="width:48%;border-top:1px solid #888;padding-top:12px;">
+<!-- ═══ PAGE 6 — Signature (page dédiée) ═══
+     Bloc isolé sur sa propre page pour qu'il soit toujours bas-droite de la
+     DERNIÈRE page, quelle que soit la longueur du contenu précédent.
+     Les coordonnées du champ DocuSeal (docuseal.service.ts) ciblent ce bloc. -->
+<div class="sig-page">
+    <div class="sig-block">
         <p style="font-weight:bold;font-size:10.5pt;margin-bottom:8px;">Signature électronique de l'entreprise</p>
         <div style="height:120px;"></div>
     </div>
-</div>
 </div>
 
 
