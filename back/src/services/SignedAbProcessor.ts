@@ -38,9 +38,9 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
         companyId: analysis.company_id,
     });
 
-    const pdfBuffer = await docusealService.downloadSignedDocument(submissionId);
-    if (!pdfBuffer) {
-        logger.error(`Could not download signed PDF for submission ${submissionId}`);
+    const signedDocuments = await docusealService.downloadSignedDocuments(submissionId);
+    if (signedDocuments.length === 0) {
+        logger.error(`Could not download signed PDFs for submission ${submissionId}`);
         return true;
     }
 
@@ -61,7 +61,18 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
         return true;
     }
 
-    const base64Pdf = pdfBuffer.toString('base64');
+    const safeCompanyName = companyName.replace(/\s+/g, '_');
+    const attachments = signedDocuments.map((doc) => {
+        const isMandat = /mandat/i.test(doc.name);
+        const filename = isMandat
+            ? `Mandat_Publication_${safeCompanyName}_Signe.pdf`
+            : `Analyse_Besoin_${safeCompanyName}_Signee.pdf`;
+        return {
+            content: doc.buffer.toString('base64'),
+            filename,
+            contentType: 'application/pdf',
+        };
+    });
     const mailOptions = {
         to: `${analysis.recruitment_responsible_email || ''}, ${senderUser.email}`,
         subject: `[Disciplina] Fiche Analyse du Besoin Signée - ${companyName}`,
@@ -85,11 +96,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
                 </div>
             </div>
         `,
-        attachment: {
-            content: base64Pdf,
-            filename: `Analyse_Besoin_${companyName.replace(/\s+/g, '_')}_Signee.pdf`,
-            contentType: 'application/pdf',
-        },
+        attachments,
     };
 
     const persistRefreshedTokens = (uid: number) => async (refreshed: any) => {

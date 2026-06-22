@@ -8,9 +8,15 @@ const MOCK_PREFIX = 'mock-docuseal-sub-';
 
 const SIGNER_ROLE = 'Responsable';
 
-// Mandat de publication d'offre d'emploi, joint à l'Analyse du Besoin et signé
-// par le même signataire (rôle Responsable). Le mandant signe la colonne de
-// gauche : « Lu et approuvé », signature et date (cf. zone bas-gauche du PDF).
+/** Un document signé téléchargé depuis DocuSeal, conservé distinct. */
+export interface SignedDocument {
+    name: string;
+    buffer: Buffer;
+}
+
+// Mandat de publication d'offre d'emploi, joint à l'Analyse du Besoin comme
+// document distinct et signé par le même signataire (rôle Responsable). Le PDF
+// est conservé tel quel ; seule une zone de signature est ajoutée (bas-gauche).
 const MANDAT_FILENAME = 'Mandat pour la publication d’une offre d’emploi (1).pdf';
 
 /** Charge le PDF du mandat depuis back/assets. Renvoie null si introuvable. */
@@ -25,32 +31,16 @@ function loadMandatPdf(): Buffer | null {
 }
 
 /**
- * Document « Mandat » pour le payload DocuSeal /templates/pdf, avec les champs
- * à remplir par le mandant (colonne de gauche, bas de page) :
- *   - texte « Lu et approuvé »
- *   - signature
- *   - date de signature
- * Coordonnées en ratio 0..1, origine haut-gauche, page 1-based.
+ * Document « Mandat » pour le payload DocuSeal /templates/pdf. Le PDF d'origine
+ * est conservé tel quel ; on ajoute uniquement une zone de signature (colonne de
+ * gauche, bas de page). Coordonnées en ratio 0..1, origine haut-gauche, page
+ * 1-based.
  */
 function buildMandatDocument(mandatBuffer: Buffer) {
     return {
         name: 'Mandat de publication',
         file: mandatBuffer.toString('base64'),
         fields: [
-            {
-                name: 'Mandat - Date',
-                type: 'date',
-                role: SIGNER_ROLE,
-                // À côté du libellé « Le : »
-                areas: [{ page: 1, x: 0.14, y: 0.783, w: 0.22, h: 0.025 }],
-            },
-            {
-                name: 'Mandat - Lu et approuvé',
-                type: 'text',
-                role: SIGNER_ROLE,
-                // Colonne de gauche, sous « Signature, cachet, "Lu et approuvé" »
-                areas: [{ page: 1, x: 0.13, y: 0.885, w: 0.3, h: 0.03 }],
-            },
             {
                 name: 'Mandat - Signature',
                 type: 'signature',
@@ -76,7 +66,7 @@ const SIGNATURE_EMAIL_BODY = [
     '',
     "La signature est simple, rapide et n'engendre aucun frais.",
     '',
-    "Cordialement,",
+    'Cordialement,',
     "L'équipe Disciplina",
 ].join('\n');
 
@@ -204,7 +194,7 @@ export class DocuSealService {
             const submissionId =
                 Array.isArray(submitters) && submitters.length > 0
                     ? submitters[0].submission_id
-                    : submitters?.submission_id ?? submitters?.id;
+                    : (submitters?.submission_id ?? submitters?.id);
 
             if (!submissionId) {
                 throw new Error('DocuSeal submission created but no submission id was returned');
@@ -218,11 +208,18 @@ export class DocuSealService {
         }
     }
 
-    /** Télécharge le PDF signé combiné d'une submission terminée. */
-    async downloadSignedDocument(submissionId: string): Promise<Buffer | null> {
+    /**
+     * Télécharge les documents signés d'une submission terminée, en gardant
+     * chaque PDF distinct (Analyse du Besoin et Mandat séparés, pas le combiné).
+     * Renvoie une liste vide en cas d'échec.
+     */
+    async downloadSignedDocuments(submissionId: string): Promise<SignedDocument[]> {
         if (this.isMock() || submissionId.startsWith(MOCK_PREFIX)) {
-            logger.warn('DocuSeal mock mode (placeholder key or mock id). Returning a mock PDF buffer.');
-            return Buffer.from('mock-signed-pdf-content');
+            logger.warn('DocuSeal mock mode (placeholder key or mock id). Returning mock signed documents.');
+            return [
+                { name: 'Analyse du Besoin', buffer: Buffer.from('mock-signed-ab-content') },
+                { name: 'Mandat de publication', buffer: Buffer.from('mock-signed-mandat-content') },
+            ];
         }
 
         try {
@@ -236,20 +233,25 @@ export class DocuSealService {
 
             const submission = await res.json();
             const documents: Array<{ name?: string; url?: string }> = submission.documents ?? [];
-            const signedUrl = documents.find((d) => d.url)?.url ?? submission.combined_document_url;
-            if (!signedUrl) {
+            const withUrl = documents.filter((d) => d.url);
+            if (withUrl.length === 0) {
                 throw new Error('No signed document URL found in DocuSeal submission');
             }
 
-            const fileRes = await fetch(signedUrl);
-            if (!fileRes.ok) {
-                throw new Error(`Failed to download signed document: ${fileRes.status}`);
-            }
-            const arrayBuffer = await fileRes.arrayBuffer();
-            return Buffer.from(arrayBuffer);
+            const downloaded = await Promise.all(
+                withUrl.map(async (doc, index) => {
+                    const fileRes = await fetch(doc.url as string);
+                    if (!fileRes.ok) {
+                        throw new Error(`Failed to download signed document: ${fileRes.status}`);
+                    }
+                    const arrayBuffer = await fileRes.arrayBuffer();
+                    return { name: doc.name || `document-${index + 1}`, buffer: Buffer.from(arrayBuffer) };
+                }),
+            );
+            return downloaded;
         } catch (error) {
-            logger.error({ err: error }, 'Failed to download signed document from DocuSeal');
-            return null;
+            logger.error({ err: error }, 'Failed to download signed documents from DocuSeal');
+            return [];
         }
     }
 }
