@@ -8,6 +8,7 @@ import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistServ
 import { SireneCriterion, SireneEtablissement } from '../../external/insee/types';
 import { toCompanies } from '../../services/mappers/company.mapper';
 import { CompanyWithSalePerson, SirenSearchResult, BlacklistedCompanyInfo } from './types';
+import { logger } from '../../external/logger';
 
 const sireneService = new SireneService();
 const companyRepository = new CompanyRepository();
@@ -35,6 +36,8 @@ export async function companiesByMulticriteria(req: AuthRequest, res: Response):
             res.status(400).json({ error: 'offset must be a non-negative integer' });
             return;
         }
+        logger.info({ userId: req.user?.id, criteria, offset }, 'Sourcing: recherche commerciaux multicritère');
+
         const result = await sireneService.searchEstablishments(criteria as SireneCriterion[], offset);
 
         const checks = await Promise.all(
@@ -44,8 +47,14 @@ export async function companiesByMulticriteria(req: AuthRequest, res: Response):
         result.etablissements = result.etablissements.filter((e) => !existingSet.has(e.siret));
         result.header.nombre = result.etablissements.length;
 
+        logger.info(
+            { userId: req.user?.id, found: result.etablissements.length },
+            'Sourcing: résultats recherche commerciaux',
+        );
+
         res.json(result);
     } catch (error: any) {
+        logger.error({ err: error }, 'Sourcing: échec recherche commerciaux');
         if (error.message === 'No establishments found for the given criteria') {
             res.status(404).json({ error: error.message });
             return;
@@ -61,10 +70,12 @@ export async function companiesByMulticriteria(req: AuthRequest, res: Response):
 export async function checkSiret(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { siret } = req.params;
+        logger.info({ userId: req.user?.id, siret }, 'Sourcing: vérification SIRET');
         const result = await sireneService.checkSiret(siret);
         const existing = await companyRepository.findBySiret(siret);
         res.json({ ...result, alreadyExists: existing !== null });
     } catch (error: any) {
+        logger.error({ err: error }, 'Sourcing: échec vérification SIRET');
         if (error.message === 'SIRET not found') {
             res.status(404).json({ error: error.message });
             return;
@@ -104,6 +115,7 @@ export async function additionalSearch(req: AuthRequest, res: Response): Promise
 export async function searchBySiren(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { siren } = req.params;
+        logger.info({ userId: req.user?.id, siren }, 'Sourcing: recherche par SIREN');
 
         const { entries, allBlacklisted } = await companiesBlacklistService.findBySiren(siren);
         const blacklisted: BlacklistedCompanyInfo[] = entries.map((e) => ({
@@ -155,6 +167,7 @@ export async function searchBySiren(req: AuthRequest, res: Response): Promise<vo
         };
         res.json(result);
     } catch (error: any) {
+        logger.error({ err: error }, 'Sourcing: échec recherche par SIREN');
         if (error.message === 'No establishments found for the given criteria') {
             res.status(404).json({ error: error.message });
             return;
