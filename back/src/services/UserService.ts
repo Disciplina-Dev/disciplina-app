@@ -6,6 +6,7 @@ import { UserRow } from '../types/db-rows.types';
 import { toUser } from './mappers/user.mapper';
 import { env } from '../config/env';
 import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto/token-cipher';
+import { logger } from '../external/logger';
 const SALT_ROUNDS = 10;
 
 export class UserService {
@@ -16,7 +17,18 @@ export class UserService {
     }
 
     private decryptUserTokens(user: User): User {
-        const dec = (t: string | null | undefined) => (t && isEncryptedToken(t) ? decryptToken(t) : t ?? null);
+        const dec = (t: string | null | undefined): string | null => {
+            if (!t || !isEncryptedToken(t)) return t ?? null;
+            try {
+                return decryptToken(t);
+            } catch (error) {
+                logger.warn(
+                    { err: error, userId: user.id },
+                    'Échec déchiffrement token Google (clé changée ?) — token ignoré',
+                );
+                return null;
+            }
+        };
         return { ...user, oauthToken: dec(user.oauthToken), refreshToken: dec(user.refreshToken) };
     }
 
