@@ -1,7 +1,8 @@
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { CandidateService } from './CandidateService';
-import { Candidate, CandidateStatus } from '../types/candidate.types';
+import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
+import { CandidateHistoryService } from './CandidateHistoryService';
 import {
     Job,
     JobStatus,
@@ -99,6 +100,7 @@ export class JobService {
     private repository = new JobRepository();
     private candidateRepository = new CandidateRepository();
     private candidateService = new CandidateService();
+    private candidateHistoryService = new CandidateHistoryService();
 
     async findAll(): Promise<object[]> {
         const jobs = await this.repository.findAll();
@@ -150,6 +152,11 @@ export class JobService {
         const job = await this.repository.addMatchedCandidate(jobId, matchingCandidate);
         if (!job) return null;
 
+        await this.candidateHistoryService.recordAuto(
+            candidateId,
+            CandidateHistoryType.RH,
+            `Le candidat a été retenu pour ${job.company_name}`,
+        );
         await this.candidateService.update(candidateId, { status: CandidateStatus.MATCHED });
         return toGql(await this.syncDerivedStatus(jobId, job));
     }
@@ -176,6 +183,12 @@ export class JobService {
             status as MatchedCandidateStatus,
         );
         if (!job) return null;
+
+        const entry = this.candidateHistoryService.buildMatchedStatusHistoryEntry(
+            status as MatchedCandidateStatus,
+            job.company_name,
+        );
+        if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
         return toGql(await this.syncDerivedStatus(jobId, job));
     }
 

@@ -2,8 +2,9 @@ import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
+import { CandidateHistoryService } from '../../services/CandidateHistoryService';
 import { randomUUID } from 'crypto';
-import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
+import { TitleProfessionalType, CandidateStatus, CandidateHistoryEntry } from '../../types/candidate.types';
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
@@ -17,6 +18,17 @@ import { CandidateFilters } from '../../repositories/mongo/CandidateRepository';
 const candidateService = new CandidateService();
 const userService = new UserService();
 const rhKpiService = new RhKpiService();
+const candidateHistoryService = new CandidateHistoryService();
+
+function candidateHistoryToGql(entry: CandidateHistoryEntry): object {
+    return {
+        id: entry._id,
+        type: entry.type,
+        description: entry.description,
+        ownerEmail: entry.owner_email,
+        createdAt: entry.created_at.toISOString(),
+    };
+}
 
 /** Statuts candidat suivis dans les KPI RH (transition entrante = +1). */
 const STATUS_KPI_COLUMN: Partial<Record<CandidateStatus, 'immersions' | 'contracts' | 'ruptures'>> = {
@@ -102,6 +114,12 @@ export const resolvers = {
             const matchedJobs = await candidateService.matchJobs(id);
             return { ...candidateToGql(candidate), matchedJobs: matchedJobs.map(jobToMatchedJobGql) };
         },
+        candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const entries = await candidateHistoryService.findByCandidate(candidateId);
+            console.log('entry: ', entries);
+            return entries.map(candidateHistoryToGql);
+        },
         candidateTemplate: async (_: unknown, { tpType }: { tpType: TitleProfessionalType }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const template = CANDIDATE_TEMPLATES[tpType];
@@ -170,9 +188,7 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const snakeInput = camelToSnakeCase(input);
             // Statut avant mise à jour, pour ne compter que les vraies transitions entrantes.
-            const previousStatus = snakeInput.status
-                ? (await candidateService.findById(id))?.status
-                : undefined;
+            const previousStatus = snakeInput.status ? (await candidateService.findById(id))?.status : undefined;
             const updated = await candidateService.update(id, snakeInput);
 
             if (!updated) {
@@ -220,6 +236,21 @@ export const resolvers = {
             });
             if (!updated) throw new Error('Erreur lors de la mise à jour du candidat');
             return candidateToGql(updated);
+        },
+
+        addCandidateHistoryEntry: async (
+            _: unknown,
+            { candidateId, description }: { candidateId: string; description: string },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const entry = await candidateHistoryService.recordManual(candidateId, description, context.user.email);
+            return candidateHistoryToGql(entry);
+        },
+
+        deleteCandidateHistoryEntry: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return candidateHistoryService.deleteOwnedEntry(id, context.user.email);
         },
     },
 };

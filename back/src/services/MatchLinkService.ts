@@ -5,6 +5,8 @@ import { MatchLinkStatus } from '../types/matchLink.types';
 import { Job, MatchedCandidateStatus, ProposedCandidate, ProposedCandidateAnswer } from '../types/job.types';
 import { generateSignature, generateNumericCode, generateIdentifier, timingSafeEqualString } from '../external/crypto';
 import { issueMatchToken } from './matchToken';
+import { CandidateHistoryService } from './CandidateHistoryService';
+import { CandidateHistoryType } from '../types/candidate.types';
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
@@ -65,6 +67,7 @@ export class MatchLinkService {
     constructor(
         private readonly matchLinkRepository = new MatchLinkRepository(),
         private readonly jobRepository = new JobRepository(),
+        private readonly candidateHistoryService = new CandidateHistoryService(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -73,6 +76,13 @@ export class MatchLinkService {
 
         const proposed = buildProposedCandidates(job, input.candidates);
         await this.jobRepository.setProposedCandidates(input.jobId, proposed);
+        for (const candidate of proposed) {
+            await this.candidateHistoryService.recordAuto(
+                candidate.id,
+                CandidateHistoryType.RH,
+                `Le CV du candidat a été envoyé à ${job.company_name} en attente de réponse`,
+            );
+        }
 
         const credentials = this.generateCredentials(input);
         await this.matchLinkRepository.create({
@@ -159,6 +169,18 @@ export class MatchLinkService {
                 answer.answer,
                 answer.interviewSlots,
             );
+            await this.candidateHistoryService.recordAuto(
+                answer.candidateId,
+                CandidateHistoryType.COMPANY,
+                this.buildProposedAnswerLabel(answer.answer),
+            );
+            if (answer.interviewSlots?.length) {
+                await this.candidateHistoryService.recordAuto(
+                    answer.candidateId,
+                    CandidateHistoryType.COMPANY,
+                    "Les dates d'entretien ont été envoyé au candidat",
+                );
+            }
         }
         await this.matchLinkRepository.setStatus(signature, MatchLinkStatus.COMPLETED);
     }
@@ -170,6 +192,17 @@ export class MatchLinkService {
             return { ok: false, reason: 'locked' };
         }
         return { ok: false, reason: 'invalid', remaining: MAX_ATTEMPTS - attempts };
+    }
+
+    private buildProposedAnswerLabel(answer: ProposedCandidateAnswer): string {
+        switch (answer) {
+            case ProposedCandidateAnswer.REFUSED:
+                return "L'entreprise a refusé le candidat";
+            case ProposedCandidateAnswer.FAVORITE:
+                return "Le candidat est le coup de cœur de l'entreprise";
+            default:
+                return "L'entreprise a accepté le candidat en attente de la réponse du candidat";
+        }
     }
 
     private generateCredentials(input: CreateSessionInput): SessionCredentials {

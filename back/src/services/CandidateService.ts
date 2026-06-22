@@ -1,12 +1,15 @@
 import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { JobRepository } from '../repositories/mongo/JobRepository';
-import { Candidate } from '../types/candidate.types';
+import { Candidate, CandidateHistoryType } from '../types/candidate.types';
 import { Job, Sector } from '../types/job.types';
 import { computeAge } from '../utils/age';
+import { CandidateHistoryService } from './CandidateHistoryService';
+import { buildFieldChangeEntries } from './mappers/candidateFieldDiff';
 
 export class CandidateService {
     private repository = new CandidateRepository();
     private jobRepository = new JobRepository();
+    private candidateHistoryService = new CandidateHistoryService();
 
     async findAll(): Promise<Candidate[]> {
         return this.repository.findAll();
@@ -29,7 +32,14 @@ export class CandidateService {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
-        return this.repository.update(id, data);
+        const previous = await this.repository.findById(id);
+        const updated = await this.repository.update(id, data);
+        if (updated && previous) {
+            for (const { description } of buildFieldChangeEntries(previous, data)) {
+                await this.candidateHistoryService.recordAuto(id, CandidateHistoryType.RH, description);
+            }
+        }
+        return updated;
     }
 
     async delete(id: string): Promise<boolean> {
