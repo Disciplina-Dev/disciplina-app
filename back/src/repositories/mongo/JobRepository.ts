@@ -107,9 +107,11 @@ export class JobRepository {
         candidateId: string,
         answer: ProposedCandidateAnswer,
         interviewSlots?: string[],
+        comment?: string,
     ): Promise<Job | null> {
         const update: Record<string, unknown> = { 'proposed_candidate.$.answer': answer };
         if (interviewSlots) update['proposed_candidate.$.interview_slots'] = interviewSlots;
+        if (comment) update['proposed_candidate.$.comment'] = comment;
         return JobModel.findOneAndUpdate(
             { _id: jobId, 'proposed_candidate.id': candidateId },
             { $set: update },

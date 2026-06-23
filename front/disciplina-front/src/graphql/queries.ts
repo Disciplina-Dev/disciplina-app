@@ -700,6 +700,7 @@ export const MATCH_JOB = gql`
         phone
         description
         answer
+        comment
         interviewSlots
       }
     }

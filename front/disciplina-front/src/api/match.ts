@@ -33,6 +33,7 @@ export interface SubmitAnswerPayload {
   candidateId: string;
   answer: ProposedAnswer;
   interviewSlots?: string[];
+  comment?: string;
 }
 
 async function matchFetch(path: string, init?: RequestInit, token?: string): Promise<Response> {

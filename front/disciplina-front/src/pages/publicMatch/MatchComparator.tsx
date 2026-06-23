@@ -12,6 +12,7 @@ import { useGuestMatchTokenStore } from '@/store/guestMatchTokenStore'
 import CandidateComparator from '@/features/publicMatch/components/CandidateComparator'
 import AnswerControls from '@/features/publicMatch/components/AnswerControls'
 import InterviewProposalForm from '@/features/publicMatch/components/InterviewProposalForm'
+import RefusalCommentForm from '@/features/publicMatch/components/RefusalCommentForm'
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">{children}</div>
@@ -28,6 +29,7 @@ export default function MatchComparator() {
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, ProposedAnswer>>({})
   const [slots, setSlots] = useState<string[]>([''])
+  const [comments, setComments] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
 
@@ -60,7 +62,8 @@ export default function MatchComparator() {
     const payload: SubmitAnswerPayload[] = candidates.map((candidate) => {
       const answer = answers[candidate.id]
       const withSlots = answer === 'ACCEPTED' || answer === 'FAVORITE'
-      return { candidateId: candidate.id, answer, interviewSlots: withSlots ? cleanSlots : undefined }
+      const comment = answer === 'REFUSED' ? comments[candidate.id]?.trim() || undefined : undefined
+      return { candidateId: candidate.id, answer, interviewSlots: withSlots ? cleanSlots : undefined, comment }
     })
     try {
       await submitMatchAnswers(signature, token, payload)
@@ -117,6 +120,7 @@ export default function MatchComparator() {
   const current = candidates[index]
   const allAnswered = candidates.every((c) => answers[c.id])
   const hasSelection = candidates.some((c) => answers[c.id] === 'ACCEPTED' || answers[c.id] === 'FAVORITE')
+  const isCurrentRefused = answers[current.id] === 'REFUSED'
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
@@ -154,6 +158,15 @@ export default function MatchComparator() {
         {hasSelection && (
           <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
             <InterviewProposalForm slots={slots} onChange={setSlots} />
+          </div>
+        )}
+
+        {isCurrentRefused && (
+          <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+            <RefusalCommentForm
+              value={comments[current.id] ?? ''}
+              onChange={(comment) => setComments((prev) => ({ ...prev, [current.id]: comment }))}
+            />
           </div>
         )}
 

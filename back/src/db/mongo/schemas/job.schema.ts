@@ -39,6 +39,7 @@ const proposedCandidateSchema = new Schema<ProposedCandidate>(
         description: { type: String },
         cv_webview: { type: String },
         answer: { type: String, enum: Object.values(ProposedCandidateAnswer), default: null },
+        comment: { type: String },
         interview_slots: { type: [String] },
     },
     { _id: false },

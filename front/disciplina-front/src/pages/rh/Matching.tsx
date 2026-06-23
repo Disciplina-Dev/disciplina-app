@@ -79,6 +79,7 @@ interface ProposedCandidate {
   phone: string
   description: string | null
   answer: ProposedCandidateAnswer | null
+  comment?: string | null
   interviewSlots: string[] | null
   interviewDate?: string
   interviewHour?: string
@@ -987,6 +988,11 @@ function ProposedCandidatesSection({
                   <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-medium text-gray-500">En attente</span>
                 )}
               </div>
+              {c.answer === ProposedCandidateAnswer.REFUSED && c.comment && (
+                <p className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+                  Motif du refus : {c.comment}
+                </p>
+              )}
               {c.interviewDate && c.interviewHour && c.interviewLocation && (
                 <div className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
                   <p>

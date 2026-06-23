@@ -35,6 +35,7 @@ function proposedCandidateToGql(pc: ProposedCandidate): object {
         ...matchingCandidateToGql(pc),
         description: pc.description,
         answer: pc.answer,
+        comment: pc.comment,
         interviewSlots: pc.interview_slots,
         interviewDate: pc.interview_date,
         interviewHour: pc.interview_hour,

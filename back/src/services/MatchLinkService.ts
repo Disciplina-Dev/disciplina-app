@@ -31,6 +31,7 @@ export interface AnswerInput {
     candidateId: string;
     answer: ProposedCandidateAnswer;
     interviewSlots?: string[];
+    comment?: string;
 }
 
 export type AuthResult =
@@ -168,6 +169,7 @@ export class MatchLinkService {
                 answer.candidateId,
                 answer.answer,
                 answer.interviewSlots,
+                answer.comment,
             );
             await this.candidateHistoryService.recordAuto(
                 answer.candidateId,
@@ -179,6 +181,13 @@ export class MatchLinkService {
                     answer.candidateId,
                     CandidateHistoryType.COMPANY,
                     "Les dates d'entretien ont été envoyé au candidat",
+                );
+            }
+            if (answer.answer === ProposedCandidateAnswer.REFUSED && answer.comment) {
+                await this.candidateHistoryService.recordAuto(
+                    answer.candidateId,
+                    CandidateHistoryType.COMPANY,
+                    `Motif du refus : ${answer.comment}`,
                 );
             }
         }
