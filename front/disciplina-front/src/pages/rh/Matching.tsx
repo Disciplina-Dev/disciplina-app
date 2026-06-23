@@ -27,7 +27,7 @@ import {
   Heart,
   CalendarClock,
 } from 'lucide-react'
-import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, ADD_MANUAL_PROPOSED_CANDIDATE, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { PROPOSED_CANDIDATE_ANSWER_LABELS, PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS, ProposedCandidateAnswer } from '@/constants/proposedCandidateAnswer'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
@@ -39,6 +39,7 @@ import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
+import InterviewModal from '@/features/matching/components/InterviewModal'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 
@@ -79,6 +80,9 @@ interface ProposedCandidate {
   description: string | null
   answer: ProposedCandidateAnswer | null
   interviewSlots: string[] | null
+  interviewDate?: string
+  interviewHour?: string
+  interviewLocation?: string
 }
 
 interface MatchJobResult extends Job {
@@ -789,6 +793,23 @@ function buildInterviewDatesMailBody(companyName: string, candidateName: string,
 </html>`
 }
 
+function buildManualInterviewMailBody(companyName: string, candidateName: string, interviewDate: string, interviewHour: string, interviewLocation: string): string {
+  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const dateFormatted = new Date(`${interviewDate}T${interviewHour}`).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937;">
+  <div style="color:#60207E;font-weight:800;font-size:20px;margin-bottom:28px;">DISCIPLINA</div>
+  <p>Bonjour ${name},</p>
+  <p>L'entreprise <strong>${companyName}</strong> vous propose un entretien aux coordonnées suivantes :</p>
+  <p style="margin-left:20px;"><strong>Date :</strong> ${dateFormatted}<br><strong>Localisation :</strong> ${interviewLocation}</p>
+  <p>Nous attendons votre confirmation.</p>
+  <p style="margin-top:40px;color:#9ca3af;font-size:12px;">Cordialement,<br>L'équipe DISCIPLINA</p>
+</body>
+</html>`
+}
+
 function MatchingSection({
   suggestedCandidates,
   savedCandidateIds,
@@ -930,9 +951,11 @@ function formatSlot(iso: string): string {
 function ProposedCandidatesSection({
   candidates,
   onSendDates,
+  onAddCandidate,
 }: {
   candidates: ProposedCandidate[]
   onSendDates: (candidate: ProposedCandidate) => void
+  onAddCandidate: () => void
 }) {
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -940,6 +963,13 @@ function ProposedCandidatesSection({
         <Heart size={15} className="text-purple" />
         <h3 className="text-sm font-semibold text-gray-800">Candidats proposés</h3>
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">{candidates.length}</span>
+        <button
+          onClick={onAddCandidate}
+          className="ml-auto flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
+          title="Ajouter manuellement un candidat"
+        >
+          <Plus size={11} /> Ajouter un candidat
+        </button>
       </div>
       <div className="flex flex-col gap-2">
         {candidates.map((c) => {
@@ -957,6 +987,15 @@ function ProposedCandidatesSection({
                   <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-medium text-gray-500">En attente</span>
                 )}
               </div>
+              {c.interviewDate && c.interviewHour && c.interviewLocation && (
+                <div className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+                  <p>
+                    <CalendarClock size={11} className="inline mr-1" />
+                    {new Date(`${c.interviewDate}T${c.interviewHour}`).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <p>📍 {c.interviewLocation}</p>
+                </div>
+              )}
               {slots.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {slots.map((s) => (
@@ -966,7 +1005,7 @@ function ProposedCandidatesSection({
                   ))}
                 </div>
               )}
-              {canSendDates && (
+              {(canSendDates || (c.answer === ProposedCandidateAnswer.ACCEPTED && c.interviewDate && c.interviewHour && c.interviewLocation)) && (
                 <button
                   onClick={() => onSendDates(c)}
                   className="mt-2 flex items-center gap-1.5 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
@@ -1077,6 +1116,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [proposeResult, setProposeResult] = useState<{ signature: string } | null>(null)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
   const [datesMailState, setDatesMailState] = useState<ProposedCandidate | null>(null)
+  const [interviewModalOpen, setInterviewModalOpen] = useState(false)
   const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
   const token = useAuthStore((s) => s.token)
 
@@ -1287,6 +1327,34 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     setDatesMailState(candidate)
   }
 
+  const handleAddManualProposedCandidate = async (candidateId: string, location: string, date: string, hour: string) => {
+    if (!selectedJob || !jobData) return
+    try {
+      const result = await jobGraphqlClient
+        .mutation(ADD_MANUAL_PROPOSED_CANDIDATE, {
+          jobId: selectedJob.id,
+          candidateId,
+          interviewDate: date,
+          interviewHour: hour,
+          interviewLocation: location,
+        })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+
+      const proposedCandidate = result.data?.addManualProposedCandidate?.proposedCandidate?.[0]
+      if (proposedCandidate) {
+        setInterviewModalOpen(false)
+        setDatesMailState(proposedCandidate)
+        setJobData({
+          ...jobData,
+          proposedCandidate: [...(jobData.proposedCandidate ?? []), proposedCandidate],
+        })
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du candidat proposé:', error)
+    }
+  }
+
   const handleSetManualStatus = async (status: JobStatus) => {
     if (!selectedJob) return
     const result = await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status } }).toPromise()
@@ -1352,12 +1420,11 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         onMailAll={handleMailAll}
       />
 
-      {(jobData.proposedCandidate?.length ?? 0) > 0 && (
-        <ProposedCandidatesSection
-          candidates={jobData.proposedCandidate}
-          onSendDates={handleSendInterviewDates}
-        />
-      )}
+      <ProposedCandidatesSection
+        candidates={jobData.proposedCandidate ?? []}
+        onSendDates={handleSendInterviewDates}
+        onAddCandidate={() => setInterviewModalOpen(true)}
+      />
 
       <MatchingSection
         suggestedCandidates={suggestedCandidates}
@@ -1423,13 +1490,31 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           defaultTo={datesMailState.email}
           candidateName={datesMailState.fullName}
           defaultSubject={`DISCIPLINA – Proposition d'entretien chez ${jobData.companyName}`}
-          defaultBody={buildInterviewDatesMailBody(
-            jobData.companyName,
-            datesMailState.fullName,
-            datesMailState.interviewSlots ?? [],
-          )}
+          defaultBody={
+            datesMailState.interviewDate && datesMailState.interviewHour && datesMailState.interviewLocation
+              ? buildManualInterviewMailBody(
+                  jobData.companyName,
+                  datesMailState.fullName,
+                  datesMailState.interviewDate,
+                  datesMailState.interviewHour,
+                  datesMailState.interviewLocation,
+                )
+              : buildInterviewDatesMailBody(
+                  jobData.companyName,
+                  datesMailState.fullName,
+                  datesMailState.interviewSlots ?? [],
+                )
+          }
           scope="rh"
           onClose={() => setDatesMailState(null)}
+        />
+      )}
+
+      {interviewModalOpen && (
+        <InterviewModal
+          job={jobData}
+          onSubmit={handleAddManualProposedCandidate}
+          onClose={() => setInterviewModalOpen(false)}
         />
       )}
     </div>

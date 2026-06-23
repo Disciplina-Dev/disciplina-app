@@ -86,6 +86,14 @@ export class JobRepository {
         ).lean();
     }
 
+    async addProposedCandidate(jobId: string, candidate: ProposedCandidate): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            { _id: jobId, 'proposed_candidate.id': { $ne: candidate.id } },
+            { $push: { proposed_candidate: candidate } },
+            { new: true },
+        ).lean();
+    }
+
     async setProposedCandidates(jobId: string, proposed: ProposedCandidate[]): Promise<Job | null> {
         return JobModel.findOneAndUpdate(
             { _id: jobId },

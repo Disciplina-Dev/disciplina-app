@@ -64,6 +64,33 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return jobService.updateMatchedCandidateStatus(jobId, candidateId, status);
         },
+        addManualProposedCandidate: async (
+            _: unknown,
+            {
+                jobId,
+                candidateId,
+                interviewDate,
+                interviewHour,
+                interviewLocation,
+            }: {
+                jobId: string;
+                candidateId: string;
+                interviewDate: string;
+                interviewHour: string;
+                interviewLocation: string;
+            },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return await jobService.addManualProposedCandidate(
+                jobId,
+                candidateId,
+                interviewDate,
+                interviewHour,
+                interviewLocation,
+                context.user.email,
+            );
+        },
         createMatchSession: async (
             _: unknown,
             {

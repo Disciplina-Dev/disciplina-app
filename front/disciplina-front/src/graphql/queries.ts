@@ -731,6 +731,37 @@ export const ADD_CANDIDATE_TO_JOB = gql`
   }
 `
 
+export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
+  mutation AddManualProposedCandidate(
+    $jobId: String!
+    $candidateId: String!
+    $interviewDate: String!
+    $interviewHour: String!
+    $interviewLocation: String!
+  ) {
+    addManualProposedCandidate(
+      jobId: $jobId
+      candidateId: $candidateId
+      interviewDate: $interviewDate
+      interviewHour: $interviewHour
+      interviewLocation: $interviewLocation
+    ) {
+      id
+      proposedCandidate {
+        id
+        fullName
+        email
+        description
+        answer
+        interviewSlots
+        interviewDate
+        interviewHour
+        interviewLocation
+      }
+    }
+  }
+`
+
 export const OFFER_RESPONSE_LINKS = gql`
   query OfferResponseLinks($jobId: String!, $candidateId: String!) {
     offerResponseLinks(jobId: $jobId, candidateId: $candidateId) {
@@ -893,7 +924,6 @@ export const GET_NEEDS_ANALYSIS = gql`
       recruitmentResponsibleFunction
       companySectors
       companyDescription
-      opco
       positionsCount
       positions {
         trainingDomain

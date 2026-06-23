@@ -43,7 +43,7 @@ export class DdgService {
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             logger.error({ error, query }, 'DDG search failed');
-            throw new Error(`Search failed: ${errorMsg}`);
+            throw new Error(`Search failed: ${errorMsg}`, { cause: error });
         }
     }
 }
