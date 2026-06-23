@@ -1,13 +1,49 @@
 import { useState } from 'react'
-import { ChevronDown, History } from 'lucide-react'
+import { ChevronDown, History, ArrowRight } from 'lucide-react'
 import { useCompanyHistory } from '@/graphql/hooks'
+import { USERS } from '@/store/authStore'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return null
-  try { return format(new Date(iso), 'd MMM yyyy', { locale: fr }) } catch { return iso }
+  try { return format(new Date(iso), "d MMM yyyy 'à' HH:mm", { locale: fr }) } catch { return iso }
+}
+
+function authorName(modifiedBy: number | null) {
+  if (modifiedBy == null) return 'Inconnu'
+  return USERS[String(modifiedBy)]?.name ?? `Utilisateur #${modifiedBy}`
+}
+
+// Noms bruts des colonnes DB stockés dans updated_column → libellés lisibles.
+const COLUMN_LABELS: Record<string, string> = {
+  user_id: 'Propriétaire',
+  legal_referent: 'Représentant légal',
+  name: 'Nom',
+  phone: 'Téléphone',
+  email: 'E-mail',
+  address: 'Adresse',
+  sector: 'Secteur',
+  main_activity: 'Métier / Description',
+  siret: 'SIRET',
+  idcc: 'IDCC',
+  ape: 'APE',
+  notes: 'Note',
+  conclusion: 'Conclusion',
+  status: 'Statut',
+  relance_date: 'Date de relance',
+  relance_type: 'Type de relance',
+  relance_template_id: 'Modèle de relance',
+}
+
+function formatColumns(raw: string) {
+  return raw
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((c) => COLUMN_LABELS[c] ?? c)
+    .join(', ')
 }
 
 interface CompanyHistoryProps {
@@ -19,6 +55,8 @@ interface HistoryEntry {
   updatedAt: string
   updatedColumn: string
   status: string
+  previousStatus: string | null
+  modifiedBy: number | null
 }
 
 export default function CompanyHistory({ companyID }: CompanyHistoryProps) {
@@ -63,26 +101,38 @@ export default function CompanyHistory({ companyID }: CompanyHistoryProps) {
 
           {!fetching && history.length > 0 && (
             <div className="space-y-2">
-              {history.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">
-                        {entry.updatedColumn}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {formatDate(entry.updatedAt)}
-                      </p>
-                    </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-light text-blue whitespace-nowrap">
-                      {entry.status}
-                    </span>
+              {history.map((entry) => {
+                const statusChanged = entry.previousStatus != null && entry.previousStatus !== entry.status
+                const fields = formatColumns(entry.updatedColumn)
+                return (
+                  <div
+                    key={entry.id}
+                    className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+                  >
+                    {/* Phrase lisible : qui a modifié quoi */}
+                    <p className="text-sm text-gray-900">
+                      <span className="font-semibold">{authorName(entry.modifiedBy)}</span>
+                      {fields ? <> a modifié <span className="font-medium text-gray-700">{fields}</span></> : ' a modifié la fiche'}
+                    </p>
+
+                    {/* Transition de statut, si le statut a changé */}
+                    {statusChanged && (
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <span className="text-xs text-gray-500">Statut :</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                          {entry.previousStatus}
+                        </span>
+                        <ArrowRight className="w-3 h-3 text-gray-400" />
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-light text-blue">
+                          {entry.status}
+                        </span>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-gray-400 mt-1.5">{formatDate(entry.updatedAt)}</p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 

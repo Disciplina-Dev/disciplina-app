@@ -18,6 +18,7 @@ import {
   Save,
   Loader2,
   Ban,
+  PhoneCall,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
@@ -40,6 +41,8 @@ import { normalizeSiret } from '@/types/sourcing'
 import type { SireneEtablissement } from '@/types/sourcing'
 import LinkedEstablishments from '@/features/portefeuille/components/LinkedEstablishments'
 import CompanyHistory from '@/features/portefeuille/components/CompanyHistory'
+import ContactHistory from '@/features/portefeuille/components/ContactHistory'
+import ContactLogModal from '@/features/portefeuille/components/ContactLogModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import BanCompanyModal from '@/features/portefeuille/components/BanCompanyModal'
 import { formatErrorMessage } from '@/utils/companyErrors'
@@ -155,6 +158,8 @@ export default function EntreprisePage() {
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [addPrefillSiret, setAddPrefillSiret] = useState<string | undefined>()
   const [banOpen, setBanOpen] = useState(false)
+  const [contactOpen, setContactOpen] = useState(false)
+  const [contactRefresh, setContactRefresh] = useState(0)
 
   const stateEntreprise = location.state?.entreprise as Entreprise | undefined
   const baseEntreprise: Entreprise | undefined =
@@ -315,6 +320,9 @@ export default function EntreprisePage() {
                 Enregistrer
               </button>
             )}
+            <Button size="sm" variant="secondary" leftIcon={<PhoneCall className="h-3.5 w-3.5" />} onClick={() => setContactOpen(true)}>
+              Prise de contact
+            </Button>
             <Button size="sm" variant="secondary" leftIcon={<Mail className="h-3.5 w-3.5" />} onClick={() => setMailOpen(true)}>
               Envoyer un mail
             </Button>
@@ -604,6 +612,11 @@ export default function EntreprisePage() {
             />
           )}
 
+          {/* Contact History */}
+          {baseEntreprise && baseEntreprise.id && (
+            <ContactHistory companyID={Number(baseEntreprise.id)} refreshKey={contactRefresh} />
+          )}
+
           {/* Company History */}
           {baseEntreprise && baseEntreprise.id && (
             <CompanyHistory companyID={Number(baseEntreprise.id)} />
@@ -643,6 +656,18 @@ export default function EntreprisePage() {
           entreprise={draft}
           onClose={() => setBanOpen(false)}
           onSuccess={() => navigate('/commercial/portefeuille')}
+        />
+      )}
+
+      {contactOpen && baseEntreprise?.id && (
+        <ContactLogModal
+          companyID={Number(baseEntreprise.id)}
+          companyName={draft.nom_commercial}
+          onClose={() => setContactOpen(false)}
+          onSuccess={() => {
+            setContactOpen(false)
+            setContactRefresh((n) => n + 1)
+          }}
         />
       )}
     </div>

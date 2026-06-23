@@ -30,4 +30,19 @@ export interface CompanyHistory {
     updatedAt: string;
     updatedColumn: string;
     status: string;
+    previousStatus: string | null;
+    modifiedBy: number | null;
+}
+
+export interface ContactLog {
+    id: number;
+    companyID: number;
+    userID: number;
+    comment: string;
+    createdAt: string;
+}
+
+export interface ContactLogStats {
+    total: number;
+    byUser: { userID: number; count: number }[];
 }

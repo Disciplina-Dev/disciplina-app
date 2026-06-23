@@ -59,7 +59,21 @@ CREATE TABLE IF NOT EXISTS company_history (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_column TEXT NOT NULL,
     status VARCHAR(50) NOT NULL,
+    previous_status VARCHAR(50) DEFAULT NULL,
+    modified_by INT DEFAULT NULL,
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS contact_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    user_id INT NOT NULL,
+    comment TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_contact_company (company_id),
+    INDEX idx_contact_user (user_id)
 );
 
 CREATE TABLE IF NOT EXISTS commercial_kpi (

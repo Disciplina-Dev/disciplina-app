@@ -1,5 +1,10 @@
-import { CompaniesRow, CompaniesBlacklistRow, CompanyHistoryRow } from '../../types/db-rows.types';
-import { Companies, BlacklistedCompany, CompanyHistory } from '../../types/company.types';
+import { CompaniesRow, CompaniesBlacklistRow, CompanyHistoryRow, ContactLogRow } from '../../types/db-rows.types';
+import { Companies, BlacklistedCompany, CompanyHistory, ContactLog } from '../../types/company.types';
+
+function toIso(value?: string | Date | null): string {
+    if (!value) return new Date().toISOString();
+    return value instanceof Date ? value.toISOString() : String(value);
+}
 
 export function toCompanies(row: CompaniesRow): Companies {
     return {
@@ -44,12 +49,20 @@ export function toCompanyHistory(row: CompanyHistoryRow): CompanyHistory {
     return {
         id: row.id,
         companyID: row.company_id,
-        updatedAt: row.updated_at
-            ? row.updated_at instanceof Date
-                ? row.updated_at.toISOString()
-                : String(row.updated_at)
-            : new Date().toISOString(),
+        updatedAt: toIso(row.updated_at),
         updatedColumn: row.updated_column,
         status: row.status,
+        previousStatus: row.previous_status ?? null,
+        modifiedBy: row.modified_by ?? null,
+    };
+}
+
+export function toContactLog(row: ContactLogRow): ContactLog {
+    return {
+        id: row.id,
+        companyID: row.company_id,
+        userID: row.user_id,
+        comment: row.comment,
+        createdAt: toIso(row.created_at),
     };
 }

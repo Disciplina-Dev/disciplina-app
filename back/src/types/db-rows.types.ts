@@ -57,6 +57,16 @@ export interface CompanyHistoryRow {
     updated_at?: string | Date;
     updated_column: string;
     status: string;
+    previous_status?: string | null;
+    modified_by?: number | null;
+}
+
+export interface ContactLogRow {
+    id: number;
+    company_id: number;
+    user_id: number;
+    comment: string;
+    created_at?: string | Date;
 }
 
 export interface FilizRow {
