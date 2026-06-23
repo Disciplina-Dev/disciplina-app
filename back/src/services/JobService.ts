@@ -10,6 +10,7 @@ import {
     MatchedCandidateStatus,
     MatchingCandidate,
     ProposedCandidate,
+    ProposedCandidateAnswer,
     Sector,
     Sex,
 } from '../types/job.types';
@@ -35,6 +36,9 @@ function proposedCandidateToGql(pc: ProposedCandidate): object {
         description: pc.description,
         answer: pc.answer,
         interviewSlots: pc.interview_slots,
+        interviewDate: pc.interview_date,
+        interviewHour: pc.interview_hour,
+        interviewLocation: pc.interview_location,
     };
 }
 
@@ -190,6 +194,40 @@ export class JobService {
         );
         if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
         return toGql(await this.syncDerivedStatus(jobId, job));
+    }
+
+    async addManualProposedCandidate(
+        jobId: string,
+        candidateId: string,
+        interviewDate: string,
+        interviewHour: string,
+        interviewLocation: string,
+        ownerEmail: string,
+    ): Promise<object | null> {
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
+
+        const candidate = await this.candidateRepository.findById(candidateId);
+        if (!candidate) throw new Error('Candidat introuvable');
+
+        const proposed: ProposedCandidate = {
+            ...candidateToMatchingCandidate(candidate),
+            answer: ProposedCandidateAnswer.ACCEPTED,
+            interview_date: interviewDate,
+            interview_hour: interviewHour,
+            interview_location: interviewLocation,
+        };
+
+        const updated = await this.repository.addProposedCandidate(jobId, proposed);
+        if (!updated) return null;
+
+        await this.candidateHistoryService.recordManual(
+            candidateId,
+            `Le candidat.e a un entretien avec ${job.company_name} le ${interviewDate} à ${interviewLocation}`,
+            ownerEmail,
+        );
+
+        return toGql(updated);
     }
 
     private async syncDerivedStatus(jobId: string, job: Job): Promise<Job> {

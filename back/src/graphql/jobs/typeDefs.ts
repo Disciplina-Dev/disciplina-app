@@ -107,6 +107,9 @@ export const typeDefs = gql`
         description: String
         answer: ProposedCandidateAnswer
         interviewSlots: [String]
+        interviewDate: String
+        interviewHour: String
+        interviewLocation: String
     }
 
     input ProposedCandidateInput {
@@ -173,6 +176,13 @@ export const typeDefs = gql`
         addCandidateToJob(jobId: String!, candidateId: String!): Job
         removeCandidateFromJob(jobId: String!, candidateId: String!): Job
         updateMatchedCandidateStatus(jobId: String!, candidateId: String!, status: MatchedCandidateStatus!): Job
+        addManualProposedCandidate(
+            jobId: String!
+            candidateId: String!
+            interviewDate: String!
+            interviewHour: String!
+            interviewLocation: String!
+        ): Job
         createMatchSession(jobId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
     }
 `;

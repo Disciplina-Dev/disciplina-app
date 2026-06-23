@@ -77,7 +77,7 @@ export class CompaniesService {
         try {
             await this.sireneService.checkSiret(siret);
         } catch (error: any) {
-            throw new Error(`SIRET invalide : ${error.message}`);
+            throw new Error(`SIRET invalide : ${error.message}`, { cause: error });
         }
 
         const existing = await this.repository.findBySiret(siret);
