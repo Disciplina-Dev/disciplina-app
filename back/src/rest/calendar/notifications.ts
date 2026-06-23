@@ -1,11 +1,13 @@
 import { GoogleGmailService } from '../../external/google/gmail.service';
 import { GoogleTokens } from '../../external/google/types';
 import { UserService } from '../../services/UserService';
+import { MailTemplateService } from '../../services/MailTemplateService';
 import { User } from '../../types/user.types';
 import { logger } from '../../external/logger';
 
 const gmailService = new GoogleGmailService();
 const userService = new UserService();
+const mailTemplateService = new MailTemplateService();
 
 /** Fuseau par défaut de la plateforme (La Réunion). */
 const DEFAULT_TZ = 'Indian/Reunion';
@@ -16,6 +18,22 @@ function formatInTz(iso: string, tz: string): string {
         timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
     }).format(new Date(iso));
+}
+
+/** Variables de date détaillées pour les modèles de mail (identiques au flux booking). */
+function dateVars(iso: string, tz: string): Record<string, string> {
+    const d = new Date(iso);
+    return {
+        jour: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long' }).format(d),
+        date_longue: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d),
+        date_courte: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).format(d),
+        heure: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(d),
+    };
+}
+
+/** Remplace les variables {{cle}} d'un modèle par leurs valeurs (clés inconnues → ""). */
+function renderTemplate(tpl: string, vars: Record<string, string>): string {
+    return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => vars[key.toLowerCase()] ?? '');
 }
 
 function tokensFor(host: User): GoogleTokens {
@@ -34,21 +52,49 @@ interface ConfirmationParams {
     startIso: string;
     location?: string;
     tz?: string;
+    durationMin?: number;
+    /** Modèle de mail choisi par l'hôte (cf. réglages booking). Si présent → personnalisé. */
+    confirmationSubject?: string | null;
+    confirmationBody?: string | null;
 }
 
 /** Envoie un email de confirmation de rendez-vous via le compte Gmail de l'hôte. Ne jette jamais. */
-export async function sendRdvConfirmation({ host, to, title, startIso, location, tz = DEFAULT_TZ }: ConfirmationParams): Promise<void> {
+export async function sendRdvConfirmation({ host, to, title, startIso, location, tz = DEFAULT_TZ, durationMin, confirmationSubject, confirmationBody }: ConfirmationParams): Promise<void> {
     const when = formatInTz(startIso, tz);
-    const subject = `Confirmation de votre rendez-vous — ${title}`;
-    const lieu = location ? `<p><strong>Lieu :</strong> ${location}</p>` : '';
-    const html = `
+
+    let subject: string;
+    let html: string;
+    let text: string;
+
+    if (confirmationBody && confirmationBody.trim()) {
+        // Modèle personnalisé : mêmes variables que le flux booking. {{nom}} inconnu ici (RDV manuel) → vide.
+        const vars: Record<string, string> = {
+            nom: '',
+            date: `${when} (${tz})`,
+            ...dateVars(startIso, tz),
+            lieu: location ?? '',
+            titre: title,
+            duree: durationMin ? `${durationMin} minutes` : '',
+            hote: host.name,
+        };
+        subject = renderTemplate(confirmationSubject || `Confirmation de votre rendez-vous — ${title}`, vars);
+        html = renderTemplate(confirmationBody, vars);
+        text = html.replace(/<[^>]+>/g, '');
+    } else {
+        subject = `Confirmation de votre rendez-vous — ${title}`;
+        const lieu = location ? `<p><strong>Lieu :</strong> ${location}</p>` : '';
+        html = `
         <p>Bonjour,</p>
         <p>Votre rendez-vous « <strong>${title}</strong> » avec ${host.name} est confirmé.</p>
         <p><strong>Date :</strong> ${when}</p>
         ${lieu}
         <p>À bientôt,<br/>${host.name}</p>`;
-    const text = `Bonjour,\n\nVotre rendez-vous « ${title} » avec ${host.name} est confirmé.\n`
-        + `Date : ${when}\n${location ? `Lieu : ${location}\n` : ''}\nÀ bientôt,\n${host.name}`;
+        text = `Bonjour,\n\nVotre rendez-vous « ${title} » avec ${host.name} est confirmé.\n`
+            + `Date : ${when}\n${location ? `Lieu : ${location}\n` : ''}\nÀ bientôt,\n${host.name}`;
+    }
+
+    const signatureHtml = await mailTemplateService.getSignatureHtml(host.id, 'rh').catch(() => '');
+    if (signatureHtml) html += signatureHtml;
 
     try {
         await gmailService.sendEmail(tokensFor(host), { to, subject, html, text }, onRefresh(host.id));
@@ -76,8 +122,11 @@ export async function sendNoShowRebooking({ host, to, title, bookingUrl }: Reboo
     const text = `Bonjour,\n\nNous ne vous avons pas vu à votre rendez-vous « ${title} » avec ${host.name}.\n`
         + `Si vous le souhaitez, reprenez un créneau ici : ${bookingUrl}\n\nÀ bientôt,\n${host.name}`;
 
+    const signatureHtml = await mailTemplateService.getSignatureHtml(host.id, 'rh').catch(() => '');
+    const htmlWithSig = signatureHtml ? html + signatureHtml : html;
+
     try {
-        await gmailService.sendEmail(tokensFor(host), { to, subject, html, text }, onRefresh(host.id));
+        await gmailService.sendEmail(tokensFor(host), { to, subject, html: htmlWithSig, text }, onRefresh(host.id));
     } catch (err) {
         logger.error({ err }, 'No-show rebooking email failed');
     }

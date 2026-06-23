@@ -24,6 +24,7 @@ import { router as matchingRouter } from './rest/matching/route';
 import { router as notificationsRouter } from './rest/notifications/route';
 import { router as calendarRouter } from './rest/calendar/route';
 import { router as bookingRouter } from './rest/booking/route';
+import { router as mailTemplatesRouter } from './rest/mailTemplates/route';
 import { router as matchRouter } from './rest/match/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
@@ -96,6 +97,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/notifications', notificationsRouter);
     app.use('/api/calendar', calendarRouter);
     app.use('/api/booking', bookingRouter);
+    app.use('/api/mail-templates', mailTemplatesRouter);
     app.use('/api/match', matchRouter);
     app.use(errorHandler);
 

@@ -142,6 +142,9 @@ export default function EntreprisePage() {
   const { update } = useUpdateCompany()
   const { createCompany } = useCreateCompany()
   const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
+  const loadMailTemplates = useCommercialMailTemplatesStore((s) => s.load)
+
+  useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   const [abOpen, setAbOpen] = useState(false)
   const [mailOpen, setMailOpen] = useState(false)

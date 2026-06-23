@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { BookingRepository, BookingSettings } from './repository';
 import { UserService } from '../../services/UserService';
+import { MailTemplateService } from '../../services/MailTemplateService';
 import { GoogleCalendarService, BusyInterval } from '../../external/google/calendar.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
 import { GoogleTokens } from '../../external/google/types';
@@ -24,6 +25,7 @@ export class SlotUnavailableError extends Error {}
 
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
+const mailTemplateService = new MailTemplateService();
 
 /** Formate un instant pour affichage dans le fuseau donné (ex "lundi 16 juin 2026 à 09:00"). */
 function formatInTz(iso: string, tz: string): string {
@@ -31,6 +33,26 @@ function formatInTz(iso: string, tz: string): string {
         timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
     }).format(new Date(iso));
+}
+
+/** Variables de date détaillées pour les modèles de mail. */
+function dateVars(iso: string, tz: string): { jour: string; date_longue: string; date_courte: string; heure: string } {
+    const d = new Date(iso);
+    return {
+        // Jour de la semaine seul : « lundi »
+        jour: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long' }).format(d),
+        // Date en toutes lettres sans l'heure : « lundi 22 juin 2026 »
+        date_longue: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d),
+        // Date numérique : « 22/06/2026 »
+        date_courte: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).format(d),
+        // Heure seule : « 14:30 »
+        heure: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(d),
+    };
+}
+
+/** Remplace les variables {{cle}} d'un modèle par leurs valeurs (clés inconnues → ""). */
+function renderTemplate(tpl: string, vars: Record<string, string>): string {
+    return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => vars[key.toLowerCase()] ?? '');
 }
 
 /** Décalage (ms) du fuseau `tz` à l'instant `date`. Exact pour les fuseaux à offset fixe (ex Réunion). */
@@ -198,18 +220,44 @@ export class BookingService {
     /** Envoie un email de confirmation personnalisé à l'invité, via le compte Gmail de l'hôte. */
     private async sendConfirmation(host: User, settings: BookingSettings, startIso: string, guest: GuestInfo): Promise<void> {
         const when = formatInTz(startIso, settings.timezone);
-        const subject = `Confirmation de votre rendez-vous — ${settings.title}`;
-        const lieu = settings.location ? `<p><strong>Lieu :</strong> ${settings.location}</p>` : '';
-        const html = `
+
+        let subject: string;
+        let html: string;
+        let text: string;
+
+        if (settings.confirmationBody && settings.confirmationBody.trim()) {
+            // Modèle personnalisé : on remplace les variables {{…}}.
+            const vars: Record<string, string> = {
+                nom: guest.name,
+                date: `${when} (${settings.timezone})`,
+                ...dateVars(startIso, settings.timezone),
+                lieu: settings.location ?? '',
+                titre: settings.title,
+                duree: `${settings.durationMin} minutes`,
+                hote: host.name,
+            };
+            subject = renderTemplate(settings.confirmationSubject || `Confirmation de votre rendez-vous — ${settings.title}`, vars);
+            html = renderTemplate(settings.confirmationBody, vars);
+            text = html.replace(/<[^>]+>/g, ''); // version texte basique
+        } else {
+            // Mail par défaut.
+            subject = `Confirmation de votre rendez-vous — ${settings.title}`;
+            const lieu = settings.location ? `<p><strong>Lieu :</strong> ${settings.location}</p>` : '';
+            html = `
             <p>Bonjour ${guest.name},</p>
             <p>Votre rendez-vous « <strong>${settings.title}</strong> » avec ${host.name} est confirmé.</p>
             <p><strong>Date :</strong> ${when} (${settings.timezone})</p>
             <p><strong>Durée :</strong> ${settings.durationMin} minutes</p>
             ${lieu}
             <p>À bientôt,<br/>${host.name}</p>`;
-        const text = `Bonjour ${guest.name},\n\nVotre rendez-vous « ${settings.title} » avec ${host.name} est confirmé.\n`
-            + `Date : ${when} (${settings.timezone})\nDurée : ${settings.durationMin} minutes\n`
-            + `${settings.location ? `Lieu : ${settings.location}\n` : ''}\nÀ bientôt,\n${host.name}`;
+            text = `Bonjour ${guest.name},\n\nVotre rendez-vous « ${settings.title} » avec ${host.name} est confirmé.\n`
+                + `Date : ${when} (${settings.timezone})\nDurée : ${settings.durationMin} minutes\n`
+                + `${settings.location ? `Lieu : ${settings.location}\n` : ''}\nÀ bientôt,\n${host.name}`;
+        }
+
+        // Signature de l'hôte ajoutée à tous les mails (best-effort).
+        const signatureHtml = await mailTemplateService.getSignatureHtml(host.id, 'rh').catch(() => '');
+        if (signatureHtml) html += signatureHtml;
 
         try {
             await gmailService.sendEmail(

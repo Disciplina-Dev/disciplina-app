@@ -154,6 +154,9 @@ const data = {
     DRIVE_CANDIDATS_NORD_REM_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_REM_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_SA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_SA_FOLDER_ID'),
 
+    // Dossier Drive où sont stockés les pièces jointes / signatures des modèles de mail.
+    DRIVE_TEMPLATES_FOLDER_ID: optionalString('DRIVE_TEMPLATES_FOLDER_ID'),
+
     OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
 };
 

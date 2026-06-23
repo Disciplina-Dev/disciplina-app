@@ -15,6 +15,8 @@ export interface BookingSettings {
   workingHours: WorkingHours;
   title: string;
   location: string | null;
+  confirmationSubject: string | null;
+  confirmationBody: string | null;
 }
 
 export type BookingSettingsPatch = Partial<Omit<BookingSettings, 'userId' | 'slug'>>;

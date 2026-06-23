@@ -17,6 +17,10 @@ export interface BookingSettings {
     workingHours: WorkingHours;
     title: string;
     location: string | null;
+    /** Objet du mail de confirmation (modèle copié). null = mail par défaut. */
+    confirmationSubject: string | null;
+    /** Corps HTML du mail de confirmation, avec variables {{nom}} {{date}} … */
+    confirmationBody: string | null;
 }
 
 interface BookingRow {
@@ -31,6 +35,8 @@ interface BookingRow {
     working_hours: WorkingHours | string | null;
     title: string;
     location: string | null;
+    confirmation_subject: string | null;
+    confirmation_body: string | null;
 }
 
 /** Plages par défaut : lun–ven 9h–12h et 14h–17h. */
@@ -56,6 +62,8 @@ function toSettings(row: BookingRow): BookingSettings {
         workingHours: wh ?? {},
         title: row.title,
         location: row.location,
+        confirmationSubject: row.confirmation_subject ?? null,
+        confirmationBody: row.confirmation_body ?? null,
     };
 }
 
@@ -92,6 +100,8 @@ export class BookingRepository {
         if (patch.workingHours !== undefined) set('working_hours', JSON.stringify(patch.workingHours));
         if (patch.title !== undefined) set('title', patch.title);
         if (patch.location !== undefined) set('location', patch.location);
+        if (patch.confirmationSubject !== undefined) set('confirmation_subject', patch.confirmationSubject);
+        if (patch.confirmationBody !== undefined) set('confirmation_body', patch.confirmationBody);
 
         if (fields.length) {
             values.push(userId);

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { Bell, Mail, Building2, CalendarClock, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -41,6 +41,9 @@ export default function RelanceCommercial() {
   const { loading } = useInitializePortfolio(200)
   const { update } = useUpdateCompany()
   const templates = useCommercialMailTemplatesStore((s) => s.templates)
+  const loadMailTemplates = useCommercialMailTemplatesStore((s) => s.load)
+
+  useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   const [mailFor, setMailFor] = useState<Entreprise | null>(null)
   const [rescheduling, setRescheduling] = useState<string | null>(null)
