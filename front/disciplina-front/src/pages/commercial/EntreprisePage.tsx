@@ -40,8 +40,7 @@ import { toCompany, toEntrepriseFromCompanyWithSalePerson } from '@/types/compan
 import { normalizeSiret } from '@/types/sourcing'
 import type { SireneEtablissement } from '@/types/sourcing'
 import LinkedEstablishments from '@/features/portefeuille/components/LinkedEstablishments'
-import CompanyHistory from '@/features/portefeuille/components/CompanyHistory'
-import ContactHistory from '@/features/portefeuille/components/ContactHistory'
+import CompanyTimeline from '@/features/portefeuille/components/CompanyTimeline'
 import ContactLogModal from '@/features/portefeuille/components/ContactLogModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import BanCompanyModal from '@/features/portefeuille/components/BanCompanyModal'
@@ -612,14 +611,9 @@ export default function EntreprisePage() {
             />
           )}
 
-          {/* Contact History */}
+          {/* Timeline unifiée : prises de contact + modifications */}
           {baseEntreprise && baseEntreprise.id && (
-            <ContactHistory companyID={Number(baseEntreprise.id)} refreshKey={contactRefresh} />
-          )}
-
-          {/* Company History */}
-          {baseEntreprise && baseEntreprise.id && (
-            <CompanyHistory companyID={Number(baseEntreprise.id)} />
+            <CompanyTimeline companyID={Number(baseEntreprise.id)} refreshKey={contactRefresh} />
           )}
         </div>
       </div>
@@ -661,8 +655,7 @@ export default function EntreprisePage() {
 
       {contactOpen && baseEntreprise?.id && (
         <ContactLogModal
-          companyID={Number(baseEntreprise.id)}
-          companyName={draft.nom_commercial}
+          entreprise={draft}
           onClose={() => setContactOpen(false)}
           onSuccess={() => {
             setContactOpen(false)

@@ -166,9 +166,8 @@ export const resolvers = {
 
         contactLogs: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            // Un COMMERCIAL ne voit que ses propres prises de contact ; RESPONSABLE/ADMIN voient tout.
-            const restrictedTo = context.user.role === Role.COMMERCIAL ? Number(context.user.id) : null;
-            return contactLogService.getByCompany(companyID, restrictedTo);
+            // Timeline interne : tous les rôles internes voient toutes les prises de contact.
+            return contactLogService.getByCompany(companyID);
         },
 
         contactLogStats: async (_: unknown, __: unknown, context: any) => {
