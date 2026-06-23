@@ -66,6 +66,7 @@ export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
         recruitmentResponsibleFunction: row.recruitment_responsible_function,
         companySectors,
         companyDescription: row.company_description,
+        opco: row.opco,
         positionsCount: row.positions_count,
         positions,
         localisation: row.localisation,
@@ -107,6 +108,7 @@ export function toNeedsAnalysisRow(input: Partial<NeedsAnalysis>): Partial<Needs
     if (input.recruitmentResponsibleEmail !== undefined) row.recruitment_responsible_email = input.recruitmentResponsibleEmail;
     if (input.recruitmentResponsibleFunction !== undefined) row.recruitment_responsible_function = input.recruitmentResponsibleFunction;
     if (input.companyDescription !== undefined) row.company_description = input.companyDescription;
+    if (input.opco !== undefined) row.opco = input.opco;
     if (input.positionsCount !== undefined) row.positions_count = input.positionsCount;
     if (input.localisation !== undefined) row.localisation = input.localisation;
     if (input.trainingDomain !== undefined) row.training_domain = input.trainingDomain;
