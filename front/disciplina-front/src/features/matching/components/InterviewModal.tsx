@@ -3,12 +3,13 @@ import { Search, X, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATES_PAGE } from '@/graphql/queries'
+import type { Candidate } from '@/types/candidate'
 
 interface InterviewModalProps {
   job: {
     id: string
     companyName?: string
-    matchedCandidate?: Array<{ id: string; fullName?: string }>
+    matchedCandidate?: Array<{ id: string; fullName?: string; tpType?: string }>
   }
   onSubmit: (candidateId: string, location: string, date: string, hour: string) => void
   onClose: () => void
@@ -20,8 +21,8 @@ export default function InterviewModal({ job, onSubmit, onClose }: InterviewModa
 
   const [step, setStep] = useState<'candidate' | 'details'>('candidate')
   const [candidateSearch, setCandidateSearch] = useState('')
-  const [selectedCandidate, setSelectedCandidate] = useState<{ id: string; fullName: string } | null>(null)
-  const [allCandidates, setAllCandidates] = useState<Array<{ id: string; fullName?: string }>>([])
+  const [selectedCandidate, setSelectedCandidate] = useState<{ id: string; fullName: string; } | null>(null)
+  const [allCandidates, setAllCandidates] = useState<Array<{ id: string; fullName?: string; tpType: string }>>([])
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
 
@@ -51,8 +52,6 @@ export default function InterviewModal({ job, onSubmit, onClose }: InterviewModa
       setAllCandidates([])
       return
     }
-    console.log(candidateSearch);
-    console.log(matchedCandidates);
 
     if (matchedCandidates.some((c) => c.fullName?.toLowerCase().includes(candidateSearch.toLowerCase() || ''))) {
       return
@@ -62,12 +61,12 @@ export default function InterviewModal({ job, onSubmit, onClose }: InterviewModa
     debounceCandidateRef.current = setTimeout(async () => {
       try {
         const result = await candidateGraphqlClient.query(GET_CANDIDATES_PAGE, { first: 20, search: candidateSearch }).toPromise()
-        console.log(result.data.candidatesPage.edges)
         if (result.error) {
           setSearchError('Erreur lors de la recherche')
           setAllCandidates([])
         } else {
-          setAllCandidates(result.data?.candidatesPage?.edges?.map((e) => ({ id: e.node.id, fullName: e.node.identity.fullName, tpType: e.node.tpType})) ?? [])
+          const candidates: Candidate[] = (result.data?.candidatesPage?.edges ?? []).map((edge: { node: Record<string, unknown> }) => edge.node)
+          setAllCandidates(candidates.map((e: Candidate) => ({ id: e._id, fullName: e.identity.full_name, tpType: e.tp_type})) ?? [])
           setSearchError('')
         }
       } catch {
