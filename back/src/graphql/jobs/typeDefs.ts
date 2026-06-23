@@ -106,6 +106,7 @@ export const typeDefs = gql`
         phone: String
         description: String
         answer: ProposedCandidateAnswer
+        comment: String
         interviewSlots: [String]
         interviewDate: String
         interviewHour: String

@@ -99,6 +99,7 @@ export interface ProposedCandidate extends MatchingCandidate {
     interview_date?: string;
     interview_hour?: string;
     interview_location?: string;
+    comment?: string;
 }
 
 export interface Job {
