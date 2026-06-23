@@ -22,6 +22,12 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'needs_analysis', column: 'age_min', definition: 'INT DEFAULT NULL' },
     { table: 'needs_analysis', column: 'age_max', definition: 'INT DEFAULT NULL' },
     { table: 'needs_analysis', column: 'conditions', definition: 'TEXT DEFAULT NULL' },
+    // Booking: modèle de mail de confirmation choisi par l'hôte (copié depuis ses modèles RH).
+    { table: 'booking_settings', column: 'confirmation_subject', definition: 'VARCHAR(255) DEFAULT NULL' },
+    { table: 'booking_settings', column: 'confirmation_body', definition: 'TEXT DEFAULT NULL' },
+    // Historique des modifications enrichi : auteur de la modif + statut avant changement.
+    { table: 'company_history', column: 'modified_by', definition: 'INT DEFAULT NULL' },
+    { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },
 ];
 
 /**
@@ -29,6 +35,22 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
  * REQUIRED_COLUMNS: mysql-init.sql only runs on a fresh volume.
  */
 const REQUIRED_TABLES: { table: string; ddl: string }[] = [
+    {
+        // Journal des prises de contact (appels) d'un commercial vers une entreprise.
+        // Une ligne = un appel logué ; le commentaire est obligatoire côté service.
+        table: 'contact_logs',
+        ddl: `CREATE TABLE IF NOT EXISTS contact_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            company_id INT NOT NULL,
+            user_id INT NOT NULL,
+            comment TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            INDEX idx_contact_company (company_id),
+            INDEX idx_contact_user (user_id)
+        )`,
+    },
     {
         // KPI RH agrégés par utilisateur (RH) et par bucket (année ISO / mois / semaine ISO).
         // Une ligne = un (user, year, month, week) ; les compteurs sont incrémentés au fil des actions.

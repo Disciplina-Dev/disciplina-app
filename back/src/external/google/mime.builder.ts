@@ -5,48 +5,116 @@ function encodeSubject(subject: string): string {
     return `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`;
 }
 
+interface InlineImage {
+    cid: string;
+    contentType: string;
+    content: string; // base64
+}
+
+/**
+ * Extrait les images `data:` inline du HTML et les remplace par des références `cid:`.
+ * Gmail (et la plupart des webmails) ne rendent pas les `<img src="data:…base64">` ;
+ * il faut les envoyer comme parties MIME inline référencées par Content-ID.
+ */
+function extractInlineImages(html: string): { html: string; images: InlineImage[] } {
+    const images: InlineImage[] = [];
+    let i = 0;
+    const out = html.replace(
+        /src=(["'])data:([^;]+);base64,([^"']+)\1/g,
+        (_m, _q, contentType: string, content: string) => {
+            const cid = `img${i++}@disciplina`;
+            images.push({ cid, contentType, content });
+            return `src="cid:${cid}"`;
+        },
+    );
+    return { html: out, images };
+}
+
+function htmlPart(html: string): string {
+    return ['Content-Type: text/html; charset=utf-8', '', html].join('\r\n');
+}
+
+function inlineImagePart(img: InlineImage, boundary: string): string {
+    return [
+        `--${boundary}`,
+        `Content-Type: ${img.contentType}`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: inline; filename="${img.cid}"`,
+        `Content-ID: <${img.cid}>`,
+        '',
+        img.content,
+        '',
+    ].join('\r\n');
+}
+
+function attachmentPart(attachment: { filename: string; content: string; contentType?: string }, boundary: string): string {
+    return [
+        `--${boundary}`,
+        `Content-Type: ${attachment.contentType || 'application/octet-stream'}`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${attachment.filename}"`,
+        '',
+        attachment.content,
+        '',
+    ].join('\r\n');
+}
+
 export function buildRawMessage(options: SendEmailOptions): string {
-    const boundary = '==Disciplina==';
+    const { html, images } = extractInlineImages(options.html);
     const attachments = (options.attachments ?? []).filter((a) => a.content && a.filename);
     const subject = encodeSubject(options.subject);
+    const headers = ['MIME-Version: 1.0', `To: ${options.to}`, `Subject: ${subject}`];
 
     let message: string;
 
-    if (attachments.length === 0) {
+    if (images.length === 0 && attachments.length === 0) {
+        // HTML simple.
+        message = [...headers, htmlPart(html)].join('\r\n');
+    } else if (images.length > 0 && attachments.length === 0) {
+        // HTML + images inline → multipart/related.
+        const rel = '==Disciplina-rel==';
         message = [
-            'MIME-Version: 1.0',
-            `To: ${options.to}`,
-            `Subject: ${subject}`,
-            'Content-Type: text/html; charset=utf-8',
+            ...headers,
+            `Content-Type: multipart/related; boundary="${rel}"`,
             '',
-            options.html,
+            `--${rel}`,
+            htmlPart(html),
+            '',
+            ...images.map((img) => inlineImagePart(img, rel)),
+            `--${rel}--`,
+        ].join('\r\n');
+    } else if (images.length === 0) {
+        // HTML + pièces jointes → multipart/mixed.
+        const mix = '==Disciplina-mix==';
+        message = [
+            ...headers,
+            `Content-Type: multipart/mixed; boundary="${mix}"`,
+            '',
+            `--${mix}`,
+            htmlPart(html),
+            '',
+            ...attachments.map((a) => attachmentPart(a, mix)),
+            `--${mix}--`,
         ].join('\r\n');
     } else {
-        const attachmentParts = attachments.map((attachment) =>
-            [
-                `--${boundary}`,
-                `Content-Type: ${attachment.contentType || 'application/octet-stream'}`,
-                'Content-Transfer-Encoding: base64',
-                `Content-Disposition: attachment; filename="${attachment.filename}"`,
-                '',
-                attachment.content,
-                '',
-            ].join('\r\n'),
-        );
-
+        // HTML + images inline + pièces jointes → mixed { related { html, inline }, attachments }.
+        const mix = '==Disciplina-mix==';
+        const rel = '==Disciplina-rel==';
         message = [
-            'MIME-Version: 1.0',
-            `To: ${options.to}`,
-            `Subject: ${subject}`,
-            `Content-Type: multipart/mixed; boundary="${boundary}"`,
+            ...headers,
+            `Content-Type: multipart/mixed; boundary="${mix}"`,
             '',
-            `--${boundary}`,
-            'Content-Type: text/html; charset=utf-8',
+            `--${mix}`,
+            `Content-Type: multipart/related; boundary="${rel}"`,
             '',
-            options.html,
+            `--${rel}`,
+            htmlPart(html),
             '',
-            ...attachmentParts,
-            `--${boundary}--`,
+            ...images.map((img) => inlineImagePart(img, rel)),
+            `--${rel}--`,
+            '',
+            ...attachments.map((a) => attachmentPart(a, mix)),
+            `--${mix}--`,
         ].join('\r\n');
     }
 

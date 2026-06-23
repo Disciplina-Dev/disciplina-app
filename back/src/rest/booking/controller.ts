@@ -83,6 +83,13 @@ export async function updateMySettings(req: AuthRequest, res: Response): Promise
     if (b.location !== undefined) {
         patch.location = b.location ? String(b.location).trim().slice(0, 255) : null;
     }
+    if (b.confirmationSubject !== undefined) {
+        patch.confirmationSubject = b.confirmationSubject ? String(b.confirmationSubject).slice(0, 255) : null;
+    }
+    if (b.confirmationBody !== undefined) {
+        // TEXT MySQL ≈ 64 Ko ; on borne large pour éviter les abus.
+        patch.confirmationBody = b.confirmationBody ? String(b.confirmationBody).slice(0, 60000) : null;
+    }
 
     const settings = await bookingService.update(Number(req.user.id), patch);
     res.json({ settings });

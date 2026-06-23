@@ -3,12 +3,13 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect } from 'react'
+import Link from '@tiptap/extension-link'
+import { useEffect, useCallback } from 'react'
 import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Heading2,
+  Heading2, Link2, Unlink,
 } from 'lucide-react'
 
 interface RichTextEditorProps {
@@ -59,6 +60,11 @@ export default function RichTextEditor({
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer nofollow' },
+      }),
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -76,6 +82,21 @@ export default function RichTextEditor({
       editor.commands.setContent(value, false)
     }
   }, [value])
+
+  const setLink = useCallback(() => {
+    if (!editor) return
+    const prev = editor.getAttributes('link').href as string | undefined
+    const input = window.prompt('Adresse du lien (URL)', prev ?? 'https://')
+    if (input === null) return // annulé
+    const url = input.trim()
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run()
+      return
+    }
+    // Préfixe https:// si l'utilisateur n'a pas mis de schéma.
+    const href = /^(https?:\/\/|mailto:|tel:)/i.test(url) ? url : `https://${url}`
+    editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+  }, [editor])
 
   if (!editor) return null
 
@@ -105,6 +126,16 @@ export default function RichTextEditor({
         {btn('Liste', () => editor.chain().focus().toggleBulletList().run(), editor.isActive('bulletList'))}
         {btn('Liste numérotée', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'))}
         <Divider />
+        <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Insérer un lien">
+          <Link2 size={14} />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
+          title="Retirer le lien"
+        >
+          <Unlink size={14} />
+        </ToolbarButton>
+        <Divider />
         {btn('Gauche', () => editor.chain().focus().setTextAlign('left').run(), editor.isActive({ textAlign: 'left' }))}
         {btn('Centre', () => editor.chain().focus().setTextAlign('center').run(), editor.isActive({ textAlign: 'center' }))}
         {btn('Droite', () => editor.chain().focus().setTextAlign('right').run(), editor.isActive({ textAlign: 'right' }))}
@@ -122,6 +153,7 @@ export default function RichTextEditor({
         .tiptap ul { list-style: disc; padding-left: 1.5em; margin: 0.5em 0; }
         .tiptap ol { list-style: decimal; padding-left: 1.5em; margin: 0.5em 0; }
         .tiptap li { margin: 0.15em 0; }
+        .tiptap a { color: #2563eb; text-decoration: underline; cursor: pointer; }
         .tiptap p.is-editor-empty:first-child::before {
           color: #d1d5db;
           content: attr(data-placeholder);

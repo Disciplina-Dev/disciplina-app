@@ -223,7 +223,8 @@ export class KpiService {
             throw new Error(`Invalid site '${site}', expected one of ${KPI_SITES.join(', ')}`);
         }
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(buffer);
+        // Cast : drift de types entre @types/node (Buffer<ArrayBufferLike>) et la signature ExcelJS.
+        await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
         const errors: string[] = [];
 
         const moisSheets = workbook.worksheets.filter((ws) => /mois/i.test(ws.name)).map((ws) => ws.name);

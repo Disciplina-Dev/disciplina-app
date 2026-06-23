@@ -24,6 +24,9 @@ import {
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   GET_COMPANY_HISTORY,
+  GET_CONTACT_LOGS,
+  GET_CONTACT_LOG_STATS,
+  CREATE_CONTACT_LOG,
   GET_CANDIDATE_HISTORY,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
@@ -657,6 +660,38 @@ export function useCompanyHistory(companyID: number | null) {
     pause: companyID === null,
   })
   return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useContactLogs(companyID: number | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CONTACT_LOGS,
+    variables: { companyID: companyID ?? 0 },
+    pause: companyID === null,
+  })
+  return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useContactLogStats(pause = false) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CONTACT_LOG_STATS,
+    pause,
+  })
+  return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useCreateContactLog() {
+  const [result, executeMutation] = useMutation(CREATE_CONTACT_LOG)
+
+  const createContactLog = (companyID: number, comment: string) => {
+    return executeMutation({ companyID, comment }).then((response) => {
+      if (response.error) {
+        console.error('createContactLog failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { createContactLog, result }
 }
 
 export function useNeedsAnalysis(id: number | null) {

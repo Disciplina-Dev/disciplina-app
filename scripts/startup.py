@@ -175,6 +175,7 @@ def get_mysql_connection():
             password=password, database=database,
             ssl_disabled=False,
             connection_timeout=10,
+            charset='utf8mb4', collation='utf8mb4_0900_ai_ci',
         )
     # development: use individual vars, retry until local container is ready
     host = os.getenv('MYSQL_HOST', 'localhost')
@@ -189,6 +190,7 @@ def get_mysql_connection():
             conn = mysql.connector.connect(
                 host=host, port=port, user=user,
                 password=password, database=database,
+                charset='utf8mb4', collation='utf8mb4_0900_ai_ci',
             )
             conn.ping()
             return conn

@@ -1,7 +1,8 @@
 import { lazy, Suspense, useState } from 'react'
-import { BarChart3, Plus, ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { BarChart3, Plus, ShieldAlert, AlertTriangle, CheckCircle2, PhoneCall } from 'lucide-react'
 
-import { useCurrentUser, UserRole } from '@/store/authStore'
+import { useCurrentUser, UserRole, USERS } from '@/store/authStore'
+import { useContactLogStats } from '@/graphql/hooks'
 import { KPI_SITES, type KpiImportResult, type KpiMetricColumn, type KpiMetrics, type KpiSite } from '@/api/kpi'
 import { KPI_STATUS_METRICS } from '@/features/kpi/config'
 import { useKpiDashboard } from '@/features/kpi/useKpiDashboard'
@@ -37,6 +38,50 @@ export default function DashboardCommercial() {
   }
 
   return <KpiDashboard />
+}
+
+// ─── Prises de contact (appels) — total + par commercial ────────────────────
+function ContactStatsSection() {
+  const { data, fetching } = useContactLogStats()
+  const stats = data?.contactLogStats as { total: number; byUser: { userID: number; count: number }[] } | undefined
+
+  if (fetching && !stats) return null
+  if (!stats) return null
+
+  const byUser = [...stats.byUser].sort((a, b) => b.count - a.count)
+
+  return (
+    <section>
+      <h2 className="mb-4 flex items-center gap-2 text-[17px] font-bold text-gray-900">
+        <PhoneCall className="h-5 w-5 text-gray-400" />
+        Prises de contact
+      </h2>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">Total appels</p>
+          <p className="mt-1 text-[28px] font-extrabold leading-none text-gray-900">{stats.total}</p>
+        </div>
+        {byUser.map((u) => {
+          const user = USERS[String(u.userID)]
+          return (
+            <div key={u.userID} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
+              <div className="flex items-center gap-1.5">
+                {user?.initials && (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full text-white text-[10px] font-bold" style={{ backgroundColor: user.color }}>
+                    {user.initials}
+                  </span>
+                )}
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 truncate">
+                  {user?.name ?? `Utilisateur #${u.userID}`}
+                </p>
+              </div>
+              <p className="mt-1 text-[28px] font-extrabold leading-none text-gray-900">{u.count}</p>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 function KpiDashboard() {
@@ -181,6 +226,11 @@ function KpiDashboard() {
             {error}
           </div>
         )}
+
+        {/* ─── Prises de contact (appels) ──────────────────────────────────── */}
+        <div className="mb-8">
+          <ContactStatsSection />
+        </div>
 
         {summary && (
           <div className="space-y-8">

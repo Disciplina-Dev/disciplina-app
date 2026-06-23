@@ -178,6 +178,9 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
             await sendRdvConfirmation({
                 host, to: input.attendeeEmail, title: input.summary,
                 startIso: input.start, location: input.location, tz: settings.timezone,
+                durationMin: settings.durationMin,
+                confirmationSubject: settings.confirmationSubject,
+                confirmationBody: settings.confirmationBody,
             });
         }
         res.status(201).json({ event });

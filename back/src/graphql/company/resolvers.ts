@@ -1,5 +1,6 @@
 import { CompaniesService } from '../../services/CompaniesService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { ContactLogService } from '../../services/ContactLogService';
 import { toBlacklistedCompany } from '../../services/mappers/company.mapper';
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
 import { CompaniesRow } from '../../types/db-rows.types';
@@ -10,6 +11,7 @@ import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../servic
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
+const contactLogService = new ContactLogService();
 const userService = new UserService();
 
 interface CompanyInput {
@@ -161,6 +163,17 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return companiesService.getHistory(companyID);
         },
+
+        contactLogs: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            // Timeline interne : tous les rôles internes voient toutes les prises de contact.
+            return contactLogService.getByCompany(companyID);
+        },
+
+        contactLogStats: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.RESPONSABLE]);
+            return contactLogService.getStats();
+        },
     },
     Mutation: {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
@@ -185,7 +198,7 @@ export const resolvers = {
                 }
             }
             const rowData = mapInputToRow(input);
-            const company = await companiesService.update(id, rowData);
+            const company = await companiesService.update(id, rowData, Number(context.user.id));
             return {
                 ...company,
             };
@@ -211,6 +224,15 @@ export const resolvers = {
         unblacklistCompany: async (_: unknown, { id }: { id: number }, context: any) => {
             authGuard(context.user, [Role.RESPONSABLE]);
             return companiesBlacklistService.unblacklistCompany(id);
+        },
+        createContactLog: async (
+            _: unknown,
+            { companyID, comment }: { companyID: number; comment: string },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            // user_id provient toujours du token, jamais du body.
+            return contactLogService.create(companyID, Number(context.user.id), comment);
         },
     },
 };

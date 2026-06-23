@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Send, Paperclip, Trash2 } from 'lucide-react'
 import Button from './Button'
 import RichTextEditor from './RichTextEditor'
@@ -24,11 +24,13 @@ const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue transition-colors'
 
 export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, defaultSubject, defaultBody, defaultAttachments, onClose, onSent }: MailModalProps) {
-  const { templates, signatureImage } = useMailTemplatesStore(scope)
+  const { templates, signatureImage, load, resolveAttachment } = useMailTemplatesStore(scope)
   const token = useAuthStore((s) => s.token)
 
+  useEffect(() => { load() }, [load])
+
   const sigHtml = signatureImage
-    ? `<br/><img src="${signatureImage}" alt="signature" style="max-height:96px;max-width:320px"/>`
+    ? `<br/><img src="${signatureImage}" alt="signature" style="width:100%;max-width:480px;height:auto"/>`
     : ''
 
   const defaultTemplate = defaultTemplateId ? templates.find((t) => t.id === defaultTemplateId) : undefined
@@ -36,20 +38,35 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
   const [to, setTo] = useState(defaultTo)
   const [subject, setSubject] = useState(defaultSubject ?? defaultTemplate?.subject ?? '')
   const [body, setBody] = useState(defaultBody ?? (defaultTemplate ? `${defaultTemplate.body}${sigHtml}` : sigHtml))
-  const [attachments, setAttachments] = useState<MailAttachment[]>(
-    defaultAttachments ?? (defaultTemplate?.attachment ? [defaultTemplate.attachment] : []),
-  )
+  const [attachments, setAttachments] = useState<MailAttachment[]>(defaultAttachments ?? [])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
 
-  function applyTemplate(id: string) {
+  // Récupère la PJ du modèle appliqué par défaut (contenu stocké/zippé sur Drive).
+  useEffect(() => {
+    if (!defaultAttachments && defaultTemplate?.attachment) {
+      resolveAttachment(defaultTemplate.id)
+        .then((att) => setAttachments((prev) => [...prev, att]))
+        .catch(() => setError('Échec du chargement de la pièce jointe du modèle.'))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function applyTemplate(id: string) {
     if (!id) return
     const t = templates.find((t) => t.id === id)
     if (!t) return
     setSubject(t.subject)
     setBody(`${t.body}${sigHtml}`)
-    if (t.attachment) setAttachments((prev) => [...prev, t.attachment as MailAttachment])
+    if (t.attachment) {
+      try {
+        const att = await resolveAttachment(t.id)
+        setAttachments((prev) => [...prev, att])
+      } catch {
+        setError('Échec du chargement de la pièce jointe du modèle.')
+      }
+    }
   }
 
   function handleFile(file: File | undefined) {

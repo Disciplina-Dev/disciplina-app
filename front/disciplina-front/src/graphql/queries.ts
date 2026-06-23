@@ -910,6 +910,44 @@ export const GET_COMPANY_HISTORY = gql`
       updatedAt
       updatedColumn
       status
+      previousStatus
+      modifiedBy
+    }
+  }
+`
+
+export const GET_CONTACT_LOGS = gql`
+  query ContactLogs($companyID: Int!) {
+    contactLogs(companyID: $companyID) {
+      id
+      companyID
+      userID
+      comment
+      createdAt
+    }
+  }
+`
+
+export const GET_CONTACT_LOG_STATS = gql`
+  query ContactLogStats {
+    contactLogStats {
+      total
+      byUser {
+        userID
+        count
+      }
+    }
+  }
+`
+
+export const CREATE_CONTACT_LOG = gql`
+  mutation CreateContactLog($companyID: Int!, $comment: String!) {
+    createContactLog(companyID: $companyID, comment: $comment) {
+      id
+      companyID
+      userID
+      comment
+      createdAt
     }
   }
 `

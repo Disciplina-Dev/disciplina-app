@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, Save, Mail, ImagePlus, Paperclip } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Pencil, Trash2, X, Save, Mail, ImagePlus, Paperclip, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
-import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope, type MailAttachment } from '@/store/mailTemplatesStore'
+import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
@@ -11,20 +11,49 @@ interface FormState {
   name: string
   subject: string
   body: string
-  attachment: MailAttachment | null
+  // PJ déjà stockée sur Drive (métadonnées) ; null si aucune ou supprimée.
+  existingAttachment: { filename: string; contentType: string } | null
+  // Nouveau fichier à uploader (remplace l'existant) ; null sinon.
+  newFile: File | null
+  removeExisting: boolean
 }
 
-const EMPTY_FORM: FormState = { name: '', subject: '', body: '', attachment: null }
+const EMPTY_FORM: FormState = { name: '', subject: '', body: '', existingAttachment: null, newFile: null, removeExisting: false }
 
-// localStorage quota is ~5 MB for the whole store — keep template attachments small
-const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
+// Le fichier est zippé côté serveur puis stocké sur Drive — on tolère des PJ plus lourdes que l'ancien localStorage.
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+// Variables remplacées à l'envoi du mail de confirmation (cf. back/src/rest/booking/service.ts).
+const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boolean }[] = [
+  { token: 'nom', label: 'Nom de l’invité', example: 'Marie Dupont' },
+  { token: 'date', label: 'Date et heure complètes', example: 'lundi 22 juin 2026 à 14:30 (Indian/Reunion)', date: true },
+  { token: 'jour', label: 'Jour de la semaine', example: 'lundi', date: true },
+  { token: 'date_longue', label: 'Date en toutes lettres (sans heure)', example: 'lundi 22 juin 2026', date: true },
+  { token: 'date_courte', label: 'Date numérique', example: '22/06/2026', date: true },
+  { token: 'heure', label: 'Heure seule', example: '14:30', date: true },
+  { token: 'lieu', label: 'Lieu du rendez-vous', example: 'Visio' },
+  { token: 'titre', label: 'Titre du rendez-vous', example: 'Entretien DISCIPLINA' },
+  { token: 'duree', label: 'Durée', example: '30 minutes' },
+  { token: 'hote', label: 'Nom de l’hôte', example: 'Jean Martin' },
+]
 
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
-  const { templates, add, update, remove, signatureImage, setSignatureImage } = useMailTemplatesStore(scope)
+  const { templates, signatureImage, loading, loaded, error: storeError, load, add, update, remove, setSignature, removeSignature } =
+    useMailTemplatesStore(scope)
   const [editing, setEditing] = useState<MailTemplate | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const [sigSaved, setSigSaved] = useState(false)
+  const [copiedToken, setCopiedToken] = useState<string | null>(null)
+
+  useEffect(() => { load() }, [load])
+
+  function copyToken(token: string) {
+    navigator.clipboard?.writeText(`{{${token}}}`)
+    setCopiedToken(token)
+    setTimeout(() => setCopiedToken((c) => (c === token ? null : c)), 1500)
+  }
 
   function openNew() {
     setForm(EMPTY_FORM)
@@ -33,7 +62,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   }
 
   function openEdit(t: MailTemplate) {
-    setForm({ name: t.name, subject: t.subject, body: t.body, attachment: t.attachment ?? null })
+    setForm({ name: t.name, subject: t.subject, body: t.body, existingAttachment: t.attachment, newFile: null, removeExisting: false })
     setEditing(t)
     setError(null)
   }
@@ -41,19 +70,15 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   function handleAttachmentFile(file: File | undefined) {
     if (!file) return
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      setError('Pièce jointe trop lourde (max 2 Mo pour un modèle).')
+      setError('Pièce jointe trop lourde (max 10 Mo).')
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1]
-      setForm((f) => ({
-        ...f,
-        attachment: { filename: file.name, contentType: file.type || 'application/octet-stream', content: base64 },
-      }))
-      setError(null)
-    }
-    reader.readAsDataURL(file)
+    setForm((f) => ({ ...f, newFile: file, removeExisting: false }))
+    setError(null)
+  }
+
+  function clearAttachment() {
+    setForm((f) => ({ ...f, newFile: null, existingAttachment: null, removeExisting: true }))
   }
 
   function closeForm() {
@@ -61,24 +86,40 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
     setError(null)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim() || !form.subject.trim() || !form.body.trim()) {
       setError('Tous les champs sont requis.')
       return
     }
-    if (editing === 'new') {
-      add(form)
-    } else if (editing) {
-      update(editing.id, form)
+    setSaving(true)
+    setError(null)
+    try {
+      const data = { name: form.name, subject: form.subject, body: form.body }
+      if (editing === 'new') {
+        await add(data, form.newFile)
+      } else if (editing) {
+        await update(editing.id, data, form.newFile, form.removeExisting && !form.newFile)
+      }
+      closeForm()
+    } catch (e: any) {
+      setError(e.message ?? 'Échec de l’enregistrement.')
+    } finally {
+      setSaving(false)
     }
-    closeForm()
   }
 
-  function handleSaveSignature(dataUrl: string) {
-    setSignatureImage(dataUrl)
-    setSigSaved(true)
-    setTimeout(() => setSigSaved(false), 2000)
+  async function handleSaveSignature(file: File) {
+    setError(null)
+    try {
+      await setSignature(file)
+      setSigSaved(true)
+      setTimeout(() => setSigSaved(false), 2000)
+    } catch (e: any) {
+      setError(e.message ?? 'Échec de l’enregistrement de la signature.')
+    }
   }
+
+  const attachmentLabel = form.newFile?.name ?? form.existingAttachment?.filename ?? null
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-8">
@@ -87,9 +128,9 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
       <section className="flex flex-col gap-4">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Signature</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Ajoutée automatiquement à chaque mail</p>
+          <p className="text-sm text-gray-400 mt-0.5">Ajoutée automatiquement à chaque mail · stockée sur votre Drive</p>
         </div>
-        <SignatureEditor value={signatureImage} onSave={handleSaveSignature} saved={sigSaved} />
+        <SignatureEditor value={signatureImage} onSave={handleSaveSignature} onRemove={removeSignature} saved={sigSaved} />
       </section>
 
       <div className="border-t border-gray-100" />
@@ -99,12 +140,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Modèles de mail</h2>
-            <p className="text-sm text-gray-400 mt-0.5">Créez vos propres modèles réutilisables</p>
+            <p className="text-sm text-gray-400 mt-0.5">Créez vos propres modèles réutilisables · enregistrés sur le serveur</p>
           </div>
           <Button size="sm" leftIcon={<Plus size={15} />} onClick={openNew}>
             Nouveau modèle
           </Button>
         </div>
+
+        {storeError && <p className="text-xs text-red-500">{storeError}</p>}
 
         {/* Form */}
         {editing && (
@@ -150,23 +193,51 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
               />
             </div>
 
+            {/* Variables disponibles */}
+            <div className="rounded-[10px] border border-gray-100 bg-gray-50/60 p-3">
+              <p className="text-xs font-semibold text-gray-700">Variables disponibles</p>
+              <p className="mt-0.5 text-[11px] text-gray-400">
+                Insérez-les dans l’objet ou le corps : elles seront remplacées à l’envoi. Cliquez pour copier.
+              </p>
+              <div className="mt-2 flex flex-col gap-1">
+                {TEMPLATE_VARS.map((v) => (
+                  <button
+                    key={v.token}
+                    type="button"
+                    onClick={() => copyToken(v.token)}
+                    className={`group flex items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-white ${v.date ? 'ring-1 ring-purple/15' : ''}`}
+                    title="Copier"
+                  >
+                    <code className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${v.date ? 'bg-purple/10 text-purple' : 'bg-gray-200/70 text-gray-600'}`}>
+                      {`{{${v.token}}}`}
+                    </code>
+                    <span className="text-[11px] text-gray-500">{v.label}</span>
+                    <span className="ml-auto truncate text-[11px] italic text-gray-300 group-hover:text-gray-400">
+                      {copiedToken === v.token ? 'Copié !' : `ex : ${v.example}`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-gray-400">
+                <span className="inline-block h-2 w-2 rounded-full bg-purple/40 align-middle" /> Paramètres de date pour personnaliser finement.
+              </p>
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">Pièce jointe (optionnelle)</label>
-              {form.attachment ? (
+              {attachmentLabel ? (
                 <div className="flex items-center gap-2 rounded-[10px] border border-gray-100 px-4 py-2.5">
                   <Paperclip size={15} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-700 flex-1 truncate">{form.attachment.filename}</span>
-                  <button
-                    onClick={() => setForm((f) => ({ ...f, attachment: null }))}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
-                  >
+                  <span className="text-sm text-gray-700 flex-1 truncate">{attachmentLabel}</span>
+                  {form.newFile && <span className="text-[11px] text-purple shrink-0">nouveau</span>}
+                  <button onClick={clearAttachment} className="text-gray-400 hover:text-red-500 transition-colors">
                     <Trash2 size={15} />
                   </button>
                 </div>
               ) : (
                 <label className="flex items-center gap-2 cursor-pointer rounded-[10px] border border-dashed border-gray-200 px-4 py-2.5 text-sm text-gray-400 hover:border-blue hover:text-blue transition-colors">
                   <Paperclip size={15} />
-                  Joindre un document au modèle (max 2 Mo)
+                  Joindre un document au modèle (max 10 Mo)
                   <input type="file" className="hidden" onChange={(e) => handleAttachmentFile(e.target.files?.[0])} />
                 </label>
               )}
@@ -175,8 +246,8 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
             {error && <p className="text-xs text-red-500">{error}</p>}
 
             <div className="flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={closeForm}>Annuler</Button>
-              <Button size="sm" leftIcon={<Save size={15} />} onClick={handleSave}>
+              <Button variant="secondary" size="sm" onClick={closeForm} disabled={saving}>Annuler</Button>
+              <Button size="sm" leftIcon={<Save size={15} />} isLoading={saving} onClick={handleSave}>
                 Sauvegarder
               </Button>
             </div>
@@ -184,12 +255,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         )}
 
         {/* Liste */}
-        {templates.length === 0 && !editing ? (
+        {loading && templates.length === 0 ? (
+          <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-purple" /></div>
+        ) : templates.length === 0 && !editing ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 py-16 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
               <Mail size={22} className="text-gray-400" />
             </div>
-            <p className="text-sm text-gray-500">Aucun modèle pour l'instant</p>
+            <p className="text-sm text-gray-500">{loaded ? "Aucun modèle pour l'instant" : 'Chargement…'}</p>
             <Button size="sm" variant="secondary" leftIcon={<Plus size={15} />} onClick={openNew}>
               Créer un modèle
             </Button>
@@ -245,29 +318,35 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
 function SignatureEditor({
   value,
   onSave,
+  onRemove,
   saved,
 }: {
   value: string
-  onSave: (dataUrl: string) => void
+  onSave: (file: File) => void
+  onRemove: () => void
   saved: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState(value)
+  const [file, setFile] = useState<File | null>(null)
 
-  function handleFile(file: File | undefined) {
-    if (!file) return
+  useEffect(() => { setPreview(value); setFile(null) }, [value])
+
+  function handleFile(f: File | undefined) {
+    if (!f) return
+    setFile(f)
     const reader = new FileReader()
     reader.onload = () => setPreview(reader.result as string)
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(f)
   }
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 flex flex-col gap-4">
       {preview ? (
         <div className="flex flex-col gap-3">
-          <img src={preview} alt="Signature" className="max-h-24 max-w-xs object-contain" />
+          <img src={preview} alt="Signature" className="w-full max-w-[480px] h-auto object-contain" />
           <button
-            onClick={() => { setPreview(''); onSave('') }}
+            onClick={() => { setPreview(''); setFile(null); onRemove() }}
             className="self-start text-xs text-red-400 hover:text-red-600 transition-colors"
           >
             Supprimer
@@ -288,7 +367,7 @@ function SignatureEditor({
       )}
 
       <div className="flex justify-end">
-        <Button size="sm" leftIcon={<Save size={15} />} onClick={() => onSave(preview)}>
+        <Button size="sm" leftIcon={<Save size={15} />} disabled={!file} onClick={() => file && onSave(file)}>
           {saved ? 'Sauvegardé !' : 'Sauvegarder la signature'}
         </Button>
       </div>

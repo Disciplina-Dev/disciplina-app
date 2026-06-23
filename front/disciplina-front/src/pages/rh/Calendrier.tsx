@@ -10,6 +10,7 @@ import {
   type BookingSettings, type WorkingHours,
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
+import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import {
   fetchCalendarEvents, fetchCalendarUsers, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
@@ -359,6 +360,10 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const mailTemplates = useRhMailTemplatesStore((s) => s.templates)
+  const loadMailTemplates = useRhMailTemplatesStore((s) => s.load)
+
+  useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   useEffect(() => {
     fetchMyBookingSettings(token)
@@ -402,6 +407,7 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
         durationMin: settings.durationMin, bufferMin: settings.bufferMin,
         minNoticeHours: settings.minNoticeHours, maxDaysAhead: settings.maxDaysAhead,
         timezone: settings.timezone, workingHours: settings.workingHours,
+        confirmationSubject: settings.confirmationSubject, confirmationBody: settings.confirmationBody,
       })
       setSettings(updated)
       onClose()
@@ -466,6 +472,41 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
               <Field label="Horizon max (jours)">
                 <input type="number" min={1} max={365} value={settings.maxDaysAhead} onChange={(e) => patch({ maxDaysAhead: Number(e.target.value) })} className={inputCls} />
               </Field>
+            </div>
+
+            {/* Mail de confirmation */}
+            <div className="rounded-xl border border-gray-100 p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                <Mail size={13} /> Mail de confirmation
+              </p>
+              <select
+                value={
+                  settings.confirmationBody
+                    ? (mailTemplates.find((t) => t.body === settings.confirmationBody)?.id ?? '__custom')
+                    : ''
+                }
+                onChange={(e) => {
+                  const id = e.target.value
+                  if (!id) { patch({ confirmationSubject: null, confirmationBody: null }); return }
+                  const tpl = mailTemplates.find((t) => t.id === id)
+                  if (tpl) patch({ confirmationSubject: tpl.subject, confirmationBody: tpl.body })
+                }}
+                className={inputCls}
+              >
+                <option value="">Mail par défaut</option>
+                {settings.confirmationBody && !mailTemplates.some((t) => t.body === settings.confirmationBody) && (
+                  <option value="__custom">Modèle enregistré (introuvable)</option>
+                )}
+                {mailTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+                Modèles gérés dans « Modèles de mail ». Variables disponibles :{' '}
+                <code>{'{{nom}}'}</code> <code>{'{{date}}'}</code> <code>{'{{jour}}'}</code>{' '}
+                <code>{'{{date_longue}}'}</code> <code>{'{{date_courte}}'}</code> <code>{'{{heure}}'}</code>{' '}
+                <code>{'{{lieu}}'}</code> <code>{'{{titre}}'}</code> <code>{'{{duree}}'}</code> <code>{'{{hote}}'}</code>.
+              </p>
             </div>
 
             {/* Plages horaires */}

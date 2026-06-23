@@ -127,6 +127,26 @@ export const typeDefs = gql`
         updatedAt: String!
         updatedColumn: String!
         status: String!
+        previousStatus: String
+        modifiedBy: Int
+    }
+
+    type ContactLog {
+        id: Int!
+        companyID: Int!
+        userID: Int!
+        comment: String!
+        createdAt: String!
+    }
+
+    type ContactLogUserCount {
+        userID: Int!
+        count: Int!
+    }
+
+    type ContactLogStats {
+        total: Int!
+        byUser: [ContactLogUserCount!]!
     }
 
     type Query {
@@ -138,6 +158,8 @@ export const typeDefs = gql`
         companyBySiret(siret: String!): Company
         blacklistedCompanies(first: Int, after: String, search: String): BlacklistedCompanyConnection!
         companyHistory(companyID: Int!): [CompanyHistory!]!
+        contactLogs(companyID: Int!): [ContactLog!]!
+        contactLogStats: ContactLogStats!
     }
 
     type Mutation {
@@ -146,5 +168,6 @@ export const typeDefs = gql`
         deleteCompany(id: Int!): Boolean!
         blacklistCompany(id: Int!, reason: String!, allBlacklist: Boolean!): Boolean!
         unblacklistCompany(id: Int!): Boolean!
+        createContactLog(companyID: Int!, comment: String!): ContactLog!
     }
 `;

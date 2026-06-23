@@ -105,7 +105,7 @@ export class CompaniesService {
         return toCompanies(created);
     }
 
-    async update(id: number, data: Partial<CompaniesRow>): Promise<Companies> {
+    async update(id: number, data: Partial<CompaniesRow>, modifiedBy?: number | null): Promise<Companies> {
         if (!id || id <= 0) {
             throw new Error('Valid company ID is required');
         }
@@ -120,6 +120,9 @@ export class CompaniesService {
             return existingValue !== incomingValue;
         });
 
+        // Statut avant modification, conservé pour tracer les transitions de statut.
+        const previousStatus = existing.status ?? null;
+
         await this.repository.update(id, data);
         const updated = await this.repository.findById(id);
         if (!updated) {
@@ -131,6 +134,8 @@ export class CompaniesService {
                 company_id: id,
                 updated_column: changedColumns.join(', '),
                 status: updated.status ?? existing.status ?? '',
+                previous_status: previousStatus,
+                modified_by: modifiedBy ?? null,
             });
         }
 
