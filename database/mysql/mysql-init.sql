@@ -134,6 +134,10 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
     -- Etape 2: Entreprise
     company_sectors JSON DEFAULT NULL,
     company_description TEXT DEFAULT NULL,
+    opco ENUM(
+        'AKTO', 'ATLAS', 'AFDAS', 'CONSTRUCTYS', 'OCAPIAT', 'OPCO_2I',
+        'OPCO_EP', 'OPCO_MOBILITES', 'OPCO_SANTE', 'OPCOMMERCE', 'UNIFORMATION'
+    ) DEFAULT NULL,
 
     -- Etape 3: Le Poste & Les Missions
     positions_count INT NOT NULL DEFAULT 1,

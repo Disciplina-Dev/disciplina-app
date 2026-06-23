@@ -16,6 +16,19 @@ export interface NeedsAnalysis {
     recruitmentResponsibleFunction: string | null;
     companySectors: string[];
     companyDescription: string | null;
+    opco:
+        | 'AKTO'
+        | 'ATLAS'
+        | 'AFDAS'
+        | 'CONSTRUCTYS'
+        | 'OCAPIAT'
+        | 'OPCO_2I'
+        | 'OPCO_EP'
+        | 'OPCO_MOBILITES'
+        | 'OPCO_SANTE'
+        | 'OPCOMMERCE'
+        | 'UNIFORMATION'
+        | null;
     positionsCount: number;
     positions: NeedsAnalysisPosition[];
     localisation: 'NORD' | 'OUEST' | 'SUD';

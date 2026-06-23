@@ -74,6 +74,17 @@ function label(v: string | null | undefined): string {
         PRESELECTION: 'Présélection des CV par le centre de formation',
         PRE_INTERVIEW: 'Pré-entretien des CV par le centre de formation',
         A_DISCUTER: 'A discuter ensemble',
+        AKTO: 'AKTO',
+        ATLAS: 'ATLAS',
+        AFDAS: 'Afdas',
+        CONSTRUCTYS: 'Constructys',
+        OCAPIAT: 'OCAPIAT',
+        OPCO_2I: 'Opco 2i',
+        OPCO_EP: 'Opco EP',
+        OPCO_MOBILITES: 'Opco Mobilités',
+        OPCO_SANTE: 'Opco Santé',
+        OPCOMMERCE: "L'Opcommerce",
+        UNIFORMATION: 'Uniformation',
     };
     return MAP[v ?? ''] ?? esc(v);
 }
@@ -103,8 +114,11 @@ function parseDays(raw: string): Record<string, string> {
     }
 }
 
+// Marqueur radio dessiné en CSS (et non via les glyphes ●/○ Unicode) : sur un
+// Chromium headless sans la police adéquate, ○ retombe sur un glyphe plein et
+// les deux options paraissent cochées. Un span stylé rend de façon déterministe.
 function chk(selected: boolean): string {
-    return selected ? '●' : '○';
+    return `<span class="mark${selected ? ' on' : ''}"></span>`;
 }
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
@@ -274,6 +288,20 @@ ${fr('Localisation du poste :', label(p.localisation))}
   }
   .option { margin-right: 20px; white-space: nowrap; }
 
+  .mark {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border: 1.3px solid #000;
+    border-radius: 50%;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .mark.on { background: #000; }
+
   .option-block { margin-left: 20px; line-height: 1.9; font-size: 10.5pt; }
   .day-row      { margin-left: 18px; line-height: 2;   font-size: 10.5pt; }
 
@@ -349,6 +377,7 @@ ${sh("A propos de l'entreprise")}
     }</div>
 </div>
 ${secteurs ? fr("Secteur(s) d'activité :", secteurs) : company.sector ? fr("Secteur d'activité :", company.sector) : ''}
+${analysis.opco ? fr('OPCO :', label(analysis.opco)) : ''}
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
 
 ${positionBlocks}

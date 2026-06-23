@@ -17,6 +17,18 @@ import { useCreateNeedsAnalysis } from '@/graphql/hooks'
 type DayStatus = 'OUI' | 'NON' | 'PREFERE'
 type TrainingDomain = 'SECRETARIAT' | 'VENTE'
 type Localisation = 'NORD' | 'OUEST' | 'SUD'
+type Opco =
+  | 'AKTO'
+  | 'ATLAS'
+  | 'AFDAS'
+  | 'CONSTRUCTYS'
+  | 'OCAPIAT'
+  | 'OPCO_2I'
+  | 'OPCO_EP'
+  | 'OPCO_MOBILITES'
+  | 'OPCO_SANTE'
+  | 'OPCOMMERCE'
+  | 'UNIFORMATION'
 
 interface TrainingDaysState {
   monday: DayStatus
@@ -51,6 +63,7 @@ interface FormData {
   recruitmentResponsiblePhone: string
   recruitmentResponsibleEmail: string
   companySectors: string[]
+  opco: Opco | undefined
   companyDescriptionOther: string
   jobDescriptionOther: string
   softSkills: string[]
@@ -94,6 +107,20 @@ const SECTEURS = [
   'Immobilier',
   'Éducation / Formation',
   'Agriculture / Agroalimentaire',
+]
+
+const OPCO_OPTIONS: { value: Opco; label: string }[] = [
+  { value: 'AKTO', label: 'AKTO' },
+  { value: 'ATLAS', label: 'ATLAS' },
+  { value: 'AFDAS', label: 'Afdas' },
+  { value: 'CONSTRUCTYS', label: 'Constructys' },
+  { value: 'OCAPIAT', label: 'OCAPIAT' },
+  { value: 'OPCO_2I', label: 'Opco 2i' },
+  { value: 'OPCO_EP', label: 'Opco EP' },
+  { value: 'OPCO_MOBILITES', label: 'Opco Mobilités' },
+  { value: 'OPCO_SANTE', label: 'Opco Santé' },
+  { value: 'OPCOMMERCE', label: "L'Opcommerce" },
+  { value: 'UNIFORMATION', label: 'Uniformation' },
 ]
 
 const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
@@ -453,6 +480,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       recruitmentResponsiblePhone:    '',
       recruitmentResponsibleEmail:    '',
       companySectors:           [],
+      opco:                     undefined,
       companyDescriptionOther:  '',
       jobDescriptionOther:      '',
       softSkills:               [],
@@ -550,6 +578,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       legalRepFunction:   resolveFunction(data.legalRepFunction, data.legalRepFunctionOther),
       ...responsible,
       companySectors:     companySectors,
+      opco:               data.opco || null,
       companyDescription: data.companyDescriptionOther || null,
       positionsCount:     postes.length,
       positions:          postes.map((p) => ({
@@ -738,6 +767,21 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   onChange={(v) => setValue('companySectors', v)}
                   columns={2}
                 />
+
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="opco" className="text-sm font-medium text-gray-700">
+                    OPCO <span className="text-gray-400">(optionnel)</span>
+                  </label>
+                  <select
+                    id="opco"
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    {...register('opco')}>
+                    <option value="">Sélectionnez l'OPCO de l'entreprise…</option>
+                    {OPCO_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <TextareaField id="companyDescriptionOther" label="Précisions complémentaires" optional rows={3}
                   placeholder="Mission globale, spécificités de l'entreprise…"

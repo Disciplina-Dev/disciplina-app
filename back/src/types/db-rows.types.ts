@@ -76,6 +76,19 @@ export interface NeedsAnalysisRow {
     recruitment_responsible_function: string | null;
     company_sectors: string | null; // JSON string
     company_description: string | null;
+    opco:
+        | 'AKTO'
+        | 'ATLAS'
+        | 'AFDAS'
+        | 'CONSTRUCTYS'
+        | 'OCAPIAT'
+        | 'OPCO_2I'
+        | 'OPCO_EP'
+        | 'OPCO_MOBILITES'
+        | 'OPCO_SANTE'
+        | 'OPCOMMERCE'
+        | 'UNIFORMATION'
+        | null;
     positions_count: number;
     positions: string | null; // JSON string
     localisation: 'NORD' | 'OUEST' | 'SUD';

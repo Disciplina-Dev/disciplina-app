@@ -12,6 +12,20 @@ export const typeDefs = gql`
         VENTE
     }
 
+    enum Opco {
+        AKTO
+        ATLAS
+        AFDAS
+        CONSTRUCTYS
+        OCAPIAT
+        OPCO_2I
+        OPCO_EP
+        OPCO_MOBILITES
+        OPCO_SANTE
+        OPCOMMERCE
+        UNIFORMATION
+    }
+
     enum EducationLevel {
         BAC
         BAC_PLUS_2
@@ -72,6 +86,7 @@ export const typeDefs = gql`
         recruitmentResponsibleFunction: String
         companySectors: [String!]!
         companyDescription: String
+        opco: Opco
         positionsCount: Int!
         positions: [NeedsAnalysisPosition!]!
         localisation: Localisation!
@@ -110,6 +125,7 @@ export const typeDefs = gql`
         recruitmentResponsibleFunction: String
         companySectors: [String!]
         companyDescription: String
+        opco: Opco
         positionsCount: Int
         positions: [NeedsAnalysisPositionInput!]
         localisation: Localisation

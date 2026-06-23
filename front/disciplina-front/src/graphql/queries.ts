@@ -863,6 +863,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       recruitmentResponsibleFunction
       companySectors
       companyDescription
+      opco
       positionsCount
       positions {
         trainingDomain
