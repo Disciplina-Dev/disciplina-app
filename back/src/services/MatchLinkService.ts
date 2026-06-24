@@ -7,6 +7,8 @@ import { generateSignature, generateNumericCode, generateIdentifier, timingSafeE
 import { issueMatchToken } from './matchToken';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { CandidateHistoryType } from '../types/candidate.types';
+import { InterviewAccessService } from './InterviewAccessService';
+import { InterviewMailService } from './InterviewMailService';
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
@@ -31,6 +33,7 @@ export interface AnswerInput {
     candidateId: string;
     answer: ProposedCandidateAnswer;
     interviewSlots?: string[];
+    interviewLocation?: string;
     comment?: string;
 }
 
@@ -69,6 +72,8 @@ export class MatchLinkService {
         private readonly matchLinkRepository = new MatchLinkRepository(),
         private readonly jobRepository = new JobRepository(),
         private readonly candidateHistoryService = new CandidateHistoryService(),
+        private readonly interviewAccessService = new InterviewAccessService(),
+        private readonly interviewMailService = new InterviewMailService(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -163,12 +168,22 @@ export class MatchLinkService {
         const proposedIds = new Set((job?.proposed_candidate ?? []).map((c) => c.id));
         validateAnswers(answers, proposedIds);
 
+        // The shared interview-slot pool is set once per submission, not per candidate.
+        // A resubmission represents a deliberate new pool, so it replaces rather than merges.
+        const slotsAnswer = answers.find((a) => a.interviewSlots?.length);
+        if (slotsAnswer?.interviewSlots) {
+            await this.jobRepository.setJobInterviewSlots(
+                row.job_uuid,
+                slotsAnswer.interviewSlots,
+                slotsAnswer.interviewLocation,
+            );
+        }
+
         for (const answer of answers) {
             await this.jobRepository.setProposedCandidateAnswer(
                 row.job_uuid,
                 answer.candidateId,
                 answer.answer,
-                answer.interviewSlots,
                 answer.comment,
             );
             await this.candidateHistoryService.recordAuto(
@@ -176,13 +191,6 @@ export class MatchLinkService {
                 CandidateHistoryType.COMPANY,
                 this.buildProposedAnswerLabel(answer.answer),
             );
-            if (answer.interviewSlots?.length) {
-                await this.candidateHistoryService.recordAuto(
-                    answer.candidateId,
-                    CandidateHistoryType.COMPANY,
-                    "Les dates d'entretien ont été envoyé au candidat",
-                );
-            }
             if (answer.answer === ProposedCandidateAnswer.REFUSED && answer.comment) {
                 await this.candidateHistoryService.recordAuto(
                     answer.candidateId,
@@ -190,8 +198,34 @@ export class MatchLinkService {
                     `Motif du refus : ${answer.comment}`,
                 );
             }
+            if (
+                (answer.answer === ProposedCandidateAnswer.ACCEPTED ||
+                    answer.answer === ProposedCandidateAnswer.FAVORITE) &&
+                slotsAnswer?.interviewSlots?.length
+            ) {
+                await this.triggerInterviewAccess(row.job_uuid, answer.candidateId, row.rh_email, job?.company_name);
+            }
         }
         await this.matchLinkRepository.setStatus(signature, MatchLinkStatus.COMPLETED);
+    }
+
+    private async triggerInterviewAccess(
+        jobId: string,
+        candidateId: string,
+        rhEmail: string,
+        companyName?: string,
+    ): Promise<void> {
+        const job = await this.jobRepository.find(jobId);
+        const candidate = job?.proposed_candidate?.find((c) => c.id === candidateId);
+        if (!candidate?.email) return;
+        const { signature, code } = await this.interviewAccessService.createAccess(jobId, candidateId, rhEmail);
+        await this.interviewMailService.sendInvitation(
+            rhEmail,
+            candidate.email,
+            companyName ?? "l'entreprise",
+            signature,
+            code,
+        );
     }
 
     private async registerFailedAttempt(signature: string): Promise<AuthResult> {

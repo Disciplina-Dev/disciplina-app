@@ -29,6 +29,7 @@ export default function MatchComparator() {
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, ProposedAnswer>>({})
   const [slots, setSlots] = useState<string[]>([''])
+  const [location, setLocation] = useState('')
   const [comments, setComments] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
@@ -59,11 +60,18 @@ export default function MatchComparator() {
     setBusy(true)
     setLoadError(null)
     const cleanSlots = slots.map((s) => s.trim()).filter(Boolean)
+    const cleanLocation = location.trim() || undefined
     const payload: SubmitAnswerPayload[] = candidates.map((candidate) => {
       const answer = answers[candidate.id]
       const withSlots = answer === 'ACCEPTED' || answer === 'FAVORITE'
       const comment = answer === 'REFUSED' ? comments[candidate.id]?.trim() || undefined : undefined
-      return { candidateId: candidate.id, answer, interviewSlots: withSlots ? cleanSlots : undefined, comment }
+      return {
+        candidateId: candidate.id,
+        answer,
+        interviewSlots: withSlots ? cleanSlots : undefined,
+        interviewLocation: withSlots ? cleanLocation : undefined,
+        comment,
+      }
     })
     try {
       await submitMatchAnswers(signature, token, payload)
@@ -157,7 +165,14 @@ export default function MatchComparator() {
 
         {hasSelection && (
           <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-            <InterviewProposalForm slots={slots} onChange={setSlots} />
+            <InterviewProposalForm
+              slots={slots}
+              onChange={setSlots}
+              location={location}
+              onLocationChange={setLocation}
+              signature={signature}
+              token={token!}
+            />
           </div>
         )}
 

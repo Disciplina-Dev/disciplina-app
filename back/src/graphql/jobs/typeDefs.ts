@@ -107,10 +107,10 @@ export const typeDefs = gql`
         description: String
         answer: ProposedCandidateAnswer
         comment: String
-        interviewSlots: [String]
         interviewDate: String
         interviewHour: String
         interviewLocation: String
+        bookedInterviewSlot: String
     }
 
     input ProposedCandidateInput {
@@ -137,6 +137,8 @@ export const typeDefs = gql`
         matchedCandidate: [MatchingCandidate]
         suggestedCandidates: [MatchingCandidate]
         proposedCandidate: [ProposedCandidate]
+        interviewSlots: [String]
+        interviewLocation: String
     }
 
     input MatchingCandidateInput {

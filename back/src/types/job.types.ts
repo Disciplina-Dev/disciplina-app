@@ -95,10 +95,10 @@ export interface ProposedCandidate extends MatchingCandidate {
     description?: string;
     cv_webview?: string;
     answer?: ProposedCandidateAnswer | null;
-    interview_slots?: string[];
     interview_date?: string;
     interview_hour?: string;
     interview_location?: string;
+    booked_interview_slot?: string;
     comment?: string;
 }
 
@@ -116,4 +116,6 @@ export interface Job {
     matched?: boolean;
     matched_candidate?: MatchingCandidate[];
     proposed_candidate?: ProposedCandidate[];
+    interview_slots?: string[];
+    interview_location?: string;
 }

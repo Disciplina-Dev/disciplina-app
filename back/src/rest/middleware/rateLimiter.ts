@@ -43,6 +43,15 @@ export const matchRateLimiter = rateLimit({
     message: { error: { code: 429, message: 'Trop de requêtes, réessayez plus tard.' } },
 });
 
+// Choix de créneau candidat public (vérif signature / code) : non authentifié, plafonné par IP.
+export const interviewRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 429, message: 'Trop de requêtes, réessayez plus tard.' } },
+});
+
 // Réservation publique : non authentifiée, donc plafonnée par IP.
 export const bookingRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
