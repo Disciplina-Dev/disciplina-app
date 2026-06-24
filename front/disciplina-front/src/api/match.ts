@@ -33,7 +33,13 @@ export interface SubmitAnswerPayload {
   candidateId: string;
   answer: ProposedAnswer;
   interviewSlots?: string[];
+  interviewLocation?: string;
   comment?: string;
+}
+
+export interface MatchAddressCompletionResult {
+  status: 'OK' | 'KO';
+  results: string[];
 }
 
 async function matchFetch(path: string, init?: RequestInit, token?: string): Promise<Response> {
@@ -98,6 +104,19 @@ export async function getMatchCv(signature: string, candidateId: string, token: 
     'Chargement du CV échoué',
   );
   return (await res.json()) as MatchCvFile;
+}
+
+export async function getMatchAddressCompletion(
+  signature: string,
+  token: string,
+  input: string,
+): Promise<MatchAddressCompletionResult> {
+  const res = await matchFetch(
+    `/${signature}/completion?input=${encodeURIComponent(input)}`,
+    undefined,
+    token,
+  );
+  return (await res.json()) as MatchAddressCompletionResult;
 }
 
 export async function submitMatchAnswers(

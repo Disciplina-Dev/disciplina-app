@@ -31,6 +31,7 @@ export interface AnswerInput {
     candidateId: string;
     answer: ProposedCandidateAnswer;
     interviewSlots?: string[];
+    interviewLocation?: string;
     comment?: string;
 }
 
@@ -169,6 +170,7 @@ export class MatchLinkService {
                 answer.candidateId,
                 answer.answer,
                 answer.interviewSlots,
+                answer.interviewLocation,
                 answer.comment,
             );
             await this.candidateHistoryService.recordAuto(
@@ -177,10 +179,11 @@ export class MatchLinkService {
                 this.buildProposedAnswerLabel(answer.answer),
             );
             if (answer.interviewSlots?.length) {
+                const locationSuffix = answer.interviewLocation ? ` à ${answer.interviewLocation}` : '';
                 await this.candidateHistoryService.recordAuto(
                     answer.candidateId,
                     CandidateHistoryType.COMPANY,
-                    "Les dates d'entretien ont été envoyé au candidat",
+                    `Les dates d'entretien ont été envoyé au candidat${locationSuffix}`,
                 );
             }
             if (answer.answer === ProposedCandidateAnswer.REFUSED && answer.comment) {

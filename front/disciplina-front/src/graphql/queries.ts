@@ -701,7 +701,10 @@ export const MATCH_JOB = gql`
         description
         answer
         comment
-        interviewSlots
+        interview {
+          interviewSlots
+          interviewLocation
+        }
       }
     }
   }
@@ -754,7 +757,10 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         email
         description
         answer
-        interviewSlots
+        interview {
+          interviewSlots
+          interviewLocation
+        }
         interviewDate
         interviewHour
         interviewLocation

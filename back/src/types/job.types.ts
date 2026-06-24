@@ -91,11 +91,16 @@ export interface MatchingCandidate {
     status?: MatchedCandidateStatus;
 }
 
+export interface JobInterview {
+    interview_slots?: string[];
+    interview_location?: string;
+}
+
 export interface ProposedCandidate extends MatchingCandidate {
     description?: string;
     cv_webview?: string;
     answer?: ProposedCandidateAnswer | null;
-    interview_slots?: string[];
+    interview?: JobInterview;
     interview_date?: string;
     interview_hour?: string;
     interview_location?: string;

@@ -80,7 +80,7 @@ interface ProposedCandidate {
   description: string | null
   answer: ProposedCandidateAnswer | null
   comment?: string | null
-  interviewSlots: string[] | null
+  interview?: { interviewSlots: string[] | null; interviewLocation?: string | null } | null
   interviewDate?: string
   interviewHour?: string
   interviewLocation?: string
@@ -775,11 +775,12 @@ async function hasCandidateCv(candidateId: string): Promise<boolean> {
   return Boolean(result.data?.candidate?.cvLink)
 }
 
-function buildInterviewDatesMailBody(companyName: string, candidateName: string, slots: string[]): string {
+function buildInterviewDatesMailBody(companyName: string, candidateName: string, slots: string[], location?: string | null): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
   const items = slots
-    .map((s) => `<li>${new Date(s).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</li>`)
+    .map((s) => `<li>${new Date(s).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })}</li>`)
     .join('')
+  const locationLine = location ? `<p><strong>Localisation :</strong> ${location}</p>` : ''
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -788,6 +789,7 @@ function buildInterviewDatesMailBody(companyName: string, candidateName: string,
   <p>Bonjour ${name},</p>
   <p>L'entreprise <strong>${companyName}</strong> souhaite vous rencontrer. Voici les créneaux d'entretien proposés :</p>
   <ul>${items}</ul>
+  ${locationLine}
   <p>Merci de nous indiquer le créneau qui vous convient.</p>
   <p style="margin-top:40px;color:#9ca3af;font-size:12px;">Cordialement,<br>L'équipe DISCIPLINA</p>
 </body>
@@ -796,7 +798,7 @@ function buildInterviewDatesMailBody(companyName: string, candidateName: string,
 
 function buildManualInterviewMailBody(companyName: string, candidateName: string, interviewDate: string, interviewHour: string, interviewLocation: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const dateFormatted = new Date(`${interviewDate}T${interviewHour}`).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+  const dateFormatted = new Date(`${interviewDate}T${interviewHour}`).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -946,7 +948,7 @@ function MatchingSection({
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
 function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 function ProposedCandidatesSection({
@@ -974,7 +976,8 @@ function ProposedCandidatesSection({
       </div>
       <div className="flex flex-col gap-2">
         {candidates.map((c) => {
-          const slots = c.interviewSlots ?? []
+          const slots = c.interview?.interviewSlots ?? []
+          const slotsLocation = c.interview?.interviewLocation
           const canSendDates = (c.answer === ProposedCandidateAnswer.ACCEPTED || c.answer === ProposedCandidateAnswer.FAVORITE) && slots.length > 0
           return (
             <div key={c.id} className="rounded-lg border border-gray-100 p-3">
@@ -997,7 +1000,7 @@ function ProposedCandidatesSection({
                 <div className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
                   <p>
                     <CalendarClock size={11} className="inline mr-1" />
-                    {new Date(`${c.interviewDate}T${c.interviewHour}`).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(`${c.interviewDate}T${c.interviewHour}`).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}
                   </p>
                   <p>📍 {c.interviewLocation}</p>
                 </div>
@@ -1010,6 +1013,9 @@ function ProposedCandidatesSection({
                     </span>
                   ))}
                 </div>
+              )}
+              {slotsLocation && (
+                <p className="mt-1.5 text-[11px] text-gray-600">📍 {slotsLocation}</p>
               )}
               {(canSendDates || (c.answer === ProposedCandidateAnswer.ACCEPTED && c.interviewDate && c.interviewHour && c.interviewLocation)) && (
                 <button
@@ -1508,7 +1514,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
               : buildInterviewDatesMailBody(
                   jobData.companyName,
                   datesMailState.fullName,
-                  datesMailState.interviewSlots ?? [],
+                  datesMailState.interview?.interviewSlots ?? [],
+                  datesMailState.interview?.interviewLocation,
                 )
           }
           scope="rh"

@@ -1,6 +1,7 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
 import {
     Job,
+    JobInterview,
     JobStatus,
     DesiredSex,
     Localisation,
@@ -26,6 +27,14 @@ const matchingCandidateSchema = new Schema<MatchingCandidate>(
     { _id: false },
 );
 
+const jobInterviewSchema = new Schema<JobInterview>(
+    {
+        interview_slots: { type: [String] },
+        interview_location: { type: String },
+    },
+    { _id: false },
+);
+
 const proposedCandidateSchema = new Schema<ProposedCandidate>(
     {
         id: { type: String },
@@ -40,7 +49,7 @@ const proposedCandidateSchema = new Schema<ProposedCandidate>(
         cv_webview: { type: String },
         answer: { type: String, enum: Object.values(ProposedCandidateAnswer), default: null },
         comment: { type: String },
-        interview_slots: { type: [String] },
+        interview: { type: jobInterviewSchema },
     },
     { _id: false },
 );

@@ -96,6 +96,11 @@ export const typeDefs = gql`
         status: MatchedCandidateStatus
     }
 
+    type JobInterview {
+        interviewSlots: [String]
+        interviewLocation: String
+    }
+
     type ProposedCandidate {
         id: String
         fullName: String
@@ -107,7 +112,7 @@ export const typeDefs = gql`
         description: String
         answer: ProposedCandidateAnswer
         comment: String
-        interviewSlots: [String]
+        interview: JobInterview
         interviewDate: String
         interviewHour: String
         interviewLocation: String

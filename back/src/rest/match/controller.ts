@@ -9,12 +9,14 @@ import { GoogleDriveService, extractDriveFileId } from '../../external/google/dr
 import { GoogleTokens } from '../../external/google/types';
 import { ProposedCandidate } from '../../types/job.types';
 import { logger } from '../../external/logger/logger';
+import { GeocodageService } from '../../external/insee/geocodage.service';
 
 const matchLinkService = new MatchLinkService();
 const matchMailService = new MatchMailService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const notificationService = new NotificationService();
+const geocodageService = new GeocodageService();
 
 function proposedCandidateToPublic(candidate: ProposedCandidate): object {
     return {
@@ -130,6 +132,25 @@ export async function submitAnswers(req: MatchGuestRequest, res: Response): Prom
         res.json({ ok: true });
     } catch (err) {
         res.status(400).json({ error: (err as Error).message });
+    }
+}
+
+export async function getCompletion(req: MatchGuestRequest, res: Response): Promise<void> {
+    const { input } = req.query;
+    if (typeof input !== 'string' || !input.trim()) {
+        res.status(400).json({ status: 'KO', results: [] });
+        return;
+    }
+    try {
+        const results = await geocodageService.search(input.trim());
+        if (results === null) {
+            res.json({ status: 'KO', results: [] });
+            return;
+        }
+        res.json({ status: 'OK', results });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Match: échec autocomplétion adresse');
+        res.json({ status: 'KO', results: [] });
     }
 }
 
