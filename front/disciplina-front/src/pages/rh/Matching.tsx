@@ -80,16 +80,18 @@ interface ProposedCandidate {
   description: string | null
   answer: ProposedCandidateAnswer | null
   comment?: string | null
-  interview?: { interviewSlots: string[] | null; interviewLocation?: string | null } | null
   interviewDate?: string
   interviewHour?: string
   interviewLocation?: string
+  bookedInterviewSlot?: string | null
 }
 
 interface MatchJobResult extends Job {
   matchedCandidate: MatchedCandidate[]
   suggestedCandidates: MatchedCandidate[]
   proposedCandidate: ProposedCandidate[]
+  interviewSlots: string[] | null
+  interviewLocation: string | null
 }
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
@@ -775,27 +777,6 @@ async function hasCandidateCv(candidateId: string): Promise<boolean> {
   return Boolean(result.data?.candidate?.cvLink)
 }
 
-function buildInterviewDatesMailBody(companyName: string, candidateName: string, slots: string[], location?: string | null): string {
-  const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const items = slots
-    .map((s) => `<li>${new Date(s).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })}</li>`)
-    .join('')
-  const locationLine = location ? `<p><strong>Localisation :</strong> ${location}</p>` : ''
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937;">
-  <div style="color:#60207E;font-weight:800;font-size:20px;margin-bottom:28px;">DISCIPLINA</div>
-  <p>Bonjour ${name},</p>
-  <p>L'entreprise <strong>${companyName}</strong> souhaite vous rencontrer. Voici les créneaux d'entretien proposés :</p>
-  <ul>${items}</ul>
-  ${locationLine}
-  <p>Merci de nous indiquer le créneau qui vous convient.</p>
-  <p style="margin-top:40px;color:#9ca3af;font-size:12px;">Cordialement,<br>L'équipe DISCIPLINA</p>
-</body>
-</html>`
-}
-
 function buildManualInterviewMailBody(companyName: string, candidateName: string, interviewDate: string, interviewHour: string, interviewLocation: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
   const dateFormatted = new Date(`${interviewDate}T${interviewHour}`).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
@@ -953,13 +934,18 @@ function formatSlot(iso: string): string {
 
 function ProposedCandidatesSection({
   candidates,
+  interviewSlots,
+  interviewLocation,
   onSendDates,
   onAddCandidate,
 }: {
   candidates: ProposedCandidate[]
+  interviewSlots: string[] | null
+  interviewLocation: string | null
   onSendDates: (candidate: ProposedCandidate) => void
   onAddCandidate: () => void
 }) {
+  const slots = interviewSlots ?? []
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
@@ -974,11 +960,21 @@ function ProposedCandidatesSection({
           <Plus size={11} /> Ajouter un candidat
         </button>
       </div>
+      {slots.length > 0 && (
+        <div className="mb-3 rounded-md bg-gray-50 px-3 py-2">
+          <p className="text-[11px] font-medium text-gray-600 mb-1">Créneaux proposés à l'entreprise :</p>
+          <div className="flex flex-wrap gap-1.5">
+            {slots.map((s) => (
+              <span key={s} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
+                <CalendarClock size={11} /> {formatSlot(s)}
+              </span>
+            ))}
+          </div>
+          {interviewLocation && <p className="mt-1.5 text-[11px] text-gray-600">📍 {interviewLocation}</p>}
+        </div>
+      )}
       <div className="flex flex-col gap-2">
         {candidates.map((c) => {
-          const slots = c.interview?.interviewSlots ?? []
-          const slotsLocation = c.interview?.interviewLocation
-          const canSendDates = (c.answer === ProposedCandidateAnswer.ACCEPTED || c.answer === ProposedCandidateAnswer.FAVORITE) && slots.length > 0
           return (
             <div key={c.id} className="rounded-lg border border-gray-100 p-3">
               <div className="flex items-center justify-between gap-2">
@@ -1005,19 +1001,12 @@ function ProposedCandidatesSection({
                   <p>📍 {c.interviewLocation}</p>
                 </div>
               )}
-              {slots.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {slots.map((s) => (
-                    <span key={s} className="inline-flex items-center gap-1 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
-                      <CalendarClock size={11} /> {formatSlot(s)}
-                    </span>
-                  ))}
-                </div>
+              {c.bookedInterviewSlot && (
+                <p className="mt-2 rounded-md bg-success-bg px-2 py-1 text-[11px] text-success">
+                  <CalendarClock size={11} className="inline mr-1" /> Créneau choisi : {formatSlot(c.bookedInterviewSlot)}
+                </p>
               )}
-              {slotsLocation && (
-                <p className="mt-1.5 text-[11px] text-gray-600">📍 {slotsLocation}</p>
-              )}
-              {(canSendDates || (c.answer === ProposedCandidateAnswer.ACCEPTED && c.interviewDate && c.interviewHour && c.interviewLocation)) && (
+              {c.answer === ProposedCandidateAnswer.ACCEPTED && c.interviewDate && c.interviewHour && c.interviewLocation && (
                 <button
                   onClick={() => onSendDates(c)}
                   className="mt-2 flex items-center gap-1.5 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
@@ -1434,6 +1423,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
       <ProposedCandidatesSection
         candidates={jobData.proposedCandidate ?? []}
+        interviewSlots={jobData.interviewSlots}
+        interviewLocation={jobData.interviewLocation}
         onSendDates={handleSendInterviewDates}
         onAddCandidate={() => setInterviewModalOpen(true)}
       />
@@ -1511,12 +1502,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
                   datesMailState.interviewHour,
                   datesMailState.interviewLocation,
                 )
-              : buildInterviewDatesMailBody(
-                  jobData.companyName,
-                  datesMailState.fullName,
-                  datesMailState.interview?.interviewSlots ?? [],
-                  datesMailState.interview?.interviewLocation,
-                )
+              : ''
           }
           scope="rh"
           onClose={() => setDatesMailState(null)}

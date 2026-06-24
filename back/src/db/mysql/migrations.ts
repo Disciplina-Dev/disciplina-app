@@ -145,6 +145,25 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Choix de créneau d'entretien par le candidat (portail public, code d'accès simple).
+        // Une ligne = un lien envoyé à un candidat proposé pour choisir un créneau parmi le pool du job.
+        table: 'interview_access',
+        ddl: `CREATE TABLE IF NOT EXISTS interview_access (
+            signature CHAR(64) PRIMARY KEY,
+            code CHAR(6) NOT NULL,
+            job_uuid VARCHAR(64) NOT NULL,
+            candidate_id VARCHAR(64) NOT NULL,
+            rh_email VARCHAR(255) NOT NULL,
+            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
+            attempts TINYINT NOT NULL DEFAULT 0,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_interview_access_job (job_uuid),
+            INDEX idx_interview_access_candidate (candidate_id)
+        )`,
+    },
+    {
         // Public booking ("Calendly"-style) settings per RH/responsable.
         table: 'booking_settings',
         ddl: `CREATE TABLE IF NOT EXISTS booking_settings (

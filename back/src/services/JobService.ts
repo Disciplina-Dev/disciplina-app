@@ -36,13 +36,10 @@ function proposedCandidateToGql(pc: ProposedCandidate): object {
         description: pc.description,
         answer: pc.answer,
         comment: pc.comment,
-        interview: {
-            interviewSlots: pc.interview?.interview_slots,
-            interviewLocation: pc.interview?.interview_location,
-        },
         interviewDate: pc.interview_date,
         interviewHour: pc.interview_hour,
         interviewLocation: pc.interview_location,
+        bookedInterviewSlot: pc.booked_interview_slot,
     };
 }
 
@@ -62,6 +59,8 @@ export function toGql(job: Job & { suggestedCandidates?: MatchingCandidate[] }):
         matchedCandidate: job.matched_candidate?.map(matchingCandidateToGql),
         suggestedCandidates: job.suggestedCandidates?.map(matchingCandidateToGql),
         proposedCandidate: job.proposed_candidate?.map(proposedCandidateToGql),
+        interviewSlots: job.interview_slots,
+        interviewLocation: job.interview_location,
     };
 }
 

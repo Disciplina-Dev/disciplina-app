@@ -701,11 +701,13 @@ export const MATCH_JOB = gql`
         description
         answer
         comment
-        interview {
-          interviewSlots
-          interviewLocation
-        }
+        interviewDate
+        interviewHour
+        interviewLocation
+        bookedInterviewSlot
       }
+      interviewSlots
+      interviewLocation
     }
   }
 `
@@ -757,13 +759,10 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         email
         description
         answer
-        interview {
-          interviewSlots
-          interviewLocation
-        }
         interviewDate
         interviewHour
         interviewLocation
+        bookedInterviewSlot
       }
     }
   }
