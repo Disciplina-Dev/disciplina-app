@@ -216,6 +216,10 @@ export const DISCOVERY_SOURCE_LABELS = {
   MISSION_LOCALE: 'Mission Locale',
   WORD_OF_MOUTH: 'Bouche à oreille',
   KOANN: 'Koann',
+  E2CR: 'E2CR',
+  TELEVISION_PUB: 'Télévision / Pub',
+  SALON: 'Salon',
+  RSMA: 'RSMA',
   OTHER: 'Autres',
 }
 

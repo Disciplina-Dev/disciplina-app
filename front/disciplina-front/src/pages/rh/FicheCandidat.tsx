@@ -488,6 +488,12 @@ export default function FicheCandidat() {
                     onChange={e => updateIdentity('full_name', e.target.value)} />
                 ) : <p className={valueCls}>{formData.identity.full_name || '—'}</p>}
               </Field>
+              <Field label="Numéro de sécurité sociale">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.identity.social_security_number ?? ''}
+                    onChange={e => updateIdentity('social_security_number', e.target.value)} />
+                ) : <p className={valueCls}>{formData.identity.social_security_number || '—'}</p>}
+              </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Email">
                   {isEditing ? (

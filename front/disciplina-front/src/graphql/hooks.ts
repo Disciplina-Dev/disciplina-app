@@ -397,6 +397,7 @@ function toGqlUpdateInput(c: Candidate): any {
       fullName: c.identity.full_name,
       email: c.identity.email,
       phone: c.identity.phone,
+      ...(c.identity.social_security_number !== undefined && { socialSecurityNumber: c.identity.social_security_number }),
       ...(c.identity.driving_license_b !== undefined && { drivingLicenseB: c.identity.driving_license_b }),
       ...(c.identity.age !== undefined && { age: c.identity.age }),
       ...(c.identity.address !== undefined && { address: c.identity.address }),

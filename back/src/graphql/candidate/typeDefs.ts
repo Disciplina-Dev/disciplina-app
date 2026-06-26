@@ -78,6 +78,10 @@ export const typeDefs = gql`
         MISSION_LOCALE
         WORD_OF_MOUTH
         KOANN
+        E2CR
+        TELEVISION_PUB
+        SALON
+        RSMA
         OTHER
     }
 

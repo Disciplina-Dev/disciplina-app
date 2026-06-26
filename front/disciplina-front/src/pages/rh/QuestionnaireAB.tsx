@@ -81,7 +81,7 @@ function initForm(c: Candidate): FormState {
     full_name: c.identity.full_name ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
-    date_of_birth: c.identity.date_of_birth ?? '',
+    date_of_birth: c.identity.date_of_birth ? c.identity.date_of_birth.slice(0, 10) : '',
     place_of_birth: c.identity.place_of_birth ?? '',
     age: c.identity.age != null ? String(c.identity.age) : '',
     postal_code: c.identity.postal_code ?? '',
@@ -125,7 +125,7 @@ function initForm(c: Candidate): FormState {
     skills,
     domain_motivation: c.job_info?.domain_motivation ?? '',
     questions_concerns: c.job_info?.questions_concerns ?? '',
-    availability_date: c.job_info?.availability_date ?? '',
+    availability_date: c.job_info?.availability_date ? c.job_info.availability_date.slice(0, 10) : '',
     geographic_mobility: c.job_info?.geographic_mobility ?? [],
     weekend_work: c.job_info?.weekend_work == null ? '' : String(c.job_info.weekend_work),
     desired_sectors: c.desired_sectors ?? [],
@@ -148,7 +148,7 @@ function initForm(c: Candidate): FormState {
     },
     other_recommendations: c.synthesis?.other_recommendations ?? '',
     synthesis_location: c.synthesis?.location ?? '',
-    synthesis_date: c.synthesis?.date ?? '',
+    synthesis_date: c.synthesis?.date ? c.synthesis.date.slice(0, 10) : '',
   }
 }
 

@@ -49,6 +49,10 @@ export enum DiscoverySource {
     MISSION_LOCALE = 'MISSION_LOCALE',
     WORD_OF_MOUTH = 'WORD_OF_MOUTH',
     KOANN = 'KOANN',
+    E2CR = 'E2CR',
+    TELEVISION_PUB = 'TELEVISION_PUB',
+    SALON = 'SALON',
+    RSMA = 'RSMA',
     OTHER = 'OTHER',
 }
 
