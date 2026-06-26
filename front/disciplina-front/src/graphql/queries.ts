@@ -333,6 +333,32 @@ export const CREATE_CANDIDATE_DRIVE_FOLDER = gql`
   }
 `
 
+export const GET_DRIVE_FOLDER_CONFIG = gql`
+  query DriveFolderConfig {
+    driveFolderConfig {
+      rootFolderId
+      tpFolders {
+        tp
+        region
+        folderId
+      }
+    }
+  }
+`
+
+export const UPDATE_DRIVE_FOLDER_CONFIG = gql`
+  mutation UpdateDriveFolderConfig($input: DriveFolderConfigInput!) {
+    updateDriveFolderConfig(input: $input) {
+      rootFolderId
+      tpFolders {
+        tp
+        region
+        folderId
+      }
+    }
+  }
+`
+
 export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {
