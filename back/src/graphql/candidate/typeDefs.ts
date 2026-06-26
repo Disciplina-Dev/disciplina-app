@@ -83,6 +83,7 @@ export const typeDefs = gql`
 
     type CandidateIdentity {
         fullName: String!
+        socialSecurityNumber: String
         email: String!
         phone: String!
         dateOfBirth: String
@@ -217,6 +218,7 @@ export const typeDefs = gql`
 
     input IdentityInput {
         fullName: String!
+        socialSecurityNumber: String
         email: String!
         phone: String!
         dateOfBirth: String

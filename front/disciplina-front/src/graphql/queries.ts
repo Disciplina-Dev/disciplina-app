@@ -494,6 +494,7 @@ export const GET_CANDIDATE_FULL = gql`
       expectedCompanySkills
       identity {
         fullName
+        socialSecurityNumber
         avatarUpdatedAt
         email
         phone

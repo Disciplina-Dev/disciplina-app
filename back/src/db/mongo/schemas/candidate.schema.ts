@@ -25,6 +25,7 @@ import { Localisation } from '../../../types/job.types';
 const identitySchema = new Schema<Identity>(
     {
         full_name: { type: String, required: true },
+        social_security_number: { type: String },
         date_of_birth: { type: Date },
         place_of_birth: { type: String },
         age: { type: Number },

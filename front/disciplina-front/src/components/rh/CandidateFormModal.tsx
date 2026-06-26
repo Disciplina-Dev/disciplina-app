@@ -66,7 +66,7 @@ function ABSelectField({ id, label, value, onChange, children }: { id: string; l
 
 type ABForm = {
   // identité
-  fullName: string; email: string; phone: string;
+  fullName: string; socialSecurityNumber: string; email: string; phone: string;
   dateOfBirth: string; placeOfBirth: string; age: string;
   address: string; postalCode: string; city: string;
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
@@ -108,7 +108,7 @@ type ABForm = {
 function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): ABForm {
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
-    fullName: '', email: '', phone: '',
+    fullName: '', socialSecurityNumber: '', email: '', phone: '',
     dateOfBirth: '', placeOfBirth: '', age: '', address: '', postalCode: '', city: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '',
@@ -144,6 +144,7 @@ function candidateToForm(c: Candidate): ABForm {
 
   return {
     fullName: c.identity.full_name ?? '',
+    socialSecurityNumber: c.identity.social_security_number ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
     dateOfBirth: c.identity.date_of_birth ?? '',
@@ -214,7 +215,7 @@ function toServerInput(f: ABForm) {
     desiredSectors: f.desiredSectors,
     expectedCompanySkills: f.expectedCompanySkills,
     identity: {
-      fullName: f.fullName, email: f.email, phone: f.phone,
+      fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       age: f.age ? parseInt(f.age) : undefined,
@@ -402,6 +403,7 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           {/* Identité */}
           <ABSectionTitle title="Identité du candidat" />
           <InputField id="cn-fullname" label="Nom et prénom *" placeholder="Ex: Jean Dupont" required value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+          <InputField id="cn-ssn" label="Numéro de sécurité sociale" placeholder="Ex: 1 85 12 75 116 001 23" value={form.socialSecurityNumber} onChange={e => set('socialSecurityNumber', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
             <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
             <InputField id="cn-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
