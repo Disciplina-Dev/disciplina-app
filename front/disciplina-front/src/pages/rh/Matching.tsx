@@ -1251,7 +1251,6 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     setIsUnmatching(true)
     try {
       const result = await jobGraphqlClient.mutation(UNMATCH_JOB, { id: selectedJob.id }).toPromise()
-      console.log(result);
       if (!result.error && jobData) {
         setJobData({ ...jobData, matchedCandidate: [], status: 'NOT_MATCHED' })
         setSavedCandidateIds(new Set())

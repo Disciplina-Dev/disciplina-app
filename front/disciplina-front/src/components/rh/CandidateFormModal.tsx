@@ -4,6 +4,7 @@ import { TitleProfessionalType, TrainingSite, SkillLevel, Localisation, Candidat
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
+import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal';
 import { splitFullName } from '@/utils/classmarker';
@@ -67,7 +68,7 @@ function ABSelectField({ id, label, value, onChange, children }: { id: string; l
 type ABForm = {
   // identité
   fullName: string; email: string; phone: string;
-  dateOfBirth: string; placeOfBirth: string; age: string;
+  dateOfBirth: string; placeOfBirth: string; departmentOfBirth: string; age: string;
   address: string; postalCode: string; city: string;
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
@@ -109,7 +110,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
     fullName: '', email: '', phone: '',
-    dateOfBirth: '', placeOfBirth: '', age: '', address: '', postalCode: '', city: '',
+    dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '',
     tpType, status: 'SEEKING',
@@ -148,6 +149,7 @@ function candidateToForm(c: Candidate): ABForm {
     phone: c.identity.phone ?? '',
     dateOfBirth: c.identity.date_of_birth ?? '',
     placeOfBirth: c.identity.place_of_birth ?? '',
+    departmentOfBirth: c.identity.department_of_birth ?? '',
     age: c.identity.age != null ? String(c.identity.age) : '',
     address: c.identity.address ?? '',
     postalCode: c.identity.postal_code ?? '',
@@ -217,6 +219,7 @@ function toServerInput(f: ABForm) {
       fullName: f.fullName, email: f.email, phone: f.phone,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
+      departmentOfBirth: f.departmentOfBirth || undefined,
       age: f.age ? parseInt(f.age) : undefined,
       address: f.address || undefined,
       postalCode: f.postalCode || undefined,
@@ -411,10 +414,12 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
               const age = computeAge(dob);
               set('age', age != null ? String(age) : '');
             }} />
-            <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} />
+            {/* <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} /> */}
+            <AddressAutocomplete id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={v => set('placeOfBirth', v)} apiEndpoint="/api/sourcing/completion" />
+            <AddressAutocomplete id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)} apiEndpoint="/api/sourcing/departement" />
             <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-gray-50 text-gray-500" />
             <div className="col-span-2">
-              <InputField id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={e => set('address', e.target.value)} />
+              <AddressAutocomplete id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={v => set('address', v)} apiEndpoint="/api/sourcing/completion" />
             </div>
             <InputField id="cn-cp" label="Code postal" value={form.postalCode} onChange={e => {
               const cp = e.target.value;

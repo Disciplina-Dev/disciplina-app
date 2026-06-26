@@ -82,6 +82,7 @@ export interface Identity {
     full_name: string;                    // Nom complet du candidat
     date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
+    department_of_birth?: string;         // Département de naissance
     age?: number;                         // Âge actuel (calculé ou fourni)
     address?: string;                     // Adresse (numéro et rue)
     postal_code?: string;                 // Code postal

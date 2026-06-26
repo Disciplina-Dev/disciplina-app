@@ -117,7 +117,6 @@ export const resolvers = {
         candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const entries = await candidateHistoryService.findByCandidate(candidateId);
-            console.log('entry: ', entries);
             return entries.map(candidateHistoryToGql);
         },
         candidateTemplate: async (_: unknown, { tpType }: { tpType: TitleProfessionalType }, context: any) => {

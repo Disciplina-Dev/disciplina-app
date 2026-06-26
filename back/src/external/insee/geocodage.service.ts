@@ -3,6 +3,7 @@ interface GeocodageResultRaw {
     x: number;
     y: number;
     type?: string;
+    poiType?: string[];
     city?: string;
     zipcode?: string;
     street?: string;
@@ -33,6 +34,28 @@ export class GeocodageService {
             if (data.status !== 'OK') return null;
 
             return data.results.map((r) => r.fulltext);
+        } catch {
+            return null;
+        }
+    }
+
+    async searchDepartements(text: string): Promise<string[] | null> {
+        const params = new URLSearchParams({ text: text.trim() });
+        const url = `${this.API_BASE_URI}?${params.toString()}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { accept: 'application/json' },
+            });
+
+            if (!response.ok) return null;
+
+            const data: GeocodageResponseRaw = await response.json();
+
+            if (data.status !== 'OK') return null;
+
+            return data.results.filter((r) => r.poiType?.includes('département')).map((r) => r.fulltext);
         } catch {
             return null;
         }

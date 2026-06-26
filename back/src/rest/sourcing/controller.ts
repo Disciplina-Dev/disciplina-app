@@ -205,3 +205,25 @@ export async function getCompletion(req: AuthRequest, res: Response): Promise<vo
         res.json({ status: 'KO', results: [] });
     }
 }
+
+export async function getDepartement(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const { input } = req.query;
+
+        if (typeof input !== 'string' || !input.trim()) {
+            res.status(400).json({ status: 'KO', results: [] });
+            return;
+        }
+
+        const results = await geocodageService.searchDepartements(input.trim());
+        if (results === null) {
+            res.json({ status: 'KO', results: [] });
+            return;
+        }
+
+        res.json({ status: 'OK', results });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Sourcing: échec autocomplétage département');
+        res.json({ status: 'KO', results: [] });
+    }
+}

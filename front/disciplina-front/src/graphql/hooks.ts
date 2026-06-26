@@ -124,11 +124,8 @@ export function useCreateCompany() {
   const [result, executeMutation] = useMutation(CREATE_COMPANY)
 
   const createCompany = (input: any) => {
-    console.log("createCompany mutation input:", input);
     return executeMutation({ input }).then((response) => {
-      console.log("createCompany mutation response:", response);
       if (response.error) {
-        console.error("createCompany mutation failed:", response.error);
       }
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
@@ -170,11 +167,8 @@ export function useUpdateCompany() {
   const [result, executeMutation] = useMutation(UPDATE_COMPANY)
 
   const update = async (id: number, input: any) => {
-    console.log("updateCompany mutation input:", { id, input });
     return executeMutation({ id, input }).then((response) => {
-      console.log("updateCompany mutation response:", response);
       if (response.error) {
-        console.error("updateCompany mutation failed:", response.error);
       }
       if (response.data?.updateCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
@@ -514,7 +508,6 @@ export function useUpdateCandidate() {
       id,
       input: toGqlUpdateInput(input),
     })
-    console.log(result.data);
     return fromGql(result.data?.updateCandidate)
   }
 
@@ -605,7 +598,6 @@ export function useCandidateHistory(candidateId: string | null) {
   })
 
   const history: CandidateHistoryEntry[] = result.data?.candidateHistory ?? []
-  console.log(result);
 
   return {
     history,
@@ -753,7 +745,7 @@ export function useFilizClasses(degreeId: string | null) {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then(data => { console.log(data); setClasses(data.classes ?? []); setError(null) })
+      .then(data => { setClasses(data.classes ?? []); setError(null) })
       .catch(err => setError(err.message))
       .finally(() => setFetching(false))
   }, [degreeId, token])

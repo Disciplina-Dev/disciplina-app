@@ -504,6 +504,7 @@ export const GET_CANDIDATE_FULL = gql`
         phone
         dateOfBirth
         placeOfBirth
+        departmentOfBirth
         age
         address
         postalCode

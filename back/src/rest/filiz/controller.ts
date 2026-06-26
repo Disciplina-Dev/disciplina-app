@@ -34,7 +34,6 @@ export async function getClasses(req: AuthRequest, res: Response): Promise<void>
             res.status(502).json({ error: 'Failed to fetch classes from Filiz' });
             return;
         }
-        console.log(classes);
         res.json({ classes });
     } catch (err) {
         logger.error({ err }, 'filiz getClasses failed');

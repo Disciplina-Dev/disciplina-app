@@ -198,7 +198,6 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         );
 
         const files = await driveService.listFolderFiles(candidate.drive_folder_id);
-        console.log('drive: ', files);
         res.json({ files });
     } catch (err) {
         logger.error(err, 'list drive folder files failed');

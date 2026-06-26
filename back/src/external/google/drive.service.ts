@@ -24,7 +24,6 @@ export class GoogleDriveService {
             supportsAllDrives: true,
             includeItemsFromAllDrives: true,
         });
-        console.log(response.data.files as DriveFile[]);
         return (response.data.files || []) as DriveFile[];
     }
 

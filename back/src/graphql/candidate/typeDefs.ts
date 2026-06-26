@@ -87,6 +87,7 @@ export const typeDefs = gql`
         phone: String!
         dateOfBirth: String
         placeOfBirth: String
+        departmentOfBirth: String
         age: Int
         address: String
         postalCode: String
@@ -222,6 +223,7 @@ export const typeDefs = gql`
         phone: String!
         dateOfBirth: String
         placeOfBirth: String
+        departmentOfBirth: String
         age: Int
         address: String
         postalCode: String

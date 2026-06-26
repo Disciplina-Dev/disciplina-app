@@ -91,7 +91,7 @@ export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentIn
         },
         birthDate,
         cityOfBirth: candidate.identity.place_of_birth ?? '',
-        departmentOfBirth: '97400',
+        departmentOfBirth: candidate.identity.department_of_birth ?? '97400',
         nationality: 1,
         phoneNumber: { dialCode: '262', number: phoneNumber },
         sexe,

@@ -56,6 +56,7 @@ export interface Identity {
     full_name: string;
     date_of_birth?: Date;
     place_of_birth?: string;
+    department_of_birth?: string;
     age?: number;
     sex?: string;
     address?: string;

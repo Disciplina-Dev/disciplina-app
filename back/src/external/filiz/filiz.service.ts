@@ -133,7 +133,6 @@ export class FilizService {
                 body: JSON.stringify(payload),
             });
             const json = await response.json();
-            console.log('json: ', json);
             if (json?.error) return null;
             return json.folderId ?? null;
         } catch (error) {
