@@ -797,6 +797,36 @@ export const SET_INTERVIEW_CONCLUSION = gql`
         interviewConclusion
         immersionStartDate
         immersionEndDate
+        immersionConclusion
+      }
+    }
+  }
+`
+
+export const SET_IMMERSION_CONCLUSION = gql`
+  mutation SetImmersionConclusion(
+    $jobId: String!
+    $candidateId: String!
+    $conclusion: ImmersionConclusion!
+  ) {
+    setImmersionConclusion(
+      jobId: $jobId
+      candidateId: $candidateId
+      conclusion: $conclusion
+    ) {
+      id
+      proposedCandidate {
+        id
+        fullName
+        email
+        description
+        answer
+        interviewLocation
+        bookedInterviewSlot
+        interviewConclusion
+        immersionStartDate
+        immersionEndDate
+        immersionConclusion
       }
     }
   }

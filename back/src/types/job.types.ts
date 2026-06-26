@@ -25,6 +25,11 @@ export enum InterviewConclusion {
     CONTRACT = 'CONTRACT',
 }
 
+export enum ImmersionConclusion {
+    REJECTED = 'REJECTED',
+    CONTRACT = 'CONTRACT',
+}
+
 export enum DesiredSex {
     MIXTE = 'MIXTE',
     FILLE = 'FILLE',
@@ -107,6 +112,7 @@ export interface ProposedCandidate extends MatchingCandidate {
     interview_conclusion?: InterviewConclusion | null;
     immersion_start_date?: string;
     immersion_end_date?: string;
+    immersion_conclusion?: ImmersionConclusion | null;
 }
 
 export interface Job {

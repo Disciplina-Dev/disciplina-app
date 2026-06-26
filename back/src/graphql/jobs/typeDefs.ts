@@ -91,6 +91,11 @@ export const typeDefs = gql`
         CONTRACT
     }
 
+    enum ImmersionConclusion {
+        REJECTED
+        CONTRACT
+    }
+
     type MatchingCandidate {
         id: String
         fullName: String
@@ -118,6 +123,7 @@ export const typeDefs = gql`
         interviewConclusion: InterviewConclusion
         immersionStartDate: String
         immersionEndDate: String
+        immersionConclusion: ImmersionConclusion
     }
 
     input ProposedCandidateInput {
@@ -201,5 +207,6 @@ export const typeDefs = gql`
             immersionStartDate: String
             immersionEndDate: String
         ): Job
+        setImmersionConclusion(jobId: String!, candidateId: String!, conclusion: ImmersionConclusion!): Job
     }
 `;

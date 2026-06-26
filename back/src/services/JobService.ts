@@ -5,6 +5,7 @@ import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candi
 import { CandidateHistoryService } from './CandidateHistoryService';
 import {
     InterviewConclusion,
+    ImmersionConclusion,
     Job,
     JobStatus,
     Localisation,
@@ -23,6 +24,11 @@ const INTERVIEW_CONCLUSION_TO_CANDIDATE_STATUS: Record<InterviewConclusion, Cand
     [InterviewConclusion.REJECTED]: CandidateStatus.SEEKING,
     [InterviewConclusion.IMMERSING]: CandidateStatus.IMMERSING,
     [InterviewConclusion.CONTRACT]: CandidateStatus.CONTRACT,
+};
+
+const IMMERSION_CONCLUSION_TO_CANDIDATE_STATUS: Record<ImmersionConclusion, CandidateStatus> = {
+    [ImmersionConclusion.REJECTED]: CandidateStatus.SEEKING,
+    [ImmersionConclusion.CONTRACT]: CandidateStatus.CONTRACT,
 };
 
 function matchingCandidateToGql(mc: MatchingCandidate): object {
@@ -286,6 +292,48 @@ export class JobService {
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
 
         return toGql(updated);
+    }
+
+    async setImmersionConclusion(
+        jobId: string,
+        candidateId: string,
+        conclusion: ImmersionConclusion,
+        ownerEmail: string,
+    ): Promise<object | null> {
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
+
+        const proposed = job.proposed_candidate?.find((c) => c.id === candidateId);
+        if (!proposed) throw new Error('Candidat proposé introuvable');
+
+        if (proposed.interview_conclusion !== InterviewConclusion.IMMERSING) {
+            throw new Error("Ce candidat n'est pas en immersion");
+        }
+
+        const updated = await this.repository.setProposedCandidateImmersionConclusion(jobId, candidateId, conclusion);
+        if (!updated) return null;
+
+        await this.candidateService.update(candidateId, {
+            status: IMMERSION_CONCLUSION_TO_CANDIDATE_STATUS[conclusion],
+        });
+
+        const description = this.buildImmersionConclusionHistoryEntry(conclusion, proposed.full_name, job.company_name);
+        await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
+
+        return toGql(updated);
+    }
+
+    private buildImmersionConclusionHistoryEntry(
+        conclusion: ImmersionConclusion,
+        candidateName?: string,
+        companyName?: string,
+    ): string {
+        switch (conclusion) {
+            case ImmersionConclusion.REJECTED:
+                return `L'immersion c'est soldée par un rejet entre ${candidateName} et ${companyName}`;
+            case ImmersionConclusion.CONTRACT:
+                return `L'immersion c'est soldée par un contrat avec ${companyName}`;
+        }
     }
 
     private buildInterviewConclusionHistoryEntry(

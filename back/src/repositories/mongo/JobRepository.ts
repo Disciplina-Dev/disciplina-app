@@ -1,6 +1,7 @@
 import { JobModel } from '../../db/mongo/schemas/job.schema';
 import {
     InterviewConclusion,
+    ImmersionConclusion,
     Job,
     JobStatus,
     MatchedCandidateStatus,
@@ -131,6 +132,18 @@ export class JobRepository {
         return JobModel.findOneAndUpdate(
             { _id: jobId, 'proposed_candidate.id': candidateId },
             { $set: update },
+            { new: true },
+        ).lean();
+    }
+
+    async setProposedCandidateImmersionConclusion(
+        jobId: string,
+        candidateId: string,
+        conclusion: ImmersionConclusion,
+    ): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            { _id: jobId, 'proposed_candidate.id': candidateId },
+            { $set: { 'proposed_candidate.$.immersion_conclusion': conclusion } },
             { new: true },
         ).lean();
     }
