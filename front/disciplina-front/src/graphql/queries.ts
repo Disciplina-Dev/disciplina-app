@@ -340,47 +340,83 @@ export const GET_CANDIDATE_BY_ID = gql`
       status
       tpType
       trainingSite
+      immersionAgreement
+      desiredSectors
+      expectedCompanySkills
       identity {
         fullName
+        socialSecurityNumber
         avatarUpdatedAt
         email
         phone
+        dateOfBirth
+        placeOfBirth
         age
-        city
+        address
         postalCode
+        city
         drivingLicenseB
+        transportMeans
+        pshReferralRequest
+        hadApprenticeshipContract
+        apprenticeshipContractDetails
       }
       education {
         schoolLevel
+        justification
+      }
+      support {
+        franceTravailRegistered
+        franceTravailAgency
+        missionLocaleRegistered
+        missionLocaleCity
       }
       background {
         lastDiploma
+        previousTrainings
         professionalExperiences {
           position
           company
           duration
+          responsibilities
         }
       }
       profile {
         frenchLevel
         englishLevel
+        otherLanguages
+        strengthsAndImprovements
         qualities
+        defects
         digitalSkills
+        readyForChallenges
+        hobbies
       }
       professionalProjects {
         careerObjectives
+        desiredSkills
         apprenticeshipMotivation
+        trainingExpectations
       }
       synthesis {
         feasibilityConclusion
+        pathwayRelevance
+        specialNeeds
+        otherRecommendations
+        location
+        date
       }
       skillsAssessment {
         competence
         level
       }
       jobInfo {
+        domainMotivation
+        questionsConcerns
         availabilityDate
         geographicMobility
+        weekendWork
+        discoverySource
       }
       pdfLink
       cvLink
@@ -405,35 +441,83 @@ export const UPDATE_CANDIDATE = gql`
       status
       tpType
       trainingSite
+      immersionAgreement
+      desiredSectors
+      expectedCompanySkills
       skillsAssessment {
         competence
         level
       }
       identity {
         fullName
+        socialSecurityNumber
         avatarUpdatedAt
         email
         phone
-        drivingLicenseB
+        dateOfBirth
+        placeOfBirth
         age
+        address
+        postalCode
+        city
+        drivingLicenseB
+        transportMeans
+        pshReferralRequest
+        hadApprenticeshipContract
+        apprenticeshipContractDetails
       }
       education {
         schoolLevel
+        justification
+      }
+      support {
+        franceTravailRegistered
+        franceTravailAgency
+        missionLocaleRegistered
+        missionLocaleCity
       }
       profile {
         frenchLevel
         englishLevel
+        otherLanguages
+        strengthsAndImprovements
         qualities
+        defects
+        digitalSkills
+        readyForChallenges
+        hobbies
       }
       synthesis {
         feasibilityConclusion
+        pathwayRelevance
+        specialNeeds
+        otherRecommendations
+        location
+        date
       }
       professionalProjects {
         careerObjectives
+        desiredSkills
         apprenticeshipMotivation
+        trainingExpectations
       }
       background {
         lastDiploma
+        previousTrainings
+        professionalExperiences {
+          position
+          company
+          duration
+          responsibilities
+        }
+      }
+      jobInfo {
+        domainMotivation
+        questionsConcerns
+        availabilityDate
+        geographicMobility
+        weekendWork
+        discoverySource
       }
       pdfLink
     }
