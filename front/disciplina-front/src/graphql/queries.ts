@@ -385,6 +385,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       pdfLink
       cvLink
       driveFolderId
+      filizFolderId
     }
   }
 `
@@ -1071,5 +1072,47 @@ export const GET_NEEDS_ANALYSIS = gql`
 export const DELETE_NEEDS_ANALYSIS = gql`
   mutation DeleteNeedsAnalysis($id: Int!) {
     deleteNeedsAnalysis(id: $id)
+  }
+`
+
+export const GET_FILIZ_DEGREES = gql`
+  query GetFilizDegrees {
+    filizDegrees {
+      degreeId
+      degreeTitle
+      preparedTitleName
+    }
+  }
+`
+
+export const GET_FILIZ_CLASSES = gql`
+  query GetFilizClasses($degreeId: String!) {
+    filizClasses(degreeId: $degreeId) {
+      classId
+      className
+      startDate
+      endDate
+    }
+  }
+`
+
+export const CREATE_FILIZ_FOLDER = gql`
+  mutation CreateFilizFolder(
+    $candidateId: String!
+    $classId: String!
+    $fileManagerFirstName: String!
+    $fileManagerLastName: String!
+    $fileManagerEmail: String!
+  ) {
+    createFilizFolder(
+      candidateId: $candidateId
+      classId: $classId
+      fileManagerFirstName: $fileManagerFirstName
+      fileManagerLastName: $fileManagerLastName
+      fileManagerEmail: $fileManagerEmail
+    ) {
+      id
+      filizFolderId
+    }
   }
 `

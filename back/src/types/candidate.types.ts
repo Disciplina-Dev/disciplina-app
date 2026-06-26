@@ -200,6 +200,7 @@ export interface Candidate {
     cv_link?: string;
     drive_folder_id?: string;
     drive_folder_link?: string;
+    filiz_folder_id?: string;
     photo_link?: string;
     classmarker?: ClassMarkerResult;
 }

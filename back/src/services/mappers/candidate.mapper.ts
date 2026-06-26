@@ -1,5 +1,6 @@
 import { Candidate } from '../../types/candidate.types';
 import { Job } from '../../types/job.types';
+import { FilizStudentInfos } from '../../external/filiz/type';
 
 export function camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -54,7 +55,46 @@ export function candidateToGql(candidate: Candidate): any {
         cvLink: candidate.cv_link || null,
         driveFolderId: candidate.drive_folder_id || null,
         driveFolderLink: candidate.drive_folder_link || null,
+        filizFolderId: candidate.filiz_folder_id || null,
         photoLink: candidate.photo_link || null,
+    };
+}
+
+export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentInfos {
+    const fullName = candidate.identity.full_name ?? '';
+    const spaceIndex = fullName.indexOf(' ');
+    const firstName = spaceIndex >= 0 ? fullName.slice(0, spaceIndex) : fullName;
+    const lastName = spaceIndex >= 0 ? fullName.slice(spaceIndex + 1) : '';
+
+    const rawPhone = candidate.identity.phone ?? '';
+    const phoneNumber = rawPhone.replace(/\s/g, '').replace(/^(\+|00)\d{3}/, '');
+
+    const birthDate = candidate.identity.date_of_birth
+        ? new Date(candidate.identity.date_of_birth).toLocaleDateString('en-US', {
+              month: '2-digit',
+              day: '2-digit',
+              year: 'numeric',
+          })
+        : '';
+
+    const sexe = candidate.identity.sex === 'F' ? 2 : 1;
+
+    return {
+        firstName,
+        lastName,
+        mailAddress: candidate.identity.email,
+        address: {
+            street: candidate.identity.address ?? '',
+            city: candidate.identity.city ?? '',
+            country: 'France',
+            postcode: candidate.identity.postal_code ?? '',
+        },
+        birthDate,
+        cityOfBirth: candidate.identity.place_of_birth ?? '',
+        departmentOfBirth: '97400',
+        nationality: 1,
+        phoneNumber: { dialCode: '262', number: phoneNumber },
+        sexe,
     };
 }
 

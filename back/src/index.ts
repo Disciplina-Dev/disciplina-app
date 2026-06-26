@@ -27,6 +27,7 @@ import { router as bookingRouter } from './rest/booking/route';
 import { router as mailTemplatesRouter } from './rest/mailTemplates/route';
 import { router as matchRouter } from './rest/match/route';
 import { router as interviewRouter } from './rest/interview/route';
+import { router as filizRouter } from './rest/filiz/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -101,6 +102,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/mail-templates', mailTemplatesRouter);
     app.use('/api/match', matchRouter);
     app.use('/api/interview', interviewRouter);
+    app.use('/api/filiz', filizRouter);
     app.use(errorHandler);
 
     await connectMySQL();

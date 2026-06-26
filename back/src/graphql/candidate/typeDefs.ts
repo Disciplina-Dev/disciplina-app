@@ -211,6 +211,7 @@ export const typeDefs = gql`
         pdfLink: String
         cvLink: String
         driveFolderId: String
+        filizFolderId: String
         matchedJobs: [MatchedJob]
         photoLink: String
     }

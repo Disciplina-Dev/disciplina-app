@@ -1,7 +1,7 @@
 import { FilizAuthClient } from './auth-client';
 import { env } from '../../config/env';
 import { logger } from '../logger';
-import { FilizClass, FilizDegree } from './type';
+import { FilizClass, FilizCreateFolderPayload, FilizDegree } from './type';
 
 export class FilizService {
     private client = new FilizAuthClient();
@@ -68,21 +68,76 @@ export class FilizService {
                 })
             ).json();
 
-            const results = Promise.all(
-                ((await classes) as any[]).map(async (c) => {
-                    return fetch(`${env.FILIZ_BASE_URI}/api/class?classId=${c.classId}`, {
-                        headers: {
-                            authorization: `Bearer ${token}`,
-                        },
-                        method: 'GET',
-                        redirect: 'follow',
-                    }).then((response) => response.json() as unknown as FilizClass);
-                }),
-            );
-
-            return results;
+            return classes;
         } catch (error) {
             logger.error({ err: error }, 'FilizService: getClassInfos failed');
+            return null;
+        }
+    }
+
+    async createDegree(payload: Record<string, unknown>): Promise<string | null> {
+        const token = await this.client.getToken();
+
+        if (!token) return null;
+        try {
+            const response = await fetch(`${env.FILIZ_BASE_URI}/api/degree`, {
+                method: 'POST',
+                headers: {
+                    authorization: `Bearer ${token}`,
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            const json = await response.json();
+            if (json?.error) return null;
+            return json.degreeId ?? null;
+        } catch (error) {
+            logger.error({ err: error }, 'FilizService: createDegree failed');
+            return null;
+        }
+    }
+
+    async createClass(payload: Record<string, unknown>): Promise<string | null> {
+        const token = await this.client.getToken();
+
+        if (!token) return null;
+        try {
+            const response = await fetch(`${env.FILIZ_BASE_URI}/api/class`, {
+                method: 'POST',
+                headers: {
+                    authorization: `Bearer ${token}`,
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            const json = await response.json();
+            if (json?.error) return null;
+            return json.classId ?? null;
+        } catch (error) {
+            logger.error({ err: error }, 'FilizService: createClass failed');
+            return null;
+        }
+    }
+
+    async createFolder(payload: FilizCreateFolderPayload): Promise<string | null> {
+        const token = await this.client.getToken();
+
+        if (!token) return null;
+        try {
+            const response = await fetch(`${env.FILIZ_BASE_URI}/api/folder`, {
+                method: 'POST',
+                headers: {
+                    authorization: `Bearer ${token}`,
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            const json = await response.json();
+            console.log('json: ', json);
+            if (json?.error) return null;
+            return json.folderId ?? null;
+        } catch (error) {
+            logger.error({ err: error }, 'FilizService: createFolder failed');
             return null;
         }
     }

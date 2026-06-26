@@ -209,6 +209,7 @@ export interface Candidate {
     pdf_link?: string;
     cv_link?: string;
     drive_folder_id?: string;
+    filiz_folder_id?: string;
 }
 
 export enum CandidateHistoryType {

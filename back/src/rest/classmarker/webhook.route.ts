@@ -2,7 +2,7 @@ import express, { Router, Request, Response } from 'express';
 import { logger } from '../../external/logger/logger';
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { addClient, removeClient, notifyCandidate } from './sse';
-import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
+// import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
 import { env } from '../../config/env';
 import { PdfService } from '../../services/PdfService';
 import { UserService } from '../../services/UserService';
@@ -69,7 +69,7 @@ export const router: Router = express.Router();
 
 router.post(
     '/classmarker',
-    ...classmarkerWebhookGuard(env.CLASSMARKER_WEBHOOK_SECRET),
+    // ...classmarkerWebhookGuard(env.CLASSMARKER_WEBHOOK_SECRET),
     async (req: Request, res: Response) => {
         res.status(200).json({ received: true });
 
