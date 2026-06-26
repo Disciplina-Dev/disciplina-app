@@ -1,0 +1,51 @@
+services:
+  # Sidecar : importe les workflows JSON de ./automatisation puis s'arrête.
+  # Tourne AVANT n8n (DB SQLite = un seul écrivain) pour éviter tout verrou.
+  n8n-import:
+    image: n8nio/n8n:latest
+    container_name: n8n-import
+    environment:
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Indian/Reunion}
+      - TZ=${GENERIC_TIMEZONE:-Indian/Reunion}
+    volumes:
+      - ./data:/home/node/.n8n
+      - ./automatisation:/automatisation
+    # Importe seulement s'il y a des .json (sinon ne casse pas le boot).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        if ls /automatisation/*.json >/dev/null 2>&1; then
+          n8n import:workflow --separate --input=/automatisation;
+        else
+          echo "automatisation/ vide — rien à importer";
+        fi
+    restart: "no"
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    depends_on:
+      n8n-import:
+        condition: service_completed_successfully
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      # Accès local par défaut. Pour exposer publiquement, change N8N_HOST/WEBHOOK_URL.
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      # CRUCIAL : garde cette clé identique pour conserver les credentials/OAuth chiffrés.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Indian/Reunion}
+      - TZ=${GENERIC_TIMEZONE:-Indian/Reunion}
+      - DB_SQLITE_POOL_SIZE=5
+      - N8N_RUNNERS_ENABLED=true
+    volumes:
+      # Tous les credentials, workflows et la base SQLite vivent ici → sauvegardable.
+      - ./data:/home/node/.n8n
+      # Dépose tes workflows JSON ici ; ils sont importés au boot par n8n-import.
+      - ./automatisation:/automatisation
