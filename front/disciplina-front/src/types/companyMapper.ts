@@ -1,5 +1,6 @@
 import type { Company, CompanyWithSalePerson, SalePerson, Entreprise, EntrepriseStatus, CompanyInput } from '@/types/entreprise'
 import { STATUS_VALUES } from '@/types/entreprise'
+import { fullName } from '@/store/authStore'
 
 export function toEntreprise(company: Company, salePerson: SalePerson | null): Entreprise {
   // Legacy rows stored the status in the conclusion column; fall back to it.
@@ -13,7 +14,7 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     id: String(company.id),
     nom_commercial: company.name,
     proprietaire_contact: null,
-    commercial: salePerson?.name ?? null,
+    commercial: salePerson ? fullName(salePerson) : null,
     proprietaire_id: null,
     representant_legal: null,
     telephone: company.phone,

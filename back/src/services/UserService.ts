@@ -64,7 +64,14 @@ export class UserService {
         return users.find((u) => u.oauthToken) ?? null;
     }
 
-    async register(email: string, name: string, passwordPlain: string, role: Role, sectors?: string[]): Promise<User> {
+    async register(
+        email: string,
+        firstName: string,
+        lastName: string,
+        passwordPlain: string,
+        role: Role,
+        sectors?: string[],
+    ): Promise<User> {
         const existing = await this.userRepository.findByEmail(email);
         if (existing) {
             throw new Error('User already exists');
@@ -74,7 +81,8 @@ export class UserService {
 
         const userToCreate: Omit<UserRow, 'id'> = {
             email,
-            name,
+            first_name: firstName,
+            last_name: lastName,
             password: hashedPassword,
             // ENTREPRISE_GUEST est un rôle de session JWT, jamais enregistré en base
             role: role as UserRow['role'],

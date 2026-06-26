@@ -5,7 +5,8 @@ export const GET_SALE_PERSONS = gql`
     salePersons {
       id
       email
-      name
+      firstName
+      lastName
     }
   }
 `
@@ -15,7 +16,8 @@ export const GET_SALE_PERSON = gql`
     salePerson(id: $id) {
       id
       email
-      name
+      firstName
+      lastName
     }
   }
 `
@@ -50,7 +52,8 @@ export const GET_COMPANIES = gql`
           salePerson {
             id
             email
-            name
+            firstName
+            lastName
           }
         }
       }
@@ -127,7 +130,8 @@ export const GET_COMPANIES_BY_COMMERCIAL = gql`
       salePerson {
         id
         email
-        name
+        firstName
+        lastName
       }
     }
   }
@@ -447,6 +451,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       pdfLink
       cvLink
       driveFolderId
+      filizFolderId
     }
   }
 `
@@ -610,6 +615,7 @@ export const GET_CANDIDATE_FULL = gql`
         phone
         dateOfBirth
         placeOfBirth
+        departmentOfBirth
         age
         address
         postalCode
@@ -799,7 +805,8 @@ export const LOGIN_USER = gql`
       user {
         id
         email
-        name
+        firstName
+        lastName
         role
         sectors
       }
@@ -810,21 +817,24 @@ export const LOGIN_USER = gql`
 export const REGISTER_USER = gql`
   mutation RegisterUser(
     $email: String!
-    $name: String!
+    $firstName: String!
+    $lastName: String!
     $passwordPlain: String!
     $role: Role!
     $sectors: [String!]
   ) {
     register(
       email: $email
-      name: $name
+      firstName: $firstName
+      lastName: $lastName
       passwordPlain: $passwordPlain
       role: $role
       sectors: $sectors
     ) {
       id
       email
-      name
+      firstName
+      lastName
       role
       sectors
     }
@@ -1263,5 +1273,47 @@ export const GET_NEEDS_ANALYSIS = gql`
 export const DELETE_NEEDS_ANALYSIS = gql`
   mutation DeleteNeedsAnalysis($id: Int!) {
     deleteNeedsAnalysis(id: $id)
+  }
+`
+
+export const GET_FILIZ_DEGREES = gql`
+  query GetFilizDegrees {
+    filizDegrees {
+      degreeId
+      degreeTitle
+      preparedTitleName
+    }
+  }
+`
+
+export const GET_FILIZ_CLASSES = gql`
+  query GetFilizClasses($degreeId: String!) {
+    filizClasses(degreeId: $degreeId) {
+      classId
+      className
+      startDate
+      endDate
+    }
+  }
+`
+
+export const CREATE_FILIZ_FOLDER = gql`
+  mutation CreateFilizFolder(
+    $candidateId: String!
+    $classId: String!
+    $fileManagerFirstName: String!
+    $fileManagerLastName: String!
+    $fileManagerEmail: String!
+  ) {
+    createFilizFolder(
+      candidateId: $candidateId
+      classId: $classId
+      fileManagerFirstName: $fileManagerFirstName
+      fileManagerLastName: $fileManagerLastName
+      fileManagerEmail: $fileManagerEmail
+    ) {
+      id
+      filizFolderId
+    }
   }
 `

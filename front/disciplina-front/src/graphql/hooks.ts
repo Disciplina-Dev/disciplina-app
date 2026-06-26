@@ -32,6 +32,7 @@ import {
   DELETE_CANDIDATE_HISTORY_ENTRY,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
+import { useAuthStore } from '@/store/authStore'
 import type { PageInfo } from '@/types/pagination'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
 
@@ -61,7 +62,7 @@ export function useCompanies() {
         id: String(c.company.id),
         nom_commercial: c.company.name,
         proprietaire_contact: c.salePerson?.email || null,
-        commercial: c.salePerson?.name || null,
+        commercial: c.salePerson ? `${c.salePerson.firstName ?? ''} ${c.salePerson.lastName ?? ''}`.trim() || null : null,
         proprietaire_id: c.salePerson?.id || null,
         representant_legal: c.company.legalReferent || null,
         telephone: c.company.phone,
@@ -123,11 +124,8 @@ export function useCreateCompany() {
   const [result, executeMutation] = useMutation(CREATE_COMPANY)
 
   const createCompany = (input: any) => {
-    console.log("createCompany mutation input:", input);
     return executeMutation({ input }).then((response) => {
-      console.log("createCompany mutation response:", response);
       if (response.error) {
-        console.error("createCompany mutation failed:", response.error);
       }
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
@@ -137,7 +135,7 @@ export function useCreateCompany() {
           id: String(response.data.createCompany.id),
           nom_commercial: response.data.createCompany.name,
           proprietaire_contact: salePerson?.email || null,
-          commercial: salePerson?.name || null,
+          commercial: salePerson ? `${salePerson.firstName ?? ''} ${salePerson.lastName ?? ''}`.trim() || null : null,
           proprietaire_id: response.data.createCompany.userID || null,
           representant_legal: response.data.createCompany.legalReferent || null,
           telephone: response.data.createCompany.phone,
@@ -169,11 +167,8 @@ export function useUpdateCompany() {
   const [result, executeMutation] = useMutation(UPDATE_COMPANY)
 
   const update = async (id: number, input: any) => {
-    console.log("updateCompany mutation input:", { id, input });
     return executeMutation({ id, input }).then((response) => {
-      console.log("updateCompany mutation response:", response);
       if (response.error) {
-        console.error("updateCompany mutation failed:", response.error);
       }
       if (response.data?.updateCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
@@ -192,7 +187,7 @@ export function useUpdateCompany() {
           conclusion: response.data.updateCompany.conclusion,
           status: (response.data.updateCompany.status as any) || 'À Réfléchir',
           proprietaire_id: response.data.updateCompany.userID || null,
-          commercial: salePerson?.name || null,
+          commercial: salePerson ? `${salePerson.firstName ?? ''} ${salePerson.lastName ?? ''}`.trim() || null : null,
           proprietaire_contact: salePerson?.email || null,
           representant_legal: response.data.updateCompany.legalReferent || null,
           date_relance: response.data.updateCompany.relanceDate ?? null,
@@ -384,6 +379,7 @@ function fromGql(c: any): Candidate {
     pdf_link: c.pdfLink,
     cv_link: c.cvLink,
     drive_folder_id: c.driveFolderId,
+    filiz_folder_id: c.filizFolderId,
   }
 }
 
@@ -515,7 +511,6 @@ export function useUpdateCandidate() {
       id,
       input: toGqlUpdateInput(input),
     })
-    console.log(result.data);
     return fromGql(result.data?.updateCandidate)
   }
 
@@ -606,7 +601,6 @@ export function useCandidateHistory(candidateId: string | null) {
   })
 
   const history: CandidateHistoryEntry[] = result.data?.candidateHistory ?? []
-  console.log(result);
 
   return {
     history,
@@ -719,4 +713,70 @@ export function useDeleteNeedsAnalysis() {
   }
 
   return { deleteNeedsAnalysis, result }
+}
+
+export function useFilizDegrees() {
+  const token = useAuthStore((s) => s.token)
+  const [degrees, setDegrees] = useState<{ degreeId: string; degreeType: string; exactDegreeTitle: string; preparedTitleName: string }[]>([])
+  const [fetching, setFetching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setFetching(true)
+    fetch(`${import.meta.env.VITE_API_URL}/api/filiz/degrees`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => { setDegrees(data.degrees ?? []); setError(null) })
+      .catch(err => setError(err.message))
+      .finally(() => setFetching(false))
+  }, [token])
+
+  return { degrees, fetching, error }
+}
+
+export function useFilizClasses(degreeId: string | null) {
+  const token = useAuthStore((s) => s.token)
+  const [classes, setClasses] = useState<{ degreeId: string; classId: string; className: string; startDate?: string; endDate?: string }[]>([])
+  const [fetching, setFetching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!degreeId) { setClasses([]); return }
+    setFetching(true)
+    fetch(`${import.meta.env.VITE_API_URL}/api/filiz/classes?degreeId=${encodeURIComponent(degreeId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => { setClasses(data.classes ?? []); setError(null) })
+      .catch(err => setError(err.message))
+      .finally(() => setFetching(false))
+  }, [degreeId, token])
+
+  return { classes, fetching, error }
+}
+
+export function useCreateFilizFolder() {
+  const token = useAuthStore((s) => s.token)
+
+  const createFilizFolder = async (body: {
+    candidateId: string
+    classId: string
+    fileManagerFirstName: string
+    fileManagerLastName: string
+    fileManagerEmail: string
+  }): Promise<{ folderId: string }> => {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/filiz/folders`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Filiz folder creation failed')
+    }
+    return res.json()
+  }
+
+  return { createFilizFolder }
 }

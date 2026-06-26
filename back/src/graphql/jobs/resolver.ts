@@ -142,14 +142,12 @@ export const resolvers = {
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            console.log('before create session');
             const credentials = await matchLinkService.createSession({
                 jobId,
                 rhEmail: context.user.email,
                 companyEmail,
                 candidates,
             });
-            console.log('after create session');
             await matchMailService.sendInvitation(credentials);
             return credentials.signature;
         },

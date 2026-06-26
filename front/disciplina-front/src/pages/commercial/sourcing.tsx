@@ -906,7 +906,7 @@ function ExistingCompanyList({ items }: { items: CompanyWithSalePerson[] }) {
           </div>
           {salePerson && (
             <span className="inline-flex items-center text-[12px] font-semibold py-1 px-2.5 rounded-full bg-blue-light text-blue flex-shrink-0">
-              {salePerson.name}
+              {`${salePerson.firstName ?? ''} ${salePerson.lastName ?? ''}`.trim()}
             </span>
           )}
         </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, History, PhoneCall, ArrowRight } from 'lucide-react'
 import { useCompanyHistory, useContactLogs } from '@/graphql/hooks'
-import { USERS } from '@/store/authStore'
+import { USERS, fullName } from '@/store/authStore'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -12,7 +12,8 @@ function formatDate(iso: string | null | undefined) {
 
 function authorName(userID: number | null) {
   if (userID == null) return 'Inconnu'
-  return USERS[String(userID)]?.name ?? `Utilisateur #${userID}`
+  const user = USERS[String(userID)]
+  return user ? fullName(user) : `Utilisateur #${userID}`
 }
 
 // Noms bruts des colonnes DB stockés dans updated_column → libellés lisibles.

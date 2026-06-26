@@ -30,8 +30,13 @@ const mailTemplateService = new MailTemplateService();
 /** Formate un instant pour affichage dans le fuseau donné (ex "lundi 16 juin 2026 à 09:00"). */
 function formatInTz(iso: string, tz: string): string {
     return new Intl.DateTimeFormat('fr-FR', {
-        timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
+        timeZone: tz,
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
     }).format(new Date(iso));
 }
 
@@ -42,9 +47,20 @@ function dateVars(iso: string, tz: string): { jour: string; date_longue: string;
         // Jour de la semaine seul : « lundi »
         jour: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long' }).format(d),
         // Date en toutes lettres sans l'heure : « lundi 22 juin 2026 »
-        date_longue: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d),
+        date_longue: new Intl.DateTimeFormat('fr-FR', {
+            timeZone: tz,
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        }).format(d),
         // Date numérique : « 22/06/2026 »
-        date_courte: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).format(d),
+        date_courte: new Intl.DateTimeFormat('fr-FR', {
+            timeZone: tz,
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        }).format(d),
         // Heure seule : « 14:30 »
         heure: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(d),
     };
@@ -58,9 +74,14 @@ function renderTemplate(tpl: string, vars: Record<string, string>): string {
 /** Décalage (ms) du fuseau `tz` à l'instant `date`. Exact pour les fuseaux à offset fixe (ex Réunion). */
 function tzOffsetMs(date: Date, tz: string): number {
     const dtf = new Intl.DateTimeFormat('en-US', {
-        timeZone: tz, hour12: false,
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        timeZone: tz,
+        hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
     });
     const map: Record<string, number> = {};
     for (const p of dtf.formatToParts(date)) if (p.type !== 'literal') map[p.type] = Number(p.value);
@@ -153,8 +174,12 @@ export class BookingService {
         const slots: Slot[] = [];
         for (let cur = new Date(rangeStart); cur <= rangeEnd; cur.setUTCDate(cur.getUTCDate() + 1)) {
             // Composantes calendaires locales du jour courant.
-            const local = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
-                .format(cur);
+            const local = new Intl.DateTimeFormat('en-CA', {
+                timeZone: tz,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            }).format(cur);
             const [y, mo, d] = local.split('-').map(Number);
             const windows = settings.workingHours[String(isoWeekday(y, mo, d))] ?? [];
             for (const [startHM, endHM] of windows) {
@@ -185,8 +210,12 @@ export class BookingService {
         const endMs = startMs + settings.durationMin * 60_000;
 
         // Revérifie côté serveur que le créneau est toujours libre (anti double-réservation).
-        const day = new Intl.DateTimeFormat('en-CA', { timeZone: settings.timezone, year: 'numeric', month: '2-digit', day: '2-digit' })
-            .format(new Date(startMs));
+        const day = new Intl.DateTimeFormat('en-CA', {
+            timeZone: settings.timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        }).format(new Date(startMs));
         const available = await this.computeSlots(settings, day, day);
         if (!available.some((s) => Date.parse(s.start) === startMs)) {
             throw new SlotUnavailableError('Créneau plus disponible');
@@ -218,7 +247,12 @@ export class BookingService {
     }
 
     /** Envoie un email de confirmation personnalisé à l'invité, via le compte Gmail de l'hôte. */
-    private async sendConfirmation(host: User, settings: BookingSettings, startIso: string, guest: GuestInfo): Promise<void> {
+    private async sendConfirmation(
+        host: User,
+        settings: BookingSettings,
+        startIso: string,
+        guest: GuestInfo,
+    ): Promise<void> {
         const when = formatInTz(startIso, settings.timezone);
 
         let subject: string;
@@ -234,9 +268,12 @@ export class BookingService {
                 lieu: settings.location ?? '',
                 titre: settings.title,
                 duree: `${settings.durationMin} minutes`,
-                hote: host.name,
+                hote: `${host.firstName} ${host.lastName}`.trim(),
             };
-            subject = renderTemplate(settings.confirmationSubject || `Confirmation de votre rendez-vous — ${settings.title}`, vars);
+            subject = renderTemplate(
+                settings.confirmationSubject || `Confirmation de votre rendez-vous — ${settings.title}`,
+                vars,
+            );
             html = renderTemplate(settings.confirmationBody, vars);
             text = html.replace(/<[^>]+>/g, ''); // version texte basique
         } else {
@@ -245,14 +282,21 @@ export class BookingService {
             const lieu = settings.location ? `<p><strong>Lieu :</strong> ${settings.location}</p>` : '';
             html = `
             <p>Bonjour ${guest.name},</p>
-            <p>Votre rendez-vous « <strong>${settings.title}</strong> » avec ${host.name} est confirmé.</p>
+            <p>Votre rendez-vous « <strong>${
+                settings.title
+            }</strong> » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.</p>
             <p><strong>Date :</strong> ${when} (${settings.timezone})</p>
             <p><strong>Durée :</strong> ${settings.durationMin} minutes</p>
             ${lieu}
-            <p>À bientôt,<br/>${host.name}</p>`;
-            text = `Bonjour ${guest.name},\n\nVotre rendez-vous « ${settings.title} » avec ${host.name} est confirmé.\n`
-                + `Date : ${when} (${settings.timezone})\nDurée : ${settings.durationMin} minutes\n`
-                + `${settings.location ? `Lieu : ${settings.location}\n` : ''}\nÀ bientôt,\n${host.name}`;
+            <p>À bientôt,<br/>${`${host.firstName} ${host.lastName}`.trim()}</p>`;
+            text =
+                `Bonjour ${guest.name},\n\nVotre rendez-vous « ${
+                    settings.title
+                } » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.\n` +
+                `Date : ${when} (${settings.timezone})\nDurée : ${settings.durationMin} minutes\n` +
+                `${
+                    settings.location ? `Lieu : ${settings.location}\n` : ''
+                }\nÀ bientôt,\n${`${host.firstName} ${host.lastName}`.trim()}`;
         }
 
         // Signature de l'hôte ajoutée à tous les mails (best-effort).
@@ -263,7 +307,12 @@ export class BookingService {
             await gmailService.sendEmail(
                 { access_token: host.oauthToken ?? undefined, refresh_token: host.refreshToken ?? undefined },
                 { to: guest.email, subject, html, text },
-                (refreshed) => userService.updateGoogleTokens(host.id, refreshed.access_token ?? null, refreshed.refresh_token ?? null),
+                (refreshed) =>
+                    userService.updateGoogleTokens(
+                        host.id,
+                        refreshed.access_token ?? null,
+                        refreshed.refresh_token ?? null,
+                    ),
             );
         } catch (err) {
             // L'event est déjà créé : on n'échoue pas la réservation si l'email échoue.

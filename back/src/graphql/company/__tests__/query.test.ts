@@ -89,12 +89,10 @@ describe('GraphQL company queries', () => {
         const conn = await pool.getConnection();
         let userID: number;
         try {
-            const [result] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
-                `sp-${suffix}@test.local`,
-                `Sale Person ${suffix}`,
-                `password${suffix}`,
-                Role.COMMERCIAL,
-            ]);
+            const [result] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
+                [`sp-${suffix}@test.local`, 'Sale', 'Person', `password${suffix}`, Role.COMMERCIAL],
+            );
             userID = (result as any).insertId;
         } finally {
             conn.release();
@@ -117,7 +115,7 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: '{ companies { edges { node { company { id name userID } salePerson { id email name } } cursor } pageInfo { hasNextPage } } }',
+                query: '{ companies { edges { node { company { id name userID } salePerson { id email firstName lastName } } cursor } pageInfo { hasNextPage } } }',
             }),
         });
         const json = await res.json();
@@ -127,7 +125,8 @@ describe('GraphQL company queries', () => {
         expect(json.data.companies.edges).toHaveLength(1);
         expect(json.data.companies.edges[0].node.company.userID).toBe(userID);
         expect(json.data.companies.edges[0].node.salePerson.email).toBe(`sp-${suffix}@test.local`);
-        expect(json.data.companies.edges[0].node.salePerson.name).toBe(`Sale Person ${suffix}`);
+        expect(json.data.companies.edges[0].node.salePerson.firstName).toBe('Sale');
+        expect(json.data.companies.edges[0].node.salePerson.lastName).toBe('Person');
     });
 
     it('paginates companies with first and after', async () => {
@@ -185,16 +184,21 @@ describe('GraphQL company queries', () => {
 
         const conn = await pool.getConnection();
         try {
-            await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?), (?, ?, ?, ?)', [
-                `sp1-${suffix}@test.local`,
-                `Alice ${suffix}`,
-                `Alice${suffix}`,
-                Role.COMMERCIAL,
-                `sp2-${suffix}@test.local`,
-                `Bob ${suffix}`,
-                `Bob${suffix}`,
-                Role.COMMERCIAL,
-            ]);
+            await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)',
+                [
+                    `sp1-${suffix}@test.local`,
+                    'Alice',
+                    `${suffix}`,
+                    `Alice${suffix}`,
+                    Role.COMMERCIAL,
+                    `sp2-${suffix}@test.local`,
+                    'Bob',
+                    `${suffix}`,
+                    `Bob${suffix}`,
+                    Role.COMMERCIAL,
+                ],
+            );
         } finally {
             conn.release();
         }
@@ -205,15 +209,15 @@ describe('GraphQL company queries', () => {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ query: '{ salePersons { id email name } }' }),
+            body: JSON.stringify({ query: '{ salePersons { id email firstName lastName } }' }),
         });
         const json = await res.json();
 
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
         expect(json.data.salePersons).toHaveLength(2);
-        expect(json.data.salePersons[0].name).toBe(`Alice ${suffix}`);
-        expect(json.data.salePersons[1].name).toBe(`Bob ${suffix}`);
+        expect(json.data.salePersons[0].firstName).toBe('Alice');
+        expect(json.data.salePersons[1].firstName).toBe('Bob');
     });
 
     it('returns a sale person by id', async () => {
@@ -223,12 +227,10 @@ describe('GraphQL company queries', () => {
         const conn = await pool.getConnection();
         let userID: number;
         try {
-            const [result] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
-                `sp-find-${suffix}@test.local`,
-                `Target ${suffix}`,
-                `password${suffix}`,
-                Role.COMMERCIAL,
-            ]);
+            const [result] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
+                [`sp-find-${suffix}@test.local`, 'Target', `${suffix}`, `password${suffix}`, Role.COMMERCIAL],
+            );
             userID = (result as any).insertId;
         } finally {
             conn.release();
@@ -241,7 +243,7 @@ describe('GraphQL company queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `query($id: Int!) { salePerson(id: $id) { id email name } }`,
+                query: `query($id: Int!) { salePerson(id: $id) { id email firstName lastName } }`,
                 variables: { id: userID },
             }),
         });
@@ -251,7 +253,8 @@ describe('GraphQL company queries', () => {
         expect(json.errors).toBeUndefined();
         expect(json.data.salePerson.id).toBe(userID);
         expect(json.data.salePerson.email).toBe(`sp-find-${suffix}@test.local`);
-        expect(json.data.salePerson.name).toBe(`Target ${suffix}`);
+        expect(json.data.salePerson.firstName).toBe('Target');
+        expect(json.data.salePerson.lastName).toBe(`${suffix}`);
     });
 
     it('returns null for a non-existent sale person id', async () => {
@@ -284,19 +287,15 @@ describe('GraphQL company queries', () => {
         let sp1Id: number;
         let sp2Id: number;
         try {
-            const [r1] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
-                `sp-a-${suffix}@test.local`,
-                `SP A ${suffix}`,
-                `SPA${suffix}`,
-                Role.COMMERCIAL,
-            ]);
+            const [r1] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
+                [`sp-a-${suffix}@test.local`, 'SP A', `${suffix}`, `SPA${suffix}`, Role.COMMERCIAL],
+            );
             sp1Id = (r1 as any).insertId;
-            const [r2] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
-                `sp-b-${suffix}@test.local`,
-                `SP B ${suffix}`,
-                `SPB${suffix}`,
-                Role.COMMERCIAL,
-            ]);
+            const [r2] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
+                [`sp-b-${suffix}@test.local`, 'SP B', `${suffix}`, `SPB${suffix}`, Role.COMMERCIAL],
+            );
             sp2Id = (r2 as any).insertId;
         } finally {
             conn.release();

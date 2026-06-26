@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import type { EntrepriseFilters, EntrepriseStatus, RelanceFilter, SalePerson } from '@/types/entreprise'
+import { fullName } from '@/store/authStore'
 import { STATUS_VALUES } from '@/types/entreprise'
 
 const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
@@ -302,11 +303,12 @@ export default function FilterPanel({ filters, secteurs, salePersons, onChange, 
     ? RELANCE_OPTIONS.find(o => o.value === filters.relance)?.label
     : undefined
 
-  const commercialLabel = filters.commercial_id != null
-    ? salePersons.find(sp => sp.id === filters.commercial_id)?.name
-    : undefined
+  const matchedCommercial = filters.commercial_id != null
+    ? salePersons.find(sp => sp.id === filters.commercial_id) ?? null
+    : null
+  const commercialLabel = matchedCommercial ? fullName(matchedCommercial) : undefined
 
-  const commercialOptions = salePersons.map(sp => ({ label: sp.name, value: sp.id }))
+  const commercialOptions = salePersons.map(sp => ({ label: fullName(sp), value: sp.id }))
   const secteurOptions = secteurs.map(s => ({ label: s, value: s }))
 
   return (

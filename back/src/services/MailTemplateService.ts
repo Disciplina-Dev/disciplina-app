@@ -39,17 +39,27 @@ export class MailTemplateService {
         return GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
             (refreshed: GoogleTokens) =>
-                this.userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null),
+                this.userService.updateGoogleTokens(
+                    userId,
+                    refreshed.access_token ?? null,
+                    refreshed.refresh_token ?? null,
+                ),
         );
     }
 
     // ── Modèles (CRUD) ───────────────────────────────────────────────────
     async list(userId: number, scope: MailTemplateScope): Promise<MailTemplateDTO[]> {
-        const docs = await MailTemplateModel.find({ user_id: userId, scope }).sort({ created_at: 1 }).lean<MailTemplate[]>();
+        const docs = await MailTemplateModel.find({ user_id: userId, scope })
+            .sort({ created_at: 1 })
+            .lean<MailTemplate[]>();
         return docs.map(toDTO);
     }
 
-    async create(userId: number, scope: MailTemplateScope, data: { name: string; subject: string; body: string }): Promise<MailTemplateDTO> {
+    async create(
+        userId: number,
+        scope: MailTemplateScope,
+        data: { name: string; subject: string; body: string },
+    ): Promise<MailTemplateDTO> {
         const now = new Date();
         const doc = await MailTemplateModel.create({
             _id: randomUUID(),
@@ -65,7 +75,11 @@ export class MailTemplateService {
         return toDTO(doc.toObject() as MailTemplate);
     }
 
-    async update(userId: number, id: string, data: { name: string; subject: string; body: string }): Promise<MailTemplateDTO> {
+    async update(
+        userId: number,
+        id: string,
+        data: { name: string; subject: string; body: string },
+    ): Promise<MailTemplateDTO> {
         const doc = await MailTemplateModel.findOneAndUpdate(
             { _id: id, user_id: userId },
             { $set: { name: data.name, subject: data.subject, body: data.body, updated_at: new Date() } },
@@ -83,24 +97,41 @@ export class MailTemplateService {
             try {
                 const drive = await this.driveForUser(userId);
                 await drive.deleteFile(doc.attachment.driveFileId);
-            } catch { /* ignore : on supprime quand même le modèle */ }
+            } catch {
+                /* ignore : on supprime quand même le modèle */
+            }
         }
         await MailTemplateModel.deleteOne({ _id: id, user_id: userId });
     }
 
     // ── Pièce jointe (1 par modèle, zippée sur Drive) ────────────────────
-    async setAttachment(userId: number, id: string, filename: string, contentType: string, content: Buffer): Promise<MailTemplateDTO> {
+    async setAttachment(
+        userId: number,
+        id: string,
+        filename: string,
+        contentType: string,
+        content: Buffer,
+    ): Promise<MailTemplateDTO> {
         const doc = await MailTemplateModel.findOne({ _id: id, user_id: userId });
         if (!doc) throw new TemplateNotFoundError();
 
         const drive = await this.driveForUser(userId);
         // Remplace l'ancienne PJ si présente.
         if (doc.attachment?.driveFileId) {
-            try { await drive.deleteFile(doc.attachment.driveFileId); } catch { /* ignore */ }
+            try {
+                await drive.deleteFile(doc.attachment.driveFileId);
+            } catch {
+                /* ignore */
+            }
         }
 
         const zipped = gzipSync(content);
-        const uploaded = await drive.uploadFile(`${filename}.gz`, 'application/gzip', zipped, env.DRIVE_TEMPLATES_FOLDER_ID);
+        const uploaded = await drive.uploadFile(
+            `${filename}.gz`,
+            'application/gzip',
+            zipped,
+            env.DRIVE_TEMPLATES_FOLDER_ID,
+        );
 
         const attachment: MailTemplateAttachment = { filename, contentType, driveFileId: uploaded.id };
         doc.set({ attachment, updated_at: new Date() });
@@ -115,7 +146,9 @@ export class MailTemplateService {
             try {
                 const drive = await this.driveForUser(userId);
                 await drive.deleteFile(doc.attachment.driveFileId);
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
         }
         doc.set({ attachment: null, updated_at: new Date() });
         await doc.save();
@@ -123,7 +156,10 @@ export class MailTemplateService {
     }
 
     /** Télécharge le .zip depuis Drive et le décompresse → fichier original (base64) prêt à attacher. */
-    async resolveAttachment(userId: number, id: string): Promise<{ filename: string; contentType: string; content: string }> {
+    async resolveAttachment(
+        userId: number,
+        id: string,
+    ): Promise<{ filename: string; contentType: string; content: string }> {
         const doc = await MailTemplateModel.findOne({ _id: id, user_id: userId }).lean<MailTemplate>();
         if (!doc || !doc.attachment) throw new TemplateNotFoundError();
         const drive = await this.driveForUser(userId);
@@ -138,7 +174,10 @@ export class MailTemplateService {
 
     // ── Signature (une par user+scope, image sur Drive) ──────────────────
     async getSignature(userId: number, scope: MailTemplateScope): Promise<string | null> {
-        const sig = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{ driveFileId: string; contentType: string }>();
+        const sig = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{
+            driveFileId: string;
+            contentType: string;
+        }>();
         if (!sig) return null;
         const drive = await this.driveForUser(userId);
         const { buffer } = await drive.downloadFile(sig.driveFileId);
@@ -158,16 +197,31 @@ export class MailTemplateService {
         const drive = await this.driveForUser(userId);
         const existing = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
         if (existing?.driveFileId) {
-            try { await drive.deleteFile(existing.driveFileId); } catch { /* ignore */ }
+            try {
+                await drive.deleteFile(existing.driveFileId);
+            } catch {
+                /* ignore */
+            }
         }
         const ext = contentType.split('/')[1] || 'png';
         // Nom de fichier lisible sur Drive : "Signature DISCIPLINA - <Nom> (rh).<ext>"
-        const safeName = user.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || `user${userId}`;
+        const safeName =
+            `${user.firstName} ${user.lastName}`.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || `user${userId}`;
         const filename = `Signature DISCIPLINA - ${safeName} (${scope}).${ext}`;
         const uploaded = await drive.uploadFile(filename, contentType, content, env.DRIVE_TEMPLATES_FOLDER_ID);
         await MailSignatureModel.findOneAndUpdate(
             { _id: `${userId}:${scope}` },
-            { $set: { user_id: userId, scope, driveFileId: uploaded.id, driveWebViewLink: uploaded.webViewLink, filename, contentType, updated_at: new Date() } },
+            {
+                $set: {
+                    user_id: userId,
+                    scope,
+                    driveFileId: uploaded.id,
+                    driveWebViewLink: uploaded.webViewLink,
+                    filename,
+                    contentType,
+                    updated_at: new Date(),
+                },
+            },
             { upsert: true },
         );
     }
@@ -178,7 +232,9 @@ export class MailTemplateService {
         try {
             const drive = await this.driveForUser(userId);
             await drive.deleteFile(sig.driveFileId);
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         await MailSignatureModel.deleteOne({ _id: `${userId}:${scope}` });
     }
 }

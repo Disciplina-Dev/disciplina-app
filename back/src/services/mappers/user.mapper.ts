@@ -13,7 +13,8 @@ export function toUser(row: UserRow): User {
     return {
         id: row.id,
         email: row.email,
-        name: row.name,
+        firstName: row.first_name,
+        lastName: row.last_name,
         password: row.password,
         role: row.role as Role,
         sectors: parsedSectors,
@@ -26,7 +27,8 @@ export function toUserResponse(user: User): UserResponse {
     return {
         id: user.id,
         email: user.email,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         role: user.role,
         sectors: user.sectors,
         googleConnected: Boolean(user.oauthToken),

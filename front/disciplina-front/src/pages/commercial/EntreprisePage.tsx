@@ -420,19 +420,19 @@ export default function EntreprisePage() {
                           onChange={(e) => {
                             const u = USERS[e.target.value]
                             set('proprietaire_id', u ? Number(e.target.value) : null)
-                            set('commercial', u?.name ?? null)
+                            set('commercial', u ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || null : null)
                           }}
                           className={INLINE_SELECT}
                         >
                           <option value="">Non attribué</option>
                           {commercialUsers.map((u) => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
+                            <option key={u.id} value={u.id}>{`${u.firstName ?? ''} ${u.lastName ?? ''}`.trim()}</option>
                           ))}
                         </select>
                       ) : owner ? (
                         <div className="flex items-center gap-1.5">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full text-white text-[10px] font-bold" style={{ backgroundColor: owner.color }}>{owner.initials}</span>
-                          <span className="text-sm text-gray-900">{owner.name}</span>
+                          <span className="text-sm text-gray-900">{`${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim()}</span>
                           <span className="text-xs text-gray-500">({owner.role})</span>
                         </div>
                       ) : (

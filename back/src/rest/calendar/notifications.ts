@@ -15,8 +15,13 @@ const DEFAULT_TZ = 'Indian/Reunion';
 /** Formate un instant pour affichage (ex "lundi 16 juin 2026 à 09:00"). */
 function formatInTz(iso: string, tz: string): string {
     return new Intl.DateTimeFormat('fr-FR', {
-        timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
+        timeZone: tz,
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
     }).format(new Date(iso));
 }
 
@@ -25,8 +30,19 @@ function dateVars(iso: string, tz: string): Record<string, string> {
     const d = new Date(iso);
     return {
         jour: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long' }).format(d),
-        date_longue: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d),
-        date_courte: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).format(d),
+        date_longue: new Intl.DateTimeFormat('fr-FR', {
+            timeZone: tz,
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        }).format(d),
+        date_courte: new Intl.DateTimeFormat('fr-FR', {
+            timeZone: tz,
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        }).format(d),
         heure: new Intl.DateTimeFormat('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(d),
     };
 }
@@ -59,7 +75,17 @@ interface ConfirmationParams {
 }
 
 /** Envoie un email de confirmation de rendez-vous via le compte Gmail de l'hôte. Ne jette jamais. */
-export async function sendRdvConfirmation({ host, to, title, startIso, location, tz = DEFAULT_TZ, durationMin, confirmationSubject, confirmationBody }: ConfirmationParams): Promise<void> {
+export async function sendRdvConfirmation({
+    host,
+    to,
+    title,
+    startIso,
+    location,
+    tz = DEFAULT_TZ,
+    durationMin,
+    confirmationSubject,
+    confirmationBody,
+}: ConfirmationParams): Promise<void> {
     const when = formatInTz(startIso, tz);
 
     let subject: string;
@@ -75,7 +101,7 @@ export async function sendRdvConfirmation({ host, to, title, startIso, location,
             lieu: location ?? '',
             titre: title,
             duree: durationMin ? `${durationMin} minutes` : '',
-            hote: host.name,
+            hote: `${host.firstName} ${host.lastName}`.trim(),
         };
         subject = renderTemplate(confirmationSubject || `Confirmation de votre rendez-vous — ${title}`, vars);
         html = renderTemplate(confirmationBody, vars);
@@ -85,12 +111,15 @@ export async function sendRdvConfirmation({ host, to, title, startIso, location,
         const lieu = location ? `<p><strong>Lieu :</strong> ${location}</p>` : '';
         html = `
         <p>Bonjour,</p>
-        <p>Votre rendez-vous « <strong>${title}</strong> » avec ${host.name} est confirmé.</p>
+        <p>Votre rendez-vous « <strong>${title}</strong> » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.</p>
         <p><strong>Date :</strong> ${when}</p>
         ${lieu}
-        <p>À bientôt,<br/>${host.name}</p>`;
-        text = `Bonjour,\n\nVotre rendez-vous « ${title} » avec ${host.name} est confirmé.\n`
-            + `Date : ${when}\n${location ? `Lieu : ${location}\n` : ''}\nÀ bientôt,\n${host.name}`;
+        <p>À bientôt,<br/>${`${host.firstName} ${host.lastName}`.trim()}</p>`;
+        text =
+            `Bonjour,\n\nVotre rendez-vous « ${title} » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.\n` +
+            `Date : ${when}\n${
+                location ? `Lieu : ${location}\n` : ''
+            }\nÀ bientôt,\n${`${host.firstName} ${host.lastName}`.trim()}`;
     }
 
     const signatureHtml = await mailTemplateService.getSignatureHtml(host.id, 'rh').catch(() => '');
@@ -115,12 +144,13 @@ export async function sendNoShowRebooking({ host, to, title, bookingUrl }: Reboo
     const subject = `Vous avez manqué votre rendez-vous — ${title}`;
     const html = `
         <p>Bonjour,</p>
-        <p>Nous ne vous avons pas vu à votre rendez-vous « <strong>${title}</strong> » avec ${host.name}.</p>
+        <p>Nous ne vous avons pas vu à votre rendez-vous « <strong>${title}</strong> » avec ${`${host.firstName} ${host.lastName}`.trim()}.</p>
         <p>Si vous le souhaitez, vous pouvez reprendre un créneau qui vous convient :</p>
         <p><a href="${bookingUrl}">Reprendre un rendez-vous</a></p>
-        <p>À bientôt,<br/>${host.name}</p>`;
-    const text = `Bonjour,\n\nNous ne vous avons pas vu à votre rendez-vous « ${title} » avec ${host.name}.\n`
-        + `Si vous le souhaitez, reprenez un créneau ici : ${bookingUrl}\n\nÀ bientôt,\n${host.name}`;
+        <p>À bientôt,<br/>${`${host.firstName} ${host.lastName}`.trim()}</p>`;
+    const text =
+        `Bonjour,\n\nNous ne vous avons pas vu à votre rendez-vous « ${title} » avec ${`${host.firstName} ${host.lastName}`.trim()}.\n` +
+        `Si vous le souhaitez, reprenez un créneau ici : ${bookingUrl}\n\nÀ bientôt,\n${`${host.firstName} ${host.lastName}`.trim()}`;
 
     const signatureHtml = await mailTemplateService.getSignatureHtml(host.id, 'rh').catch(() => '');
     const htmlWithSig = signatureHtml ? html + signatureHtml : html;

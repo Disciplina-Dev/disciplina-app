@@ -83,6 +83,7 @@ export interface Identity {
     social_security_number?: string;      // Numéro de sécurité sociale
     date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
+    department_of_birth?: string;         // Département de naissance
     age?: number;                         // Âge actuel (calculé ou fourni)
     address?: string;                     // Adresse (numéro et rue)
     postal_code?: string;                 // Code postal
@@ -211,6 +212,7 @@ export interface Candidate {
     pdf_link?: string;
     cv_link?: string;
     drive_folder_id?: string;
+    filiz_folder_id?: string;
 }
 
 export enum CandidateHistoryType {

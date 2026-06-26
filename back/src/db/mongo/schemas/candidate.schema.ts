@@ -28,6 +28,7 @@ const identitySchema = new Schema<Identity>(
         social_security_number: { type: String },
         date_of_birth: { type: Date },
         place_of_birth: { type: String },
+        department_of_birth: { type: String },
         age: { type: Number },
         address: { type: String },
         postal_code: { type: String },
@@ -221,5 +222,4 @@ const candidateAvatarSchema = new Schema<CandidateAvatar & Document>(
 );
 
 export const CandidateAvatarModel =
-    mongoose.models.CandidateAvatar ||
-    model<CandidateAvatar & Document>('CandidateAvatar', candidateAvatarSchema);
+    mongoose.models.CandidateAvatar || model<CandidateAvatar & Document>('CandidateAvatar', candidateAvatarSchema);

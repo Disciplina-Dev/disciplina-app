@@ -6,7 +6,8 @@ USE disciplina;
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
-    name VARCHAR(255) NOT NULL,
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL,
     role ENUM('ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH') NOT NULL,
     sectors JSON DEFAULT NULL,
@@ -21,14 +22,14 @@ CREATE TABLE IF NOT EXISTS filiz (
     expires_at DATETIME NOT NULL
 );
 
-INSERT INTO users (id, email, name, password, role)
+INSERT INTO users (id, email, first_name, last_name, password, role)
 VALUES
-    (1, 'root@example.com', 'root', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'ADMIN'),
-    (2, 'sans-commerciaux@disciplina.com', 'sans-commerciaux', '$2a$10$imIY6KBorYrcZ4Tr7VxBwOeSqj0IufPykYAJ5Qke3VS8wAiGF/hJu', 'ADMIN'),
-    (3, 'sinaman.commercial@disciplina.re', 'Amanda', '$2a$10$aUfW35HzC24awAbUjXuTzusv5SYcP7J0QhnvOeD.qK//qbsugpppe', 'RESPONSABLE'),
-    (4, 'galmar.commercial@disciplina.re', 'Brandon', '$2a$10$2RM20a22qDJ.8icsoiDoAOHvDhAIbgsyV/sWWJPPS0lgi32/T/BeK', 'COMMERCIAL'),
-    (5, 'lebon.commercial@disciplina.re', 'Emile', '$2a$10$mMVS8gxP9bT.HpX.FStLvupuSu5ZErfZIfJI4svAT6dJvlIc9oIQe', 'COMMERCIAL'),
-    (6, 'loic.rh@disciplina.re', 'Loic', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'RH');
+    (1, 'root@example.com', 'root', 'root', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'ADMIN'),
+    (2, 'sans-commerciaux@disciplina.com', 'sans', 'commerciaux', '$2a$10$imIY6KBorYrcZ4Tr7VxBwOeSqj0IufPykYAJ5Qke3VS8wAiGF/hJu', 'ADMIN'),
+    (3, 'sinaman.commercial@disciplina.re', 'Amanda', 'Sinaman', '$2a$10$aUfW35HzC24awAbUjXuTzusv5SYcP7J0QhnvOeD.qK//qbsugpppe', 'RESPONSABLE'),
+    (4, 'galmar.commercial@disciplina.re', 'Brandon', 'Galmar', '$2a$10$2RM20a22qDJ.8icsoiDoAOHvDhAIbgsyV/sWWJPPS0lgi32/T/BeK', 'COMMERCIAL'),
+    (5, 'lebon.commercial@disciplina.re', 'Emile', 'Lebon', '$2a$10$mMVS8gxP9bT.HpX.FStLvupuSu5ZErfZIfJI4svAT6dJvlIc9oIQe', 'COMMERCIAL'),
+    (6, 'loic.rh@disciplina.re', 'Loic', 'grondin', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'RH');
 
 CREATE TABLE IF NOT EXISTS companies (
     id INT AUTO_INCREMENT PRIMARY KEY,

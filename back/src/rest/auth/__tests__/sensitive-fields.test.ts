@@ -19,7 +19,8 @@ describe('Auth sensitive fields sanitization', () => {
 
         await repo.create({
             email: 'test@local.test',
-            name: 'Test User',
+            first_name: 'Test',
+            last_name: 'User',
             password: hashedPassword,
             role: 'ADMIN',
             sectors: null,
@@ -47,7 +48,8 @@ describe('Auth sensitive fields sanitization', () => {
 
         expect(data.user).toHaveProperty('id');
         expect(data.user).toHaveProperty('email');
-        expect(data.user).toHaveProperty('name');
+        expect(data.user).toHaveProperty('firstName');
+        expect(data.user).toHaveProperty('lastName');
         expect(data.user).toHaveProperty('role');
     });
 
@@ -57,7 +59,8 @@ describe('Auth sensitive fields sanitization', () => {
 
         const adminId = await adminRepo.create({
             email: 'admin@local.test',
-            name: 'Admin',
+            first_name: 'Admin',
+            last_name: '',
             password: hashedPassword,
             role: 'ADMIN',
             sectors: null,
@@ -79,7 +82,8 @@ describe('Auth sensitive fields sanitization', () => {
             },
             body: JSON.stringify({
                 email: 'newuser@local.test',
-                name: 'New User',
+                firstName: 'New',
+                lastName: 'User',
                 passwordPlain: 'newpass123',
                 role: 'COMMERCIAL',
             }),
@@ -93,7 +97,8 @@ describe('Auth sensitive fields sanitization', () => {
 
         expect(data).toHaveProperty('id');
         expect(data).toHaveProperty('email', 'newuser@local.test');
-        expect(data).toHaveProperty('name', 'New User');
+        expect(data).toHaveProperty('firstName', 'New');
+        expect(data).toHaveProperty('lastName', 'User');
         expect(data).toHaveProperty('role', 'COMMERCIAL');
     });
 });

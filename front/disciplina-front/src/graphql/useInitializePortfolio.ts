@@ -45,7 +45,7 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
           id: String(c.company.id),
           nom_commercial: c.company.name,
           proprietaire_contact: c.salePerson?.email || null,
-          commercial: c.salePerson?.name || null,
+          commercial: c.salePerson ? `${c.salePerson.firstName ?? ''} ${c.salePerson.lastName ?? ''}`.trim() || null : null,
           proprietaire_id: c.salePerson?.id || null,
           representant_legal: c.company?.legalReferent || null,
           telephone: c.company.phone,

@@ -61,6 +61,7 @@ export interface Identity {
     social_security_number?: string;
     date_of_birth?: Date;
     place_of_birth?: string;
+    department_of_birth?: string;
     age?: number;
     sex?: string;
     address?: string;
@@ -206,6 +207,7 @@ export interface Candidate {
     cv_link?: string;
     drive_folder_id?: string;
     drive_folder_link?: string;
+    filiz_folder_id?: string;
     photo_link?: string;
     classmarker?: ClassMarkerResult;
 }

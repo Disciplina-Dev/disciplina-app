@@ -19,6 +19,7 @@ import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
+import FilizFolderModal from '@/components/rh/FilizFolderModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
@@ -137,6 +138,7 @@ export default function FicheCandidat() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
   const [showClassMarker, setShowClassMarker] = useState(false)
+  const [showFilizModal, setShowFilizModal] = useState(false)
   const [capturingPhoto, setCapturingPhoto] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [uploadingCV, setUploadingCV] = useState(false)
@@ -449,9 +451,20 @@ export default function FicheCandidat() {
               </Button>
             </>
           )}
+          {formData.filiz_folder_id ? (
+            <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={15} style={{ color: 'var(--color-purple)' }} />}
+              onClick={() => window.open(`https://app.filiz.io/folders/${formData.filiz_folder_id}`, '_blank')}>
+              Dossier Filiz
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" leftIcon={<FolderPlus size={15} style={{ color: 'var(--color-purple)' }} />}
+              onClick={() => setShowFilizModal(true)}>
+              Créer dossier Filiz
+            </Button>
+          )}
           <Button variant="secondary" size="sm" leftIcon={<ClipboardCheck size={15} style={{ color: 'var(--color-purple)' }} />}
             disabled={!testPassed}
-            title={testPassed ? undefined : 'Indisponible : le candidat n’a réussi aucun test (moyenne < 50%)'}
+            title={testPassed ? undefined : "Indisponible : le candidat n'a réussi aucun test (moyenne < 50%)"}
             onClick={() => navigate(`/rh/candidats/${formData._id}/questionnaire`)}>
             Analyse de Besoin
           </Button>
@@ -947,6 +960,13 @@ export default function FicheCandidat() {
           candidateId={formData._id}
         />
       )}
+
+      <FilizFolderModal
+        open={showFilizModal}
+        onClose={() => setShowFilizModal(false)}
+        candidateId={formData._id}
+        onSuccess={(filizFolderId) => setFormData(prev => prev ? { ...prev, filiz_folder_id: filizFolderId } : prev)}
+      />
     </>
   )
 }

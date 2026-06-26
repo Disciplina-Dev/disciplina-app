@@ -156,7 +156,9 @@ export async function searchBySiren(req: AuthRequest, res: Response): Promise<vo
             }
             const company = toCompanies(row);
             const user = await userService.findById(company.userID ?? 0);
-            const salePerson = user ? { id: user.id, email: user.email, name: user.name } : null;
+            const salePerson = user
+                ? { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName }
+                : null;
             companiesWithSale.push({ company, salePerson });
         }
 
@@ -200,6 +202,28 @@ export async function getCompletion(req: AuthRequest, res: Response): Promise<vo
         res.json({ status: 'OK', results });
     } catch (error: any) {
         logger.error({ err: error }, 'Sourcing: échec autocomplétage adresse');
+        res.json({ status: 'KO', results: [] });
+    }
+}
+
+export async function getDepartement(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const { input } = req.query;
+
+        if (typeof input !== 'string' || !input.trim()) {
+            res.status(400).json({ status: 'KO', results: [] });
+            return;
+        }
+
+        const results = await geocodageService.searchDepartements(input.trim());
+        if (results === null) {
+            res.json({ status: 'KO', results: [] });
+            return;
+        }
+
+        res.json({ status: 'OK', results });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Sourcing: échec autocomplétage département');
         res.json({ status: 'KO', results: [] });
     }
 }

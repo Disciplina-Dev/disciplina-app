@@ -29,12 +29,12 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
             res.status(403).json({ error: 'Only admins can register new users' });
             return;
         }
-        const { email, name, passwordPlain, role, sectors } = req.body;
-        if (!email || !name || !passwordPlain || !role) {
-            res.status(400).json({ error: 'Missing required fields: email, name, passwordPlain, role' });
+        const { email, firstName, lastName, passwordPlain, role, sectors } = req.body;
+        if (!email || !firstName || !lastName || !passwordPlain || !role) {
+            res.status(400).json({ error: 'Missing required fields: email, firstName, lastName, passwordPlain, role' });
             return;
         }
-        const user = await userService.register(email, name, passwordPlain, role, sectors);
+        const user = await userService.register(email, firstName, lastName, passwordPlain, role, sectors);
         res.status(201).json(toUserResponse(user));
     } catch (error: any) {
         res.status(400).json({ error: error.message });

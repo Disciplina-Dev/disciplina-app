@@ -41,11 +41,11 @@ export class RhKpiRepository {
             params.push(...userIds);
         }
         return query<RhKpiWeeklyRow[]>(
-            `SELECT k.*, u.name AS user_name
+            `SELECT k.*, CONCAT(u.first_name, ' ', u.last_name) AS user_name
              FROM rh_kpi k
              JOIN users u ON u.id = k.user_id
              WHERE k.year = ?${scope}
-             ORDER BY k.week, u.name`,
+             ORDER BY k.week, u.first_name, u.last_name`,
             params,
         );
     }

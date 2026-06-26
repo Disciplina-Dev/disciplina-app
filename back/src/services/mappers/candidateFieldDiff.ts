@@ -48,6 +48,7 @@ const IDENTITY_LABELS: Partial<Record<keyof Identity, string>> = {
     city: 'Ville',
     date_of_birth: 'Date de naissance',
     place_of_birth: 'Lieu de naissance',
+    department_of_birth: 'Département de naissance',
     sex: 'Sexe',
     driving_license_b: 'Permis B',
     transport_means: 'Moyen de transport',
