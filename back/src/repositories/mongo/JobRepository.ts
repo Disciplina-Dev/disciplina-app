@@ -1,5 +1,6 @@
 import { JobModel } from '../../db/mongo/schemas/job.schema';
 import {
+    InterviewConclusion,
     Job,
     JobStatus,
     MatchedCandidateStatus,
@@ -110,6 +111,23 @@ export class JobRepository {
     ): Promise<Job | null> {
         const update: Record<string, unknown> = { 'proposed_candidate.$.answer': answer };
         if (comment) update['proposed_candidate.$.comment'] = comment;
+        return JobModel.findOneAndUpdate(
+            { _id: jobId, 'proposed_candidate.id': candidateId },
+            { $set: update },
+            { new: true },
+        ).lean();
+    }
+
+    async setProposedCandidateConclusion(
+        jobId: string,
+        candidateId: string,
+        conclusion: InterviewConclusion,
+        immersionStartDate?: string,
+        immersionEndDate?: string,
+    ): Promise<Job | null> {
+        const update: Record<string, unknown> = { 'proposed_candidate.$.interview_conclusion': conclusion };
+        if (immersionStartDate) update['proposed_candidate.$.immersion_start_date'] = immersionStartDate;
+        if (immersionEndDate) update['proposed_candidate.$.immersion_end_date'] = immersionEndDate;
         return JobModel.findOneAndUpdate(
             { _id: jobId, 'proposed_candidate.id': candidateId },
             { $set: update },

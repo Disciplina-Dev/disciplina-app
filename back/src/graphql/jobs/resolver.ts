@@ -1,5 +1,6 @@
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
+import { InterviewConclusion } from '../../types/job.types';
 import { JobService } from '../../services/JobService';
 import { MatchLinkService } from '../../services/MatchLinkService';
 import { MatchMailService } from '../../services/MatchMailService';
@@ -88,6 +89,33 @@ export const resolvers = {
                 interviewDate,
                 interviewHour,
                 interviewLocation,
+                context.user.email,
+            );
+        },
+        setInterviewConclusion: async (
+            _: unknown,
+            {
+                jobId,
+                candidateId,
+                conclusion,
+                immersionStartDate,
+                immersionEndDate,
+            }: {
+                jobId: string;
+                candidateId: string;
+                conclusion: string;
+                immersionStartDate?: string;
+                immersionEndDate?: string;
+            },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return await jobService.setInterviewConclusion(
+                jobId,
+                candidateId,
+                conclusion as InterviewConclusion,
+                immersionStartDate,
+                immersionEndDate,
                 context.user.email,
             );
         },

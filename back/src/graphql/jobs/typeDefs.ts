@@ -85,6 +85,12 @@ export const typeDefs = gql`
         FAVORITE
     }
 
+    enum InterviewConclusion {
+        REJECTED
+        IMMERSING
+        CONTRACT
+    }
+
     type MatchingCandidate {
         id: String
         fullName: String
@@ -107,10 +113,11 @@ export const typeDefs = gql`
         description: String
         answer: ProposedCandidateAnswer
         comment: String
-        interviewDate: String
-        interviewHour: String
         interviewLocation: String
         bookedInterviewSlot: String
+        interviewConclusion: InterviewConclusion
+        immersionStartDate: String
+        immersionEndDate: String
     }
 
     input ProposedCandidateInput {
@@ -187,5 +194,12 @@ export const typeDefs = gql`
             interviewLocation: String!
         ): Job
         createMatchSession(jobId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
+        setInterviewConclusion(
+            jobId: String!
+            candidateId: String!
+            conclusion: InterviewConclusion!
+            immersionStartDate: String
+            immersionEndDate: String
+        ): Job
     }
 `;
