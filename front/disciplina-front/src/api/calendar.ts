@@ -64,7 +64,8 @@ export function eventHex(colorId?: string): string {
 
 export interface CalendarUser {
   id: number;
-  name: string;
+  firstName: string;
+  lastName: string;
   role: string;
   connected: boolean;
   isSelf: boolean;

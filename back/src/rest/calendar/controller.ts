@@ -68,7 +68,8 @@ export async function listCalendarUsers(req: AuthRequest, res: Response): Promis
     res.json({
         users: users.map((u) => ({
             id: u.id,
-            name: u.name,
+            firstName: u.firstName,
+            lastName: u.lastName,
             role: u.role,
             connected: Boolean(u.oauthToken),
             isSelf: u.id === selfId,
@@ -176,8 +177,12 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
         if (input.attendeeEmail) {
             const settings = await bookingService.getOrCreate(host.id);
             await sendRdvConfirmation({
-                host, to: input.attendeeEmail, title: input.summary,
-                startIso: input.start, location: input.location, tz: settings.timezone,
+                host,
+                to: input.attendeeEmail,
+                title: input.summary,
+                startIso: input.start,
+                location: input.location,
+                tz: settings.timezone,
                 durationMin: settings.durationMin,
                 confirmationSubject: settings.confirmationSubject,
                 confirmationBody: settings.confirmationBody,
@@ -215,7 +220,9 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         if (status === 'noshow' && event.attendeeEmail) {
             const settings = await bookingService.getOrCreate(host.id);
             await sendNoShowRebooking({
-                host, to: event.attendeeEmail, title: event.summary,
+                host,
+                to: event.attendeeEmail,
+                title: event.summary,
                 bookingUrl: `${env.FRONTEND_BASE_URL}/booking/${settings.slug}`,
             });
         }

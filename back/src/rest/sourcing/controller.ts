@@ -156,7 +156,9 @@ export async function searchBySiren(req: AuthRequest, res: Response): Promise<vo
             }
             const company = toCompanies(row);
             const user = await userService.findById(company.userID ?? 0);
-            const salePerson = user ? { id: user.id, email: user.email, name: user.name } : null;
+            const salePerson = user
+                ? { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName }
+                : null;
             companiesWithSale.push({ company, salePerson });
         }
 

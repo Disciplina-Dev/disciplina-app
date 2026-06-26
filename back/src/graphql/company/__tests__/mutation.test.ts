@@ -116,8 +116,8 @@ describe('GraphQL company mutations', () => {
             let userID: number;
             try {
                 const [result] = await conn.execute(
-                    'INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)',
-                    [`sp-create-${suffix}@test.local`, `Sales Rep ${suffix}`, `password${suffix}`, Role.COMMERCIAL],
+                    'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
+                    [`sp-create-${suffix}@test.local`, 'Sales', `Rep`, `password${suffix}`, Role.COMMERCIAL],
                 );
                 userID = (result as any).insertId;
             } finally {

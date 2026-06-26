@@ -453,7 +453,7 @@ export class KpiService {
         const wanted = new Set(names.map(normalize));
         const map = new Map<string, number>();
         for (const user of users) {
-            const key = normalize(user.name);
+            const key = normalize(`${user.first_name} ${user.last_name}`);
             if (wanted.has(key)) map.set(key, user.id);
         }
         return map;

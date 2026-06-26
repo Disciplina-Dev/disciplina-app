@@ -12,7 +12,8 @@ export enum Role {
 export interface User {
     id: number;
     email: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     role: Role;
     sectors: string[] | null;
     oauthToken?: string | null;
@@ -23,7 +24,8 @@ export interface User {
 export interface UserResponse {
     id: number;
     email: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     role: Role;
     sectors: string[] | null;
     googleConnected: boolean;

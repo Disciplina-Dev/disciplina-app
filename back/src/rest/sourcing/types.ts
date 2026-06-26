@@ -9,7 +9,8 @@ export interface ContactInfo {
 export interface SalePersonInfo {
     id: number;
     email: string;
-    name: string;
+    firstName: string;
+    lastName: string;
 }
 
 export interface CompanyWithSalePerson {

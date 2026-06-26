@@ -261,7 +261,7 @@ export default function PortefeuilleEntreprises() {
                 entreprise={e}
                 currentUser={currentUser!}
                 onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
-                onClaim={() => handleClaim(e.id, Number(currentUser!.id), currentUser!.name)}
+                onClaim={() => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
               />
             ))}
           </div>

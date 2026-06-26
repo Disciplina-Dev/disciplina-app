@@ -22,9 +22,8 @@ export default function FilizFolderModal({ open, onClose, candidateId, onSuccess
   const { classes, fetching: loadingClasses } = useFilizClasses(selectedDegreeId)
   const { createFilizFolder } = useCreateFilizFolder()
 
-  const spaceIdx = (user?.name ?? '').indexOf(' ')
-  const fileManagerFirstName = spaceIdx >= 0 ? (user?.name ?? '').slice(0, spaceIdx) : (user?.name ?? '')
-  const fileManagerLastName = spaceIdx >= 0 ? (user?.name ?? '').slice(spaceIdx + 1) : ''
+  const fileManagerFirstName = user?.firstName ?? ''
+  const fileManagerLastName = user?.lastName ?? ''
 
   const handleDegreeChange = (degreeId: string) => {
     setSelectedDegreeId(degreeId || null)
@@ -149,7 +148,7 @@ export default function FilizFolderModal({ open, onClose, candidateId, onSuccess
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Responsable du dossier</label>
             <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
-              {user?.name} — {user?.email}
+              {`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim()} — {user?.email}
             </p>
           </div>
         </div>

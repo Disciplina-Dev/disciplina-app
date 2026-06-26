@@ -5,7 +5,8 @@ export const GET_SALE_PERSONS = gql`
     salePersons {
       id
       email
-      name
+      firstName
+      lastName
     }
   }
 `
@@ -15,7 +16,8 @@ export const GET_SALE_PERSON = gql`
     salePerson(id: $id) {
       id
       email
-      name
+      firstName
+      lastName
     }
   }
 `
@@ -50,7 +52,8 @@ export const GET_COMPANIES = gql`
           salePerson {
             id
             email
-            name
+            firstName
+            lastName
           }
         }
       }
@@ -127,7 +130,8 @@ export const GET_COMPANIES_BY_COMMERCIAL = gql`
       salePerson {
         id
         email
-        name
+        firstName
+        lastName
       }
     }
   }
@@ -608,7 +612,8 @@ export const LOGIN_USER = gql`
       user {
         id
         email
-        name
+        firstName
+        lastName
         role
         sectors
       }
@@ -619,21 +624,24 @@ export const LOGIN_USER = gql`
 export const REGISTER_USER = gql`
   mutation RegisterUser(
     $email: String!
-    $name: String!
+    $firstName: String!
+    $lastName: String!
     $passwordPlain: String!
     $role: Role!
     $sectors: [String!]
   ) {
     register(
       email: $email
-      name: $name
+      firstName: $firstName
+      lastName: $lastName
       passwordPlain: $passwordPlain
       role: $role
       sectors: $sectors
     ) {
       id
       email
-      name
+      firstName
+      lastName
       role
       sectors
     }

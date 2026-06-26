@@ -80,7 +80,7 @@ export default function RHLayout() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{currentUser?.name}</p>
+                <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{`${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim()}</p>
                 {currentUser?.role === 'RESPONSABLE' && (
                   <span className="shrink-0 rounded-full bg-blue-light px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue">Resp.</span>
                 )}

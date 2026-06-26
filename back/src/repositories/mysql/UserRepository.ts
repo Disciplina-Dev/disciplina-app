@@ -27,8 +27,17 @@ export class UserRepository {
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
         const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(
-            'INSERT INTO users (email, name, password, role, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [user.email, user.name, user.password, user.role, sectorsJson, user.oauth_token, user.refresh_token],
+            'INSERT INTO users (email, first_name, last_name, password, role, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                user.email,
+                user.first_name,
+                user.last_name,
+                user.password,
+                user.role,
+                sectorsJson,
+                user.oauth_token,
+                user.refresh_token,
+            ],
         );
         return result.insertId;
     }

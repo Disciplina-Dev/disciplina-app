@@ -12,7 +12,8 @@ export enum UserRole {
 export interface AppUser {
   id: string
   email: string
-  name: string
+  firstName: string
+  lastName: string
   role: UserRole
   sectors?: string[]
   oauthToken?: string
@@ -53,7 +54,8 @@ export const useCurrentUser = (): AppUser | null => {
 export const USERS: Record<string, AppUser> = {
   4: {
     id: '4',
-    name: 'Brandon',
+    firstName: 'Brandon',
+    lastName: 'Galmar',
     role: UserRole.COMMERCIAL,
     email: 'galmar.commercial@disciplina.re',
     color: '#3B82F6',
@@ -61,7 +63,8 @@ export const USERS: Record<string, AppUser> = {
   },
   5: {
     id: '5',
-    name: 'Emile',
+    firstName: 'Emile',
+    lastName: 'Lebon',
     role: UserRole.COMMERCIAL,
     email: 'lebon.commercial@disciplina.re',
     color: '#8B5CF6',
@@ -69,7 +72,8 @@ export const USERS: Record<string, AppUser> = {
   },
   3: {
     id: '3',
-    name: 'Amanda',
+    firstName: 'Amanda',
+    lastName: 'Sinaman',
     role: UserRole.RESPONSABLE,
     email: 'sinaman.commercial@disciplina.re',
     color: '#EC4899',
@@ -77,7 +81,8 @@ export const USERS: Record<string, AppUser> = {
   },
   2: {
     id: '2',
-    name: 'Pas de commerciaux',
+    firstName: 'Pas de',
+    lastName: 'commerciaux',
     role: UserRole.COMMERCIAL,
     email: '',
     color: '#9CA3AF',
@@ -85,7 +90,8 @@ export const USERS: Record<string, AppUser> = {
   },
   6: {
     id: '6',
-    name: 'Lorenzo',
+    firstName: 'Lorenzo',
+    lastName: '',
     role: UserRole.ADMIN,
     email: 'lorenzo@disciplina.re',
     color: '#10B981',
@@ -93,7 +99,8 @@ export const USERS: Record<string, AppUser> = {
   },
   1: {
     id: '1',
-    name: 'root',
+    firstName: 'root',
+    lastName: '',
     role: UserRole.ADMIN,
     email: 'root@example.com',
     color: '#6366F1',

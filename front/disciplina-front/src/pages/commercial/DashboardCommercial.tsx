@@ -72,7 +72,7 @@ function ContactStatsSection() {
                   </span>
                 )}
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 truncate">
-                  {user?.name ?? `Utilisateur #${u.userID}`}
+                  {user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() : `Utilisateur #${u.userID}`}
                 </p>
               </div>
               <p className="mt-1 text-[28px] font-extrabold leading-none text-gray-900">{u.count}</p>

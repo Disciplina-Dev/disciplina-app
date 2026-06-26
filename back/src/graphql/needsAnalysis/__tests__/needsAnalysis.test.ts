@@ -20,12 +20,10 @@ describe('GraphQL Needs Analysis integration', () => {
         // 1. Seed user
         const conn = await pool.getConnection();
         try {
-            const [result] = await conn.execute('INSERT INTO users (email, name, password, role) VALUES (?, ?, ?, ?)', [
-                `sp-${suffix}@test.local`,
-                `Commercial ${suffix}`,
-                `pwd-${suffix}`,
-                Role.COMMERCIAL,
-            ]);
+            const [result] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
+                [`sp-${suffix}@test.local`, 'Commercial', `${suffix}`, `pwd-${suffix}`, Role.COMMERCIAL],
+            );
             userId = (result as any).insertId;
         } finally {
             conn.release();

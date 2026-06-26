@@ -62,7 +62,7 @@ export function useCompanies() {
         id: String(c.company.id),
         nom_commercial: c.company.name,
         proprietaire_contact: c.salePerson?.email || null,
-        commercial: c.salePerson?.name || null,
+        commercial: c.salePerson ? `${c.salePerson.firstName ?? ''} ${c.salePerson.lastName ?? ''}`.trim() || null : null,
         proprietaire_id: c.salePerson?.id || null,
         representant_legal: c.company.legalReferent || null,
         telephone: c.company.phone,
@@ -138,7 +138,7 @@ export function useCreateCompany() {
           id: String(response.data.createCompany.id),
           nom_commercial: response.data.createCompany.name,
           proprietaire_contact: salePerson?.email || null,
-          commercial: salePerson?.name || null,
+          commercial: salePerson ? `${salePerson.firstName ?? ''} ${salePerson.lastName ?? ''}`.trim() || null : null,
           proprietaire_id: response.data.createCompany.userID || null,
           representant_legal: response.data.createCompany.legalReferent || null,
           telephone: response.data.createCompany.phone,
@@ -193,7 +193,7 @@ export function useUpdateCompany() {
           conclusion: response.data.updateCompany.conclusion,
           status: (response.data.updateCompany.status as any) || 'À Réfléchir',
           proprietaire_id: response.data.updateCompany.userID || null,
-          commercial: salePerson?.name || null,
+          commercial: salePerson ? `${salePerson.firstName ?? ''} ${salePerson.lastName ?? ''}`.trim() || null : null,
           proprietaire_contact: salePerson?.email || null,
           representant_legal: response.data.updateCompany.legalReferent || null,
           date_relance: response.data.updateCompany.relanceDate ?? null,
@@ -771,7 +771,6 @@ export function useCreateFilizFolder() {
     fileManagerLastName: string
     fileManagerEmail: string
   }): Promise<{ folderId: string }> => {
-    body.fileManagerLastName = 'root';
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/filiz/folders`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

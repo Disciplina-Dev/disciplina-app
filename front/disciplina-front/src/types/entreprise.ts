@@ -22,7 +22,8 @@ export type UserId = typeof saleUserData[number]['name'];
 export interface SalePerson {
   id: number
   email: string
-  name: string
+  firstName: string
+  lastName: string
 }
 
 export interface Company {

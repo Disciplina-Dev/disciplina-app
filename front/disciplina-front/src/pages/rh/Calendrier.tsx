@@ -328,7 +328,7 @@ export default function Calendrier() {
           event={detail}
           token={token}
           isOwn={detail.ownerId === selfId}
-          ownerName={users.find((u) => u.id === detail.ownerId)?.name}
+          ownerName={(() => { const u = users.find((u) => u.id === detail.ownerId); return u ? `${u.firstName} ${u.lastName}`.trim() : undefined })()}
           onClose={() => setDetail(null)}
           onEdit={() => { setEditing({ event: detail }); setDetail(null) }}
           onAttendance={(e) => { setDetail((d) => (d ? { ...d, ...e } : d)); void load() }}
@@ -679,7 +679,7 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
 function AgendasPanel({ users, visible, selfId, onToggle }: {
   users: CalendarUser[]; visible: Set<number>; selfId: number; onToggle: (id: number) => void
 }) {
-  const ordered = [...users].sort((a, b) => (a.isSelf === b.isSelf ? a.name.localeCompare(b.name) : a.isSelf ? -1 : 1))
+  const ordered = [...users].sort((a, b) => (a.isSelf === b.isSelf ? a.firstName.localeCompare(b.firstName) : a.isSelf ? -1 : 1))
   return (
     <aside className="w-52 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
       <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Agendas</p>
@@ -702,7 +702,7 @@ function AgendasPanel({ users, visible, selfId, onToggle }: {
                 {checked && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
               </span>
               <span className="truncate text-[13px] font-semibold text-gray-700">
-                {u.name}{u.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
+                {`${u.firstName} ${u.lastName}`.trim()}{u.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
               </span>
             </button>
           )
