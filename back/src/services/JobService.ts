@@ -55,6 +55,7 @@ function proposedCandidateToGql(pc: ProposedCandidate): object {
         interviewConclusion: pc.interview_conclusion,
         immersionStartDate: pc.immersion_start_date,
         immersionEndDate: pc.immersion_end_date,
+        immersionConclusion: pc.immersion_conclusion,
     };
 }
 

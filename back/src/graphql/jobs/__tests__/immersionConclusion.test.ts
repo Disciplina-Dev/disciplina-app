@@ -6,6 +6,7 @@ import { CandidateHistoryRepository } from '../../../repositories/mongo/Candidat
 import { env } from '../../../config/env';
 import { InterviewConclusion, JobStatus, ProposedCandidateAnswer } from '../../../types/job.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
+import { unzipSync } from 'zlib';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/jobs`;
 
@@ -139,6 +140,7 @@ describe('GraphQL setImmersionConclusion', () => {
         const updated = json.data.setImmersionConclusion.proposedCandidate.find(
             (c: { id: string }) => c.id === candidateId,
         );
+
         expect(updated.immersionConclusion).toBe(conclusion);
 
         const candidateRepo = new CandidateRepository();
