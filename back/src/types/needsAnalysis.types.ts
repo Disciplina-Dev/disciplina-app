@@ -29,6 +29,17 @@ export interface NeedsAnalysis {
         | 'OPCOMMERCE'
         | 'UNIFORMATION'
         | null;
+    referralSource:
+        | 'KOANN'
+        | 'E2CR'
+        | 'FRANCE_TRAVAIL'
+        | 'TELEVISION_PUB'
+        | 'BOUCHE_A_OREILLE'
+        | 'MISSION_LOCALE'
+        | 'SALON'
+        | 'RSMA'
+        | 'RESEAUX_SOCIAUX'
+        | null;
     positionsCount: number;
     positions: NeedsAnalysisPosition[];
     localisation: 'NORD' | 'OUEST' | 'SUD';

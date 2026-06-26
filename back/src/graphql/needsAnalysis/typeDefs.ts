@@ -26,6 +26,18 @@ export const typeDefs = gql`
         UNIFORMATION
     }
 
+    enum ReferralSource {
+        KOANN
+        E2CR
+        FRANCE_TRAVAIL
+        TELEVISION_PUB
+        BOUCHE_A_OREILLE
+        MISSION_LOCALE
+        SALON
+        RSMA
+        RESEAUX_SOCIAUX
+    }
+
     enum EducationLevel {
         BAC
         BAC_PLUS_2
@@ -87,6 +99,7 @@ export const typeDefs = gql`
         companySectors: [String!]!
         companyDescription: String
         opco: Opco
+        referralSource: ReferralSource
         positionsCount: Int!
         positions: [NeedsAnalysisPosition!]!
         localisation: Localisation!
@@ -126,6 +139,7 @@ export const typeDefs = gql`
         companySectors: [String!]
         companyDescription: String
         opco: Opco
+        referralSource: ReferralSource
         positionsCount: Int
         positions: [NeedsAnalysisPositionInput!]
         localisation: Localisation

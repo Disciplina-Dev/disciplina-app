@@ -29,6 +29,16 @@ type Opco =
   | 'OPCO_SANTE'
   | 'OPCOMMERCE'
   | 'UNIFORMATION'
+type ReferralSource =
+  | 'KOANN'
+  | 'E2CR'
+  | 'FRANCE_TRAVAIL'
+  | 'TELEVISION_PUB'
+  | 'BOUCHE_A_OREILLE'
+  | 'MISSION_LOCALE'
+  | 'SALON'
+  | 'RSMA'
+  | 'RESEAUX_SOCIAUX'
 
 interface TrainingDaysState {
   monday: DayStatus
@@ -64,6 +74,7 @@ interface FormData {
   recruitmentResponsibleEmail: string
   companySectors: string[]
   opco: Opco | undefined
+  referralSource: ReferralSource | undefined
   companyDescriptionOther: string
   jobDescriptionOther: string
   softSkills: string[]
@@ -121,6 +132,18 @@ const OPCO_OPTIONS: { value: Opco; label: string }[] = [
   { value: 'OPCO_SANTE', label: 'Opco Santé' },
   { value: 'OPCOMMERCE', label: "L'Opcommerce" },
   { value: 'UNIFORMATION', label: 'Uniformation' },
+]
+
+const REFERRAL_SOURCE_OPTIONS: { value: ReferralSource; label: string }[] = [
+  { value: 'KOANN', label: 'Koann' },
+  { value: 'E2CR', label: 'E2CR' },
+  { value: 'FRANCE_TRAVAIL', label: 'France Travail' },
+  { value: 'TELEVISION_PUB', label: 'Télévision / Pub' },
+  { value: 'BOUCHE_A_OREILLE', label: 'Bouche à oreille' },
+  { value: 'MISSION_LOCALE', label: 'Missions Locale' },
+  { value: 'SALON', label: 'Salon' },
+  { value: 'RSMA', label: 'RSMA' },
+  { value: 'RESEAUX_SOCIAUX', label: 'Réseaux sociaux' },
 ]
 
 const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
@@ -481,6 +504,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       recruitmentResponsibleEmail:    '',
       companySectors:           [],
       opco:                     undefined,
+      referralSource:           undefined,
       companyDescriptionOther:  '',
       jobDescriptionOther:      '',
       softSkills:               [],
@@ -579,6 +603,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       ...responsible,
       companySectors:     companySectors,
       opco:               data.opco || null,
+      referralSource:     data.referralSource || null,
       companyDescription: data.companyDescriptionOther || null,
       positionsCount:     postes.length,
       positions:          postes.map((p) => ({
@@ -979,6 +1004,25 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </section>
+
+              {/* ── Origine du contact ───────────────────────────────────────── */}
+              <section className="flex flex-col gap-4">
+                <SectionTitle>Comment a-t-il connu DISCIPLINA ?</SectionTitle>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="referralSource" className="text-sm font-medium text-gray-700">
+                    Origine du contact <span className="text-gray-400">(optionnel)</span>
+                  </label>
+                  <select
+                    id="referralSource"
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    {...register('referralSource')}>
+                    <option value="">Sélectionnez l'origine du contact…</option>
+                    {REFERRAL_SOURCE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                 </div>
               </section>
 

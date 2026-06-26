@@ -968,6 +968,8 @@ export const GET_NEEDS_ANALYSIS = gql`
       recruitmentResponsibleFunction
       companySectors
       companyDescription
+      opco
+      referralSource
       positionsCount
       positions {
         trainingDomain
