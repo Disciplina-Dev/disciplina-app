@@ -85,6 +85,15 @@ function label(v: string | null | undefined): string {
         OPCO_SANTE: 'Opco Santé',
         OPCOMMERCE: "L'Opcommerce",
         UNIFORMATION: 'Uniformation',
+        KOANN: 'Koann',
+        E2CR: 'E2CR',
+        FRANCE_TRAVAIL: 'France Travail',
+        TELEVISION_PUB: 'Télévision / Pub',
+        BOUCHE_A_OREILLE: 'Bouche à oreille',
+        MISSION_LOCALE: 'Missions Locale',
+        SALON: 'Salon',
+        RSMA: 'RSMA',
+        RESEAUX_SOCIAUX: 'Réseaux sociaux',
     };
     return MAP[v ?? ''] ?? esc(v);
 }
@@ -378,6 +387,7 @@ ${sh("A propos de l'entreprise")}
 </div>
 ${secteurs ? fr("Secteur(s) d'activité :", secteurs) : company.sector ? fr("Secteur d'activité :", company.sector) : ''}
 ${analysis.opco ? fr('OPCO :', label(analysis.opco)) : ''}
+${analysis.referralSource ? fr('Comment a-t-il connu DISCIPLINA ? :', label(analysis.referralSource)) : ''}
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
 
 ${positionBlocks}

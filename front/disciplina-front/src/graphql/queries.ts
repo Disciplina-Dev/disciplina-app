@@ -494,6 +494,7 @@ export const GET_CANDIDATE_FULL = gql`
       expectedCompanySkills
       identity {
         fullName
+        socialSecurityNumber
         avatarUpdatedAt
         email
         phone
@@ -701,10 +702,11 @@ export const MATCH_JOB = gql`
         description
         answer
         comment
-        interviewDate
-        interviewHour
         interviewLocation
         bookedInterviewSlot
+        interviewConclusion
+        immersionStartDate
+        immersionEndDate
       }
       interviewSlots
       interviewLocation
@@ -759,10 +761,73 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         email
         description
         answer
-        interviewDate
-        interviewHour
         interviewLocation
         bookedInterviewSlot
+        interviewConclusion
+        immersionStartDate
+        immersionEndDate
+      }
+    }
+  }
+`
+
+export const SET_INTERVIEW_CONCLUSION = gql`
+  mutation SetInterviewConclusion(
+    $jobId: String!
+    $candidateId: String!
+    $conclusion: InterviewConclusion!
+    $immersionStartDate: String
+    $immersionEndDate: String
+  ) {
+    setInterviewConclusion(
+      jobId: $jobId
+      candidateId: $candidateId
+      conclusion: $conclusion
+      immersionStartDate: $immersionStartDate
+      immersionEndDate: $immersionEndDate
+    ) {
+      id
+      proposedCandidate {
+        id
+        fullName
+        email
+        description
+        answer
+        interviewLocation
+        bookedInterviewSlot
+        interviewConclusion
+        immersionStartDate
+        immersionEndDate
+        immersionConclusion
+      }
+    }
+  }
+`
+
+export const SET_IMMERSION_CONCLUSION = gql`
+  mutation SetImmersionConclusion(
+    $jobId: String!
+    $candidateId: String!
+    $conclusion: ImmersionConclusion!
+  ) {
+    setImmersionConclusion(
+      jobId: $jobId
+      candidateId: $candidateId
+      conclusion: $conclusion
+    ) {
+      id
+      proposedCandidate {
+        id
+        fullName
+        email
+        description
+        answer
+        interviewLocation
+        bookedInterviewSlot
+        interviewConclusion
+        immersionStartDate
+        immersionEndDate
+        immersionConclusion
       }
     }
   }
@@ -968,6 +1033,8 @@ export const GET_NEEDS_ANALYSIS = gql`
       recruitmentResponsibleFunction
       companySectors
       companyDescription
+      opco
+      referralSource
       positionsCount
       positions {
         trainingDomain

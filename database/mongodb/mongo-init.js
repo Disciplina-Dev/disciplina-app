@@ -38,6 +38,7 @@ db.createCollection('candidates', {
           required: ["full_name", "email", "phone"],
           properties: {
             full_name: { bsonType: "string" },
+            social_security_number: { bsonType: "string" },
             date_of_birth: { bsonType: "date" },
             place_of_birth: { bsonType: "string" },
             age: { bsonType: "int" },

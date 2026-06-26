@@ -152,6 +152,10 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
         'AKTO', 'ATLAS', 'AFDAS', 'CONSTRUCTYS', 'OCAPIAT', 'OPCO_2I',
         'OPCO_EP', 'OPCO_MOBILITES', 'OPCO_SANTE', 'OPCOMMERCE', 'UNIFORMATION'
     ) DEFAULT NULL,
+    referral_source ENUM(
+        'KOANN', 'E2CR', 'FRANCE_TRAVAIL', 'TELEVISION_PUB', 'BOUCHE_A_OREILLE',
+        'MISSION_LOCALE', 'SALON', 'RSMA', 'RESEAUX_SOCIAUX'
+    ) DEFAULT NULL,
 
     -- Etape 3: Le Poste & Les Missions
     positions_count INT NOT NULL DEFAULT 1,

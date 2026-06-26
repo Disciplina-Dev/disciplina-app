@@ -80,6 +80,7 @@ export enum DiscoverySource {
 
 export interface Identity {
     full_name: string;                    // Nom complet du candidat
+    social_security_number?: string;      // Numéro de sécurité sociale
     date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
     age?: number;                         // Âge actuel (calculé ou fourni)

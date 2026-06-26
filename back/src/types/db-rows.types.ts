@@ -113,6 +113,17 @@ export interface NeedsAnalysisRow {
         | 'OPCOMMERCE'
         | 'UNIFORMATION'
         | null;
+    referral_source:
+        | 'KOANN'
+        | 'E2CR'
+        | 'FRANCE_TRAVAIL'
+        | 'TELEVISION_PUB'
+        | 'BOUCHE_A_OREILLE'
+        | 'MISSION_LOCALE'
+        | 'SALON'
+        | 'RSMA'
+        | 'RESEAUX_SOCIAUX'
+        | null;
     positions_count: number;
     positions: string | null; // JSON string
     localisation: 'NORD' | 'OUEST' | 'SUD';
