@@ -27,9 +27,11 @@ import {
   Heart,
   CalendarClock,
 } from 'lucide-react'
-import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, ADD_MANUAL_PROPOSED_CANDIDATE, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { PROPOSED_CANDIDATE_ANSWER_LABELS, PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS, ProposedCandidateAnswer } from '@/constants/proposedCandidateAnswer'
+import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
+import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
 import { JobStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { jobGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
@@ -40,6 +42,9 @@ import type { JobFilters as JobFiltersType } from '@/features/matching/services/
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
+import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
+import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
+import { isInterviewDatePast } from '@/utils/interview'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 
@@ -80,10 +85,12 @@ interface ProposedCandidate {
   description: string | null
   answer: ProposedCandidateAnswer | null
   comment?: string | null
-  interviewDate?: string
-  interviewHour?: string
   interviewLocation?: string
   bookedInterviewSlot?: string | null
+  interviewConclusion?: InterviewConclusion | null
+  immersionStartDate?: string | null
+  immersionEndDate?: string | null
+  immersionConclusion?: ImmersionConclusion | null
 }
 
 interface MatchJobResult extends Job {
@@ -777,9 +784,9 @@ async function hasCandidateCv(candidateId: string): Promise<boolean> {
   return Boolean(result.data?.candidate?.cvLink)
 }
 
-function buildManualInterviewMailBody(companyName: string, candidateName: string, interviewDate: string, interviewHour: string, interviewLocation: string): string {
+function buildManualInterviewMailBody(companyName: string, candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const dateFormatted = new Date(`${interviewDate}T${interviewHour}`).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
+  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -938,12 +945,16 @@ function ProposedCandidatesSection({
   interviewLocation,
   onSendDates,
   onAddCandidate,
+  onConclude,
+  onConcludeImmersion,
 }: {
   candidates: ProposedCandidate[]
   interviewSlots: string[] | null
   interviewLocation: string | null
   onSendDates: (candidate: ProposedCandidate) => void
   onAddCandidate: () => void
+  onConclude: (candidate: ProposedCandidate) => void
+  onConcludeImmersion: (candidate: ProposedCandidate) => void
 }) {
   const slots = interviewSlots ?? []
   return (
@@ -992,27 +1003,57 @@ function ProposedCandidatesSection({
                   Motif du refus : {c.comment}
                 </p>
               )}
-              {c.interviewDate && c.interviewHour && c.interviewLocation && (
+              {c.bookedInterviewSlot && c.interviewLocation && (
                 <div className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
                   <p>
                     <CalendarClock size={11} className="inline mr-1" />
-                    {new Date(`${c.interviewDate}T${c.interviewHour}`).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}
+                    {formatSlot(c.bookedInterviewSlot)}
                   </p>
                   <p>📍 {c.interviewLocation}</p>
                 </div>
               )}
-              {c.bookedInterviewSlot && (
-                <p className="mt-2 rounded-md bg-success-bg px-2 py-1 text-[11px] text-success">
-                  <CalendarClock size={11} className="inline mr-1" /> Créneau choisi : {formatSlot(c.bookedInterviewSlot)}
-                </p>
-              )}
-              {c.answer === ProposedCandidateAnswer.ACCEPTED && c.interviewDate && c.interviewHour && c.interviewLocation && (
+              {c.answer === ProposedCandidateAnswer.ACCEPTED && c.bookedInterviewSlot && c.interviewLocation && (
                 <button
                   onClick={() => onSendDates(c)}
                   className="mt-2 flex items-center gap-1.5 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
                 >
                   <Mail size={12} /> Envoyer les dates au candidat
                 </button>
+              )}
+              {c.interviewConclusion ? (
+                <>
+                  <span className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${INTERVIEW_CONCLUSION_BADGE_CLASS[c.interviewConclusion]}`}>
+                    {INTERVIEW_CONCLUSION_LABELS[c.interviewConclusion]}
+                  </span>
+                  {c.interviewConclusion === InterviewConclusion.IMMERSING && (
+                    <>
+                      {c.immersionStartDate && c.immersionEndDate && (
+                        <p className="mt-1 text-[10px] text-gray-500">Du {c.immersionStartDate} au {c.immersionEndDate}</p>
+                      )}
+                      {c.immersionConclusion ? (
+                        <span className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${IMMERSION_CONCLUSION_BADGE_CLASS[c.immersionConclusion]}`}>
+                          {IMMERSION_CONCLUSION_LABELS[c.immersionConclusion]}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => onConcludeImmersion(c)}
+                          className="mt-1 flex items-center gap-1.5 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue/5 transition-colors"
+                        >
+                          <CalendarClock size={12} /> Conclure l'immersion
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                isInterviewDatePast(c.bookedInterviewSlot) && (
+                  <button
+                    onClick={() => onConclude(c)}
+                    className="mt-2 flex items-center gap-1.5 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue/5 transition-colors"
+                  >
+                    <CalendarClock size={12} /> Conclure l'entretien
+                  </button>
+                )
               )}
             </div>
           )
@@ -1118,6 +1159,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [isCreatingSession, setIsCreatingSession] = useState(false)
   const [datesMailState, setDatesMailState] = useState<ProposedCandidate | null>(null)
   const [interviewModalOpen, setInterviewModalOpen] = useState(false)
+  const [conclusionCandidate, setConclusionCandidate] = useState<ProposedCandidate | null>(null)
+  const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<ProposedCandidate | null>(null)
   const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
   const token = useAuthStore((s) => s.token)
 
@@ -1208,6 +1251,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     setIsUnmatching(true)
     try {
       const result = await jobGraphqlClient.mutation(UNMATCH_JOB, { id: selectedJob.id }).toPromise()
+      console.log(result);
       if (!result.error && jobData) {
         setJobData({ ...jobData, matchedCandidate: [], status: 'NOT_MATCHED' })
         setSavedCandidateIds(new Set())
@@ -1356,6 +1400,70 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
   }
 
+  const handleSetInterviewConclusion = async (
+    conclusion: InterviewConclusion,
+    immersionStartDate?: string,
+    immersionEndDate?: string,
+  ) => {
+    if (!selectedJob || !jobData || !conclusionCandidate) return
+    try {
+      const result = await jobGraphqlClient
+        .mutation(SET_INTERVIEW_CONCLUSION, {
+          jobId: selectedJob.id,
+          candidateId: conclusionCandidate.id,
+          conclusion,
+          immersionStartDate,
+          immersionEndDate,
+        })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+
+      const updatedCandidate = result.data?.setInterviewConclusion?.proposedCandidate?.find(
+        (c: ProposedCandidate) => c.id === conclusionCandidate.id,
+      )
+      if (updatedCandidate) {
+        setConclusionCandidate(null)
+        setJobData({
+          ...jobData,
+          proposedCandidate: (jobData.proposedCandidate ?? []).map((c) =>
+            c.id === updatedCandidate.id ? updatedCandidate : c,
+          ),
+        })
+      }
+    } catch (error) {
+      console.error('Erreur lors de la conclusion de l\'entretien:', error)
+    }
+  }
+
+  const handleSetImmersionConclusion = async (conclusion: ImmersionConclusion) => {
+    if (!selectedJob || !jobData || !immersionConclusionCandidate) return
+    try {
+      const result = await jobGraphqlClient
+        .mutation(SET_IMMERSION_CONCLUSION, {
+          jobId: selectedJob.id,
+          candidateId: immersionConclusionCandidate.id,
+          conclusion,
+        })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+
+      const updatedCandidate = result.data?.setImmersionConclusion?.proposedCandidate?.find(
+        (c: ProposedCandidate) => c.id === immersionConclusionCandidate.id,
+      )
+      if (updatedCandidate) {
+        setImmersionConclusionCandidate(null)
+        setJobData({
+          ...jobData,
+          proposedCandidate: (jobData.proposedCandidate ?? []).map((c) =>
+            c.id === updatedCandidate.id ? updatedCandidate : c,
+          ),
+        })
+      }
+    } catch (error) {
+      console.error("Erreur lors de la conclusion de l'immersion:", error)
+    }
+  }
+
   const handleSetManualStatus = async (status: JobStatus) => {
     if (!selectedJob) return
     const result = await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status } }).toPromise()
@@ -1427,6 +1535,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         interviewLocation={jobData.interviewLocation}
         onSendDates={handleSendInterviewDates}
         onAddCandidate={() => setInterviewModalOpen(true)}
+        onConclude={setConclusionCandidate}
+        onConcludeImmersion={setImmersionConclusionCandidate}
       />
 
       <MatchingSection
@@ -1494,12 +1604,11 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           candidateName={datesMailState.fullName}
           defaultSubject={`DISCIPLINA – Proposition d'entretien chez ${jobData.companyName}`}
           defaultBody={
-            datesMailState.interviewDate && datesMailState.interviewHour && datesMailState.interviewLocation
+            datesMailState.bookedInterviewSlot && datesMailState.interviewLocation
               ? buildManualInterviewMailBody(
                   jobData.companyName,
                   datesMailState.fullName,
-                  datesMailState.interviewDate,
-                  datesMailState.interviewHour,
+                  datesMailState.bookedInterviewSlot,
                   datesMailState.interviewLocation,
                 )
               : ''
@@ -1514,6 +1623,23 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           job={jobData}
           onSubmit={handleAddManualProposedCandidate}
           onClose={() => setInterviewModalOpen(false)}
+        />
+      )}
+
+      {conclusionCandidate && (
+        <InterviewConclusionModal
+          candidateName={conclusionCandidate.fullName}
+          onSubmit={handleSetInterviewConclusion}
+          onClose={() => setConclusionCandidate(null)}
+        />
+      )}
+      {immersionConclusionCandidate && (
+        <ImmersionConclusionModal
+          candidateName={immersionConclusionCandidate.fullName}
+          immersionStartDate={immersionConclusionCandidate.immersionStartDate ?? undefined}
+          immersionEndDate={immersionConclusionCandidate.immersionEndDate ?? undefined}
+          onSubmit={handleSetImmersionConclusion}
+          onClose={() => setImmersionConclusionCandidate(null)}
         />
       )}
     </div>

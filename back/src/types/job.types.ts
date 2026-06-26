@@ -19,6 +19,17 @@ export enum ProposedCandidateAnswer {
     FAVORITE = 'FAVORITE',
 }
 
+export enum InterviewConclusion {
+    REJECTED = 'REJECTED',
+    IMMERSING = 'IMMERSING',
+    CONTRACT = 'CONTRACT',
+}
+
+export enum ImmersionConclusion {
+    REJECTED = 'REJECTED',
+    CONTRACT = 'CONTRACT',
+}
+
 export enum DesiredSex {
     MIXTE = 'MIXTE',
     FILLE = 'FILLE',
@@ -95,11 +106,13 @@ export interface ProposedCandidate extends MatchingCandidate {
     description?: string;
     cv_webview?: string;
     answer?: ProposedCandidateAnswer | null;
-    interview_date?: string;
-    interview_hour?: string;
     interview_location?: string;
     booked_interview_slot?: string;
     comment?: string;
+    interview_conclusion?: InterviewConclusion | null;
+    immersion_start_date?: string;
+    immersion_end_date?: string;
+    immersion_conclusion?: ImmersionConclusion | null;
 }
 
 export interface Job {
