@@ -22,7 +22,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { USERS } from '@/store/authStore'
+import { USERS, fullName } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis } from '@/graphql/hooks'
@@ -247,7 +247,7 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
                           >
                             {owner.initials}
                           </span>
-                          <span className="text-sm text-gray-900">{owner.name}</span>
+                          <span className="text-sm text-gray-900">{fullName(owner)}</span>
                           <span className="text-xs text-gray-500">({owner.role})</span>
                         </div>
                       ) : (

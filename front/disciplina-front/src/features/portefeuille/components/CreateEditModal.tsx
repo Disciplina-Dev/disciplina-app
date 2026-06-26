@@ -4,7 +4,7 @@ import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { useAuthStore, USERS, UserRole } from '@/store/authStore'
+import { useAuthStore, USERS, UserRole, fullName } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
@@ -146,7 +146,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       conclusion: values.conclusion || null,
       status: values.status,
       proprietaire_id: owner?.id ? Number(owner.id) : null,
-      commercial: owner?.name ?? null,
+      commercial: owner ? fullName(owner) : null,
       date_relance: values.date_relance || null,
       type_relance: values.type_relance ? Number(values.type_relance) : null,
       relance_template_id: values.relance_template_id || null,
@@ -410,7 +410,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       >
                         {ownerList.map((u) => (
                           <option key={u.id} value={u.id}>
-                            {u.name} ({u.role})
+                            {fullName(u)} ({u.role})
                           </option>
                         ))}
                       </select>

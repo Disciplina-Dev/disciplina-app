@@ -10,7 +10,7 @@ import {
   displayAddress,
 } from "@/types/sourcing";
 import type { CompanyWithSalePerson } from "@/types/entreprise";
-import { useAuthStore } from "@/store/authStore";
+import { useAuthStore, fullName } from "@/store/authStore";
 
 interface LinkedEstablishmentsProps {
   siren: string;
@@ -191,7 +191,7 @@ export default function LinkedEstablishments({
                             </div>
                             {salePerson && (
                               <span className="inline-flex items-center text-xs font-semibold py-1 px-2 rounded-full bg-blue-light text-blue flex-shrink-0 whitespace-nowrap">
-                                {salePerson.name}
+                                {fullName(salePerson)}
                               </span>
                             )}
                           </button>

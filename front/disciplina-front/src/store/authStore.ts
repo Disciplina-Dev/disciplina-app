@@ -51,6 +51,9 @@ export const useCurrentUser = (): AppUser | null => {
   return useAuthStore((s) => s.user)
 }
 
+export const fullName = (user: { firstName: string; lastName: string }): string =>
+  `${user.firstName} ${user.lastName}`
+
 export const USERS: Record<string, AppUser> = {
   4: {
     id: '4',
