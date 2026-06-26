@@ -12,6 +12,11 @@ import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql, jobToMatchedJobGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
+import {
+    driveFolderConfigService,
+    DRIVE_REGIONS,
+    driveFolderKey,
+} from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { CandidateFilters } from '../../repositories/mongo/CandidateRepository';
 
@@ -49,6 +54,20 @@ interface CreateCandidateInput {
 
 interface UpdateCandidateInput {
     [key: string]: any;
+}
+
+function driveFolderConfigToGql(config: { rootFolderId: string | null; tpFolders: Record<string, string> }) {
+    return {
+        rootFolderId: config.rootFolderId ?? null,
+        // Toujours renvoyer une entrée par couple TP × région (même vide) pour piloter le formulaire.
+        tpFolders: Object.values(TitleProfessionalType).flatMap((tp) =>
+            DRIVE_REGIONS.map((region) => ({
+                tp,
+                region,
+                folderId: config.tpFolders[driveFolderKey(tp, region)] ?? null,
+            })),
+        ),
+    };
 }
 
 export const resolvers = {
@@ -133,6 +152,11 @@ export const resolvers = {
                 })),
             };
         },
+        driveFolderConfig: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const config = await driveFolderConfigService.getConfig();
+            return driveFolderConfigToGql(config);
+        },
     },
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {
@@ -164,7 +188,7 @@ export const resolvers = {
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
                     const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                         folderName,
-                        driveParentFolderForTp(newCandidate.tp_type),
+                        await driveParentFolderForTp(newCandidate.tp_type, newCandidate.training_site),
                     );
 
                     await candidateService.update(id, { drive_folder_id: folderId, drive_folder_link: folderLink });
@@ -226,7 +250,7 @@ export const resolvers = {
             const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
             const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                 folderName,
-                driveParentFolderForTp(candidate.tp_type),
+                await driveParentFolderForTp(candidate.tp_type, candidate.training_site),
             );
 
             const updated = await candidateService.update(id, {
@@ -250,6 +274,30 @@ export const resolvers = {
         deleteCandidateHistoryEntry: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return candidateHistoryService.deleteOwnedEntry(id, context.user.email);
+        },
+
+        updateDriveFolderConfig: async (
+            _: unknown,
+            {
+                input,
+            }: {
+                input: {
+                    rootFolderId?: string | null;
+                    tpFolders: { tp: string; region: string; folderId?: string | null }[];
+                };
+            },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const tpFolders: Record<string, string> = {};
+            for (const { tp, region, folderId } of input.tpFolders ?? []) {
+                if (folderId) tpFolders[driveFolderKey(tp, region)] = folderId;
+            }
+            const updated = await driveFolderConfigService.updateConfig({
+                rootFolderId: input.rootFolderId ?? null,
+                tpFolders,
+            });
+            return driveFolderConfigToGql(updated);
         },
     },
 };

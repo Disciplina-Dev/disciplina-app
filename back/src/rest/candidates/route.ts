@@ -350,7 +350,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
                     const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
                     const folder = await driveService.createFolder(
                         folderName,
-                        driveParentFolderForTp(candidate.tp_type),
+                        await driveParentFolderForTp(candidate.tp_type, candidate.training_site),
                     );
                     folderId = folder.id;
                     driveUpdate.drive_folder_id = folder.id;

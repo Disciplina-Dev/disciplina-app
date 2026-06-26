@@ -337,6 +337,32 @@ export const CREATE_CANDIDATE_DRIVE_FOLDER = gql`
   }
 `
 
+export const GET_DRIVE_FOLDER_CONFIG = gql`
+  query DriveFolderConfig {
+    driveFolderConfig {
+      rootFolderId
+      tpFolders {
+        tp
+        region
+        folderId
+      }
+    }
+  }
+`
+
+export const UPDATE_DRIVE_FOLDER_CONFIG = gql`
+  mutation UpdateDriveFolderConfig($input: DriveFolderConfigInput!) {
+    updateDriveFolderConfig(input: $input) {
+      rootFolderId
+      tpFolders {
+        tp
+        region
+        folderId
+      }
+    }
+  }
+`
+
 export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {
@@ -344,47 +370,83 @@ export const GET_CANDIDATE_BY_ID = gql`
       status
       tpType
       trainingSite
+      immersionAgreement
+      desiredSectors
+      expectedCompanySkills
       identity {
         fullName
+        socialSecurityNumber
         avatarUpdatedAt
         email
         phone
+        dateOfBirth
+        placeOfBirth
         age
-        city
+        address
         postalCode
+        city
         drivingLicenseB
+        transportMeans
+        pshReferralRequest
+        hadApprenticeshipContract
+        apprenticeshipContractDetails
       }
       education {
         schoolLevel
+        justification
+      }
+      support {
+        franceTravailRegistered
+        franceTravailAgency
+        missionLocaleRegistered
+        missionLocaleCity
       }
       background {
         lastDiploma
+        previousTrainings
         professionalExperiences {
           position
           company
           duration
+          responsibilities
         }
       }
       profile {
         frenchLevel
         englishLevel
+        otherLanguages
+        strengthsAndImprovements
         qualities
+        defects
         digitalSkills
+        readyForChallenges
+        hobbies
       }
       professionalProjects {
         careerObjectives
+        desiredSkills
         apprenticeshipMotivation
+        trainingExpectations
       }
       synthesis {
         feasibilityConclusion
+        pathwayRelevance
+        specialNeeds
+        otherRecommendations
+        location
+        date
       }
       skillsAssessment {
         competence
         level
       }
       jobInfo {
+        domainMotivation
+        questionsConcerns
         availabilityDate
         geographicMobility
+        weekendWork
+        discoverySource
       }
       pdfLink
       cvLink
@@ -410,35 +472,83 @@ export const UPDATE_CANDIDATE = gql`
       status
       tpType
       trainingSite
+      immersionAgreement
+      desiredSectors
+      expectedCompanySkills
       skillsAssessment {
         competence
         level
       }
       identity {
         fullName
+        socialSecurityNumber
         avatarUpdatedAt
         email
         phone
-        drivingLicenseB
+        dateOfBirth
+        placeOfBirth
         age
+        address
+        postalCode
+        city
+        drivingLicenseB
+        transportMeans
+        pshReferralRequest
+        hadApprenticeshipContract
+        apprenticeshipContractDetails
       }
       education {
         schoolLevel
+        justification
+      }
+      support {
+        franceTravailRegistered
+        franceTravailAgency
+        missionLocaleRegistered
+        missionLocaleCity
       }
       profile {
         frenchLevel
         englishLevel
+        otherLanguages
+        strengthsAndImprovements
         qualities
+        defects
+        digitalSkills
+        readyForChallenges
+        hobbies
       }
       synthesis {
         feasibilityConclusion
+        pathwayRelevance
+        specialNeeds
+        otherRecommendations
+        location
+        date
       }
       professionalProjects {
         careerObjectives
+        desiredSkills
         apprenticeshipMotivation
+        trainingExpectations
       }
       background {
         lastDiploma
+        previousTrainings
+        professionalExperiences {
+          position
+          company
+          duration
+          responsibilities
+        }
+      }
+      jobInfo {
+        domainMotivation
+        questionsConcerns
+        availabilityDate
+        geographicMobility
+        weekendWork
+        discoverySource
       }
       pdfLink
     }
@@ -499,6 +609,7 @@ export const GET_CANDIDATE_FULL = gql`
       expectedCompanySkills
       identity {
         fullName
+        socialSecurityNumber
         avatarUpdatedAt
         email
         phone
@@ -513,6 +624,7 @@ export const GET_CANDIDATE_FULL = gql`
         transportMeans
         pshReferralRequest
         hadApprenticeshipContract
+        apprenticeshipContractDetails
       }
       education { schoolLevel justification }
       support {
@@ -600,6 +712,86 @@ export const UPDATE_CANDIDATE_FULL = gql`
       id
       status
       tpType
+      trainingSite
+      immersionAgreement
+      desiredSectors
+      expectedCompanySkills
+      identity {
+        fullName
+        socialSecurityNumber
+        avatarUpdatedAt
+        email
+        phone
+        dateOfBirth
+        placeOfBirth
+        age
+        address
+        postalCode
+        city
+        drivingLicenseB
+        transportMeans
+        pshReferralRequest
+        hadApprenticeshipContract
+        apprenticeshipContractDetails
+      }
+      education {
+        schoolLevel
+        justification
+      }
+      support {
+        franceTravailRegistered
+        franceTravailAgency
+        missionLocaleRegistered
+        missionLocaleCity
+      }
+      background {
+        lastDiploma
+        previousTrainings
+        professionalExperiences {
+          position
+          company
+          duration
+          responsibilities
+        }
+      }
+      profile {
+        frenchLevel
+        englishLevel
+        otherLanguages
+        strengthsAndImprovements
+        qualities
+        defects
+        digitalSkills
+        readyForChallenges
+        hobbies
+      }
+      professionalProjects {
+        careerObjectives
+        desiredSkills
+        apprenticeshipMotivation
+        trainingExpectations
+      }
+      skillsAssessment {
+        competence
+        level
+      }
+      jobInfo {
+        domainMotivation
+        questionsConcerns
+        availabilityDate
+        geographicMobility
+        weekendWork
+        discoverySource
+      }
+      synthesis {
+        feasibilityConclusion
+        pathwayRelevance
+        specialNeeds
+        otherRecommendations
+        location
+        date
+      }
+      pdfLink
     }
   }
 `

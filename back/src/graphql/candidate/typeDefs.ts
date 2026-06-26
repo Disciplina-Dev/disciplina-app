@@ -78,11 +78,16 @@ export const typeDefs = gql`
         MISSION_LOCALE
         WORD_OF_MOUTH
         KOANN
+        E2CR
+        TELEVISION_PUB
+        SALON
+        RSMA
         OTHER
     }
 
     type CandidateIdentity {
         fullName: String!
+        socialSecurityNumber: String
         email: String!
         phone: String!
         dateOfBirth: String
@@ -96,6 +101,7 @@ export const typeDefs = gql`
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
+        apprenticeshipContractDetails: String
         avatarUpdatedAt: String
     }
 
@@ -219,6 +225,7 @@ export const typeDefs = gql`
 
     input IdentityInput {
         fullName: String!
+        socialSecurityNumber: String
         email: String!
         phone: String!
         dateOfBirth: String
@@ -232,6 +239,7 @@ export const typeDefs = gql`
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
+        apprenticeshipContractDetails: String
     }
 
     input EducationInput {
@@ -421,6 +429,28 @@ export const typeDefs = gql`
         createdAt: String!
     }
 
+    type DriveTpFolder {
+        tp: TitleProfessionalType!
+        region: String!
+        folderId: String
+    }
+
+    type DriveFolderConfig {
+        rootFolderId: String
+        tpFolders: [DriveTpFolder!]!
+    }
+
+    input DriveTpFolderInput {
+        tp: TitleProfessionalType!
+        region: String!
+        folderId: String
+    }
+
+    input DriveFolderConfigInput {
+        rootFolderId: String
+        tpFolders: [DriveTpFolderInput!]!
+    }
+
     type Query {
         candidateStats: CandidateStats!
         candidates: [Candidate!]!
@@ -429,6 +459,7 @@ export const typeDefs = gql`
         candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
+        driveFolderConfig: DriveFolderConfig!
     }
 
     type Mutation {
@@ -438,5 +469,6 @@ export const typeDefs = gql`
         createCandidateDriveFolder(id: String!): Candidate!
         addCandidateHistoryEntry(candidateId: String!, description: String!): CandidateHistoryEntry!
         deleteCandidateHistoryEntry(id: String!): Boolean!
+        updateDriveFolderConfig(input: DriveFolderConfigInput!): DriveFolderConfig!
     }
 `;

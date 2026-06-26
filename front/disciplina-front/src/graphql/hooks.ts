@@ -273,6 +273,7 @@ function fromGql(c: any): Candidate {
     expected_company_skills: c.expectedCompanySkills,
     identity: {
       full_name: c.identity.fullName,
+      social_security_number: c.identity.socialSecurityNumber,
       email: c.identity.email,
       phone: c.identity.phone,
       date_of_birth: c.identity.dateOfBirth,
@@ -285,6 +286,7 @@ function fromGql(c: any): Candidate {
       transport_means: c.identity.transportMeans,
       psh_referral_request: c.identity.pshReferralRequest,
       had_apprenticeship_contract: c.identity.hadApprenticeshipContract,
+      apprenticeship_contract_details: c.identity.apprenticeshipContractDetails,
       avatar_updated_at: c.identity.avatarUpdatedAt,
       avatar_url: c.identity.avatarUpdatedAt
         ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent(c.identity.avatarUpdatedAt)}`
@@ -391,6 +393,7 @@ function toGqlUpdateInput(c: Candidate): any {
       fullName: c.identity.full_name,
       email: c.identity.email,
       phone: c.identity.phone,
+      ...(c.identity.social_security_number !== undefined && { socialSecurityNumber: c.identity.social_security_number }),
       ...(c.identity.driving_license_b !== undefined && { drivingLicenseB: c.identity.driving_license_b }),
       ...(c.identity.age !== undefined && { age: c.identity.age }),
       ...(c.identity.address !== undefined && { address: c.identity.address }),

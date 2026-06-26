@@ -38,6 +38,7 @@ db.createCollection('candidates', {
           required: ["full_name", "email", "phone"],
           properties: {
             full_name: { bsonType: "string" },
+            social_security_number: { bsonType: "string" },
             date_of_birth: { bsonType: "date" },
             place_of_birth: { bsonType: "string" },
             age: { bsonType: "int" },
@@ -50,7 +51,8 @@ db.createCollection('candidates', {
             driving_license_b: { bsonType: "bool" },
             transport_means: { bsonType: "string" },
             psh_referral_request: { bsonType: "bool" },
-            had_apprenticeship_contract: { bsonType: "bool" }
+            had_apprenticeship_contract: { bsonType: "bool" },
+            apprenticeship_contract_details: { bsonType: "string" }
           }
         },
 
@@ -258,6 +260,10 @@ db.createCollection('candidates', {
                 "MISSION_LOCALE",
                 "WORD_OF_MOUTH",
                 "KOANN",
+                "E2CR",
+                "TELEVISION_PUB",
+                "SALON",
+                "RSMA",
                 "OTHER"
               ]
             }

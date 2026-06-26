@@ -67,11 +67,12 @@ function ABSelectField({ id, label, value, onChange, children }: { id: string; l
 
 type ABForm = {
   // identité
-  fullName: string; email: string; phone: string;
   dateOfBirth: string; placeOfBirth: string; departmentOfBirth: string; age: string;
+  fullName: string; socialSecurityNumber: string; email: string; phone: string;
   address: string; postalCode: string; city: string;
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
+  apprenticeshipContractDetails: string;
   // TP + statut
   tpType: TitleProfessionalType; status: string;
   // éducation
@@ -109,10 +110,10 @@ type ABForm = {
 function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): ABForm {
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
-    fullName: '', email: '', phone: '',
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
+    fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
-    hadApprenticeshipContract: '',
+    hadApprenticeshipContract: '', apprenticeshipContractDetails: '',
     tpType, status: 'SEEKING',
     schoolLevel: '', schoolJustification: '',
     trainingSite: '',
@@ -145,9 +146,10 @@ function candidateToForm(c: Candidate): ABForm {
 
   return {
     fullName: c.identity.full_name ?? '',
+    socialSecurityNumber: c.identity.social_security_number ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
-    dateOfBirth: c.identity.date_of_birth ?? '',
+    dateOfBirth: c.identity.date_of_birth ? c.identity.date_of_birth.slice(0, 10) : '',
     placeOfBirth: c.identity.place_of_birth ?? '',
     departmentOfBirth: c.identity.department_of_birth ?? '',
     age: c.identity.age != null ? String(c.identity.age) : '',
@@ -158,6 +160,7 @@ function candidateToForm(c: Candidate): ABForm {
     transportMeans: c.identity.transport_means ?? '',
     pshReferralRequest: bs(c.identity.psh_referral_request),
     hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
+    apprenticeshipContractDetails: c.identity.apprenticeship_contract_details ?? '',
     tpType: c.tp_type,
     status: statusKey,
     schoolLevel: c.education?.school_level ?? '',
@@ -196,7 +199,7 @@ function candidateToForm(c: Candidate): ABForm {
     skills,
     domainMotivation: c.job_info?.domain_motivation ?? '',
     questionsConcerns: c.job_info?.questions_concerns ?? '',
-    availabilityDate: c.job_info?.availability_date ?? '',
+    availabilityDate: c.job_info?.availability_date ? c.job_info.availability_date.slice(0, 10) : '',
     geographicMobility: c.job_info?.geographic_mobility ?? [],
     weekendWork: bs(c.job_info?.weekend_work),
     desiredSectors: c.desired_sectors ?? [],
@@ -216,7 +219,7 @@ function toServerInput(f: ABForm) {
     desiredSectors: f.desiredSectors,
     expectedCompanySkills: f.expectedCompanySkills,
     identity: {
-      fullName: f.fullName, email: f.email, phone: f.phone,
+      fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       departmentOfBirth: f.departmentOfBirth || undefined,
@@ -228,6 +231,7 @@ function toServerInput(f: ABForm) {
       transportMeans: f.transportMeans || undefined,
       pshReferralRequest: pb(f.pshReferralRequest),
       hadApprenticeshipContract: pb(f.hadApprenticeshipContract),
+      apprenticeshipContractDetails: f.hadApprenticeshipContract === 'true' ? (f.apprenticeshipContractDetails || undefined) : undefined,
     },
     education: { schoolLevel: f.schoolLevel || undefined, justification: f.schoolJustification || undefined },
     support: {
@@ -405,6 +409,7 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           {/* Identité */}
           <ABSectionTitle title="Identité du candidat" />
           <InputField id="cn-fullname" label="Nom et prénom *" placeholder="Ex: Jean Dupont" required value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+          <InputField id="cn-ssn" label="Numéro de sécurité sociale" placeholder="Ex: 1 85 12 75 116 001 23" value={form.socialSecurityNumber} onChange={e => set('socialSecurityNumber', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
             <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
             <InputField id="cn-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
@@ -437,6 +442,9 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           <InputField id="cn-transport" label="Moyen de transport" value={form.transportMeans} onChange={e => set('transportMeans', e.target.value)} />
           <ABRadio label="Souhait de mise en relation avec le Référent PSH ?" name="psh" value={form.pshReferralRequest} onChange={v => set('pshReferralRequest', v)} options={boolOpts} />
           <ABRadio label="A déjà eu un contrat d'apprentissage ?" name="appr" value={form.hadApprenticeshipContract} onChange={v => set('hadApprenticeshipContract', v)} options={boolOpts} />
+          {form.hadApprenticeshipContract === 'true' && (
+            <ABTextarea label="Précisez le contrat d'apprentissage (entreprise, période, métier…)" value={form.apprenticeshipContractDetails} onChange={v => set('apprenticeshipContractDetails', v)} />
+          )}
 
           {/* Prérequis */}
           <ABSectionTitle title="Parcours et prérequis" />

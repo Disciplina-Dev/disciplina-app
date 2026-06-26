@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
@@ -51,6 +51,7 @@ export default function RHLayout() {
           <NavItem to="/rh/calendrier" icon={<CalendarDays size={18} />} label="Calendrier" />
           <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
+        <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
         </nav>
 
         {/* Administration Nav */}

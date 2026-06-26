@@ -25,6 +25,7 @@ import { Localisation } from '../../../types/job.types';
 const identitySchema = new Schema<Identity>(
     {
         full_name: { type: String, required: true },
+        social_security_number: { type: String },
         date_of_birth: { type: Date },
         place_of_birth: { type: String },
         department_of_birth: { type: String },
@@ -38,6 +39,7 @@ const identitySchema = new Schema<Identity>(
         transport_means: { type: String },
         psh_referral_request: { type: Boolean },
         had_apprenticeship_contract: { type: Boolean },
+        apprenticeship_contract_details: { type: String },
         avatar_updated_at: { type: Date },
     },
     { _id: false },

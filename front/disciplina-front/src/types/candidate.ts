@@ -80,6 +80,7 @@ export enum DiscoverySource {
 
 export interface Identity {
     full_name: string;                    // Nom complet du candidat
+    social_security_number?: string;      // Numéro de sécurité sociale
     date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
     department_of_birth?: string;         // Département de naissance
@@ -93,6 +94,7 @@ export interface Identity {
     transport_means?: string;             // Moyens de transport habituels
     psh_referral_request?: boolean;       // Demande d'accompagnement PSH
     had_apprenticeship_contract?: boolean; // A déjà eu un contrat d'apprentissage
+    apprenticeship_contract_details?: string; // Détails du contrat d'apprentissage (si oui)
     avatar_url?: string;
     avatar_updated_at?: string;
 }

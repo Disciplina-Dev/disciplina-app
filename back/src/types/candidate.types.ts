@@ -49,11 +49,16 @@ export enum DiscoverySource {
     MISSION_LOCALE = 'MISSION_LOCALE',
     WORD_OF_MOUTH = 'WORD_OF_MOUTH',
     KOANN = 'KOANN',
+    E2CR = 'E2CR',
+    TELEVISION_PUB = 'TELEVISION_PUB',
+    SALON = 'SALON',
+    RSMA = 'RSMA',
     OTHER = 'OTHER',
 }
 
 export interface Identity {
     full_name: string;
+    social_security_number?: string;
     date_of_birth?: Date;
     place_of_birth?: string;
     department_of_birth?: string;
@@ -68,6 +73,7 @@ export interface Identity {
     transport_means?: string;
     psh_referral_request?: boolean;
     had_apprenticeship_contract?: boolean;
+    apprenticeship_contract_details?: string;
     avatar_updated_at?: Date;
 }
 
