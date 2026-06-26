@@ -32,6 +32,7 @@ import Calendrier from "@/pages/rh/Calendrier";
 import ABEntreprisesRecues from "@/pages/rh/ABEntreprisesRecues";
 import MailTemplates from "@/pages/rh/MailTemplates";
 import Relance from "@/pages/rh/Relance";
+import DriveConfig from "@/pages/rh/DriveConfig";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -97,6 +98,7 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin", element: <ABEntreprisesRecues /> },
       { path: "mail", element: <MailTemplates scope="rh" /> },
       { path: "relance", element: <Relance /> },
+      { path: "config-drive", element: <DriveConfig /> },
     ],
   },
   {

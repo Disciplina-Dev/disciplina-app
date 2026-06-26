@@ -1,18 +1,14 @@
-import { env } from '../../config/env';
-import { TitleProfessionalType } from '../../types/candidate.types';
+import { TitleProfessionalType, TrainingSite } from '../../types/candidate.types';
+import { driveFolderConfigService } from '../../services/DriveFolderConfigService';
 
-// Sous-dossier "Candidat Nord" cible selon le type de Titre Professionnel.
-// Fallback sur la racine "Candidat Nord" si le sous-dossier n'est pas configuré.
-const TP_FOLDER_IDS: Record<TitleProfessionalType, string | undefined> = {
-    [TitleProfessionalType.AD]: env.DRIVE_CANDIDATS_NORD_AD_FOLDER_ID,
-    [TitleProfessionalType.CC]: env.DRIVE_CANDIDATS_NORD_CC_FOLDER_ID,
-    [TitleProfessionalType.NTC]: env.DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID,
-    [TitleProfessionalType.REM]: env.DRIVE_CANDIDATS_NORD_REM_FOLDER_ID,
-    [TitleProfessionalType.SA]: env.DRIVE_CANDIDATS_NORD_SA_FOLDER_ID,
-};
-
-/** Dossier Drive parent où créer le dossier d'un candidat, selon son TP. */
-export function driveParentFolderForTp(tp?: TitleProfessionalType | string): string | undefined {
-    const id = tp ? TP_FOLDER_IDS[tp as TitleProfessionalType] : undefined;
-    return id || env.DRIVE_CANDIDATS_NORD_FOLDER_ID;
+/**
+ * Dossier Drive parent où créer le dossier d'un candidat, selon son TP et sa région
+ * (déduite du site de formation). La config est éditable depuis l'UI (stockée en base) ;
+ * le .env sert uniquement de fallback. Voir DriveFolderConfigService.
+ */
+export async function driveParentFolderForTp(
+    tp?: TitleProfessionalType | string,
+    trainingSite?: TrainingSite | string,
+): Promise<string | undefined> {
+    return driveFolderConfigService.resolveParentForTp(tp, trainingSite);
 }

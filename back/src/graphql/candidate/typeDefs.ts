@@ -426,6 +426,28 @@ export const typeDefs = gql`
         createdAt: String!
     }
 
+    type DriveTpFolder {
+        tp: TitleProfessionalType!
+        region: String!
+        folderId: String
+    }
+
+    type DriveFolderConfig {
+        rootFolderId: String
+        tpFolders: [DriveTpFolder!]!
+    }
+
+    input DriveTpFolderInput {
+        tp: TitleProfessionalType!
+        region: String!
+        folderId: String
+    }
+
+    input DriveFolderConfigInput {
+        rootFolderId: String
+        tpFolders: [DriveTpFolderInput!]!
+    }
+
     type Query {
         candidateStats: CandidateStats!
         candidates: [Candidate!]!
@@ -434,6 +456,7 @@ export const typeDefs = gql`
         candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
+        driveFolderConfig: DriveFolderConfig!
     }
 
     type Mutation {
@@ -443,5 +466,6 @@ export const typeDefs = gql`
         createCandidateDriveFolder(id: String!): Candidate!
         addCandidateHistoryEntry(candidateId: String!, description: String!): CandidateHistoryEntry!
         deleteCandidateHistoryEntry(id: String!): Boolean!
+        updateDriveFolderConfig(input: DriveFolderConfigInput!): DriveFolderConfig!
     }
 `;
