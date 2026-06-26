@@ -5,6 +5,8 @@ import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import PublicBooking from "@/pages/booking/PublicBooking";
 import MatchGate from "@/pages/publicMatch/MatchGate";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
+import InterviewGate from "@/pages/publicInterview/InterviewGate";
+import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -123,6 +125,14 @@ export const router = createBrowserRouter([
   {
     path: "/public/match/:signature",
     element: <MatchComparator />,
+  },
+  {
+    path: "/public/interview",
+    element: <InterviewGate />,
+  },
+  {
+    path: "/public/interview/:signature",
+    element: <InterviewSlotPicker />,
   },
   {
     path: "*",

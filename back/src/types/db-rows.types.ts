@@ -24,6 +24,20 @@ export interface MatchLinkRow {
     updated_at?: string | Date;
 }
 
+export interface InterviewAccessRow {
+    signature: string;
+    code: string;
+    job_uuid: string;
+    candidate_id: string;
+    rh_email: string;
+    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
+    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
+    expires_at: string | Date;
+    created_at?: string | Date;
+    updated_at?: string | Date;
+}
+
 export interface CompaniesRow {
     id: number;
     user_id: number | null;

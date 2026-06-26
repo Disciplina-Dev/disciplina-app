@@ -106,16 +106,34 @@ export class JobRepository {
         jobId: string,
         candidateId: string,
         answer: ProposedCandidateAnswer,
-        interviewSlots?: string[],
         comment?: string,
     ): Promise<Job | null> {
         const update: Record<string, unknown> = { 'proposed_candidate.$.answer': answer };
-        if (interviewSlots) update['proposed_candidate.$.interview_slots'] = interviewSlots;
         if (comment) update['proposed_candidate.$.comment'] = comment;
         return JobModel.findOneAndUpdate(
             { _id: jobId, 'proposed_candidate.id': candidateId },
             { $set: update },
             { new: true },
+        ).lean();
+    }
+
+    async setJobInterviewSlots(jobId: string, slots: string[], location?: string): Promise<Job | null> {
+        const update: Record<string, unknown> = { interview_slots: slots };
+        if (location) update.interview_location = location;
+        return JobModel.findOneAndUpdate({ _id: jobId }, { $set: update }, { new: true }).lean();
+    }
+
+    /** Atomic, race-safe: fails (returns null) if the slot was already taken by anyone, or the candidate is invalid/already booked. */
+    async bookInterviewSlot(jobId: string, candidateId: string, slot: string): Promise<Job | null> {
+        return JobModel.findOneAndUpdate(
+            {
+                _id: jobId,
+                interview_slots: slot,
+                'proposed_candidate.booked_interview_slot': { $ne: slot },
+                proposed_candidate: { $elemMatch: { id: candidateId, booked_interview_slot: { $exists: false } } },
+            },
+            { $set: { 'proposed_candidate.$[c].booked_interview_slot': slot } },
+            { arrayFilters: [{ 'c.id': candidateId }], new: true },
         ).lean();
     }
 

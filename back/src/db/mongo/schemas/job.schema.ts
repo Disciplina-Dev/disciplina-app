@@ -40,7 +40,10 @@ const proposedCandidateSchema = new Schema<ProposedCandidate>(
         cv_webview: { type: String },
         answer: { type: String, enum: Object.values(ProposedCandidateAnswer), default: null },
         comment: { type: String },
-        interview_slots: { type: [String] },
+        interview_date: { type: String },
+        interview_hour: { type: String },
+        interview_location: { type: String },
+        booked_interview_slot: { type: String },
     },
     { _id: false },
 );
@@ -59,6 +62,8 @@ const jobSchema = new Schema<Job & Document>(
         localisation: { type: [String], enum: Object.values(Localisation) },
         matched_candidate: { type: [matchingCandidateSchema] },
         proposed_candidate: { type: [proposedCandidateSchema] },
+        interview_slots: { type: [String] },
+        interview_location: { type: String },
     },
     { collection: 'jobs' },
 );
