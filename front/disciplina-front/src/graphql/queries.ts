@@ -680,6 +680,86 @@ export const UPDATE_CANDIDATE_FULL = gql`
       id
       status
       tpType
+      trainingSite
+      immersionAgreement
+      desiredSectors
+      expectedCompanySkills
+      identity {
+        fullName
+        socialSecurityNumber
+        avatarUpdatedAt
+        email
+        phone
+        dateOfBirth
+        placeOfBirth
+        age
+        address
+        postalCode
+        city
+        drivingLicenseB
+        transportMeans
+        pshReferralRequest
+        hadApprenticeshipContract
+        apprenticeshipContractDetails
+      }
+      education {
+        schoolLevel
+        justification
+      }
+      support {
+        franceTravailRegistered
+        franceTravailAgency
+        missionLocaleRegistered
+        missionLocaleCity
+      }
+      background {
+        lastDiploma
+        previousTrainings
+        professionalExperiences {
+          position
+          company
+          duration
+          responsibilities
+        }
+      }
+      profile {
+        frenchLevel
+        englishLevel
+        otherLanguages
+        strengthsAndImprovements
+        qualities
+        defects
+        digitalSkills
+        readyForChallenges
+        hobbies
+      }
+      professionalProjects {
+        careerObjectives
+        desiredSkills
+        apprenticeshipMotivation
+        trainingExpectations
+      }
+      skillsAssessment {
+        competence
+        level
+      }
+      jobInfo {
+        domainMotivation
+        questionsConcerns
+        availabilityDate
+        geographicMobility
+        weekendWork
+        discoverySource
+      }
+      synthesis {
+        feasibilityConclusion
+        pathwayRelevance
+        specialNeeds
+        otherRecommendations
+        location
+        date
+      }
+      pdfLink
     }
   }
 `

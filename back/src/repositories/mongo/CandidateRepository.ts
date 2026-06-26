@@ -64,7 +64,8 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
                 result[newKey] = value;
             } else if (value && typeof value === 'object' && !Array.isArray(value)) {
                 Object.assign(result, flattenObject(value, newKey));
-            } else if (value || value === '') {
+            } else if (value !== undefined && value !== null) {
+                // Garde les valeurs falsy légitimes (false, 0, '') — seuls undefined/null sont ignorés.
                 result[newKey] = value;
             }
         }
