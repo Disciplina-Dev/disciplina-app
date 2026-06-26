@@ -5,15 +5,13 @@ import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
-function DriveLogo({ size = 22 }: { size?: number }) {
+function GoogleLogo({ size = 22 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
-      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47" />
-      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335" />
-      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
-      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
-      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
+    <svg width={size} height={size} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.3 0 6.3 1.2 8.6 3.3l6-6C42.8 4.9 33.8 1 24 1 11.3 1 1 11.3 1 24s10.3 23 23 23c11.5 0 22-8.3 22-23 0-1.5-.2-2.7-.5-4z" fill="#FFC107" />
+      <path d="M3.7 14.7l7 5.1C12.5 15.2 17.8 11 24 11c3.3 0 6.3 1.2 8.6 3.3l6-6C42.8 4.9 33.8 1 24 1 15.4 1 8 5.8 3.7 14.7z" fill="#FF3D00" />
+      <path d="M24 47c9.6 0 18.4-3.7 24-12l-6.6-5.6C38.5 33.6 31.7 37 24 37c-6.1 0-11.2-4.1-13-9.7l-6.9 5.3C7.5 41.6 15 47 24 47z" fill="#4CAF50" />
+      <path d="M44.5 20H24v8.5h11.8c-1 3-3 5.5-5.4 7.3l6.6 5.6C42.6 38.1 47 31.5 47 24c0-1.5-.2-2.7-.5-4z" fill="#1976D2" />
     </svg>
   )
 }
@@ -62,8 +60,8 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white py-2.5 px-3">
-        <DriveLogo size={22} />
-        <span className="flex-1 text-[14px] font-bold text-gray-800">Drive</span>
+        <GoogleLogo size={22} />
+        <span className="flex-1 text-[14px] font-bold text-gray-800">Google</span>
         {isConnected ? (
           <CheckCircle2 size={18} className="text-success" />
         ) : (
@@ -83,7 +81,7 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
             <LogOut size={18} />
           )}
           <span className="text-[14px] font-bold">
-            {isDisconnecting ? 'Déconnexion...' : 'Déconnecter Drive'}
+            {isDisconnecting ? 'Déconnexion...' : 'Déconnecter Google'}
           </span>
         </button>
       ) : (
@@ -97,10 +95,10 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
           {isLoading ? (
             <Loader2 size={18} className="animate-spin" />
           ) : (
-            <DriveLogo size={18} />
+            <GoogleLogo size={18} />
           )}
           <span className="text-[14px] font-bold">
-            {isLoading ? 'Connexion...' : 'Connecter Drive'}
+            {isLoading ? 'Connexion...' : 'Se connecter à Google'}
           </span>
         </button>
       )}
