@@ -51,7 +51,8 @@ db.createCollection('candidates', {
             driving_license_b: { bsonType: "bool" },
             transport_means: { bsonType: "string" },
             psh_referral_request: { bsonType: "bool" },
-            had_apprenticeship_contract: { bsonType: "bool" }
+            had_apprenticeship_contract: { bsonType: "bool" },
+            apprenticeship_contract_details: { bsonType: "string" }
           }
         },
 

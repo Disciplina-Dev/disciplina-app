@@ -508,6 +508,7 @@ export const GET_CANDIDATE_FULL = gql`
         transportMeans
         pshReferralRequest
         hadApprenticeshipContract
+        apprenticeshipContractDetails
       }
       education { schoolLevel justification }
       support {

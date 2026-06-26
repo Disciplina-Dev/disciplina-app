@@ -93,6 +93,7 @@ export interface Identity {
     transport_means?: string;             // Moyens de transport habituels
     psh_referral_request?: boolean;       // Demande d'accompagnement PSH
     had_apprenticeship_contract?: boolean; // A déjà eu un contrat d'apprentissage
+    apprenticeship_contract_details?: string; // Détails du contrat d'apprentissage (si oui)
     avatar_url?: string;
     avatar_updated_at?: string;
 }

@@ -96,6 +96,7 @@ export const typeDefs = gql`
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
+        apprenticeshipContractDetails: String
         avatarUpdatedAt: String
     }
 
@@ -231,6 +232,7 @@ export const typeDefs = gql`
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
+        apprenticeshipContractDetails: String
     }
 
     input EducationInput {

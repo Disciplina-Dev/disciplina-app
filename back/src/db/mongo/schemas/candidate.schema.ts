@@ -38,6 +38,7 @@ const identitySchema = new Schema<Identity>(
         transport_means: { type: String },
         psh_referral_request: { type: Boolean },
         had_apprenticeship_contract: { type: Boolean },
+        apprenticeship_contract_details: { type: String },
         avatar_updated_at: { type: Date },
     },
     { _id: false },

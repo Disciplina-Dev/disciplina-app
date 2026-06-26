@@ -71,6 +71,7 @@ type ABForm = {
   address: string; postalCode: string; city: string;
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
+  apprenticeshipContractDetails: string;
   // TP + statut
   tpType: TitleProfessionalType; status: string;
   // éducation
@@ -111,7 +112,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     dateOfBirth: '', placeOfBirth: '', age: '', address: '', postalCode: '', city: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
-    hadApprenticeshipContract: '',
+    hadApprenticeshipContract: '', apprenticeshipContractDetails: '',
     tpType, status: 'SEEKING',
     schoolLevel: '', schoolJustification: '',
     trainingSite: '',
@@ -157,6 +158,7 @@ function candidateToForm(c: Candidate): ABForm {
     transportMeans: c.identity.transport_means ?? '',
     pshReferralRequest: bs(c.identity.psh_referral_request),
     hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
+    apprenticeshipContractDetails: c.identity.apprenticeship_contract_details ?? '',
     tpType: c.tp_type,
     status: statusKey,
     schoolLevel: c.education?.school_level ?? '',
@@ -226,6 +228,7 @@ function toServerInput(f: ABForm) {
       transportMeans: f.transportMeans || undefined,
       pshReferralRequest: pb(f.pshReferralRequest),
       hadApprenticeshipContract: pb(f.hadApprenticeshipContract),
+      apprenticeshipContractDetails: f.hadApprenticeshipContract === 'true' ? (f.apprenticeshipContractDetails || undefined) : undefined,
     },
     education: { schoolLevel: f.schoolLevel || undefined, justification: f.schoolJustification || undefined },
     support: {
@@ -434,6 +437,9 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           <InputField id="cn-transport" label="Moyen de transport" value={form.transportMeans} onChange={e => set('transportMeans', e.target.value)} />
           <ABRadio label="Souhait de mise en relation avec le Référent PSH ?" name="psh" value={form.pshReferralRequest} onChange={v => set('pshReferralRequest', v)} options={boolOpts} />
           <ABRadio label="A déjà eu un contrat d'apprentissage ?" name="appr" value={form.hadApprenticeshipContract} onChange={v => set('hadApprenticeshipContract', v)} options={boolOpts} />
+          {form.hadApprenticeshipContract === 'true' && (
+            <ABTextarea label="Précisez le contrat d'apprentissage (entreprise, période, métier…)" value={form.apprenticeshipContractDetails} onChange={v => set('apprenticeshipContractDetails', v)} />
+          )}
 
           {/* Prérequis */}
           <ABSectionTitle title="Parcours et prérequis" />

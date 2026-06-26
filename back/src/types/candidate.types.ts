@@ -68,6 +68,7 @@ export interface Identity {
     transport_means?: string;
     psh_referral_request?: boolean;
     had_apprenticeship_contract?: boolean;
+    apprenticeship_contract_details?: string;
     avatar_updated_at?: Date;
 }
 
