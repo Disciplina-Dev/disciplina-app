@@ -1,5 +1,18 @@
-import { CompaniesRow, CompaniesBlacklistRow, CompanyHistoryRow, ContactLogRow } from '../../types/db-rows.types';
-import { Companies, BlacklistedCompany, CompanyHistory, ContactLog } from '../../types/company.types';
+import {
+    CompaniesRow,
+    CompaniesBlacklistRow,
+    CompanyHistoryRow,
+    ContactLogRow,
+    RelanceHistoryRow,
+} from '../../types/db-rows.types';
+import {
+    Companies,
+    BlacklistedCompany,
+    CompanyHistory,
+    ContactLog,
+    RelanceHistory,
+    RelanceChannel,
+} from '../../types/company.types';
 
 function toIso(value?: string | Date | null): string {
     if (!value) return new Date().toISOString();
@@ -35,6 +48,20 @@ export function toCompanies(row: CompaniesRow): Companies {
             : null,
         relanceType: row.relance_type ?? null,
         relanceTemplateId: row.relance_template_id ?? null,
+        relanceChannel: row.relance_channel ?? null,
+    };
+}
+
+export function toRelanceHistory(row: RelanceHistoryRow): RelanceHistory {
+    return {
+        id: row.id,
+        companyID: row.company_id,
+        userID: row.user_id ?? null,
+        typeRelance: row.type_relance ?? null,
+        channel: row.channel as RelanceChannel,
+        subject: row.subject ?? null,
+        note: row.note ?? null,
+        createdAt: toIso(row.created_at),
     };
 }
 

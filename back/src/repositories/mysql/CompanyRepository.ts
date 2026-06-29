@@ -205,4 +205,23 @@ export class CompanyRepository {
             conn.release();
         }
     }
+
+    /**
+     * Vide la relance en cours (date / type / template / canal) après qu'elle a été
+     * effectuée. `update()` ne peut pas le faire : il filtre les valeurs null.
+     */
+    async clearRelance(id: number): Promise<boolean> {
+        const conn = await getConnection();
+        try {
+            const result = await conn.execute(
+                `UPDATE companies
+                 SET relance_date = NULL, relance_type = NULL, relance_template_id = NULL, relance_channel = NULL
+                 WHERE id = ?`,
+                [id],
+            );
+            return (result[0] as any).affectedRows > 0;
+        } finally {
+            conn.release();
+        }
+    }
 }
