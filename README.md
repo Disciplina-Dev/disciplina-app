@@ -156,3 +156,6 @@ See the detailed documentation in each sub-project:
 - **Frontend**: [`front/disciplina-front/README.md`](./front/disciplina-front/README.md) — React + Vite setup
 - **Database schemas**: [`database/champs.md`](./database/champs.md) — form field reference per Titre Professionnel
 - **MongoDB schema**: [`database/mongodb/mongo-schema.md`](./database/mongodb/mongo-schema.md) — candidates and jobs collections documentation
+
+user: root
+mdp: Disciplina2026!api

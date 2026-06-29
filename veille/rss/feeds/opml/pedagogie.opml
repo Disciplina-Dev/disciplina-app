@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Veille metiers/competences + innovation pedagogique — Qualiopi indicateurs 24 et 25 -->
+<opml version="2.0">
+  <head>
+    <title>DISCIPLINA - Veille Pedagogie et Innovation</title>
+  </head>
+  <body>
+    <outline text="Pedagogie" title="Pedagogie">
+      <outline type="rss" text="Centre Inffo - Innovation formation"
+        title="Centre Inffo - Innovation formation"
+        xmlUrl="https://www.centre-inffo.fr/category/innovation-formation/feed"
+        htmlUrl="https://www.centre-inffo.fr/" />
+      <outline type="rss" text="Centre Inffo - Regions"
+        title="Centre Inffo - Regions"
+        xmlUrl="https://www.centre-inffo.fr/category/actualites-regions/feed"
+        htmlUrl="https://www.centre-inffo.fr/" />
+      <outline type="rss" text="Via Competences - Actualites"
+        title="Via Competences - Actualites"
+        xmlUrl="https://www.via-competences.fr/rss-actualites.xml"
+        htmlUrl="https://www.via-competences.fr/" />
+    </outline>
+  </body>
+</opml>

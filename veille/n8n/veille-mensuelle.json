@@ -1,0 +1,205 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "a1111111-1111-1111-1111-111111111111",
+      "name": "Tous les mois (1er a 8h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calcule la plage = mois calendaire precedent (format Gmail YYYY/M/D)\nconst now = new Date();\nconst firstThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);\nconst firstPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);\nconst fmt = (d) => `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;\nreturn [{ json: { after: fmt(firstPrevMonth), before: fmt(firstThisMonth) } }];"
+      },
+      "id": "a2222222-2222-2222-2222-222222222222",
+      "name": "Calcule mois dernier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "simple": false,
+        "filters": {
+          "q": "=label:Veille after:{{ $json.after }} before:{{ $json.before }}"
+        },
+        "options": {}
+      },
+      "id": "a3333333-3333-3333-3333-333333333333",
+      "name": "Gmail - label Veille",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        688,
+        304
+      ],
+      "webhookId": "6840ea5b-a743-4e29-97ae-9afe07468e91",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AjEEI1PzgtNME6E8",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assemble tous les mails en un seul bloc texte pour le LLM.\nconst items = $input.all();\nif (items.length === 0) {\n  return [{ json: { blob: 'AUCUN MAIL trouve avec le label Veille le mois dernier.', count: 0 } }];\n}\nconst blob = items.map((it, i) => {\n  const j = it.json;\n  const sujet = j.subject || j.Subject || '(sans sujet)';\n  const date = j.date || j.internalDate || '';\n  const corps = j.text || j.textAsHtml || j.snippet || '';\n  return `### MAIL ${i + 1}\\nSujet: ${sujet}\\nDate: ${date}\\nContenu:\\n${corps}`;\n}).join('\\n\\n---\\n\\n');\nreturn [{ json: { blob, count: items.length } }];"
+      },
+      "id": "a4444444-4444-4444-4444-444444444444",
+      "name": "Assemble les mails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un assistant de veille. Voici des mails (chacun peut contenir PLUSIEURS articles). Mois analyse : du {{ $('Calcule mois dernier').item.json.after }} au {{ $('Calcule mois dernier').item.json.before }}. Nombre de mails : {{ $json.count }}.\n\nTON TRAVAIL :\n1. Repere CHAQUE article distinct dans CHAQUE mail (attention : un mail = souvent plusieurs articles).\n2. Pour chaque article : donne son TITRE exact + un resume de 2-3 phrases + liens vers l'article (par défaut le lien vers le mail).\n3. Termine par une SYNTHESE GLOBALE des grandes tendances du mois.\n\nFORMAT DE SORTIE (HTML simple, pas de markdown) :\n<h2>Articles du mois</h2>\n<ul>\n  <li><b>Titre de l'article</b> : resume...</li>\n</ul>\n<h2>Synthese globale</h2>\n<p>...</p>\n\nVoici les mails :\n\n{{ $json.blob }}"
+      },
+      "id": "a5555555-5555-5555-5555-555555555555",
+      "name": "LLM - analyse veille",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "epitechdisciplina.dev@gmail.com",
+        "subject": "=Compte rendu Veille - {{ $('Calcule mois dernier').item.json.after }} au {{ $('Calcule mois dernier').item.json.before }}",
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "id": "a7777777-7777-7777-7777-777777777777",
+      "name": "Gmail - envoie compte rendu",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1488,
+        304
+      ],
+      "webhookId": "c762f639-97c6-4691-9137-510c1a0b80fb",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AjEEI1PzgtNME6E8",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        560
+      ],
+      "id": "54f96da0-5693-4e52-92e7-c6843bb53bba",
+      "name": "Mistral Cloud Chat Model",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "aSI6FO9si6Hpye8U",
+          "name": "Mistral Cloud account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Tous les mois (1er a 8h)": {
+      "main": [
+        [
+          {
+            "node": "Calcule mois dernier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcule mois dernier": {
+      "main": [
+        [
+          {
+            "node": "Gmail - label Veille",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - label Veille": {
+      "main": [
+        [
+          {
+            "node": "Assemble les mails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble les mails": {
+      "main": [
+        [
+          {
+            "node": "LLM - analyse veille",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM - analyse veille": {
+      "main": [
+        [
+          {
+            "node": "Gmail - envoie compte rendu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM - analyse veille",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2f53c3ff52e2cf0099714a6b8da1db756bd923d04882579757b21d21d8dce845"
+  }
+}
