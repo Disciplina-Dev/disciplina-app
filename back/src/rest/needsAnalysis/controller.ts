@@ -2,9 +2,16 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../../types/user.types';
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
+import {
+    signatureAssets,
+    SIGNATURE_EMAIL_SUBJECT,
+    SIGNATURE_EMAIL_BODY,
+} from '../../external/docuseal/docuseal.service';
 import { logger } from '../../external/logger/logger';
 
 const needsAnalysisService = new NeedsAnalysisService();
+
+const SIGNATURE_ROLES = [Role.COMMERCIAL, Role.RESPONSABLE, Role.ADMIN];
 
 export async function downloadPdf(req: AuthRequest, res: Response): Promise<void> {
     const role = req.user?.role;
@@ -40,6 +47,39 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
         }
         res.status(500).json({ error: 'Failed to generate PDF' });
     }
+}
+
+/** Sert un PDF statique (mandat / catalogue) en inline pour l'aperçu avant envoi. */
+function serveSignatureAsset(req: AuthRequest, res: Response, kind: 'mandat' | 'catalogue'): void {
+    if (!SIGNATURE_ROLES.includes(req.user?.role as Role)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+    const buffer = signatureAssets[kind]();
+    if (!buffer) {
+        res.status(404).json({ error: `${kind} PDF introuvable` });
+        return;
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${kind}.pdf"`);
+    res.send(buffer);
+}
+
+export function getMandatPdf(req: AuthRequest, res: Response): void {
+    serveSignatureAsset(req, res, 'mandat');
+}
+
+export function getCataloguePdf(req: AuthRequest, res: Response): void {
+    serveSignatureAsset(req, res, 'catalogue');
+}
+
+/** Renvoie le sujet/corps de l'email de signature pour l'aperçu (lecture seule). */
+export function getSignatureEmail(req: AuthRequest, res: Response): void {
+    if (!SIGNATURE_ROLES.includes(req.user?.role as Role)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+    res.status(200).json({ subject: SIGNATURE_EMAIL_SUBJECT, body: SIGNATURE_EMAIL_BODY });
 }
 
 export async function sendSignature(req: AuthRequest, res: Response): Promise<void> {

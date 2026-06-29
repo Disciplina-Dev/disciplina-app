@@ -19,16 +19,20 @@ export interface SignedDocument {
 // est conservé tel quel ; seule une zone de signature est ajoutée (bas-gauche).
 const MANDAT_FILENAME = 'Mandat pour la publication d’une offre d’emploi (1).pdf';
 
+// Catalogue Disciplina, joint à l'envoi en signature comme document distinct
+// SANS champ : le signataire le consulte mais n'a rien à y signer.
+const CATALOGUE_FILENAME = 'Catalogue Disciplina.pdf';
+
 /**
- * Charge le PDF du mandat depuis assets/. Essaie d'abord un chemin relatif à
+ * Charge un PDF depuis assets/. Essaie d'abord un chemin relatif à
  * `process.cwd()` (fiable dans la lambda Vercel où les fichiers `includeFiles`
  * sont déposés à la racine de la fonction), puis retombe sur `__dirname` (dev
  * local / `node dist`). Renvoie null si introuvable.
  */
-function loadMandatPdf(): Buffer | null {
+function loadAssetPdf(filename: string): Buffer | null {
     const candidates = [
-        path.join(process.cwd(), 'assets', MANDAT_FILENAME),
-        path.join(__dirname, '../../assets', MANDAT_FILENAME),
+        path.join(process.cwd(), 'assets', filename),
+        path.join(__dirname, '../../assets', filename),
     ];
     for (const candidate of candidates) {
         try {
@@ -37,9 +41,23 @@ function loadMandatPdf(): Buffer | null {
             // chemin suivant
         }
     }
-    logger.error({ candidates }, '[DocuSeal] Mandat PDF introuvable dans assets/');
+    logger.error({ filename, candidates }, '[DocuSeal] PDF introuvable dans assets/');
     return null;
 }
+
+function loadMandatPdf(): Buffer | null {
+    return loadAssetPdf(MANDAT_FILENAME);
+}
+
+function loadCataloguePdf(): Buffer | null {
+    return loadAssetPdf(CATALOGUE_FILENAME);
+}
+
+/** Exposé pour l'aperçu avant envoi : sert les PDF statiques (mandat / catalogue). */
+export const signatureAssets = {
+    mandat: loadMandatPdf,
+    catalogue: loadCataloguePdf,
+};
 
 /**
  * Document « Mandat » pour le payload DocuSeal /templates/pdf. Le PDF d'origine
@@ -122,8 +140,8 @@ function buildMandatDocument(mandatBuffer: Buffer) {
 
 // Email "à signer" envoyé par DocuSeal au signataire.
 // Variables disponibles : {{template.name}}, {{submitter.link}}, {{account.name}}.
-const SIGNATURE_EMAIL_SUBJECT = 'Signature de votre Analyse du Besoin';
-const SIGNATURE_EMAIL_BODY = [
+export const SIGNATURE_EMAIL_SUBJECT = 'Signature de votre Analyse du Besoin';
+export const SIGNATURE_EMAIL_BODY = [
     'Bonjour,',
     '',
     'Dans le cadre de votre projet de recrutement en apprentissage avec Disciplina,',
@@ -218,6 +236,14 @@ export class DocuSealService {
                 documents.push(buildMandatDocument(mandatBuffer));
             } else {
                 logger.warn('[DocuSeal] Mandat non joint (PDF introuvable) — envoi de l’AB seule.');
+            }
+
+            // Catalogue joint comme document à consulter, SANS champ (rien à signer).
+            const catalogueBuffer = loadCataloguePdf();
+            if (catalogueBuffer) {
+                documents.push({ name: 'Catalogue Disciplina', file: catalogueBuffer.toString('base64') });
+            } else {
+                logger.warn('[DocuSeal] Catalogue non joint (PDF introuvable).');
             }
 
             logger.info(
