@@ -44,6 +44,7 @@ function loadMandatPdf(): Buffer | null {
 /**
  * Document « Mandat » pour le payload DocuSeal /templates/pdf. Le PDF d'origine
  * est conservé tel quel ; on ajoute les zones à remplir par le signataire :
+ * l'identité du mandant (responsable, raison sociale, SIRET, adresse, code APE),
  * « Fait à » (texte), « Le » (date), « Lu et approuvé » (texte) et la signature.
  * Coordonnées en ratio 0..1, origine haut-gauche, page 1-based.
  */
@@ -52,6 +53,36 @@ function buildMandatDocument(mandatBuffer: Buffer) {
         name: 'Mandat de publication',
         file: mandatBuffer.toString('base64'),
         fields: [
+            {
+                name: 'Nom et prénom du / de la responsable',
+                type: 'text',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.43, y: 0.182, w: 0.44, h: 0.016 }],
+            },
+            {
+                name: 'Dénomination ou raison sociale',
+                type: 'text',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.45, y: 0.199, w: 0.42, h: 0.016 }],
+            },
+            {
+                name: 'Numéro de SIRET',
+                type: 'text',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.28, y: 0.217, w: 0.45, h: 0.016 }],
+            },
+            {
+                name: 'Adresse du siège',
+                type: 'text',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.28, y: 0.233, w: 0.45, h: 0.016 }],
+            },
+            {
+                name: 'Code APE',
+                type: 'text',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.24, y: 0.249, w: 0.45, h: 0.016 }],
+            },
             {
                 name: 'Fait à',
                 type: 'text',
