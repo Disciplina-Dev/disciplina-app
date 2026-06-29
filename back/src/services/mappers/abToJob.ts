@@ -60,6 +60,7 @@ export function buildJobsFromAb(analysis: NeedsAnalysis, companyName: string): P
 
     return positions.map((pos) => ({
         _id: randomUUID(),
+        needs_analysis_id: analysis.id,
         company_name: companyName,
         age_range: ageRange,
         desired_tp: DOMAIN_TO_TP[pos.trainingDomain],
