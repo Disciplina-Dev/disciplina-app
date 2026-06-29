@@ -196,6 +196,43 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
 
+CREATE TABLE IF NOT EXISTS rh_kpi (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    year SMALLINT NOT NULL,
+    month TINYINT NOT NULL,
+    week TINYINT NOT NULL,
+    interviews_placed INT NOT NULL DEFAULT 0,
+    interviews_attended INT NOT NULL DEFAULT 0,
+    interviews_noshow INT NOT NULL DEFAULT 0,
+    immersions INT NOT NULL DEFAULT 0,
+    contracts INT NOT NULL DEFAULT 0,
+    ruptures INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_rh_kpi (user_id, year, month, week),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS booking_settings (
+    user_id INT PRIMARY KEY,
+    slug VARCHAR(32) NOT NULL UNIQUE,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    duration_min INT NOT NULL DEFAULT 30,
+    buffer_min INT NOT NULL DEFAULT 0,
+    timezone VARCHAR(64) NOT NULL DEFAULT 'Indian/Reunion',
+    min_notice_hours INT NOT NULL DEFAULT 12,
+    max_days_ahead INT NOT NULL DEFAULT 30,
+    working_hours JSON DEFAULT NULL,
+    title VARCHAR(255) NOT NULL DEFAULT 'Rendez-vous',
+    location VARCHAR(255) DEFAULT NULL,
+    confirmation_subject VARCHAR(255) DEFAULT NULL,
+    confirmation_body TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 -- Session de portail entreprise (acceptation interactive des candidats).
 -- Une ligne = un lien envoyé à une entreprise pour répondre aux candidats proposés d'un job.
 CREATE TABLE IF NOT EXISTS match_link (
