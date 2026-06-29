@@ -230,6 +230,16 @@ export class NeedsAnalysisService {
             logger.info({ id }, '[NeedsAnalysis] delete() no-op, already absent');
             return true;
         }
+
+        // Supprime aussi les offres de matching (côté RH) générées par cette AB.
+        // Hors du chemin critique : un échec ne doit pas empêcher la suppression de l'AB.
+        try {
+            const removed = await this.jobRepository.deleteByNeedsAnalysisId(id);
+            logger.info({ id, removed }, '[NeedsAnalysis] matching jobs deleted with AB');
+        } catch (err) {
+            logger.error({ err, id }, '[NeedsAnalysis] Failed to delete matching jobs for AB');
+        }
+
         return this.repository.delete(id);
     }
 

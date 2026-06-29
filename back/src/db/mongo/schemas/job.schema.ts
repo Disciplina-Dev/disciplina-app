@@ -55,6 +55,7 @@ const proposedCandidateSchema = new Schema<ProposedCandidate>(
 const jobSchema = new Schema<Job & Document>(
     {
         _id: { type: String },
+        needs_analysis_id: { type: Number },
         company_name: { type: String },
         age_range: { type: String },
         desired_tp: { type: String, enum: Object.values(TitleProfessionalType) },

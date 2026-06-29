@@ -117,6 +117,9 @@ export interface ProposedCandidate extends MatchingCandidate {
 
 export interface Job {
     _id?: string;
+    // Lien vers l'AB (MySQL needs_analysis) qui a généré cette offre, pour pouvoir
+    // supprimer les offres de matching quand le commercial supprime l'AB.
+    needs_analysis_id?: number;
     company_name?: string;
     age_range?: string;
     desired_tp?: string;

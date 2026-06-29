@@ -52,6 +52,11 @@ export class JobRepository {
         return (await JobModel.deleteOne({ _id: id })).deletedCount > 0;
     }
 
+    /** Supprime toutes les offres de matching générées par une AB donnée. Renvoie le nombre supprimé. */
+    async deleteByNeedsAnalysisId(needsAnalysisId: number): Promise<number> {
+        return (await JobModel.deleteMany({ needs_analysis_id: needsAnalysisId })).deletedCount ?? 0;
+    }
+
     async addMatchedCandidate(jobId: string, candidate: MatchingCandidate): Promise<Job | null> {
         return JobModel.findOneAndUpdate(
             { _id: jobId, 'matched_candidate.id': { $ne: candidate.id } },
