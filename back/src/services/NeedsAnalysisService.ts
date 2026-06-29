@@ -224,7 +224,11 @@ export class NeedsAnalysisService {
         }
         const existing = await this.repository.findById(id);
         if (!existing) {
-            throw new Error('Needs analysis not found');
+            // Idempotent : l'AB est déjà absente (double-clic, suppression concurrente,
+            // suppression en masse qui rejoue le même id). L'état voulu est atteint →
+            // succès, on ne remonte pas d'erreur « not found » à l'utilisateur.
+            logger.info({ id }, '[NeedsAnalysis] delete() no-op, already absent');
+            return true;
         }
         return this.repository.delete(id);
     }
