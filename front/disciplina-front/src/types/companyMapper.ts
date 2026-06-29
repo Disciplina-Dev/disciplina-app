@@ -31,6 +31,7 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     date_relance: company.relanceDate ?? null,
     type_relance: company.relanceType ?? null,
     relance_template_id: company.relanceTemplateId ?? null,
+    relance_channel: company.relanceChannel ?? null,
   }
 }
 
@@ -56,5 +57,6 @@ export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
     relanceDate: entreprise.date_relance || null,
     relanceType: entreprise.type_relance ?? null,
     relanceTemplateId: entreprise.relance_template_id || null,
+    relanceChannel: entreprise.relance_channel || null,
   };
 };

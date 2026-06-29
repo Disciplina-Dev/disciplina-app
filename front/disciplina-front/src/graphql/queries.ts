@@ -48,6 +48,7 @@ export const GET_COMPANIES = gql`
             createdAt
             relanceType
             relanceTemplateId
+            relanceChannel
           }
           salePerson {
             id
@@ -158,6 +159,7 @@ export const CREATE_COMPANY = gql`
       relanceDate
       relanceType
       relanceTemplateId
+      relanceChannel
     }
   }
 `
@@ -183,6 +185,7 @@ export const UPDATE_COMPANY = gql`
       relanceDate
       relanceType
       relanceTemplateId
+      relanceChannel
     }
   }
 `
@@ -224,6 +227,7 @@ export const GET_BLACKLISTED_COMPANIES = gql`
           createdAt
           relanceType
           relanceTemplateId
+          relanceChannel
           allBlacklist
         }
       }

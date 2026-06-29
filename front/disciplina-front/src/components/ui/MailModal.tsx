@@ -16,6 +16,12 @@ interface MailModalProps {
   defaultSubject?: string
   defaultBody?: string
   defaultAttachments?: MailAttachment[]
+  /** Si fourni, remplace l'envoi via /api/email : le parent gère l'envoi (ex. relance). */
+  onCustomSend?: (mail: { to: string; subject: string; body: string; attachments: MailAttachment[] }) => Promise<void>
+  /** Libellé du bouton d'envoi (par défaut selon `mode`). */
+  sendLabel?: string
+  /** Message affiché après succès (par défaut selon `mode`). */
+  successLabel?: string
   onClose: () => void
   onSent?: () => void
 }
@@ -23,7 +29,7 @@ interface MailModalProps {
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue transition-colors'
 
-export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, defaultSubject, defaultBody, defaultAttachments, onClose, onSent }: MailModalProps) {
+export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, defaultSubject, defaultBody, defaultAttachments, onCustomSend, sendLabel, successLabel, onClose, onSent }: MailModalProps) {
   const { templates, signatureImage, load, resolveAttachment } = useMailTemplatesStore(scope)
   const token = useAuthStore((s) => s.token)
 
@@ -92,17 +98,21 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
     setError(null)
 
     try {
-      const endpoint = mode === 'draft' ? '/api/email/draft' : '/api/email/send'
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ to, subject, body, attachments: attachments.length ? attachments : undefined }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erreur envoi')
+      if (onCustomSend) {
+        await onCustomSend({ to, subject, body, attachments })
+      } else {
+        const endpoint = mode === 'draft' ? '/api/email/draft' : '/api/email/send'
+        const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ to, subject, body, attachments: attachments.length ? attachments : undefined }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Erreur envoi')
+      }
       setSent(true)
       onSent?.()
     } catch (err: any) {
@@ -131,7 +141,7 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
               <Send size={22} className="text-green-600" />
             </div>
             <p className="font-medium text-gray-900">
-              {mode === 'draft' ? 'Brouillon créé dans Gmail' : 'Mail envoyé avec succès'}
+              {successLabel ?? (mode === 'draft' ? 'Brouillon créé dans Gmail' : 'Mail envoyé avec succès')}
             </p>
             <Button variant="secondary" size="sm" onClick={onClose}>Fermer</Button>
           </div>
@@ -190,7 +200,7 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
             <div className="flex justify-end gap-2 pt-1 pb-1">
               <Button variant="secondary" size="sm" onClick={onClose}>Annuler</Button>
               <Button size="sm" leftIcon={<Send size={15} />} isLoading={sending} onClick={handleSend}>
-                {mode === 'draft' ? 'Créer le brouillon' : 'Envoyer'}
+                {sendLabel ?? (mode === 'draft' ? 'Créer le brouillon' : 'Envoyer')}
               </Button>
             </div>
           </div>
