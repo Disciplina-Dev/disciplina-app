@@ -43,15 +43,33 @@ function loadMandatPdf(): Buffer | null {
 
 /**
  * Document « Mandat » pour le payload DocuSeal /templates/pdf. Le PDF d'origine
- * est conservé tel quel ; on ajoute uniquement une zone de signature (colonne de
- * gauche, bas de page). Coordonnées en ratio 0..1, origine haut-gauche, page
- * 1-based.
+ * est conservé tel quel ; on ajoute les zones à remplir par le signataire :
+ * « Fait à » (texte), « Le » (date), « Lu et approuvé » (texte) et la signature.
+ * Coordonnées en ratio 0..1, origine haut-gauche, page 1-based.
  */
 function buildMandatDocument(mandatBuffer: Buffer) {
     return {
         name: 'Mandat de publication',
         file: mandatBuffer.toString('base64'),
         fields: [
+            {
+                name: 'Fait à',
+                type: 'text',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.24, y: 0.745, w: 0.22, h: 0.028 }],
+            },
+            {
+                name: 'Le',
+                type: 'date',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.19, y: 0.775, w: 0.22, h: 0.028 }],
+            },
+            {
+                name: 'Lu et approuvé',
+                type: 'text',
+                role: SIGNER_ROLE,
+                areas: [{ page: 1, x: 0.18, y: 0.875, w: 0.3, h: 0.03 }],
+            },
             {
                 name: 'Mandat - Signature',
                 type: 'signature',
