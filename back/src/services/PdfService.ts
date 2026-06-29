@@ -133,13 +133,21 @@ function chk(selected: boolean): string {
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
 function getLogoDataUrl(): string {
-    try {
-        const logoPath = path.join(__dirname, '../../assets/logo-disciplina.svg');
-        const svgBase64 = fs.readFileSync(logoPath).toString('base64');
-        return `data:image/svg+xml;base64,${svgBase64}`;
-    } catch {
-        return '';
+    // process.cwd() d'abord (fiable dans la lambda Vercel avec includeFiles),
+    // __dirname en repli (dev local / `node dist`).
+    const candidates = [
+        path.join(process.cwd(), 'assets/logo-disciplina.svg'),
+        path.join(__dirname, '../../assets/logo-disciplina.svg'),
+    ];
+    for (const candidate of candidates) {
+        try {
+            const svgBase64 = fs.readFileSync(candidate).toString('base64');
+            return `data:image/svg+xml;base64,${svgBase64}`;
+        } catch {
+            // chemin suivant
+        }
     }
+    return '';
 }
 
 // ─── Header / Footer templates ────────────────────────────────────────────────

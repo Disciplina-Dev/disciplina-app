@@ -19,15 +19,26 @@ export interface SignedDocument {
 // est conservé tel quel ; seule une zone de signature est ajoutée (bas-gauche).
 const MANDAT_FILENAME = 'Mandat pour la publication d’une offre d’emploi (1).pdf';
 
-/** Charge le PDF du mandat depuis back/assets. Renvoie null si introuvable. */
+/**
+ * Charge le PDF du mandat depuis assets/. Essaie d'abord un chemin relatif à
+ * `process.cwd()` (fiable dans la lambda Vercel où les fichiers `includeFiles`
+ * sont déposés à la racine de la fonction), puis retombe sur `__dirname` (dev
+ * local / `node dist`). Renvoie null si introuvable.
+ */
 function loadMandatPdf(): Buffer | null {
-    try {
-        const mandatPath = path.join(__dirname, '../../assets', MANDAT_FILENAME);
-        return fs.readFileSync(mandatPath);
-    } catch (err) {
-        logger.error({ err }, '[DocuSeal] Mandat PDF introuvable dans assets/');
-        return null;
+    const candidates = [
+        path.join(process.cwd(), 'assets', MANDAT_FILENAME),
+        path.join(__dirname, '../../assets', MANDAT_FILENAME),
+    ];
+    for (const candidate of candidates) {
+        try {
+            return fs.readFileSync(candidate);
+        } catch {
+            // chemin suivant
+        }
     }
+    logger.error({ candidates }, '[DocuSeal] Mandat PDF introuvable dans assets/');
+    return null;
 }
 
 /**
