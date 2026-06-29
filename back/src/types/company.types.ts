@@ -18,6 +18,20 @@ export interface Companies {
     createdAt: string | null;
     relanceType: number | null;
     relanceTemplateId: string | null;
+    relanceChannel: string | null;
+}
+
+export type RelanceChannel = 'PHONE' | 'MAIL';
+
+export interface RelanceHistory {
+    id: number;
+    companyID: number;
+    userID: number | null;
+    typeRelance: number | null;
+    channel: RelanceChannel;
+    subject: string | null;
+    note: string | null;
+    createdAt: string;
 }
 
 export interface BlacklistedCompany extends Companies {

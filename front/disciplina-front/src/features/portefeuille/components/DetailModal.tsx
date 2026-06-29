@@ -27,6 +27,7 @@ import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
+import RelanceHistorySection from '@/features/portefeuille/components/RelanceHistorySection'
 
 const STATUS_CONFIG = {
   Oui: { bg: 'bg-success-bg', text: 'text-success', dot: 'bg-success' },
@@ -342,6 +343,13 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
               />
             )}
           </div>
+
+          {/* Historique des relances */}
+          {entreprise.id && (
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <RelanceHistorySection companyId={Number(entreprise.id)} />
+            </div>
+          )}
 
           {/* Notes section */}
           {(entreprise.note || entreprise.conclusion) && (

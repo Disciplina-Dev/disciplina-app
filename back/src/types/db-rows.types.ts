@@ -59,6 +59,18 @@ export interface CompaniesRow {
     relance_date: Date | string | null;
     relance_type: number | null;
     relance_template_id: string | null;
+    relance_channel: string | null;
+    created_at?: string | Date;
+}
+
+export interface RelanceHistoryRow {
+    id: number;
+    company_id: number;
+    user_id: number | null;
+    type_relance: number | null;
+    channel: string;
+    subject: string | null;
+    note: string | null;
     created_at?: string | Date;
 }
 

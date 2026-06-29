@@ -153,6 +153,14 @@ export class CompaniesService {
         return this.repository.delete(id);
     }
 
+    /** Vide la relance en cours d'une entreprise (après qu'elle a été effectuée). */
+    async clearRelance(id: number): Promise<void> {
+        if (!id || id <= 0) {
+            throw new Error('Valid company ID is required');
+        }
+        await this.repository.clearRelance(id);
+    }
+
     async getHistory(companyID: number): Promise<CompanyHistory[]> {
         if (!companyID || companyID <= 0) {
             throw new Error('Valid company ID is required');

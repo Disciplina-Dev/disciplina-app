@@ -50,8 +50,23 @@ CREATE TABLE IF NOT EXISTS companies (
     relance_date DATE DEFAULT NULL,
     relance_type TINYINT DEFAULT NULL,
     relance_template_id VARCHAR(64) DEFAULT NULL,
+    relance_channel ENUM('PHONE', 'MAIL') DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS relance_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    user_id INT DEFAULT NULL,
+    type_relance INT DEFAULT NULL,
+    channel ENUM('PHONE', 'MAIL') NOT NULL,
+    subject TEXT DEFAULT NULL,   -- objet du mail (canal MAIL)
+    note TEXT DEFAULT NULL,      -- résumé de l'appel (canal PHONE)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    INDEX idx_relance_history_company (company_id)
 );
 
 CREATE TABLE IF NOT EXISTS company_history (

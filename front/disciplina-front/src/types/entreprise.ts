@@ -45,6 +45,7 @@ export interface Company {
   createdAt: string | null
   relanceType: number | null
   relanceTemplateId: string | null
+  relanceChannel: string | null
 }
 
 export interface CompanyInput {
@@ -64,6 +65,7 @@ export interface CompanyInput {
   relanceDate: string | null
   relanceType: number | null
   relanceTemplateId: string | null
+  relanceChannel: string | null
 }
 
 export interface CompanyWithSalePerson {
@@ -92,6 +94,7 @@ export interface Entreprise {
   date_relance: string | null
   type_relance: number | null
   relance_template_id: string | null
+  relance_channel: string | null
 }
 
 export interface EntrepriseBlacklistee extends Entreprise {
