@@ -10,7 +10,7 @@ import type { AppUser } from '@/store/authStore'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
-import { useCreateNeedsAnalysis } from '@/graphql/hooks'
+import { useCreateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -483,6 +483,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const intentRef = useRef<'download' | 'sign'>('download')
 
   const { createNeedsAnalysis, result } = useCreateNeedsAnalysis()
+  const { update: updateCompany } = useUpdateCompany()
 
   const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
@@ -562,6 +563,28 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       setSubmitError('Veuillez compléter tous les postes.')
       return
     }
+
+    // L'identité de l'entreprise (raison sociale, SIRET, adresse, représentant
+    // légal) vit dans la table `companies` — le PDF de l'AB est généré côté
+    // serveur à partir de cet enregistrement, pas du formulaire. On persiste donc
+    // les éventuelles corrections saisies ici AVANT de générer/envoyer l'AB, sinon
+    // elles seraient perdues. Code postal + commune n'ont pas de colonne dédiée :
+    // on les compose dans l'adresse (sans dupliquer si déjà présents).
+    const street = data.companyAddress?.trim() ?? ''
+    const cpCommune = [data.companyPostalCode?.trim(), data.companyCommune?.trim()].filter(Boolean).join(' ')
+    const composedAddress =
+      cpCommune && data.companyPostalCode && !street.includes(data.companyPostalCode.trim())
+        ? [street, cpCommune].filter(Boolean).join(', ')
+        : street
+    // Non bloquant : un échec (droits, réseau) ne doit pas empêcher l'enregistrement de l'AB.
+    await updateCompany(parseInt(entreprise.id), {
+      name: data.companyName,
+      siret: data.companySiret,
+      address: composedAddress,
+      legalReferent: data.legalRepName,
+      phone: data.legalRepPhone,
+      email: data.legalRepEmail,
+    })
 
     const softSkillsFull = [
       ...data.softSkills,
