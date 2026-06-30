@@ -19,10 +19,12 @@ function formatDate(value: number | string | null | undefined): string | null {
 }
 
 export default function CandidateTestScore({ candidateId }: CandidateTestScoreProps) {
-  const { result, loading } = useClassMarkerResult(candidateId);
+  const { result, history, loading } = useClassMarkerResult(candidateId);
 
   const hasResult = result && typeof result.percentage === 'number';
   const purple = 'var(--color-purple)';
+  // Tests antérieurs : tout l'historique sauf le plus récent (déjà affiché en haut).
+  const pastTests = history.slice(1);
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 flex flex-col gap-3">
@@ -113,6 +115,54 @@ export default function CandidateTestScore({ candidateId }: CandidateTestScorePr
               Voir le PDF des résultats
             </a>
           )}
+        </div>
+      )}
+
+      {pastTests.length > 0 && (
+        <div className="mt-1 flex flex-col gap-2 border-t border-gray-100 pt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+            Tests précédents ({pastTests.length})
+          </p>
+          {pastTests.map((t, i) => (
+            <div
+              key={i}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs"
+            >
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate font-medium text-gray-700">
+                  {t.test_name || 'Test'}
+                </span>
+                {formatDate(t.completed_at) && (
+                  <span className="text-gray-400">{formatDate(t.completed_at)}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {typeof t.passed === 'boolean' && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${
+                      t.passed ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                    }`}
+                  >
+                    {t.passed ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                    {(t.percentage ?? 0).toFixed(1)}%
+                  </span>
+                )}
+                {t.pdf_link && (
+                  <a
+                    href={t.pdf_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium hover:opacity-80"
+                    style={{ color: purple }}
+                    title="Voir le PDF"
+                  >
+                    <FileText size={12} />
+                    PDF
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

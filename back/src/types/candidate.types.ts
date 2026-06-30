@@ -225,6 +225,9 @@ export interface Candidate {
     filiz_folder_id?: string;
     photo_link?: string;
     classmarker?: ClassMarkerResult;
+    // Historique complet : un entrée par test passé (append-only). `classmarker`
+    // reste le dernier résultat pour compat ; ici on garde la trace de tous.
+    classmarker_history?: ClassMarkerResult[];
 }
 
 export enum CandidateHistoryType {

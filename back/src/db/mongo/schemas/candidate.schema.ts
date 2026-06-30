@@ -211,6 +211,7 @@ const candidateSchema = new Schema<Candidate & Document>(
         drive_folder_link: { type: String },
         photo_link: { type: String },
         classmarker: { type: classMarkerResultSchema },
+        classmarker_history: { type: [classMarkerResultSchema], default: undefined },
     },
     { collection: 'candidates' },
 );
