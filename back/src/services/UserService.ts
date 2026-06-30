@@ -42,6 +42,58 @@ export class UserService {
         return row ? this.decryptUserTokens(toUser(row)) : null;
     }
 
+    async findAll(): Promise<User[]> {
+        const rows = await this.userRepository.findAll();
+        return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
+    }
+
+    /** Met à jour les secteurs assignés à un user (valeurs filtrées en amont). */
+    async updateSectors(id: number, sectors: string[]): Promise<User | null> {
+        await this.userRepository.updateSectors(id, sectors);
+        return this.findById(id);
+    }
+
+    /**
+     * Met à jour le profil d'un user (admin). Champs optionnels ; le mot de passe,
+     * s'il est fourni, est haché. Vérifie l'unicité de l'email. Pas de suppression.
+     */
+    async updateUser(
+        id: number,
+        input: {
+            email?: string;
+            firstName?: string;
+            lastName?: string;
+            role?: Role;
+            sectors?: string[];
+            passwordPlain?: string;
+        },
+    ): Promise<User | null> {
+        const existing = await this.userRepository.findById(id);
+        if (!existing) return null;
+
+        if (input.email && input.email !== existing.email) {
+            const clash = await this.userRepository.findByEmail(input.email);
+            if (clash && clash.id !== id) {
+                throw new Error('Email already in use');
+            }
+        }
+
+        const fields: Partial<UserRow> = {};
+        if (input.email !== undefined) fields.email = input.email;
+        if (input.firstName !== undefined) fields.first_name = input.firstName;
+        if (input.lastName !== undefined) fields.last_name = input.lastName;
+        if (input.role !== undefined) fields.role = input.role as UserRow['role'];
+        if (input.sectors !== undefined) {
+            fields.sectors = input.sectors.length > 0 ? JSON.stringify(input.sectors) : null;
+        }
+        if (input.passwordPlain) {
+            fields.password = await bcrypt.hash(input.passwordPlain, SALT_ROUNDS);
+        }
+
+        await this.userRepository.updateProfile(id, fields);
+        return this.findById(id);
+    }
+
     async findByRole(role: Role): Promise<User[] | null> {
         const row = await this.userRepository.findByRole(role);
         return row ? row.map((user: UserRow) => this.decryptUserTokens(toUser(user))) : null;

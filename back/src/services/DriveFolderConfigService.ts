@@ -50,17 +50,22 @@ export class DriveFolderConfigService {
 
     /**
      * Dossier Drive parent où créer le dossier d'un candidat, selon son TP et sa région.
-     * Priorité : config en base (TP × région → racine) puis fallback .env.
+     * La région provient en priorité du secteur du créateur (`region`), sinon du site
+     * de formation. Priorité de résolution : config en base (TP × région → racine) puis fallback .env.
      */
     async resolveParentForTp(
         tp?: TitleProfessionalType | string,
         trainingSite?: TrainingSite | string,
+        region?: DriveRegion,
     ): Promise<string | undefined> {
         const config = await this.repo.get();
-        const region = trainingSite ? SITE_TO_REGION[trainingSite as TrainingSite] : undefined;
+        // Secteur du créateur > région du site de formation > NORD par défaut.
+        // → un user sans secteur classe le candidat dans le dossier TP du Nord.
+        const resolvedRegion: DriveRegion =
+            region ?? (trainingSite ? SITE_TO_REGION[trainingSite as TrainingSite] : undefined) ?? 'NORD';
 
-        if (tp && region) {
-            const id = config.tpFolders[driveFolderKey(tp, region)];
+        if (tp && resolvedRegion) {
+            const id = config.tpFolders[driveFolderKey(tp, resolvedRegion)];
             if (id) return id;
         }
         if (config.rootFolderId) return config.rootFolderId;

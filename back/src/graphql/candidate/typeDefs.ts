@@ -198,8 +198,15 @@ export const typeDefs = gql`
         status: String
     }
 
+    type CandidateOwner {
+        userId: Int!
+        name: String!
+        sector: String
+    }
+
     type Candidate {
         id: String!
+        owner: CandidateOwner
         status: CandidateStatus!
         tpType: TitleProfessionalType!
         identity: CandidateIdentity!

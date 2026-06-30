@@ -32,6 +32,13 @@ export function snakeToCamelCase(obj: any): any {
 export function candidateToGql(candidate: Candidate): any {
     return {
         id: candidate._id,
+        owner: candidate.owner
+            ? {
+                  userId: candidate.owner.user_id,
+                  name: candidate.owner.name,
+                  sector: candidate.owner.sector ?? null,
+              }
+            : null,
         status: candidate.status,
         tpType: candidate.tp_type,
         trainingSite: candidate.training_site,

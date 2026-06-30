@@ -11,6 +11,7 @@ import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import AdminUsers from "@/pages/admin/AdminUsers";
 
 import CommercialLayout from "@/components/layout/CommercialLayout";
 import DashboardCommercial from "@/pages/commercial/DashboardCommercial";
@@ -57,6 +58,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
             <RegisterPage />
+          </ProtectedRoute>
+        )
+      },
+      {
+        path: "/utilisateurs",
+        element: (
+          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+            <AdminUsers />
           </ProtectedRoute>
         )
       },

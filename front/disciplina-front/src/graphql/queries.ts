@@ -252,6 +252,11 @@ export const UNBLACKLIST_COMPANY = gql`
 const CANDIDATE_FIELDS = gql`
   fragment CandidateFields on Candidate {
     id
+    owner {
+      userId
+      name
+      sector
+    }
     status
     tpType
     trainingSite
@@ -371,6 +376,11 @@ export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {
       id
+      owner {
+        userId
+        name
+        sector
+      }
       status
       tpType
       trainingSite
@@ -605,6 +615,11 @@ export const GET_CANDIDATE_FULL = gql`
   query GetCandidateFull($id: String!) {
     candidate(id: $id) {
       id
+      owner {
+        userId
+        name
+        sector
+      }
       status
       tpType
       trainingSite
