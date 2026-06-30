@@ -216,9 +216,10 @@ export async function runMysqlMigrations(): Promise<void> {
     );
     if (Number(weekColumn[0]?.count) === 0) {
         await query('ALTER TABLE commercial_kpi ADD COLUMN week TINYINT NOT NULL DEFAULT 0 AFTER month');
-        await query(
-            'ALTER TABLE commercial_kpi DROP INDEX unique_kpi, ADD UNIQUE KEY unique_kpi (user_name, year, month, week, site)',
-        );
+        // Split DROP + ADD into two statements: TiDB rejects a combined
+        // "DROP INDEX x, ADD ... x" ALTER with "Duplicate key name".
+        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi');
+        await query('ALTER TABLE commercial_kpi ADD UNIQUE KEY unique_kpi (user_name, year, month, week, site)');
         logger.info('MySQL migration: added commercial_kpi.week and widened unique_kpi');
     }
 
@@ -238,7 +239,9 @@ export async function runMysqlMigrations(): Promise<void> {
              AND c1.week = c2.week AND c1.site = c2.site AND c1.id < c2.id
             WHERE c1.user_id IS NOT NULL
         `);
-        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi, ADD UNIQUE KEY unique_kpi (user_id, year, month, week, site)');
+        // Split DROP + ADD: TiDB rejects the combined form with "Duplicate key name".
+        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi');
+        await query('ALTER TABLE commercial_kpi ADD UNIQUE KEY unique_kpi (user_id, year, month, week, site)');
         logger.info('MySQL migration: commercial_kpi unique_kpi rebuilt on user_id');
     }
 
