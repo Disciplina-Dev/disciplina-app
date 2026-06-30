@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog } from 'lucide-react'
+import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog, MapPin } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
@@ -62,7 +62,10 @@ export default function RHLayout() {
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
               {currentUser?.role === 'ADMIN' && (
-                <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+                <>
+                  <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+                  <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
+                </>
               )}
             </nav>
           </>
