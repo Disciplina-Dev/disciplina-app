@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate';
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
@@ -255,7 +255,7 @@ export default function ListeCandidats() {
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Niveau d'études</label>
               <select value={filterLevel} onChange={e => setFilterLevel(e.target.value as SchoolLevel)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="">Tous les niveaux</option>
-                {Object.values(SchoolLevel).map(level => <option key={level} value={level}>{level}</option>)}
+                {Object.values(SchoolLevel).map(level => <option key={level} value={level}>{SCHOOL_LEVEL_LABELS[level]}</option>)}
               </select>
             </div>
 

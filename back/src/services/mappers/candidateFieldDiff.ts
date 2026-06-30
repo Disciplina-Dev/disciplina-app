@@ -3,6 +3,7 @@ import { Candidate, CandidateStatus, Identity } from '../../types/candidate.type
 const EXCLUDED_FIELDS = new Set<keyof Candidate>([
     '_id',
     'candidate_id',
+    'owner',
     'pdf_link',
     'cv_link',
     'drive_folder_id',

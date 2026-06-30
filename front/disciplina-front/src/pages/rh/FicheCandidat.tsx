@@ -13,7 +13,7 @@ import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } f
 import { jobGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_JOB_IDS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel } from '@/types/candidate'
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
@@ -43,18 +43,6 @@ const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: 'Nord – Sainte-Marie',
   [TrainingSite.OUEST_SAINT_PAUL]:  'Ouest – Saint-Paul',
   [TrainingSite.SUD_SAINT_PIERRE]:  'Sud – Saint-Pierre',
-}
-
-const SCHOOL_LEVEL_LABELS: Record<SchoolLevel, string> = {
-  [SchoolLevel.CAP_BEP_WITH_1Y_EXP]:          'CAP/BEP + 1 an exp.',
-  [SchoolLevel.PREMIERE_TERMINALE]:            '1ère / Terminale',
-  [SchoolLevel.PREMIERE_TERMINALE_WITH_1Y_EXP]:'1ère / Term. + 1 an exp.',
-  [SchoolLevel.BAC]:                           'Bac',
-  [SchoolLevel.BAC_WITH_1Y_EXP]:               'Bac + 1 an exp.',
-  [SchoolLevel.BAC_PLUS]:                      'Bac +1',
-  [SchoolLevel.BAC_PLUS_2]:                    'Bac +2',
-  [SchoolLevel.BAC_PLUS_2_PLUS]:               'Bac +2 ou plus',
-  [SchoolLevel.BAC_PLUS_3_PLUS]:               'Bac +3 ou plus',
 }
 
 // ─── Drive file types ─────────────────────────────────────────────────────────
@@ -406,6 +394,17 @@ export default function FicheCandidat() {
                   {formData.training_site && (
                     <span className="text-xs text-gray-400">
                       {TRAINING_SITE_LABELS[formData.training_site]}
+                    </span>
+                  )}
+                  {formData.owner && (
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                      <User size={12} />
+                      Créé par {formData.owner.name}
+                      {formData.owner.sector && (
+                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                          {formData.owner.sector}
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>

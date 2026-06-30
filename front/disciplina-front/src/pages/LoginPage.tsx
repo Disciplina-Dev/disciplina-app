@@ -27,7 +27,10 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Erreur de connexion')
+        // `error` peut être une chaîne ou, selon la source, un objet { message }.
+        const raw = data?.error
+        const msg = typeof raw === 'string' ? raw : raw?.message
+        setError(msg || 'Erreur de connexion')
         return
       }
       const { token, user } = data

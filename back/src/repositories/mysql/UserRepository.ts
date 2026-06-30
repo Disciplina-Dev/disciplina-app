@@ -42,6 +42,31 @@ export class UserRepository {
         return result.insertId;
     }
 
+    async findAll(): Promise<UserRow[]> {
+        return query<UserRow[]>('SELECT * FROM users ORDER BY role, first_name, last_name');
+    }
+
+    async updateSectors(id: number, sectors: string[]): Promise<void> {
+        const sectorsJson = sectors.length > 0 ? JSON.stringify(sectors) : null;
+        await query('UPDATE users SET sectors = ? WHERE id = ?', [sectorsJson, id]);
+    }
+
+    /**
+     * Met à jour les colonnes éditables d'un user (whitelist stricte des champs).
+     * Aucune suppression possible : pas de méthode delete exposée.
+     */
+    async updateProfile(
+        id: number,
+        fields: Partial<Pick<UserRow, 'email' | 'first_name' | 'last_name' | 'password' | 'role' | 'sectors'>>,
+    ): Promise<void> {
+        const allowed: (keyof UserRow)[] = ['email', 'first_name', 'last_name', 'password', 'role', 'sectors'];
+        const entries = Object.entries(fields).filter(([k]) => allowed.includes(k as keyof UserRow));
+        if (entries.length === 0) return;
+        const sets = entries.map(([k]) => `${k} = ?`).join(', ');
+        const values = entries.map(([, v]) => v);
+        await query(`UPDATE users SET ${sets} WHERE id = ?`, [...values, id]);
+    }
+
     async updateTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
         await query('UPDATE users SET oauth_token = ?, refresh_token = ? WHERE id = ?', [oauthToken, refreshToken, id]);
     }

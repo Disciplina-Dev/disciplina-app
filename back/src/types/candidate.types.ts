@@ -185,9 +185,22 @@ export interface ClassMarkerResult {
     questions?: ClassMarkerQuestion[];
 }
 
+/**
+ * Créateur (propriétaire) du dossier candidat. `sector` est un snapshot du
+ * secteur de l'owner au moment de la création : il sert UNIQUEMENT à identifier
+ * et router le dossier Drive (ex: RH Nord → dossier Nord). Il n'influe pas sur
+ * les secteurs fonctionnels du candidat (mobilité, formation, métiers visés).
+ */
+export interface CandidateOwner {
+    user_id: number;
+    name: string;
+    sector?: string;
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
+    owner?: CandidateOwner;
     tp_type: TitleProfessionalType;
     identity: Identity;
     status: CandidateStatus;

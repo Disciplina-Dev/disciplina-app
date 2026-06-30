@@ -1,6 +1,8 @@
 import rateLimit from 'express-rate-limit';
 
-const RATE_LIMIT_MESSAGE = { error: { code: 429, message: 'Too many requests, please try again later.' } };
+// Convention API : le corps d'erreur expose `error` sous forme de chaîne
+// (le front lit `body.error` partout). Ne pas renvoyer d'objet ici.
+const RATE_LIMIT_MESSAGE = { error: 'Trop de requêtes, réessayez plus tard.' };
 
 export const emailRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -40,7 +42,7 @@ export const matchRateLimiter = rateLimit({
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: { code: 429, message: 'Trop de requêtes, réessayez plus tard.' } },
+    message: RATE_LIMIT_MESSAGE,
 });
 
 // Choix de créneau candidat public (vérif signature / code) : non authentifié, plafonné par IP.
@@ -49,7 +51,7 @@ export const interviewRateLimiter = rateLimit({
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: { code: 429, message: 'Trop de requêtes, réessayez plus tard.' } },
+    message: RATE_LIMIT_MESSAGE,
 });
 
 // Réservation publique : non authentifiée, donc plafonnée par IP.
@@ -58,5 +60,5 @@ export const bookingRateLimiter = rateLimit({
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: { code: 429, message: 'Trop de requêtes, réessayez plus tard.' } },
+    message: RATE_LIMIT_MESSAGE,
 });

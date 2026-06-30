@@ -28,6 +28,19 @@ export enum SchoolLevel {
     BAC_PLUS_3_PLUS = "BAC_PLUS_3_PLUS"
 }
 
+/** Libellés français des niveaux d'études (affichage UI). */
+export const SCHOOL_LEVEL_LABELS: Record<SchoolLevel, string> = {
+    [SchoolLevel.CAP_BEP_WITH_1Y_EXP]: 'CAP/BEP + 1 an exp.',
+    [SchoolLevel.PREMIERE_TERMINALE]: '1ère / Terminale',
+    [SchoolLevel.PREMIERE_TERMINALE_WITH_1Y_EXP]: '1ère / Term. + 1 an exp.',
+    [SchoolLevel.BAC]: 'Bac',
+    [SchoolLevel.BAC_WITH_1Y_EXP]: 'Bac + 1 an exp.',
+    [SchoolLevel.BAC_PLUS]: 'Bac +1',
+    [SchoolLevel.BAC_PLUS_2]: 'Bac +2',
+    [SchoolLevel.BAC_PLUS_2_PLUS]: 'Bac +2 ou plus',
+    [SchoolLevel.BAC_PLUS_3_PLUS]: 'Bac +3 ou plus',
+};
+
 export enum TrainingSite {
     NORD_SAINTE_MARIE = "NORD_SAINTE_MARIE",
     OUEST_SAINT_PAUL = "OUEST_SAINT_PAUL",
@@ -192,8 +205,15 @@ export interface MatchedJob {
     status?: string;
 }
 
+export interface CandidateOwner {
+    user_id: number;
+    name: string;
+    sector?: string;
+}
+
 export interface Candidate {
     _id: string;
+    owner?: CandidateOwner;
     tp_type: TitleProfessionalType;
     identity: Identity;
     status: CandidateStatus;

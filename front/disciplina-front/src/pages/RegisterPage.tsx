@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { User, Mail, ShieldCheck, Shield, Globe } from 'lucide-react'
+import { User, Mail, ShieldCheck, Shield, Globe, MapPin } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
 import { UserRole, useAuthStore } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
+import { Link } from 'react-router-dom'
+import { SECTEUR_VALUES } from '@/types/entreprise'
 
 export default function RegisterPage() {
   const token = useAuthStore((s) => s.token)
@@ -17,6 +19,7 @@ export default function RegisterPage() {
   const [lastname, setLastname] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<UserRole>(UserRole.COMMERCIAL)
+  const [sectors, setSectors] = useState<string[]>([])
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [linkGoogle, setLinkGoogle] = useState(true)
@@ -45,10 +48,11 @@ export default function RegisterPage() {
         },
         body: JSON.stringify({
           email,
-          name: `${firstname} ${lastname}`.trim(),
+          firstName: firstname,
+          lastName: lastname,
           passwordPlain: password,
           role,
-          sectors: [],
+          sectors,
         }),
       })
       const data = await res.json()
@@ -64,6 +68,7 @@ export default function RegisterPage() {
       setPassword('')
       setConfirmPassword('')
       setRole(UserRole.COMMERCIAL)
+      setSectors([])
 
       if (linkGoogle) {
         setGoogleStatus('pending')
@@ -86,7 +91,8 @@ export default function RegisterPage() {
   const isBusy = fetching || googleLoading
 
   return (
-    <div className="w-full max-w-md mx-auto bg-white rounded-[20px] p-8 shadow-sm">
+    <div className="w-full max-w-2xl mx-auto flex flex-col gap-6">
+      <div className="w-full max-w-md mx-auto bg-white rounded-[20px] p-8 shadow-sm">
       <div className="flex justify-center mb-6">
         <img src="/logo-disciplina.svg" alt="Disciplina" className="h-10" />
       </div>
@@ -138,6 +144,37 @@ export default function RegisterPage() {
               <option value={UserRole.ENTREPRISE}>Entreprise</option>
             </select>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Secteurs</label>
+          <div className="flex flex-wrap gap-2">
+            {SECTEUR_VALUES.map((secteur) => {
+              const active = sectors.includes(secteur)
+              return (
+                <button
+                  type="button"
+                  key={secteur}
+                  onClick={() =>
+                    setSectors((prev) =>
+                      prev.includes(secteur) ? prev.filter((s) => s !== secteur) : [...prev, secteur],
+                    )
+                  }
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    active
+                      ? 'bg-blue text-white border-blue'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-blue'
+                  }`}
+                >
+                  <MapPin size={14} />
+                  {secteur}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-400">
+            Détermine le dossier Drive des candidats créés par cet utilisateur.
+          </p>
         </div>
 
         <InputField
@@ -219,6 +256,13 @@ export default function RegisterPage() {
           {fetching ? 'Création...' : "Créer l'utilisateur"}
         </Button>
       </form>
+
+        <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+          <Link to="/utilisateurs" className="text-sm font-medium text-blue hover:underline">
+            Gérer les utilisateurs existants →
+          </Link>
+        </div>
+      </div>
     </div>
   )
 }

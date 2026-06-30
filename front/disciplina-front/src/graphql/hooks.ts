@@ -266,6 +266,9 @@ function mapSchoolLevel(raw: string | null | undefined): SchoolLevel | undefined
 function fromGql(c: any): Candidate {
   return {
     _id: c.id,
+    owner: c.owner
+      ? { user_id: c.owner.userId, name: c.owner.name, sector: c.owner.sector ?? undefined }
+      : undefined,
     tp_type: mapTpType(c.tpType),
     status: c.status as CandidateStatus,
     training_site: c.trainingSite,

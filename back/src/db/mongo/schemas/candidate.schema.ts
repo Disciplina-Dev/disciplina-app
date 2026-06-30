@@ -19,8 +19,18 @@ import {
     PedagogicalRecommendations,
     Synthesis,
     ClassMarkerResult,
+    CandidateOwner,
 } from '../../../types/candidate.types';
 import { Localisation } from '../../../types/job.types';
+
+const ownerSchema = new Schema<CandidateOwner>(
+    {
+        user_id: { type: Number, required: true },
+        name: { type: String, required: true },
+        sector: { type: String },
+    },
+    { _id: false },
+);
 
 const identitySchema = new Schema<Identity>(
     {
@@ -177,6 +187,7 @@ const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
+        owner: { type: ownerSchema },
         tp_type: { type: String, enum: Object.values(TitleProfessionalType), required: true },
         identity: { type: identitySchema, required: true },
         status: { type: String, enum: Object.values(CandidateStatus), required: true },

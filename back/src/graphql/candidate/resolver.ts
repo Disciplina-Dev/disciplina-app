@@ -19,6 +19,7 @@ import {
 } from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { CandidateFilters } from '../../repositories/mongo/CandidateRepository';
+import { primarySector, regionFromSector } from '../../utils/sector';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
@@ -171,24 +172,39 @@ export const resolvers = {
                 }
             }
 
+            // Owner = créateur du dossier. Son secteur (snapshot) route le dossier Drive.
+            const creator = await userService.findById(context.user.id);
+            const ownerSector = primarySector(creator?.sectors);
+            const owner = creator
+                ? {
+                      user_id: creator.id,
+                      name: `${creator.firstName} ${creator.lastName}`.trim(),
+                      sector: ownerSector,
+                  }
+                : undefined;
+
             let newCandidate = await candidateService.create({
                 _id: id,
                 candidate_id: id,
+                owner,
                 ...snakeInput,
             });
 
             try {
-                const user = await userService.findById(context.user.id);
-                if (user && user.oauthToken) {
+                if (creator && creator.oauthToken) {
                     const driveService = GoogleDriveService.fromTokens(
-                        { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                        persistRefreshedTokens(user.id),
+                        { access_token: creator.oauthToken, refresh_token: creator.refreshToken ?? undefined },
+                        persistRefreshedTokens(creator.id),
                     );
 
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
                     const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                         folderName,
-                        await driveParentFolderForTp(newCandidate.tp_type, newCandidate.training_site),
+                        await driveParentFolderForTp(
+                            newCandidate.tp_type,
+                            newCandidate.training_site,
+                            regionFromSector(ownerSector),
+                        ),
                     );
 
                     await candidateService.update(id, { drive_folder_id: folderId, drive_folder_link: folderLink });
@@ -247,15 +263,29 @@ export const resolvers = {
                 persistRefreshedTokens(user.id),
             );
 
+            // Secteur courant de l'utilisateur agissant (prioritaire), sinon snapshot owner, sinon site de formation.
+            const actingSector = primarySector(user.sectors);
+            const ownerSector = actingSector ?? candidate.owner?.sector;
+
             const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
             const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                 folderName,
-                await driveParentFolderForTp(candidate.tp_type, candidate.training_site),
+                await driveParentFolderForTp(
+                    candidate.tp_type,
+                    candidate.training_site,
+                    regionFromSector(ownerSector),
+                ),
             );
+
+            // Backfill / rafraîchit l'owner (utile pour les candidats créés avant la feature secteurs).
+            const owner = candidate.owner
+                ? { ...candidate.owner, sector: ownerSector }
+                : { user_id: user.id, name: `${user.firstName} ${user.lastName}`.trim(), sector: ownerSector };
 
             const updated = await candidateService.update(id, {
                 drive_folder_id: folderId,
                 drive_folder_link: folderLink,
+                owner,
             });
             if (!updated) throw new Error('Erreur lors de la mise à jour du candidat');
             return candidateToGql(updated);
