@@ -151,6 +151,7 @@ export function useCreateCompany() {
           date_insertion: new Date().toISOString().split('T')[0],
           date_relance: response.data.createCompany.relanceDate ?? null,
           type_relance: response.data.createCompany.relanceType ?? null,
+          relance_channel: response.data.createCompany.relanceChannel ?? null,
           relance_template_id: response.data.createCompany.relanceTemplateId ?? null,
         }
         addCompany(company)

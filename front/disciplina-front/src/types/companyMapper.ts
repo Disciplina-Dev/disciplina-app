@@ -41,7 +41,10 @@ export function toEntrepriseFromCompanyWithSalePerson(data: CompanyWithSalePerso
 
 export function toCompany(entreprise: Partial<Entreprise>): CompanyInput {
   return {
-    userID: entreprise.proprietaire_id ? Number(entreprise.proprietaire_id) : 1,
+    // Pas de propriétaire explicite : laisser le back décider (il force le
+    // créateur pour COMMERCIAL/RESPONSABLE). Ne jamais envoyer un id en dur,
+    // qui casserait la FK companies.user_id → users.id.
+    userID: entreprise.proprietaire_id ? Number(entreprise.proprietaire_id) : null,
     name: entreprise.nom_commercial || '',
     phone: entreprise.telephone || null,
     email: entreprise.email || null,
