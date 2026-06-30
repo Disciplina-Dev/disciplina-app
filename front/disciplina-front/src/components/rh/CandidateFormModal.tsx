@@ -14,6 +14,7 @@ import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
+import SignaturePad from '@/components/ui/SignaturePad';
 
 // ─── Form helpers ───────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ type ABForm = {
   desiredSectors: string[]; expectedCompanySkills: string[];
   // découverte
   discoverySource: string;
+  // signature de l'apprenti (data-URL PNG)
+  candidateSignature: string;
 };
 
 // Union des compétences des templates de plusieurs TP (dédupliquée par nom).
@@ -161,6 +164,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     domainMotivation: '', questionsConcerns: '', availabilityDate: '', geographicMobility: [], weekendWork: '',
     desiredSectors: [], expectedCompanySkills: [],
     discoverySource: '',
+    candidateSignature: '',
   };
 }
 
@@ -235,6 +239,7 @@ function candidateToForm(c: Candidate): ABForm {
     desiredSectors: c.desired_sectors ?? [],
     expectedCompanySkills: c.expected_company_skills ?? [],
     discoverySource: c.job_info?.discovery_source ?? '',
+    candidateSignature: c.synthesis?.candidate_signature ?? '',
   };
 }
 
@@ -301,6 +306,7 @@ function toServerInput(f: ABForm) {
       weekendWork: pb(f.weekendWork),
       discoverySource: f.discoverySource || undefined,
     },
+    synthesis: { candidateSignature: f.candidateSignature || undefined },
   };
 }
 
@@ -688,6 +694,14 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </label>
             ))}
           </div>
+
+          {/* Signature de l'apprenti — toute fin */}
+          <ABSectionTitle title="Signature de l'apprenti" />
+          <SignaturePad
+            value={form.candidateSignature}
+            onChange={v => set('candidateSignature', v)}
+            label="Signature de l'apprenti"
+          />
 
         </form>
 
