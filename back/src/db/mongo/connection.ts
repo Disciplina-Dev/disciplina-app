@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
+import { MailTemplateModel } from './schemas/mailTemplate.schema';
+import { SHARED_RH_USER_ID } from '../../services/MailTemplateService';
 
 const MONGO_URI =
     env.NODE_ENV === 'production'
@@ -193,6 +195,20 @@ async function patchCandidatesValidator(): Promise<void> {
     });
 }
 
+/**
+ * Rend les modèles de mail RH communs : reverse les anciens modèles RH
+ * (stockés par user) vers le propriétaire partagé. Idempotent.
+ */
+async function shareRhMailTemplates(): Promise<void> {
+    const res = await MailTemplateModel.updateMany(
+        { scope: 'rh', user_id: { $ne: SHARED_RH_USER_ID } },
+        { $set: { user_id: SHARED_RH_USER_ID } },
+    );
+    if (res.modifiedCount) {
+        logger.info({ count: res.modifiedCount }, 'MongoDB: modèles RH rendus communs');
+    }
+}
+
 export async function connectMongoDB(): Promise<void> {
     await mongoose.connect(MONGO_URI, {
         maxPoolSize: 10,
@@ -204,5 +220,10 @@ export async function connectMongoDB(): Promise<void> {
         await patchCandidatesValidator();
     } catch (err) {
         logger.warn({ err }, 'MongoDB: validator patch failed');
+    }
+    try {
+        await shareRhMailTemplates();
+    } catch (err) {
+        logger.warn({ err }, 'MongoDB: partage modèles RH échoué');
     }
 }

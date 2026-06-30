@@ -5,7 +5,7 @@ function App() {
   return (
     <>
       <h1>Disciplina</h1>
-      <p className=''>Bienvenue sur ce dashboard ! <Flower /> </p>
+      <p className=''>Bienvenue sur ce tableau de bord ! <Flower /> </p>
     </>
   )
 }

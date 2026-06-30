@@ -137,20 +137,47 @@ interface RebookingParams {
     to: string;
     title: string;
     bookingUrl: string;
+    /** Modèle de proposition d'entretien choisi par l'hôte (cf. réglages booking). {{lien}} = lien de réservation. */
+    propositionSubject?: string | null;
+    propositionBody?: string | null;
 }
 
-/** Envoie un email de relance « vous n'êtes pas venu » avec le lien de réservation. Ne jette jamais. */
-export async function sendNoShowRebooking({ host, to, title, bookingUrl }: RebookingParams): Promise<void> {
-    const subject = `Vous avez manqué votre rendez-vous — ${title}`;
-    const html = `
+/** Envoie le mail de proposition de rendez-vous (lien de réservation) après un « pas venu ». Ne jette jamais. */
+export async function sendNoShowRebooking({
+    host,
+    to,
+    title,
+    bookingUrl,
+    propositionSubject,
+    propositionBody,
+}: RebookingParams): Promise<void> {
+    const hostName = `${host.firstName} ${host.lastName}`.trim();
+    const linkHtml = `<a href="${bookingUrl}">${bookingUrl}</a>`;
+
+    let subject: string;
+    let html: string;
+    let text: string;
+
+    if (propositionBody && propositionBody.trim()) {
+        // Modèle personnalisé : variable {{lien}} = lien de réservation.
+        const vars: Record<string, string> = { lien: linkHtml, titre: title, hote: hostName, nom: '' };
+        subject = renderTemplate(propositionSubject || `Proposition de rendez-vous — ${title}`, vars);
+        html = propositionBody.includes('{{lien}}')
+            ? renderTemplate(propositionBody, vars)
+            : `${renderTemplate(propositionBody, vars)}<p>${linkHtml}</p>`;
+        text = html.replace(/<[^>]+>/g, '');
+    } else {
+        subject = `Proposition de rendez-vous — ${title}`;
+        html = `
         <p>Bonjour,</p>
-        <p>Nous ne vous avons pas vu à votre rendez-vous « <strong>${title}</strong> » avec ${`${host.firstName} ${host.lastName}`.trim()}.</p>
+        <p>Nous ne vous avons pas vu à votre rendez-vous « <strong>${title}</strong> » avec ${hostName}.</p>
         <p>Si vous le souhaitez, vous pouvez reprendre un créneau qui vous convient :</p>
-        <p><a href="${bookingUrl}">Reprendre un rendez-vous</a></p>
-        <p>À bientôt,<br/>${`${host.firstName} ${host.lastName}`.trim()}</p>`;
-    const text =
-        `Bonjour,\n\nNous ne vous avons pas vu à votre rendez-vous « ${title} » avec ${`${host.firstName} ${host.lastName}`.trim()}.\n` +
-        `Si vous le souhaitez, reprenez un créneau ici : ${bookingUrl}\n\nÀ bientôt,\n${`${host.firstName} ${host.lastName}`.trim()}`;
+        <p>${linkHtml}</p>
+        <p>À bientôt,<br/>${hostName}</p>`;
+        text =
+            `Bonjour,\n\nNous ne vous avons pas vu à votre rendez-vous « ${title} » avec ${hostName}.\n` +
+            `Si vous le souhaitez, reprenez un créneau ici : ${bookingUrl}\n\nÀ bientôt,\n${hostName}`;
+    }
 
     const signatureHtml = await mailTemplateService.getSignatureHtml(host.id, 'rh').catch(() => '');
     const htmlWithSig = signatureHtml ? html + signatureHtml : html;

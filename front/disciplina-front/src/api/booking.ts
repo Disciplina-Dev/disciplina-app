@@ -17,6 +17,8 @@ export interface BookingSettings {
   location: string | null;
   confirmationSubject: string | null;
   confirmationBody: string | null;
+  propositionSubject: string | null;
+  propositionBody: string | null;
 }
 
 export type BookingSettingsPatch = Partial<Omit<BookingSettings, 'userId' | 'slug'>>;

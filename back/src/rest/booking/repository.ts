@@ -21,6 +21,10 @@ export interface BookingSettings {
     confirmationSubject: string | null;
     /** Corps HTML du mail de confirmation, avec variables {{nom}} {{date}} … */
     confirmationBody: string | null;
+    /** Objet du mail de proposition d'entretien. null = mail par défaut. */
+    propositionSubject: string | null;
+    /** Corps HTML du mail de proposition, variable {{lien}} = page de réservation. */
+    propositionBody: string | null;
 }
 
 interface BookingRow {
@@ -37,6 +41,8 @@ interface BookingRow {
     location: string | null;
     confirmation_subject: string | null;
     confirmation_body: string | null;
+    proposition_subject: string | null;
+    proposition_body: string | null;
 }
 
 /** Plages par défaut : lun–ven 9h–12h et 14h–17h. */
@@ -64,6 +70,8 @@ function toSettings(row: BookingRow): BookingSettings {
         location: row.location,
         confirmationSubject: row.confirmation_subject ?? null,
         confirmationBody: row.confirmation_body ?? null,
+        propositionSubject: row.proposition_subject ?? null,
+        propositionBody: row.proposition_body ?? null,
     };
 }
 
@@ -102,6 +110,8 @@ export class BookingRepository {
         if (patch.location !== undefined) set('location', patch.location);
         if (patch.confirmationSubject !== undefined) set('confirmation_subject', patch.confirmationSubject);
         if (patch.confirmationBody !== undefined) set('confirmation_body', patch.confirmationBody);
+        if (patch.propositionSubject !== undefined) set('proposition_subject', patch.propositionSubject);
+        if (patch.propositionBody !== undefined) set('proposition_body', patch.propositionBody);
 
         if (fields.length) {
             values.push(userId);

@@ -40,7 +40,7 @@ export default function DashboardCommercial() {
           <ShieldAlert className="h-8 w-8 text-gray-300" />
           <h2 className="text-lg font-bold text-gray-900">Accès réservé</h2>
           <p className="text-[13px] text-gray-500">
-            Le dashboard KPI est réservé aux administrateurs et responsables.
+            Le tableau de bord KPI est réservé aux administrateurs et responsables.
           </p>
         </div>
       </div>
@@ -208,7 +208,7 @@ function KpiDashboard() {
               Suivi commercial
             </p>
             <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-gray-900">
-              Dashboard KPI
+              Tableau de bord Commercial
             </h1>
             <p className="mt-1.5 text-[13px] text-gray-400">
               {selectedUserId != null && viewSummary?.users[0]

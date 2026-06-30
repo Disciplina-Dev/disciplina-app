@@ -12,6 +12,8 @@ import {
 import { useAuthStore } from '@/store/authStore'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
+import { useNavigate } from 'react-router-dom'
+import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import {
   fetchCalendarEvents, fetchCalendarUsers, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   setEventAttendance,
@@ -23,8 +25,12 @@ type View = 'month' | 'week'
 /** Event enrichi de son propriétaire (pour vue multi-agendas). */
 type OwnedEvent = CalendarEvent & { ownerId: number }
 
-/** Couleur d'affichage : self respecte son colorId choisi, les autres = couleur du propriétaire. */
+/** Couleur des cases selon la présence : vert = arrivé, rouge = pas venu (sinon couleur normale). */
+const ATTENDANCE_HEX: Record<'arrived' | 'noshow', string> = { arrived: '#1A7A4A', noshow: '#C0152A' }
+
+/** Couleur d'affichage : présence (vert/rouge) prioritaire, sinon colorId (self) ou couleur du propriétaire. */
 function displayHex(e: OwnedEvent, selfId: number): string {
+  if (e.attendance === 'arrived' || e.attendance === 'noshow') return ATTENDANCE_HEX[e.attendance]
   return e.ownerId === selfId ? eventHex(e.colorId) : ownerColor(e.ownerId)
 }
 
@@ -35,6 +41,11 @@ const MONTHS = [
 ]
 const HOUR_PX = 48
 const HOURS = Array.from({ length: 24 }, (_, h) => h)
+
+/** Nom candidat déduit du titre de l'entretien (retire un préfixe « Entretien »). */
+function candidateNameFromSummary(summary: string): string {
+  return (summary ?? '').replace(/^\s*entretien\s*[-:–—]?\s*/i, '').trim()
+}
 
 /** Lundi = 0 … Dimanche = 6 */
 function mondayIndex(d: Date): number {
@@ -162,6 +173,9 @@ export default function Calendrier() {
   const [detail, setDetail] = useState<OwnedEvent | null>(null)
   const [editing, setEditing] = useState<{ event?: CalendarEvent; start?: Date; end?: Date } | null>(null)
   const [showBooking, setShowBooking] = useState(false)
+  // Candidat à créer depuis un entretien marqué « arrivé » (pré-rempli puis redirige vers sa fiche).
+  const [createFromEvent, setCreateFromEvent] = useState<CalendarEvent | null>(null)
+  const navigate = useNavigate()
 
   // Multi-agendas : liste des RH/responsables + ceux affichés.
   const [users, setUsers] = useState<CalendarUser[]>([])
@@ -332,6 +346,18 @@ export default function Calendrier() {
           onClose={() => setDetail(null)}
           onEdit={() => { setEditing({ event: detail }); setDetail(null) }}
           onAttendance={(e) => { setDetail((d) => (d ? { ...d, ...e } : d)); void load() }}
+          onArrived={(e) => { setDetail(null); setCreateFromEvent(e) }}
+        />
+      )}
+      {createFromEvent && (
+        <CandidateFormModal
+          prefill={{
+            fullName: candidateNameFromSummary(createFromEvent.summary),
+            email: createFromEvent.attendeeEmail ?? '',
+          }}
+          onClose={() => setCreateFromEvent(null)}
+          onSaved={() => { void load() }}
+          onCreated={(id) => { setCreateFromEvent(null); navigate(`/rh/candidats/${id}`) }}
         />
       )}
       {editing && token && (
@@ -408,6 +434,7 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
         minNoticeHours: settings.minNoticeHours, maxDaysAhead: settings.maxDaysAhead,
         timezone: settings.timezone, workingHours: settings.workingHours,
         confirmationSubject: settings.confirmationSubject, confirmationBody: settings.confirmationBody,
+        propositionSubject: settings.propositionSubject, propositionBody: settings.propositionBody,
       })
       setSettings(updated)
       onClose()
@@ -506,6 +533,39 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
                 <code>{'{{nom}}'}</code> <code>{'{{date}}'}</code> <code>{'{{jour}}'}</code>{' '}
                 <code>{'{{date_longue}}'}</code> <code>{'{{date_courte}}'}</code> <code>{'{{heure}}'}</code>{' '}
                 <code>{'{{lieu}}'}</code> <code>{'{{titre}}'}</code> <code>{'{{duree}}'}</code> <code>{'{{hote}}'}</code>.
+              </p>
+            </div>
+
+            {/* Mail de proposition d'entretien */}
+            <div className="rounded-xl border border-gray-100 p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                <Mail size={13} /> Mail de proposition d'entretien
+              </p>
+              <select
+                value={
+                  settings.propositionBody
+                    ? (mailTemplates.find((t) => t.body === settings.propositionBody)?.id ?? '__custom')
+                    : ''
+                }
+                onChange={(e) => {
+                  const id = e.target.value
+                  if (!id) { patch({ propositionSubject: null, propositionBody: null }); return }
+                  const tpl = mailTemplates.find((t) => t.id === id)
+                  if (tpl) patch({ propositionSubject: tpl.subject, propositionBody: tpl.body })
+                }}
+                className={inputCls}
+              >
+                <option value="">Mail par défaut</option>
+                {settings.propositionBody && !mailTemplates.some((t) => t.body === settings.propositionBody) && (
+                  <option value="__custom">Modèle enregistré (introuvable)</option>
+                )}
+                {mailTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+                Envoyé au candidat via « Proposer un entretien ». Variable :{' '}
+                <code>{'{{lien}}'}</code> (lien de réservation). Sans cette variable, le lien est ajouté en bas.
               </p>
             </div>
 
@@ -735,9 +795,10 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
   )
 }
 
-function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttendance }: {
+function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttendance, onArrived }: {
   event: OwnedEvent; token: string; isOwn: boolean; ownerName?: string
   onClose: () => void; onEdit: () => void; onAttendance: (e: CalendarEvent) => void
+  onArrived: (e: CalendarEvent) => void
 }) {
   const start = new Date(event.start)
   const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -753,6 +814,8 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
     try {
       const updated = await setEventAttendance(token, event.id, status)
       onAttendance(updated)
+      // « Arrivé » → création du candidat pré-rempli puis redirection vers sa fiche.
+      if (status === 'arrived') onArrived(updated)
     } catch (e) {
       setAttErr(e instanceof Error ? e.message : 'Erreur')
     } finally {
@@ -800,7 +863,7 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
               </button>
             </div>
             {event.attendance === 'noshow' && (
-              <p className="mt-2 text-[12px] text-gray-500">Un mail de relance avec le lien de réservation a été envoyé.</p>
+              <p className="mt-2 text-[12px] text-gray-500">Un mail de proposition de rendez-vous a été envoyé.</p>
             )}
             {!isPast && event.attendance == null && (
               <p className="mt-2 text-[12px] text-gray-400">Le rendez-vous n'a pas encore eu lieu.</p>
@@ -828,6 +891,10 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
   onClose: () => void; onSaved: () => void
 }) {
   const isEdit = Boolean(event)
+  // Signature RH (image Drive) à apposer au mail de proposition, comme la confirmation.
+  const signatureImage = useRhMailTemplatesStore((s) => s.signatureImage)
+  const loadMailTemplates = useRhMailTemplatesStore((s) => s.load)
+  useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
   const initStart = event ? new Date(event.start) : (defaultStart ?? new Date())
   const initEnd = event ? new Date(event.end) : (defaultEnd ?? new Date(initStart.getTime() + 3600000))
 
@@ -867,19 +934,39 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
         setErr('Activez d\'abord votre page de réservation (bouton Partager).'); setBusy(false); return
       }
       const url = bookingPublicUrl(settings.slug)
+      const linkHtml = `<a href="${url}">${url}</a>`
       const note = proposeNote.trim()
         ? `<p>${DOMPurify.sanitize(proposeNote.trim()).replace(/\n/g, '<br/>')}</p>`
         : ''
-      const html =
-        `<p>Bonjour,</p>` +
-        `<p>Nous vous proposons de choisir un créneau d'entretien à votre convenance :</p>` +
-        `<p><a href="${url}">${url}</a></p>` +
-        note +
-        `<p>À très vite,<br/>L'équipe Disciplina</p>`
+
+      // Modèle configuré dans les paramètres ({{lien}}), sinon mail par défaut.
+      let subject: string
+      let html: string
+      if (settings.propositionBody && settings.propositionBody.trim()) {
+        subject = settings.propositionSubject || 'Proposition de rendez-vous — Disciplina'
+        const tpl = settings.propositionBody
+        html = tpl.includes('{{lien}}')
+          ? tpl.replace(/\{\{lien\}\}/g, linkHtml)
+          : `${tpl}<p>${linkHtml}</p>`
+        if (note) html += note
+      } else {
+        subject = settings.propositionSubject || 'Proposition de rendez-vous — Disciplina'
+        html =
+          `<p>Bonjour,</p>` +
+          `<p>Nous vous proposons de choisir un créneau d'entretien à votre convenance :</p>` +
+          `<p>${linkHtml}</p>` +
+          note +
+          `<p>À très vite,<br/>L'équipe Disciplina</p>`
+      }
+
+      if (signatureImage) {
+        html += `<br/><img src="${signatureImage}" alt="signature" style="width:100%;max-width:480px;height:auto"/>`
+      }
+
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ to: email, subject: 'Proposition de rendez-vous — Disciplina', body: html }),
+        body: JSON.stringify({ to: email, subject, body: html }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Échec de l\'envoi')

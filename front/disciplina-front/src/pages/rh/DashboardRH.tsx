@@ -39,11 +39,11 @@ const COLORS = {
 };
 
 const TP_LABELS: Record<string, string> = {
-  [TitleProfessionalType.AD]: 'AD · Administrateur',
-  [TitleProfessionalType.CC]: 'CC · Chef de projet',
-  [TitleProfessionalType.NTC]: 'NTC · Négo. Technico-Com.',
-  [TitleProfessionalType.REM]: 'REM · Resp. Étab. Médico-Social',
-  [TitleProfessionalType.SA]: 'SA · Secrétaire',
+  [TitleProfessionalType.AD]: 'AD · Assistante de Direction',
+  [TitleProfessionalType.CC]: 'CC · Conseiller Commercial',
+  [TitleProfessionalType.NTC]: 'NTC · Négociateur technico-commercial',
+  [TitleProfessionalType.REM]: "REM · Responsable d'établissement Marchand",
+  [TitleProfessionalType.SA]: 'SA',
 };
 
 // Palette dédiée aux TP (cf. ListeCandidats).

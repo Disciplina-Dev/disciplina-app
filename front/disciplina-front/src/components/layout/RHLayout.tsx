@@ -45,7 +45,7 @@ export default function RHLayout() {
 
         {/* Main nav */}
         <nav className="mt-2 flex flex-col gap-1 px-3">
-          <NavItem to="/rh" end icon={<LayoutDashboard size={18} />} label="Dashboard" />
+          <NavItem to="/rh" end icon={<LayoutDashboard size={18} />} label="Tableau de bord" />
           <NavItem to="/rh/candidats" icon={<Users size={18} />} label="Candidats" />
           <NavItem to="/rh/matching" icon={<Repeat2 size={18} />} label="Matching" />
           <NavItem to="/rh/calendrier" icon={<CalendarDays size={18} />} label="Calendrier" />

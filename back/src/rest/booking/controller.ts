@@ -110,6 +110,12 @@ export async function updateMySettings(req: AuthRequest, res: Response): Promise
         // TEXT MySQL ≈ 64 Ko ; on borne large pour éviter les abus.
         patch.confirmationBody = b.confirmationBody ? String(b.confirmationBody).slice(0, 60000) : null;
     }
+    if (b.propositionSubject !== undefined) {
+        patch.propositionSubject = b.propositionSubject ? String(b.propositionSubject).slice(0, 255) : null;
+    }
+    if (b.propositionBody !== undefined) {
+        patch.propositionBody = b.propositionBody ? String(b.propositionBody).slice(0, 60000) : null;
+    }
 
     const settings = await bookingService.update(Number(req.user.id), patch);
     res.json({ settings });
