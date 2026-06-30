@@ -27,7 +27,9 @@ async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draf
     }
 
     const user = await userService.findById(req.user.id);
-    if (!user?.oauthToken || !user?.refreshToken) {
+    // refreshToken peut être null (Google ne le renvoie qu'au 1er consentement) :
+    // un access_token suffit, comme pour le Drive.
+    if (!user?.oauthToken) {
         res.status(403).json({ error: 'Compte Google non connecté. Veuillez connecter votre compte Google.' });
         return;
     }
@@ -39,7 +41,7 @@ async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draf
         text: body.replace(/<[^>]*>/g, ''),
         attachments,
     };
-    const creds = { access_token: user.oauthToken, refresh_token: user.refreshToken };
+    const creds = { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined };
 
     try {
         if (mode === 'draft') {
