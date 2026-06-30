@@ -840,11 +840,58 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
   const [meetingLink, setMeetingLink] = useState(event?.meetingLink ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
   const [colorId, setColorId] = useState<string | undefined>(event?.colorId)
-  const [isInterview, setIsInterview] = useState(event?.isInterview ?? false)
+  // Type de créneau : pilote le flag "entretien" (compté KPI RH).
+  const [slotType, setSlotType] = useState<'entretien' | 'autre'>(event?.isInterview ? 'entretien' : 'autre')
+  const isInterview = slotType === 'entretien'
+  // Proposer un entretien : au lieu de poser un créneau, on envoie au candidat
+  // le lien de réservation (emploi du temps + créneaux libres) par mail.
+  const [propose, setPropose] = useState(false)
+  const [proposeNote, setProposeNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [sent, setSent] = useState(false)
+
+  const pickType = (t: 'entretien' | 'autre') => {
+    setSlotType(t)
+    if (t === 'entretien' && !summary.trim()) setSummary('Entretien')
+  }
+
+  const sendProposition = async () => {
+    setErr(null)
+    const email = attendeeEmail.trim()
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setErr('Renseignez l\'email du candidat ci-dessus'); return }
+    setBusy(true)
+    try {
+      const settings = await fetchMyBookingSettings(token)
+      if (!settings.enabled) {
+        setErr('Activez d\'abord votre page de réservation (bouton Partager).'); setBusy(false); return
+      }
+      const url = bookingPublicUrl(settings.slug)
+      const note = proposeNote.trim()
+        ? `<p>${DOMPurify.sanitize(proposeNote.trim()).replace(/\n/g, '<br/>')}</p>`
+        : ''
+      const html =
+        `<p>Bonjour,</p>` +
+        `<p>Nous vous proposons de choisir un créneau d'entretien à votre convenance :</p>` +
+        `<p><a href="${url}">${url}</a></p>` +
+        note +
+        `<p>À très vite,<br/>L'équipe Disciplina</p>`
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ to: email, subject: 'Proposition de rendez-vous — Disciplina', body: html }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Échec de l\'envoi')
+      setSent(true)
+      setTimeout(onSaved, 800)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false)
+    }
+  }
 
   const submit = async () => {
+    if (propose) { await sendProposition(); return }
     setErr(null)
     if (!summary.trim()) { setErr('Titre requis'); return }
     const link = meetingLink.trim()
@@ -926,12 +973,50 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
             ))}
           </div>
 
-          <label className="flex items-center gap-2 pt-1 text-[13px] font-semibold text-gray-600">
-            <input type="checkbox" checked={isInterview} onChange={(e) => setIsInterview(e.target.checked)} className="accent-purple" />
-            Entretien (compté dans les KPI RH)
-          </label>
+          <div className="pt-1">
+            <p className="mb-1.5 text-[12px] font-semibold text-gray-500">Type de créneau</p>
+            <div className="flex gap-2">
+              {([['entretien', 'Entretien'], ['autre', 'Autre']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => pickType(key)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
+                    slotType === key
+                      ? 'border-purple bg-purple/10 text-purple'
+                      : 'border-gray-200 text-gray-500 hover:border-purple'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {isInterview && (
+              <p className="mt-1 text-[11px] text-gray-400">Compté dans les KPI RH.</p>
+            )}
+          </div>
+
+          {/* Proposer un entretien : envoie le lien de réservation par mail au candidat. */}
+          {!isEdit && (
+          <div className="rounded-lg border border-gray-200 p-3">
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700">
+              <input type="checkbox" checked={propose} onChange={(e) => setPropose(e.target.checked)} className="accent-purple" />
+              Proposer un entretien (envoyer le lien de réservation)
+            </label>
+            {propose && (
+              <div className="mt-3 space-y-2">
+                <p className="text-[12px] text-gray-500">
+                  Le lien de votre emploi du temps sera envoyé à l'email de l'invité saisi ci-dessus.
+                </p>
+                <textarea value={proposeNote} onChange={(e) => setProposeNote(e.target.value)} placeholder="Message personnalisé (optionnel)" rows={2}
+                  className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
+              </div>
+            )}
+          </div>
+          )}
 
           {err && <p className="text-[12px] text-danger">{err}</p>}
+          {sent && <p className="text-[12px] font-semibold text-success">Proposition envoyée ✓</p>}
         </div>
 
         <div className="mt-5 flex items-center gap-2">
@@ -942,7 +1027,7 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
           )}
           <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-gray-400 hover:text-gray-700">Annuler</button>
           <button onClick={submit} disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
-            {busy && <Loader2 size={15} className="animate-spin" />} {isEdit ? 'Enregistrer' : 'Créer'}
+            {busy && <Loader2 size={15} className="animate-spin" />} {propose ? 'Envoyer la proposition' : isEdit ? 'Enregistrer' : 'Créer'}
           </button>
         </div>
       </div>
