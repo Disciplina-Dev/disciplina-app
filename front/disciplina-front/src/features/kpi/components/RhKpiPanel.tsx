@@ -117,10 +117,12 @@ export default function RhKpiPanel({
 
   const toggleSector = (s: string) => {
     setSelectedSectors((prev) => {
-      const next = new Set(prev ?? sectors) // null (tous) → on part de tout, puis on retire
+      // Depuis « Tous » : un clic sélectionne uniquement ce secteur.
+      if (!prev) return new Set([s])
+      const next = new Set(prev)
       if (next.has(s)) next.delete(s); else next.add(s)
-      // Tout sélectionné → revient à l'état « tous » (null).
-      if (next.size === sectors.length && sectors.every((x) => next.has(x))) return null
+      // Plus rien coché, ou tout coché → retour à l'état « tous » (null).
+      if (next.size === 0 || (next.size === sectors.length && sectors.every((x) => next.has(x)))) return null
       return next
     })
   }

@@ -124,9 +124,12 @@ export default function DashboardRH() {
 
   const toggleSector = (s: string) =>
     setSelectedSectors((prev) => {
-      const next = new Set(prev ?? CANON_SECTORS);
+      // Depuis « Tous » : un clic sélectionne uniquement ce secteur.
+      if (!prev) return new Set([s]);
+      const next = new Set(prev);
       if (next.has(s)) next.delete(s); else next.add(s);
-      if (next.size === CANON_SECTORS.length) return null; // tout coché = tous
+      // Plus rien coché, ou tout coché = retour à « Tous ».
+      if (next.size === 0 || next.size === CANON_SECTORS.length) return null;
       return next;
     });
   const isSectorOn = (s: string) => !selectedSectors || selectedSectors.has(s);
