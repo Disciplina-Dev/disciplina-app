@@ -106,7 +106,8 @@ type ABForm = {
   desiredSectors: string[]; expectedCompanySkills: string[];
   // découverte
   discoverySource: string;
-  // signature de l'apprenti (data-URL PNG)
+  // note importante + signature de l'apprenti (data-URL PNG)
+  importantNote: string;
   candidateSignature: string;
 };
 
@@ -164,6 +165,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     domainMotivation: '', questionsConcerns: '', availabilityDate: '', geographicMobility: [], weekendWork: '',
     desiredSectors: [], expectedCompanySkills: [],
     discoverySource: '',
+    importantNote: '',
     candidateSignature: '',
   };
 }
@@ -239,6 +241,7 @@ function candidateToForm(c: Candidate): ABForm {
     desiredSectors: c.desired_sectors ?? [],
     expectedCompanySkills: c.expected_company_skills ?? [],
     discoverySource: c.job_info?.discovery_source ?? '',
+    importantNote: c.synthesis?.important_note ?? '',
     candidateSignature: c.synthesis?.candidate_signature ?? '',
   };
 }
@@ -306,7 +309,7 @@ function toServerInput(f: ABForm) {
       weekendWork: pb(f.weekendWork),
       discoverySource: f.discoverySource || undefined,
     },
-    synthesis: { candidateSignature: f.candidateSignature || undefined },
+    synthesis: { importantNote: f.importantNote || undefined, candidateSignature: f.candidateSignature || undefined },
   };
 }
 
@@ -728,6 +731,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </label>
             ))}
           </div>
+
+          {/* Note importante */}
+          <ABSectionTitle title="Note importante" />
+          <ABTextarea label="Note importante" value={form.importantNote} onChange={v => set('importantNote', v)} rows={3} />
 
           {/* Signature de l'apprenti — toute fin */}
           <ABSectionTitle title="Signature de l'apprenti" />

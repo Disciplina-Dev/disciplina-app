@@ -189,6 +189,7 @@ export interface Synthesis {
     special_needs?: string;
     pedagogical_recommendations?: PedagogicalRecommendations;
     other_recommendations?: string;
+    important_note?: string;
     location?: string;
     date?: string;
     recruiter_signature?: string;

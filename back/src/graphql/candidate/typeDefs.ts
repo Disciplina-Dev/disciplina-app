@@ -182,6 +182,7 @@ export const typeDefs = gql`
         specialNeeds: String
         pedagogicalRecommendations: PedagogicalRecommendations
         otherRecommendations: String
+        importantNote: String
         location: String
         date: String
         recruiterSignature: String
@@ -328,6 +329,7 @@ export const typeDefs = gql`
         specialNeeds: String
         pedagogicalRecommendations: PedagogicalRecommendationsInput
         otherRecommendations: String
+        importantNote: String
         location: String
         date: String
         recruiterSignature: String

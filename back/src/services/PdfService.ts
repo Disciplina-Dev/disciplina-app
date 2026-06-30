@@ -862,6 +862,25 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     }
     para('Autres recommandations', c.synthesis?.other_recommendations);
 
+    // ── Note importante (encadré mis en évidence) ──
+    const importantNote = c.synthesis?.important_note?.trim();
+    if (importantNote) {
+        const noteH = doc.font('Helvetica').fontSize(10).heightOfString(importantNote, { width: contentW - 24 });
+        ensure(noteH + 34);
+        const y = doc.y;
+        doc.save()
+            .rect(left, y, contentW, noteH + 26)
+            .fill('#FFF7E6')
+            .restore();
+        doc.save().rect(left, y, 4, noteH + 26).fill('#C9A227').restore();
+        doc.font('Helvetica-Bold').fillColor('#8a6d1b').fontSize(8.5).text('NOTE IMPORTANTE', left + 12, y + 7);
+        doc.font('Helvetica').fillColor('#111111').fontSize(10).text(importantNote, left + 12, doc.y + 2, {
+            width: contentW - 24,
+            align: 'justify',
+        });
+        doc.y = y + noteH + 26 + 6;
+    }
+
     // ── Clôture : lieu + date de l'analyse (saisis dans la synthèse, sans signature) ──
     const synthLocation = c.synthesis?.location?.trim();
     const synthDate = fmtDate(c.synthesis?.date);

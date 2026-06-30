@@ -181,6 +181,7 @@ async function patchCandidatesValidator(): Promise<void> {
                                 },
                             },
                             other_recommendations: { bsonType: 'string' },
+                            important_note: { bsonType: 'string' },
                             location: { bsonType: 'string' },
                             date: { bsonType: 'date' },
                             recruiter_signature: { bsonType: 'string' },

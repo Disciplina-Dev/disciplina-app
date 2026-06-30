@@ -154,6 +154,7 @@ export interface Synthesis {
     special_needs?: string;
     pedagogical_recommendations?: PedagogicalRecommendations;
     other_recommendations?: string;
+    important_note?: string;
     location?: string;
     date?: Date;
     recruiter_signature?: string;

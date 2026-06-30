@@ -160,6 +160,7 @@ const synthesisSchema = new Schema<Synthesis>(
         special_needs: { type: String },
         pedagogical_recommendations: { type: pedagogicalRecommendationsSchema },
         other_recommendations: { type: String },
+        important_note: { type: String },
         location: { type: String },
         date: { type: Date },
         recruiter_signature: { type: String },

@@ -70,7 +70,7 @@ interface FormState {
   // synthèse
   feasibility_conclusion: string; pathway_relevance: string
   special_needs: string; peda_reco: PedaReco
-  other_recommendations: string; synthesis_location: string; synthesis_date: string
+  other_recommendations: string; important_note: string; synthesis_location: string; synthesis_date: string
   candidate_signature: string // data-URL PNG de la signature de l'apprenti
 }
 
@@ -152,6 +152,7 @@ function initForm(c: Candidate): FormState {
       stressManagementFollowUp: c.synthesis?.pedagogical_recommendations?.stress_management_follow_up ?? false,
     },
     other_recommendations: c.synthesis?.other_recommendations ?? '',
+    important_note: c.synthesis?.important_note ?? '',
     synthesis_location: c.synthesis?.location ?? '',
     synthesis_date: c.synthesis?.date ? c.synthesis.date.slice(0, 10) : '',
     candidate_signature: c.synthesis?.candidate_signature ?? '',
@@ -237,6 +238,7 @@ function toGqlInput(f: FormState) {
       specialNeeds: f.special_needs || undefined,
       pedagogicalRecommendations: f.peda_reco,
       otherRecommendations: f.other_recommendations || undefined,
+      importantNote: f.important_note || undefined,
       location: f.synthesis_location || undefined,
       date: f.synthesis_date || undefined,
       candidateSignature: f.candidate_signature || undefined,
@@ -788,6 +790,7 @@ export default function QuestionnaireAB() {
           </div>
 
           <Textarea label="Autres préconisations" value={form.other_recommendations} onChange={v => set('other_recommendations', v)} />
+          <Textarea label="Note importante" value={form.important_note} onChange={v => set('important_note', v)} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <InputField id="synthesis_location" label="Fait à" value={form.synthesis_location} onChange={e => set('synthesis_location', e.target.value)} />
             <InputField id="synthesis_date" label="Le" type="date" value={form.synthesis_date} onChange={e => set('synthesis_date', e.target.value)} />

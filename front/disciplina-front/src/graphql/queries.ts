@@ -461,6 +461,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         pathwayRelevance
         specialNeeds
         otherRecommendations
+        importantNote
         location
         date
         candidateSignature
@@ -554,6 +555,7 @@ export const UPDATE_CANDIDATE = gql`
         pathwayRelevance
         specialNeeds
         otherRecommendations
+        importantNote
         location
         date
         candidateSignature
@@ -722,6 +724,7 @@ export const GET_CANDIDATE_FULL = gql`
           stressManagementFollowUp
         }
         otherRecommendations
+        importantNote
         location
         date
         candidateSignature
@@ -832,6 +835,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         pathwayRelevance
         specialNeeds
         otherRecommendations
+        importantNote
         location
         date
         candidateSignature
