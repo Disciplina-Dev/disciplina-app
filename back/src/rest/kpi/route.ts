@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
-import { getYears, getAnnualSummary, getMonthlyDetail, getWeeklyDetail, upsertKpi, importExcel } from './controller';
+import { getYears, getAnnualSummary, getMonthlyDetail, getWeeklyDetail, upsertKpi, importExcel, getSelectableUsers } from './controller';
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -13,6 +13,7 @@ const kpiAccess = [authenticate, requireRoles('ADMIN', 'RESPONSABLE')];
 
 export const router: Router = Router();
 
+router.get('/users', ...kpiAccess, getSelectableUsers);
 router.get('/years', ...kpiAccess, getYears);
 router.get('/summary', ...kpiAccess, getAnnualSummary);
 router.get('/monthly', ...kpiAccess, getMonthlyDetail);

@@ -7,6 +7,7 @@ const UPSERT_SQL = `
     VALUES (?, ?, ?, ?, ?, ?, ${KPI_METRIC_COLUMNS.map(() => '?').join(', ')})
     ON DUPLICATE KEY UPDATE
         user_id = VALUES(user_id),
+        user_name = VALUES(user_name),
         ${KPI_METRIC_COLUMNS.map((c) => `${c} = VALUES(${c})`).join(',\n        ')}
 `;
 

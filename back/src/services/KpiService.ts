@@ -47,6 +47,15 @@ export interface KpiWeeklyDetail {
 export interface KpiImportResult {
     imported: number;
     errors: string[];
+    /** Noms présents dans l'Excel sans user correspondant : lignes ignorées. */
+    unmatched: string[];
+}
+
+export interface KpiSelectableUser {
+    id: number;
+    firstName: string;
+    lastName: string;
+    role: string;
 }
 
 function emptyMetrics(): Record<KpiMetricColumn, number> {
@@ -118,6 +127,13 @@ const MONTH_NAMES = [
 /** Header cells (and beyond) that end the commercial-name columns. */
 const NAME_COLUMN_TERMINATORS = /^(total|global|comparatif|ecart|evolution)/;
 
+/**
+ * Header cells that look like a name column but are not a commercial: metric
+ * columns interleaved among the names (ex: "Immersion"). Skipped without
+ * stopping the scan, so real commercials placed after them are still read.
+ */
+const NAME_COLUMN_IGNORED = /^(immersion|non employe)/;
+
 interface ParsedEntry {
     /** Metric values; only categories actually present in the sheet are set. */
     metrics: Partial<Record<KpiMetricColumn, number>>;
@@ -132,6 +148,14 @@ export class KpiService {
 
     async getAvailableYears(): Promise<number[]> {
         return this.kpiRepository.getAvailableYears();
+    }
+
+    /** Commerciaux sélectionnables pour la saisie manuelle (rattachés à un vrai user). */
+    async getSelectableUsers(): Promise<KpiSelectableUser[]> {
+        const users = await this.userRepository.findByRoles([Role.ADMIN, Role.RESPONSABLE, Role.COMMERCIAL]);
+        return users
+            .map((u) => ({ id: u.id, firstName: u.first_name, lastName: u.last_name, role: u.role }))
+            .sort((a, b) => a.firstName.localeCompare(b.firstName, 'fr'));
     }
 
     async getAnnualSummary(year: number, site: string): Promise<KpiAnnualSummary> {
@@ -192,9 +216,13 @@ export class KpiService {
 
     async manualUpsert(data: KpiUpsertInput): Promise<void> {
         this.validateInput(data);
+        const user = await this.userRepository.findById(data.user_id as number);
+        if (!user) throw new Error('Unknown user');
+        // Le nom n'est jamais pris du client : snapshot fiable depuis la base.
         await this.kpiRepository.upsert({
             ...data,
-            user_id: data.user_id ?? (await this.resolveUserId(data.user_name)),
+            user_id: user.id,
+            user_name: `${user.first_name} ${user.last_name}`,
         });
     }
 
@@ -232,6 +260,7 @@ export class KpiService {
         if (moisSheets.length === 0 && semSheets.length === 0) {
             return {
                 imported: 0,
+                unmatched: [],
                 errors: [
                     `No 'C.R Mois' or 'C.R Sem.' sheet found (sheets: ${workbook.worksheets
                         .map((ws) => ws.name)
@@ -286,11 +315,23 @@ export class KpiService {
         }
 
         const rows = [...merged.values()].map((m) => m.input).concat([...weeklyRows.values()]);
-        const userIds = await this.userIdsByName(rows.map((r) => r.user_name));
-        for (const row of rows) row.user_id = userIds.get(normalize(row.user_name)) ?? null;
+        const userIds = await this.userIdsByName(rows.map((r) => r.user_name ?? ''));
 
-        await this.kpiRepository.bulkUpsert(rows);
-        return { imported: rows.length, errors };
+        // Rattachement obligatoire à un vrai user : les noms non résolus sont ignorés et signalés.
+        const resolved: KpiUpsertInput[] = [];
+        const unmatched = new Set<string>();
+        for (const row of rows) {
+            const id = userIds.get(normalize(row.user_name)) ?? null;
+            if (id == null) {
+                if (row.user_name) unmatched.add(row.user_name);
+                continue;
+            }
+            row.user_id = id;
+            resolved.push(row);
+        }
+
+        await this.kpiRepository.bulkUpsert(resolved);
+        return { imported: resolved.length, errors, unmatched: [...unmatched] };
     }
 
     /** `${name}|${year}|${month}|${week}` → monthly key (week forced to 0). */
@@ -353,6 +394,7 @@ export class KpiService {
         for (let c = 2; c < header.length; c++) {
             const name = String(header[c] ?? '').trim();
             if (!name || NAME_COLUMN_TERMINATORS.test(normalize(name))) break;
+            if (NAME_COLUMN_IGNORED.test(normalize(name))) continue;
             nameColumns.push({ column: c, name });
         }
         if (nameColumns.length === 0) {
@@ -424,7 +466,7 @@ export class KpiService {
     }
 
     private validateInput(data: KpiUpsertInput): void {
-        if (!data.user_name?.trim()) throw new Error('user_name is required');
+        if (!Number.isInteger(data.user_id)) throw new Error('user_id is required');
         if (!Number.isInteger(data.year) || data.year < 2000 || data.year > 2100) throw new Error('Invalid year');
         if (!Number.isInteger(data.month) || data.month < 1 || data.month > 12) throw new Error('Invalid month (1-12)');
         if (data.week != null && (!Number.isInteger(data.week) || data.week < 0 || data.week > 53)) {
@@ -443,18 +485,32 @@ export class KpiService {
         return match ? Number(match[1]) : null;
     }
 
-    private async resolveUserId(userName: string): Promise<number | null> {
-        const ids = await this.userIdsByName([userName]);
-        return ids.get(normalize(userName)) ?? null;
-    }
-
+    /**
+     * Resolves Excel header names (first name only, ex: "Amanda") to user ids.
+     * Matches on the full "first last" name and, as a fallback, on the first
+     * name alone when it is unambiguous (a single user carries it). First names
+     * shared by several users are left unresolved to avoid mis-attribution.
+     */
     private async userIdsByName(names: string[]): Promise<Map<string, number>> {
         const users = await this.userRepository.findByRoles([Role.ADMIN, Role.RESPONSABLE, Role.COMMERCIAL, Role.RH]);
         const wanted = new Set(names.map(normalize));
+
+        // Count first-name occurrences to detect ambiguity.
+        const firstNameCount = new Map<string, number>();
+        for (const user of users) {
+            const first = normalize(user.first_name);
+            firstNameCount.set(first, (firstNameCount.get(first) ?? 0) + 1);
+        }
+
         const map = new Map<string, number>();
         for (const user of users) {
-            const key = normalize(`${user.first_name} ${user.last_name}`);
-            if (wanted.has(key)) map.set(key, user.id);
+            const full = normalize(`${user.first_name} ${user.last_name}`);
+            if (wanted.has(full)) map.set(full, user.id);
+
+            const first = normalize(user.first_name);
+            if (wanted.has(first) && firstNameCount.get(first) === 1 && !map.has(first)) {
+                map.set(first, user.id);
+            }
         }
         return map;
     }

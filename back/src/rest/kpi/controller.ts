@@ -16,6 +16,15 @@ function parseSite(value: unknown): KpiSite | null {
     return KPI_SITES.includes(site as KpiSite) ? (site as KpiSite) : null;
 }
 
+export async function getSelectableUsers(_req: AuthRequest, res: Response): Promise<void> {
+    try {
+        res.json({ users: await kpiService.getSelectableUsers() });
+    } catch (err) {
+        logger.error({ err }, 'KPI getSelectableUsers failed');
+        res.status(500).json({ error: 'Failed to fetch selectable users' });
+    }
+}
+
 export async function getYears(_req: AuthRequest, res: Response): Promise<void> {
     try {
         res.json({ years: await kpiService.getAvailableYears() });
