@@ -16,6 +16,8 @@ export type RhKpiMetrics = Record<RhKpiColumn, number>;
 export interface RhKpiUserMetrics {
   userId: number;
   userName: string;
+  /** Secteur (snapshot) ; '' = inconnu/global. */
+  sector: string;
   metrics: RhKpiMetrics;
 }
 export interface RhKpiWeek {
@@ -32,6 +34,11 @@ export interface RhKpiReport {
 
 export function emptyRhMetrics(): RhKpiMetrics {
   return Object.fromEntries(RH_KPI_COLUMNS.map((c) => [c, 0])) as RhKpiMetrics;
+}
+
+/** Entretiens « à venir » = placés non encore résolus (ni venus, ni absents). Jamais négatif. */
+export function upcoming(m: RhKpiMetrics): number {
+  return Math.max(0, m.interviews_placed - m.interviews_attended - m.interviews_noshow);
 }
 
 /** Additionne plusieurs jeux de métriques. */

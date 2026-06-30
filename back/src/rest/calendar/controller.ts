@@ -9,6 +9,7 @@ import { env } from '../../config/env';
 import { BookingService } from '../booking/service';
 import { sendRdvConfirmation, sendNoShowRebooking } from './notifications';
 import { RhKpiService } from '../../services/RhKpiService';
+import { primarySector } from '../../utils/sector';
 
 const userService = new UserService();
 const bookingService = new BookingService();
@@ -16,15 +17,17 @@ const rhKpiService = new RhKpiService();
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-/** Colonne KPI correspondant à un statut de présence. */
-const ATTENDANCE_COLUMN = { arrived: 'interviews_attended', noshow: 'interviews_noshow' } as const;
-
-/** Delta KPI pour une transition de présence old→next (decrémente l'ancien, incrémente le nouveau). */
-function attendanceDelta(old: Attendance | undefined, next: Attendance): Record<string, number> {
+/**
+ * Delta KPI « pas venu » pour une transition de présence old→next.
+ * Le « venu » n'est plus compté ici : il provient désormais de la création
+ * d'un dossier candidat (cf. resolver createCandidate). Seul le no-show est
+ * suivi via le clic manuel sur l'entretien.
+ */
+function noshowDelta(old: Attendance | undefined, next: Attendance): Record<string, number> {
     if (old === next) return {};
     const delta: Record<string, number> = {};
-    if (old) delta[ATTENDANCE_COLUMN[old]] = (delta[ATTENDANCE_COLUMN[old]] ?? 0) - 1;
-    delta[ATTENDANCE_COLUMN[next]] = (delta[ATTENDANCE_COLUMN[next]] ?? 0) + 1;
+    if (old === 'noshow') delta.interviews_noshow = (delta.interviews_noshow ?? 0) - 1;
+    if (next === 'noshow') delta.interviews_noshow = (delta.interviews_noshow ?? 0) + 1;
     return delta;
 }
 
@@ -169,9 +172,9 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
     }
     try {
         const event = await calendarForUser(host).createEvent(input);
-        // KPI : un entretien placé compte au bucket de sa date de début.
+        // KPI : un entretien placé compte au bucket de sa date de début, dans le secteur du RH.
         if (input.isInterview) {
-            await rhKpiService.bump(host.id, new Date(input.start), { interviews_placed: 1 });
+            await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(input.start), { interviews_placed: 1 });
         }
         // Email de confirmation automatique si un email invité est fourni.
         if (input.attendeeEmail) {
@@ -211,10 +214,12 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         const calendar = calendarForUser(host);
         const before = await calendar.getEvent(req.params.id);
         const event = await calendar.setAttendance(req.params.id, status);
-        // KPI : transition de présence (seulement pour les entretiens).
+        // KPI : « pas venu » (seulement pour les entretiens). Le « venu » vient du dossier candidat.
         if (event.isInterview) {
-            const delta = attendanceDelta(before.attendance, status);
-            if (Object.keys(delta).length) await rhKpiService.bump(host.id, new Date(event.start), delta);
+            const delta = noshowDelta(before.attendance, status);
+            if (Object.keys(delta).length) {
+                await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(event.start), delta);
+            }
         }
         // « Pas venu » : on envoie une relance avec le lien de réservation, si on a l'email.
         if (status === 'noshow' && event.attendeeEmail) {
@@ -251,8 +256,9 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
         // KPI : rééquilibre le compteur « entretiens placés » si le flag ou la date a changé.
         const movedOrToggled = before.isInterview !== input.isInterview || dayKey(before.start) !== dayKey(input.start);
         if ((before.isInterview || input.isInterview) && movedOrToggled) {
-            if (before.isInterview) await rhKpiService.bump(host.id, new Date(before.start), { interviews_placed: -1 });
-            if (input.isInterview) await rhKpiService.bump(host.id, new Date(input.start), { interviews_placed: 1 });
+            const sector = primarySector(host.sectors);
+            if (before.isInterview) await rhKpiService.bump(host.id, sector, new Date(before.start), { interviews_placed: -1 });
+            if (input.isInterview) await rhKpiService.bump(host.id, sector, new Date(input.start), { interviews_placed: 1 });
         }
         res.json({ event });
     } catch (error) {
@@ -272,11 +278,11 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
     try {
         const before = await calendar.getEvent(req.params.id);
         await calendar.deleteEvent(req.params.id);
-        // KPI : on retire les compteurs portés par cet entretien.
+        // KPI : on retire les compteurs portés par cet entretien (placé + no-show éventuel).
         if (before.isInterview) {
             const delta: Record<string, number> = { interviews_placed: -1 };
-            if (before.attendance) delta[ATTENDANCE_COLUMN[before.attendance]] = -1;
-            await rhKpiService.bump(host.id, new Date(before.start), delta);
+            if (before.attendance === 'noshow') delta.interviews_noshow = -1;
+            await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(before.start), delta);
         }
         res.status(204).end();
     } catch (error) {

@@ -457,10 +457,11 @@ export interface CandidateStats {
   byTpAndStatus: TpStatusBucket[]
 }
 
-/** Statistiques agrégées des candidats (endpoint MongoDB dédié). */
-export function useCandidateStats() {
+/** Statistiques agrégées des candidats (endpoint MongoDB dédié). `sectors` filtre par secteur du créateur. */
+export function useCandidateStats(sectors?: string[]) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATE_STATS,
+    variables: { sectors: sectors && sectors.length > 0 ? sectors : undefined },
     context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
   })
 

@@ -23,8 +23,8 @@ export class CandidateService {
         return this.repository.findById(id);
     }
 
-    async stats(): Promise<CandidateStats> {
-        return this.repository.stats();
+    async stats(sectors?: string[]): Promise<CandidateStats> {
+        return this.repository.stats(sectors);
     }
 
     async findByEmail(email: string): Promise<Candidate | null> {

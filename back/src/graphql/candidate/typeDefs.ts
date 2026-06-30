@@ -473,7 +473,7 @@ export const typeDefs = gql`
     }
 
     type Query {
-        candidateStats: CandidateStats!
+        candidateStats(sectors: [String!]): CandidateStats!
         candidates: [Candidate!]!
         candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate

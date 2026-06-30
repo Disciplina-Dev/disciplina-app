@@ -16,6 +16,7 @@ export type RhKpiMetrics = Record<RhKpiColumn, number>;
 export interface RhKpiRow extends RhKpiMetrics {
     id: number;
     user_id: number;
+    sector: string;
     year: number;
     month: number;
     week: number;

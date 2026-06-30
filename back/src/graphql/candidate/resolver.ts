@@ -112,9 +112,9 @@ export const resolvers = {
                 pageInfo: conn.pageInfo,
             };
         },
-        candidateStats: async (_: unknown, __: unknown, context: any) => {
+        candidateStats: async (_: unknown, { sectors }: { sectors?: string[] }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return candidateService.stats();
+            return candidateService.stats(sectors);
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
@@ -219,6 +219,16 @@ export const resolvers = {
                 ...snakeInput,
             });
 
+            // KPI RH : un dossier candidat créé = un entretien « venu », compté pour
+            // le RH créateur dans son secteur. Best-effort : ne casse jamais la création.
+            try {
+                await rhKpiService.bump(creator?.id ?? Number(context.user.id), ownerSector ?? '', new Date(), {
+                    interviews_attended: 1,
+                });
+            } catch (error) {
+                logger.error({ err: error }, 'rh_kpi attended bump failed');
+            }
+
             try {
                 if (creator && creator.oauthToken) {
                     const driveService = GoogleDriveService.fromTokens(
@@ -274,7 +284,7 @@ export const resolvers = {
             // KPI RH : transition de statut vers immersion / contrat / rupture (compté pour le RH agissant).
             const column = STATUS_KPI_COLUMN[updated.status];
             if (column && snakeInput.status && previousStatus !== updated.status) {
-                await rhKpiService.bump(Number(context.user.id), new Date(), { [column]: 1 });
+                await rhKpiService.bump(Number(context.user.id), updated.owner?.sector ?? '', new Date(), { [column]: 1 });
             }
 
             return candidateToGql(updated);

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   PieChart,
@@ -57,6 +57,9 @@ const TP_COLORS: Record<string, string> = {
 
 const TP_ORDER = Object.values(TitleProfessionalType) as string[];
 
+// Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
+const CANON_SECTORS = ['Nord-Est', 'Ouest', 'Sud'];
+
 const SITE_LABELS: Record<string, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: 'Nord · Sainte-Marie',
   [TrainingSite.OUEST_SAINT_PAUL]: 'Ouest · Saint-Paul',
@@ -110,7 +113,26 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 export default function DashboardRH() {
-  const { stats, loading, error, refetch } = useCandidateStats();
+  // Filtre secteur global : null = tous ; sinon 1, 2 ou 3 secteurs cumulés.
+  // Pilote à la fois les indicateurs candidats, les diagrammes et les KPI RH.
+  const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(null);
+  const sectorArray = useMemo(
+    () => (selectedSectors ? [...selectedSectors] : undefined),
+    [selectedSectors],
+  );
+  const { stats, loading, error, refetch } = useCandidateStats(sectorArray);
+
+  const toggleSector = (s: string) =>
+    setSelectedSectors((prev) => {
+      // Depuis « Tous » : un clic sélectionne uniquement ce secteur.
+      if (!prev) return new Set([s]);
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      // Plus rien coché, ou tout coché = retour à « Tous ».
+      if (next.size === 0 || next.size === CANON_SECTORS.length) return null;
+      return next;
+    });
+  const isSectorOn = (s: string) => !selectedSectors || selectedSectors.has(s);
 
   const statusData = useMemo(() => {
     if (!stats) return [];
@@ -198,17 +220,37 @@ export default function DashboardRH() {
           <h1>Tableau de bord RH</h1>
           <p className="mt-1 text-gray-500">Vue d'ensemble des candidats</p>
         </div>
-        <button
-          onClick={refetch}
-          className="flex items-center gap-2 rounded-md border border-gray-100 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
-        >
-          <RefreshCw size={16} /> Actualiser
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Filtre secteur global (indicateurs + diagrammes + KPI RH) */}
+          <div className="flex items-center gap-1 rounded-[10px] border border-gray-100 bg-white p-0.5 shadow-sm">
+            <button
+              onClick={() => setSelectedSectors(null)}
+              className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${!selectedSectors ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
+            >
+              Tous
+            </button>
+            {CANON_SECTORS.map((s) => (
+              <button
+                key={s}
+                onClick={() => toggleSector(s)}
+                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${selectedSectors && isSectorOn(s) ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={refetch}
+            className="flex items-center gap-2 rounded-md border border-gray-100 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+          >
+            <RefreshCw size={16} /> Actualiser
+          </button>
+        </div>
       </div>
 
-      {/* KPI RH par semaine / mois / année */}
+      {/* KPI RH par semaine / mois / année — piloté par le filtre secteur global */}
       <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <RhKpiPanel />
+        <RhKpiPanel sectors={sectorArray ?? null} hideSelector />
       </div>
 
       {/* KPI */}

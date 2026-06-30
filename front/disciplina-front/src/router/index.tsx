@@ -34,6 +34,7 @@ import ABEntreprisesRecues from "@/pages/rh/ABEntreprisesRecues";
 import MailTemplates from "@/pages/rh/MailTemplates";
 import Relance from "@/pages/rh/Relance";
 import DriveConfig from "@/pages/rh/DriveConfig";
+import SectorSettings from "@/pages/rh/SectorSettings";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -108,6 +109,14 @@ export const router = createBrowserRouter([
       { path: "mail", element: <MailTemplates scope="rh" /> },
       { path: "relance", element: <Relance /> },
       { path: "config-drive", element: <DriveConfig /> },
+      {
+        path: "config-secteurs",
+        element: (
+          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+            <SectorSettings />
+          </ProtectedRoute>
+        ),
+      },
     ],
   },
   {

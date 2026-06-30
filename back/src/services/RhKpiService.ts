@@ -30,6 +30,8 @@ export function bucketOf(date: Date): DateBucket {
 export interface RhKpiUserMetrics {
     userId: number;
     userName: string;
+    /** Secteur (snapshot) auquel se rattachent ces compteurs ; '' = inconnu/global. */
+    sector: string;
     metrics: RhKpiMetrics;
 }
 export interface RhKpiWeek {
@@ -53,12 +55,17 @@ export class RhKpiService {
     private repo = new RhKpiRepository();
 
     /** Incrémente/décrémente des compteurs au bucket de `date`. Best-effort : ne jette jamais. */
-    async bump(userId: number, date: Date, deltas: Partial<Record<RhKpiColumn, number>>): Promise<void> {
+    async bump(
+        userId: number,
+        sector: string | undefined,
+        date: Date,
+        deltas: Partial<Record<RhKpiColumn, number>>,
+    ): Promise<void> {
         try {
             const { year, month, week } = bucketOf(date);
-            await this.repo.bump(userId, year, month, week, deltas);
+            await this.repo.bump(userId, sector ?? '', year, month, week, deltas);
         } catch (err) {
-            logger.error({ err, userId, deltas }, 'rh_kpi bump failed');
+            logger.error({ err, userId, sector, deltas }, 'rh_kpi bump failed');
         }
     }
 
@@ -80,9 +87,12 @@ export class RhKpiService {
                 byWeek.set(r.week, wk);
             }
             addInto(wk.totals, r);
+            // Une entrée par (utilisateur × secteur) : le front agrège en général,
+            // par secteur ou par RH/responsable selon le filtre choisi.
             wk.users.push({
                 userId: r.user_id,
                 userName: r.user_name,
+                sector: r.sector ?? '',
                 metrics: RH_KPI_COLUMNS.reduce((acc, c) => { acc[c] = Number(r[c]) || 0; return acc; }, emptyRhMetrics()),
             });
         }

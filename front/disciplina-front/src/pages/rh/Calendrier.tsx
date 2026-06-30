@@ -11,6 +11,8 @@ import {
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
+import { fetchSectorSettings } from '@/api/sectorSettings'
+import { SECTEUR_VALUES } from '@/types/entreprise'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -855,7 +857,7 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
             <div className="flex items-center gap-2">
               <button onClick={() => mark('arrived')} disabled={savingAtt !== null}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-success-bg text-success' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
-                {savingAtt === 'arrived' ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />} Arrivé
+                {savingAtt === 'arrived' ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />} Venu
               </button>
               <button onClick={() => mark('noshow')} disabled={savingAtt !== null}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-danger-bg text-danger' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
@@ -917,6 +919,28 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
+
+  // Secteur principal du RH/responsable hôte = 1er secteur valide assigné.
+  const selfSectors = useAuthStore((s) => s.user?.sectors)
+  const primarySector = useMemo(
+    () => selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)),
+    [selfSectors],
+  )
+
+  // Pré-remplit le lieu depuis le secteur de l'hôte (nouveau créneau, lieu vide).
+  // Reste éditable : on n'écrase jamais une saisie ou un lieu existant.
+  useEffect(() => {
+    if (isEdit || location.trim() || !primarySector) return
+    let cancelled = false
+    fetchSectorSettings(token)
+      .then((settings) => {
+        const match = settings.find((s) => s.sector === primarySector)
+        if (!cancelled && match?.location) setLocation((cur) => (cur.trim() ? cur : match.location))
+      })
+      .catch(() => { /* pré-remplissage best-effort */ })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, primarySector, isEdit])
 
   const pickType = (t: 'entretien' | 'autre') => {
     setSlotType(t)

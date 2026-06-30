@@ -62,6 +62,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         ddl: `CREATE TABLE IF NOT EXISTS rh_kpi (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
+            sector VARCHAR(64) NOT NULL DEFAULT '',
             year SMALLINT NOT NULL,
             month TINYINT NOT NULL,
             week TINYINT NOT NULL,
@@ -73,7 +74,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             ruptures INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_rh_kpi (user_id, year, month, week),
+            UNIQUE KEY unique_rh_kpi (user_id, sector, year, month, week),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
         )`,
     },
@@ -205,6 +206,24 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             INDEX idx_relance_history_company (company_id)
         )`,
     },
+    {
+        // Lieu de rendez-vous par défaut, configurable par l'admin, pour chaque
+        // secteur géographique (Nord-Est / Ouest / Sud). Pré-rempli dans la prise
+        // de RDV selon le secteur du RH/responsable hôte (reste éditable).
+        table: 'sector_settings',
+        ddl: `CREATE TABLE IF NOT EXISTS sector_settings (
+            sector VARCHAR(64) NOT NULL PRIMARY KEY,
+            location VARCHAR(255) NOT NULL DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`,
+    },
+];
+
+/** Lieux par défaut (modifiables ensuite par l'admin via l'interface). */
+const SECTOR_SETTINGS_DEFAULTS: { sector: string; location: string }[] = [
+    { sector: 'Nord-Est', location: 'Disciplina Nord-Est — Sainte-Marie' },
+    { sector: 'Ouest', location: 'Disciplina Ouest — Saint-Paul' },
+    { sector: 'Sud', location: 'Disciplina Sud — Saint-Pierre' },
 ];
 
 export async function runMysqlMigrations(): Promise<void> {
@@ -266,6 +285,29 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info('MySQL migration: commercial_kpi unique_kpi rebuilt on user_id');
     }
 
+    // rh_kpi gained a `sector` dimension (2026-06-30): add the column and widen
+    // the unique key to (user_id, sector, year, month, week). Existing rows keep
+    // sector = '' (= "secteur inconnu / global").
+    const rhKpiSectorCol = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND COLUMN_NAME = 'sector'",
+    );
+    if (Number(rhKpiSectorCol[0]?.count) === 0) {
+        await query("ALTER TABLE rh_kpi ADD COLUMN sector VARCHAR(64) NOT NULL DEFAULT '' AFTER user_id");
+        logger.info('MySQL migration: added rh_kpi.sector');
+    }
+    // Widen unique_rh_kpi to include `sector`. The FK on user_id relies on this
+    // index, so MySQL refuses a direct DROP: create the widened index first
+    // (it also covers user_id for the FK), then drop the old one. Idempotent:
+    // keyed on whether the current unique_rh_kpi already includes `sector`.
+    const rhKpiUniqueCols = await query<{ COLUMN_NAME: string }[]>(
+        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND INDEX_NAME = 'unique_rh_kpi'",
+    );
+    if (rhKpiUniqueCols.length > 0 && !rhKpiUniqueCols.some((c) => c.COLUMN_NAME === 'sector')) {
+        await query('ALTER TABLE rh_kpi ADD UNIQUE KEY unique_rh_kpi_sector (user_id, sector, year, month, week)');
+        await query('ALTER TABLE rh_kpi DROP INDEX unique_rh_kpi');
+        logger.info('MySQL migration: widened rh_kpi unique key to include sector');
+    }
+
     // AB rework (2026-06-12): education_level was removed from the form, the
     // column must accept NULL for new rows.
     const educationLevel = await query<{ IS_NULLABLE: string }[]>(
@@ -276,5 +318,11 @@ export async function runMysqlMigrations(): Promise<void> {
             "ALTER TABLE needs_analysis MODIFY COLUMN education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') DEFAULT NULL",
         );
         logger.info('MySQL migration: needs_analysis.education_level is now nullable');
+    }
+
+    // Seed des lieux de RDV par secteur. INSERT IGNORE : ne réécrit pas une valeur
+    // déjà personnalisée par l'admin, crée seulement les lignes manquantes.
+    for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS) {
+        await query('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
     }
 }

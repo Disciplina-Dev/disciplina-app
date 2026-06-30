@@ -13,6 +13,7 @@ export class RhKpiRepository {
      */
     async bump(
         userId: number,
+        sector: string,
         year: number,
         month: number,
         week: number,
@@ -24,10 +25,10 @@ export class RhKpiRepository {
         const insertVals = RH_KPI_COLUMNS.map((c) => deltas[c] ?? 0);
         const updateSet = cols.map((c) => `${c} = GREATEST(0, ${c} + VALUES(${c}))`).join(', ');
         await query(
-            `INSERT INTO rh_kpi (user_id, year, month, week, ${RH_KPI_COLUMNS.join(', ')})
-             VALUES (?, ?, ?, ?, ${RH_KPI_COLUMNS.map(() => '?').join(', ')})
+            `INSERT INTO rh_kpi (user_id, sector, year, month, week, ${RH_KPI_COLUMNS.join(', ')})
+             VALUES (?, ?, ?, ?, ?, ${RH_KPI_COLUMNS.map(() => '?').join(', ')})
              ON DUPLICATE KEY UPDATE ${updateSet}`,
-            [userId, year, month, week, ...insertVals],
+            [userId, sector, year, month, week, ...insertVals],
         );
     }
 
