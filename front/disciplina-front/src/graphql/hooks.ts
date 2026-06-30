@@ -153,7 +153,6 @@ export function useCreateCompany() {
           type_relance: response.data.createCompany.relanceType ?? null,
           relance_channel: response.data.createCompany.relanceChannel ?? null,
           relance_template_id: response.data.createCompany.relanceTemplateId ?? null,
-          relance_channel: response.data.createCompany.relanceChannel ?? null,
         }
         addCompany(company)
       }
