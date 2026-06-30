@@ -40,6 +40,7 @@ type FormValues = {
   date_relance: string
   type_relance: string
   relance_template_id: string
+  relance_channel: string
 }
 
 interface Props {
@@ -64,7 +65,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       ? currentUser.id
       : String(initial?.proprietaire_id ?? currentUser.id)
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     defaultValues: {
       nom_commercial: initial?.nom_commercial ?? '',
       siret: initial?.siret ?? prefillSiret ?? '',
@@ -84,8 +85,11 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
         : new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
       type_relance: initial?.type_relance ? String(initial.type_relance) : '',
       relance_template_id: initial?.relance_template_id ?? '',
+      relance_channel: initial?.relance_channel ?? '',
     },
   })
+
+  const relanceChannel = watch('relance_channel')
 
   // Two-step flow state
   const [step, setStep] = useState<'lookup' | 'form'>(mode === 'create' ? 'lookup' : 'form')
@@ -149,7 +153,8 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       commercial: owner ? fullName(owner) : null,
       date_relance: values.date_relance || null,
       type_relance: values.type_relance ? Number(values.type_relance) : null,
-      relance_template_id: values.relance_template_id || null,
+      relance_template_id: values.relance_channel === 'MAIL' ? values.relance_template_id || null : null,
+      relance_channel: values.relance_channel || null,
       ...(mode === 'create' && {
         date_insertion: new Date().toISOString(),
         proprietaire_contact: USERS[currentUser.id]?.email ?? null,
@@ -419,6 +424,22 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       )}
                     </div>
 
+                    {/* Canal de relance */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700" htmlFor="relance_channel">
+                        Canal de relance
+                      </label>
+                      <select
+                        id="relance_channel"
+                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        {...register('relance_channel')}
+                      >
+                        <option value="">— Aucun —</option>
+                        <option value="PHONE">📞 Téléphone</option>
+                        <option value="MAIL">✉️ Mail</option>
+                      </select>
+                    </div>
+
                     {/* Type de relance — recalcule la date */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-medium text-gray-700" htmlFor="type_relance">
@@ -454,8 +475,8 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       />
                     </div>
 
-                    {/* Mail type de relance */}
-                    <div className="flex flex-col gap-1.5">
+                    {/* Mail type de relance — seulement si canal = MAIL */}
+                    <div className={`flex flex-col gap-1.5 ${relanceChannel === 'MAIL' ? '' : 'hidden'}`}>
                       <label className="text-sm font-medium text-gray-700" htmlFor="relance_template_id">
                         Mail type de relance
                       </label>

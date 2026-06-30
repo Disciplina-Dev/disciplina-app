@@ -1,18 +1,18 @@
-import { useState, useEffect, type ReactNode } from 'react'
-import { Bell, Mail, Building2, CalendarClock, RefreshCw } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Bell, Mail, Building2, CalendarClock, Phone } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
 import type { Entreprise } from '@/types/entreprise'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
-import { useUpdateCompany } from '@/graphql/hooks'
-import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
-import { getRelanceType, computeRelanceDate, RELANCE_TYPES } from '@/types/relance'
-import { toCompany } from '@/types/companyMapper'
+import { useAuthStore } from '@/store/authStore'
+import { getRelanceType, RELANCE_TYPES } from '@/types/relance'
+import { sendCompanyMailRelance, completePhoneRelance } from '@/api/relance'
 import { toSlug } from '@/utils/slug'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
+import PhoneRelanceModal from '@/features/portefeuille/components/PhoneRelanceModal'
 
 /** Groupe les entreprises par type de relance, dans l'ordre de RELANCE_TYPES (sans type en dernier) */
 function groupByType(list: Entreprise[]) {
@@ -38,15 +38,12 @@ function formatDate(iso: string | null | undefined) {
 export default function RelanceCommercial() {
   const navigate = useNavigate()
   const companies = usePortefeuilleStore((s) => s.companies)
+  const clearCompanyRelance = usePortefeuilleStore((s) => s.updateCompany)
   const { loading } = useInitializePortfolio(200)
-  const { update } = useUpdateCompany()
-  const templates = useCommercialMailTemplatesStore((s) => s.templates)
-  const loadMailTemplates = useCommercialMailTemplatesStore((s) => s.load)
-
-  useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
+  const token = useAuthStore((s) => s.token) ?? ''
 
   const [mailFor, setMailFor] = useState<Entreprise | null>(null)
-  const [rescheduling, setRescheduling] = useState<string | null>(null)
+  const [phoneFor, setPhoneFor] = useState<Entreprise | null>(null)
 
   // Local date (not UTC) so a relance set for "today" is due all day in the user's timezone
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -58,12 +55,28 @@ export default function RelanceCommercial() {
     .filter((c) => c.date_relance! > today)
     .sort((a, b) => a.date_relance!.localeCompare(b.date_relance!))
 
-  async function reschedule(ent: Entreprise) {
-    if (!ent.type_relance) return
-    setRescheduling(ent.id)
-    const next = { ...ent, date_relance: computeRelanceDate(ent.type_relance) }
-    await update(Number(ent.id), toCompany(next))
-    setRescheduling(null)
+  // Une fois la relance faite (mail envoyé ou appel résumé), l'entreprise sort de
+  // la liste : on vide ses champs de relance localement (le backend les a déjà NULL).
+  function dropFromList(id: string) {
+    clearCompanyRelance(id, { date_relance: null, type_relance: null, relance_template_id: null, relance_channel: null })
+  }
+
+  async function confirmPhoneRelance(ent: Entreprise, note: string) {
+    await completePhoneRelance(token, Number(ent.id), { note, typeRelance: ent.type_relance })
+    dropFromList(ent.id)
+    setPhoneFor(null)
+  }
+
+  async function sendMailRelance(ent: Entreprise, mail: { to: string; subject: string; body: string; attachments: { filename: string; contentType: string; content: string }[] }) {
+    await sendCompanyMailRelance(token, Number(ent.id), {
+      to: mail.to,
+      subject: mail.subject,
+      html: mail.body,
+      text: mail.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+      attachments: mail.attachments,
+      typeRelance: ent.type_relance,
+    })
+    dropFromList(ent.id)
   }
 
   function TypeGroup({ typeId, count, children }: { typeId: number | null; count: number; children: ReactNode }) {
@@ -91,7 +104,9 @@ export default function RelanceCommercial() {
   }
 
   function Row({ ent, isDue }: { ent: Entreprise; isDue: boolean }) {
-    const template = templates.find((t) => t.id === ent.relance_template_id)
+    // Canal choisi à la qualification. Par défaut (legacy / non renseigné) : on
+    // propose le mail si un email existe, sinon le téléphone.
+    const channel = ent.relance_channel ?? (ent.email ? 'MAIL' : 'PHONE')
     return (
       <div className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white px-5 py-4 hover:border-blue/20 transition-colors">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-light">
@@ -109,13 +124,10 @@ export default function RelanceCommercial() {
               <CalendarClock className="h-3.5 w-3.5" />
               {formatDate(ent.date_relance)}
             </span>
-            {template && (
-              <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                <Mail className="h-3 w-3" />
-                {template.name}
-              </span>
-            )}
-            {!ent.email && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+              {channel === 'MAIL' ? <><Mail className="h-3 w-3" /> Mail</> : <><Phone className="h-3 w-3" /> Téléphone</>}
+            </span>
+            {channel === 'MAIL' && !ent.email && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                 <Mail className="h-3 w-3" />
                 E-mail manquant
@@ -124,28 +136,28 @@ export default function RelanceCommercial() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {ent.type_relance && (
+          {channel === 'MAIL' ? (
             <Button
               size="sm"
-              variant="secondary"
-              leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
-              isLoading={rescheduling === ent.id}
-              onClick={() => reschedule(ent)}
-              title="Replanifier à la prochaine échéance du type"
+              variant="primary"
+              leftIcon={<Mail className="h-3.5 w-3.5" />}
+              disabled={!ent.email}
+              onClick={() => setMailFor(ent)}
+              title={ent.email ? 'Préparer et envoyer le mail de relance' : 'Pas d’email renseigné'}
             >
-              Replanifier
+              Préparer le mail
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="primary"
+              leftIcon={<Phone className="h-3.5 w-3.5" />}
+              onClick={() => setPhoneFor(ent)}
+              title="Enregistrer la relance téléphonique"
+            >
+              Marquer faite
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="primary"
-            leftIcon={<Mail className="h-3.5 w-3.5" />}
-            disabled={!ent.email}
-            onClick={() => setMailFor(ent)}
-            title={ent.email ? 'Préparer le brouillon de relance' : 'Pas d’email renseigné'}
-          >
-            Préparer le mail
-          </Button>
         </div>
       </div>
     )
@@ -209,9 +221,19 @@ export default function RelanceCommercial() {
           defaultTo={mailFor.email ?? ''}
           candidateName={mailFor.nom_commercial ?? undefined}
           scope="commercial"
-          mode="draft"
           defaultTemplateId={mailFor.relance_template_id ?? undefined}
+          sendLabel="Envoyer la relance"
+          successLabel="Relance envoyée"
+          onCustomSend={(mail) => sendMailRelance(mailFor, mail)}
           onClose={() => setMailFor(null)}
+        />
+      )}
+
+      {phoneFor && (
+        <PhoneRelanceModal
+          companyName={phoneFor.nom_commercial ?? 'Entreprise'}
+          onConfirm={(note) => confirmPhoneRelance(phoneFor, note)}
+          onClose={() => setPhoneFor(null)}
         />
       )}
     </div>

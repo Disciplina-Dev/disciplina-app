@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCreateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
+import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -456,6 +457,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const [postes, setPostes] = useState<Poste[]>([{ ...EMPTY_POSTE }])
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [previewId, setPreviewId] = useState<number | null>(null)
   // Quelle action a déclenché la soumission : télécharger le PDF ou l'envoyer en signature.
   const intentRef = useRef<'download' | 'sign'>('download')
 
@@ -649,26 +651,27 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     const createdId = response.data?.createNeedsAnalysis?.id
     if (createdId) {
       if (intentRef.current === 'sign') {
-        try {
-          await sendForSignature(createdId)
-        } catch (err) {
-          setSubmitError(
-            err instanceof Error
-              ? `AB enregistrée, mais l'envoi en signature a échoué : ${err.message}`
-              : "AB enregistrée, mais l'envoi en signature a échoué. Réessayez depuis la liste.",
-          )
-          return
-        }
-      } else {
-        try {
-          await downloadPdf(createdId)
-        } catch {
-          setSubmitError('AB enregistrée, mais le téléchargement du PDF a échoué. Réessayez depuis la liste.')
-          return
-        }
+        // L'AB est créée (BROUILLON). On ouvre l'aperçu avant l'envoi DocuSeal :
+        // l'envoi réel n'a lieu qu'à la confirmation dans SignaturePreviewModal.
+        setPreviewId(createdId)
+        return
+      }
+      try {
+        await downloadPdf(createdId)
+      } catch {
+        setSubmitError('AB enregistrée, mais le téléchargement du PDF a échoué. Réessayez depuis la liste.')
+        return
       }
     }
 
+    onSuccess()
+    onClose()
+  }
+
+  // Confirmation de l'aperçu → envoi en signature réel, puis fermeture.
+  const handleConfirmSignature = async () => {
+    if (previewId == null) return
+    await sendForSignature(previewId)
     onSuccess()
     onClose()
   }
@@ -706,6 +709,18 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      {previewId !== null && (
+        <SignaturePreviewModal
+          abId={previewId}
+          onConfirm={handleConfirmSignature}
+          onCancel={() => {
+            // AB déjà créée en BROUILLON : on ne l'envoie pas, on referme.
+            setPreviewId(null)
+            onSuccess()
+            onClose()
+          }}
+        />
+      )}
       <div className="relative flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-background shadow-xl">
 
         {/* Header */}

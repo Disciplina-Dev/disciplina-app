@@ -21,6 +21,7 @@ export const typeDefs = gql`
         createdAt: String
         relanceType: Int
         relanceTemplateId: String
+        relanceChannel: String
     }
 
     input CompanyFiltersInput {
@@ -56,6 +57,7 @@ export const typeDefs = gql`
         relanceDate: String
         relanceType: Int
         relanceTemplateId: String
+        relanceChannel: String
     }
 
     type CompanyEdge {
@@ -88,6 +90,7 @@ export const typeDefs = gql`
         createdAt: String
         relanceType: Int
         relanceTemplateId: String
+        relanceChannel: String
         allBlacklist: Boolean!
     }
 

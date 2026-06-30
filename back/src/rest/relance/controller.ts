@@ -4,7 +4,11 @@ import { GoogleGmailService } from '../../external/google/gmail.service';
 import { GoogleTokens } from '../../external/google/types';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
+import { CompaniesService } from '../../services/CompaniesService';
+import { RelanceHistoryRepository } from '../../repositories/mysql/RelanceHistoryRepository';
+import { toRelanceHistory } from '../../services/mappers/company.mapper';
 import { CandidateStatus } from '../../types/candidate.types';
+import { Role } from '../../types/user.types';
 import { signRelanceUrl, verifyRelanceUrl } from '../../external/crypto';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
@@ -13,6 +17,118 @@ import { confirmationPage } from '../shared/confirmationPage';
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
+const companiesService = new CompaniesService();
+const relanceHistoryRepo = new RelanceHistoryRepository();
+
+const RELANCE_ROLES = [Role.COMMERCIAL, Role.RESPONSABLE, Role.ADMIN];
+
+/**
+ * Vérifie l'accès à l'entreprise pour une action de relance. Renvoie l'entreprise
+ * ou null (en ayant déjà répondu en erreur). Un COMMERCIAL n'agit que sur ses entreprises.
+ */
+async function loadOwnedCompany(req: AuthRequest, res: Response, companyId: number) {
+    if (!RELANCE_ROLES.includes(req.user?.role as Role)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return null;
+    }
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+        res.status(400).json({ error: 'Invalid company ID' });
+        return null;
+    }
+    const company = await companiesService.findById(companyId);
+    if (!company) {
+        res.status(404).json({ error: 'Entreprise introuvable' });
+        return null;
+    }
+    if (req.user?.role === Role.COMMERCIAL && company.userID != null && company.userID !== req.user.id) {
+        res.status(403).json({ error: 'Forbidden' });
+        return null;
+    }
+    return company;
+}
+
+/** Relance par mail : envoie le mail (depuis le compte du commercial), historise, vide la relance. */
+export async function sendCompanyMailRelance(req: AuthRequest, res: Response): Promise<void> {
+    const companyId = Number(req.params.id);
+    const company = await loadOwnedCompany(req, res, companyId);
+    if (!company) return;
+
+    const { to, subject, html, text, attachments, typeRelance } = req.body as {
+        to?: string;
+        subject?: string;
+        html?: string;
+        text?: string;
+        attachments?: { filename: string; contentType: string; content: string }[];
+        typeRelance?: number;
+    };
+    if (!to || !subject) {
+        res.status(400).json({ error: 'Destinataire et objet requis' });
+        return;
+    }
+
+    const user = await userService.findById(req.user.id);
+    if (!user?.oauthToken || !user?.refreshToken) {
+        res.status(403).json({ error: 'Compte Google non connecté. Veuillez connecter votre compte Google.' });
+        return;
+    }
+
+    try {
+        await gmailService.sendEmail(
+            { access_token: user.oauthToken, refresh_token: user.refreshToken },
+            { to, subject, html: html ?? '', text: text ?? '', attachments },
+            persistRefreshedTokens(user.id),
+        );
+    } catch (err) {
+        logger.error({ err, companyId }, '[relance] mail send failed');
+        res.status(502).json({ error: "L'envoi du mail a échoué" });
+        return;
+    }
+
+    await relanceHistoryRepo.create({
+        companyID: companyId,
+        userID: req.user.id,
+        typeRelance: typeRelance ?? company.relanceType ?? null,
+        channel: 'MAIL',
+        subject,
+    });
+    await companiesService.clearRelance(companyId);
+
+    res.status(200).json({ success: true });
+}
+
+/** Relance téléphonique : historise le résumé d'appel et vide la relance (aucun mail). */
+export async function completePhoneRelance(req: AuthRequest, res: Response): Promise<void> {
+    const companyId = Number(req.params.id);
+    const company = await loadOwnedCompany(req, res, companyId);
+    if (!company) return;
+
+    const { note, typeRelance } = req.body as { note?: string; typeRelance?: number };
+    if (!note || !note.trim()) {
+        res.status(400).json({ error: "Le résumé de l'appel est requis" });
+        return;
+    }
+
+    await relanceHistoryRepo.create({
+        companyID: companyId,
+        userID: req.user.id,
+        typeRelance: typeRelance ?? company.relanceType ?? null,
+        channel: 'PHONE',
+        note: note.trim(),
+    });
+    await companiesService.clearRelance(companyId);
+
+    res.status(200).json({ success: true });
+}
+
+/** Historique des relances d'une entreprise. */
+export async function getCompanyRelanceHistory(req: AuthRequest, res: Response): Promise<void> {
+    const companyId = Number(req.params.id);
+    const company = await loadOwnedCompany(req, res, companyId);
+    if (!company) return;
+
+    const rows = await relanceHistoryRepo.findByCompanyId(companyId);
+    res.status(200).json(rows.map(toRelanceHistory));
+}
 
 const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
     userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
