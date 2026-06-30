@@ -6,6 +6,8 @@ const pool: Pool =
     env.NODE_ENV === 'production'
         ? mysql.createPool({
               uri: env.MYSQL_URI!,
+              // TiDB Cloud Serverless rejects insecure transport — TLS is mandatory.
+              ssl: { minVersion: 'TLSv1.2' },
               waitForConnections: true,
               connectionLimit: 10,
               queueLimit: 0,
