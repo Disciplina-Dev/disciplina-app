@@ -27,6 +27,10 @@ export class CandidateService {
         return this.repository.stats();
     }
 
+    async findByEmail(email: string): Promise<Candidate | null> {
+        return this.repository.findByEmail(email);
+    }
+
     async create(data: Partial<Candidate>): Promise<Candidate> {
         return this.repository.create(data);
     }

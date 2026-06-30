@@ -162,6 +162,18 @@ export const resolvers = {
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+
+            // Doublon : une fiche existe déjà pour cette adresse mail.
+            const email = input.identity?.email?.trim();
+            if (email) {
+                const existing = await candidateService.findByEmail(email);
+                if (existing) {
+                    throw new Error(
+                        `Une fiche candidat est déjà enregistrée pour l'adresse ${email} (${existing.identity.full_name}).`,
+                    );
+                }
+            }
+
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
             // Multi-sites : garde le single legacy training_site = 1er site choisi

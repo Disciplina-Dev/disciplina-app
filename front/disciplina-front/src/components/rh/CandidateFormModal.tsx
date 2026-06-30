@@ -408,7 +408,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       const result = isEdit
         ? await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate!._id, input })
         : await candidateGraphqlClient.mutation(CREATE_CANDIDATE, { input });
-      if (result.error) throw new Error(result.error.message);
+      if (result.error) throw new Error(result.error.message.replace(/^\[GraphQL\]\s*/, ''));
       onSaved();
       if (!isEdit) {
         const newId = result.data?.createCandidate?.id;

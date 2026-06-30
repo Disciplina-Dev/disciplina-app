@@ -171,6 +171,15 @@ export class CandidateRepository {
         return CandidateModel.find(filter).lean();
     }
 
+    // Recherche par email (exact, insensible à la casse + espaces) pour la
+    // détection de doublons à la création.
+    async findByEmail(email: string): Promise<Candidate | null> {
+        const normalized = email.trim();
+        if (!normalized) return null;
+        const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return CandidateModel.findOne({ 'identity.email': { $regex: `^${escaped}$`, $options: 'i' } }).lean();
+    }
+
     async create(data: Partial<Candidate>): Promise<Candidate> {
         const doc = new CandidateModel(data);
         await doc.save();
