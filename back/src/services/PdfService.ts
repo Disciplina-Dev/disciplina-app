@@ -853,6 +853,55 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
         }
     }
     para('Autres recommandations', c.synthesis?.other_recommendations);
+
+    // ── Clôture : lieu + date de l'analyse (saisis dans la synthèse, sans signature) ──
+    const synthLocation = c.synthesis?.location?.trim();
+    const synthDate = fmtDate(c.synthesis?.date);
+    if (synthLocation || synthDate) {
+        const closing = [synthLocation ? `Fait à ${synthLocation}` : '', synthDate ? `le ${synthDate}` : '']
+            .filter(Boolean)
+            .join(', ');
+        ensure(34);
+        doc.moveDown(0.8);
+        doc.font('Helvetica-Oblique')
+            .fillColor('#333333')
+            .fontSize(10)
+            .text(closing, left, doc.y, { width: contentW, align: 'right' });
+    }
+}
+
+// Pied de page sur chaque page : date de génération (centré) + numéro de page
+// (à droite). À appeler après le rendu, sur un document ouvert en bufferPages.
+function addPageFooters(doc: PDFKit.PDFDocument): void {
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+        doc.switchToPage(i);
+        const left = doc.page.margins.left;
+        const right = doc.page.width - doc.page.margins.right;
+        const contentW = right - left;
+        const y = doc.page.height - doc.page.margins.bottom + 16;
+        // Neutralise la marge basse le temps d'écrire dans la zone de pied de
+        // page, sinon pdfkit ajoute une page fantôme.
+        const savedBottom = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
+        doc.font('Helvetica-Oblique')
+            .fillColor('#9aa0ab')
+            .fontSize(8)
+            .text(`Document généré le ${fmtDate(new Date())} — DISCIPLINA`, left, y, {
+                width: contentW,
+                align: 'center',
+                lineBreak: false,
+            });
+        doc.font('Helvetica')
+            .fillColor('#9aa0ab')
+            .fontSize(8)
+            .text(`Page ${i - range.start + 1} / ${range.count}`, left, y, {
+                width: contentW,
+                align: 'right',
+                lineBreak: false,
+            });
+        doc.page.margins.bottom = savedBottom;
+    }
 }
 
 // ─── ClassMarker results PDF (pdfkit, pur JS — fonctionne en serverless) ───────
@@ -1072,13 +1121,18 @@ export class PdfService {
     static generateCandidatePdf(candidate: Candidate): Promise<Buffer> {
         return new Promise((resolve, reject) => {
             try {
-                const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 50, left: 50, right: 50 } });
+                const doc = new PDFDocument({
+                    size: 'A4',
+                    margins: { top: 50, bottom: 50, left: 50, right: 50 },
+                    bufferPages: true,
+                });
                 const chunks: Buffer[] = [];
                 doc.on('data', (d: Buffer) => chunks.push(d));
                 doc.on('end', () => resolve(Buffer.concat(chunks)));
                 doc.on('error', reject);
 
                 renderCandidatePdf(doc, candidate);
+                addPageFooters(doc);
                 doc.end();
             } catch (e) {
                 reject(e);
