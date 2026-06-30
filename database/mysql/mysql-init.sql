@@ -35,7 +35,10 @@ VALUES
     (7, 'elsa.commercial@disciplina.re', 'Elsa', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
     (8, 'laureen-lee.commercial@disciplina.re', 'Laureen-Lee', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
     (9, 'brice.commercial@disciplina.re', 'Brice', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
-    (10, 'lamia.commercial@disciplina.re', 'Lamia', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL');
+    (10, 'lamia.commercial@disciplina.re', 'Lamia', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
+    (11, 'lucas.commercial@disciplina.re', 'Lucas', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
+    (12, 'martin.commercial@disciplina.re', 'Martin', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
+    (13, 'marion.commercial@disciplina.re', 'Marion', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL');
 
 CREATE TABLE IF NOT EXISTS companies (
     id INT AUTO_INCREMENT PRIMARY KEY,
