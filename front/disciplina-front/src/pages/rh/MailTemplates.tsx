@@ -35,6 +35,7 @@ const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boo
   { token: 'titre', label: 'Titre du rendez-vous', example: 'Entretien DISCIPLINA' },
   { token: 'duree', label: 'Durée', example: '30 minutes' },
   { token: 'hote', label: 'Nom de l’hôte', example: 'Jean Martin' },
+  { token: 'lien', label: 'Lien de réservation (proposition d’entretien)', example: 'https://app.disciplina.re/booking/xxxx' },
 ]
 
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {

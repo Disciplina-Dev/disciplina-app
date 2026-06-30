@@ -224,6 +224,8 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
                 to: event.attendeeEmail,
                 title: event.summary,
                 bookingUrl: `${env.FRONTEND_BASE_URL}/booking/${settings.slug}`,
+                propositionSubject: settings.propositionSubject,
+                propositionBody: settings.propositionBody,
             });
         }
         res.json({ event });

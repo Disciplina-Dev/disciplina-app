@@ -10,6 +10,13 @@ import { env } from '../config/env';
 export class GoogleNotConnectedError extends Error {}
 export class TemplateNotFoundError extends Error {}
 
+/**
+ * Les modèles RH sont communs à tous les RH/responsables : ils sont stockés
+ * sous un propriétaire partagé unique. (Le scope commercial reste par-user.)
+ * La signature, elle, reste propre à chaque compte.
+ */
+export const SHARED_RH_USER_ID = 0;
+
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
     id: string;
@@ -47,9 +54,19 @@ export class MailTemplateService {
         );
     }
 
+    // Propriétaire de stockage : partagé pour le scope RH, sinon le user lui-même.
+    private ownerFor(userId: number, scope: MailTemplateScope): number {
+        return scope === 'rh' ? SHARED_RH_USER_ID : userId;
+    }
+
+    // Accès à un modèle : les modèles RH sont communs, les autres sont privés.
+    private canAccess(doc: { scope: string; user_id: number }, userId: number): boolean {
+        return doc.scope === 'rh' || doc.user_id === userId;
+    }
+
     // ── Modèles (CRUD) ───────────────────────────────────────────────────
     async list(userId: number, scope: MailTemplateScope): Promise<MailTemplateDTO[]> {
-        const docs = await MailTemplateModel.find({ user_id: userId, scope })
+        const docs = await MailTemplateModel.find({ user_id: this.ownerFor(userId, scope), scope })
             .sort({ created_at: 1 })
             .lean<MailTemplate[]>();
         return docs.map(toDTO);
@@ -63,7 +80,7 @@ export class MailTemplateService {
         const now = new Date();
         const doc = await MailTemplateModel.create({
             _id: randomUUID(),
-            user_id: userId,
+            user_id: this.ownerFor(userId, scope),
             scope,
             name: data.name,
             subject: data.subject,
@@ -80,8 +97,10 @@ export class MailTemplateService {
         id: string,
         data: { name: string; subject: string; body: string },
     ): Promise<MailTemplateDTO> {
+        const existing = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        if (!existing || !this.canAccess(existing, userId)) throw new TemplateNotFoundError();
         const doc = await MailTemplateModel.findOneAndUpdate(
-            { _id: id, user_id: userId },
+            { _id: id },
             { $set: { name: data.name, subject: data.subject, body: data.body, updated_at: new Date() } },
             { new: true },
         ).lean<MailTemplate>();
@@ -90,8 +109,8 @@ export class MailTemplateService {
     }
 
     async remove(userId: number, id: string): Promise<void> {
-        const doc = await MailTemplateModel.findOne({ _id: id, user_id: userId }).lean<MailTemplate>();
-        if (!doc) throw new TemplateNotFoundError();
+        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
         // Nettoyage de la PJ sur Drive (best-effort).
         if (doc.attachment) {
             try {
@@ -101,7 +120,7 @@ export class MailTemplateService {
                 /* ignore : on supprime quand même le modèle */
             }
         }
-        await MailTemplateModel.deleteOne({ _id: id, user_id: userId });
+        await MailTemplateModel.deleteOne({ _id: id });
     }
 
     // ── Pièce jointe (1 par modèle, zippée sur Drive) ────────────────────
@@ -112,8 +131,8 @@ export class MailTemplateService {
         contentType: string,
         content: Buffer,
     ): Promise<MailTemplateDTO> {
-        const doc = await MailTemplateModel.findOne({ _id: id, user_id: userId });
-        if (!doc) throw new TemplateNotFoundError();
+        const doc = await MailTemplateModel.findOne({ _id: id });
+        if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
 
         const drive = await this.driveForUser(userId);
         // Remplace l'ancienne PJ si présente.
@@ -140,8 +159,8 @@ export class MailTemplateService {
     }
 
     async removeAttachment(userId: number, id: string): Promise<MailTemplateDTO> {
-        const doc = await MailTemplateModel.findOne({ _id: id, user_id: userId });
-        if (!doc) throw new TemplateNotFoundError();
+        const doc = await MailTemplateModel.findOne({ _id: id });
+        if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
         if (doc.attachment?.driveFileId) {
             try {
                 const drive = await this.driveForUser(userId);
@@ -160,8 +179,8 @@ export class MailTemplateService {
         userId: number,
         id: string,
     ): Promise<{ filename: string; contentType: string; content: string }> {
-        const doc = await MailTemplateModel.findOne({ _id: id, user_id: userId }).lean<MailTemplate>();
-        if (!doc || !doc.attachment) throw new TemplateNotFoundError();
+        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        if (!doc || !this.canAccess(doc, userId) || !doc.attachment) throw new TemplateNotFoundError();
         const drive = await this.driveForUser(userId);
         const { buffer } = await drive.downloadFile(doc.attachment.driveFileId);
         const original = gunzipSync(buffer);

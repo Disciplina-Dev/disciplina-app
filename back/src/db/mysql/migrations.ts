@@ -26,6 +26,9 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     // Booking: modèle de mail de confirmation choisi par l'hôte (copié depuis ses modèles RH).
     { table: 'booking_settings', column: 'confirmation_subject', definition: 'VARCHAR(255) DEFAULT NULL' },
     { table: 'booking_settings', column: 'confirmation_body', definition: 'TEXT DEFAULT NULL' },
+    // Booking: modèle de mail de proposition d'entretien (lien de réservation envoyé au candidat).
+    { table: 'booking_settings', column: 'proposition_subject', definition: 'VARCHAR(255) DEFAULT NULL' },
+    { table: 'booking_settings', column: 'proposition_body', definition: 'TEXT DEFAULT NULL' },
     // Historique des modifications enrichi : auteur de la modif + statut avant changement.
     { table: 'company_history', column: 'modified_by', definition: 'INT DEFAULT NULL' },
     { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },

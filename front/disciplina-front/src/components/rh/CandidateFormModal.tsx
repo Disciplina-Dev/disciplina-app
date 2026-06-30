@@ -279,13 +279,19 @@ function toServerInput(f: ABForm) {
 interface CandidateFormModalProps {
   /** Si fourni → mode édition (pré-rempli + mutation update). Sinon → création. */
   candidate?: Candidate;
+  /** Valeurs pré-remplies en création (ex: depuis un entretien du calendrier). */
+  prefill?: { fullName?: string; email?: string; phone?: string };
   onClose: () => void;
   onSaved: () => void;
+  /** Appelé après création avec l'id du nouveau candidat (ex: pour rediriger vers sa fiche). */
+  onCreated?: (id: string) => void;
 }
 
-export default function CandidateFormModal({ candidate, onClose, onSaved }: CandidateFormModalProps) {
+export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated }: CandidateFormModalProps) {
   const isEdit = !!candidate;
-  const [form, setForm] = useState<ABForm>(() => candidate ? candidateToForm(candidate) : emptyABForm());
+  const [form, setForm] = useState<ABForm>(() =>
+    candidate ? candidateToForm(candidate) : { ...emptyABForm(), ...prefill },
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showClassMarker, setShowClassMarker] = useState(false);
@@ -354,6 +360,10 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
         : await candidateGraphqlClient.mutation(CREATE_CANDIDATE, { input });
       if (result.error) throw new Error(result.error.message);
       onSaved();
+      if (!isEdit) {
+        const newId = result.data?.createCandidate?.id;
+        if (newId && onCreated) onCreated(newId);
+      }
       onClose();
     } catch (err: any) {
       setError(err.message ?? (isEdit ? 'Erreur lors de la modification' : 'Erreur lors de la création'));
