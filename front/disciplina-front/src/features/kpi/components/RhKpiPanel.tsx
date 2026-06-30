@@ -173,15 +173,6 @@ export default function RhKpiPanel({
           <p className="text-sm text-gray-500">{periodLabel} · {scopeLabel} · {sectorLabel}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Granularité */}
-          <div className="flex rounded-[10px] border border-gray-200 bg-white p-0.5">
-            {(['week', 'month', 'year'] as Granularity[]).map((g) => (
-              <button key={g} onClick={() => setGran(g)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${gran === g ? 'bg-purple text-white' : 'text-gray-500 hover:text-gray-800'}`}>
-                {g === 'week' ? 'Semaine' : g === 'month' ? 'Mois' : 'Année'}
-              </button>
-            ))}
-          </div>
           {gran === 'week' && (
             <select value={week} onChange={(e) => setWeek(Number(e.target.value))} className={selectCls}>
               {Array.from({ length: 53 }, (_, i) => i + 1).map((w) => (
@@ -219,6 +210,15 @@ export default function RhKpiPanel({
           <button onClick={load} className="flex items-center gap-2 rounded-[10px] border border-gray-100 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50">
             <RefreshCw size={16} />
           </button>
+          {/* Granularité — en dernier (calé à droite) pour ne pas se décaler quand le select valeur apparaît. */}
+          <div className="flex rounded-[10px] border border-gray-200 bg-white p-0.5">
+            {(['week', 'month', 'year'] as Granularity[]).map((g) => (
+              <button key={g} onClick={() => setGran(g)}
+                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${gran === g ? 'bg-purple text-white' : 'text-gray-500 hover:text-gray-800'}`}>
+                {g === 'week' ? 'Semaine' : g === 'month' ? 'Mois' : 'Année'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
