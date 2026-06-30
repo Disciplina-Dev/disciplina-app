@@ -52,11 +52,25 @@ async function uploadResultPdf(candidate: Candidate): Promise<void> {
 
     const pdfBuffer = await PdfService.generateClassMarkerPdf(candidate);
     const safeName = candidate.identity.full_name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
-    const fileName = `Resultats_test_${safeName || 'candidat'}.pdf`;
+    // Nom unique par passage : test + horodatage. Évite l'écrasement / les
+    // fichiers homonymes orphelins dans Drive, garde la trace de chaque test.
+    const last = candidate.classmarker;
+    const safeTest = (last?.test_name ?? '').replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
+    const stamp = (last?.completed_at ? new Date(last.completed_at) : new Date())
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[:T]/g, '-');
+    const fileName = `Resultats_test_${safeName || 'candidat'}${safeTest ? `_${safeTest}` : ''}_${stamp}.pdf`;
 
     const { webViewLink } = await driveService.uploadFile(fileName, 'application/pdf', pdfBuffer, folderId);
 
     update['classmarker.pdf_link'] = webViewLink;
+    // Relie aussi le PDF à la dernière entrée d'historique (celle qu'on vient
+    // de pousser) pour que chaque test garde son propre lien PDF.
+    const historyLen = candidate.classmarker_history?.length ?? 0;
+    if (historyLen > 0) {
+        update[`classmarker_history.${historyLen - 1}.pdf_link`] = webViewLink;
+    }
     await CandidateModel.findByIdAndUpdate(candidate._id, { $set: update });
 
     // Pousse le lien PDF aux clients SSE déjà connectés : le 1er notify (score)
@@ -122,7 +136,7 @@ router.post(
             console.log('[classmarker] updating candidate', candidateId);
             const updated = await CandidateModel.findByIdAndUpdate(
                 candidateId,
-                { $set: { classmarker: data } },
+                { $set: { classmarker: data }, $push: { classmarker_history: data } },
                 { returnDocument: 'after' },
             );
             // eslint-disable-next-line no-console
@@ -203,12 +217,14 @@ router.get('/classmarker/stream', (req: Request, res: Response) => {
 router.get('/classmarker/result/:candidateId', async (req: Request, res: Response) => {
     const { candidateId } = req.params;
     try {
-        const doc = await CandidateModel.findById(candidateId).select('classmarker').lean();
+        const doc = await CandidateModel.findById(candidateId)
+            .select('classmarker classmarker_history')
+            .lean();
         if (!doc) {
             res.status(404).json({ error: 'Not found' });
             return;
         }
-        res.json({ result: doc.classmarker ?? null });
+        res.json({ result: doc.classmarker ?? null, history: doc.classmarker_history ?? [] });
     } catch (err) {
         logger.error(err, 'ClassMarker result fetch failed');
         res.status(500).json({ error: 'Internal error' });

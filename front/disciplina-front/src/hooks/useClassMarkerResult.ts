@@ -4,6 +4,7 @@ import { fetchClassMarkerResult, classMarkerStreamUrl } from '@/api/classmarker'
 
 export function useClassMarkerResult(candidateId: string | undefined) {
   const [result, setResult] = useState<ClassMarkerResult | null>(null);
+  const [history, setHistory] = useState<ClassMarkerResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -15,9 +16,13 @@ export function useClassMarkerResult(candidateId: string | undefined) {
     setLoading(true);
 
     fetchClassMarkerResult(candidateId)
-      .then(r => {
-        console.log('[ClassMarker] résultat initial depuis DB:', r);
-        if (!cancelled) setResult(r);
+      .then(bundle => {
+        console.log('[ClassMarker] résultat initial depuis DB:', bundle);
+        if (!cancelled && bundle) {
+          setResult(bundle.result);
+          // Plus récent en premier pour l'affichage.
+          setHistory([...bundle.history].reverse());
+        }
       })
       .catch((err) => { console.warn('[ClassMarker] fetch initial échoué:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -32,6 +37,15 @@ export function useClassMarkerResult(candidateId: string | undefined) {
       try {
         const data = JSON.parse(e.data) as ClassMarkerResult;
         setResult(prev => ({ ...(prev ?? {}), ...data }));
+        // Un payload avec percentage = nouveau test → on l'ajoute en tête.
+        // Sinon (ex: pdf_link seul) → on patche l'entrée la plus récente.
+        if (typeof data.percentage === 'number') {
+          setHistory(prev => [data, ...prev]);
+        } else {
+          setHistory(prev =>
+            prev.length ? [{ ...prev[0], ...data }, ...prev.slice(1)] : prev,
+          );
+        }
       } catch { /* skip malformed */ }
     };
     es.onerror = (e) => { console.warn('[ClassMarker] SSE erreur (reconnexion auto):', e); };
@@ -42,5 +56,5 @@ export function useClassMarkerResult(candidateId: string | undefined) {
     };
   }, [candidateId]);
 
-  return { result, loading };
+  return { result, history, loading };
 }
