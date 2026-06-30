@@ -464,11 +464,18 @@ export const typeDefs = gql`
         tpFolders: [DriveTpFolderInput!]!
     }
 
+    type CandidateEmailCheck {
+        exists: Boolean!
+        id: String
+        fullName: String
+    }
+
     type Query {
         candidateStats: CandidateStats!
         candidates: [Candidate!]!
         candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate
+        candidateByEmail(email: String!): CandidateEmailCheck!
         candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!

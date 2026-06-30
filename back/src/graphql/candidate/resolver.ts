@@ -127,6 +127,14 @@ export const resolvers = {
                 throw err;
             }
         },
+        // Vérification de doublon en direct : existe-t-il déjà une fiche pour cet email ?
+        candidateByEmail: async (_: unknown, { email }: { email: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            const existing = await candidateService.findByEmail(email);
+            return existing
+                ? { exists: true, id: existing._id, fullName: existing.identity.full_name }
+                : { exists: false, id: null, fullName: null };
+        },
         matchCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidate = await candidateService.findById(id);

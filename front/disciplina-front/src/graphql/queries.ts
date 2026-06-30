@@ -374,6 +374,16 @@ export const UPDATE_DRIVE_FOLDER_CONFIG = gql`
   }
 `
 
+export const CHECK_CANDIDATE_EMAIL = gql`
+  query CandidateByEmail($email: String!) {
+    candidateByEmail(email: $email) {
+      exists
+      id
+      fullName
+    }
+  }
+`
+
 export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {

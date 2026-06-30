@@ -9,7 +9,7 @@ import MultiSelectField from '@/components/ui/MultiSelectField';
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal';
 import { splitFullName } from '@/utils/classmarker';
 import { candidateGraphqlClient } from '@/graphql/client';
-import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL } from '@/graphql/queries';
+import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL } from '@/graphql/queries';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
@@ -331,6 +331,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showClassMarker, setShowClassMarker] = useState(false);
+  // Doublon email détecté en direct (autre fiche que celle en cours d'édition).
+  const [emailDup, setEmailDup] = useState<{ fullName: string } | null>(null);
   const splitName = splitFullName(form.fullName);
   const canGenerateLinks = splitName.first.length > 0 && splitName.last.length > 0;
 
@@ -367,6 +369,30 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     setForm(prev => ({ ...prev, skills: reconcileSkills(prev.skills, prev.tpTypes) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tpKey]);
+
+  // Vérifie en direct (débounce 400 ms) si une fiche existe déjà pour cet email.
+  useEffect(() => {
+    const email = form.email.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailDup(null);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await candidateGraphqlClient.query(
+          CHECK_CANDIDATE_EMAIL,
+          { email },
+          { requestPolicy: 'network-only' },
+        );
+        const r = res.data?.candidateByEmail;
+        // Ignore la fiche en cours d'édition (son propre email).
+        setEmailDup(r?.exists && r.id !== candidate?._id ? { fullName: r.fullName } : null);
+      } catch {
+        setEmailDup(null);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.email, candidate?._id]);
 
   const set = <K extends keyof ABForm>(key: K, val: ABForm[K]) =>
     setForm(prev => ({ ...prev, [key]: val }));
@@ -488,7 +514,15 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <InputField id="cn-fullname" label="Nom et prénom *" placeholder="Ex: Jean Dupont" required value={form.fullName} onChange={e => set('fullName', e.target.value)} />
           <InputField id="cn-ssn" label="Numéro de sécurité sociale" placeholder="Ex: 1 85 12 75 116 001 23" value={form.socialSecurityNumber} onChange={e => set('socialSecurityNumber', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
-            <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
+            <div>
+              <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
+              {emailDup && (
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-red-500">
+                  <AlertCircle size={13} className="shrink-0" />
+                  Une fiche candidat est déjà enregistrée pour cet email ({emailDup.fullName}).
+                </p>
+              )}
+            </div>
             <InputField id="cn-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
             <InputField id="cn-dob" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={e => {
               const dob = e.target.value;
@@ -718,7 +752,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           >
             Générer les liens de test
           </Button>
-          <Button form="ab-form" type="submit" isLoading={loading} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
+          <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
             {isEdit ? 'Enregistrer les modifications' : 'Créer le candidat'}
           </Button>
         </div>
