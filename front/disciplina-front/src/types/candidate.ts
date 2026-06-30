@@ -1,9 +1,9 @@
 export enum TitleProfessionalType {
-    AD = "AD",       // Administrateur
-    CC = "CC",       // Chef de projet
-    NTC = "NTC",     // Négociation, Technico-Commercial
-    REM = "REM",     // Responsable d'Établissement Médico-Social
-    SA = "SA"        // Secrétaire d'Administration
+    AD = "AD",       // Assistante de Direction
+    CC = "CC",       // Conseiller Commercial
+    NTC = "NTC",     // Négociateur technico-commercial
+    REM = "REM",     // Responsable d'établissement Marchand
+    SA = "SA"        // SA
 }
 
 export enum CandidateStatus {

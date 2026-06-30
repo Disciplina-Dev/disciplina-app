@@ -197,10 +197,10 @@ export const CANDIDATE_TEMPLATES: Record<TitleProfessionalType, CandidateTemplat
 
 export const TP_TYPE_LABELS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.CC]: 'Conseiller Commercial',
-  [TitleProfessionalType.SA]: 'Secrétaire Assistant',
-  [TitleProfessionalType.AD]: 'Assistant de Direction',
-  [TitleProfessionalType.NTC]: 'Négociateur Technico-Commercial',
-  [TitleProfessionalType.REM]: "Responsable d'Établissement Marchand",
+  [TitleProfessionalType.SA]: 'SA',
+  [TitleProfessionalType.AD]: 'Assistante de Direction',
+  [TitleProfessionalType.NTC]: 'Négociateur technico-commercial',
+  [TitleProfessionalType.REM]: "Responsable d'établissement Marchand",
 }
 
 export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {

@@ -47,7 +47,7 @@ export default function CommercialLayout() {
 
         {/* Main nav */}
         <nav className="mt-2 flex flex-col gap-1 px-3">
-          <NavItem to="/commercial" end icon={<LayoutDashboard size={18} />} label="Dashboard" />
+          <NavItem to="/commercial" end icon={<LayoutDashboard size={18} />} label="Tableau de bord" />
           <NavItem to="/commercial/portefeuille" icon={<Building2 size={18} />} label="Portefeuille" />
           <NavItem to="/commercial/liste-noire" icon={<ShieldOff size={18} />} label="Liste noire" />
           <NavItem to="/commercial/sourcing" icon={<Search size={18} />} label="Sourcing SIRET" />

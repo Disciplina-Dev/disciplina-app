@@ -119,11 +119,11 @@ function sexLabel(raw: string | null | undefined): string {
 function tpLabel(raw: string | null | undefined): string {
   if (!raw) return '—'
   const map: Record<string, string> = {
-    AD: 'AD – Administrateur',
-    CC: 'CC – Chef de projet',
-    NTC: 'NTC – Négociation Technico-Commercial',
-    REM: 'REM – Resp. Établissement Médico-Social',
-    SA: 'SA – Secrétaire d\'Administration',
+    AD: 'AD – Assistante de Direction',
+    CC: 'CC – Conseiller Commercial',
+    NTC: 'NTC – Négociateur technico-commercial',
+    REM: "REM – Responsable d'établissement Marchand",
+    SA: 'SA',
   }
   return map[raw] ?? raw
 }
