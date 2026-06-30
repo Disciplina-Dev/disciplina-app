@@ -1016,7 +1016,7 @@ export default function FicheCandidat() {
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteCandidate}
-        candidateName={formData.full_name}
+        candidateName={formData.identity.full_name}
         isDeleting={isDeleting}
       />
     </>
