@@ -7,7 +7,7 @@ import { KPI_METRICS, MONTH_FULL_LABELS, emptyMetrics } from '../config'
 interface Props {
   users: KpiUserSummary[]
   totals: KpiMetrics
-  onEdit: (userName: string, month: number, metrics: KpiMetrics) => void
+  onEdit: (userId: number, userName: string, month: number, metrics: KpiMetrics) => void
 }
 
 /**
@@ -65,9 +65,9 @@ export default function KpiTable({ users, totals, onEdit }: Props) {
                         archivé
                       </span>
                     )}
-                    {month !== 0 && (
+                    {month !== 0 && user.userId != null && (
                       <button
-                        onClick={() => onEdit(user.userName, month, metrics)}
+                        onClick={() => onEdit(user.userId!, user.userName, month, metrics)}
                         className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                         title={`Modifier ${MONTH_FULL_LABELS[month - 1]} pour ${user.userName}`}
                       >

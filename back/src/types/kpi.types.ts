@@ -28,8 +28,10 @@ export interface KpiRow {
 }
 
 export interface KpiUpsertInput {
+    /** Requis pour la saisie manuelle ; rempli après résolution du nom à l'import. */
     user_id?: number | null;
-    user_name: string;
+    /** Snapshot d'affichage ; rempli côté serveur depuis le user en saisie manuelle. */
+    user_name?: string;
     year: number;
     month: number;
     /** 0 (default) = monthly row, 1-53 = weekly row */

@@ -6,7 +6,7 @@ import { KPI_METRICS, MONTH_FULL_LABELS } from '../config'
 
 interface Props {
   weeks: KpiWeekEntry[]
-  onEdit: (userName: string, month: number, week: number, metrics: KpiMetrics) => void
+  onEdit: (userId: number, userName: string, month: number, week: number, metrics: KpiMetrics) => void
 }
 
 function MetricCells({ metrics, muted = false }: { metrics: KpiMetrics; muted?: boolean }) {
@@ -124,13 +124,15 @@ function WeekRows({
             </td>
             <MetricCells metrics={user.metrics} muted />
             <td className="px-2">
-              <button
-                onClick={() => onEdit(user.userName, entry.month, entry.week, user.metrics)}
-                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                title="Modifier cette semaine"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+              {user.userId != null && (
+                <button
+                  onClick={() => onEdit(user.userId!, user.userName, entry.month, entry.week, user.metrics)}
+                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  title="Modifier cette semaine"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
             </td>
           </tr>
         ))}

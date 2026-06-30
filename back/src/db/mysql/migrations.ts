@@ -96,7 +96,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             visites_terrain INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_kpi (user_name, year, month, week, site),
+            UNIQUE KEY unique_kpi (user_id, year, month, week, site),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
         )`,
     },
@@ -220,6 +220,26 @@ export async function runMysqlMigrations(): Promise<void> {
             'ALTER TABLE commercial_kpi DROP INDEX unique_kpi, ADD UNIQUE KEY unique_kpi (user_name, year, month, week, site)',
         );
         logger.info('MySQL migration: added commercial_kpi.week and widened unique_kpi');
+    }
+
+    // commercial_kpi identity moved from user_name to user_id (2026-06-29): KPI
+    // rows are now tied to a real user; user_name kept only as a display snapshot.
+    // Rebuild unique_kpi on (user_id, …). Legacy rows with user_id NULL keep
+    // surviving user deletion (MySQL treats NULLs as distinct in unique keys).
+    const uniqueKpiCols = await query<{ COLUMN_NAME: string }[]>(
+        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'commercial_kpi' AND INDEX_NAME = 'unique_kpi'",
+    );
+    if (uniqueKpiCols.some((c) => c.COLUMN_NAME === 'user_name')) {
+        // Drop rows that would collide on the new key (same user_id+période), keeping the newest.
+        await query(`
+            DELETE c1 FROM commercial_kpi c1
+            JOIN commercial_kpi c2
+              ON c1.user_id = c2.user_id AND c1.year = c2.year AND c1.month = c2.month
+             AND c1.week = c2.week AND c1.site = c2.site AND c1.id < c2.id
+            WHERE c1.user_id IS NOT NULL
+        `);
+        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi, ADD UNIQUE KEY unique_kpi (user_id, year, month, week, site)');
+        logger.info('MySQL migration: commercial_kpi unique_kpi rebuilt on user_id');
     }
 
     // AB rework (2026-06-12): education_level was removed from the form, the

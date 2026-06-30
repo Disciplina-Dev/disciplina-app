@@ -53,7 +53,8 @@ export interface KpiWeeklyDetail {
 }
 
 export interface KpiUpsertInput {
-  user_name: string;
+  /** Commercial ciblé : un vrai user (plus de nom libre). */
+  user_id: number;
   year: number;
   month: number;
   /** 0 = ligne mensuelle, 1-53 = semaine */
@@ -65,6 +66,15 @@ export interface KpiUpsertInput {
 export interface KpiImportResult {
   imported: number;
   errors: string[];
+  /** Noms Excel sans user correspondant : lignes ignorées. */
+  unmatched: string[];
+}
+
+export interface KpiSelectableUser {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: string;
 }
 
 async function kpiFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
@@ -80,6 +90,12 @@ async function kpiFetch(token: string, path: string, init?: RequestInit): Promis
     throw new Error(body.error ?? `Requête KPI échouée (${res.status})`);
   }
   return res;
+}
+
+export async function fetchKpiUsers(token: string): Promise<KpiSelectableUser[]> {
+  const res = await kpiFetch(token, '/users');
+  const data = (await res.json()) as { users: KpiSelectableUser[] };
+  return data.users;
 }
 
 export async function fetchKpiYears(token: string): Promise<number[]> {

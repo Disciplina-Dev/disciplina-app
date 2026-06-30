@@ -1,10 +1,20 @@
-import { lazy, Suspense, useState } from 'react'
-import { BarChart3, Plus, ShieldAlert, AlertTriangle, CheckCircle2, PhoneCall } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { BarChart3, Plus, ShieldAlert, AlertTriangle, CheckCircle2, PhoneCall, Users } from 'lucide-react'
 
-import { useCurrentUser, UserRole, USERS } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, UserRole, USERS } from '@/store/authStore'
 import { useContactLogStats } from '@/graphql/hooks'
-import { KPI_SITES, type KpiImportResult, type KpiMetricColumn, type KpiMetrics, type KpiSite } from '@/api/kpi'
-import { KPI_STATUS_METRICS } from '@/features/kpi/config'
+import {
+  fetchKpiUsers,
+  KPI_SITES,
+  type KpiAnnualSummary,
+  type KpiImportResult,
+  type KpiMetricColumn,
+  type KpiMetrics,
+  type KpiSelectableUser,
+  type KpiSite,
+  type KpiWeeklyDetail,
+} from '@/api/kpi'
+import { KPI_STATUS_METRICS, SITE_LABELS, emptyMetrics } from '@/features/kpi/config'
 import { useKpiDashboard } from '@/features/kpi/useKpiDashboard'
 import KpiSummaryCards from '@/features/kpi/components/KpiSummaryCards'
 import KpiTable from '@/features/kpi/components/KpiTable'
@@ -87,6 +97,8 @@ function ContactStatsSection() {
 function KpiDashboard() {
   const currentYear = new Date().getFullYear()
 
+  const token = useAuthStore((s) => s.token)
+
   const [year, setYear] = useState(currentYear)
   const [site, setSite] = useState<KpiSite>('NORD')
   const [chartMode, setChartMode] = useState<ChartMode>('commercial')
@@ -95,8 +107,49 @@ function KpiDashboard() {
   const [visibleStatuses, setVisibleStatuses] = useState<KpiMetricColumn[]>(['count_oui'])
   const [modalDraft, setModalDraft] = useState<KpiEntryDraft | null | 'new'>(null)
   const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  // null = tous les commerciaux du secteur ; sinon vue d'un seul commercial
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
+  const [selectableUsers, setSelectableUsers] = useState<KpiSelectableUser[]>([])
 
   const { years, summary, previousSummary, weekly, fetching, error, refresh } = useKpiDashboard(year, site)
+
+  // Liste des commerciaux sélectionnables (saisie manuelle) — chargée une fois.
+  useEffect(() => {
+    if (!token) return
+    fetchKpiUsers(token)
+      .then(setSelectableUsers)
+      .catch(() => setSelectableUsers([]))
+  }, [token])
+
+  // Changer de secteur/année réinitialise la sélection d'un commercial.
+  const selectSite = (s: KpiSite) => {
+    setSite(s)
+    setSelectedUserId(null)
+  }
+  const selectYear = (y: number) => {
+    setYear(y)
+    setSelectedUserId(null)
+  }
+
+  // Vue filtrée sur un seul commercial (ou tout le secteur si null).
+  const viewSummary = useMemo<KpiAnnualSummary | null>(() => {
+    if (!summary || selectedUserId == null) return summary
+    const user = summary.users.find((u) => u.userId === selectedUserId)
+    return { ...summary, users: user ? [user] : [], totals: user?.totals ?? emptyMetrics() }
+  }, [summary, selectedUserId])
+
+  const viewWeekly = useMemo<KpiWeeklyDetail | null>(() => {
+    if (!weekly || selectedUserId == null) return weekly
+    return {
+      ...weekly,
+      weeks: weekly.weeks
+        .map((w) => {
+          const user = w.users.find((u) => u.userId === selectedUserId)
+          return { ...w, users: user ? [user] : [], totals: user?.metrics ?? emptyMetrics() }
+        })
+        .filter((w) => w.users.length > 0),
+    }
+  }, [weekly, selectedUserId])
 
   const toggleStatus = (key: KpiMetricColumn) => {
     setVisibleStatuses((prev) =>
@@ -114,17 +167,23 @@ function KpiDashboard() {
             kind: 'error',
             text: `${result.imported} ligne(s) importée(s), ${result.errors.length} avertissement(s) : ${result.errors.slice(0, 3).join(' · ')}`,
           }
-        : { kind: 'success', text: `${result.imported} ligne(s) importée(s) avec succès.` },
+        : {
+            kind: 'success',
+            text:
+              result.unmatched.length > 0
+                ? `${result.imported} ligne(s) importée(s). Non rattaché(s) à un user (ignoré) : ${result.unmatched.join(', ')}`
+                : `${result.imported} ligne(s) importée(s) avec succès.`,
+          },
     )
     refresh()
   }
 
-  const handleEditMonth = (userName: string, month: number, metrics: KpiMetrics) => {
-    setModalDraft({ userName, month, week: 0, metrics })
+  const handleEditMonth = (userId: number, userName: string, month: number, metrics: KpiMetrics) => {
+    setModalDraft({ userId, userName, month, week: 0, metrics })
   }
 
-  const handleEditWeek = (userName: string, month: number, week: number, metrics: KpiMetrics) => {
-    setModalDraft({ userName, month, week, metrics })
+  const handleEditWeek = (userId: number, userName: string, month: number, week: number, metrics: KpiMetrics) => {
+    setModalDraft({ userId, userName, month, week, metrics })
   }
 
   if (fetching && !summary) {
@@ -152,7 +211,9 @@ function KpiDashboard() {
               Dashboard KPI
             </h1>
             <p className="mt-1.5 text-[13px] text-gray-400">
-              Résultats annuels par commercial — site {site}, {year}.
+              {selectedUserId != null && viewSummary?.users[0]
+                ? `${viewSummary.users[0].userName} — secteur ${SITE_LABELS[site]}, ${year}.`
+                : `Résultats annuels par commercial — secteur ${SITE_LABELS[site]}, ${year}.`}
             </p>
           </div>
 
@@ -178,7 +239,7 @@ function KpiDashboard() {
             {selectableYears.map((y) => (
               <button
                 key={y}
-                onClick={() => setYear(y)}
+                onClick={() => selectYear(y)}
                 className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
                   y === year ? 'bg-blue text-white' : 'text-gray-500 hover:bg-gray-50'
                 }`}
@@ -192,16 +253,49 @@ function KpiDashboard() {
             {KPI_SITES.map((s) => (
               <button
                 key={s}
-                onClick={() => setSite(s)}
+                onClick={() => selectSite(s)}
                 className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
                   s === site ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
                 }`}
               >
-                {s}
+                {SITE_LABELS[s]}
               </button>
             ))}
           </div>
         </div>
+
+        {/* ─── Commerciaux du secteur (clic = vue d'un seul) ───────────────── */}
+        {summary && summary.users.length > 0 && (
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-gray-400">
+              <Users className="h-4 w-4" />
+              Commerciaux
+            </span>
+            <button
+              onClick={() => setSelectedUserId(null)}
+              className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                selectedUserId == null ? 'bg-blue text-white' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'
+              }`}
+            >
+              Tous
+            </button>
+            {summary.users.map((u) => (
+              <button
+                key={u.userName}
+                onClick={() => u.userId != null && setSelectedUserId(u.userId)}
+                disabled={u.userId == null}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                  selectedUserId === u.userId
+                    ? 'bg-blue text-white'
+                    : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100 disabled:opacity-50 disabled:hover:bg-white'
+                }`}
+              >
+                {u.userName}
+                {u.userId == null && <span className="ml-1 text-[10px] text-gray-400">archivé</span>}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ─── Notifications ───────────────────────────────────────────────── */}
         {notice && (
@@ -232,10 +326,10 @@ function KpiDashboard() {
           <ContactStatsSection />
         </div>
 
-        {summary && (
+        {viewSummary && (
           <div className="space-y-8">
             {/* ─── Cartes de synthèse ──────────────────────────────────────── */}
-            <KpiSummaryCards totals={summary.totals} />
+            <KpiSummaryCards totals={viewSummary.totals} />
 
             {/* ─── Diagramme en bâtons ─────────────────────────────────────── */}
             <section>
@@ -281,12 +375,12 @@ function KpiDashboard() {
                   </div>
                 }
               >
-                <KpiStatusChart summary={summary} weekly={weekly} mode={chartMode} visibleStatuses={visibleStatuses} />
+                <KpiStatusChart summary={viewSummary} weekly={viewWeekly} mode={chartMode} visibleStatuses={visibleStatuses} />
               </Suspense>
             </section>
 
-            {/* ─── Comparatif N-1 ──────────────────────────────────────────── */}
-            {previousSummary && (
+            {/* ─── Comparatif N-1 (vue secteur uniquement) ─────────────────── */}
+            {previousSummary && selectedUserId == null && (
               <section>
                 <h2 className="mb-4 text-[17px] font-bold text-gray-900">
                   Comparatif Global Oui — {year - 1} vs {year}
@@ -298,7 +392,7 @@ function KpiDashboard() {
                     </div>
                   }
                 >
-                  <KpiYearComparison year={year} current={summary} previous={previousSummary} />
+                  <KpiYearComparison year={year} current={viewSummary} previous={previousSummary} />
                 </Suspense>
               </section>
             )}
@@ -324,9 +418,9 @@ function KpiDashboard() {
                 </div>
               </div>
               {tableMode === 'month' ? (
-                <KpiTable users={summary.users} totals={summary.totals} onEdit={handleEditMonth} />
+                <KpiTable users={viewSummary.users} totals={viewSummary.totals} onEdit={handleEditMonth} />
               ) : (
-                <KpiWeeklyTable weeks={weekly?.weeks ?? []} onEdit={handleEditWeek} />
+                <KpiWeeklyTable weeks={viewWeekly?.weeks ?? []} onEdit={handleEditWeek} />
               )}
             </section>
           </div>
@@ -337,6 +431,7 @@ function KpiDashboard() {
         <KpiEntryModal
           year={year}
           site={site}
+          users={selectableUsers}
           draft={modalDraft === 'new' ? null : modalDraft}
           onClose={() => setModalDraft(null)}
           onSaved={() => {

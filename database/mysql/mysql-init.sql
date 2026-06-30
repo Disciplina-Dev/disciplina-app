@@ -29,7 +29,13 @@ VALUES
     (3, 'sinaman.commercial@disciplina.re', 'Amanda', 'Sinaman', '$2a$10$aUfW35HzC24awAbUjXuTzusv5SYcP7J0QhnvOeD.qK//qbsugpppe', 'RESPONSABLE'),
     (4, 'galmar.commercial@disciplina.re', 'Brandon', 'Galmar', '$2a$10$2RM20a22qDJ.8icsoiDoAOHvDhAIbgsyV/sWWJPPS0lgi32/T/BeK', 'COMMERCIAL'),
     (5, 'lebon.commercial@disciplina.re', 'Emile', 'Lebon', '$2a$10$mMVS8gxP9bT.HpX.FStLvupuSu5ZErfZIfJI4svAT6dJvlIc9oIQe', 'COMMERCIAL'),
-    (6, 'loic.rh@disciplina.re', 'Loic', 'grondin', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'RH');
+    (6, 'loic.rh@disciplina.re', 'Loic', 'grondin', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'RH'),
+    -- Commerciaux présents dans kpi_commercial.xlsx (en-têtes par prénom).
+    -- Le rattachement KPI se fait sur le prénom : last_name à compléter, mdp à changer.
+    (7, 'elsa.commercial@disciplina.re', 'Elsa', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
+    (8, 'laureen-lee.commercial@disciplina.re', 'Laureen-Lee', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
+    (9, 'brice.commercial@disciplina.re', 'Brice', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL'),
+    (10, 'lamia.commercial@disciplina.re', 'Lamia', 'a-renseigner', '$2a$10$NsZzHNIPBrHpuvEePoheu.DRTImS6mEAWC4A1NYiNxiNi6kZhki8e', 'COMMERCIAL');
 
 CREATE TABLE IF NOT EXISTS companies (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -106,7 +112,8 @@ CREATE TABLE IF NOT EXISTS commercial_kpi (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    UNIQUE KEY unique_kpi (user_name, year, month, week, site),
+    -- Identité d'une ligne KPI = un user réel (le nom n'est qu'un snapshot d'affichage)
+    UNIQUE KEY unique_kpi (user_id, year, month, week, site),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
