@@ -164,6 +164,15 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
+            // Multi-sites : garde le single legacy training_site = 1er site choisi
+            // (utilisé pour le routage Drive / stats / filtres).
+            if (Array.isArray(snakeInput.training_sites)) {
+                snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
+            }
+            // Multi-TP : garde le single legacy tp_type = 1er titre (Drive/stats/templates).
+            if (Array.isArray(snakeInput.tp_types) && snakeInput.tp_types.length) {
+                snakeInput.tp_type = snakeInput.tp_types[0];
+            }
 
             if (!snakeInput.skills_assessment || snakeInput.skills_assessment.length === 0) {
                 const template = CANDIDATE_TEMPLATES[input.tpType];
@@ -226,6 +235,14 @@ export const resolvers = {
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const snakeInput = camelToSnakeCase(input);
+            // Multi-sites : garde le single legacy training_site = 1er site choisi.
+            if (Array.isArray(snakeInput.training_sites)) {
+                snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
+            }
+            // Multi-TP : garde le single legacy tp_type = 1er titre choisi.
+            if (Array.isArray(snakeInput.tp_types) && snakeInput.tp_types.length) {
+                snakeInput.tp_type = snakeInput.tp_types[0];
+            }
             // Statut avant mise à jour, pour ne compter que les vraies transitions entrantes.
             const previousStatus = snakeInput.status ? (await candidateService.findById(id))?.status : undefined;
             const updated = await candidateService.update(id, snakeInput);

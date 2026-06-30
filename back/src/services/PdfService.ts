@@ -700,14 +700,18 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
         .text(sub, left + 14, bandTop + 35, { width: contentW - 28 });
     doc.y = bandTop + bandH + 12;
 
-    const badges = [TP_LABELS[c.tp_type] ?? c.tp_type, STATUS_LABELS[c.status] ?? c.status];
-    if (c.training_site) badges.push(TRAINING_SITE_LABELS[c.training_site] ?? c.training_site);
+    const trainingSites = c.training_sites?.length ? c.training_sites : c.training_site ? [c.training_site] : [];
+    const trainingSitesLabel = trainingSites.map((s) => TRAINING_SITE_LABELS[s] ?? s).join(' · ');
+    const tpTypes = c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : [];
+    const tpTypesLabel = tpTypes.map((t) => TP_LABELS[t] ?? t).join(' · ');
+    const badges = [tpTypesLabel || (TP_LABELS[c.tp_type] ?? c.tp_type), STATUS_LABELS[c.status] ?? c.status];
+    if (trainingSitesLabel) badges.push(trainingSitesLabel);
     doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text(badges.join('      |      '), left, doc.y);
     doc.fillColor('#000000');
 
     // ── Identité ──
     section('Identité & contact');
-    kv('Titre professionnel', TP_LABELS[c.tp_type] ?? c.tp_type);
+    kv(tpTypes.length > 1 ? 'Titres professionnels' : 'Titre professionnel', tpTypesLabel);
     kv('Statut', STATUS_LABELS[c.status] ?? c.status);
     kv('Email', id.email);
     kv('Téléphone', id.phone);
@@ -728,7 +732,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     );
     kv('Justificatif', c.education?.justification);
     kv('Dernier diplôme', c.background?.last_diploma);
-    kv('Site de formation', c.training_site ? TRAINING_SITE_LABELS[c.training_site] ?? c.training_site : '');
+    kv(trainingSites.length > 1 ? 'Sites de formation' : 'Site de formation', trainingSitesLabel);
     para('Formations suivies auparavant', c.background?.previous_trainings);
 
     // ── Accompagnement ──
@@ -871,6 +875,26 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
             .fillColor('#333333')
             .fontSize(10)
             .text(closing, left, doc.y, { width: contentW, align: 'right' });
+    }
+
+    // ── Signature de l'apprenti (dessinée dans le formulaire, data-URL PNG) ──
+    const sig = c.synthesis?.candidate_signature;
+    if (sig && sig.startsWith('data:image')) {
+        try {
+            const imgBuf = Buffer.from(sig.split(',')[1] ?? '', 'base64');
+            ensure(120);
+            doc.moveDown(1.2);
+            doc.font('Helvetica-Bold')
+                .fillColor('#111111')
+                .fontSize(10)
+                .text("Signature de l'apprenti", left, doc.y);
+            doc.moveDown(0.3);
+            doc.image(imgBuf, left, doc.y, { fit: [200, 80] });
+            doc.y += 86;
+            doc.save().moveTo(left, doc.y).lineTo(left + 200, doc.y).lineWidth(0.5).stroke('#888888').restore();
+        } catch {
+            // image invalide : on ignore silencieusement
+        }
     }
 }
 

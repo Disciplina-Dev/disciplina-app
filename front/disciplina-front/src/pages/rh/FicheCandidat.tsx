@@ -383,19 +383,28 @@ export default function FicheCandidat() {
                       {getStatusLabel(formData.status)}
                     </span>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[formData.tp_type]}`}>
-                    {formData.tp_type}
-                  </span>
+                  {(formData.tp_types?.length ? formData.tp_types : [formData.tp_type]).map(t => (
+                    <span key={t} className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[t]}`}>
+                      {t}
+                    </span>
+                  ))}
                   {isSenior(computeAge(formData.identity.date_of_birth) ?? formData.identity.age) && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-700 ring-1 ring-amber-200">
                       Senior
                     </span>
                   )}
-                  {formData.training_site && (
-                    <span className="text-xs text-gray-400">
-                      {TRAINING_SITE_LABELS[formData.training_site]}
-                    </span>
-                  )}
+                  {(() => {
+                    const sites = formData.training_sites?.length
+                      ? formData.training_sites
+                      : formData.training_site
+                        ? [formData.training_site]
+                        : []
+                    return sites.length ? (
+                      <span className="text-xs text-gray-400">
+                        {sites.map((s) => TRAINING_SITE_LABELS[s]).join(' · ')}
+                      </span>
+                    ) : null
+                  })()}
                   {formData.owner && (
                     <span className="inline-flex items-center gap-1 text-xs text-gray-400">
                       <User size={12} />
@@ -610,19 +619,30 @@ export default function FicheCandidat() {
                     } : prev)} />
                 ) : <p className={valueCls}>{formData.background?.previous_trainings || '—'}</p>}
               </Field>
-              <Field label="Secteur de formation">
+              <Field label="Site(s) de formation">
                 {isEditing ? (
-                  <select className={selectCls}
-                    value={formData.training_site ?? ''}
-                    onChange={e => setFormData(prev => prev ? {
-                      ...prev, training_site: e.target.value as TrainingSite || undefined
-                    } : prev)}>
-                    <option value="">Non renseigné</option>
-                    {Object.entries(TRAINING_SITE_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                ) : <p className={valueCls}>{formData.training_site ? TRAINING_SITE_LABELS[formData.training_site] : '—'}</p>}
+                  <div className="flex flex-col gap-1.5">
+                    {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([k, v]) => {
+                      const current = formData.training_sites ?? (formData.training_site ? [formData.training_site] : [])
+                      const checked = current.includes(k)
+                      return (
+                        <label key={k} className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input type="checkbox" className="accent-blue-600 h-4 w-4" checked={checked}
+                            onChange={() => setFormData(prev => prev ? {
+                              ...prev,
+                              training_sites: checked ? current.filter(s => s !== k) : [...current, k],
+                            } : prev)} />
+                          <span>{v}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : (() => {
+                  const sites = formData.training_sites?.length
+                    ? formData.training_sites
+                    : formData.training_site ? [formData.training_site] : []
+                  return <p className={valueCls}>{sites.length ? sites.map(s => TRAINING_SITE_LABELS[s]).join(' · ') : '—'}</p>
+                })()}
               </Field>
             </div>
           </Card>

@@ -209,8 +209,10 @@ export const typeDefs = gql`
         owner: CandidateOwner
         status: CandidateStatus!
         tpType: TitleProfessionalType!
+        tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
         trainingSite: TrainingSite
+        trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
         desiredSectors: [String]
         expectedCompanySkills: [String]
@@ -335,8 +337,10 @@ export const typeDefs = gql`
     input CreateCandidateInput {
         status: CandidateStatus!
         tpType: TitleProfessionalType!
+        tpTypes: [TitleProfessionalType!]
         identity: IdentityInput!
         trainingSite: TrainingSite
+        trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
         desiredSectors: [String]
         expectedCompanySkills: [String]
@@ -353,8 +357,10 @@ export const typeDefs = gql`
     input UpdateCandidateInput {
         status: CandidateStatus
         tpType: TitleProfessionalType
+        tpTypes: [TitleProfessionalType!]
         identity: IdentityInput
         trainingSite: TrainingSite
+        trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
         desiredSectors: [String]
         expectedCompanySkills: [String]

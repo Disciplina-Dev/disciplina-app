@@ -25,7 +25,9 @@ const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
 const TOP_LEVEL_LABELS: Partial<Record<keyof Candidate, string>> = {
     status: 'Statut',
     tp_type: 'Type TP',
+    tp_types: 'Titres professionnels',
     training_site: 'Site de formation',
+    training_sites: 'Sites de formation',
     immersion_agreement: "Accord d'immersion",
     desired_sectors: 'Secteurs souhaités',
     expected_company_skills: 'Compétences entreprise attendues',

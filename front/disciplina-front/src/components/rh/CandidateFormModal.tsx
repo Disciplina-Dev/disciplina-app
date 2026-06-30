@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { User, X, AlertCircle, Plus, Trash2, QrCode } from 'lucide-react';
-import { TitleProfessionalType, TrainingSite, SkillLevel, Localisation, CandidateStatus } from '@/types/candidate';
+import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
@@ -73,12 +73,12 @@ type ABForm = {
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
   apprenticeshipContractDetails: string;
-  // TP + statut
-  tpType: TitleProfessionalType; status: string;
+  // TP (multi) + statut
+  tpTypes: TitleProfessionalType[]; status: string;
   // éducation
   schoolLevel: string; schoolJustification: string;
   // site
-  trainingSite: string;
+  trainingSites: string[];
   // accompagnement
   franceTravail: string; franceTravailAgency: string;
   missionLocale: string; missionLocaleCity: string;
@@ -107,6 +107,36 @@ type ABForm = {
   discoverySource: string;
 };
 
+// Union des compétences des templates de plusieurs TP (dédupliquée par nom).
+function defaultSkillsForTps(tps: TitleProfessionalType[]): { competence: string; level: SkillLevel }[] {
+  const seen = new Set<string>()
+  const out: { competence: string; level: SkillLevel }[] = []
+  for (const tp of tps) {
+    for (const s of CANDIDATE_TEMPLATES[tp]?.defaultSkillsAssessment ?? []) {
+      if (!seen.has(s.competence)) {
+        seen.add(s.competence)
+        out.push({ competence: s.competence, level: s.level })
+      }
+    }
+  }
+  return out
+}
+
+// Réconcilie les compétences quand la sélection de TP change :
+// garde celles encore requises (niveau saisi préservé), ajoute les nouvelles
+// manquantes, retire celles propres à un TP décoché (non partagées).
+function reconcileSkills(
+  prev: { competence: string; level: SkillLevel }[],
+  nextTps: TitleProfessionalType[],
+): { competence: string; level: SkillLevel }[] {
+  const required = defaultSkillsForTps(nextTps)
+  const requiredNames = new Set(required.map(s => s.competence))
+  const kept = prev.filter(s => requiredNames.has(s.competence))
+  const keptNames = new Set(kept.map(s => s.competence))
+  const added = required.filter(s => !keptNames.has(s.competence))
+  return [...kept, ...added]
+}
+
 function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): ABForm {
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
@@ -114,9 +144,9 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '', apprenticeshipContractDetails: '',
-    tpType, status: 'SEEKING',
+    tpTypes: [tpType], status: 'SEEKING',
     schoolLevel: '', schoolJustification: '',
-    trainingSite: '',
+    trainingSites: [],
     franceTravail: '', franceTravailAgency: '',
     missionLocale: '', missionLocaleCity: '',
     immersionAgreement: '',
@@ -136,10 +166,10 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
 
 /** Pré-remplit le formulaire à partir d'un candidat existant (mode édition). */
 function candidateToForm(c: Candidate): ABForm {
-  const template = CANDIDATE_TEMPLATES[c.tp_type];
+  const tpTypes = c.tp_types?.length ? c.tp_types : [c.tp_type];
   const skills = c.skills_assessment && c.skills_assessment.length > 0
     ? c.skills_assessment.map(s => ({ competence: s.competence, level: s.level }))
-    : template.defaultSkillsAssessment.map(s => ({ competence: s.competence, level: s.level }));
+    : defaultSkillsForTps(tpTypes);
   const bs = (b?: boolean | null) => (b == null ? '' : String(b));
   // candidate.status est une valeur d'enum (ex: "Recherche") → clé (ex: "SEEKING")
   const statusKey = (Object.entries(CandidateStatus).find(([, v]) => v === c.status)?.[0]) ?? String(c.status);
@@ -161,11 +191,11 @@ function candidateToForm(c: Candidate): ABForm {
     pshReferralRequest: bs(c.identity.psh_referral_request),
     hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
     apprenticeshipContractDetails: c.identity.apprenticeship_contract_details ?? '',
-    tpType: c.tp_type,
+    tpTypes,
     status: statusKey,
     schoolLevel: c.education?.school_level ?? '',
     schoolJustification: c.education?.justification ?? '',
-    trainingSite: c.training_site ?? '',
+    trainingSites: c.training_sites ?? (c.training_site ? [c.training_site] : []),
     franceTravail: bs(c.support?.france_travail_registered),
     franceTravailAgency: c.support?.france_travail_agency ?? '',
     missionLocale: bs(c.support?.mission_locale_registered),
@@ -213,8 +243,8 @@ function toServerInput(f: ABForm) {
   const qualities = [f.quality1, f.quality2, f.quality3].filter(Boolean);
   const defects = [f.defect1, f.defect2, f.defect3].filter(Boolean);
   return {
-    tpType: f.tpType, status: f.status,
-    trainingSite: f.trainingSite || undefined,
+    tpType: f.tpTypes[0], tpTypes: f.tpTypes, status: f.status,
+    trainingSites: f.trainingSites,
     immersionAgreement: pb(f.immersionAgreement),
     desiredSectors: f.desiredSectors,
     expectedCompanySkills: f.expectedCompanySkills,
@@ -292,25 +322,39 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
   const splitName = splitFullName(form.fullName);
   const canGenerateLinks = splitName.first.length > 0 && splitName.last.length > 0;
 
-  const template = CANDIDATE_TEMPLATES[form.tpType];
+  // Template fusionné sur tous les TP cochés (options = union, anglais = si au moins un).
+  const selectedTps = form.tpTypes.length ? form.tpTypes : [TitleProfessionalType.CC];
+  const primaryTp = selectedTps[0];
+  const uniq = (a: string[]) => [...new Set(a)];
+  const schoolLevelsMerged = (() => {
+    const seen = new Set<string>();
+    const out: { value: SchoolLevel; label: string }[] = [];
+    for (const tp of selectedTps)
+      for (const o of CANDIDATE_TEMPLATES[tp]?.schoolLevels ?? [])
+        if (!seen.has(o.value)) { seen.add(o.value); out.push(o); }
+    return out;
+  })();
+  const template = {
+    hasEnglishLevel: selectedTps.some(tp => CANDIDATE_TEMPLATES[tp]?.hasEnglishLevel),
+    schoolLevels: schoolLevelsMerged,
+    availableSectors: uniq(selectedTps.flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? [])),
+    availableExpectedSkills: uniq(selectedTps.flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableExpectedSkills ?? [])),
+  };
   const boolOpts = [{ value: 'true', label: 'Oui' }, { value: 'false', label: 'Non' }];
 
-  // Quand tpType change → reset skills + secteurs (sauf au montage en édition)
+  // Quand la sélection de TP change → réconcilie les compétences (préserve les
+  // niveaux saisis, ajoute les manquantes, retire celles d'un TP décoché).
+  // Ne touche plus à schoolLevel / secteurs : aucune perte d'info.
   const didMount = useRef(false);
+  const tpKey = form.tpTypes.join(',');
   useEffect(() => {
     if (!didMount.current) {
       didMount.current = true;
       return;
     }
-    const tpl = CANDIDATE_TEMPLATES[form.tpType];
-    setForm(prev => ({
-      ...prev,
-      schoolLevel: '',
-      desiredSectors: [],
-      expectedCompanySkills: [],
-      skills: tpl.defaultSkillsAssessment.map(s => ({ competence: s.competence, level: s.level })),
-    }));
-  }, [form.tpType]);
+    setForm(prev => ({ ...prev, skills: reconcileSkills(prev.skills, prev.tpTypes) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tpKey]);
 
   const set = <K extends keyof ABForm>(key: K, val: ABForm[K]) =>
     setForm(prev => ({ ...prev, [key]: val }));
@@ -394,11 +438,28 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
             </div>
           )}
 
-          {/* Type TP + Statut */}
+          {/* Type(s) TP (multi) + Statut */}
           <div className="grid grid-cols-2 gap-3">
-            <ABSelectField id="cn-tp" label="Type TP *" value={form.tpType} onChange={v => set('tpType', v as TitleProfessionalType)}>
-              {Object.values(TitleProfessionalType).map(t => <option key={t} value={t}>{t}</option>)}
-            </ABSelectField>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type(s) TP *</label>
+              <div className="flex flex-wrap gap-3 pt-1.5">
+                {Object.values(TitleProfessionalType).map(t => (
+                  <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 h-4 w-4"
+                      checked={form.tpTypes.includes(t)}
+                      onChange={() => {
+                        const has = form.tpTypes.includes(t);
+                        if (has && form.tpTypes.length === 1) return; // garder au moins un TP
+                        set('tpTypes', has ? form.tpTypes.filter(x => x !== t) : [...form.tpTypes, t]);
+                      }}
+                    />
+                    {t}
+                  </label>
+                ))}
+              </div>
+            </div>
             <ABSelectField id="cn-status" label="Statut *" value={form.status} onChange={v => set('status', v)}>
               {CANDIDATE_STATUS_ORDER.map(s => (
                 <option key={s} value={s}>{CANDIDATE_STATUS_LABELS[s]}</option>
@@ -461,12 +522,26 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           </div>
           <InputField id="cn-justif" label="Justificatif" value={form.schoolJustification} onChange={e => set('schoolJustification', e.target.value)} />
 
-          {/* Site de formation */}
+          {/* Site(s) de formation — choix multiple */}
           <ABSectionTitle title="Site de formation DISCIPLINA" />
           <div className="space-y-2">
             {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([val, label]) => (
               <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                <input type="radio" name="site" value={val} checked={form.trainingSite === val} onChange={() => set('trainingSite', val)} className="accent-blue-600" />
+                <input
+                  type="checkbox"
+                  name="site"
+                  value={val}
+                  checked={form.trainingSites.includes(val)}
+                  onChange={() =>
+                    set(
+                      'trainingSites',
+                      form.trainingSites.includes(val)
+                        ? form.trainingSites.filter((s) => s !== val)
+                        : [...form.trainingSites, val],
+                    )
+                  }
+                  className="accent-blue-600 h-4 w-4"
+                />
                 {label}
               </label>
             ))}
@@ -631,7 +706,7 @@ export default function CandidateFormModal({ candidate, onClose, onSaved }: Cand
           onClose={() => setShowClassMarker(false)}
           firstName={splitName.first}
           lastName={splitName.last}
-          tpType={form.tpType as TitleProfessionalType}
+          tpType={primaryTp as TitleProfessionalType}
         />
       )}
     </div>

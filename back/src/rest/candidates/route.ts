@@ -57,6 +57,63 @@ router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => 
     }
 });
 
+// Génère le résumé AB et l'enregistre dans le dossier Drive du candidat
+// (remplace l'AB précédent du même nom → pas de doublon). Appelé à la
+// validation de l'AB pour éviter le download + import manuel.
+router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Response) => {
+    const role = req.user?.role;
+    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const { id } = req.params;
+    try {
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).json({ error: 'Candidate not found' });
+            return;
+        }
+        if (!candidate.drive_folder_id) {
+            res.status(400).json({ error: 'Candidate has no Drive folder' });
+            return;
+        }
+
+        const user = await userService.findById(req.user!.id);
+        if (!user || !user.oauthToken) {
+            res.status(400).json({ error: 'Google Drive non connecté pour cet utilisateur' });
+            return;
+        }
+
+        const driveService = GoogleDriveService.fromTokens(
+            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+            persistRefreshedTokens(user.id),
+        );
+
+        const pdfBuffer = await PdfService.generateCandidatePdf(candidate);
+        const safeName = candidate.identity.full_name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
+        const fileName = `AB_${safeName || 'candidat'}.pdf`;
+
+        // Supprime l'AB existant (même nom) avant de réuploader → idempotent.
+        const existing = await driveService.listFolderFiles(candidate.drive_folder_id);
+        await Promise.all(existing.filter((f) => f.name === fileName).map((f) => driveService.deleteFile(f.id)));
+
+        const { webViewLink } = await driveService.uploadFile(
+            fileName,
+            'application/pdf',
+            pdfBuffer,
+            candidate.drive_folder_id,
+        );
+
+        await candidateService.update(id, { pdf_link: webViewLink });
+
+        res.json({ fileLink: webViewLink });
+    } catch (err) {
+        logger.error({ err }, 'AB to Drive failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+});
+
 router.post(
     '/:id/cv',
     express.raw({ type: 'application/pdf', limit: '20mb' }),

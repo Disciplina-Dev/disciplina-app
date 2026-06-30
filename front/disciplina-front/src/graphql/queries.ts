@@ -259,7 +259,9 @@ const CANDIDATE_FIELDS = gql`
     }
     status
     tpType
+    tpTypes
     trainingSite
+    trainingSites
     skillsAssessment {
       competence
       level
@@ -383,7 +385,9 @@ export const GET_CANDIDATE_BY_ID = gql`
       }
       status
       tpType
+      tpTypes
       trainingSite
+      trainingSites
       immersionAgreement
       desiredSectors
       expectedCompanySkills
@@ -449,6 +453,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         otherRecommendations
         location
         date
+        candidateSignature
       }
       skillsAssessment {
         competence
@@ -485,7 +490,9 @@ export const UPDATE_CANDIDATE = gql`
       id
       status
       tpType
+      tpTypes
       trainingSite
+      trainingSites
       immersionAgreement
       desiredSectors
       expectedCompanySkills
@@ -539,6 +546,7 @@ export const UPDATE_CANDIDATE = gql`
         otherRecommendations
         location
         date
+        candidateSignature
       }
       professionalProjects {
         careerObjectives
@@ -575,7 +583,9 @@ export const CREATE_CANDIDATE = gql`
       id
       status
       tpType
+      tpTypes
       trainingSite
+      trainingSites
       skillsAssessment {
         competence
         level
@@ -622,7 +632,9 @@ export const GET_CANDIDATE_FULL = gql`
       }
       status
       tpType
+      tpTypes
       trainingSite
+      trainingSites
       immersionAgreement
       desiredSectors
       expectedCompanySkills
@@ -702,6 +714,7 @@ export const GET_CANDIDATE_FULL = gql`
         otherRecommendations
         location
         date
+        candidateSignature
       }
       pdfLink
     }
@@ -731,7 +744,9 @@ export const UPDATE_CANDIDATE_FULL = gql`
       id
       status
       tpType
+      tpTypes
       trainingSite
+      trainingSites
       immersionAgreement
       desiredSectors
       expectedCompanySkills
@@ -809,6 +824,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         otherRecommendations
         location
         date
+        candidateSignature
       }
       pdfLink
     }

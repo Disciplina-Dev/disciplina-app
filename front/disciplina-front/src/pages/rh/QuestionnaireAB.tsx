@@ -10,6 +10,8 @@ import type { Candidate } from '@/types/candidate'
 import { useCandidateFull } from '@/graphql/hooks'
 import { CANDIDATE_TEMPLATES, TP_TYPE_LABELS, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates'
 import { candidateGraphqlClient } from '@/graphql/client'
+import SignaturePad from '@/components/ui/SignaturePad'
+import { useAuthStore } from '@/store/authStore'
 import { UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
 
 // ─── Form state ───────────────────────────────────────────────────────────────
@@ -25,6 +27,7 @@ interface PedaReco {
 
 interface FormState {
   tp_type: TitleProfessionalType
+  tp_types: TitleProfessionalType[]
   // identité
   full_name: string; email: string; phone: string
   date_of_birth: string; place_of_birth: string; age: string
@@ -33,8 +36,8 @@ interface FormState {
   transport_means: string; psh_referral_request: string // 'true' | 'false' | ''
   // éducation
   school_level: string; school_justification: string
-  // site de formation
-  training_site: string
+  // site(s) de formation — positionnement multi-sites
+  training_sites: string[]
   // accompagnement
   france_travail: string; france_travail_agency: string
   mission_locale: string; mission_locale_city: string
@@ -68,6 +71,7 @@ interface FormState {
   feasibility_conclusion: string; pathway_relevance: string
   special_needs: string; peda_reco: PedaReco
   other_recommendations: string; synthesis_location: string; synthesis_date: string
+  candidate_signature: string // data-URL PNG de la signature de l'apprenti
 }
 
 function initForm(c: Candidate): FormState {
@@ -78,6 +82,7 @@ function initForm(c: Candidate): FormState {
 
   return {
     tp_type: c.tp_type,
+    tp_types: c.tp_types?.length ? c.tp_types : (c.tp_type ? [c.tp_type] : []),
     full_name: c.identity.full_name ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
@@ -91,7 +96,7 @@ function initForm(c: Candidate): FormState {
     psh_referral_request: c.identity.psh_referral_request == null ? '' : String(c.identity.psh_referral_request),
     school_level: c.education?.school_level ?? '',
     school_justification: c.education?.justification ?? '',
-    training_site: c.training_site ?? '',
+    training_sites: c.training_sites ?? (c.training_site ? [c.training_site] : []),
     france_travail: c.support?.france_travail_registered == null ? '' : String(c.support.france_travail_registered),
     france_travail_agency: c.support?.france_travail_agency ?? '',
     mission_locale: c.support?.mission_locale_registered == null ? '' : String(c.support.mission_locale_registered),
@@ -149,6 +154,7 @@ function initForm(c: Candidate): FormState {
     other_recommendations: c.synthesis?.other_recommendations ?? '',
     synthesis_location: c.synthesis?.location ?? '',
     synthesis_date: c.synthesis?.date ? c.synthesis.date.slice(0, 10) : '',
+    candidate_signature: c.synthesis?.candidate_signature ?? '',
   }
 }
 
@@ -161,7 +167,8 @@ function toGqlInput(f: FormState) {
 
   return {
     tpType: f.tp_type,
-    trainingSite: f.training_site || undefined,
+    tpTypes: f.tp_types.length ? f.tp_types : undefined,
+    trainingSites: f.training_sites,
     immersionAgreement: parseBool(f.immersion_agreement),
     desiredSectors: f.desired_sectors,
     expectedCompanySkills: f.expected_company_skills,
@@ -232,6 +239,7 @@ function toGqlInput(f: FormState) {
       otherRecommendations: f.other_recommendations || undefined,
       location: f.synthesis_location || undefined,
       date: f.synthesis_date || undefined,
+      candidateSignature: f.candidate_signature || undefined,
     },
   }
 }
@@ -319,10 +327,12 @@ export default function QuestionnaireAB() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { candidate, loading, error } = useCandidateFull(id!)
+  const token = useAuthStore((s) => s.token)
   const [form, setForm] = useState<FormState | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [driveStatus, setDriveStatus] = useState<string | null>(null)
 
   useEffect(() => {
     if (candidate) setForm(initForm(candidate))
@@ -384,6 +394,23 @@ export default function QuestionnaireAB() {
       if (result.error) throw new Error(result.error.message)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      // Enregistre automatiquement le résumé AB dans le Drive du candidat
+      // (remplace l'AB précédent). Best-effort : n'empêche pas la sauvegarde.
+      setDriveStatus('Enregistrement de l’AB dans le Drive…')
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/ab-to-drive`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error ?? 'échec')
+        }
+        setDriveStatus('AB enregistré dans le Drive ✓')
+      } catch (e: any) {
+        setDriveStatus(`AB non envoyé au Drive (${e.message ?? 'erreur'})`)
+      }
+      setTimeout(() => setDriveStatus(null), 5000)
     } catch (err: any) {
       setSaveError(err.message ?? 'Erreur lors de la sauvegarde')
     } finally {
@@ -421,7 +448,9 @@ export default function QuestionnaireAB() {
         </button>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Analyse du besoin – {form.full_name}</h1>
-          <p className="mt-0.5 text-sm text-gray-500">{TP_TYPE_LABELS[form.tp_type]}</p>
+          <p className="mt-0.5 text-sm text-gray-500">
+            {(form.tp_types.length ? form.tp_types : [form.tp_type]).map(t => TP_TYPE_LABELS[t]).join(' · ')}
+          </p>
         </div>
       </div>
 
@@ -488,18 +517,26 @@ export default function QuestionnaireAB() {
           <InputField id="school_justification" label="Justificatif (si applicable)" value={form.school_justification} onChange={e => set('school_justification', e.target.value)} />
         </Section>
 
-        {/* 4. Site de formation */}
+        {/* 4. Site(s) de formation — choix multiple */}
         <Section title="Positionnement sur les sites de formation">
+          <p className="mb-2 text-sm text-gray-500">Plusieurs sites possibles.</p>
           <div className="space-y-2">
             {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([value, label]) => (
               <label key={value} className="flex items-center gap-2 cursor-pointer">
                 <input
-                  type="radio"
-                  name="training_site"
+                  type="checkbox"
+                  name="training_sites"
                   value={value}
-                  checked={form.training_site === value}
-                  onChange={() => set('training_site', value)}
-                  className="accent-blue-600"
+                  checked={form.training_sites.includes(value)}
+                  onChange={() =>
+                    set(
+                      'training_sites',
+                      form.training_sites.includes(value)
+                        ? form.training_sites.filter((s) => s !== value)
+                        : [...form.training_sites, value],
+                    )
+                  }
+                  className="accent-blue-600 h-4 w-4"
                 />
                 <span className="text-sm text-gray-700">{label}</span>
               </label>
@@ -757,15 +794,27 @@ export default function QuestionnaireAB() {
           </div>
         </Section>
 
+        {/* Signature de l'apprenti — toute fin du formulaire */}
+        <Section title="Signature de l'apprenti">
+          <SignaturePad
+            value={form.candidate_signature}
+            onChange={v => set('candidate_signature', v)}
+            label="Signature de l'apprenti"
+          />
+        </Section>
+
         {/* Save bar */}
         <div className="sticky bottom-0 bg-white/90 backdrop-blur border-t border-gray-100 -mx-4 px-4 py-4 flex items-center justify-between gap-4">
-          {saveError && <p className="text-sm text-red-500">{saveError}</p>}
-          {saved && (
-            <span className="flex items-center gap-1.5 text-sm text-green-600">
-              <CheckCircle size={16} /> Sauvegardé
-            </span>
-          )}
-          {!saved && !saveError && <span />}
+          <div className="flex flex-col gap-0.5">
+            {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+            {saved && (
+              <span className="flex items-center gap-1.5 text-sm text-green-600">
+                <CheckCircle size={16} /> Sauvegardé
+              </span>
+            )}
+            {driveStatus && <span className="text-xs text-gray-500">{driveStatus}</span>}
+            {!saved && !saveError && !driveStatus && <span />}
+          </div>
           <Button type="submit" isLoading={saving} leftIcon={<Save size={16} />}>
             Sauvegarder
           </Button>

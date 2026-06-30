@@ -270,8 +270,10 @@ function fromGql(c: any): Candidate {
       ? { user_id: c.owner.userId, name: c.owner.name, sector: c.owner.sector ?? undefined }
       : undefined,
     tp_type: mapTpType(c.tpType),
+    tp_types: (c.tpTypes?.length ? c.tpTypes : c.tpType ? [c.tpType] : []).map(mapTpType),
     status: c.status as CandidateStatus,
     training_site: c.trainingSite,
+    training_sites: c.trainingSites ?? (c.trainingSite ? [c.trainingSite] : []),
     immersion_agreement: c.immersionAgreement,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
@@ -391,8 +393,9 @@ function fromGql(c: any): Candidate {
 function toGqlUpdateInput(c: Candidate): any {
   return {
     tpType: c.tp_type,
+    ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
-    ...(c.training_site !== undefined && { trainingSite: c.training_site }),
+    ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,

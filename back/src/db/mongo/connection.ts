@@ -27,7 +27,12 @@ async function patchCandidatesValidator(): Promise<void> {
                         enum: ['SEEKING', 'NOT_SEEKING', 'CANCELLED', 'MATCHED', 'CONTRACT', 'IMMERSING', 'BANNED'],
                     },
                     tp_type: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] },
+                    tp_types: { bsonType: 'array', items: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] } },
                     training_site: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },
+                    training_sites: {
+                        bsonType: 'array',
+                        items: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },
+                    },
                     immersion_agreement: { bsonType: 'bool' },
                     // Free-text strings — no enum constraint
                     desired_sectors: { bsonType: 'array', items: { bsonType: 'string' } },

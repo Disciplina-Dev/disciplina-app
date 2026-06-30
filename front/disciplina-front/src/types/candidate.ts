@@ -214,10 +214,12 @@ export interface CandidateOwner {
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
-    tp_type: TitleProfessionalType;
+    tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
+    tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     status: CandidateStatus;
-    training_site?: TrainingSite;
+    training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
+    training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
     immersion_agreement?: boolean;
     desired_sectors?: string[];
     expected_company_skills?: string[];
