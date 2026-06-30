@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { X, Copy, Check, Download, Loader2, AlertCircle, ClipboardCheck } from 'lucide-react';
+import { X, Copy, Check, Download, Loader2, AlertCircle, ClipboardCheck, ArrowLeft } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/store/authStore';
 import { TitleProfessionalType } from '@/types/candidate';
@@ -39,6 +39,8 @@ export default function ClassMarkerLinksModal({
   const [resolvedId, setResolvedId] = useState<string | null>(candidateId ?? null);
   const [alreadyExists, setAlreadyExists] = useState(false);
   const [entries, setEntries] = useState<CardEntry[]>([]);
+  // Test sélectionné : on n'affiche que celui-ci (les autres sont masqués).
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const handleEsc = useCallback((e: KeyboardEvent) => {
@@ -86,6 +88,7 @@ export default function ClassMarkerLinksModal({
           url: buildCandidateTestUrl(link.link_url_id, firstName.trim(), lastName.trim(), id!),
         }));
         setEntries(built);
+        setSelectedId(null);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -161,11 +164,34 @@ export default function ClassMarkerLinksModal({
           )}
 
           {!loading && !error && entries.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {entries.map(entry => (
-                <LinkCard key={entry.link.link_id} entry={entry} candidateName={`${firstName}_${lastName}`} />
-              ))}
-            </div>
+            <>
+              {selectedId && (
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="flex items-center gap-1.5 mb-4 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
+                >
+                  <ArrowLeft size={15} />
+                  Tous les tests
+                </button>
+              )}
+              <div
+                className={
+                  selectedId
+                    ? 'grid grid-cols-1 gap-4 max-w-md mx-auto'
+                    : 'grid grid-cols-1 md:grid-cols-2 gap-4'
+                }
+              >
+                {(selectedId ? entries.filter(e => e.link.link_id === selectedId) : entries).map(entry => (
+                  <LinkCard
+                    key={entry.link.link_id}
+                    entry={entry}
+                    candidateName={`${firstName}_${lastName}`}
+                    selectable={!selectedId}
+                    onSelect={() => setSelectedId(entry.link.link_id)}
+                  />
+                ))}
+              </div>
+            </>
           )}
 
           {!loading && !error && entries.length === 0 && (
@@ -186,9 +212,11 @@ export default function ClassMarkerLinksModal({
 interface LinkCardProps {
   entry: CardEntry;
   candidateName: string;
+  selectable?: boolean;
+  onSelect?: () => void;
 }
 
-function LinkCard({ entry, candidateName }: LinkCardProps) {
+function LinkCard({ entry, candidateName, selectable = false, onSelect }: LinkCardProps) {
   const [copied, setCopied] = useState(false);
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -216,8 +244,23 @@ function LinkCard({ entry, candidateName }: LinkCardProps) {
 
   return (
     <div
-      className="rounded-xl border border-gray-200 p-4 flex flex-col gap-3 bg-white"
+      className={`rounded-xl border border-gray-200 p-4 flex flex-col gap-3 bg-white transition-all ${
+        selectable ? 'cursor-pointer hover:border-purple hover:shadow-md' : ''
+      }`}
       style={{ borderRadius: 'var(--radius-lg)' }}
+      onClick={selectable ? onSelect : undefined}
+      role={selectable ? 'button' : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      onKeyDown={
+        selectable
+          ? e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect?.();
+              }
+            }
+          : undefined
+      }
     >
       <div>
         <h3 className="text-sm font-semibold text-gray-900 leading-tight">
@@ -237,6 +280,7 @@ function LinkCard({ entry, candidateName }: LinkCardProps) {
             href={entry.url}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
             className="block text-xs font-medium truncate underline-offset-2 hover:underline"
             style={{ color: 'var(--color-purple)' }}
             title={entry.url}
@@ -247,7 +291,10 @@ function LinkCard({ entry, candidateName }: LinkCardProps) {
             <Button
               size="sm"
               variant="secondary"
-              onClick={onCopy}
+              onClick={e => {
+                e.stopPropagation();
+                onCopy();
+              }}
               leftIcon={copied ? <Check size={14} /> : <Copy size={14} />}
               aria-label="Copier le lien"
             >
@@ -256,7 +303,10 @@ function LinkCard({ entry, candidateName }: LinkCardProps) {
             <Button
               size="sm"
               variant="secondary"
-              onClick={onDownload}
+              onClick={e => {
+                e.stopPropagation();
+                onDownload();
+              }}
               leftIcon={<Download size={14} />}
               aria-label="Télécharger le QR Code en PNG"
             >
