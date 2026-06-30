@@ -9,7 +9,7 @@ import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
-import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
+import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
 import { jobGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_JOB_IDS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
@@ -20,6 +20,7 @@ import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
 import FilizFolderModal from '@/components/rh/FilizFolderModal'
+import ConfirmDeleteModal from '@/components/rh/ConfirmDeleteModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
@@ -111,6 +112,7 @@ export default function FicheCandidat() {
   const { candidate, loading, error, refetch } = useCandidateById(id ?? '')
   const { update } = useUpdateCandidate()
   const { createDriveFolder } = useCreateCandidateDriveFolder()
+  const { deleteCandidate } = useDeleteCandidate()
   const token = useAuthStore((s) => s.token)
   // Verdict du test : la moyenne est à 50%. L'AB n'est possible que si le candidat
   // a réussi au moins un test (>= 50%).
@@ -137,6 +139,8 @@ export default function FicheCandidat() {
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null)
   const [confirmedJobIds, setConfirmedJobIds] = useState<Set<string>>(new Set())
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -215,6 +219,20 @@ export default function FicheCandidat() {
       setFormData(prev => (prev && file.webViewLink === prev.cv_link ? { ...prev, cv_link: '' } : prev))
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Erreur suppression fichier')
+    }
+  }
+
+  const handleDeleteCandidate = async () => {
+    if (!id) return
+    setIsDeleting(true)
+    try {
+      const result = await deleteCandidate(id)
+      if (result.data?.deleteCandidate) {
+        navigate(-1)
+      }
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
     }
   }
 
@@ -448,6 +466,14 @@ export default function FicheCandidat() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="secondary" leftIcon={<Edit2 size={15} />} onClick={() => setEditOpen(true)}>
               Modifier
+            </Button>
+            <Button
+              size="sm"
+              leftIcon={<Trash2 size={15} />}
+              onClick={() => setShowDeleteModal(true)}
+              style={{ backgroundColor: 'var(--color-danger)', color: 'white' }}
+            >
+              Supprimer
             </Button>
           </div>
         </div>
@@ -1016,6 +1042,13 @@ export default function FicheCandidat() {
         onClose={() => setShowFilizModal(false)}
         candidateId={formData._id}
         onSuccess={(filizFolderId) => setFormData(prev => prev ? { ...prev, filiz_folder_id: filizFolderId } : prev)}
+      />
+      <ConfirmDeleteModal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteCandidate}
+        candidateName={formData.identity.full_name}
+        isDeleting={isDeleting}
       />
     </>
   )

@@ -30,6 +30,7 @@ import {
   GET_CANDIDATE_HISTORY,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
+  DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
 import { useAuthStore } from '@/store/authStore'
@@ -721,6 +722,13 @@ export function useDeleteNeedsAnalysis() {
   }
 
   return { deleteNeedsAnalysis, result }
+}
+
+export function useDeleteCandidate() {
+  const deleteCandidate = (id: string) =>
+    candidateGraphqlClient.mutation(DELETE_CANDIDATE, { id })
+
+  return { deleteCandidate }
 }
 
 export function useFilizDegrees() {
