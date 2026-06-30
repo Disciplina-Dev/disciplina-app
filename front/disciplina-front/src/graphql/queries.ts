@@ -298,8 +298,8 @@ const CANDIDATE_FIELDS = gql`
 `
 
 export const GET_CANDIDATE_STATS = gql`
-  query GetCandidateStats {
-    candidateStats {
+  query GetCandidateStats($sectors: [String!]) {
+    candidateStats(sectors: $sectors) {
       total
       byStatus { key count }
       byTpType { key count }

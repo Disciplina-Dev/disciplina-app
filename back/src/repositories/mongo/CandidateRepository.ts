@@ -140,8 +140,11 @@ export class CandidateRepository {
      * répartitions par statut, par type de TP, par site de formation, ainsi que
      * le croisement statut × TP pour les graphiques empilés.
      */
-    async stats(): Promise<CandidateStats> {
+    async stats(sectors?: string[]): Promise<CandidateStats> {
+        // Filtre optionnel par secteur du créateur du dossier (owner.sector).
+        const match = sectors && sectors.length > 0 ? [{ $match: { 'owner.sector': { $in: sectors } } }] : [];
         const [result] = await CandidateModel.aggregate<RawStats>([
+            ...match,
             {
                 $facet: {
                     total: [{ $count: 'count' }],

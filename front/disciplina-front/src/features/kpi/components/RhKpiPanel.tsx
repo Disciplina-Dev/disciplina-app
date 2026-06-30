@@ -56,7 +56,15 @@ function isoWeek(date: Date): number {
   return 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 86_400_000))
 }
 
-export default function RhKpiPanel() {
+/**
+ * `sectors` + `hideSelector` = mode contrôlé : le filtre secteur est piloté par
+ * le parent (sélecteur partagé du dashboard), et le sélecteur interne est masqué.
+ * Sans ces props, le panneau garde son propre sélecteur de secteur.
+ */
+export default function RhKpiPanel({
+  sectors: extSectors,
+  hideSelector = false,
+}: { sectors?: string[] | null; hideSelector?: boolean } = {}) {
   const token = useAuthStore((s) => s.token)
   const role = useAuthStore((s) => s.user?.role)
   const isAggregate = role === UserRole.ADMIN || role === UserRole.RESPONSABLE
@@ -117,12 +125,20 @@ export default function RhKpiPanel() {
     })
   }
 
+  // Secteurs effectivement appliqués : pilotés par le parent en mode contrôlé,
+  // sinon par l'état interne. null/[] = tous les secteurs.
+  const effectiveSectors = useMemo<string[] | null>(() => {
+    if (hideSelector) return extSectors && extSectors.length > 0 ? extSectors : null
+    return selectedSectors ? [...selectedSectors] : null
+  }, [hideSelector, extSectors, selectedSectors])
+
   // Entrées (utilisateur × secteur) des semaines retenues, filtrées par secteurs choisis.
   const entries = useMemo(() => {
     const flat = selectedWeeks.flatMap((w) => w.users)
-    if (!selectedSectors || selectedSectors.size === 0) return flat
-    return flat.filter((u) => selectedSectors.has(u.sector))
-  }, [selectedWeeks, selectedSectors])
+    if (!effectiveSectors) return flat
+    const set = new Set(effectiveSectors)
+    return flat.filter((u) => set.has(u.sector))
+  }, [selectedWeeks, effectiveSectors])
 
   const totals = useMemo(() => sumMetrics(entries.map((e) => e.metrics)), [entries])
 
@@ -144,7 +160,7 @@ export default function RhKpiPanel() {
     : gran === 'month' ? `${MONTHS[month - 1]} ${year}`
     : `Semaine ${week} · ${year}`
   const scopeLabel = isAggregate ? 'tous les RH' : 'mes chiffres'
-  const sectorLabel = !selectedSectors ? 'tous secteurs' : [...selectedSectors].join(' · ') || 'aucun secteur'
+  const sectorLabel = !effectiveSectors ? 'tous secteurs' : effectiveSectors.join(' · ') || 'aucun secteur'
   const isSectorOn = (s: string) => !selectedSectors || selectedSectors.has(s)
 
   return (
@@ -176,7 +192,7 @@ export default function RhKpiPanel() {
               {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
           )}
-          {sectors.length > 0 && (
+          {!hideSelector && sectors.length > 0 && (
             <div className="flex items-center gap-1 rounded-[10px] border border-gray-200 bg-white p-0.5">
               <button
                 onClick={() => setSelectedSectors(null)}
