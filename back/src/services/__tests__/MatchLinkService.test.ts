@@ -11,7 +11,8 @@ async function createRhUser(suffix: number): Promise<{ id: number; email: string
     const email = `rh-matchlink-${suffix}@test.local`;
     const id = await repo.create({
         email,
-        name: `RH ${suffix}`,
+        first_name: 'RH',
+        last_name: String(suffix),
         password: 'hashed',
         role: 'RH' as any,
         sectors: null,

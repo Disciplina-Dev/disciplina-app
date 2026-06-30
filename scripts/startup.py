@@ -15,18 +15,20 @@ import os
 import csv
 import glob
 import sys
-import time
-import unicodedata
 import uuid
-from urllib.parse import urlparse
 
-import mysql.connector
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+from db.mysql import get_mysql_connection
+from lib.company_csv import remove_accents
+from clean_companies import clean_all
+from import_company import import_companies
+from import_blacklist import import_blacklist
+
 load_dotenv()
 
-RESOURCE_DIR = os.path.join(os.path.dirname(__file__), 'resource')
+RESOURCE_DIR = os.path.join(os.path.dirname(__file__), 'resources')
 
 # -- Enums -----------------------------------------------------------------------
 
@@ -42,57 +44,6 @@ SECTOR_ENUM = {
     "TELEPHONIE", "AUTO", "COMMERCIAL", "BIJOUX", "COSMETIQUE",
     "IMMOBILIER", "ASSURANCE", "ANIMAUX", "SPORT", "ENFANT",
     "PHARMACIE", "BAZAR", "NONE",
-}
-
-# Zones commerciales (doivent matcher SECTEUR_VALUES côté front et
-# ALLOWED_SECTORS côté back)
-ZONE_NORD_EST = "Nord-Est"
-ZONE_OUEST = "Ouest"
-ZONE_SUD = "Sud"
-DEFAULT_ZONE = ZONE_NORD_EST
-
-CITY_TO_ZONE = {
-    # Nord-Est
-    "SAINT_DENIS": ZONE_NORD_EST,
-    "SAINTE_MARIE": ZONE_NORD_EST,
-    "SAINTE_SUZANNE": ZONE_NORD_EST,
-    "SAINT_ANDRE": ZONE_NORD_EST,
-    "BRAS_PANON": ZONE_NORD_EST,
-    "SALAZIE": ZONE_NORD_EST,
-    "SAINT_BENOIT": ZONE_NORD_EST,
-    "SAINTE_ANNE": ZONE_NORD_EST,
-    "LA_PLAINE_DES_PALMISTES": ZONE_NORD_EST,
-    "SAINTE_ROSE": ZONE_NORD_EST,
-    "SAINTE_CLOTILDE": ZONE_NORD_EST,
-    # Ouest
-    "SAINT_PAUL": ZONE_OUEST,
-    "LA_POSSESSION": ZONE_OUEST,
-    "LE_PORT": ZONE_OUEST,
-    "TROIS_BASSINS": ZONE_OUEST,
-    "SAINT_LEU": ZONE_OUEST,
-    # Sud
-    "SAINT_PIERRE": ZONE_SUD,
-    "CILAOS": ZONE_SUD,
-    "ETANG_SALE": ZONE_SUD,
-    "SAINT_LOUIS": ZONE_SUD,
-    "ENTRE_DEUX": ZONE_SUD,
-    "LES_AVIRONS": ZONE_SUD,
-    "LE_TAMPON": ZONE_SUD,
-    "SAINT_PHILLIPE": ZONE_SUD,
-    "SAINT_JOSEPH": ZONE_SUD,
-    "PETIT_ILE": ZONE_SUD,
-    # Aliases (orthographes rencontrées dans les CSV)
-    "SAINT_PHILIPPE": ZONE_SUD,
-    "PETITE_ILE": ZONE_SUD,
-    "L_ETANG_SALE": ZONE_SUD,
-    "LE_GUILLAUME": ZONE_OUEST,
-    "LA_SALINE": ZONE_OUEST,
-    "LA_SALINE_LES_BAINS": ZONE_OUEST,
-    "SAINT_GILLES": ZONE_OUEST,
-    "SAINT_GILLES_LES_BAINS": ZONE_OUEST,
-    "SAINT_GILLES_LES_HAUTS": ZONE_OUEST,
-    "LA_RIVIERE": ZONE_SUD,
-    "LA_RIVIERE_SAINT_LOUIS": ZONE_SUD,
 }
 
 LOCALISATION_ENUM = {
@@ -123,82 +74,11 @@ POSTAL_CODE_MAP = {
 # -- Helpers ---------------------------------------------------------------------
 
 
-def remove_accents(text: str) -> str:
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', text)
-        if unicodedata.category(c) != 'Mn'
-    )
-
-
 def normalize_city(city: str) -> str:
     return remove_accents(city.upper().replace("-", "_").replace(" ", "_"))
 
 
-def city_to_zone(city_raw: str) -> str:
-    """Map raw city name (ex: 'Saint-Denis') to commercial zone.
-
-    Unknown/empty cities fall back to DEFAULT_ZONE so the `sector`
-    column only ever contains Nord-Est / Ouest / Sud.
-    """
-    if not city_raw or not city_raw.strip():
-        return DEFAULT_ZONE
-    return CITY_TO_ZONE.get(normalize_city(city_raw.strip()), DEFAULT_ZONE)
-
-
-def build_company_notes(city_raw: str, note_raw: str) -> str:
-    """Keep the original city in the notes since `sector` becomes a zone."""
-    parts = []
-    if city_raw and city_raw.strip():
-        parts.append(f"Commune: {city_raw.strip()}")
-    if note_raw and note_raw.strip():
-        parts.append(note_raw.strip())
-    return "\n".join(parts)
-
-
 # -- DB connections --------------------------------------------------------------
-
-
-def get_mysql_connection():
-    node_env = os.getenv("NODE_ENV", "development")
-    if node_env == "production":
-        mysql_uri = os.getenv("MYSQL_URI")
-        if not mysql_uri:
-            raise ValueError("MYSQL_URI must be set in production mode")
-        parsed = urlparse(mysql_uri)
-        host = parsed.hostname or 'localhost'
-        port = parsed.port or 3306
-        user = parsed.username or 'root'
-        password = parsed.password or ''
-        database = parsed.path.lstrip('/') or 'disciplina'
-        return mysql.connector.connect(
-            host=host, port=port, user=user,
-            password=password, database=database,
-            ssl_disabled=False,
-            connection_timeout=10,
-            charset='utf8mb4', collation='utf8mb4_0900_ai_ci',
-        )
-    # development: use individual vars, retry until local container is ready
-    host = os.getenv('MYSQL_HOST', 'localhost')
-    port = 3306
-    user = os.getenv('MYSQL_USER', 'root')
-    password = os.getenv('MYSQL_ROOT_PASSWORD')
-    database = os.getenv('MYSQL_DATABASE', 'disciplina')
-    if not password:
-        raise ValueError("MYSQL_ROOT_PASSWORD must be set")
-    for attempt in range(1, 6):
-        try:
-            conn = mysql.connector.connect(
-                host=host, port=port, user=user,
-                password=password, database=database,
-                charset='utf8mb4', collation='utf8mb4_0900_ai_ci',
-            )
-            conn.ping()
-            return conn
-        except Exception:
-            if attempt == 5:
-                raise
-            print(f"MySQL not ready (attempt {attempt}/5), retrying in 3s...")
-            time.sleep(3)
 
 
 def get_mongo_connection():
@@ -231,20 +111,6 @@ def get_mongo_connection():
 # -- Seeded checks -----------------------------------------------------------------
 
 
-def mysql_has_rows(table: str) -> bool:
-    conn = get_mysql_connection()
-    cursor = conn.cursor()
-    print("before users")
-    # cursor.execute("SELECT * FROM users")
-    cursor.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
-    row = cursor.fetchone()
-    count = row[0] if row else 0
-    cursor.close()
-    conn.close()
-    print("after users")
-    return count > 0
-
-
 def mongo_has_docs(collection: str, filter_: dict | None = None) -> bool:
     client = get_mongo_connection()
     db = client["human_ressources"]
@@ -253,77 +119,7 @@ def mongo_has_docs(collection: str, filter_: dict | None = None) -> bool:
     return count > 0
 
 
-# -- 1. Companies -> MySQL -------------------------------------------------------
-
-
-def select_saler_id(name: str, email: str) -> int:
-    try:
-        if name.capitalize() == "Amanda" or email == 'sinaman.commercial@disciplina.re':
-            return 3
-        if name.capitalize() == "Brandon" or email == 'galmar.commercial@disciplina.re':
-            return 4
-        if name.capitalize() == "Emile" or email == 'lebon.commercial@disciplina.re':
-            return 5
-        return 2
-    except:
-            return 2
-
-
-STATUS_VALUES = {'oui': 'Oui', 'non': 'Non', 'à réfléchir': 'À Réfléchir',
-                 'relance': 'Relance', 'réponds pas': 'Réponds pas', 'fermé': 'Fermé'}
-
-
-def split_conclusion_status(raw: str | None) -> tuple[str, str]:
-    """CSV 'Conclusion' may hold either a status value or free text."""
-    value = (raw or '').strip()
-    status = STATUS_VALUES.get(value.lower())
-    if status:
-        return '', status
-    return value, 'À Réfléchir'
-
-
-def import_companies(filepath: str) -> int:
-    conn = get_mysql_connection()
-    cursor = conn.cursor()
-    query = """
-        INSERT IGNORE INTO companies (
-            user_id, legal_referent, name, phone, email,
-            address, sector, main_activity, siret, idcc, notes, conclusion, status, relance_date
-        ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURDATE()
-        )
-    """
-    count = 0
-    print("start insertion")
-    with open(filepath, "r", encoding="utf-8") as f:
-        # print(f.)
-        for row in csv.DictReader(f, delimiter=';'):
-            try:
-                city_raw = row.get("SECTEUR") or ''
-                conclusion, status = split_conclusion_status(row.get("Conclusion"))
-                cursor.execute(query, (
-                    select_saler_id(row.get("Commercial"), row.get("Proprietaire du contact")),
-                    row.get("Prenom"),
-                    row.get("Nom"),
-                    row.get("Numero de telephone"),
-                    row.get("Adresse e-mail"),
-                    row.get("ADRESSE"),
-                    city_to_zone(city_raw),
-                    row.get("METIER/Description"),
-                    row.get("SIRET"),
-                    row.get("IDCC"),
-                    build_company_notes(city_raw, row.get("Note a moi meme") or ''),
-                    conclusion,
-                    status
-                ))
-                count += 1
-            except Exception as e:
-                print(f"  [WARN] Skipping company row: {e}")
-    print("end insertion")
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return count
+# -- 1. Companies -> MySQL: see clean_companies.py + import_company.py ------------
 
 
 # -- 2. Sales candidates -> MongoDB ----------------------------------------------
@@ -531,24 +327,27 @@ def main() -> int:
 
     errors = []
 
-    # 1. Companies
-    print("\n[1/4] Importing companies -> MySQL ...")
-    path = os.path.join(RESOURCE_DIR, 'suivi_client-contact.csv')
-    if not os.path.exists(path):
-        print(f"  SKIP -- suivi_client-contact.csv not found")
-    elif mysql_has_rows("companies"):
-        print(f"  SKIP -- companies table already has data")
-    else:
-        try:
-            print("before inserting companies")
-            n = import_companies(path)
-            print(f"  OK -- {n} companies inserted")
-        except Exception as e:
-            print(f"  FAIL -- Companies: {e}")
-            errors.append(f"Companies: {e}")
+    # 1. Companies -- idempotent via INSERT IGNORE, runs even on a populated table.
+    print("\n[1/5] Importing companies -> MySQL ...")
+    try:
+        clean_all()
+        n = import_companies()
+        print(f"  OK -- {n} companies inserted")
+    except Exception as e:
+        print(f"  FAIL -- Companies: {e}")
+        errors.append(f"Companies: {e}")
 
-    # 2. Sales candidates
-    print("\n[2/4] Importing sales candidates -> MongoDB ...")
+    # 2. Blacklist -- idempotent via INSERT IGNORE, runs even on a populated table.
+    print("\n[2/5] Importing blacklist -> MySQL ...")
+    try:
+        n = import_blacklist()
+        print(f"  OK -- {n} blacklisted companies inserted")
+    except Exception as e:
+        print(f"  FAIL -- Blacklist: {e}")
+        errors.append(f"Blacklist: {e}")
+
+    # 3. Sales candidates
+    print("\n[3/5] Importing sales candidates -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidats_nord.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidats_nord.csv not found")
@@ -562,8 +361,8 @@ def main() -> int:
             print(f"  FAIL -- Sales candidates: {e}")
             errors.append(f"Sales candidates: {e}")
 
-    # 3. Secretariat candidates
-    print("\n[3/4] Importing secretariat candidates -> MongoDB ...")
+    # 4. Secretariat candidates
+    print("\n[4/5] Importing secretariat candidates -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidats_nord_AD.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidats_nord_AD.csv not found")
@@ -577,8 +376,8 @@ def main() -> int:
             print(f"  FAIL -- Secretariat candidates: {e}")
             errors.append(f"Secretariat candidates: {e}")
 
-    # 4. Jobs
-    print("\n[4/4] Importing jobs -> MongoDB ...")
+    # 5. Jobs
+    print("\n[5/5] Importing jobs -> MongoDB ...")
     job_files = sorted(glob.glob(os.path.join(RESOURCE_DIR, 'company_recruitement_nord*.csv')))
     if not job_files:
         print(f"  SKIP -- no company_recruitement_nord*.csv files found")
