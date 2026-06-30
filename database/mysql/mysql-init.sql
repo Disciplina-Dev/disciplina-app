@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS companies_blacklist (
     relance_date DATE DEFAULT NULL,
     relance_type TINYINT DEFAULT NULL,
     relance_template_id VARCHAR(64) DEFAULT NULL,
+    relance_channel ENUM('PHONE', 'MAIL') DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     all_blacklist TINYINT DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
