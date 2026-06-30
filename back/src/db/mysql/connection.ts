@@ -16,7 +16,7 @@ const pool: Pool =
           })
         : mysql.createPool({
               host: env.MYSQL_HOST,
-              port: env.MYSQL_PORT,
+              port: 3306,
               user: env.MYSQL_USER,
               password: env.MYSQL_ROOT_PASSWORD,
               database: env.MYSQL_DATABASE,

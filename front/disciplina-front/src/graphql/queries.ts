@@ -1200,6 +1200,12 @@ export const DELETE_CANDIDATE_HISTORY_ENTRY = gql`
   }
 `
 
+export const DELETE_CANDIDATE = gql`
+  mutation DeleteCandidate($id: String!) {
+    deleteCandidate(id: $id)
+  }
+`
+
 export const CREATE_NEEDS_ANALYSIS = gql`
   mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
     createNeedsAnalysis(input: $input) {
