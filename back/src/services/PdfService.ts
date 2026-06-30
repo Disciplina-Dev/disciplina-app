@@ -781,21 +781,25 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     const skills = c.skills_assessment ?? [];
     if (skills.length) {
         section('Analyse des compétences');
+        const compWidth = contentW - 130;
         skills.forEach((s) => {
-            ensure(18);
+            // Hauteur réelle de la compétence (souvent multi-lignes) pour réserver
+            // l'espace et éviter un saut de page au milieu d'une ligne.
+            const compH = doc.font('Helvetica').fontSize(10).heightOfString(s.competence, { width: compWidth });
+            ensure(compH + 8);
             const y = doc.y;
-            doc.font('Helvetica')
-                .fillColor('#111111')
-                .fontSize(10)
-                .text(s.competence, left, y, { width: contentW - 130 });
-            const lineY = y;
+            doc.font('Helvetica').fillColor('#111111').fontSize(10).text(s.competence, left, y, { width: compWidth });
+            // Bas de la compétence : on s'aligne dessus pour que le niveau (1 ligne)
+            // et la ligne suivante ne chevauchent pas le texte wrappé.
+            const afterComp = doc.y;
             const lvlColor =
                 s.level === 'A' ? '#1f7a3d' : s.level === 'ECA' ? '#b8860b' : s.level === 'NA' ? '#b3261e' : '#888888';
             doc.font('Helvetica-Bold')
                 .fillColor(lvlColor)
                 .fontSize(10)
-                .text(SKILL_LEVEL_LABELS[s.level] ?? s.level, right - 120, lineY, { width: 120, align: 'right' });
-            doc.moveDown(0.25);
+                .text(SKILL_LEVEL_LABELS[s.level] ?? s.level, right - 120, y, { width: 120, align: 'right' });
+            doc.y = Math.max(afterComp, doc.y);
+            doc.moveDown(0.35);
             doc.fillColor('#000000');
         });
     }
