@@ -16,6 +16,7 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'companies', column: 'relance_date', definition: 'DATE DEFAULT NULL' },
     { table: 'companies', column: 'relance_type', definition: 'TINYINT DEFAULT NULL' },
     { table: 'companies', column: 'relance_template_id', definition: 'VARCHAR(64) DEFAULT NULL' },
+    { table: 'companies', column: 'relance_channel', definition: "ENUM('PHONE', 'MAIL') DEFAULT NULL" },
     { table: 'companies', column: 'created_at', definition: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
     // AB rework (2026-06-12): multi-position support, age range, free-text conditions
     { table: 'needs_analysis', column: 'positions', definition: 'JSON DEFAULT NULL' },
@@ -182,6 +183,23 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Historique des relances commerciales (canal + objet/note), une ligne par relance.
+        table: 'relance_history',
+        ddl: `CREATE TABLE IF NOT EXISTS relance_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            company_id INT NOT NULL,
+            user_id INT DEFAULT NULL,
+            type_relance INT DEFAULT NULL,
+            channel ENUM('PHONE', 'MAIL') NOT NULL,
+            subject TEXT DEFAULT NULL,
+            note TEXT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+            INDEX idx_relance_history_company (company_id)
         )`,
     },
 ];
