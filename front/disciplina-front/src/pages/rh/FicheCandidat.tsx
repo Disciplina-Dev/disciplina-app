@@ -281,7 +281,7 @@ export default function FicheCandidat() {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/cv`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/pdf',
+          'Content-Type': file.type || 'application/octet-stream',
           Authorization: `Bearer ${token}`,
         },
         body: file,
@@ -501,7 +501,7 @@ export default function FicheCandidat() {
           )}
           {formData.drive_folder_id && (
             <>
-              <input id="cv-upload" type="file" accept="application/pdf" className="hidden" onChange={handleCVUpload} />
+              <input id="cv-upload" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
               <Button variant="secondary" size="sm" isLoading={uploadingCV}
                 leftIcon={<Upload size={15} style={{ color: 'var(--color-purple)' }} />}
                 onClick={() => document.getElementById('cv-upload')?.click()}>
@@ -903,7 +903,7 @@ export default function FicheCandidat() {
               <div className="flex items-center justify-between mb-4">
                 <SectionTitle>Dossier Drive</SectionTitle>
                 <div className="flex items-center gap-2">
-                  <input id="cv-upload-bottom" type="file" accept="application/pdf" className="hidden" onChange={handleCVUpload} />
+                  <input id="cv-upload-bottom" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
                   <Button variant="secondary" size="sm" isLoading={uploadingCV}
                     leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
                     onClick={() => document.getElementById('cv-upload-bottom')?.click()}>

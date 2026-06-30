@@ -114,9 +114,16 @@ router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Resp
     }
 });
 
+const CV_MIME_EXT: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+};
+
 router.post(
     '/:id/cv',
-    express.raw({ type: 'application/pdf', limit: '20mb' }),
+    express.raw({ type: Object.keys(CV_MIME_EXT), limit: '20mb' }),
     authenticate,
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
@@ -126,10 +133,17 @@ router.post(
         }
 
         const { id } = req.params;
-        const pdfBuffer = req.body as Buffer;
+        const fileBuffer = req.body as Buffer;
+        const mimeType = (req.headers['content-type'] ?? '').split(';')[0].trim();
+        const ext = CV_MIME_EXT[mimeType];
 
-        if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
-            res.status(400).json({ error: 'PDF body required' });
+        if (!ext) {
+            res.status(400).json({ error: 'Type de fichier non supporté (PDF ou image)' });
+            return;
+        }
+
+        if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+            res.status(400).json({ error: 'File body required' });
             return;
         }
 
@@ -155,11 +169,11 @@ router.post(
                 persistRefreshedTokens(user.id),
             );
 
-            const fileName = `CV_${candidate.identity.full_name}.pdf`;
+            const fileName = `CV_${candidate.identity.full_name}.${ext}`;
             const { webViewLink: fileLink } = await driveService.uploadFile(
                 fileName,
-                'application/pdf',
-                pdfBuffer,
+                mimeType,
+                fileBuffer,
                 candidate.drive_folder_id,
             );
 
