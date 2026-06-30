@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
   QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, Download, FileText,
-  File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera,
+  File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera, HardDriveUpload,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
@@ -131,6 +131,7 @@ export default function FicheCandidat() {
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [uploadingCV, setUploadingCV] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const [savingAbToDrive, setSavingAbToDrive] = useState(false)
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
   const [uploadingFiles, setUploadingFiles] = useState(false)
@@ -302,6 +303,29 @@ export default function FicheCandidat() {
       setSaveError(err instanceof Error ? err.message : 'Erreur lors de la génération du PDF')
     } finally {
       setDownloadingPdf(false)
+    }
+  }
+
+  // Génère le résumé AB et le dépose dans le dossier Drive du candidat
+  // (remplace l'AB précédent côté serveur).
+  const handleSaveAbToDrive = async () => {
+    if (!formData) return
+    setSavingAbToDrive(true)
+    setSaveError(null)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/ab-to-drive`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? "Échec de l'enregistrement dans le Drive")
+      }
+      if (formData.drive_folder_id) await fetchDriveFiles(formData._id)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Échec de l'enregistrement dans le Drive")
+    } finally {
+      setSavingAbToDrive(false)
     }
   }
 
@@ -480,6 +504,13 @@ export default function FicheCandidat() {
             leftIcon={<Download size={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={handleDownloadPdf}>
             Télécharger le PDF
+          </Button>
+          <Button variant="secondary" size="sm" isLoading={savingAbToDrive}
+            disabled={!formData.drive_folder_id}
+            title={formData.drive_folder_id ? undefined : "Crée d'abord le dossier Drive du candidat"}
+            leftIcon={<HardDriveUpload size={15} style={{ color: 'var(--color-purple)' }} />}
+            onClick={handleSaveAbToDrive}>
+            Enregistrer l'AB dans le Drive
           </Button>
           <Button variant="secondary" size="sm" leftIcon={<Mail size={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={() => setMailOpen(true)}>
