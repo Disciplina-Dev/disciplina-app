@@ -8,6 +8,7 @@ import {
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate';
+import { formatCommune } from '@/data/reunionCommunes';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
@@ -418,7 +419,7 @@ export default function ListeCandidats() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <GraduationCap size={16} className="text-gray-400 shrink-0" />
-                  <span className="truncate">{candidate.education?.school_level || candidate.background?.last_diploma || '-'}</span>
+                  <span className="truncate">{candidate.education?.school_level ? SCHOOL_LEVEL_LABELS[candidate.education.school_level] : (candidate.background?.last_diploma || '-')}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm text-gray-600">
                   <div className="flex items-center gap-2 shrink-0">
@@ -427,7 +428,7 @@ export default function ListeCandidats() {
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <MapPin size={16} className="text-gray-400 shrink-0" />
-                    <span className="truncate">{candidate.identity.city || '-'}</span>
+                    <span className="truncate">{formatCommune(candidate.identity.city)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">

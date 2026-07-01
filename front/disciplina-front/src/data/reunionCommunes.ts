@@ -100,3 +100,18 @@ export const LOCALISATION_LABELS: Record<Localisation, string> = {
   [Localisation.SALAZIE]: 'Salazie',
   [Localisation.SAINTE_ANNE]: 'Sainte-Anne',
 }
+
+/**
+ * Formate une commune pour l'affichage : accepte une clé enum `Localisation`
+ * (`SAINT_DENIS`), une variante insensible à la casse (`Saint_Denis`) ou une
+ * saisie libre. Renvoie toujours le libellé officiel (« Saint-Denis »), et
+ * nettoie les underscores résiduels pour toute valeur hors référentiel.
+ */
+export function formatCommune(value?: string | null): string {
+  if (!value) return '—'
+  const raw = value.trim()
+  if (raw in LOCALISATION_LABELS) return LOCALISATION_LABELS[raw as Localisation]
+  const upper = raw.toUpperCase()
+  if (upper in LOCALISATION_LABELS) return LOCALISATION_LABELS[upper as Localisation]
+  return raw.replace(/_/g, '-')
+}
