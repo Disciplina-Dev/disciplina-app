@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { BarChart3, Plus, ShieldAlert, AlertTriangle, CheckCircle2, PhoneCall, Users } from 'lucide-react'
 
 import { useAuthStore, useCurrentUser, UserRole, USERS } from '@/store/authStore'
@@ -22,10 +22,11 @@ import KpiWeeklyTable from '@/features/kpi/components/KpiWeeklyTable'
 import KpiImportButton from '@/features/kpi/components/KpiImportButton'
 import KpiEntryModal, { type KpiEntryDraft } from '@/features/kpi/components/KpiEntryModal'
 import type { ChartMode } from '@/features/kpi/components/KpiStatusChart'
+import { lazyWithRetry } from '@/utils/lazyWithRetry'
 
 // recharts est lourd : chargé à la demande pour ne pas grossir le bundle principal
-const KpiStatusChart = lazy(() => import('@/features/kpi/components/KpiStatusChart'))
-const KpiYearComparison = lazy(() => import('@/features/kpi/components/KpiYearComparison'))
+const KpiStatusChart = lazyWithRetry(() => import('@/features/kpi/components/KpiStatusChart'))
+const KpiYearComparison = lazyWithRetry(() => import('@/features/kpi/components/KpiYearComparison'))
 
 // ─── Dashboard Commercial — KPI annuels (réservé ADMIN / RESPONSABLE) ───────
 export default function DashboardCommercial() {
