@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, X, AlertCircle, Plus, Trash2, QrCode } from 'lucide-react';
+import { User, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
-import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal';
-import { splitFullName } from '@/utils/classmarker';
 import { candidateGraphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL } from '@/graphql/queries';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
@@ -335,15 +333,11 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showClassMarker, setShowClassMarker] = useState(false);
   // Doublon email détecté en direct (autre fiche que celle en cours d'édition).
   const [emailDup, setEmailDup] = useState<{ fullName: string } | null>(null);
-  const splitName = splitFullName(form.fullName);
-  const canGenerateLinks = splitName.first.length > 0 && splitName.last.length > 0;
 
   // Template fusionné sur tous les TP cochés (options = union, anglais = si au moins un).
   const selectedTps = form.tpTypes.length ? form.tpTypes : [TitleProfessionalType.CC];
-  const primaryTp = selectedTps[0];
   const uniq = (a: string[]) => [...new Set(a)];
   const schoolLevelsMerged = (() => {
     const seen = new Set<string>();
@@ -752,31 +746,12 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
         {/* Footer fixe */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
           <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!canGenerateLinks}
-            onClick={() => setShowClassMarker(true)}
-            leftIcon={<QrCode size={16} />}
-            title={canGenerateLinks ? '' : 'Renseigner prénom et nom'}
-          >
-            Générer les liens de test
-          </Button>
           <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
             {isEdit ? 'Enregistrer les modifications' : 'Créer le candidat'}
           </Button>
         </div>
 
       </div>
-      {showClassMarker && (
-        <ClassMarkerLinksModal
-          open={showClassMarker}
-          onClose={() => setShowClassMarker(false)}
-          firstName={splitName.first}
-          lastName={splitName.last}
-          tpType={primaryTp as TitleProfessionalType}
-        />
-      )}
     </div>
   );
 }
