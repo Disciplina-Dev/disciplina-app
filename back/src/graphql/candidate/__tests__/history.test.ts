@@ -48,7 +48,7 @@ describe('candidateHistory', () => {
         await graphqlRequest(
             token,
             `mutation($id: String!, $input: UpdateCandidateInput!) { updateCandidate(id: $id, input: $input) { id status } }`,
-            { id: candidate._id, input: { status: 'MATCHED' } },
+            { id: candidate._id, input: { status: 'CONTRACT' } },
         );
 
         const json = await graphqlRequest(
@@ -143,7 +143,7 @@ describe('candidateHistory', () => {
         await graphqlRequest(
             token,
             `mutation($id: String!, $input: UpdateCandidateInput!) { updateCandidate(id: $id, input: $input) { id } }`,
-            { id: candidate._id, input: { status: 'MATCHED' } },
+            { id: candidate._id, input: { status: 'CONTRACT' } },
         );
 
         const historyJson = await graphqlRequest(

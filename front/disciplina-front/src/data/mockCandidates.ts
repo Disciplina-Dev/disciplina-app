@@ -35,7 +35,7 @@ export const mockCandidates: Candidate[] = [
   {
     _id: "cand-002",
     tp_type: TitleProfessionalType.NTC,
-    status: CandidateStatus.MATCHED,
+    status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
       full_name: "Lucas Hoarau",
@@ -185,7 +185,7 @@ export const mockCandidates: Candidate[] = [
   {
     _id: "cand-008",
     tp_type: TitleProfessionalType.AD,
-    status: CandidateStatus.MATCHED,
+    status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
       full_name: "Hugo Maillot",
@@ -285,7 +285,7 @@ export const mockCandidates: Candidate[] = [
   {
     _id: "cand-012",
     tp_type: TitleProfessionalType.NTC,
-    status: CandidateStatus.MATCHED,
+    status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
       full_name: "Antoine Dijoux",

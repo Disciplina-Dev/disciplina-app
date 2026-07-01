@@ -180,7 +180,6 @@ export class JobService {
             CandidateHistoryType.RH,
             `Le candidat a été retenu pour ${job.company_name}`,
         );
-        await this.candidateService.update(candidateId, { status: CandidateStatus.MATCHED });
         return toGql(await this.syncDerivedStatus(jobId, job));
     }
 

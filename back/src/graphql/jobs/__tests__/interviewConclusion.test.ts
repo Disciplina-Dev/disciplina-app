@@ -65,7 +65,7 @@ async function seedJobWithProposedCandidate(
         _id: candidateId,
         candidate_id: candidateId,
         tp_type: TitleProfessionalType.AD,
-        status: CandidateStatus.MATCHED,
+        status: CandidateStatus.SEEKING,
         identity: {
             full_name: `Eve ${suffix}`,
             email: `eve-${suffix}@test.local`,

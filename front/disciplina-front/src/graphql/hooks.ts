@@ -276,6 +276,8 @@ function fromGql(c: any): Candidate {
     training_site: c.trainingSite,
     training_sites: c.trainingSites ?? (c.trainingSite ? [c.trainingSite] : []),
     immersion_agreement: c.immersionAgreement,
+    immersion_start_date: c.immersionStartDate ?? undefined,
+    immersion_end_date: c.immersionEndDate ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -316,6 +318,7 @@ function fromGql(c: any): Candidate {
     background: c.background
       ? {
           last_diploma: c.background.lastDiploma,
+          last_diploma_prepared: c.background.lastDiplomaPrepared,
           previous_trainings: c.background.previousTrainings,
           professional_experiences: c.background.professionalExperiences?.map((e: any) => ({
             position: e.position,
@@ -397,6 +400,8 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
+    ...(c.immersion_start_date !== undefined && { immersionStartDate: c.immersion_start_date }),
+    ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
