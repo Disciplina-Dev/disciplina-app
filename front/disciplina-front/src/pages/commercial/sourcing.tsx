@@ -14,7 +14,8 @@ import {
   Phone,
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
-import { NAF_CODES } from "@/data/nafCodes";
+// import { NAF_CODES } from "@/data/nafCodes";
+import NAF_CODES from "@socialgouv/codes-naf";
 import {
   normalizeSiret,
   formatSiret,
@@ -748,8 +749,8 @@ function MulticriteriaSearchBar({
       >
         <option value="">Tous secteurs (NAF)</option>
         {NAF_CODES.map((n) => (
-          <option key={n.code} value={n.code}>
-            {n.libelle}
+          <option key={n.id} value={n.id}>
+            {n.label}
           </option>
         ))}
       </select>
