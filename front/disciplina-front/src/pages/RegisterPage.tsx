@@ -134,9 +134,9 @@ export default function RegisterPage() {
               required
             >
               <option value={UserRole.ADMIN}>Administrateur</option>
+              <option value={UserRole.RESPONSABLE}>Responsable</option>
               <option value={UserRole.RH}>Ressources Humaines</option>
               <option value={UserRole.COMMERCIAL}>Commercial</option>
-              <option value={UserRole.ENTREPRISE}>Entreprise</option>
             </select>
           </div>
         </div>
