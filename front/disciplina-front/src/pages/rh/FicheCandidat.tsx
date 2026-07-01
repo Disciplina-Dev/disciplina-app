@@ -57,9 +57,25 @@ interface DriveFile {
   webViewLink?: string
 }
 
-function drivePreviewUrl(file: DriveFile): string {
+// Types prévisualisables via le proxy backend (rendu natif navigateur depuis un blob) :
+// PDF, images, et Google Docs natifs (exportés en PDF côté backend).
+function isProxyablePreview(mimeType: string): boolean {
+  return (
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('image/') ||
+    mimeType.startsWith('application/vnd.google-apps.')
+  )
+}
+
+// Fallback pour les types que le navigateur ne sait pas rendre (Office binaire, etc.) :
+// on retombe sur l'embed Google Drive (nécessite la session Google du navigateur).
+function googleEmbedUrl(file: DriveFile): string {
   if (file.webViewLink) {
-    return file.webViewLink.replace('/edit?', '/preview?').replace('/view?', '/preview?').replace('/edit', '/preview').replace('/view', '/preview')
+    return file.webViewLink
+      .replace('/edit?', '/preview?')
+      .replace('/view?', '/preview?')
+      .replace('/edit', '/preview')
+      .replace('/view', '/preview')
   }
   return `https://drive.google.com/file/d/${file.id}/preview`
 }
@@ -138,6 +154,9 @@ export default function FicheCandidat() {
   const [loadingFiles, setLoadingFiles] = useState(false)
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [confirmedJobIds, setConfirmedJobIds] = useState<Set<string>>(new Set())
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -170,6 +189,43 @@ export default function FicheCandidat() {
       fetchDriveFiles(id)
     }
   }, [formData?.drive_folder_id])
+
+  // Aperçu : on récupère le fichier via le backend (token OAuth serveur) plutôt que
+  // d'embarquer drive.google.com — l'iframe Google exige la session Google dans
+  // l'iframe (bloquée par les cookies tiers → "Connectez-vous à votre compte Google").
+  useEffect(() => {
+    // Types non-proxyables (Office binaire…) : pas de blob, on utilisera l'embed Google.
+    if (!id || !selectedFile || !isProxyablePreview(selectedFile.mimeType)) {
+      setPreviewUrl(null)
+      setPreviewError(null)
+      setPreviewLoading(false)
+      return
+    }
+    let objectUrl: string | null = null
+    let cancelled = false
+    setPreviewLoading(true)
+    setPreviewError(null)
+    fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/drive-files/${selectedFile.id}/content`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Aperçu indisponible (${res.status})`)
+        const blob = await res.blob()
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setPreviewUrl(objectUrl)
+      })
+      .catch((err) => {
+        if (!cancelled) setPreviewError(err instanceof Error ? err.message : 'Aperçu indisponible')
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false)
+      })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [id, selectedFile, token])
 
   useEffect(() => {
     if (!id) return
@@ -984,12 +1040,35 @@ export default function FicheCandidat() {
                 {/* Preview */}
                 <div className="flex-1 min-w-0">
                   {selectedFile ? (
-                    <iframe
-                      key={selectedFile.id}
-                      src={drivePreviewUrl(selectedFile)}
-                      className="w-full h-full rounded-lg border border-gray-100"
-                      allow="autoplay"
-                    />
+                    !isProxyablePreview(selectedFile.mimeType) ? (
+                      <iframe
+                        key={selectedFile.id}
+                        src={googleEmbedUrl(selectedFile)}
+                        title={selectedFile.name}
+                        className="w-full h-full rounded-lg border border-gray-100"
+                      />
+                    ) : previewLoading ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-2 rounded-lg border border-gray-100 bg-gray-50 text-gray-400">
+                        <Loader2 size={24} className="animate-spin" />
+                        <p className="text-sm">Chargement de l'aperçu…</p>
+                      </div>
+                    ) : previewError ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
+                        <AlertCircle size={28} className="text-gray-300" />
+                        <p className="text-sm text-gray-400">{previewError}</p>
+                        {selectedFile.webViewLink && (
+                          <a href={selectedFile.webViewLink} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-purple hover:underline">Ouvrir dans Google Drive</a>
+                        )}
+                      </div>
+                    ) : previewUrl ? (
+                      <iframe
+                        key={selectedFile.id}
+                        src={previewUrl}
+                        title={selectedFile.name}
+                        className="w-full h-full rounded-lg border border-gray-100"
+                      />
+                    ) : null
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
                       <FileText size={32} className="text-gray-300" />

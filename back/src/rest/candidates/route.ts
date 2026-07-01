@@ -276,6 +276,52 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
     }
 });
 
+// Proxy le contenu brut d'un fichier Drive via le token OAuth serveur.
+// Évite l'embed drive.google.com (qui exige la session Google dans l'iframe,
+// bloquée par le blocage des cookies tiers → "Connectez-vous à votre compte Google").
+router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthRequest, res: Response) => {
+    const role = req.user?.role;
+    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const { id, fileId } = req.params;
+
+    try {
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).json({ error: 'Candidate not found' });
+            return;
+        }
+
+        const user = await userService.findById(req.user!.id);
+        if (!user || !user.oauthToken) {
+            res.status(400).json({ error: 'Google Drive non connecté' });
+            return;
+        }
+
+        const driveService = GoogleDriveService.fromTokens(
+            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+            persistRefreshedTokens(user.id),
+        );
+
+        const meta = await driveService.getFileMeta(fileId);
+        // Google Docs natifs : export en PDF ; sinon téléchargement binaire.
+        const { buffer, mimeType } = meta.mimeType?.startsWith('application/vnd.google-apps.')
+            ? await driveService.exportFile(fileId, 'application/pdf')
+            : await driveService.downloadFile(fileId);
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(meta.name || fileId)}"`);
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        res.send(buffer);
+    } catch (err) {
+        logger.error(err, 'proxy drive file content failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+});
+
 router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
     if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
