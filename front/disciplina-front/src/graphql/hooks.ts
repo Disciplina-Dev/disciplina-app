@@ -45,6 +45,9 @@ export interface CandidateServerFilters {
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType
+  /** Bornes de date de création (ISO yyyy-mm-dd), incluses. */
+  createdAfter?: string
+  createdBefore?: string
 }
 import { candidateGraphqlClient } from './client'
 
