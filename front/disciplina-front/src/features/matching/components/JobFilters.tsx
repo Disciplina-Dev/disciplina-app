@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, ChevronDown, X, Check, Car, Briefcase, MapPin, Users, Building2, Clock } from 'lucide-react'
+import { Search, ChevronDown, X, Check, Car, Briefcase, MapPin, Building2, Clock } from 'lucide-react'
 import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS, getDistinctAgeRanges } from '../services/jobFilters'
 import type { Job } from '../types'
-import { JobStatus, DesiredTP, DesiredSex, Sector, Localisation, formatEnumLabel } from '../constants/jobEnums'
+import { JobStatus, DesiredTP, Sector, Localisation, formatEnumLabel } from '../constants/jobEnums'
 
 interface Props {
   filters: JobFilters
@@ -185,7 +185,6 @@ function SelectContent({
 export function JobFilters({ filters, onChange, jobs }: Props) {
   const statusOptions = Object.values(JobStatus).map((s) => ({ label: formatEnumLabel(s), value: s }))
   const tpOptions = Object.values(DesiredTP).map((tp) => ({ label: tp, value: tp }))
-  const sexOptions = Object.values(DesiredSex).map((s) => ({ label: formatEnumLabel(s), value: s }))
   const sectorOptions = Object.values(Sector)
     .filter((s) => s !== Sector.NONE)
     .map((s) => ({ label: formatEnumLabel(s), value: s }))
@@ -196,7 +195,6 @@ export function JobFilters({ filters, onChange, jobs }: Props) {
     filters.search,
     ...filters.statuses,
     filters.desiredTP,
-    filters.desiredSex,
     filters.sector,
     ...filters.localisations,
     filters.ageRange,
@@ -251,21 +249,6 @@ export function JobFilters({ filters, onChange, jobs }: Props) {
             value={filters.desiredTP}
             onChange={(tp) => onChange({ ...filters, desiredTP: tp })}
             placeholder="Tous les types"
-          />
-        </ChipDropdown>
-
-        <ChipDropdown
-          icon={<Users className="h-3 w-3" />}
-          label="Sexe"
-          activeLabel={filters.desiredSex ? formatEnumLabel(filters.desiredSex) : undefined}
-          isActive={filters.desiredSex !== null}
-          onClear={() => onChange({ ...filters, desiredSex: null })}
-        >
-          <SelectContent
-            options={sexOptions}
-            value={filters.desiredSex}
-            onChange={(s) => onChange({ ...filters, desiredSex: s })}
-            placeholder="Tous les sexes"
           />
         </ChipDropdown>
 

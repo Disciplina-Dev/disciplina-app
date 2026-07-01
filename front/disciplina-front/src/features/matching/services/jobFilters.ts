@@ -4,7 +4,6 @@ export interface JobFilters {
   search: string
   statuses: string[]
   desiredTP: string | null
-  desiredSex: string | null
   sector: string | null
   localisations: string[]
   ageRange: string | null
@@ -15,7 +14,6 @@ export const EMPTY_JOB_FILTERS: JobFilters = {
   search: '',
   statuses: [],
   desiredTP: null,
-  desiredSex: null,
   sector: null,
   localisations: [],
   ageRange: null,
@@ -33,10 +31,6 @@ export function applyJobFilters(jobs: Job[], filters: JobFilters): Job[] {
     }
 
     if (filters.desiredTP && job.desiredTP !== filters.desiredTP) {
-      return false
-    }
-
-    if (filters.desiredSex && job.desiredSex !== filters.desiredSex) {
       return false
     }
 
