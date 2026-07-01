@@ -110,6 +110,36 @@ def parse_expected_skills(raw: str) -> list:
     return skills
 
 
+LOCALISATION_ALIASES = {"SAINT_ANNE": "SAINTE_ANNE"}
+
+FRENCH_MONTHS = {
+    "JANVIER": 1, "FEVRIER": 2, "MARS": 3, "AVRIL": 4, "MAI": 5, "JUIN": 6,
+    "JUILLET": 7, "AOUT": 8, "SEPTEMBRE": 9, "OCTOBRE": 10, "NOVEMBRE": 11, "DECEMBRE": 12,
+}
+
+
+def parse_sales_mobility(raw: str) -> list:
+    result = []
+    for part in (raw or '').split(","):
+        norm = normalize_loc_part(part)
+        norm = LOCALISATION_ALIASES.get(norm, norm)
+        if norm in LOCALISATION_ENUM and norm not in result:
+            result.append(norm)
+    return result
+
+
+def parse_availability(dispo: str, interview_date: datetime | None) -> tuple:
+    value = (dispo or '').strip()
+    if not value or normalize_token(value) == "DISPONIBLE":
+        return "SEEKING", None
+    month = next((m for name, m in FRENCH_MONTHS.items() if name in normalize_token(value)), None)
+    if not month:
+        return "UNAVAILABLE", None
+    base = interview_date or datetime(2026, 1, 1)
+    year = base.year + 1 if month < base.month else base.year
+    return "UNAVAILABLE", datetime(year, month, 1)
+
+
 # -- Seeded checks -----------------------------------------------------------------
 
 
@@ -127,58 +157,72 @@ def mongo_has_docs(collection: str, filter_: dict | None = None) -> bool:
 # -- 2. Sales candidates -> MongoDB ----------------------------------------------
 
 
+def parse_sales_sectors(row: list) -> list:
+    sectors = []
+    for sector, value in zip(SECTOR_SALES, row[10:27]):
+        if (value or '').strip().upper() != "OUI":
+            continue
+        normalized = "ENFANT" if sector == "ENFANTS" else sector.replace(" ", "_")
+        sectors.append(normalized)
+    return sectors
+
+
+def build_sales_candidate(row: list) -> dict:
+    city = normalize_city((row[3] or '').strip())
+    age = int(row[4]) if (row[4] or '').strip().isdigit() else 0
+    candidate_id = str(uuid.uuid4())
+    interview_date = parse_fr_date(row[28])
+    status, availability_date = parse_availability(row[27], interview_date)
+
+    identity = {
+        "sex": "GARCON" if normalize_token(row[0]) == "GARCON" else "FILLE",
+        "full_name": (row[1] or '').strip(),
+        "city": city,
+        "age": age,
+        "postal_code": POSTAL_CODE_MAP.get(city, '974'),
+        "phone": (row[5] or '').replace(" ", ""),
+        "email": (row[6] or '').strip(),
+        "driving_license_b": (row[8] or '').strip().upper() == "OUI",
+        "has_vehicle": (row[9] or '').strip().upper() == "OUI",
+        "description": (row[29] or '').strip(),
+    }
+    birth = birth_date_from_age(age)
+    if birth:
+        identity["date_of_birth"] = birth
+
+    job_info = {"geographic_mobility": parse_sales_mobility(row[7])}
+    if availability_date:
+        job_info["availability_date"] = availability_date
+
+    doc = {
+        "_id": candidate_id,
+        "candidate_id": candidate_id,
+        "training_site": "NORD_SAINTE_MARIE",
+        "formation_type": "VENTE",
+        "tp_type": (row[2] or '').strip().upper() if (row[2] or '').strip().upper() in DESIRED_TP_ENUM else "CC",
+        "status": status,
+        "identity": identity,
+        "job_info": job_info,
+        "desired_sectors": parse_sales_sectors(row),
+    }
+    if interview_date:
+        doc["created_at"] = interview_date
+    return doc
+
+
 def import_sales_candidates(filepath: str) -> int:
     client = get_mongo_connection()
     collection = client["human_ressources"]["candidates"]
     count = 0
 
     with open(filepath, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
+        reader = csv.reader(f)
+        next(reader, None)
+        for row in reader:
+            if len(row) < 2 or not (row[1] or '').strip():
+                continue
             try:
-                city_raw = (row.get("VILLE") or '').strip()
-                city = normalize_city(city_raw) if city_raw else ''
-
-                desired_sectors = []
-                for sector in SECTOR_SALES:
-                    val = row.get(sector)
-                    if val and val.strip().upper() == 'OUI':
-                        normalized = sector.replace(" ", "_")
-                        if normalized == "ENFANTS":
-                            normalized = "ENFANT"
-                        desired_sectors.append(normalized)
-
-                geo_sectors = []
-                for part in ((row.get("SECTEUR") or '')).split(", "):
-                    part = part.strip()
-                    if part:
-                        geo_sectors.append(
-                            remove_accents(part).upper().replace(" ", "_")
-                        )
-
-                disp = (row.get("Disponibilite") or '').strip()
-
-                doc = {
-                    "_id": str(uuid.uuid4()),
-                    "training_site": "NORD_SAINTE_MARIE",
-                    "formation_type": "VENTE",
-                    "tp_type": (row.get("FORMATION") or '').strip(),
-                    "status": "SEEKING",
-                    "identity": {
-                        "sex": "GARCON" if (row.get("Sex") or '').strip() == "GARCON" else "FILLE",
-                        "full_name": row.get("NOM - PRENOM"),
-                        "city": city,
-                        "age": int(row.get("AGE")) if (row.get("AGE") or '').strip() else 0,
-                        "postal_code": POSTAL_CODE_MAP.get(city, '974'),
-                        "phone": (row.get("TELEPHONE") or '').replace(" ", ""),
-                        "email": (row.get("ADRESSE MAIL") or '').strip(),
-                        "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
-                    },
-                    "job_info": {
-                        "geographic_mobility": geo_sectors,
-                    },
-                    "desired_sectors": desired_sectors,
-                }
-                collection.insert_one(doc)
+                collection.insert_one(build_sales_candidate(row))
                 count += 1
             except Exception as e:
                 print(f"  [WARN] Skipping sales candidate row: {e}")
@@ -357,9 +401,9 @@ def main() -> int:
 
     # 3. Sales candidates
     print("\n[3/5] Importing sales candidates -> MongoDB ...")
-    path = os.path.join(RESOURCE_DIR, 'candidats_nord.csv')
+    path = os.path.join(RESOURCE_DIR, 'candidat-nord-vente.csv')
     if not os.path.exists(path):
-        print(f"  SKIP -- candidats_nord.csv not found")
+        print(f"  SKIP -- candidat-nord-vente.csv not found")
     elif mongo_has_docs("candidates", {"formation_type": "VENTE"}):
         print(f"  SKIP -- sales candidates already exist")
     else:
