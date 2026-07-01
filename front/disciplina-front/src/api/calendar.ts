@@ -73,8 +73,20 @@ export interface CalendarUser {
   isSelf: boolean;
 }
 
-/** Palette pour distinguer les agendas par personne (couleur déterministe par id). */
-const OWNER_PALETTE = ['#60207E', '#039be5', '#0b8043', '#e67c73', '#f4511e', '#8e24aa', '#3f51b5', '#33b679', '#d50000', '#616161']
+/**
+ * Palette pour distinguer les agendas par personne (couleur déterministe par id).
+ * Rouge et vert sont réservés à la présence (venu / pas venu) : on les exclut ici,
+ * et chaque teinte est franchement distincte des autres (aucune nuance proche).
+ */
+const OWNER_PALETTE = [
+  '#1130A7', // indigo
+  '#B10F55', // magenta
+  '#E67E22', // orange
+  '#00A3C4', // cyan
+  '#F9A825', // ambre
+  '#5D4037', // brun
+  '#455A64', // ardoise
+]
 
 export function ownerColor(userId: number): string {
   return OWNER_PALETTE[userId % OWNER_PALETTE.length]
