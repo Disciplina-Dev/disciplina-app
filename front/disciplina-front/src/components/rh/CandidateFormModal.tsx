@@ -72,6 +72,7 @@ type ABForm = {
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
   apprenticeshipContractDetails: string;
+  description: string;
   // TP (multi) + statut
   tpTypes: TitleProfessionalType[]; status: string;
   // éducation
@@ -145,7 +146,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
-    hadApprenticeshipContract: '', apprenticeshipContractDetails: '',
+    hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '',
     tpTypes: [tpType], status: 'SEEKING',
     schoolLevel: '', schoolJustification: '',
     trainingSites: [],
@@ -183,6 +184,7 @@ function candidateToForm(c: Candidate): ABForm {
     socialSecurityNumber: c.identity.social_security_number ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
+    description: c.identity.description ?? '',
     dateOfBirth: c.identity.date_of_birth ? c.identity.date_of_birth.slice(0, 10) : '',
     placeOfBirth: c.identity.place_of_birth ?? '',
     departmentOfBirth: c.identity.department_of_birth ?? '',
@@ -257,6 +259,7 @@ function toServerInput(f: ABForm) {
     expectedCompanySkills: f.expectedCompanySkills,
     identity: {
       fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
+      description: f.description || undefined,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       departmentOfBirth: f.departmentOfBirth || undefined,
@@ -544,6 +547,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             }} />
             <InputField id="cn-city" label="Ville" value={form.city} onChange={e => set('city', e.target.value)} />
           </div>
+          <ABTextarea label="Description (contexte du candidat pour le matching)" value={form.description} onChange={v => set('description', v)} rows={4} />
 
           {/* Situation personnelle */}
           <ABSectionTitle title="Situation personnelle" />
