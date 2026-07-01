@@ -57,6 +57,29 @@ interface DriveFile {
   webViewLink?: string
 }
 
+// Types prévisualisables via le proxy backend (rendu natif navigateur depuis un blob) :
+// PDF, images, et Google Docs natifs (exportés en PDF côté backend).
+function isProxyablePreview(mimeType: string): boolean {
+  return (
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('image/') ||
+    mimeType.startsWith('application/vnd.google-apps.')
+  )
+}
+
+// Fallback pour les types que le navigateur ne sait pas rendre (Office binaire, etc.) :
+// on retombe sur l'embed Google Drive (nécessite la session Google du navigateur).
+function googleEmbedUrl(file: DriveFile): string {
+  if (file.webViewLink) {
+    return file.webViewLink
+      .replace('/edit?', '/preview?')
+      .replace('/view?', '/preview?')
+      .replace('/edit', '/preview')
+      .replace('/view', '/preview')
+  }
+  return `https://drive.google.com/file/d/${file.id}/preview`
+}
+
 function DriveFileIcon({ mimeType }: { mimeType: string }) {
   if (mimeType === 'application/pdf') return <FileText size={15} className="shrink-0 text-red-400" />
   if (mimeType.startsWith('image/')) return <FileImage size={15} className="shrink-0 text-blue-400" />
@@ -171,8 +194,11 @@ export default function FicheCandidat() {
   // d'embarquer drive.google.com — l'iframe Google exige la session Google dans
   // l'iframe (bloquée par les cookies tiers → "Connectez-vous à votre compte Google").
   useEffect(() => {
-    if (!id || !selectedFile) {
+    // Types non-proxyables (Office binaire…) : pas de blob, on utilisera l'embed Google.
+    if (!id || !selectedFile || !isProxyablePreview(selectedFile.mimeType)) {
       setPreviewUrl(null)
+      setPreviewError(null)
+      setPreviewLoading(false)
       return
     }
     let objectUrl: string | null = null
@@ -1014,7 +1040,14 @@ export default function FicheCandidat() {
                 {/* Preview */}
                 <div className="flex-1 min-w-0">
                   {selectedFile ? (
-                    previewLoading ? (
+                    !isProxyablePreview(selectedFile.mimeType) ? (
+                      <iframe
+                        key={selectedFile.id}
+                        src={googleEmbedUrl(selectedFile)}
+                        title={selectedFile.name}
+                        className="w-full h-full rounded-lg border border-gray-100"
+                      />
+                    ) : previewLoading ? (
                       <div className="flex flex-col items-center justify-center h-full gap-2 rounded-lg border border-gray-100 bg-gray-50 text-gray-400">
                         <Loader2 size={24} className="animate-spin" />
                         <p className="text-sm">Chargement de l'aperçu…</p>
