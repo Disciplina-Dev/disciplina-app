@@ -48,6 +48,21 @@ export class CandidateService {
         return this.repository.create(data);
     }
 
+    /**
+     * Renseigne `created_at` pour un candidat créé avant l'introduction du champ,
+     * à partir de sa plus ancienne entrée d'historique. Écriture directe (pas de
+     * diff/historique) et une seule fois : self-healing au premier accès à la fiche.
+     */
+    async backfillCreatedAt(id: string): Promise<Date | null> {
+        const entries = await this.candidateHistoryService.findByCandidate(id);
+        if (entries.length === 0) return null;
+        // findByCandidate trie par created_at décroissant → la plus ancienne est la dernière.
+        const oldest = entries[entries.length - 1].created_at;
+        if (!oldest) return null;
+        await this.repository.update(id, { created_at: new Date(oldest) });
+        return new Date(oldest);
+    }
+
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
         const previous = await this.repository.findById(id);
         const updated = await this.repository.update(id, data);

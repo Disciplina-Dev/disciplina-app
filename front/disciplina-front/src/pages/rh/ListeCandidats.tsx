@@ -449,6 +449,23 @@ export default function ListeCandidats() {
                     )}
                   </div>
                 )}
+
+                {(candidate.created_at || candidate.owner?.name) && (
+                  <div className="pt-3 mt-3 border-t border-gray-100 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
+                    {candidate.created_at && (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar size={12} className="shrink-0" />
+                        Créé le {new Date(candidate.created_at).toLocaleDateString('fr-FR')}
+                      </span>
+                    )}
+                    {candidate.owner?.name && (
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        <User size={12} className="shrink-0" />
+                        <span className="truncate">par {candidate.owner.name}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
