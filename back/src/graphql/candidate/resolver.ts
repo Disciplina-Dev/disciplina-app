@@ -120,6 +120,15 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidate = await candidateService.findById(id);
             if (!candidate) return null;
+            // Backfill unique de la date de création pour les fiches antérieures au champ.
+            if (!candidate.created_at) {
+                try {
+                    const backfilled = await candidateService.backfillCreatedAt(id);
+                    if (backfilled) candidate.created_at = backfilled;
+                } catch (err) {
+                    logger.error({ err, candidateId: id }, 'created_at backfill failed');
+                }
+            }
             try {
                 return candidateToGql(candidate);
             } catch (err) {
@@ -216,6 +225,7 @@ export const resolvers = {
                 _id: id,
                 candidate_id: id,
                 owner,
+                created_at: new Date(),
                 ...snakeInput,
             });
 
