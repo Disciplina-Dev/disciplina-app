@@ -18,8 +18,8 @@ import sys
 import uuid
 
 from dotenv import load_dotenv
-from pymongo import MongoClient
 
+from db.mongo import get_mongo_connection
 from db.mysql import get_mysql_connection
 from lib.company_csv import remove_accents
 from clean_companies import clean_all
@@ -76,36 +76,6 @@ POSTAL_CODE_MAP = {
 
 def normalize_city(city: str) -> str:
     return remove_accents(city.upper().replace("-", "_").replace(" ", "_"))
-
-
-# -- DB connections --------------------------------------------------------------
-
-
-def get_mongo_connection():
-    node_env = os.getenv("NODE_ENV", "development")
-    if node_env == "production":
-        mongo_uri = os.getenv("MONGO_URI")
-        if not mongo_uri:
-            raise ValueError("MONGO_URI must be set in production mode")
-        return MongoClient(mongo_uri)
-    # development: use individual vars, retry until local container is ready
-    username = os.getenv("MONGO_ROOT_USERNAME")
-    password = os.getenv("MONGO_ROOT_PASSWORD")
-    port = os.getenv("MONGO_PORT", "27017")
-    host = os.getenv("MONGO_HOST", "localhost")
-    if not username or not password:
-        raise ValueError("MONGO_ROOT_USERNAME and MONGO_ROOT_PASSWORD must be set")
-    uri = f"mongodb://{username}:{password}@{host}:{port}/?authSource=admin"
-    for attempt in range(1, 6):
-        try:
-            client = MongoClient(uri, serverSelectionTimeoutMS=3000)
-            client.admin.command("ping")
-            return client
-        except Exception:
-            if attempt == 5:
-                raise
-            print(f"MongoDB not ready (attempt {attempt}/5), retrying in 3s...")
-            time.sleep(3)
 
 
 # -- Seeded checks -----------------------------------------------------------------
