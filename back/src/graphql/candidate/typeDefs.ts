@@ -52,6 +52,7 @@ export const typeDefs = gql`
     enum CandidateStatus {
         SEEKING
         NOT_SEEKING
+        UNAVAILABLE
         CANCELLED
         MATCHED
         CONTRACT
@@ -94,14 +95,17 @@ export const typeDefs = gql`
         placeOfBirth: String
         departmentOfBirth: String
         age: Int
+        sex: String
         address: String
         postalCode: String
         city: String
         drivingLicenseB: Boolean
+        hasVehicle: Boolean
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
+        description: String
         avatarUpdatedAt: String
     }
 
@@ -231,6 +235,7 @@ export const typeDefs = gql`
         filizFolderId: String
         matchedJobs: [MatchedJob]
         photoLink: String
+        createdAt: String
     }
 
     input IdentityInput {
@@ -242,14 +247,17 @@ export const typeDefs = gql`
         placeOfBirth: String
         departmentOfBirth: String
         age: Int
+        sex: String
         address: String
         postalCode: String
         city: String
         drivingLicenseB: Boolean
+        hasVehicle: Boolean
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
+        description: String
     }
 
     input EducationInput {

@@ -11,6 +11,7 @@ export enum TitleProfessionalType {
 export enum CandidateStatus {
     SEEKING = 'SEEKING',
     NOT_SEEKING = 'NOT_SEEKING',
+    UNAVAILABLE = 'UNAVAILABLE',
     CANCELLED = 'CANCELLED',
     MATCHED = 'MATCHED',
     CONTRACT = 'CONTRACT',
@@ -70,10 +71,12 @@ export interface Identity {
     email: string;
     phone: string;
     driving_license_b?: boolean;
+    has_vehicle?: boolean;
     transport_means?: string;
     psh_referral_request?: boolean;
     had_apprenticeship_contract?: boolean;
     apprenticeship_contract_details?: string;
+    description?: string;
     avatar_updated_at?: Date;
 }
 
@@ -226,6 +229,7 @@ export interface Candidate {
     filiz_folder_id?: string;
     photo_link?: string;
     classmarker?: ClassMarkerResult;
+    created_at?: Date;
 }
 
 export enum CandidateHistoryType {

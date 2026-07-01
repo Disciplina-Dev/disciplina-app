@@ -15,6 +15,7 @@ const EXCLUDED_FIELDS = new Set<keyof Candidate>([
 const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
     [CandidateStatus.SEEKING]: 'Recherche',
     [CandidateStatus.NOT_SEEKING]: 'Ne recherche pas',
+    [CandidateStatus.UNAVAILABLE]: 'Indisponible',
     [CandidateStatus.CANCELLED]: 'Rupture',
     [CandidateStatus.MATCHED]: 'Matché',
     [CandidateStatus.CONTRACT]: 'En contrat',

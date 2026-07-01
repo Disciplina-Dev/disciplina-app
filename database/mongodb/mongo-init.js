@@ -19,7 +19,7 @@ db.createCollection('candidates', {
         created_at: { bsonType: "date" },
         created_by: { bsonType: "string" },
         status: {
-          enum: ["SEEKING", "NOT_SEEKING", "CANCELLED", "MATCHED", "CONTRACT", "IMMERSING", "BANNED"]
+          enum: ["SEEKING", "NOT_SEEKING", "UNAVAILABLE", "CANCELLED", "MATCHED", "CONTRACT", "IMMERSING", "BANNED"]
         },
 
         // Titre Professionnel visé
@@ -49,10 +49,12 @@ db.createCollection('candidates', {
             email: { bsonType: "string" },
             phone: { bsonType: "string" },
             driving_license_b: { bsonType: "bool" },
+            has_vehicle: { bsonType: "bool" },
             transport_means: { bsonType: "string" },
             psh_referral_request: { bsonType: "bool" },
             had_apprenticeship_contract: { bsonType: "bool" },
-            apprenticeship_contract_details: { bsonType: "string" }
+            apprenticeship_contract_details: { bsonType: "string" },
+            description: { bsonType: "string" }
           }
         },
 

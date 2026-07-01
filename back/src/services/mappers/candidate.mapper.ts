@@ -66,6 +66,7 @@ export function candidateToGql(candidate: Candidate): any {
         driveFolderLink: candidate.drive_folder_link || null,
         filizFolderId: candidate.filiz_folder_id || null,
         photoLink: candidate.photo_link || null,
+        createdAt: candidate.created_at ? new Date(candidate.created_at).toISOString() : null,
     };
 }
 

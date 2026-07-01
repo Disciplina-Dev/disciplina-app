@@ -286,14 +286,17 @@ function fromGql(c: any): Candidate {
       date_of_birth: c.identity.dateOfBirth,
       place_of_birth: c.identity.placeOfBirth,
       age: c.identity.age,
+      sex: c.identity.sex,
       address: c.identity.address,
       postal_code: c.identity.postalCode,
       city: c.identity.city,
       driving_license_b: c.identity.drivingLicenseB,
+      has_vehicle: c.identity.hasVehicle,
       transport_means: c.identity.transportMeans,
       psh_referral_request: c.identity.pshReferralRequest,
       had_apprenticeship_contract: c.identity.hadApprenticeshipContract,
       apprenticeship_contract_details: c.identity.apprenticeshipContractDetails,
+      description: c.identity.description,
       avatar_updated_at: c.identity.avatarUpdatedAt,
       avatar_url: c.identity.avatarUpdatedAt
         ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent(c.identity.avatarUpdatedAt)}`
@@ -387,6 +390,7 @@ function fromGql(c: any): Candidate {
     cv_link: c.cvLink,
     drive_folder_id: c.driveFolderId,
     filiz_folder_id: c.filizFolderId,
+    created_at: c.createdAt,
   }
 }
 
@@ -403,9 +407,12 @@ function toGqlUpdateInput(c: Candidate): any {
       phone: c.identity.phone,
       ...(c.identity.social_security_number !== undefined && { socialSecurityNumber: c.identity.social_security_number }),
       ...(c.identity.driving_license_b !== undefined && { drivingLicenseB: c.identity.driving_license_b }),
+      ...(c.identity.has_vehicle !== undefined && { hasVehicle: c.identity.has_vehicle }),
       ...(c.identity.age !== undefined && { age: c.identity.age }),
+      ...(c.identity.sex !== undefined && { sex: c.identity.sex }),
       ...(c.identity.address !== undefined && { address: c.identity.address }),
       ...(c.identity.city !== undefined && { city: c.identity.city }),
+      ...(c.identity.description !== undefined && { description: c.identity.description }),
       ...(c.identity.had_apprenticeship_contract !== undefined && {
         hadApprenticeshipContract: c.identity.had_apprenticeship_contract,
       }),

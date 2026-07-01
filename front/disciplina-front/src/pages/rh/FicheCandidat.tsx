@@ -458,6 +458,11 @@ export default function FicheCandidat() {
                       )}
                     </span>
                   )}
+                  {formData.created_at && (
+                    <span className="text-xs text-gray-400">
+                      Créé le {new Date(formData.created_at).toLocaleDateString('fr-FR')}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -622,13 +627,22 @@ export default function FicheCandidat() {
                     </label>
                   ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
                 </Field>
-                <Field label="Moyen de transport">
+                <Field label="Véhiculé">
                   {isEditing ? (
-                    <input className={inputCls} value={formData.identity.transport_means ?? ''}
-                      onChange={e => updateIdentity('transport_means', e.target.value)} />
-                  ) : <p className={valueCls}>{formData.identity.transport_means || '—'}</p>}
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" className="rounded" checked={!!formData.identity.has_vehicle}
+                        onChange={e => updateIdentity('has_vehicle', e.target.checked)} />
+                      <span className="text-sm text-gray-700">Oui</span>
+                    </label>
+                  ) : <p className={valueCls}>{formData.identity.has_vehicle ? 'Oui' : 'Non'}</p>}
                 </Field>
               </div>
+              <Field label="Moyen de transport">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.identity.transport_means ?? ''}
+                    onChange={e => updateIdentity('transport_means', e.target.value)} />
+                ) : <p className={valueCls}>{formData.identity.transport_means || '—'}</p>}
+              </Field>
               <Field label="A déjà eu un contrat d'apprentissage">
                 {isEditing ? (
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
@@ -637,6 +651,12 @@ export default function FicheCandidat() {
                     <span className="text-sm text-gray-700">Oui</span>
                   </label>
                 ) : <p className={valueCls}>{formData.identity.had_apprenticeship_contract ? 'Oui' : 'Non'}</p>}
+              </Field>
+              <Field label="Description">
+                {isEditing ? (
+                  <textarea className={inputCls} rows={4} value={formData.identity.description ?? ''}
+                    onChange={e => updateIdentity('description', e.target.value)} />
+                ) : <p className={`${valueCls} whitespace-pre-wrap`}>{formData.identity.description || '—'}</p>}
               </Field>
             </div>
           </Card>

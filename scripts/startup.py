@@ -16,6 +16,7 @@ import csv
 import glob
 import sys
 import uuid
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -76,6 +77,37 @@ POSTAL_CODE_MAP = {
 
 def normalize_city(city: str) -> str:
     return remove_accents(city.upper().replace("-", "_").replace(" ", "_"))
+
+
+def normalize_token(value: str) -> str:
+    cleaned = remove_accents(value or '').upper().replace('"', ' ').replace("'", ' ').replace("-", ' ')
+    return "_".join(cleaned.split())
+
+
+def parse_fr_date(value: str) -> datetime | None:
+    value = (value or '').strip()
+    try:
+        return datetime.strptime(value, "%d/%m/%Y") if value else None
+    except ValueError:
+        return None
+
+
+def birth_date_from_age(age: int) -> datetime | None:
+    return datetime(2026 - age, 1, 1) if age else None
+
+
+def parse_geographic_mobility(raw: str) -> list:
+    tokens = [normalize_token(part) for part in (raw or '').split(",")]
+    return [token for token in tokens if token in LOCALISATION_ENUM]
+
+
+def parse_expected_skills(raw: str) -> list:
+    skills = []
+    for part in (raw or '').split(","):
+        token = normalize_token(part)
+        if token and token != "PAS_D_EXPERIENCE" and token not in skills:
+            skills.append(token)
+    return skills
 
 
 # -- Seeded checks -----------------------------------------------------------------
@@ -158,6 +190,44 @@ def import_sales_candidates(filepath: str) -> int:
 # -- 3. Secretariat candidates -> MongoDB ----------------------------------------
 
 
+def build_secretariat_candidate(row: dict) -> dict:
+    city = normalize_city((row.get("VILLE") or '').strip())
+    age = int(row["AGE"]) if (row.get("AGE") or '').strip().isdigit() else 0
+    candidate_id = str(uuid.uuid4())
+
+    identity = {
+        "sex": "GARCON" if normalize_token(row.get("n")) == "GARCON" else "FILLE",
+        "full_name": (row.get("NOM - PRENOM") or '').strip(),
+        "city": city,
+        "age": age,
+        "postal_code": POSTAL_CODE_MAP.get(city, '974'),
+        "phone": (row.get("TELEPHONE") or '').replace(" ", ""),
+        "email": (row.get("ADRESSE MAIL") or '').strip(),
+        "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
+        "has_vehicle": (row.get("Véhiculé") or '').strip().upper() == "OUI",
+        "description": (row.get("DESCRIPTION") or '').strip(),
+    }
+    birth = birth_date_from_age(age)
+    if birth:
+        identity["date_of_birth"] = birth
+
+    doc = {
+        "_id": candidate_id,
+        "candidate_id": candidate_id,
+        "training_site": "NORD_SAINTE_MARIE",
+        "formation_type": "SECRETARIAT",
+        "tp_type": "AD",
+        "status": "SEEKING",
+        "identity": identity,
+        "job_info": {"geographic_mobility": parse_geographic_mobility(row.get("SECTEUR GÉOGRAPHIQUE"))},
+        "expected_company_skills": parse_expected_skills(row.get("SPÉCIALITÉ ")),
+    }
+    created_at = parse_fr_date(row.get("DATE "))
+    if created_at:
+        doc["created_at"] = created_at
+    return doc
+
+
 def import_secretariat_candidates(filepath: str) -> int:
     client = get_mongo_connection()
     collection = client["human_ressources"]["candidates"]
@@ -165,41 +235,10 @@ def import_secretariat_candidates(filepath: str) -> int:
 
     with open(filepath, "r", encoding="utf-8") as f:
         for row in csv.DictReader(f):
+            if not (row.get("NOM - PRENOM") or '').strip():
+                continue
             try:
-                city_raw = (row.get("VILLE") or '').strip()
-                city = normalize_city(city_raw) if city_raw else ''
-
-                geo_sectors = []
-                for part in ((row.get("SECTEUR GEOGRAPHIQUE") or '')).split(", "):
-                    part = part.strip()
-                    if part:
-                        geo_sectors.append(
-                            remove_accents(part).upper().replace(" ", "_").replace('"', '')
-                        )
-
-                disp_raw = row.get("DISPONIBILITE") or ''
-
-                doc = {
-                    "_id": str(uuid.uuid4()),
-                    "training_site": "NORD_SAINTE_MARIE",
-                    "formation_type": "SECRETARIAT",
-                    "tp_type": "AD",
-                    "status": "SEEKING",
-                    "identity": {
-                        "sex": "GARCON" if (row.get("Genre") or '').strip() == "GARCON" else "FILLE",
-                        "full_name": row.get("NOM - PRENOM"),
-                        "city": city,
-                        "age": int(row.get("AGE")) if (row.get("AGE") or '').strip() else 0,
-                        "postal_code": POSTAL_CODE_MAP.get(city, '974'),
-                        "phone": (row.get("TELEPHONE") or '').replace(" ", ""),
-                        "email": (row.get("ADRESSE MAIL") or '').strip(),
-                        "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
-                    },
-                    "job_info": {
-                        "geographic_mobility": geo_sectors,
-                    },
-                }
-                collection.insert_one(doc)
+                collection.insert_one(build_secretariat_candidate(row))
                 count += 1
             except Exception as e:
                 print(f"  [WARN] Skipping secretariat candidate row: {e}")
@@ -333,9 +372,9 @@ def main() -> int:
 
     # 4. Secretariat candidates
     print("\n[4/5] Importing secretariat candidates -> MongoDB ...")
-    path = os.path.join(RESOURCE_DIR, 'candidats_nord_AD.csv')
+    path = os.path.join(RESOURCE_DIR, 'candidat-nord-secretariat.csv')
     if not os.path.exists(path):
-        print(f"  SKIP -- candidats_nord_AD.csv not found")
+        print(f"  SKIP -- candidat-nord-secretariat.csv not found")
     elif mongo_has_docs("candidates", {"formation_type": "SECRETARIAT"}):
         print(f"  SKIP -- secretariat candidates already exist")
     else:

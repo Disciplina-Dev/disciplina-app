@@ -272,6 +272,7 @@ const CANDIDATE_FIELDS = gql`
       email
       phone
       drivingLicenseB
+      hasVehicle
       age
       city
     }
@@ -294,6 +295,7 @@ const CANDIDATE_FIELDS = gql`
       lastDiploma
     }
     pdfLink
+    createdAt
   }
 `
 
@@ -410,14 +412,17 @@ export const GET_CANDIDATE_BY_ID = gql`
         dateOfBirth
         placeOfBirth
         age
+        sex
         address
         postalCode
         city
         drivingLicenseB
+        hasVehicle
         transportMeans
         pshReferralRequest
         hadApprenticeshipContract
         apprenticeshipContractDetails
+        description
       }
       education {
         schoolLevel
@@ -482,6 +487,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       cvLink
       driveFolderId
       filizFolderId
+      createdAt
     }
   }
 `
@@ -520,14 +526,17 @@ export const UPDATE_CANDIDATE = gql`
         dateOfBirth
         placeOfBirth
         age
+        sex
         address
         postalCode
         city
         drivingLicenseB
+        hasVehicle
         transportMeans
         pshReferralRequest
         hadApprenticeshipContract
         apprenticeshipContractDetails
+        description
       }
       education {
         schoolLevel
@@ -585,6 +594,7 @@ export const UPDATE_CANDIDATE = gql`
         discoverySource
       }
       pdfLink
+      createdAt
     }
   }
 `
@@ -608,7 +618,10 @@ export const CREATE_CANDIDATE = gql`
         email
         phone
         drivingLicenseB
+        hasVehicle
         age
+        sex
+        description
       }
       education {
         schoolLevel
@@ -629,6 +642,7 @@ export const CREATE_CANDIDATE = gql`
         lastDiploma
       }
       pdfLink
+      createdAt
     }
   }
 `
@@ -660,14 +674,17 @@ export const GET_CANDIDATE_FULL = gql`
         placeOfBirth
         departmentOfBirth
         age
+        sex
         address
         postalCode
         city
         drivingLicenseB
+        hasVehicle
         transportMeans
         pshReferralRequest
         hadApprenticeshipContract
         apprenticeshipContractDetails
+        description
       }
       education { schoolLevel justification }
       support {
@@ -730,6 +747,7 @@ export const GET_CANDIDATE_FULL = gql`
         candidateSignature
       }
       pdfLink
+      createdAt
     }
   }
 `
@@ -772,14 +790,17 @@ export const UPDATE_CANDIDATE_FULL = gql`
         dateOfBirth
         placeOfBirth
         age
+        sex
         address
         postalCode
         city
         drivingLicenseB
+        hasVehicle
         transportMeans
         pshReferralRequest
         hadApprenticeshipContract
         apprenticeshipContractDetails
+        description
       }
       education {
         schoolLevel
@@ -841,6 +862,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         candidateSignature
       }
       pdfLink
+      createdAt
     }
   }
 `
