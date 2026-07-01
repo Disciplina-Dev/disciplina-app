@@ -98,7 +98,7 @@ describe('GraphQL setImmersionConclusion', () => {
             _id: candidateId,
             candidate_id: candidateId,
             tp_type: TitleProfessionalType.AD,
-            status: CandidateStatus.MATCHED,
+            status: CandidateStatus.SEEKING,
             identity: { full_name: `Tom ${suffix}`, email: `tom-${suffix}@test.local`, phone: '0600000000', age: 25 },
         });
 
