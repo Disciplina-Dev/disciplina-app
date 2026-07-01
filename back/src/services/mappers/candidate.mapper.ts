@@ -1,4 +1,4 @@
-import { Candidate } from '../../types/candidate.types';
+import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { Job } from '../../types/job.types';
 import { FilizStudentInfos } from '../../external/filiz/type';
 
@@ -39,12 +39,16 @@ export function candidateToGql(candidate: Candidate): any {
                   sector: candidate.owner.sector ?? null,
               }
             : null,
-        status: candidate.status,
+        // Rétro-compat : le statut "MATCHED" a été retiré ; les fiches legacy le portant
+        // sont ramenées à "SEEKING" à la lecture (l'enum GraphQL ne l'accepte plus).
+        status: (candidate.status as string) === 'MATCHED' ? CandidateStatus.SEEKING : candidate.status,
         tpType: candidate.tp_type,
         tpTypes: candidate.tp_types ?? (candidate.tp_type ? [candidate.tp_type] : []),
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,
+        immersionStartDate: candidate.immersion_start_date?.toISOString() ?? null,
+        immersionEndDate: candidate.immersion_end_date?.toISOString() ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
         identity: candidate.identity ? snakeToCamelCase(candidate.identity) : null,
@@ -66,6 +70,7 @@ export function candidateToGql(candidate: Candidate): any {
         driveFolderLink: candidate.drive_folder_link || null,
         filizFolderId: candidate.filiz_folder_id || null,
         photoLink: candidate.photo_link || null,
+        createdAt: candidate.created_at ? new Date(candidate.created_at).toISOString() : null,
     };
 }
 

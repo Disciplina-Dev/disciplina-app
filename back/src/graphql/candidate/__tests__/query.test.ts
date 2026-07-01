@@ -43,7 +43,7 @@ describe('GraphQL candidate queries', () => {
             _id: `id-${suffix}-2`,
             candidate_id: `id-${suffix}-2`,
             tp_type: TitleProfessionalType.CC,
-            status: CandidateStatus.MATCHED,
+            status: CandidateStatus.CONTRACT,
             identity: { full_name: `Bob ${suffix}`, email: `bob-${suffix}@test.local`, phone: '0100000002' },
         });
 
@@ -227,7 +227,7 @@ describe('candidateStats', () => {
             _id: `${suffix}-2`,
             candidate_id: `${suffix}-2`,
             tp_type: TitleProfessionalType.REM,
-            status: CandidateStatus.MATCHED,
+            status: CandidateStatus.CONTRACT,
             training_site: TrainingSite.SUD_SAINT_PIERRE,
             identity: { full_name: `Stats B ${suffix}`, email: `sb-${suffix}@test.local`, phone: '0600000001' },
         });
@@ -246,7 +246,7 @@ describe('candidateStats', () => {
         const s = json.data.candidateStats;
         expect(s.total).toBeGreaterThanOrEqual(2);
         expect(s.byStatus.find((b: any) => b.key === 'SEEKING')?.count).toBeGreaterThanOrEqual(1);
-        expect(s.byStatus.find((b: any) => b.key === 'MATCHED')?.count).toBeGreaterThanOrEqual(1);
+        expect(s.byStatus.find((b: any) => b.key === 'CONTRACT')?.count).toBeGreaterThanOrEqual(1);
         expect(s.byTpType.find((b: any) => b.key === 'REM')?.count).toBeGreaterThanOrEqual(2);
         expect(s.byTrainingSite.find((b: any) => b.key === 'SUD_SAINT_PIERRE')?.count).toBeGreaterThanOrEqual(2);
         const tpStatus = s.byTpAndStatus.find((b: any) => b.tpType === 'REM' && b.status === 'SEEKING');
@@ -329,6 +329,71 @@ describe('matchCandidate', () => {
     });
 });
 
+describe('UNAVAILABLE availability transition', () => {
+    it('reverts an UNAVAILABLE candidate to SEEKING once the availability date has passed', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `unavail-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        const candidateId = `cand-${suffix}`;
+        await repo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.UNAVAILABLE,
+            identity: { full_name: `Unavail ${suffix}`, email: `${suffix}@test.local`, phone: '0600000000' },
+            job_info: { availability_date: new Date('2020-01-01') },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($id: String!) { candidate(id: $id) { id status } }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.candidate.status).toBe('SEEKING');
+
+        const persisted = await repo.findById(candidateId);
+        expect(persisted?.status).toBe(CandidateStatus.SEEKING);
+    });
+
+    it('keeps an UNAVAILABLE candidate unavailable while the availability date is still in the future', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `stillunavail-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        const candidateId = `cand-${suffix}`;
+        const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await repo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.UNAVAILABLE,
+            identity: { full_name: `Still ${suffix}`, email: `${suffix}@test.local`, phone: '0600000001' },
+            job_info: { availability_date: future },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($id: String!) { candidate(id: $id) { id status } }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.data.candidate.status).toBe('UNAVAILABLE');
+    });
+});
+
 describe('candidatesPage with filters', () => {
     it('filters by tpType', async () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
@@ -396,7 +461,7 @@ describe('candidatesPage with filters', () => {
             _id: `${suffix}-matched`,
             candidate_id: `${suffix}-matched`,
             tp_type: TitleProfessionalType.AD,
-            status: CandidateStatus.MATCHED,
+            status: CandidateStatus.CONTRACT,
             identity: { full_name: `FLT-ST-${suffix} MATCH`, email: `fst-m-${suffix}@test.local`, phone: '0600000001' },
         });
 

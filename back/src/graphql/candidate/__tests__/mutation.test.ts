@@ -181,7 +181,7 @@ describe('GraphQL candidate mutations', () => {
                     `,
                     variables: {
                         id: seeded._id,
-                        input: { status: 'MATCHED' },
+                        input: { status: 'CONTRACT' },
                     },
                 }),
             });
@@ -189,7 +189,7 @@ describe('GraphQL candidate mutations', () => {
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.updateCandidate.status).toBe('MATCHED');
+            expect(json.data.updateCandidate.status).toBe('CONTRACT');
 
             // Verify via a follow-up query
             const verify = await fetch(ENDPOINT, {
@@ -204,7 +204,42 @@ describe('GraphQL candidate mutations', () => {
                 }),
             });
             const vjson = await verify.json();
-            expect(vjson.data.candidate.status).toBe('MATCHED');
+            expect(vjson.data.candidate.status).toBe('CONTRACT');
+        });
+
+        it('stores immersion start/end dates when moving to IMMERSING', async () => {
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-imm-${suffix}`,
+                candidate_id: `update-imm-${suffix}`,
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Imm ${suffix}`, email: `imm-${suffix}@test.local`, phone: '0100000009' },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) { id status immersionStartDate immersionEndDate }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: { status: 'IMMERSING', immersionStartDate: '2026-09-01', immersionEndDate: '2026-09-15' },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('IMMERSING');
+            expect(json.data.updateCandidate.immersionStartDate).toContain('2026-09-01');
+            expect(json.data.updateCandidate.immersionEndDate).toContain('2026-09-15');
         });
 
         it('updates nested identity fields', async () => {
@@ -274,7 +309,7 @@ describe('GraphQL candidate mutations', () => {
                     `,
                     variables: {
                         id: 'does-not-exist',
-                        input: { status: 'MATCHED' },
+                        input: { status: 'CONTRACT' },
                     },
                 }),
             });

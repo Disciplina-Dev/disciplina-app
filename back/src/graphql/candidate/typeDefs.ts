@@ -52,8 +52,8 @@ export const typeDefs = gql`
     enum CandidateStatus {
         SEEKING
         NOT_SEEKING
+        UNAVAILABLE
         CANCELLED
-        MATCHED
         CONTRACT
         IMMERSING
         BANNED
@@ -94,14 +94,17 @@ export const typeDefs = gql`
         placeOfBirth: String
         departmentOfBirth: String
         age: Int
+        sex: String
         address: String
         postalCode: String
         city: String
         drivingLicenseB: Boolean
+        hasVehicle: Boolean
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
+        description: String
         avatarUpdatedAt: String
     }
 
@@ -126,6 +129,7 @@ export const typeDefs = gql`
 
     type CandidateBackground {
         lastDiploma: String
+        lastDiplomaPrepared: String
         previousTrainings: String
         professionalExperiences: [ProfessionalExperience]
     }
@@ -215,6 +219,8 @@ export const typeDefs = gql`
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
+        immersionStartDate: String
+        immersionEndDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -231,6 +237,7 @@ export const typeDefs = gql`
         filizFolderId: String
         matchedJobs: [MatchedJob]
         photoLink: String
+        createdAt: String
     }
 
     input IdentityInput {
@@ -242,14 +249,17 @@ export const typeDefs = gql`
         placeOfBirth: String
         departmentOfBirth: String
         age: Int
+        sex: String
         address: String
         postalCode: String
         city: String
         drivingLicenseB: Boolean
+        hasVehicle: Boolean
         transportMeans: String
         pshReferralRequest: Boolean
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
+        description: String
     }
 
     input EducationInput {
@@ -273,6 +283,7 @@ export const typeDefs = gql`
 
     input BackgroundInput {
         lastDiploma: String
+        lastDiplomaPrepared: String
         previousTrainings: String
         professionalExperiences: [ProfessionalExperienceInput]
     }
@@ -344,6 +355,8 @@ export const typeDefs = gql`
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
+        immersionStartDate: String
+        immersionEndDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -364,6 +377,8 @@ export const typeDefs = gql`
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
+        immersionStartDate: String
+        immersionEndDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput

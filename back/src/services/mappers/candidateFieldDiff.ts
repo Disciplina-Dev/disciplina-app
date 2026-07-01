@@ -15,8 +15,8 @@ const EXCLUDED_FIELDS = new Set<keyof Candidate>([
 const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
     [CandidateStatus.SEEKING]: 'Recherche',
     [CandidateStatus.NOT_SEEKING]: 'Ne recherche pas',
+    [CandidateStatus.UNAVAILABLE]: 'Indisponible',
     [CandidateStatus.CANCELLED]: 'Rupture',
-    [CandidateStatus.MATCHED]: 'Matché',
     [CandidateStatus.CONTRACT]: 'En contrat',
     [CandidateStatus.IMMERSING]: 'Immersion',
     [CandidateStatus.BANNED]: 'Banni',
@@ -29,6 +29,8 @@ const TOP_LEVEL_LABELS: Partial<Record<keyof Candidate, string>> = {
     training_site: 'Site de formation',
     training_sites: 'Sites de formation',
     immersion_agreement: "Accord d'immersion",
+    immersion_start_date: "Début d'immersion",
+    immersion_end_date: "Fin d'immersion",
     desired_sectors: 'Secteurs souhaités',
     expected_company_skills: 'Compétences entreprise attendues',
     identity: 'Identité',

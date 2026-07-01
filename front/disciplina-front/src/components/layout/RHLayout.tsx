@@ -3,6 +3,7 @@ import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mai
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
+import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -38,23 +39,36 @@ export default function RHLayout() {
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
       <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
         {/* Module Header */}
-        <div className="p-6 pb-4">
+        <div className="shrink-0 p-6 pb-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-purple mb-1">Disciplina</p>
           <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">Espace RH</p>
         </div>
 
+        {/* Scrollable nav */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
         {/* Main nav */}
         <nav className="mt-2 flex flex-col gap-1 px-3">
           <NavItem to="/rh" end icon={<LayoutDashboard size={18} />} label="Tableau de bord" />
           <NavItem to="/rh/candidats" icon={<Users size={18} />} label="Candidats" />
           <NavItem to="/rh/matching" icon={<Repeat2 size={18} />} label="Matching" />
           <NavItem to="/rh/calendrier" icon={<CalendarDays size={18} />} label="Calendrier" />
-          <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
-        <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
         </nav>
 
-        {/* Administration Nav */}
+        {/* Configuration (Responsable + Admin) */}
+        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
+          <>
+            <div className="mx-3 my-4 border-t border-gray-100" />
+            <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Configuration</div>
+            <nav className="flex flex-col gap-1 px-3">
+              <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
+              <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
+              <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
+            </nav>
+          </>
+        )}
+
+        {/* Navigation inter-espaces (Responsable + Admin) */}
         {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
           <>
             <div className="mx-3 my-4 border-t border-gray-100" />
@@ -62,17 +76,15 @@ export default function RHLayout() {
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
               {currentUser?.role === 'ADMIN' && (
-                <>
-                  <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
-                  <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
-                </>
+                <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
               )}
             </nav>
           </>
         )}
+        </div>
 
         {/* Profile Footer */}
-        <div className="mt-auto p-4 flex flex-col gap-4">
+        <div className="shrink-0 border-t border-gray-100 p-4 flex flex-col gap-4">
           <GoogleDriveConnect theme="purple" />
           <div className="h-px w-full bg-gray-100" />
           <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-gray-50 transition-colors">
@@ -104,7 +116,8 @@ export default function RHLayout() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-end border-b border-gray-100 bg-white px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white px-6">
+          <RouteBreadcrumb accent="#60207E" />
           <NotificationBell accent="#60207E" />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">

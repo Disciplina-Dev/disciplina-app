@@ -34,6 +34,7 @@ Stores complete candidate profiles including identity, education, support system
 | cv_link | string | — | Link to the candidate's CV uploaded to Google Drive |
 | drive_folder_id | string | — | Google Drive folder ID holding the candidate's documents |
 | classmarker | object | — | ClassMarker test results (see below) |
+| created_at | date | — | Candidate creation date (first interview date on CSV import) |
 
 ### Embedded object: identity
 
@@ -49,8 +50,10 @@ Stores complete candidate profiles including identity, education, support system
 | postal_code | string | — | Postal code |
 | city | string | — | City name |
 | driving_license_b | bool | — | Has category B driving license |
+| has_vehicle | bool | — | Owns a personal vehicle |
 | transport_means | string | — | How candidate commutes |
 | psh_referral_request | bool | — | Person with disabilities support request |
+| description | string | — | Free-text candidate summary (recruiter context for manual matching) |
 
 ### Embedded object: education
 
@@ -221,6 +224,7 @@ Stores company job postings for apprenticeships with candidate matching informat
 |-------|---------|
 | SEEKING | Actively looking for apprenticeship |
 | NOT_SEEKING | Not looking at this time |
+| UNAVAILABLE | Temporarily unavailable until job_info.availability_date; auto-reverts to SEEKING once that date has passed |
 | CANCELLED | Candidacy cancelled |
 | MATCHED | Matched with a company |
 | CONTRACT | Contract signed |

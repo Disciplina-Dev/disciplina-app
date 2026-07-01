@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
@@ -12,6 +12,7 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminLayout from "@/components/layout/AdminLayout";
 
 import CommercialLayout from "@/components/layout/CommercialLayout";
 import DashboardCommercial from "@/pages/commercial/DashboardCommercial";
@@ -54,22 +55,23 @@ export const router = createBrowserRouter([
     path: "/", element: <LoginPage /> },
   {
     path: "/auth/google", element: <GoogleAuthCallback /> },
-      {
-        path: "/register",
-        element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
-            <RegisterPage />
-          </ProtectedRoute>
-        )
-      },
-      {
-        path: "/utilisateurs",
-        element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
-            <AdminUsers />
-          </ProtectedRoute>
-        )
-      },
+      // Redirections rétro-compatibles vers le nouvel espace admin
+      { path: "/register", element: <Navigate to="/admin/utilisateurs/nouveau" replace /> },
+      { path: "/utilisateurs", element: <Navigate to="/admin/utilisateurs" replace /> },
+    ],
+  },
+  {
+    path: "/admin",
+    element: (
+      <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+        <AdminLayout />
+      </ProtectedRoute>
+    ),
+    handle: { crumb: "Administration" },
+    children: [
+      { index: true, element: <Navigate to="utilisateurs" replace /> },
+      { path: "utilisateurs", element: <AdminUsers />, handle: { crumb: "Utilisateurs" } },
+      { path: "utilisateurs/nouveau", element: <RegisterPage />, handle: { crumb: "Créer un utilisateur" } },
     ],
   },
   {
@@ -79,16 +81,24 @@ export const router = createBrowserRouter([
         <CommercialLayout />
       </ProtectedRoute>
     ),
+    handle: { crumb: "Commercial" },
     children: [
-      { index: true, element: <DashboardCommercial /> },
-      { path: "analyses-besoin", element: <ListeAB /> },
-      { path: "analyses-besoin/nouvelle", element: <CreateAB /> },
-      { path: "portefeuille", element: <PortefeuilleEntreprises /> },
-      { path: "portefeuille/:slug", element: <EntreprisePage /> },
-      { path: "liste-noire", element: <ListeNoire /> },
-      { path: "sourcing", element: <Sourcing /> },
-      { path: "mail", element: <MailTemplates scope="commercial" /> },
-      { path: "relance", element: <RelanceCommercial /> },
+      { index: true, element: <DashboardCommercial />, handle: { crumb: "Tableau de bord" } },
+      { path: "analyses-besoin", element: <ListeAB />, handle: { crumb: "Analyses de besoin" } },
+      { path: "analyses-besoin/nouvelle", element: <CreateAB />, handle: { crumb: "Nouvelle analyse" } },
+      { path: "portefeuille", element: <PortefeuilleEntreprises />, handle: { crumb: "Portefeuille" } },
+      {
+        path: "portefeuille/:slug",
+        element: <EntreprisePage />,
+        handle: {
+          crumb: ({ params }: { params: Record<string, string | undefined> }) =>
+            params.slug ? decodeURIComponent(params.slug) : "Entreprise",
+        },
+      },
+      { path: "liste-noire", element: <ListeNoire />, handle: { crumb: "Liste noire" } },
+      { path: "sourcing", element: <Sourcing />, handle: { crumb: "Sourcing SIRET" } },
+      { path: "mail", element: <MailTemplates scope="commercial" />, handle: { crumb: "Modèles mail" } },
+      { path: "relance", element: <RelanceCommercial />, handle: { crumb: "Relances" } },
     ],
   },
   {
@@ -98,24 +108,26 @@ export const router = createBrowserRouter([
         <RHLayout />
       </ProtectedRoute>
     ),
+    handle: { crumb: "Espace RH" },
     children: [
-      { index: true, element: <DashboardRH /> },
-      { path: "candidats", element: <ListeCandidats /> },
-      { path: "candidats/:id", element: <FicheCandidat /> },
-      { path: "candidats/:id/questionnaire", element: <QuestionnaireAB /> },
-      { path: "matching", element: <Matching /> },
-      { path: "calendrier", element: <Calendrier /> },
-      { path: "analyses-besoin", element: <ABEntreprisesRecues /> },
-      { path: "mail", element: <MailTemplates scope="rh" /> },
-      { path: "relance", element: <Relance /> },
-      { path: "config-drive", element: <DriveConfig /> },
+      { index: true, element: <DashboardRH />, handle: { crumb: "Tableau de bord" } },
+      { path: "candidats", element: <ListeCandidats />, handle: { crumb: "Candidats" } },
+      { path: "candidats/:id", element: <FicheCandidat />, handle: { crumb: "Fiche candidat" } },
+      { path: "candidats/:id/questionnaire", element: <QuestionnaireAB />, handle: { crumb: "Questionnaire" } },
+      { path: "matching", element: <Matching />, handle: { crumb: "Matching" } },
+      { path: "calendrier", element: <Calendrier />, handle: { crumb: "Calendrier" } },
+      { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
+      { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
+      { path: "relance", element: <Relance />, handle: { crumb: "Relance" } },
+      { path: "config-drive", element: <DriveConfig />, handle: { crumb: "Dossiers Drive" } },
       {
         path: "config-secteurs",
         element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
             <SectorSettings />
           </ProtectedRoute>
         ),
+        handle: { crumb: "Lieux par secteur" },
       },
     ],
   },
@@ -126,12 +138,13 @@ export const router = createBrowserRouter([
         <EntrepriseLayout />
       </ProtectedRoute>
     ),
+    handle: { crumb: "Espace Entreprise" },
     children: [
-      { index: true, element: <DashboardEntreprise /> },
-      { path: "analyse-besoin", element: <FormulaireAB /> },
-      { path: "apprentis", element: <GestionApprentis /> },
-      { path: "rendez-vous", element: <GestionRDV /> },
-      { path: "profils", element: <ProfilsMatches /> },
+      { index: true, element: <DashboardEntreprise />, handle: { crumb: "Tableau de bord" } },
+      { path: "analyse-besoin", element: <FormulaireAB />, handle: { crumb: "Analyse de besoin" } },
+      { path: "apprentis", element: <GestionApprentis />, handle: { crumb: "Apprentis" } },
+      { path: "rendez-vous", element: <GestionRDV />, handle: { crumb: "Rendez-vous" } },
+      { path: "profils", element: <ProfilsMatches />, handle: { crumb: "Profils" } },
     ],
   },
   {
