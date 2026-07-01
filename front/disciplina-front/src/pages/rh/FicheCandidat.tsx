@@ -46,6 +46,56 @@ const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
   [TrainingSite.SUD_SAINT_PIERRE]:  'Sud – Saint-Pierre',
 }
 
+// Met en forme un enum SCREAMING_SNAKE en libellé lisible ("SAINT_DENIS" → "Saint Denis").
+function prettyEnum(v: string): string {
+  return v.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+// Résumé "matching" généré depuis les champs de la fiche (déterministe, sans IA).
+// Assemble uniquement les infos renseignées en 2-4 phrases.
+function buildCandidateSummary(c: Candidate): string {
+  const parts: string[] = []
+
+  // Profil : nom, âge, ville, titre(s) visé(s), niveau d'études.
+  const age = computeAge(c.identity.date_of_birth) ?? c.identity.age
+  const tps = (c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : []).join(', ')
+  const profil = [
+    c.identity.full_name,
+    age != null ? `${age} ans` : null,
+    c.identity.city || null,
+  ].filter(Boolean).join(', ')
+  const level = c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] : null
+  let s1 = profil
+  if (tps) s1 += ` — vise ${tps}`
+  if (level) s1 += `, niveau ${level}`
+  if (s1.trim()) parts.push(s1 + '.')
+
+  // Parcours : diplômes.
+  const dipl: string[] = []
+  if (c.background?.last_diploma) dipl.push(`dernier diplôme obtenu : ${c.background.last_diploma}`)
+  if (c.background?.last_diploma_prepared) dipl.push(`préparé : ${c.background.last_diploma_prepared}`)
+  if (dipl.length) parts.push(dipl.join(' ; ').replace(/^./, (ch) => ch.toUpperCase()) + '.')
+
+  // Mobilité / disponibilité.
+  const dispo: string[] = []
+  const mob = c.job_info?.geographic_mobility?.map(prettyEnum).join(', ')
+  if (mob) dispo.push(`mobilité : ${mob}`)
+  if (c.job_info?.availability_date) {
+    dispo.push(`disponible le ${new Date(c.job_info.availability_date).toLocaleDateString('fr-FR')}`)
+  }
+  if (dispo.length) parts.push(dispo.join(' ; ').replace(/^./, (ch) => ch.toUpperCase()) + '.')
+
+  // Atouts / projet.
+  const atouts: string[] = []
+  if (c.profile?.qualities?.length) atouts.push(`points forts : ${c.profile.qualities.join(', ')}`)
+  if (c.professional_projects?.career_objectives) {
+    atouts.push(`objectif : ${c.professional_projects.career_objectives}`)
+  }
+  if (atouts.length) parts.push(atouts.join(' ; ').replace(/^./, (ch) => ch.toUpperCase()) + '.')
+
+  return parts.join(' ')
+}
+
 // ─── Drive file types ─────────────────────────────────────────────────────────
 
 interface DriveFile {
@@ -327,6 +377,24 @@ export default function FicheCandidat() {
   const persistStatus = async (updated: Candidate) => {
     setFormData(updated)
     try { await update(updated._id, updated) } catch { /* ignore */ }
+  }
+
+  // Génère un résumé "matching" depuis les champs de la fiche et le dépose dans
+  // la Description. Ne régénère pas si une description existe déjà (sauf confirmation).
+  const handleGenerateDescription = async () => {
+    if (!formData) return
+    if (formData.identity.description?.trim() &&
+        !window.confirm('Une description existe déjà. La remplacer par un résumé généré ?')) {
+      return
+    }
+    const summary = buildCandidateSummary(formData)
+    if (!summary.trim()) {
+      setSaveError('Pas assez d\'informations sur la fiche pour générer un résumé.')
+      return
+    }
+    const updated = { ...formData, identity: { ...formData.identity, description: summary } }
+    setFormData(updated)
+    try { await update(updated._id, updated) } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
   }
 
   const handleStatusChange = async (newStatus: CandidateStatus) => {
@@ -737,12 +805,21 @@ export default function FicheCandidat() {
                   </label>
                 ) : <p className={valueCls}>{formData.identity.had_apprenticeship_contract ? 'Oui' : 'Non'}</p>}
               </Field>
-              <Field label="Description">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className={labelCls}>Description</span>
+                  <button
+                    type="button"
+                    onClick={handleGenerateDescription}
+                    className="text-[11px] font-semibold text-purple hover:underline">
+                    {formData.identity.description?.trim() ? 'Régénérer' : 'Générer le résumé'}
+                  </button>
+                </div>
                 {isEditing ? (
                   <textarea className={inputCls} rows={4} value={formData.identity.description ?? ''}
                     onChange={e => updateIdentity('description', e.target.value)} />
                 ) : <p className={`${valueCls} whitespace-pre-wrap`}>{formData.identity.description || '—'}</p>}
-              </Field>
+              </div>
             </div>
           </Card>
 
