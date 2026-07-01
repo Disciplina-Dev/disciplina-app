@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify'
 import {
   ChevronLeft, ChevronRight, Loader2, AlertCircle, CalendarDays,
   MapPin, Video, Plus, Trash2, X, Pencil, LinkIcon, Share2, Copy, Check,
-  Mail, UserCheck, UserX,
+  Mail, UserCheck, UserX, User as UserIcon,
 } from 'lucide-react'
 import {
   fetchMyBookingSettings, updateMyBookingSettings, bookingPublicUrl,
@@ -173,7 +173,7 @@ export default function Calendrier() {
   const [notConnected, setNotConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detail, setDetail] = useState<OwnedEvent | null>(null)
-  const [editing, setEditing] = useState<{ event?: CalendarEvent; start?: Date; end?: Date } | null>(null)
+  const [editing, setEditing] = useState<{ event?: CalendarEvent; ownerId?: number; start?: Date; end?: Date } | null>(null)
   const [showBooking, setShowBooking] = useState(false)
   // Candidat à créer depuis un entretien marqué « arrivé » (pré-rempli puis redirige vers sa fiche).
   const [createFromEvent, setCreateFromEvent] = useState<CalendarEvent | null>(null)
@@ -188,8 +188,11 @@ export default function Calendrier() {
     try {
       const list = await fetchCalendarUsers(token)
       setUsers(list)
-      // Par défaut on affiche son propre agenda connecté.
-      setVisible(new Set(list.filter((u) => u.isSelf && u.connected).map((u) => u.id)))
+      // Par défaut : son propre agenda + ceux des collègues partageant ≥ 1 secteur (connectés).
+      const self = list.find((u) => u.isSelf)
+      const selfSectors = new Set(self?.sectors ?? [])
+      const sameSector = (u: CalendarUser) => (u.sectors ?? []).some((s) => selfSectors.has(s))
+      setVisible(new Set(list.filter((u) => u.connected && (u.isSelf || sameSector(u))).map((u) => u.id)))
     } catch {
       /* géré via état notConnected au chargement des events */
     }
@@ -346,7 +349,7 @@ export default function Calendrier() {
           isOwn={detail.ownerId === selfId}
           ownerName={(() => { const u = users.find((u) => u.id === detail.ownerId); return u ? `${u.firstName} ${u.lastName}`.trim() : undefined })()}
           onClose={() => setDetail(null)}
-          onEdit={() => { setEditing({ event: detail }); setDetail(null) }}
+          onEdit={() => { setEditing({ event: detail, ownerId: detail.ownerId }); setDetail(null) }}
           onAttendance={(e) => { setDetail((d) => (d ? { ...d, ...e } : d)); void load() }}
           onArrived={(e) => { setDetail(null); setCreateFromEvent(e) }}
         />
@@ -366,6 +369,9 @@ export default function Calendrier() {
         <EventForm
           token={token}
           event={editing.event}
+          ownerId={editing.ownerId}
+          users={users}
+          selfId={selfId}
           defaultStart={editing.start}
           defaultEnd={editing.end}
           onClose={() => setEditing(null)}
@@ -814,7 +820,7 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
   const mark = async (status: Attendance) => {
     setSavingAtt(status); setAttErr(null)
     try {
-      const updated = await setEventAttendance(token, event.id, status)
+      const updated = await setEventAttendance(token, event.id, status, event.ownerId)
       onAttendance(updated)
       // « Arrivé » → création du candidat pré-rempli puis redirection vers sa fiche.
       if (status === 'arrived') onArrived(updated)
@@ -830,7 +836,7 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
         <div className="mb-3 flex items-start gap-3">
           <div className="mt-1.5 h-3 w-3 flex-shrink-0 rounded-full" style={{ backgroundColor: hex }} />
           <h2 className="flex-1 text-[17px] font-extrabold leading-snug text-gray-900">{event.summary}</h2>
-          {isOwn && <button onClick={onEdit} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-purple" title="Modifier"><Pencil size={16} /></button>}
+          <button onClick={onEdit} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-purple" title="Modifier"><Pencil size={16} /></button>
         </div>
         <div className="space-y-2 text-[13px] text-gray-600">
           {!isOwn && ownerName && (
@@ -850,8 +856,8 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
           )}
         </div>
 
-        {/* Présence de l'invité (events personnels avec un email). */}
-        {isOwn && event.attendeeEmail && (
+        {/* Présence de l'invité (tout event avec un email, y compris agenda d'un collègue). */}
+        {event.attendeeEmail && (
           <div className="mt-4 rounded-xl bg-gray-50 p-3">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Présence</p>
             <div className="flex items-center gap-2">
@@ -888,11 +894,22 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
   )
 }
 
-function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }: {
-  token: string; event?: CalendarEvent; defaultStart?: Date; defaultEnd?: Date
+function EventForm({ token, event, ownerId, users, selfId, defaultStart, defaultEnd, onClose, onSaved }: {
+  token: string; event?: CalendarEvent; ownerId?: number
+  users: CalendarUser[]; selfId: number
+  defaultStart?: Date; defaultEnd?: Date
   onClose: () => void; onSaved: () => void
 }) {
   const isEdit = Boolean(event)
+  // Propriétaire du calendrier cible : figé en édition (le créneau existe déjà chez lui),
+  // choisissable à la création parmi les RH/responsables connectés. Défaut : soi-même.
+  const [targetId, setTargetId] = useState<number>(ownerId ?? selfId)
+  // La liste ne contient que des RH/responsables (+ soi) : tous connectés sont assignables.
+  const assignableUsers = useMemo(() => users.filter((u) => u.connected), [users])
+  const ownerName = useMemo(() => {
+    const u = users.find((x) => x.id === (ownerId ?? targetId))
+    return u ? `${u.firstName} ${u.lastName}`.trim() : undefined
+  }, [users, ownerId, targetId])
   // Signature RH (image Drive) à apposer au mail de proposition, comme la confirmation.
   const signatureImage = useRhMailTemplatesStore((s) => s.signatureImage)
   const loadMailTemplates = useRhMailTemplatesStore((s) => s.load)
@@ -1023,8 +1040,11 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
     if (new Date(input.end) <= new Date(input.start)) { setErr('Fin doit suivre le début'); return }
     setBusy(true)
     try {
-      if (isEdit && event) await updateCalendarEvent(token, event.id, input)
-      else await createCalendarEvent(token, input)
+      // ownerId omis (undefined) quand c'est son propre agenda → route par défaut sur soi.
+      const owner = (isEdit ? ownerId : targetId)
+      const ownerArg = owner != null && owner !== selfId ? owner : undefined
+      if (isEdit && event) await updateCalendarEvent(token, event.id, input, ownerArg)
+      else await createCalendarEvent(token, input, ownerArg)
       onSaved()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false)
@@ -1034,7 +1054,7 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
   const remove = async () => {
     if (!event || !confirm('Supprimer ce créneau ?')) return
     setBusy(true); setErr(null)
-    try { await deleteCalendarEvent(token, event.id); onSaved() }
+    try { await deleteCalendarEvent(token, event.id, ownerId != null && ownerId !== selfId ? ownerId : undefined); onSaved() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false) }
   }
 
@@ -1049,6 +1069,28 @@ function EventForm({ token, event, defaultStart, defaultEnd, onClose, onSaved }:
         <div className="space-y-3">
           <input autoFocus value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Titre"
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[14px] font-semibold outline-none focus:border-purple" />
+
+          {/* Agenda cible : choix du RH à la création, figé en édition. */}
+          {!isEdit ? (
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
+              <UserIcon size={15} className="flex-shrink-0 text-gray-400" />
+              <select
+                value={targetId}
+                onChange={(e) => setTargetId(Number(e.target.value))}
+                className="w-full bg-transparent py-2 text-[13px] outline-none"
+              >
+                {assignableUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {`${u.firstName} ${u.lastName}`.trim()}{u.isSelf ? ' (moi)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : ownerId != null && ownerId !== selfId && ownerName ? (
+            <div className="flex items-center gap-2 rounded-lg bg-purple-light px-3 py-2 text-[12px] font-semibold text-purple">
+              <UserIcon size={14} /> Agenda de {ownerName}
+            </div>
+          ) : null}
 
           <div className="flex gap-2">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
