@@ -19,6 +19,7 @@ import {
   UPDATE_CANDIDATE,
   CREATE_CANDIDATE,
   CREATE_CANDIDATE_DRIVE_FOLDER,
+  GENERATE_CANDIDATE_SUMMARY,
   CREATE_NEEDS_ANALYSIS,
   GET_NEEDS_ANALYSES_BY_COMPANY,
   GET_NEEDS_ANALYSIS,
@@ -386,6 +387,8 @@ function fromGql(c: any): Candidate {
     cv_link: c.cvLink,
     drive_folder_id: c.driveFolderId,
     filiz_folder_id: c.filizFolderId,
+    resume: c.resume ?? undefined,
+    resume_generated_at: c.resumeGeneratedAt ?? undefined,
   }
 }
 
@@ -597,6 +600,25 @@ export function useCreateCandidateDriveFolder() {
   }
 
   return { createDriveFolder, result: { fetching } }
+}
+
+export function useGenerateCandidateSummary() {
+  const [fetching, setFetching] = useState(false)
+
+  const generateSummary = async (
+    id: string,
+  ): Promise<{ resume?: string; resumeGeneratedAt?: string } | null> => {
+    setFetching(true)
+    try {
+      const response = await candidateGraphqlClient.mutation(GENERATE_CANDIDATE_SUMMARY, { id })
+      if (response.error) throw new Error(response.error.message)
+      return response.data?.generateCandidateSummary ?? null
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  return { generateSummary, result: { fetching } }
 }
 
 export function useCandidateHistory(candidateId: string | null) {

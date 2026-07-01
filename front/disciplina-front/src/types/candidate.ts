@@ -236,6 +236,8 @@ export interface Candidate {
     cv_link?: string;
     drive_folder_id?: string;
     filiz_folder_id?: string;
+    resume?: string;
+    resume_generated_at?: string;
 }
 
 export enum CandidateHistoryType {

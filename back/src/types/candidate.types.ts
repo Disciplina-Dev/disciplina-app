@@ -226,6 +226,8 @@ export interface Candidate {
     filiz_folder_id?: string;
     photo_link?: string;
     classmarker?: ClassMarkerResult;
+    resume?: string;
+    resume_generated_at?: Date;
 }
 
 export enum CandidateHistoryType {

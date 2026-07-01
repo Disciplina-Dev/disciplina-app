@@ -231,6 +231,8 @@ export const typeDefs = gql`
         filizFolderId: String
         matchedJobs: [MatchedJob]
         photoLink: String
+        resume: String
+        resumeGeneratedAt: String
     }
 
     input IdentityInput {
@@ -489,6 +491,7 @@ export const typeDefs = gql`
         updateCandidate(id: String!, input: UpdateCandidateInput!): Candidate!
         deleteCandidate(id: String!): Boolean!
         createCandidateDriveFolder(id: String!): Candidate!
+        generateCandidateSummary(id: String!): Candidate!
         addCandidateHistoryEntry(candidateId: String!, description: String!): CandidateHistoryEntry!
         deleteCandidateHistoryEntry(id: String!): Boolean!
         updateDriveFolderConfig(input: DriveFolderConfigInput!): DriveFolderConfig!

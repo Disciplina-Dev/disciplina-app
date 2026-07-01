@@ -145,6 +145,11 @@ const data = {
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 
+    // Gemini AI Studio (generativelanguage API) — clé API gratuite pour résumés candidats.
+    GEMINI_API_KEY: optionalString('GEMINI_API'),
+    GEMINI_MODEL: stringWithDefault('GEMINI_MODEL', 'gemini-2.0-flash'),
+    GEMINI_BASE_URL: stringWithDefault('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
+
     // Dossier partagé racine "Candidat Nord" (fallback si pas de sous-dossier par TP).
     DRIVE_CANDIDATS_NORD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_FOLDER_ID'),
     // Sous-dossiers par type de Titre Professionnel, dans "Candidat Nord".

@@ -9,6 +9,7 @@ import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
+import { geminiService, GeminiInlineFile } from '../../external/gemini/gemini.service';
 import { camelToSnakeCase, candidateToGql, jobToMatchedJobGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
@@ -323,6 +324,51 @@ export const resolvers = {
                 drive_folder_id: folderId,
                 drive_folder_link: folderLink,
                 owner,
+            });
+            if (!updated) throw new Error('Erreur lors de la mise à jour du candidat');
+            return candidateToGql(updated);
+        },
+
+        generateCandidateSummary: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+
+            const candidate = await candidateService.findById(id);
+            if (!candidate) throw new Error(`Candidate ${id} not found`);
+            if (!candidate.drive_folder_id) {
+                throw new Error('Aucun dossier Drive associé à ce candidat');
+            }
+
+            const user = await userService.findById(context.user.id);
+            if (!user || !user.oauthToken) throw new Error('Google Drive non connecté pour cet utilisateur');
+
+            const driveService = GoogleDriveService.fromTokens(
+                { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                persistRefreshedTokens(user.id),
+            );
+
+            const driveFiles = await driveService.listFolderFiles(candidate.drive_folder_id);
+            const files: GeminiInlineFile[] = [];
+            for (const file of driveFiles) {
+                if (!file.id) continue;
+                try {
+                    // Google Docs natifs : export en texte ; sinon téléchargement binaire.
+                    const content = file.mimeType?.startsWith('application/vnd.google-apps.')
+                        ? await driveService.exportFile(file.id, 'text/plain')
+                        : await driveService.downloadFile(file.id);
+                    files.push({ name: file.name ?? file.id, mimeType: content.mimeType, buffer: content.buffer });
+                } catch (error) {
+                    logger.warn({ err: error, fileId: file.id }, 'Lecture fichier Drive échouée (résumé)');
+                }
+            }
+
+            const summary = await geminiService.summarizeCandidate(candidate.identity.full_name, files);
+            if (!summary) {
+                throw new Error('Impossible de générer le résumé (aucun document exploitable ou service indisponible)');
+            }
+
+            const updated = await candidateService.update(id, {
+                resume: summary,
+                resume_generated_at: new Date(),
             });
             if (!updated) throw new Error('Erreur lors de la mise à jour du candidat');
             return candidateToGql(updated);

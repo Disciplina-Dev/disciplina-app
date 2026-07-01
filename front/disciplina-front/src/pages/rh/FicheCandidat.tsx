@@ -4,12 +4,13 @@ import {
   ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
   QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, Download, FileText,
   File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera, HardDriveUpload,
+  Sparkles,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
-import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder } from '@/graphql/hooks'
+import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useGenerateCandidateSummary } from '@/graphql/hooks'
 import { jobGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_JOB_IDS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
@@ -111,6 +112,7 @@ export default function FicheCandidat() {
   const { candidate, loading, error, refetch } = useCandidateById(id ?? '')
   const { update } = useUpdateCandidate()
   const { createDriveFolder } = useCreateCandidateDriveFolder()
+  const { generateSummary } = useGenerateCandidateSummary()
   const token = useAuthStore((s) => s.token)
   // Verdict du test : la moyenne est à 50%. L'AB n'est possible que si le candidat
   // a réussi au moins un test (>= 50%).
@@ -137,6 +139,7 @@ export default function FicheCandidat() {
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null)
   const [confirmedJobIds, setConfirmedJobIds] = useState<Set<string>>(new Set())
+  const [generatingSummary, setGeneratingSummary] = useState(false)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -348,6 +351,26 @@ export default function FicheCandidat() {
     }
   }
 
+  const handleGenerateSummary = async () => {
+    if (!formData) return
+    setSaveError(null)
+    setGeneratingSummary(true)
+    try {
+      const result = await generateSummary(formData._id)
+      if (result) {
+        setFormData(prev => prev ? {
+          ...prev,
+          resume: result.resume ?? prev.resume,
+          resume_generated_at: result.resumeGeneratedAt ?? prev.resume_generated_at,
+        } : prev)
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erreur lors de la génération du résumé')
+    } finally {
+      setGeneratingSummary(false)
+    }
+  }
+
   const { first, last } = splitFullName(formData.identity.full_name)
 
   return (
@@ -528,6 +551,41 @@ export default function FicheCandidat() {
           {/* Offres correspondantes */}
           <div className="md:col-span-2">
             <MatchedJobsList candidateId={id ?? ''} confirmedJobIds={confirmedJobIds} />
+          </div>
+
+          {/* Résumé IA */}
+          <div className="md:col-span-2">
+            <Card>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <SectionTitle>Résumé</SectionTitle>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isLoading={generatingSummary}
+                  disabled={!formData.drive_folder_id}
+                  title={formData.drive_folder_id ? undefined : "Crée d'abord le dossier Drive du candidat"}
+                  leftIcon={<Sparkles size={15} style={{ color: 'var(--color-purple)' }} />}
+                  onClick={handleGenerateSummary}>
+                  {formData.resume ? 'Régénérer' : 'Générer avec Gemini'}
+                </Button>
+              </div>
+              {formData.resume ? (
+                <>
+                  <p className={valueCls + ' whitespace-pre-line leading-relaxed'}>{formData.resume}</p>
+                  {formData.resume_generated_at && (
+                    <p className="mt-2 text-[11px] text-gray-400">
+                      Généré le {new Date(formData.resume_generated_at).toLocaleString('fr-FR')}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-gray-400">
+                  {generatingSummary
+                    ? 'Analyse des documents du Drive en cours…'
+                    : 'Aucun résumé. Génère-en un à partir des documents du dossier Drive du candidat.'}
+                </p>
+              )}
+            </Card>
           </div>
 
           {/* Identité & Contact */}

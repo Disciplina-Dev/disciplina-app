@@ -10,6 +10,8 @@ const EXCLUDED_FIELDS = new Set<keyof Candidate>([
     'drive_folder_link',
     'photo_link',
     'classmarker',
+    'resume',
+    'resume_generated_at',
 ]);
 
 const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {

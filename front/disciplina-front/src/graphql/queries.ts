@@ -482,6 +482,18 @@ export const GET_CANDIDATE_BY_ID = gql`
       cvLink
       driveFolderId
       filizFolderId
+      resume
+      resumeGeneratedAt
+    }
+  }
+`
+
+export const GENERATE_CANDIDATE_SUMMARY = gql`
+  mutation GenerateCandidateSummary($id: String!) {
+    generateCandidateSummary(id: $id) {
+      id
+      resume
+      resumeGeneratedAt
     }
   }
 `

@@ -66,6 +66,8 @@ export function candidateToGql(candidate: Candidate): any {
         driveFolderLink: candidate.drive_folder_link || null,
         filizFolderId: candidate.filiz_folder_id || null,
         photoLink: candidate.photo_link || null,
+        resume: candidate.resume || null,
+        resumeGeneratedAt: candidate.resume_generated_at?.toISOString() || null,
     };
 }
 
