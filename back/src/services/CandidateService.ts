@@ -1,6 +1,6 @@
 import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { JobRepository } from '../repositories/mongo/JobRepository';
-import { Candidate, CandidateHistoryType } from '../types/candidate.types';
+import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
 import { Job, Sector } from '../types/job.types';
 import { computeAge } from '../utils/age';
 import { CandidateHistoryService } from './CandidateHistoryService';
@@ -12,15 +12,28 @@ export class CandidateService {
     private candidateHistoryService = new CandidateHistoryService();
 
     async findAll(): Promise<Candidate[]> {
-        return this.repository.findAll();
+        const candidates = await this.repository.findAll();
+        return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
     async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
-        return this.repository.findPage(first, after, search, filters);
+        const candidates = await this.repository.findPage(first, after, search, filters);
+        return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
     async findById(id: string): Promise<Candidate | null> {
-        return this.repository.findById(id);
+        const candidate = await this.repository.findById(id);
+        return candidate ? this.refreshAvailability(candidate) : null;
+    }
+
+    // Un candidat indisponible redevient automatiquement en recherche une fois sa date passée.
+    private async refreshAvailability(candidate: Candidate): Promise<Candidate> {
+        if (candidate.status !== CandidateStatus.UNAVAILABLE) return candidate;
+        const availabilityDate = candidate.job_info?.availability_date;
+        if (!availabilityDate || new Date(availabilityDate) > new Date()) return candidate;
+
+        const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
+        return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
     }
 
     async stats(sectors?: string[]): Promise<CandidateStats> {

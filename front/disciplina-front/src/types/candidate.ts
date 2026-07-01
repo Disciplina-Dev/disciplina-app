@@ -9,6 +9,7 @@ export enum TitleProfessionalType {
 export enum CandidateStatus {
     SEEKING = 'SEEKING',
     NOT_SEEKING = 'NOT_SEEKING',
+    UNAVAILABLE = 'UNAVAILABLE',
     CANCELLED = 'CANCELLED',
     CONTRACT = 'CONTRACT',
     IMMERSING = 'IMMERSING',
@@ -100,13 +101,16 @@ export interface Identity {
     address?: string;                     // Adresse (numéro et rue)
     postal_code?: string;                 // Code postal
     city?: string;                        // Ville
+    sex?: string;                         // Sexe (FILLE / GARCON)
     email: string;                        // Adresse email (requis, unique)
     phone: string;                        // Téléphone (requis)
     driving_license_b?: boolean;          // Permis de conduire catégorie B
+    has_vehicle?: boolean;                // Possède un véhicule
     transport_means?: string;             // Moyens de transport habituels
     psh_referral_request?: boolean;       // Demande d'accompagnement PSH
     had_apprenticeship_contract?: boolean; // A déjà eu un contrat d'apprentissage
     apprenticeship_contract_details?: string; // Détails du contrat d'apprentissage (si oui)
+    description?: string;                  // Descriptif libre du candidat (contexte matching)
     avatar_url?: string;
     avatar_updated_at?: string;
 }
@@ -238,6 +242,7 @@ export interface Candidate {
     cv_link?: string;
     drive_folder_id?: string;
     filiz_folder_id?: string;
+    created_at?: string;
 }
 
 export enum CandidateHistoryType {
