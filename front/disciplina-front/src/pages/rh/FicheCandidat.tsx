@@ -14,6 +14,7 @@ import { jobGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_JOB_IDS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
+import { formatCommune } from '@/data/reunionCommunes'
 import type { Candidate } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
@@ -755,7 +756,7 @@ export default function FicheCandidat() {
                   {isEditing ? (
                     <input className={inputCls} value={formData.identity.city ?? ''}
                       onChange={e => updateIdentity('city', e.target.value)} />
-                  ) : <p className={valueCls}>{formData.identity.city || '—'}</p>}
+                  ) : <p className={valueCls}>{formatCommune(formData.identity.city)}</p>}
                 </Field>
               </div>
               <Field label="Adresse (numéro et rue)">

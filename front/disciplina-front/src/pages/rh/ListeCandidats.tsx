@@ -8,6 +8,7 @@ import {
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate';
+import { formatCommune } from '@/data/reunionCommunes';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
@@ -49,6 +50,8 @@ const formatTrainingSite = (site?: TrainingSite) => {
 
 const PAGE_SIZE = 25;
 
+type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
+
 function toServerFilters(filters: {
   trainingSite: TrainingSite | '';
   status: CandidateStatus | '';
@@ -57,7 +60,21 @@ function toServerFilters(filters: {
   ageMin: number | '';
   ageMax: number | '';
   tpType: TitleProfessionalType | '';
+  dateMode: DateMode;
+  dateFrom: string;
+  dateTo: string;
 }): CandidateServerFilters | undefined {
+  // Bornes de création selon le mode choisi (dates yyyy-mm-dd des <input type=date>).
+  let createdAfter: string | undefined;
+  let createdBefore: string | undefined;
+  let createdMissing: boolean | undefined;
+  if (filters.dateMode === 'after') createdAfter = filters.dateFrom || undefined;
+  else if (filters.dateMode === 'before') createdBefore = filters.dateTo || undefined;
+  else if (filters.dateMode === 'between') {
+    createdAfter = filters.dateFrom || undefined;
+    createdBefore = filters.dateTo || undefined;
+  } else if (filters.dateMode === 'none') createdMissing = true;
+
   const serverFilters: CandidateServerFilters = {
     trainingSite: filters.trainingSite || undefined,
     status: filters.status || undefined,
@@ -66,6 +83,9 @@ function toServerFilters(filters: {
     ageMin: filters.ageMin || undefined,
     ageMax: filters.ageMax || undefined,
     tpType: filters.tpType || undefined,
+    createdAfter,
+    createdBefore,
+    createdMissing,
   };
   const hasAny = Object.values(serverFilters).some(v => v !== undefined);
   return hasAny ? serverFilters : undefined;
@@ -91,6 +111,9 @@ export default function ListeCandidats() {
   const [filterMaxAge, setFilterMaxAge] = useState<number | ''>('');
   const [filterTpType, setFilterTpType] = useState<TitleProfessionalType | ''>('');
   const [filterStatus, setFilterStatus] = useState<CandidateStatus | ''>('');
+  const [filterDateMode, setFilterDateMode] = useState<DateMode>('any');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -110,11 +133,11 @@ export default function ListeCandidats() {
   useEffect(() => {
     setAfterCursor(undefined);
     setCursorHistory([]);
-  }, [filterSite, filterPermis, filterLevel, filterMinAge, filterMaxAge, filterTpType, filterStatus]);
+  }, [filterSite, filterPermis, filterLevel, filterMinAge, filterMaxAge, filterTpType, filterStatus, filterDateMode, filterDateFrom, filterDateTo]);
 
   const serverFilters = useMemo(
-    () => toServerFilters({ trainingSite: filterSite, status: filterStatus, schoolLevel: filterLevel, permis: filterPermis, ageMin: filterMinAge, ageMax: filterMaxAge, tpType: filterTpType }),
-    [filterSite, filterStatus, filterLevel, filterPermis, filterMinAge, filterMaxAge, filterTpType],
+    () => toServerFilters({ trainingSite: filterSite, status: filterStatus, schoolLevel: filterLevel, permis: filterPermis, ageMin: filterMinAge, ageMax: filterMaxAge, tpType: filterTpType, dateMode: filterDateMode, dateFrom: filterDateFrom, dateTo: filterDateTo }),
+    [filterSite, filterStatus, filterLevel, filterPermis, filterMinAge, filterMaxAge, filterTpType, filterDateMode, filterDateFrom, filterDateTo],
   );
 
   const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
@@ -127,7 +150,13 @@ export default function ListeCandidats() {
     setLocalCandidates(prev => prev.map(c => c._id === id ? { ...c, status: newStatus } : c));
   };
 
-  const activeFiltersCount = [filterSite, filterLevel, filterStatus, filterMinAge, filterMaxAge, filterTpType].filter(Boolean).length + (filterPermis !== 'all' ? 1 : 0);
+  const dateFilterActive = filterDateMode !== 'any' && (
+    filterDateMode === 'none' ||
+    (filterDateMode === 'after' && !!filterDateFrom) ||
+    (filterDateMode === 'before' && !!filterDateTo) ||
+    (filterDateMode === 'between' && (!!filterDateFrom || !!filterDateTo))
+  );
+  const activeFiltersCount = [filterSite, filterLevel, filterStatus, filterMinAge, filterMaxAge, filterTpType].filter(Boolean).length + (filterPermis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
@@ -138,6 +167,9 @@ export default function ListeCandidats() {
     setFilterMaxAge('');
     setFilterTpType('');
     setFilterStatus('');
+    setFilterDateMode('any');
+    setFilterDateFrom('');
+    setFilterDateTo('');
   };
 
   const loadNextPage = () => {
@@ -304,6 +336,54 @@ export default function ListeCandidats() {
 
           </div>
 
+          {/* Filtre par date de création */}
+          <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
+            <div className="flex flex-col gap-1.5 sm:w-56">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Date de création</label>
+              <select
+                value={filterDateMode}
+                onChange={e => setFilterDateMode(e.target.value as DateMode)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+              >
+                <option value="any">Toutes les dates</option>
+                <option value="after">Après le…</option>
+                <option value="before">Avant le…</option>
+                <option value="between">Entre deux dates</option>
+                <option value="none">Sans date</option>
+              </select>
+            </div>
+
+            {(filterDateMode === 'after' || filterDateMode === 'between') && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                  {filterDateMode === 'between' ? 'Du' : 'Après le'}
+                </label>
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  max={filterDateTo || undefined}
+                  onChange={e => setFilterDateFrom(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                />
+              </div>
+            )}
+
+            {(filterDateMode === 'before' || filterDateMode === 'between') && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                  {filterDateMode === 'between' ? 'Au' : 'Avant le'}
+                </label>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  min={filterDateFrom || undefined}
+                  onChange={e => setFilterDateTo(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                />
+              </div>
+            )}
+          </div>
+
           {activeFiltersCount > 0 && (
             <div className="mt-4 flex justify-end">
               <button
@@ -418,7 +498,7 @@ export default function ListeCandidats() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <GraduationCap size={16} className="text-gray-400 shrink-0" />
-                  <span className="truncate">{candidate.education?.school_level || candidate.background?.last_diploma || '-'}</span>
+                  <span className="truncate">{candidate.education?.school_level ? SCHOOL_LEVEL_LABELS[candidate.education.school_level] : (candidate.background?.last_diploma || '-')}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm text-gray-600">
                   <div className="flex items-center gap-2 shrink-0">
@@ -427,7 +507,7 @@ export default function ListeCandidats() {
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <MapPin size={16} className="text-gray-400 shrink-0" />
-                    <span className="truncate">{candidate.identity.city || '-'}</span>
+                    <span className="truncate">{formatCommune(candidate.identity.city)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -445,6 +525,23 @@ export default function ListeCandidats() {
                     {candidate.profile.qualities.length > 3 && (
                       <span className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[11px] font-medium rounded-md whitespace-nowrap">
                         +{candidate.profile.qualities.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {(candidate.created_at || candidate.owner?.name) && (
+                  <div className="pt-3 mt-3 border-t border-gray-100 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
+                    {candidate.created_at && (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar size={12} className="shrink-0" />
+                        Créé le {new Date(candidate.created_at).toLocaleDateString('fr-FR')}
+                      </span>
+                    )}
+                    {candidate.owner?.name && (
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        <User size={12} className="shrink-0" />
+                        <span className="truncate">par {candidate.owner.name}</span>
                       </span>
                     )}
                   </div>

@@ -38,6 +38,28 @@ export interface CandidateFilters {
     ageMin?: number;
     ageMax?: number;
     tpType?: string;
+    /** Bornes sur la date de création (incluses). */
+    createdAfter?: Date;
+    createdBefore?: Date;
+    /** Ne renvoyer que les fiches sans date de création (héritées). */
+    createdMissing?: boolean;
+}
+
+/**
+ * Curseur de keyset pour le tri (created_at DESC, _id ASC). Encode la date de
+ * création (ISO, vide si absente) et l'_id, séparés par « | » (absent des UUID
+ * et des dates ISO). Permet une pagination déterministe et indexable.
+ */
+export function encodeCandidateCursor(candidate: Pick<Candidate, '_id' | 'created_at'>): string {
+    const iso = candidate.created_at ? new Date(candidate.created_at).toISOString() : '';
+    return `${iso}|${candidate._id}`;
+}
+
+function parseCandidateCursor(raw: string): { createdAt: Date | null; id: string } {
+    const sep = raw.indexOf('|');
+    const isoPart = sep >= 0 ? raw.slice(0, sep) : '';
+    const idPart = sep >= 0 ? raw.slice(sep + 1) : raw;
+    return { createdAt: isoPart ? new Date(isoPart) : null, id: idPart };
 }
 
 function escapeRegexSpecialChars(value: string): string {
@@ -75,7 +97,7 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
 
 export class CandidateRepository {
     async findAll(): Promise<Candidate[]> {
-        return CandidateModel.find().lean();
+        return CandidateModel.find().sort({ created_at: -1, _id: 1 }).lean();
     }
 
     async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
@@ -93,6 +115,13 @@ export class CandidateRepository {
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
         if (filters?.tpType) conditions.push({ tp_type: filters.tpType });
+        if (filters?.createdMissing) {
+            // `null` matche aussi le champ absent en Mongo → couvre les fiches héritées.
+            conditions.push({ created_at: null });
+        } else {
+            if (filters?.createdAfter) conditions.push({ created_at: { $gte: filters.createdAfter } });
+            if (filters?.createdBefore) conditions.push({ created_at: { $lte: filters.createdBefore } });
+        }
         if (filters?.ageMin != null || filters?.ageMax != null) {
             // Âge dérivé de la date de naissance (toujours à jour). Fallback sur l'âge
             // stocké pour les candidats sans date de naissance.
@@ -118,12 +147,27 @@ export class CandidateRepository {
             });
         }
 
+        // Keyset sur (created_at DESC, _id ASC) : les fiches datées les plus récentes
+        // d'abord, les non datées (created_at absent) en dernier.
         if (after && !trimmedSearch) {
-            conditions.push({ _id: { $gt: decodeCursor(after) } });
+            const { createdAt, id } = parseCandidateCursor(decodeCursor(after));
+            if (createdAt) {
+                conditions.push({
+                    $or: [
+                        { created_at: { $lt: createdAt } },
+                        { created_at: createdAt, _id: { $gt: id } },
+                        // Les non datées suivent toujours n'importe quelle fiche datée.
+                        { created_at: null },
+                    ],
+                });
+            } else {
+                // Déjà dans la zone non datée : on avance uniquement sur l'_id.
+                conditions.push({ created_at: null, _id: { $gt: id } });
+            }
         }
 
         const filter = conditions.length ? { $and: conditions } : {};
-        const query = CandidateModel.find(filter).sort({ _id: 1 });
+        const query = CandidateModel.find(filter).sort({ created_at: -1, _id: 1 });
         if (!trimmedSearch) {
             query.limit(first + 1);
         }

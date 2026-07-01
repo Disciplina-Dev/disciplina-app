@@ -45,6 +45,11 @@ export interface CandidateServerFilters {
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType
+  /** Bornes de date de création (ISO yyyy-mm-dd), incluses. */
+  createdAfter?: string
+  createdBefore?: string
+  /** Ne renvoyer que les fiches sans date de création. */
+  createdMissing?: boolean
 }
 import { candidateGraphqlClient } from './client'
 

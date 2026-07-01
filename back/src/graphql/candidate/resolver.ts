@@ -18,7 +18,27 @@ import {
     driveFolderKey,
 } from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { CandidateFilters } from '../../repositories/mongo/CandidateRepository';
+import { CandidateFilters, encodeCandidateCursor } from '../../repositories/mongo/CandidateRepository';
+
+/** Filtres reçus côté GraphQL : dates au format ISO (string), converties ensuite. */
+type CandidateFiltersInput = Omit<CandidateFilters, 'createdAfter' | 'createdBefore'> & {
+    createdAfter?: string;
+    createdBefore?: string;
+    createdMissing?: boolean;
+};
+
+/**
+ * Convertit une date de filtre ISO en `Date`. `endOfDay` étend la borne à
+ * 23:59:59.999 pour inclure toute la journée sur une borne « avant / jusqu'au ».
+ * Renvoie undefined si absente ou invalide (le filtre est alors ignoré).
+ */
+function parseFilterDate(iso: string | undefined, endOfDay: boolean): Date | undefined {
+    if (!iso) return undefined;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return undefined;
+    if (endOfDay) d.setHours(23, 59, 59, 999);
+    return d;
+}
 import { primarySector, regionFromSector } from '../../utils/sector';
 
 const candidateService = new CandidateService();
@@ -85,7 +105,7 @@ export const resolvers = {
                 after,
                 search,
                 filters: filtersInput,
-            }: PaginationArgs & { search?: string; filters?: CandidateFilters },
+            }: PaginationArgs & { search?: string; filters?: CandidateFiltersInput },
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
@@ -99,12 +119,15 @@ export const resolvers = {
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,
                       tpType: filtersInput.tpType,
+                      createdAfter: parseFilterDate(filtersInput.createdAfter, false),
+                      createdBefore: parseFilterDate(filtersInput.createdBefore, true),
+                      createdMissing: filtersInput.createdMissing || undefined,
                   }
                 : undefined;
             const candidates = await candidateService.findPage(pageSize, after, search, filters);
             const conn = buildConnection(
                 candidates,
-                (c) => String(c._id),
+                encodeCandidateCursor,
                 search?.trim() ? candidates.length : pageSize,
             );
             return {
@@ -120,6 +143,15 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidate = await candidateService.findById(id);
             if (!candidate) return null;
+            // Backfill unique de la date de création pour les fiches antérieures au champ.
+            if (!candidate.created_at) {
+                try {
+                    const backfilled = await candidateService.backfillCreatedAt(id);
+                    if (backfilled) candidate.created_at = backfilled;
+                } catch (err) {
+                    logger.error({ err, candidateId: id }, 'created_at backfill failed');
+                }
+            }
             try {
                 return candidateToGql(candidate);
             } catch (err) {
@@ -216,6 +248,7 @@ export const resolvers = {
                 _id: id,
                 candidate_id: id,
                 owner,
+                created_at: new Date(),
                 ...snakeInput,
             });
 
