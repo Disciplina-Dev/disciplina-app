@@ -224,6 +224,11 @@ const candidateSchema = new Schema<Candidate & Document>(
     { collection: 'candidates' },
 );
 
+// Tri par défaut (plus récent d'abord) + keyset pagination et filtres de date :
+// l'index composite fournit l'ordre directement (pas de tri en mémoire) et un
+// seek O(log n) sur les bornes created_at. _id en tie-break déterministe.
+candidateSchema.index({ created_at: -1, _id: 1 });
+
 export const CandidateModel = mongoose.models.Candidate || model<Candidate & Document>('Candidate', candidateSchema);
 
 interface CandidateAvatar {
