@@ -424,6 +424,10 @@ export const typeDefs = gql`
         ageMin: Int
         ageMax: Int
         tpType: TitleProfessionalType
+        "Date de création minimale (ISO, incluse)"
+        createdAfter: String
+        "Date de création maximale (ISO, incluse jusqu'à fin de journée)"
+        createdBefore: String
     }
 
     type StatBucket {
