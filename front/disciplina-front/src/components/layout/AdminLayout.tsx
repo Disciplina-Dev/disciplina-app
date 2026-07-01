@@ -48,11 +48,13 @@ export default function AdminLayout() {
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
       <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
         {/* Module Header */}
-        <div className="p-6 pb-4">
+        <div className="shrink-0 p-6 pb-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue mb-1">Disciplina</p>
           <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">Administration</p>
         </div>
 
+        {/* Scrollable nav */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
         {/* Gestion des utilisateurs */}
         <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
           Gestion des utilisateurs
@@ -74,9 +76,10 @@ export default function AdminLayout() {
         <nav className="flex flex-col gap-1 px-3">
           <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Secteurs" />
         </nav>
+        </div>
 
         {/* Retour espaces */}
-        <div className="mt-auto p-4 flex flex-col gap-4">
+        <div className="shrink-0 border-t border-gray-100 p-4 flex flex-col gap-4">
           <button
             onClick={() => navigate('/commercial')}
             className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900"
