@@ -41,6 +41,8 @@ export interface CandidateFilters {
     /** Bornes sur la date de création (incluses). */
     createdAfter?: Date;
     createdBefore?: Date;
+    /** Ne renvoyer que les fiches sans date de création (héritées). */
+    createdMissing?: boolean;
 }
 
 /**
@@ -113,8 +115,13 @@ export class CandidateRepository {
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
         if (filters?.tpType) conditions.push({ tp_type: filters.tpType });
-        if (filters?.createdAfter) conditions.push({ created_at: { $gte: filters.createdAfter } });
-        if (filters?.createdBefore) conditions.push({ created_at: { $lte: filters.createdBefore } });
+        if (filters?.createdMissing) {
+            // `null` matche aussi le champ absent en Mongo → couvre les fiches héritées.
+            conditions.push({ created_at: null });
+        } else {
+            if (filters?.createdAfter) conditions.push({ created_at: { $gte: filters.createdAfter } });
+            if (filters?.createdBefore) conditions.push({ created_at: { $lte: filters.createdBefore } });
+        }
         if (filters?.ageMin != null || filters?.ageMax != null) {
             // Âge dérivé de la date de naissance (toujours à jour). Fallback sur l'âge
             // stocké pour les candidats sans date de naissance.
