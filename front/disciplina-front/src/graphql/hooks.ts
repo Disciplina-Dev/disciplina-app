@@ -48,6 +48,8 @@ export interface CandidateServerFilters {
   /** Bornes de date de création (ISO yyyy-mm-dd), incluses. */
   createdAfter?: string
   createdBefore?: string
+  /** Ne renvoyer que les fiches sans date de création. */
+  createdMissing?: boolean
 }
 import { candidateGraphqlClient } from './client'
 

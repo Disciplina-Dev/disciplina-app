@@ -50,7 +50,7 @@ const formatTrainingSite = (site?: TrainingSite) => {
 
 const PAGE_SIZE = 25;
 
-type DateMode = 'any' | 'before' | 'after' | 'between';
+type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
 
 function toServerFilters(filters: {
   trainingSite: TrainingSite | '';
@@ -67,12 +67,13 @@ function toServerFilters(filters: {
   // Bornes de création selon le mode choisi (dates yyyy-mm-dd des <input type=date>).
   let createdAfter: string | undefined;
   let createdBefore: string | undefined;
+  let createdMissing: boolean | undefined;
   if (filters.dateMode === 'after') createdAfter = filters.dateFrom || undefined;
   else if (filters.dateMode === 'before') createdBefore = filters.dateTo || undefined;
   else if (filters.dateMode === 'between') {
     createdAfter = filters.dateFrom || undefined;
     createdBefore = filters.dateTo || undefined;
-  }
+  } else if (filters.dateMode === 'none') createdMissing = true;
 
   const serverFilters: CandidateServerFilters = {
     trainingSite: filters.trainingSite || undefined,
@@ -84,6 +85,7 @@ function toServerFilters(filters: {
     tpType: filters.tpType || undefined,
     createdAfter,
     createdBefore,
+    createdMissing,
   };
   const hasAny = Object.values(serverFilters).some(v => v !== undefined);
   return hasAny ? serverFilters : undefined;
@@ -149,6 +151,7 @@ export default function ListeCandidats() {
   };
 
   const dateFilterActive = filterDateMode !== 'any' && (
+    filterDateMode === 'none' ||
     (filterDateMode === 'after' && !!filterDateFrom) ||
     (filterDateMode === 'before' && !!filterDateTo) ||
     (filterDateMode === 'between' && (!!filterDateFrom || !!filterDateTo))
@@ -346,6 +349,7 @@ export default function ListeCandidats() {
                 <option value="after">Après le…</option>
                 <option value="before">Avant le…</option>
                 <option value="between">Entre deux dates</option>
+                <option value="none">Sans date</option>
               </select>
             </div>
 

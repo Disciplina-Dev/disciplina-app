@@ -24,6 +24,7 @@ import { CandidateFilters, encodeCandidateCursor } from '../../repositories/mong
 type CandidateFiltersInput = Omit<CandidateFilters, 'createdAfter' | 'createdBefore'> & {
     createdAfter?: string;
     createdBefore?: string;
+    createdMissing?: boolean;
 };
 
 /**
@@ -120,6 +121,7 @@ export const resolvers = {
                       tpType: filtersInput.tpType,
                       createdAfter: parseFilterDate(filtersInput.createdAfter, false),
                       createdBefore: parseFilterDate(filtersInput.createdBefore, true),
+                      createdMissing: filtersInput.createdMissing || undefined,
                   }
                 : undefined;
             const candidates = await candidateService.findPage(pageSize, after, search, filters);
