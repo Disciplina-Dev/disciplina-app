@@ -4,6 +4,7 @@ import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
 import NotificationBell from '@/components/notifications/NotificationBell'
+import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -40,11 +41,13 @@ export default function CommercialLayout() {
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
       <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
         {/* Module Header */}
-        <div className="p-6 pb-4">
+        <div className="shrink-0 p-6 pb-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue mb-1">Disciplina</p>
           <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">CRM Commercial</p>
         </div>
 
+        {/* Scrollable nav */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
         {/* Main nav */}
         <nav className="mt-2 flex flex-col gap-1 px-3">
           <NavItem to="/commercial" end icon={<LayoutDashboard size={18} />} label="Tableau de bord" />
@@ -63,14 +66,15 @@ export default function CommercialLayout() {
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
               {currentUser?.role === 'ADMIN' && (
-                <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+                <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
               )}
             </nav>
           </>
         )}
+        </div>
 
         {/* Profile Footer */}
-        <div className="mt-auto p-4 flex flex-col gap-4">
+        <div className="shrink-0 border-t border-gray-100 p-4 flex flex-col gap-4">
           <GoogleDriveConnect theme="blue" />
           <div className="h-px w-full bg-gray-100" />
           <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-gray-50 transition-colors">
@@ -102,7 +106,8 @@ export default function CommercialLayout() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-end border-b border-gray-100 bg-white px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white px-6">
+          <RouteBreadcrumb accent="#1130A7" />
           <NotificationBell accent="#1130A7" />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">

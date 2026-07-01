@@ -293,6 +293,7 @@ const CANDIDATE_FIELDS = gql`
     }
     background {
       lastDiploma
+      lastDiplomaPrepared
     }
     pdfLink
     createdAt
@@ -401,6 +402,8 @@ export const GET_CANDIDATE_BY_ID = gql`
       trainingSite
       trainingSites
       immersionAgreement
+      immersionStartDate
+      immersionEndDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -436,6 +439,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       }
       background {
         lastDiploma
+        lastDiplomaPrepared
         previousTrainings
         professionalExperiences {
           position
@@ -511,6 +515,8 @@ export const UPDATE_CANDIDATE = gql`
       trainingSite
       trainingSites
       immersionAgreement
+      immersionStartDate
+      immersionEndDate
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -577,6 +583,7 @@ export const UPDATE_CANDIDATE = gql`
       }
       background {
         lastDiploma
+        lastDiplomaPrepared
         previousTrainings
         professionalExperiences {
           position
@@ -640,6 +647,7 @@ export const CREATE_CANDIDATE = gql`
       }
       background {
         lastDiploma
+        lastDiplomaPrepared
       }
       pdfLink
       createdAt
@@ -662,6 +670,8 @@ export const GET_CANDIDATE_FULL = gql`
       trainingSite
       trainingSites
       immersionAgreement
+      immersionStartDate
+      immersionEndDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -695,6 +705,7 @@ export const GET_CANDIDATE_FULL = gql`
       }
       background {
         lastDiploma
+        lastDiplomaPrepared
         previousTrainings
         professionalExperiences { position duration responsibilities company }
       }
@@ -779,6 +790,8 @@ export const UPDATE_CANDIDATE_FULL = gql`
       trainingSite
       trainingSites
       immersionAgreement
+      immersionStartDate
+      immersionEndDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -814,6 +827,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
       }
       background {
         lastDiploma
+        lastDiplomaPrepared
         previousTrainings
         professionalExperiences {
           position

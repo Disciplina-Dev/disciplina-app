@@ -141,6 +141,9 @@ export default function FicheCandidat() {
   const [confirmedJobIds, setConfirmedJobIds] = useState<Set<string>>(new Set())
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [immersionModalOpen, setImmersionModalOpen] = useState(false)
+  const [immersionStart, setImmersionStart] = useState('')
+  const [immersionEnd, setImmersionEnd] = useState('')
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -265,11 +268,32 @@ export default function FicheCandidat() {
   const updateProfile = (key: keyof NonNullable<Candidate['profile']>, value: unknown) =>
     setFormData(prev => prev ? { ...prev, profile: { ...(prev.profile ?? {}), [key]: value } } : prev)
 
+  const persistStatus = async (updated: Candidate) => {
+    setFormData(updated)
+    try { await update(updated._id, updated) } catch { /* ignore */ }
+  }
+
   const handleStatusChange = async (newStatus: CandidateStatus) => {
     if (!formData) return
-    const updated = { ...formData, status: newStatus }
-    setFormData(updated)
-    try { await update(formData._id, updated) } catch { /* ignore */ }
+    // Passage en immersion : demander les dates de début/fin via un modal avant d'enregistrer.
+    if (newStatus === CandidateStatus.IMMERSING) {
+      setImmersionStart(formData.immersion_start_date?.slice(0, 10) ?? '')
+      setImmersionEnd(formData.immersion_end_date?.slice(0, 10) ?? '')
+      setImmersionModalOpen(true)
+      return
+    }
+    await persistStatus({ ...formData, status: newStatus })
+  }
+
+  const confirmImmersion = async () => {
+    if (!formData) return
+    await persistStatus({
+      ...formData,
+      status: CandidateStatus.IMMERSING,
+      immersion_start_date: immersionStart || undefined,
+      immersion_end_date: immersionEnd || undefined,
+    })
+    setImmersionModalOpen(false)
   }
 
   const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -281,7 +305,7 @@ export default function FicheCandidat() {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/cv`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/pdf',
+          'Content-Type': file.type || 'application/octet-stream',
           Authorization: `Bearer ${token}`,
         },
         body: file,
@@ -435,6 +459,11 @@ export default function FicheCandidat() {
                       Senior
                     </span>
                   )}
+                  {formData.status === CandidateStatus.IMMERSING && (formData.immersion_start_date || formData.immersion_end_date) && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
+                      Immersion : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
+                    </span>
+                  )}
                   {(() => {
                     const sites = formData.training_sites?.length
                       ? formData.training_sites
@@ -506,7 +535,7 @@ export default function FicheCandidat() {
           )}
           {formData.drive_folder_id && (
             <>
-              <input id="cv-upload" type="file" accept="application/pdf" className="hidden" onChange={handleCVUpload} />
+              <input id="cv-upload" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
               <Button variant="secondary" size="sm" isLoading={uploadingCV}
                 leftIcon={<Upload size={15} style={{ color: 'var(--color-purple)' }} />}
                 onClick={() => document.getElementById('cv-upload')?.click()}>
@@ -679,13 +708,21 @@ export default function FicheCandidat() {
                   </select>
                 ) : <p className={valueCls}>{formData.education?.school_level ? SCHOOL_LEVEL_LABELS[formData.education.school_level] : '—'}</p>}
               </Field>
-              <Field label="Dernier diplôme">
+              <Field label="Dernier diplôme obtenu">
                 {isEditing ? (
                   <input className={inputCls} value={formData.background?.last_diploma ?? ''}
                     onChange={e => setFormData(prev => prev ? {
                       ...prev, background: { ...prev.background, last_diploma: e.target.value }
                     } : prev)} />
                 ) : <p className={valueCls}>{formData.background?.last_diploma || '—'}</p>}
+              </Field>
+              <Field label="Dernier diplôme préparé">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.background?.last_diploma_prepared ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, background: { ...prev.background, last_diploma_prepared: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.background?.last_diploma_prepared || '—'}</p>}
               </Field>
               <Field label="Formations précédentes">
                 {isEditing ? (
@@ -923,7 +960,7 @@ export default function FicheCandidat() {
               <div className="flex items-center justify-between mb-4">
                 <SectionTitle>Dossier Drive</SectionTitle>
                 <div className="flex items-center gap-2">
-                  <input id="cv-upload-bottom" type="file" accept="application/pdf" className="hidden" onChange={handleCVUpload} />
+                  <input id="cv-upload-bottom" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
                   <Button variant="secondary" size="sm" isLoading={uploadingCV}
                     leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
                     onClick={() => document.getElementById('cv-upload-bottom')?.click()}>
@@ -1070,6 +1107,29 @@ export default function FicheCandidat() {
         candidateName={formData.identity.full_name}
         isDeleting={isDeleting}
       />
+
+      {immersionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModalOpen(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
+            <p className="mt-1 text-sm text-gray-500">Renseigne les dates de début et de fin de l'immersion.</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className={labelCls} htmlFor="imm-start">Date de début</label>
+                <input id="imm-start" type="date" className={inputCls} value={immersionStart} onChange={e => setImmersionStart(e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="imm-end">Date de fin</label>
+                <input id="imm-end" type="date" className={inputCls} value={immersionEnd} min={immersionStart || undefined} onChange={e => setImmersionEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setImmersionModalOpen(false)}>Annuler</Button>
+              <Button variant="primary" size="sm" disabled={!immersionStart || !immersionEnd} onClick={confirmImmersion}>Confirmer</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

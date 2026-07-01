@@ -11,7 +11,6 @@ export enum CandidateStatus {
     NOT_SEEKING = 'NOT_SEEKING',
     UNAVAILABLE = 'UNAVAILABLE',
     CANCELLED = 'CANCELLED',
-    MATCHED = 'MATCHED',
     CONTRACT = 'CONTRACT',
     IMMERSING = 'IMMERSING',
     BANNED = 'BANNED',
@@ -137,6 +136,7 @@ export interface ProfessionalExperience {
 
 export interface Background {
     last_diploma?: string;
+    last_diploma_prepared?: string;
     previous_trainings?: string;
     professional_experiences?: ProfessionalExperience[];
 }
@@ -226,6 +226,8 @@ export interface Candidate {
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
     immersion_agreement?: boolean;
+    immersion_start_date?: string;
+    immersion_end_date?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

@@ -35,12 +35,17 @@ export interface QuickCreateResult {
   full_name: string;
 }
 
-export async function fetchClassMarkerResult(candidateId: string): Promise<ClassMarkerResult | null> {
+export interface ClassMarkerResultBundle {
+  result: ClassMarkerResult | null;
+  history: ClassMarkerResult[];
+}
+
+export async function fetchClassMarkerResult(candidateId: string): Promise<ClassMarkerResultBundle | null> {
   const res = await fetch(`${API_BASE}/api/webhooks/classmarker/result/${encodeURIComponent(candidateId)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Result fetch failed (${res.status})`);
-  const data = (await res.json()) as { result: ClassMarkerResult | null };
-  return data.result ?? null;
+  const data = (await res.json()) as { result: ClassMarkerResult | null; history?: ClassMarkerResult[] };
+  return { result: data.result ?? null, history: data.history ?? [] };
 }
 
 export function classMarkerStreamUrl(candidateId: string): string {

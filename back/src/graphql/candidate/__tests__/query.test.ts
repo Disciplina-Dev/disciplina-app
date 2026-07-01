@@ -43,7 +43,7 @@ describe('GraphQL candidate queries', () => {
             _id: `id-${suffix}-2`,
             candidate_id: `id-${suffix}-2`,
             tp_type: TitleProfessionalType.CC,
-            status: CandidateStatus.MATCHED,
+            status: CandidateStatus.CONTRACT,
             identity: { full_name: `Bob ${suffix}`, email: `bob-${suffix}@test.local`, phone: '0100000002' },
         });
 
@@ -227,7 +227,7 @@ describe('candidateStats', () => {
             _id: `${suffix}-2`,
             candidate_id: `${suffix}-2`,
             tp_type: TitleProfessionalType.REM,
-            status: CandidateStatus.MATCHED,
+            status: CandidateStatus.CONTRACT,
             training_site: TrainingSite.SUD_SAINT_PIERRE,
             identity: { full_name: `Stats B ${suffix}`, email: `sb-${suffix}@test.local`, phone: '0600000001' },
         });
@@ -246,7 +246,7 @@ describe('candidateStats', () => {
         const s = json.data.candidateStats;
         expect(s.total).toBeGreaterThanOrEqual(2);
         expect(s.byStatus.find((b: any) => b.key === 'SEEKING')?.count).toBeGreaterThanOrEqual(1);
-        expect(s.byStatus.find((b: any) => b.key === 'MATCHED')?.count).toBeGreaterThanOrEqual(1);
+        expect(s.byStatus.find((b: any) => b.key === 'CONTRACT')?.count).toBeGreaterThanOrEqual(1);
         expect(s.byTpType.find((b: any) => b.key === 'REM')?.count).toBeGreaterThanOrEqual(2);
         expect(s.byTrainingSite.find((b: any) => b.key === 'SUD_SAINT_PIERRE')?.count).toBeGreaterThanOrEqual(2);
         const tpStatus = s.byTpAndStatus.find((b: any) => b.tpType === 'REM' && b.status === 'SEEKING');
@@ -461,7 +461,7 @@ describe('candidatesPage with filters', () => {
             _id: `${suffix}-matched`,
             candidate_id: `${suffix}-matched`,
             tp_type: TitleProfessionalType.AD,
-            status: CandidateStatus.MATCHED,
+            status: CandidateStatus.CONTRACT,
             identity: { full_name: `FLT-ST-${suffix} MATCH`, email: `fst-m-${suffix}@test.local`, phone: '0600000001' },
         });
 

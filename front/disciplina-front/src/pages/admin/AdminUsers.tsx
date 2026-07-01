@@ -68,7 +68,8 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto bg-white rounded-[20px] p-8 shadow-sm">
+    <div className="w-full max-w-3xl mx-auto">
+      <div className="bg-white rounded-[20px] p-8 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h2>Gestion des utilisateurs</h2>
@@ -77,7 +78,7 @@ export default function AdminUsers() {
           </p>
         </div>
         <Link
-          to="/register"
+          to="/admin/utilisateurs/nouveau"
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] bg-blue text-white text-sm font-medium hover:opacity-90 transition-opacity"
         >
           <UserPlus size={16} />
@@ -164,6 +165,7 @@ export default function AdminUsers() {
       {editing && (
         <UserEditModal user={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />
       )}
+      </div>
     </div>
   )
 }

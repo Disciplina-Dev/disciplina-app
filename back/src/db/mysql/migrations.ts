@@ -303,7 +303,16 @@ export async function runMysqlMigrations(): Promise<void> {
         "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND INDEX_NAME = 'unique_rh_kpi'",
     );
     if (rhKpiUniqueCols.length > 0 && !rhKpiUniqueCols.some((c) => c.COLUMN_NAME === 'sector')) {
-        await query('ALTER TABLE rh_kpi ADD UNIQUE KEY unique_rh_kpi_sector (user_id, sector, year, month, week)');
+        // Idempotent step-by-step: a crash between the ADD and the DROP leaves
+        // unique_rh_kpi_sector already present, so guard each statement on the
+        // actual index state instead of re-issuing a blind ADD (which throws
+        // "Duplicate key name 'unique_rh_kpi_sector'").
+        const sectorIdx = await query<{ count: number }[]>(
+            "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND INDEX_NAME = 'unique_rh_kpi_sector'",
+        );
+        if (Number(sectorIdx[0]?.count) === 0) {
+            await query('ALTER TABLE rh_kpi ADD UNIQUE KEY unique_rh_kpi_sector (user_id, sector, year, month, week)');
+        }
         await query('ALTER TABLE rh_kpi DROP INDEX unique_rh_kpi');
         logger.info('MySQL migration: widened rh_kpi unique key to include sector');
     }

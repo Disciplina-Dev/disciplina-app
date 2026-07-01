@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
 CREATE TABLE IF NOT EXISTS rh_kpi (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
+    sector VARCHAR(64) NOT NULL DEFAULT '',
     year SMALLINT NOT NULL,
     month TINYINT NOT NULL,
     week TINYINT NOT NULL,
@@ -236,7 +237,7 @@ CREATE TABLE IF NOT EXISTS rh_kpi (
     ruptures INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_rh_kpi (user_id, year, month, week),
+    UNIQUE KEY unique_rh_kpi (user_id, sector, year, month, week),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -293,3 +294,18 @@ CREATE TABLE IF NOT EXISTS interview_access (
     INDEX idx_interview_access_job (job_uuid),
     INDEX idx_interview_access_candidate (candidate_id)
 );
+
+-- Lieu de rendez-vous par défaut, configurable par l'admin, pour chaque secteur
+-- géographique (Nord-Est / Ouest / Sud). Pré-rempli dans la prise de RDV selon le
+-- secteur du RH/responsable hôte (reste éditable).
+CREATE TABLE IF NOT EXISTS sector_settings (
+    sector VARCHAR(64) NOT NULL PRIMARY KEY,
+    location VARCHAR(255) NOT NULL DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Lieux par défaut (modifiables ensuite par l'admin via l'interface).
+INSERT IGNORE INTO sector_settings (sector, location) VALUES
+    ('Nord-Est', 'Disciplina Nord-Est — Sainte-Marie'),
+    ('Ouest', 'Disciplina Ouest — Saint-Paul'),
+    ('Sud', 'Disciplina Sud — Saint-Pierre');

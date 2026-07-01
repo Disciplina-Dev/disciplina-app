@@ -59,6 +59,40 @@ async function resolveCalendar(req: AuthRequest, res: Response): Promise<GoogleC
     return calendarForUser(user);
 }
 
+/**
+ * Résout l'utilisateur propriétaire du calendrier ciblé par une écriture.
+ * `userId` (query) absent ou = soi → soi-même. Sinon la cible doit être un
+ * RH/responsable connecté : tout RH/responsable/admin (déjà filtré par la route)
+ * peut créer/modifier un créneau sur l'agenda d'un autre RH/responsable.
+ * Renvoie null après avoir répondu (400/403/409) en cas de cible invalide.
+ */
+async function resolveOwner(req: AuthRequest, res: Response): Promise<User | null> {
+    const selfId = Number(req.user.id);
+    const requestedId = typeof req.query.userId === 'string' ? Number(req.query.userId) : selfId;
+    if (!Number.isFinite(requestedId)) {
+        res.status(400).json({ error: 'userId invalide' });
+        return null;
+    }
+    if (requestedId === selfId) {
+        const self = await userService.findById(selfId);
+        if (!self || !self.oauthToken) {
+            res.status(409).json({ error: 'Google Calendar non connecté pour cet utilisateur' });
+            return null;
+        }
+        return self;
+    }
+    const target = await userService.findById(requestedId);
+    if (!target || !VIEWABLE_ROLES.includes(target.role)) {
+        res.status(403).json({ error: 'Agenda non modifiable' });
+        return null;
+    }
+    if (!target.oauthToken) {
+        res.status(409).json({ error: 'Agenda non connecté' });
+        return null;
+    }
+    return target;
+}
+
 /** GET /api/calendar/users — liste RH + responsables avec état de connexion Google. */
 export async function listCalendarUsers(req: AuthRequest, res: Response): Promise<void> {
     const selfId = Number(req.user.id);
@@ -74,6 +108,7 @@ export async function listCalendarUsers(req: AuthRequest, res: Response): Promis
             firstName: u.firstName,
             lastName: u.lastName,
             role: u.role,
+            sectors: u.sectors ?? [],
             connected: Boolean(u.oauthToken),
             isSelf: u.id === selfId,
         })),
@@ -165,22 +200,22 @@ export async function getEvents(req: AuthRequest, res: Response): Promise<void> 
 export async function createEvent(req: AuthRequest, res: Response): Promise<void> {
     const input = parseEventInput(req.body, res);
     if (!input) return;
-    const host = await userService.findById(Number(req.user.id));
-    if (!host || !host.oauthToken) {
-        res.status(409).json({ error: 'Google Calendar non connecté pour cet utilisateur' });
-        return;
-    }
+    // Le créneau est posé sur l'agenda du propriétaire (soi-même ou un autre RH ciblé).
+    const owner = await resolveOwner(req, res);
+    if (!owner) return;
+    // KPI attribués à l'acteur (celui qui saisit), pas au propriétaire du calendrier.
+    const actor = await userService.findById(Number(req.user.id));
     try {
-        const event = await calendarForUser(host).createEvent(input);
-        // KPI : un entretien placé compte au bucket de sa date de début, dans le secteur du RH.
-        if (input.isInterview) {
-            await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(input.start), { interviews_placed: 1 });
+        const event = await calendarForUser(owner).createEvent(input);
+        // KPI : un entretien placé compte au bucket de sa date de début, dans le secteur de l'acteur.
+        if (input.isInterview && actor) {
+            await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(input.start), { interviews_placed: 1 });
         }
-        // Email de confirmation automatique si un email invité est fourni.
+        // Email de confirmation automatique si un email invité est fourni (settings du propriétaire).
         if (input.attendeeEmail) {
-            const settings = await bookingService.getOrCreate(host.id);
+            const settings = await bookingService.getOrCreate(owner.id);
             await sendRdvConfirmation({
-                host,
+                host: owner,
                 to: input.attendeeEmail,
                 title: input.summary,
                 startIso: input.start,
@@ -205,27 +240,25 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         res.status(400).json({ error: 'status doit être "arrived" ou "noshow"' });
         return;
     }
-    const host = await userService.findById(Number(req.user.id));
-    if (!host || !host.oauthToken) {
-        res.status(409).json({ error: 'Google Calendar non connecté pour cet utilisateur' });
-        return;
-    }
+    const owner = await resolveOwner(req, res);
+    if (!owner) return;
+    const actor = await userService.findById(Number(req.user.id));
     try {
-        const calendar = calendarForUser(host);
+        const calendar = calendarForUser(owner);
         const before = await calendar.getEvent(req.params.id);
         const event = await calendar.setAttendance(req.params.id, status);
-        // KPI : « pas venu » (seulement pour les entretiens). Le « venu » vient du dossier candidat.
-        if (event.isInterview) {
+        // KPI : « pas venu » (seulement pour les entretiens), attribué à l'acteur.
+        if (event.isInterview && actor) {
             const delta = noshowDelta(before.attendance, status);
             if (Object.keys(delta).length) {
-                await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(event.start), delta);
+                await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(event.start), delta);
             }
         }
         // « Pas venu » : on envoie une relance avec le lien de réservation, si on a l'email.
         if (status === 'noshow' && event.attendeeEmail) {
-            const settings = await bookingService.getOrCreate(host.id);
+            const settings = await bookingService.getOrCreate(owner.id);
             await sendNoShowRebooking({
-                host,
+                host: owner,
                 to: event.attendeeEmail,
                 title: event.summary,
                 bookingUrl: `${env.FRONTEND_BASE_URL}/booking/${settings.slug}`,
@@ -244,21 +277,19 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
 export async function updateEvent(req: AuthRequest, res: Response): Promise<void> {
     const input = parseEventInput(req.body, res);
     if (!input) return;
-    const host = await userService.findById(Number(req.user.id));
-    if (!host || !host.oauthToken) {
-        res.status(409).json({ error: 'Google Calendar non connecté pour cet utilisateur' });
-        return;
-    }
-    const calendar = calendarForUser(host);
+    const owner = await resolveOwner(req, res);
+    if (!owner) return;
+    const actor = await userService.findById(Number(req.user.id));
+    const calendar = calendarForUser(owner);
     try {
         const before = await calendar.getEvent(req.params.id);
         const event = await calendar.updateEvent(req.params.id, input);
-        // KPI : rééquilibre le compteur « entretiens placés » si le flag ou la date a changé.
+        // KPI : rééquilibre le compteur « entretiens placés » si le flag ou la date a changé (acteur).
         const movedOrToggled = before.isInterview !== input.isInterview || dayKey(before.start) !== dayKey(input.start);
-        if ((before.isInterview || input.isInterview) && movedOrToggled) {
-            const sector = primarySector(host.sectors);
-            if (before.isInterview) await rhKpiService.bump(host.id, sector, new Date(before.start), { interviews_placed: -1 });
-            if (input.isInterview) await rhKpiService.bump(host.id, sector, new Date(input.start), { interviews_placed: 1 });
+        if (actor && (before.isInterview || input.isInterview) && movedOrToggled) {
+            const sector = primarySector(actor.sectors);
+            if (before.isInterview) await rhKpiService.bump(actor.id, sector, new Date(before.start), { interviews_placed: -1 });
+            if (input.isInterview) await rhKpiService.bump(actor.id, sector, new Date(input.start), { interviews_placed: 1 });
         }
         res.json({ event });
     } catch (error) {
@@ -269,20 +300,18 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
 
 /** DELETE /api/calendar/events/:id */
 export async function deleteEvent(req: AuthRequest, res: Response): Promise<void> {
-    const host = await userService.findById(Number(req.user.id));
-    if (!host || !host.oauthToken) {
-        res.status(409).json({ error: 'Google Calendar non connecté pour cet utilisateur' });
-        return;
-    }
-    const calendar = calendarForUser(host);
+    const owner = await resolveOwner(req, res);
+    if (!owner) return;
+    const actor = await userService.findById(Number(req.user.id));
+    const calendar = calendarForUser(owner);
     try {
         const before = await calendar.getEvent(req.params.id);
         await calendar.deleteEvent(req.params.id);
-        // KPI : on retire les compteurs portés par cet entretien (placé + no-show éventuel).
-        if (before.isInterview) {
+        // KPI : on retire les compteurs portés par cet entretien (placé + no-show éventuel), acteur.
+        if (actor && before.isInterview) {
             const delta: Record<string, number> = { interviews_placed: -1 };
             if (before.attendance === 'noshow') delta.interviews_noshow = -1;
-            await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(before.start), delta);
+            await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(before.start), delta);
         }
         res.status(204).end();
     } catch (error) {

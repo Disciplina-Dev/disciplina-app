@@ -89,6 +89,7 @@ const professionalExperienceSchema = new Schema<ProfessionalExperience>(
 const backgroundSchema = new Schema<Background>(
     {
         last_diploma: { type: String },
+        last_diploma_prepared: { type: String },
         previous_trainings: { type: String },
         professional_experiences: { type: [professionalExperienceSchema] },
     },
@@ -199,6 +200,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         training_site: { type: String, enum: Object.values(TrainingSite) },
         training_sites: { type: [String], enum: Object.values(TrainingSite), default: undefined },
         immersion_agreement: { type: Boolean },
+        immersion_start_date: { type: Date },
+        immersion_end_date: { type: Date },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
         education: { type: educationSchema },
@@ -216,6 +219,7 @@ const candidateSchema = new Schema<Candidate & Document>(
         photo_link: { type: String },
         classmarker: { type: classMarkerResultSchema },
         created_at: { type: Date },
+        classmarker_history: { type: [classMarkerResultSchema], default: undefined },
     },
     { collection: 'candidates' },
 );

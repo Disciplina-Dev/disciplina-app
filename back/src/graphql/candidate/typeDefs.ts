@@ -54,7 +54,6 @@ export const typeDefs = gql`
         NOT_SEEKING
         UNAVAILABLE
         CANCELLED
-        MATCHED
         CONTRACT
         IMMERSING
         BANNED
@@ -130,6 +129,7 @@ export const typeDefs = gql`
 
     type CandidateBackground {
         lastDiploma: String
+        lastDiplomaPrepared: String
         previousTrainings: String
         professionalExperiences: [ProfessionalExperience]
     }
@@ -219,6 +219,8 @@ export const typeDefs = gql`
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
+        immersionStartDate: String
+        immersionEndDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -281,6 +283,7 @@ export const typeDefs = gql`
 
     input BackgroundInput {
         lastDiploma: String
+        lastDiplomaPrepared: String
         previousTrainings: String
         professionalExperiences: [ProfessionalExperienceInput]
     }
@@ -352,6 +355,8 @@ export const typeDefs = gql`
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
+        immersionStartDate: String
+        immersionEndDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -372,6 +377,8 @@ export const typeDefs = gql`
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
+        immersionStartDate: String
+        immersionEndDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput

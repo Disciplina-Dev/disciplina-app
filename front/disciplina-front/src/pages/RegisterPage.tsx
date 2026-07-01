@@ -6,7 +6,6 @@ import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
 import { UserRole, useAuthStore } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
-import { Link } from 'react-router-dom'
 import { SECTEUR_VALUES } from '@/types/entreprise'
 
 export default function RegisterPage() {
@@ -91,12 +90,8 @@ export default function RegisterPage() {
   const isBusy = fetching || googleLoading
 
   return (
-    <div className="w-full max-w-2xl mx-auto flex flex-col gap-6">
-      <div className="w-full max-w-md mx-auto bg-white rounded-[20px] p-8 shadow-sm">
-      <div className="flex justify-center mb-6">
-        <img src="/logo-disciplina.svg" alt="Disciplina" className="h-10" />
-      </div>
-
+    <div className="w-full max-w-md mx-auto flex flex-col gap-5">
+      <div className="w-full bg-white rounded-[20px] p-8 shadow-sm">
       <div className="text-center mb-6">
         <h2>Créer un utilisateur</h2>
         <p className="mt-1 text-sm text-gray-500">
@@ -139,9 +134,9 @@ export default function RegisterPage() {
               required
             >
               <option value={UserRole.ADMIN}>Administrateur</option>
+              <option value={UserRole.RESPONSABLE}>Responsable</option>
               <option value={UserRole.RH}>Ressources Humaines</option>
               <option value={UserRole.COMMERCIAL}>Commercial</option>
-              <option value={UserRole.ENTREPRISE}>Entreprise</option>
             </select>
           </div>
         </div>
@@ -256,12 +251,6 @@ export default function RegisterPage() {
           {fetching ? 'Création...' : "Créer l'utilisateur"}
         </Button>
       </form>
-
-        <div className="mt-6 pt-5 border-t border-gray-100 text-center">
-          <Link to="/utilisateurs" className="text-sm font-medium text-blue hover:underline">
-            Gérer les utilisateurs existants →
-          </Link>
-        </div>
       </div>
     </div>
   )

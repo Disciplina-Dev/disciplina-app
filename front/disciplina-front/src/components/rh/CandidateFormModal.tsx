@@ -86,7 +86,7 @@ type ABForm = {
   // immersion
   immersionAgreement: string;
   // parcours
-  lastDiploma: string; previousTrainings: string;
+  lastDiploma: string; lastDiplomaPrepared: string; previousTrainings: string;
   experiences: { position: string; duration: string; responsibilities: string; company: string }[];
   // profil
   strengthsAndImprovements: string;
@@ -154,7 +154,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     franceTravail: '', franceTravailAgency: '',
     missionLocale: '', missionLocaleCity: '',
     immersionAgreement: '',
-    lastDiploma: '', previousTrainings: '', experiences: [],
+    lastDiploma: '', lastDiplomaPrepared: '', previousTrainings: '', experiences: [],
     strengthsAndImprovements: '',
     frenchLevel: '', englishLevel: '', otherLanguages: '',
     quality1: '', quality2: '', quality3: '',
@@ -208,6 +208,7 @@ function candidateToForm(c: Candidate): ABForm {
     missionLocaleCity: c.support?.mission_locale_city ?? '',
     immersionAgreement: bs(c.immersion_agreement),
     lastDiploma: c.background?.last_diploma ?? '',
+    lastDiplomaPrepared: c.background?.last_diploma_prepared ?? '',
     previousTrainings: c.background?.previous_trainings ?? '',
     experiences: c.background?.professional_experiences?.map(e => ({
       position: e.position ?? '',
@@ -280,6 +281,7 @@ function toServerInput(f: ABForm) {
     },
     background: {
       lastDiploma: f.lastDiploma || undefined,
+      lastDiplomaPrepared: f.lastDiplomaPrepared || undefined,
       previousTrainings: f.previousTrainings || undefined,
       professionalExperiences: f.experiences,
     },
@@ -614,6 +616,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Parcours antérieures */}
           <ABSectionTitle title="Parcours antérieures" />
           <InputField id="cn-diploma" label="Dernier diplôme obtenu" value={form.lastDiploma} onChange={e => set('lastDiploma', e.target.value)} />
+          <InputField id="cn-diploma-prepared" label="Dernier diplôme préparé" value={form.lastDiplomaPrepared} onChange={e => set('lastDiplomaPrepared', e.target.value)} />
           <ABTextarea label="Formations suivies auparavant" value={form.previousTrainings} onChange={v => set('previousTrainings', v)} />
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -685,7 +688,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Infos poste */}
           <ABSectionTitle title="Informations sur le poste" />
           <ABTextarea label="Pourquoi ce domaine ?" value={form.domainMotivation} onChange={v => set('domainMotivation', v)} />
-          <ABTextarea label="Questions / préoccupations" value={form.questionsConcerns} onChange={v => set('questionsConcerns', v)} />
+          <ABTextarea label="Questions / préoccupations sur le déroulement de la formation" value={form.questionsConcerns} onChange={v => set('questionsConcerns', v)} />
           <div className="grid grid-cols-2 gap-3">
             <InputField id="cn-avail" label="Date de disponibilité" type="date" value={form.availabilityDate} onChange={e => set('availabilityDate', e.target.value)} />
             <MultiSelectField
