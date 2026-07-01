@@ -63,7 +63,7 @@ export default function CommercialLayout() {
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
               {currentUser?.role === 'ADMIN' && (
-                <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+                <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
               )}
             </nav>
           </>

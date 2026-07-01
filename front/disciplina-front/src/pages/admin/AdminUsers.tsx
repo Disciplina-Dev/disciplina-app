@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Search, UserPlus, Pencil, Loader2, ShieldAlert, MapPin } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import UserEditModal, { type ManagedUser } from '@/components/admin/UserEditModal'
+import Breadcrumb from '@/components/ui/Breadcrumb'
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
@@ -68,7 +69,13 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto bg-white rounded-[20px] p-8 shadow-sm">
+    <div className="w-full max-w-3xl mx-auto">
+      <Breadcrumb
+        className="mb-5"
+        backTo="/commercial"
+        items={[{ label: 'Administration' }, { label: 'Utilisateurs' }]}
+      />
+      <div className="bg-white rounded-[20px] p-8 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h2>Gestion des utilisateurs</h2>
@@ -77,7 +84,7 @@ export default function AdminUsers() {
           </p>
         </div>
         <Link
-          to="/register"
+          to="/admin/utilisateurs/nouveau"
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] bg-blue text-white text-sm font-medium hover:opacity-90 transition-opacity"
         >
           <UserPlus size={16} />
@@ -164,6 +171,7 @@ export default function AdminUsers() {
       {editing && (
         <UserEditModal user={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />
       )}
+      </div>
     </div>
   )
 }

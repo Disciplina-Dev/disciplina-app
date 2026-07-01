@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
@@ -12,6 +12,7 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminLayout from "@/components/layout/AdminLayout";
 
 import CommercialLayout from "@/components/layout/CommercialLayout";
 import DashboardCommercial from "@/pages/commercial/DashboardCommercial";
@@ -54,22 +55,22 @@ export const router = createBrowserRouter([
     path: "/", element: <LoginPage /> },
   {
     path: "/auth/google", element: <GoogleAuthCallback /> },
-      {
-        path: "/register",
-        element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
-            <RegisterPage />
-          </ProtectedRoute>
-        )
-      },
-      {
-        path: "/utilisateurs",
-        element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
-            <AdminUsers />
-          </ProtectedRoute>
-        )
-      },
+      // Redirections rétro-compatibles vers le nouvel espace admin
+      { path: "/register", element: <Navigate to="/admin/utilisateurs/nouveau" replace /> },
+      { path: "/utilisateurs", element: <Navigate to="/admin/utilisateurs" replace /> },
+    ],
+  },
+  {
+    path: "/admin",
+    element: (
+      <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+        <AdminLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Navigate to="utilisateurs" replace /> },
+      { path: "utilisateurs", element: <AdminUsers /> },
+      { path: "utilisateurs/nouveau", element: <RegisterPage /> },
     ],
   },
   {

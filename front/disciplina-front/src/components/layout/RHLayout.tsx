@@ -63,7 +63,7 @@ export default function RHLayout() {
               <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
               {currentUser?.role === 'ADMIN' && (
                 <>
-                  <NavItem to="/register" icon={<UserPlus size={18} />} label="Créer utilisateur" />
+                  <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
                   <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
                 </>
               )}
