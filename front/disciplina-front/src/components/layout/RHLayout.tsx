@@ -3,6 +3,7 @@ import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mai
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
+import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -49,12 +50,23 @@ export default function RHLayout() {
           <NavItem to="/rh/candidats" icon={<Users size={18} />} label="Candidats" />
           <NavItem to="/rh/matching" icon={<Repeat2 size={18} />} label="Matching" />
           <NavItem to="/rh/calendrier" icon={<CalendarDays size={18} />} label="Calendrier" />
-          <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
-        <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
         </nav>
 
-        {/* Administration Nav */}
+        {/* Configuration (Responsable + Admin) */}
+        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
+          <>
+            <div className="mx-3 my-4 border-t border-gray-100" />
+            <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Configuration</div>
+            <nav className="flex flex-col gap-1 px-3">
+              <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
+              <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
+              <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
+            </nav>
+          </>
+        )}
+
+        {/* Navigation inter-espaces (Responsable + Admin) */}
         {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
           <>
             <div className="mx-3 my-4 border-t border-gray-100" />
@@ -62,10 +74,7 @@ export default function RHLayout() {
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
               {currentUser?.role === 'ADMIN' && (
-                <>
-                  <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
-                  <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
-                </>
+                <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
               )}
             </nav>
           </>
@@ -104,7 +113,8 @@ export default function RHLayout() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-end border-b border-gray-100 bg-white px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white px-6">
+          <RouteBreadcrumb accent="#60207E" />
           <NotificationBell accent="#60207E" />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">

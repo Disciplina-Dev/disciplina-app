@@ -2,6 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { Users, UserPlus, MapPin, LogOut, User, ArrowLeft } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
+import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
 
 function NavItem({
   to,
@@ -113,7 +114,8 @@ export default function AdminLayout() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-end border-b border-gray-100 bg-white px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white px-6">
+          <RouteBreadcrumb accent="#1130A7" />
           <NotificationBell accent="#1130A7" />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-8">

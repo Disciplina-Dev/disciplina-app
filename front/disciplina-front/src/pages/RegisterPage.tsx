@@ -7,7 +7,6 @@ import PasswordStrength from '@/components/ui/PasswordStrength'
 import { UserRole, useAuthStore } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { SECTEUR_VALUES } from '@/types/entreprise'
-import Breadcrumb from '@/components/ui/Breadcrumb'
 
 export default function RegisterPage() {
   const token = useAuthStore((s) => s.token)
@@ -92,14 +91,6 @@ export default function RegisterPage() {
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col gap-5">
-      <Breadcrumb
-        backTo="/admin/utilisateurs"
-        items={[
-          { label: 'Administration' },
-          { label: 'Utilisateurs', to: '/admin/utilisateurs' },
-          { label: 'Créer' },
-        ]}
-      />
       <div className="w-full bg-white rounded-[20px] p-8 shadow-sm">
       <div className="text-center mb-6">
         <h2>Créer un utilisateur</h2>
