@@ -47,6 +47,17 @@ export const useAuthStore = create<AuthStore>()(
   )
 )
 
+/**
+ * Fin de session (JWT expiré/invalide) : purge l'état client et laisse
+ * ProtectedRoute rediriger vers la page de login. Ne touche PAS au refresh
+ * token Google stocké en base — la déconnexion appli ne révoque pas Google.
+ */
+export function handleSessionExpired(): void {
+  const { token, logout } = useAuthStore.getState()
+  if (!token) return // déjà déconnecté — évite les boucles
+  logout()
+}
+
 export const useCurrentUser = (): AppUser | null => {
   return useAuthStore((s) => s.user)
 }
