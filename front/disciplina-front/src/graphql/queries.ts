@@ -469,6 +469,18 @@ export const GET_CANDIDATE_BY_ID = gql`
         feasibilityConclusion
         pathwayRelevance
         specialNeeds
+        pedagogicalRecommendations {
+          officeToolsReinforcement
+          writtenCommunicationSupport
+          oralConfidenceDevelopment
+          timeManagementSupport
+          professionalPostureWork
+          enhancedCompanyImmersion
+          pshSpecificSupport
+          individualFollowUp
+          languageTraining
+          stressManagementFollowUp
+        }
         otherRecommendations
         importantNote
         location
@@ -569,6 +581,18 @@ export const UPDATE_CANDIDATE = gql`
         feasibilityConclusion
         pathwayRelevance
         specialNeeds
+        pedagogicalRecommendations {
+          officeToolsReinforcement
+          writtenCommunicationSupport
+          oralConfidenceDevelopment
+          timeManagementSupport
+          professionalPostureWork
+          enhancedCompanyImmersion
+          pshSpecificSupport
+          individualFollowUp
+          languageTraining
+          stressManagementFollowUp
+        }
         otherRecommendations
         importantNote
         location
@@ -869,6 +893,18 @@ export const UPDATE_CANDIDATE_FULL = gql`
         feasibilityConclusion
         pathwayRelevance
         specialNeeds
+        pedagogicalRecommendations {
+          officeToolsReinforcement
+          writtenCommunicationSupport
+          oralConfidenceDevelopment
+          timeManagementSupport
+          professionalPostureWork
+          enhancedCompanyImmersion
+          pshSpecificSupport
+          individualFollowUp
+          languageTraining
+          stressManagementFollowUp
+        }
         otherRecommendations
         importantNote
         location

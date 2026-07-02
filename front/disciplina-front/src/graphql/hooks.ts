@@ -449,6 +449,32 @@ function toGqlUpdateInput(c: Candidate): any {
         }),
       },
     }),
+    ...(c.synthesis && {
+      synthesis: {
+        ...(c.synthesis.feasibility_conclusion !== undefined && {
+          feasibilityConclusion: c.synthesis.feasibility_conclusion,
+        }),
+        ...(c.synthesis.pathway_relevance !== undefined && { pathwayRelevance: c.synthesis.pathway_relevance }),
+        ...(c.synthesis.special_needs !== undefined && { specialNeeds: c.synthesis.special_needs }),
+        ...(c.synthesis.other_recommendations !== undefined && {
+          otherRecommendations: c.synthesis.other_recommendations,
+        }),
+        ...(c.synthesis.pedagogical_recommendations && {
+          pedagogicalRecommendations: {
+            officeToolsReinforcement: !!c.synthesis.pedagogical_recommendations.office_tools_reinforcement,
+            writtenCommunicationSupport: !!c.synthesis.pedagogical_recommendations.written_communication_support,
+            oralConfidenceDevelopment: !!c.synthesis.pedagogical_recommendations.oral_confidence_development,
+            timeManagementSupport: !!c.synthesis.pedagogical_recommendations.time_management_support,
+            professionalPostureWork: !!c.synthesis.pedagogical_recommendations.professional_posture_work,
+            enhancedCompanyImmersion: !!c.synthesis.pedagogical_recommendations.enhanced_company_immersion,
+            pshSpecificSupport: !!c.synthesis.pedagogical_recommendations.psh_specific_support,
+            individualFollowUp: !!c.synthesis.pedagogical_recommendations.individual_follow_up,
+            languageTraining: !!c.synthesis.pedagogical_recommendations.language_training,
+            stressManagementFollowUp: !!c.synthesis.pedagogical_recommendations.stress_management_follow_up,
+          },
+        }),
+      },
+    }),
   }
 }
 
