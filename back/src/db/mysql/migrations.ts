@@ -23,6 +23,9 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'needs_analysis', column: 'age_min', definition: 'INT DEFAULT NULL' },
     { table: 'needs_analysis', column: 'age_max', definition: 'INT DEFAULT NULL' },
     { table: 'needs_analysis', column: 'conditions', definition: 'TEXT DEFAULT NULL' },
+    // Préconisations pédagogiques (2026-07-02): cases cochées (JSON) + zone "Autre".
+    { table: 'needs_analysis', column: 'pedagogical_recommendations', definition: 'JSON DEFAULT NULL' },
+    { table: 'needs_analysis', column: 'pedagogical_recommendations_other', definition: 'TEXT DEFAULT NULL' },
     // Booking: modèle de mail de confirmation choisi par l'hôte (copié depuis ses modèles RH).
     { table: 'booking_settings', column: 'confirmation_subject', definition: 'VARCHAR(255) DEFAULT NULL' },
     { table: 'booking_settings', column: 'confirmation_body', definition: 'TEXT DEFAULT NULL' },
