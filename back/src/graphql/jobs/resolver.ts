@@ -31,6 +31,10 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return jobService.getMatchedJobIds(candidateId);
         },
+        candidatePlacement: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return jobService.getCandidatePlacement(candidateId);
+        },
     },
     Mutation: {
         updateJob: async (_: unknown, { id, job }: { id: string; job: any }, context: any) => {

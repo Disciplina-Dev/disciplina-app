@@ -198,6 +198,57 @@ export class JobService {
         return this.repository.findJobIdsWithCandidate(candidateId);
     }
 
+    /**
+     * Placement courant du candidat (immersion ou contrat) dérivé des offres.
+     * Contrat prioritaire sur immersion. La date de début de contrat n'étant pas
+     * stockée sur l'offre, elle est retrouvée via l'entrée d'historique écrite au
+     * moment de la conclusion.
+     */
+    async getCandidatePlacement(candidateId: string): Promise<object | null> {
+        const jobs = await this.repository.findPlacementJobs(candidateId);
+
+        let contract: { job: Job; pc: ProposedCandidate } | null = null;
+        let immersion: { job: Job; pc: ProposedCandidate } | null = null;
+        for (const job of jobs) {
+            const pc = job.proposed_candidate?.find((c) => c.id === candidateId);
+            if (!pc) continue;
+            if (
+                pc.interview_conclusion === InterviewConclusion.CONTRACT ||
+                pc.immersion_conclusion === ImmersionConclusion.CONTRACT
+            ) {
+                contract = { job, pc };
+            } else if (
+                pc.interview_conclusion === InterviewConclusion.IMMERSING &&
+                pc.immersion_conclusion !== ImmersionConclusion.REJECTED
+            ) {
+                immersion = { job, pc };
+            }
+        }
+
+        const hit = contract ?? immersion;
+        if (!hit) return null;
+
+        const kind = contract ? 'CONTRACT' : 'IMMERSING';
+        let since: string | null = null;
+        if (kind === 'IMMERSING') {
+            since = hit.pc.immersion_start_date ?? null;
+        } else {
+            const entries = await this.candidateHistoryService.findByCandidate(candidateId);
+            const company = hit.job.company_name;
+            const entry = company
+                ? entries.find((e) => e.description?.includes(`contrat avec ${company}`))
+                : undefined;
+            since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
+        }
+
+        return {
+            companyName: hit.job.company_name ?? null,
+            kind,
+            since,
+            immersionEndDate: kind === 'IMMERSING' ? (hit.pc.immersion_end_date ?? null) : null,
+        };
+    }
+
     async updateMatchedCandidateStatus(jobId: string, candidateId: string, status: string): Promise<object | null> {
         const job = await this.repository.setMatchedCandidateStatus(
             jobId,
