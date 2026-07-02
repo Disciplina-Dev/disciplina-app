@@ -5,12 +5,13 @@ import {
   X,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { EntrepriseFilters } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio, type ServerFilters } from '@/graphql/useInitializePortfolio'
+import { usePersistedListView } from '@/hooks/usePersistedListView'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
@@ -59,25 +60,18 @@ export default function PortefeuilleEntreprises() {
   const { createCompany } = useCreateCompany()
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
 
-  const [afterCursor, setAfterCursor] = useState<string | undefined>(undefined)
-  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([])
-  const [searchInput, setSearchInput] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const {
+    searchInput,
+    setSearchInput,
+    debouncedSearch,
+    filters,
+    setFilters,
+    afterCursor,
+    cursorHistory,
+    loadNextPage,
+    loadPrevPage,
+  } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS)
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(searchInput)
-      if (searchInput) {
-        setAfterCursor(undefined)
-        setCursorHistory([])
-      }
-    }, 300)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [searchInput])
-
-  const [filters, setFilters] = useState<EntrepriseFilters>(EMPTY_FILTERS)
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
   const [createError, setCreateError] = useState<string | null>(null)
@@ -88,12 +82,6 @@ export default function PortefeuilleEntreprises() {
   const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters)
 
   const secteurs = SECTEUR_VALUES as unknown as string[]
-
-  const handleFilterChange = (f: EntrepriseFilters) => {
-    setFilters(f)
-    setAfterCursor(undefined)
-    setCursorHistory([])
-  }
 
   const handleCreate = async (data: Partial<Entreprise>) => {
     const company = toCompany(data)
@@ -121,21 +109,6 @@ export default function PortefeuilleEntreprises() {
   }
 
   const activeFilterCount = countActiveFilters(filters)
-
-  const loadNextPage = () => {
-    if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) return
-    setCursorHistory((h) => [...h, afterCursor])
-    setAfterCursor(pageInfo.endCursor)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const loadPrevPage = () => {
-    if (cursorHistory.length === 0) return
-    const prev = cursorHistory[cursorHistory.length - 1]
-    setCursorHistory((h) => h.slice(0, -1))
-    setAfterCursor(prev)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
 
   const hidePagination = debouncedSearch || isRelanceMode
 
@@ -220,8 +193,8 @@ export default function PortefeuilleEntreprises() {
               filters={filters}
               secteurs={secteurs}
               salePersons={salePersons}
-              onChange={handleFilterChange}
-              onReset={() => handleFilterChange(EMPTY_FILTERS)}
+              onChange={setFilters}
+              onReset={() => setFilters(EMPTY_FILTERS)}
               activeCount={activeFilterCount}
             />
           </div>
@@ -244,7 +217,7 @@ export default function PortefeuilleEntreprises() {
               </p>
             </div>
             {activeFilterCount > 0 ? (
-              <Button variant="secondary" size="sm" onClick={() => handleFilterChange(EMPTY_FILTERS)}>
+              <Button variant="secondary" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
                 Effacer les filtres
               </Button>
             ) : (
@@ -280,7 +253,7 @@ export default function PortefeuilleEntreprises() {
             </button>
             <button
               type="button"
-              onClick={loadNextPage}
+              onClick={() => loadNextPage(pageInfo)}
               disabled={!pageInfo?.hasNextPage || loading}
               className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
