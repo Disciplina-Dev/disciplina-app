@@ -174,7 +174,7 @@ export const typeDefs = gql`
         drivingLicencseB: Boolean
         professionalExperience: Boolean
         status: JobStatus
-        localisation: Localisation
+        localisation: [Localisation]
         sector: Sector
         matchedCandidate: [MatchingCandidateInput]
     }
