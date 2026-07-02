@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { KpiRepository } from '../repositories/mysql/KpiRepository';
+import { ActivityEventRow, KpiRepository, LiveCallsRow, LiveStatusRow } from '../repositories/mysql/KpiRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { Role } from '../types/user.types';
 import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, KPI_SITES } from '../types/kpi.types';
@@ -42,6 +42,49 @@ export interface KpiWeeklyDetail {
         totals: Record<KpiMetricColumn, number>;
         users: { userId: number | null; userName: string; metrics: Record<KpiMetricColumn, number> }[];
     }[];
+}
+
+export interface KpiSiteOverview {
+    site: KpiSite;
+    totals: Record<KpiMetricColumn, number>;
+    users: { userId: number | null; userName: string; totals: Record<KpiMetricColumn, number> }[];
+}
+
+export interface KpiOverview {
+    year: number;
+    totals: Record<KpiMetricColumn, number>;
+    sites: KpiSiteOverview[];
+}
+
+export interface KpiUserSiteDetail {
+    site: KpiSite;
+    totals: Record<KpiMetricColumn, number>;
+    months: KpiMonthEntry[];
+    weeks: { week: number; month: number; metrics: Record<KpiMetricColumn, number> }[];
+}
+
+export interface KpiUserDetail {
+    year: number;
+    userId: number;
+    userName: string;
+    totals: Record<KpiMetricColumn, number>;
+    sites: KpiUserSiteDetail[];
+}
+
+/**
+ * Activité datée du portefeuille : changements de statut (company_history),
+ * créations d'entreprises et appels, agrégés par mois et semaine ISO.
+ * Mêmes formes que summary/weekly pour brancher les graphiques existants.
+ */
+export interface KpiActivity {
+    summary: KpiAnnualSummary;
+    weekly: KpiWeeklyDetail;
+}
+
+/** Snapshot temps réel calculé depuis le portefeuille (companies + contact_logs). */
+export interface KpiLiveSnapshot {
+    totals: Record<KpiMetricColumn, number>;
+    sites: KpiSiteOverview[];
 }
 
 export interface KpiImportResult {
@@ -134,6 +177,45 @@ const NAME_COLUMN_TERMINATORS = /^(total|global|comparatif|ecart|evolution)/;
  */
 const NAME_COLUMN_IGNORED = /^(immersion|non employe)/;
 
+/** companies.sector (libellé) → site KPI. */
+const LIVE_SECTOR_TO_SITE: Record<string, KpiSite> = {
+    'Nord-Est': 'NORD',
+    Ouest: 'OUEST',
+    Sud: 'SUD',
+};
+
+/** site KPI → companies.sector (libellé). */
+const SITE_TO_LIVE_SECTOR: Record<string, string> = Object.fromEntries(
+    Object.entries(LIVE_SECTOR_TO_SITE).map(([sector, site]) => [site, sector]),
+);
+
+/** companies.status → compteur KPI. « Fermé » alimente nbre_ent_ferme. */
+const LIVE_STATUS_TO_COLUMN: Record<string, KpiMetricColumn> = {
+    Oui: 'count_oui',
+    'Oui OF': 'count_oui_of',
+    Non: 'count_non',
+    'Réponds pas': 'count_ne_repond_pas',
+    'À Réfléchir': 'count_a_reflechir',
+    Relance: 'count_relance',
+    Fermé: 'nbre_ent_ferme',
+};
+
+/**
+ * ExcelJS renvoie les cellules calculées comme objets `{ formula, result }`
+ * (et le texte riche comme `{ richText }`) : on extrait la valeur affichée.
+ */
+function unwrapCellValue(v: unknown): unknown {
+    if (v == null) return null;
+    if (typeof v === 'object') {
+        const cell = v as { result?: unknown; richText?: { text: string }[]; text?: unknown; error?: unknown };
+        if (cell.error !== undefined) return null;
+        if (cell.result !== undefined) return unwrapCellValue(cell.result);
+        if (Array.isArray(cell.richText)) return cell.richText.map((t) => t.text).join('');
+        if (cell.text !== undefined) return cell.text;
+    }
+    return v;
+}
+
 interface ParsedEntry {
     /** Metric values; only categories actually present in the sheet are set. */
     metrics: Partial<Record<KpiMetricColumn, number>>;
@@ -176,6 +258,336 @@ export class KpiService {
         }
 
         return { year, site, totals, users: [...byUser.values()] };
+    }
+
+    /**
+     * Valeurs actuelles du portefeuille, par secteur et par commercial :
+     * - statut de chaque entreprise → compteur KPI correspondant ;
+     * - total_trie = taille du portefeuille, nbre_ent_ouvert = hors « Fermé » ;
+     * - total_appels = prises de contact loggées (contact_logs).
+     */
+    async getLiveSnapshot(onlyUserId?: number): Promise<KpiLiveSnapshot> {
+        const [statusRows, callRows] = await Promise.all([
+            this.kpiRepository.liveStatusCounts(),
+            this.kpiRepository.liveCallCounts(),
+        ]);
+
+        const totals = emptyMetrics();
+        const bySite = new Map<KpiSite, KpiSiteOverview>(
+            KPI_SITES.map((site) => [site, { site, totals: emptyMetrics(), users: [] }]),
+        );
+
+        const userOf = (siteEntry: KpiSiteOverview, row: LiveStatusRow | LiveCallsRow) => {
+            const userName =
+                row.first_name || row.last_name
+                    ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
+                    : 'Non attribué';
+            let user = siteEntry.users.find((u) => u.userId === row.user_id);
+            if (!user) {
+                user = { userId: row.user_id, userName, totals: emptyMetrics() };
+                siteEntry.users.push(user);
+            }
+            return user;
+        };
+
+        const bump = (
+            site: KpiSite | null,
+            row: LiveStatusRow | LiveCallsRow,
+            column: KpiMetricColumn,
+            nb: number,
+        ) => {
+            if (!site || nb === 0) return;
+            const siteEntry = bySite.get(site);
+            if (!siteEntry) return;
+            const user = userOf(siteEntry, row);
+            user.totals[column] += nb;
+            siteEntry.totals[column] += nb;
+            totals[column] += nb;
+        };
+
+        for (const row of statusRows) {
+            if (onlyUserId !== undefined && row.user_id !== onlyUserId) continue;
+            const site = LIVE_SECTOR_TO_SITE[row.sector] ?? null;
+            const nb = Number(row.nb) || 0;
+            const column = LIVE_STATUS_TO_COLUMN[row.status];
+            if (column) bump(site, row, column, nb);
+            // Portefeuille : chaque entreprise compte dans le total trié,
+            // et dans les ouvertes tant qu'elle n'est pas fermée.
+            bump(site, row, 'total_trie', nb);
+            if (row.status !== 'Fermé') bump(site, row, 'nbre_ent_ouvert', nb);
+        }
+
+        for (const row of callRows) {
+            if (onlyUserId !== undefined && row.user_id !== onlyUserId) continue;
+            const site = LIVE_SECTOR_TO_SITE[row.sector] ?? null;
+            bump(site, row, 'total_appels', Number(row.nb) || 0);
+        }
+
+        for (const siteEntry of bySite.values()) {
+            siteEntry.users.sort((a, b) => a.userName.localeCompare(b.userName, 'fr'));
+        }
+
+        return { totals, sites: [...bySite.values()] };
+    }
+
+    /**
+     * Activité datée du portefeuille pour une année et un secteur : chaque
+     * changement de statut / création / appel compte dans la semaine et le
+     * mois où il a eu lieu, attribué au propriétaire du portefeuille.
+     */
+    async getActivity(year: number, site: string, onlyUserId?: number): Promise<KpiActivity> {
+        const sector = SITE_TO_LIVE_SECTOR[site];
+        if (!sector) throw new Error(`Invalid site '${site}', expected one of ${KPI_SITES.join(', ')}`);
+
+        const [changes, creations, calls] = await Promise.all([
+            this.kpiRepository.activityStatusChanges(year, sector),
+            this.kpiRepository.activityCreations(year, sector),
+            this.kpiRepository.activityCalls(year, sector),
+        ]);
+
+        const summaryUsers = new Map<string, KpiUserSummary>();
+        const summaryTotals = emptyMetrics();
+        const byWeek = new Map<number, KpiWeeklyDetail['weeks'][number]>();
+
+        const nameOf = (row: ActivityEventRow) =>
+            row.first_name || row.last_name
+                ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
+                : 'Non attribué';
+
+        const add = (row: ActivityEventRow) => {
+            const column = row.status === 'APPEL' ? 'total_appels' : LIVE_STATUS_TO_COLUMN[row.status];
+            if (!column) return;
+            const nb = Number(row.nb) || 0;
+            if (nb === 0) return;
+            const key = `${row.user_id ?? nameOf(row)}`;
+
+            // Agrégat mensuel par commercial (forme KpiAnnualSummary).
+            let user = summaryUsers.get(key);
+            if (!user) {
+                user = { userId: row.user_id, userName: nameOf(row), totals: emptyMetrics(), months: [] };
+                summaryUsers.set(key, user);
+            }
+            let monthEntry = user.months.find((m) => m.month === row.month);
+            if (!monthEntry) {
+                monthEntry = { month: row.month, metrics: emptyMetrics() };
+                user.months.push(monthEntry);
+            }
+            monthEntry.metrics[column] += nb;
+            user.totals[column] += nb;
+            summaryTotals[column] += nb;
+
+            // Agrégat hebdomadaire (forme KpiWeeklyDetail).
+            let week = byWeek.get(row.week);
+            if (!week) {
+                week = { week: row.week, month: row.month, totals: emptyMetrics(), users: [] };
+                byWeek.set(row.week, week);
+            }
+            let weekUser = week.users.find((u) => (u.userId ?? u.userName) === (row.user_id ?? nameOf(row)));
+            if (!weekUser) {
+                weekUser = { userId: row.user_id, userName: nameOf(row), metrics: emptyMetrics() };
+                week.users.push(weekUser);
+            }
+            weekUser.metrics[column] += nb;
+            week.totals[column] += nb;
+        };
+
+        for (const row of changes) if (onlyUserId === undefined || row.user_id === onlyUserId) add(row);
+        for (const row of creations) if (onlyUserId === undefined || row.user_id === onlyUserId) add(row);
+        for (const row of calls) if (onlyUserId === undefined || row.user_id === onlyUserId) add(row);
+
+        const users = [...summaryUsers.values()].sort((a, b) => a.userName.localeCompare(b.userName, 'fr'));
+        for (const user of users) user.months.sort((a, b) => a.month - b.month);
+
+        return {
+            summary: { year, site, totals: summaryTotals, users },
+            weekly: {
+                year,
+                site,
+                weeks: [...byWeek.values()].sort((a, b) => a.month - b.month || a.week - b.week),
+            },
+        };
+    }
+
+    /**
+     * Source combinée : Excel (commercial_kpi) prioritaire, activité du
+     * portefeuille en complément. Granularité de fusion = (commercial, mois)
+     * pour le mensuel et (commercial, semaine) pour l'hebdo : si l'Excel a des
+     * chiffres pour cette case, le portefeuille est ignoré — zéro doublon.
+     */
+    async getCombined(year: number, site: string, onlyUserId?: number): Promise<KpiActivity> {
+        const [monthlyRows, weeklyRows, activity] = await Promise.all([
+            this.kpiRepository.findByYearAndSite(year, site),
+            this.kpiRepository.findWeeklyByYearAndSite(year, site),
+            this.getActivity(year, site, onlyUserId),
+        ]);
+
+        const scoped = (rows: KpiRow[]) =>
+            onlyUserId === undefined ? rows : rows.filter((r) => r.user_id === onlyUserId);
+
+        interface Cell {
+            userId: number | null;
+            userName: string;
+            month: number;
+            week: number;
+            metrics: Record<KpiMetricColumn, number>;
+        }
+        const userKey = (userId: number | null, userName: string) => `${userId ?? `n:${userName}`}`;
+
+        // Excel d'abord : ces cases sont verrouillées.
+        const monthly = new Map<string, Cell>();
+        for (const row of scoped(monthlyRows)) {
+            monthly.set(`${userKey(row.user_id, row.user_name)}|${row.month}`, {
+                userId: row.user_id,
+                userName: row.user_name,
+                month: row.month,
+                week: 0,
+                metrics: metricsOf(row),
+            });
+        }
+        const weekly = new Map<string, Cell>();
+        for (const row of scoped(weeklyRows)) {
+            weekly.set(`${userKey(row.user_id, row.user_name)}|${row.week}`, {
+                userId: row.user_id,
+                userName: row.user_name,
+                month: row.month,
+                week: row.week,
+                metrics: metricsOf(row),
+            });
+        }
+
+        // Portefeuille : uniquement les cases que l'Excel ne couvre pas.
+        for (const user of activity.summary.users) {
+            for (const entry of user.months) {
+                const key = `${userKey(user.userId, user.userName)}|${entry.month}`;
+                if (!monthly.has(key)) {
+                    monthly.set(key, {
+                        userId: user.userId,
+                        userName: user.userName,
+                        month: entry.month,
+                        week: 0,
+                        metrics: entry.metrics,
+                    });
+                }
+            }
+        }
+        for (const weekEntry of activity.weekly.weeks) {
+            for (const user of weekEntry.users) {
+                const key = `${userKey(user.userId, user.userName)}|${weekEntry.week}`;
+                if (!weekly.has(key)) {
+                    weekly.set(key, {
+                        userId: user.userId,
+                        userName: user.userName,
+                        month: weekEntry.month,
+                        week: weekEntry.week,
+                        metrics: user.metrics,
+                    });
+                }
+            }
+        }
+
+        // Reconstruction des agrégats.
+        const totals = emptyMetrics();
+        const byUser = new Map<string, KpiUserSummary>();
+        for (const cell of monthly.values()) {
+            const key = userKey(cell.userId, cell.userName);
+            let user = byUser.get(key);
+            if (!user) {
+                user = { userId: cell.userId, userName: cell.userName, totals: emptyMetrics(), months: [] };
+                byUser.set(key, user);
+            }
+            user.months.push({ month: cell.month, metrics: cell.metrics });
+            addInto(user.totals, cell.metrics);
+            addInto(totals, cell.metrics);
+        }
+        const users = [...byUser.values()].sort((a, b) => a.userName.localeCompare(b.userName, 'fr'));
+        for (const user of users) user.months.sort((a, b) => a.month - b.month);
+
+        const byWeek = new Map<number, KpiWeeklyDetail['weeks'][number]>();
+        for (const cell of weekly.values()) {
+            let weekEntry = byWeek.get(cell.week);
+            if (!weekEntry) {
+                weekEntry = { week: cell.week, month: cell.month, totals: emptyMetrics(), users: [] };
+                byWeek.set(cell.week, weekEntry);
+            }
+            weekEntry.users.push({ userId: cell.userId, userName: cell.userName, metrics: cell.metrics });
+            addInto(weekEntry.totals, cell.metrics);
+        }
+        for (const weekEntry of byWeek.values()) {
+            weekEntry.users.sort((a, b) => a.userName.localeCompare(b.userName, 'fr'));
+        }
+
+        return {
+            summary: { year, site, totals, users },
+            weekly: {
+                year,
+                site,
+                weeks: [...byWeek.values()].sort((a, b) => a.month - b.month || a.week - b.week),
+            },
+        };
+    }
+
+    /** Vue globale : tous les secteurs, un total par commercial dans chacun. */
+    async getOverview(year: number): Promise<KpiOverview> {
+        const rows = await this.kpiRepository.findMonthlyByYear(year);
+        const totals = emptyMetrics();
+        const bySite = new Map<KpiSite, KpiSiteOverview>(
+            KPI_SITES.map((site) => [site, { site, totals: emptyMetrics(), users: [] }]),
+        );
+
+        for (const row of rows) {
+            const siteEntry = bySite.get(row.site);
+            if (!siteEntry) continue;
+            let user = siteEntry.users.find((u) => u.userName === row.user_name);
+            if (!user) {
+                user = { userId: row.user_id, userName: row.user_name, totals: emptyMetrics() };
+                siteEntry.users.push(user);
+            }
+            const metrics = metricsOf(row);
+            addInto(user.totals, metrics);
+            addInto(siteEntry.totals, metrics);
+            addInto(totals, metrics);
+        }
+
+        return { year, totals, sites: [...bySite.values()] };
+    }
+
+    /** Détail annuel d'un commercial : totaux, mois et semaines par secteur. */
+    async getUserDetail(year: number, userId: number): Promise<KpiUserDetail | null> {
+        const user = await this.userRepository.findById(userId);
+        if (!user) return null;
+
+        const rows = await this.kpiRepository.findByYearAndUser(year, userId);
+        const totals = emptyMetrics();
+        const bySite = new Map<KpiSite, KpiUserSiteDetail>();
+
+        for (const row of rows) {
+            let siteEntry = bySite.get(row.site);
+            if (!siteEntry) {
+                siteEntry = { site: row.site, totals: emptyMetrics(), months: [], weeks: [] };
+                bySite.set(row.site, siteEntry);
+            }
+            const metrics = metricsOf(row);
+            if (row.week === 0) {
+                siteEntry.months.push({ month: row.month, metrics });
+                addInto(siteEntry.totals, metrics);
+                addInto(totals, metrics);
+            } else {
+                siteEntry.weeks.push({ week: row.week, month: row.month, metrics });
+            }
+        }
+
+        for (const siteEntry of bySite.values()) {
+            siteEntry.months.sort((a, b) => a.month - b.month);
+            siteEntry.weeks.sort((a, b) => a.month - b.month || a.week - b.week);
+        }
+
+        return {
+            year,
+            userId: user.id,
+            userName: `${user.first_name} ${user.last_name}`,
+            totals,
+            sites: [...bySite.values()],
+        };
     }
 
     async getMonthlyDetail(year: number, site: string): Promise<KpiMonthlyDetail> {
@@ -379,7 +791,7 @@ export class KpiService {
         const matrix: unknown[][] = [];
         ws.eachRow({ includeEmpty: true }, (row) => {
             const vals = row.values as unknown[];
-            matrix.push(vals.slice(1).map((v) => v ?? null));
+            matrix.push(vals.slice(1).map((v) => unwrapCellValue(v)));
         });
 
         // Header row: 'Catégorie' in column B; commercial names start in column C

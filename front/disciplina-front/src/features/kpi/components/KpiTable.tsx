@@ -8,6 +8,8 @@ interface Props {
   users: KpiUserSummary[]
   totals: KpiMetrics
   onEdit: (userId: number, userName: string, month: number, metrics: KpiMetrics) => void
+  /** true = données calculées (portefeuille) : pas d'édition. */
+  readOnly?: boolean
 }
 
 /**
@@ -15,7 +17,7 @@ interface Props {
  * commercial + Total. Le sélecteur de mois bascule entre les totaux annuels
  * et le détail d'un mois (éditable via le crayon de chaque colonne).
  */
-export default function KpiTable({ users, totals, onEdit }: Props) {
+export default function KpiTable({ users, totals, onEdit, readOnly = false }: Props) {
   // 0 = année entière, 1-12 = mois
   const [month, setMonth] = useState(0)
 
@@ -46,7 +48,7 @@ export default function KpiTable({ users, totals, onEdit }: Props) {
             <option key={label} value={i + 1}>{label}</option>
           ))}
         </select>
-        {month !== 0 && (
+        {month !== 0 && !readOnly && (
           <span className="text-[12px] text-gray-400">Crayon : modifier le mois pour un commercial</span>
         )}
       </div>
@@ -65,7 +67,7 @@ export default function KpiTable({ users, totals, onEdit }: Props) {
                         archivé
                       </span>
                     )}
-                    {month !== 0 && user.userId != null && (
+                    {month !== 0 && !readOnly && user.userId != null && (
                       <button
                         onClick={() => onEdit(user.userId!, user.userName, month, metrics)}
                         className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"

@@ -16,6 +16,7 @@ import AdminLayout from "@/components/layout/AdminLayout";
 
 import CommercialLayout from "@/components/layout/CommercialLayout";
 import DashboardCommercial from "@/pages/commercial/DashboardCommercial";
+import CommercialKpiProfil from "@/pages/commercial/CommercialKpiProfil";
 import ListeAB from "@/pages/commercial/ListeAB";
 import CreateAB from "@/pages/commercial/CreateAB";
 import PortefeuilleEntreprises from "@/pages/commercial/PortefeuilleEntreprises";
@@ -84,6 +85,7 @@ export const router = createBrowserRouter([
     handle: { crumb: "Commercial" },
     children: [
       { index: true, element: <DashboardCommercial />, handle: { crumb: "Tableau de bord" } },
+      { path: "kpi/:userId", element: <CommercialKpiProfil />, handle: { crumb: "Profil KPI" } },
       { path: "analyses-besoin", element: <ListeAB />, handle: { crumb: "Analyses de besoin" } },
       { path: "analyses-besoin/nouvelle", element: <CreateAB />, handle: { crumb: "Nouvelle analyse" } },
       { path: "portefeuille", element: <PortefeuilleEntreprises />, handle: { crumb: "Portefeuille" } },
