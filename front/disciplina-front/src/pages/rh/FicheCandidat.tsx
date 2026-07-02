@@ -15,7 +15,7 @@ import { GET_CANDIDATE_MATCHED_JOB_IDS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
-import type { Candidate } from '@/types/candidate'
+import type { Candidate, PedagogicalRecommendations } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
@@ -28,6 +28,19 @@ import { splitFullName } from '@/utils/classmarker'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const PEDA_RECO_OPTIONS: [keyof PedagogicalRecommendations, string][] = [
+  ['office_tools_reinforcement', 'Renforcement en bureautique et outils numériques'],
+  ['written_communication_support', 'Soutien en communication écrite'],
+  ['oral_confidence_development', "Développement de la confiance à l'oral"],
+  ['time_management_support', 'Accompagnement en gestion du temps et organisation'],
+  ['professional_posture_work', 'Travail sur la posture professionnelle'],
+  ['enhanced_company_immersion', 'Immersion renforcée en entreprise'],
+  ['psh_specific_support', 'Accompagnement spécifique PSH'],
+  ['individual_follow_up', 'Suivi individualisé'],
+  ['language_training', 'Formation complémentaire en langue'],
+  ['stress_management_follow_up', 'Suivi sur la gestion du stress et la confiance en soi'],
+]
 
 const TP_COLORS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.AD]:  'bg-teal-50 text-teal-700 ring-teal-200',
@@ -1078,6 +1091,52 @@ export default function FicheCandidat() {
                       ...prev, synthesis: { ...prev.synthesis, special_needs: e.target.value }
                     } : prev)} />
                 ) : <p className={valueCls}>{formData.synthesis?.special_needs || '—'}</p>}
+              </Field>
+
+              <Field label="Préconisations pédagogiques">
+                {isEditing ? (
+                  <div className="mt-1 space-y-2">
+                    {PEDA_RECO_OPTIONS.map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="accent-blue-600 h-4 w-4"
+                          checked={!!formData.synthesis?.pedagogical_recommendations?.[key]}
+                          onChange={() => setFormData(prev => prev ? {
+                            ...prev,
+                            synthesis: {
+                              ...prev.synthesis,
+                              pedagogical_recommendations: {
+                                ...prev.synthesis?.pedagogical_recommendations,
+                                [key]: !prev.synthesis?.pedagogical_recommendations?.[key],
+                              },
+                            },
+                          } : prev)}
+                        />
+                        <span className="text-sm text-gray-700">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  (() => {
+                    const on = PEDA_RECO_OPTIONS
+                      .filter(([key]) => formData.synthesis?.pedagogical_recommendations?.[key])
+                      .map(([, label]) => label)
+                    return on.length
+                      ? <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">{on.map(l => <li key={l}>{l}</li>)}</ul>
+                      : <p className={valueCls}>—</p>
+                  })()
+                )}
+              </Field>
+
+              <Field label="Autres préconisations">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.synthesis?.other_recommendations ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, synthesis: { ...prev.synthesis, other_recommendations: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.synthesis?.other_recommendations || '—'}</p>}
               </Field>
             </div>
           </Card>
