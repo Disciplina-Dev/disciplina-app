@@ -45,6 +45,7 @@ describe('GraphQL job mutations', () => {
                 },
             });
 
+            console.log(json);
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             expect(json.data.updateJob.companyName).toBe(`Updated Corp ${suffix}`);

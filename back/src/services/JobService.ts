@@ -96,12 +96,11 @@ function fromGql(data: any): Partial<Job> {
 }
 
 function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
-    const loc = c.identity.city as keyof typeof Localisation;
     return {
         id: c._id,
         full_name: c.identity.full_name,
         age: c.identity.age,
-        city: Localisation[loc],
+        city: c.identity.city,
         email: c.identity.email,
         phone: c.identity.phone,
         sex: c.identity.sex as Sex,
