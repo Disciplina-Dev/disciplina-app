@@ -41,8 +41,10 @@ export default function CommercialLayout() {
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
       <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
         {/* Module Header */}
-        <div className="shrink-0 p-6 pb-4">
-          <img src="/icon-logo.png" alt="Disciplina" className="mb-1 h-8 w-8" loading="lazy" />
+        <div className="shrink-0 flex items-center gap-3 p-6 pb-4">
+          <span className="flex items-center gap-3 after:content-[''] after:h-6 after:w-px after:bg-gray-200">
+            <img src="/icon-logo.png" alt="Disciplina" className="h-8 w-8" />
+          </span>
           <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">CRM Commercial</p>
         </div>
 
