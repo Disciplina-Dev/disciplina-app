@@ -90,6 +90,24 @@ export class GoogleDriveService {
             mimeType: (response.headers['content-type'] as string) || 'application/pdf',
         };
     }
+
+    async getFileMeta(fileId: string): Promise<{ id: string; name: string; mimeType: string }> {
+        const response = await this.drive.files.get({
+            fileId,
+            fields: 'id, name, mimeType',
+            supportsAllDrives: true,
+        });
+        return response.data as { id: string; name: string; mimeType: string };
+    }
+
+    /** Exporte un Google Doc natif (Docs/Sheets/Slides) vers un format téléchargeable. */
+    async exportFile(fileId: string, mimeType = 'application/pdf'): Promise<{ buffer: Buffer; mimeType: string }> {
+        const response = await this.drive.files.export(
+            { fileId, mimeType },
+            { responseType: 'arraybuffer' },
+        );
+        return { buffer: Buffer.from(response.data as ArrayBuffer), mimeType };
+    }
 }
 
 export function extractDriveFileId(webViewLink: string): string | null {

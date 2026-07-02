@@ -14,7 +14,6 @@ import {
   Phone,
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
-// import { NAF_CODES } from "@/data/nafCodes";
 import NAF_CODES from "@socialgouv/codes-naf";
 import {
   normalizeSiret,
@@ -135,7 +134,7 @@ async function fetchCompaniesByCriteria(
   return (await res.json()) as SireneListResult;
 }
 
-function buildCriteria(commune: string, naf: string): SireneCriterion[] {
+function buildCriteria(commune: string, naf: string, isReunionOnly: boolean): SireneCriterion[] {
   const criteria: SireneCriterion[] = [];
   if (commune.trim()) {
     criteria.push({
@@ -145,6 +144,9 @@ function buildCriteria(commune: string, naf: string): SireneCriterion[] {
   }
   if (naf.trim()) {
     criteria.push({ paramName: "activitePrincipaleUniteLegale", value: naf.trim() });
+  }
+  if (isReunionOnly) {
+    criteria.push({ paramName: "codeCommuneEtablissement", value: "974*" });
   }
   return criteria;
 }
@@ -705,6 +707,8 @@ function MulticriteriaSearchBar({
   onCommuneChange,
   nafValue,
   onNafChange,
+  isReunionOnly,
+  onIsReunionOnlyChange,
   onSubmit,
   busy,
 }: {
@@ -712,72 +716,101 @@ function MulticriteriaSearchBar({
   onCommuneChange: (v: string) => void;
   nafValue: string;
   onNafChange: (v: string) => void;
+  isReunionOnly: boolean;
+  onIsReunionOnlyChange: (v: boolean) => void;
   onSubmit: () => void;
   busy: boolean;
 }) {
-  const hasValue = !!(communeValue.trim() || nafValue.trim());
+  const hasValue = !!(communeValue.trim() || nafValue.trim() || isReunionOnly);
   return (
     <form
-      className="flex flex-col gap-2.5 sm:flex-row sm:items-center bg-white border-[1.5px] border-gray-100 rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
+      className="flex flex-col gap-3 bg-white border-[1.5px] border-gray-100 rounded-[14px] p-4 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit();
       }}
     >
-      <span className="flex text-gray-500">
-        <Search className="w-5 h-5" />
-      </span>
-      <select
-        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
-        value={communeValue}
-        onChange={(e) => onCommuneChange(e.target.value)}
-      >
-        <option value="">Sélectionnez une commune</option>
-        {REUNION_COMMUNES.map((commune) => (
-          <option key={commune} value={commune}>
-            {commune
-              .split("-")
-              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-              .join("-")}
-          </option>
-        ))}
-      </select>
-      <select
-        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
-        value={nafValue}
-        onChange={(e) => onNafChange(e.target.value)}
-      >
-        <option value="">Tous secteurs (NAF)</option>
-        {NAF_CODES.map((n) => (
-          <option key={n.id} value={n.id}>
-            {n.label}
-          </option>
-        ))}
-      </select>
-      {hasValue && (
-        <button
-          type="button"
-          className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
-          onClick={() => {
-            onCommuneChange("");
-            onNafChange("");
-          }}
-          aria-label="Effacer"
+      <div className="flex items-center gap-2.5">
+        <span className="flex text-gray-500 flex-shrink-0">
+          <Search className="w-5 h-5" />
+        </span>
+        <select
+          className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
+          value={communeValue}
+          onChange={(e) => onCommuneChange(e.target.value)}
         >
-          <X className="w-4 h-4" />
-        </button>
-      )}
+          <option value="">Sélectionnez une commune</option>
+          {REUNION_COMMUNES.map((commune) => (
+            <option key={commune} value={commune}>
+              {commune
+                .split("-")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join("-")}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center gap-2.5">
+        <span className="flex text-gray-500 flex-shrink-0 invisible">
+          <Search className="w-5 h-5" />
+        </span>
+        <select
+          className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
+          value={nafValue}
+          onChange={(e) => onNafChange(e.target.value)}
+        >
+          <option value="">Tous secteurs (NAF)</option>
+          {NAF_CODES.map((n) => (
+            <option key={n.id} value={n.id}>
+              {n.id}: -- {n.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <label className="flex items-center gap-2 cursor-pointer px-3 py-2 bg-gray-50 rounded-[10px] hover:bg-gray-100 transition-colors">
+          <input
+            type="checkbox"
+            checked={isReunionOnly}
+            onChange={(e) => onIsReunionOnlyChange(e.target.checked)}
+            className="w-4 h-4 cursor-pointer accent-blue"
+          />
+          <span className="text-[14px] font-medium text-gray-700 whitespace-nowrap">
+            Entreprise Réunionaise
+          </span>
+        </label>
+        {hasValue && (
+          <button
+            type="button"
+            className="flex border-0 bg-gray-100 text-gray-500 w-[28px] h-[28px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-200 hover:text-gray-900 transition-colors"
+            onClick={() => {
+              onCommuneChange("");
+              onNafChange("");
+              onIsReunionOnlyChange(false);
+            }}
+            aria-label="Effacer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       <button
         type="submit"
         disabled={busy || !hasValue}
-        className="flex items-center gap-1.5 flex-shrink-0 border-0 cursor-pointer bg-blue text-white font-semibold text-[14px] py-[9px] px-4 rounded-[10px] min-w-[120px] justify-center hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default max-sm:min-w-[46px] max-sm:px-[9px]"
+        className="flex items-center justify-center gap-1.5 border-0 cursor-pointer bg-blue text-white font-semibold text-[14px] py-[11px] px-6 rounded-[10px] w-full hover:bg-blue-dark active:translate-y-[1px] disabled:opacity-85 disabled:cursor-default transition-all"
       >
         {busy ? (
-          <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+          <>
+            <span className="w-4 h-4 border-2 border-white/45 border-t-white rounded-full animate-spin" />
+            <span>Recherche en cours...</span>
+          </>
         ) : (
           <>
-            <span className="max-sm:hidden">Rechercher</span>
-            <ArrowRight className="w-4 h-4" />
+            <Search className="w-4 h-4" />
+            <span>Rechercher</span>
           </>
         )}
       </button>
@@ -941,6 +974,7 @@ export default function Sourcing() {
   // Commune mode state
   const [communeQuery, setCommuneQuery] = useState("");
   const [nafCode, setNafCode] = useState("");
+  const [isReunionOnly, setIsReunionOnly] = useState(false);
   const [communeView, setCommuneView] = useState<CommuneView>("empty");
   const [communeResult, setCommuneResult] = useState<SireneListResult | null>(
     null,
@@ -1020,7 +1054,7 @@ export default function Sourcing() {
 
   const runCommune = useCallback(
     async () => {
-      const criteria = buildCriteria(communeQuery, nafCode);
+      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
       if (criteria.length === 0) return;
       setCommuneView("loading");
       setOffsetHistory([]);
@@ -1034,13 +1068,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, token],
+    [communeQuery, nafCode, isReunionOnly, token],
   );
 
   const loadNextPage = useCallback(
     async () => {
       if (!communeResult) return;
-      const criteria = buildCriteria(communeQuery, nafCode);
+      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
       if (criteria.length === 0) return;
       const nextOffset =
         communeResult.header.offset + communeResult.etablissements.length;
@@ -1056,13 +1090,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, communeResult, token],
+    [communeQuery, nafCode, isReunionOnly, communeResult, token],
   );
 
   const loadPrevPage = useCallback(
     async () => {
       if (!communeResult || offsetHistory.length === 0) return;
-      const criteria = buildCriteria(communeQuery, nafCode);
+      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
       if (criteria.length === 0) return;
       const prevOffset = offsetHistory[offsetHistory.length - 1];
       setOffsetHistory((h) => h.slice(0, -1));
@@ -1077,7 +1111,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, communeResult, offsetHistory, token],
+    [communeQuery, nafCode, isReunionOnly, communeResult, offsetHistory, token],
   );
 
   const submit = () => run(query);
@@ -1281,6 +1315,13 @@ export default function Sourcing() {
                 nafValue={nafCode}
                 onNafChange={(v) => {
                   setNafCode(v);
+                  if (communeView !== "empty") setCommuneView("empty");
+                  setContacts(null);
+                  setSelectedCommune(null);
+                }}
+                isReunionOnly={isReunionOnly}
+                onIsReunionOnlyChange={(v) => {
+                  setIsReunionOnly(v);
                   if (communeView !== "empty") setCommuneView("empty");
                   setContacts(null);
                   setSelectedCommune(null);

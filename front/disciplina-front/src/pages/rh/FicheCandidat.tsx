@@ -47,6 +47,56 @@ const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
   [TrainingSite.SUD_SAINT_PIERRE]:  'Sud – Saint-Pierre',
 }
 
+// Met en forme un enum SCREAMING_SNAKE en libellé lisible ("SAINT_DENIS" → "Saint Denis").
+function prettyEnum(v: string): string {
+  return v.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+// Résumé "matching" généré depuis les champs de la fiche (déterministe, sans IA).
+// Assemble uniquement les infos renseignées en 2-4 phrases.
+function buildCandidateSummary(c: Candidate): string {
+  const parts: string[] = []
+
+  // Profil : nom, âge, ville, titre(s) visé(s), niveau d'études.
+  const age = computeAge(c.identity.date_of_birth) ?? c.identity.age
+  const tps = (c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : []).join(', ')
+  const profil = [
+    c.identity.full_name,
+    age != null ? `${age} ans` : null,
+    c.identity.city || null,
+  ].filter(Boolean).join(', ')
+  const level = c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] : null
+  let s1 = profil
+  if (tps) s1 += ` — vise ${tps}`
+  if (level) s1 += `, niveau ${level}`
+  if (s1.trim()) parts.push(s1 + '.')
+
+  // Parcours : diplômes.
+  const dipl: string[] = []
+  if (c.background?.last_diploma) dipl.push(`dernier diplôme obtenu : ${c.background.last_diploma}`)
+  if (c.background?.last_diploma_prepared) dipl.push(`préparé : ${c.background.last_diploma_prepared}`)
+  if (dipl.length) parts.push(dipl.join(' ; ').replace(/^./, (ch) => ch.toUpperCase()) + '.')
+
+  // Mobilité / disponibilité.
+  const dispo: string[] = []
+  const mob = c.job_info?.geographic_mobility?.map(prettyEnum).join(', ')
+  if (mob) dispo.push(`mobilité : ${mob}`)
+  if (c.job_info?.availability_date) {
+    dispo.push(`disponible le ${new Date(c.job_info.availability_date).toLocaleDateString('fr-FR')}`)
+  }
+  if (dispo.length) parts.push(dispo.join(' ; ').replace(/^./, (ch) => ch.toUpperCase()) + '.')
+
+  // Atouts / projet.
+  const atouts: string[] = []
+  if (c.profile?.qualities?.length) atouts.push(`points forts : ${c.profile.qualities.join(', ')}`)
+  if (c.professional_projects?.career_objectives) {
+    atouts.push(`objectif : ${c.professional_projects.career_objectives}`)
+  }
+  if (atouts.length) parts.push(atouts.join(' ; ').replace(/^./, (ch) => ch.toUpperCase()) + '.')
+
+  return parts.join(' ')
+}
+
 // ─── Drive file types ─────────────────────────────────────────────────────────
 
 interface DriveFile {
@@ -58,9 +108,25 @@ interface DriveFile {
   webViewLink?: string
 }
 
-function drivePreviewUrl(file: DriveFile): string {
+// Types prévisualisables via le proxy backend (rendu natif navigateur depuis un blob) :
+// PDF, images, et Google Docs natifs (exportés en PDF côté backend).
+function isProxyablePreview(mimeType: string): boolean {
+  return (
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('image/') ||
+    mimeType.startsWith('application/vnd.google-apps.')
+  )
+}
+
+// Fallback pour les types que le navigateur ne sait pas rendre (Office binaire, etc.) :
+// on retombe sur l'embed Google Drive (nécessite la session Google du navigateur).
+function googleEmbedUrl(file: DriveFile): string {
   if (file.webViewLink) {
-    return file.webViewLink.replace('/edit?', '/preview?').replace('/view?', '/preview?').replace('/edit', '/preview').replace('/view', '/preview')
+    return file.webViewLink
+      .replace('/edit?', '/preview?')
+      .replace('/view?', '/preview?')
+      .replace('/edit', '/preview')
+      .replace('/view', '/preview')
   }
   return `https://drive.google.com/file/d/${file.id}/preview`
 }
@@ -139,6 +205,9 @@ export default function FicheCandidat() {
   const [loadingFiles, setLoadingFiles] = useState(false)
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [confirmedJobIds, setConfirmedJobIds] = useState<Set<string>>(new Set())
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -171,6 +240,43 @@ export default function FicheCandidat() {
       fetchDriveFiles(id)
     }
   }, [formData?.drive_folder_id])
+
+  // Aperçu : on récupère le fichier via le backend (token OAuth serveur) plutôt que
+  // d'embarquer drive.google.com — l'iframe Google exige la session Google dans
+  // l'iframe (bloquée par les cookies tiers → "Connectez-vous à votre compte Google").
+  useEffect(() => {
+    // Types non-proxyables (Office binaire…) : pas de blob, on utilisera l'embed Google.
+    if (!id || !selectedFile || !isProxyablePreview(selectedFile.mimeType)) {
+      setPreviewUrl(null)
+      setPreviewError(null)
+      setPreviewLoading(false)
+      return
+    }
+    let objectUrl: string | null = null
+    let cancelled = false
+    setPreviewLoading(true)
+    setPreviewError(null)
+    fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/drive-files/${selectedFile.id}/content`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Aperçu indisponible (${res.status})`)
+        const blob = await res.blob()
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setPreviewUrl(objectUrl)
+      })
+      .catch((err) => {
+        if (!cancelled) setPreviewError(err instanceof Error ? err.message : 'Aperçu indisponible')
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false)
+      })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [id, selectedFile, token])
 
   useEffect(() => {
     if (!id) return
@@ -272,6 +378,24 @@ export default function FicheCandidat() {
   const persistStatus = async (updated: Candidate) => {
     setFormData(updated)
     try { await update(updated._id, updated) } catch { /* ignore */ }
+  }
+
+  // Génère un résumé "matching" depuis les champs de la fiche et le dépose dans
+  // la Description. Ne régénère pas si une description existe déjà (sauf confirmation).
+  const handleGenerateDescription = async () => {
+    if (!formData) return
+    if (formData.identity.description?.trim() &&
+        !window.confirm('Une description existe déjà. La remplacer par un résumé généré ?')) {
+      return
+    }
+    const summary = buildCandidateSummary(formData)
+    if (!summary.trim()) {
+      setSaveError('Pas assez d\'informations sur la fiche pour générer un résumé.')
+      return
+    }
+    const updated = { ...formData, identity: { ...formData.identity, description: summary } }
+    setFormData(updated)
+    try { await update(updated._id, updated) } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
   }
 
   const handleStatusChange = async (newStatus: CandidateStatus) => {
@@ -682,12 +806,21 @@ export default function FicheCandidat() {
                   </label>
                 ) : <p className={valueCls}>{formData.identity.had_apprenticeship_contract ? 'Oui' : 'Non'}</p>}
               </Field>
-              <Field label="Description">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className={labelCls}>Description</span>
+                  <button
+                    type="button"
+                    onClick={handleGenerateDescription}
+                    className="text-[11px] font-semibold text-purple hover:underline">
+                    {formData.identity.description?.trim() ? 'Régénérer' : 'Générer le résumé'}
+                  </button>
+                </div>
                 {isEditing ? (
                   <textarea className={inputCls} rows={4} value={formData.identity.description ?? ''}
                     onChange={e => updateIdentity('description', e.target.value)} />
                 ) : <p className={`${valueCls} whitespace-pre-wrap`}>{formData.identity.description || '—'}</p>}
-              </Field>
+              </div>
             </div>
           </Card>
 
@@ -985,12 +1118,35 @@ export default function FicheCandidat() {
                 {/* Preview */}
                 <div className="flex-1 min-w-0">
                   {selectedFile ? (
-                    <iframe
-                      key={selectedFile.id}
-                      src={drivePreviewUrl(selectedFile)}
-                      className="w-full h-full rounded-lg border border-gray-100"
-                      allow="autoplay"
-                    />
+                    !isProxyablePreview(selectedFile.mimeType) ? (
+                      <iframe
+                        key={selectedFile.id}
+                        src={googleEmbedUrl(selectedFile)}
+                        title={selectedFile.name}
+                        className="w-full h-full rounded-lg border border-gray-100"
+                      />
+                    ) : previewLoading ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-2 rounded-lg border border-gray-100 bg-gray-50 text-gray-400">
+                        <Loader2 size={24} className="animate-spin" />
+                        <p className="text-sm">Chargement de l'aperçu…</p>
+                      </div>
+                    ) : previewError ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
+                        <AlertCircle size={28} className="text-gray-300" />
+                        <p className="text-sm text-gray-400">{previewError}</p>
+                        {selectedFile.webViewLink && (
+                          <a href={selectedFile.webViewLink} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-purple hover:underline">Ouvrir dans Google Drive</a>
+                        )}
+                      </div>
+                    ) : previewUrl ? (
+                      <iframe
+                        key={selectedFile.id}
+                        src={previewUrl}
+                        title={selectedFile.name}
+                        className="w-full h-full rounded-lg border border-gray-100"
+                      />
+                    ) : null
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
                       <FileText size={32} className="text-gray-300" />
