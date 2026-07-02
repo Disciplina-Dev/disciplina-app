@@ -145,6 +145,8 @@ export class JobService {
 
         let ab = null;
         let company = null;
+
+        // Chemin normal : le job a été généré depuis une AB (needs_analysis_id).
         if (job.needs_analysis_id) {
             const abRow = await this.needsAnalysisRepository.findById(job.needs_analysis_id);
             if (abRow) {
@@ -152,6 +154,18 @@ export class JobService {
                 company = await this.companiesService.findById(ab.companyID);
             }
         }
+
+        // Fallback (jobs importés / seedés sans lien direct) : on retrouve la
+        // fiche entreprise par sa raison sociale, puis sa dernière AB s'il y en a une.
+        if (!company && job.company_name) {
+            company = await this.companiesService.findByName(job.company_name);
+        }
+        if (!ab && company) {
+            const abRows = await this.needsAnalysisRepository.findByCompanyId(company.id);
+            const latest = abRows.sort((a, b) => b.id - a.id)[0];
+            if (latest) ab = toNeedsAnalysis(latest);
+        }
+
         return { companyName: job.company_name ?? company?.name ?? null, company, ab };
     }
 
@@ -260,9 +274,7 @@ export class JobService {
         } else {
             const entries = await this.candidateHistoryService.findByCandidate(candidateId);
             const company = hit.job.company_name;
-            const entry = company
-                ? entries.find((e) => e.description?.includes(`contrat avec ${company}`))
-                : undefined;
+            const entry = company ? entries.find((e) => e.description?.includes(`contrat avec ${company}`)) : undefined;
             since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
         }
 

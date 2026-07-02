@@ -166,6 +166,14 @@ export class CompanyRepository {
         return results.length > 0 ? results[0] : null;
     }
 
+    /** Recherche exacte par raison sociale (fallback matching sans lien direct). */
+    async findByName(name: string): Promise<CompaniesRow | null> {
+        const results = await query<CompaniesRow[]>('SELECT * FROM companies WHERE name = ? ORDER BY id DESC LIMIT 1', [
+            name,
+        ]);
+        return results.length > 0 ? results[0] : null;
+    }
+
     async create(data: Partial<CompaniesRow>): Promise<number> {
         const conn = await getConnection();
         try {
