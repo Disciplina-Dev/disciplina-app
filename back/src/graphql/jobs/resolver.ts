@@ -19,6 +19,10 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return await jobService.find(id);
         },
+        jobCompanyInfo: async (_: unknown, { jobId }: { jobId: string }, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return await jobService.getCompanyInfo(jobId);
+        },
         offerResponseLinks: (
             _: unknown,
             { jobId, candidateId }: { jobId: string; candidateId: string },

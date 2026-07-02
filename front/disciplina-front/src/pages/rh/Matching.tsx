@@ -42,6 +42,7 @@ import type { JobFilters as JobFiltersType } from '@/features/matching/services/
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
+import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
 import { isInterviewDatePast } from '@/utils/interview'
@@ -501,12 +502,14 @@ function JobDetailsSection({
   hasAcceptedCandidates,
   isCreatingSession,
   onProposeCandidates,
+  onShowCompanyInfo,
 }: {
   job: MatchJobResult
   onSetStatus: (status: JobStatus) => void
   hasAcceptedCandidates: boolean
   isCreatingSession: boolean
   onProposeCandidates: () => void
+  onShowCompanyInfo: () => void
 }) {
   const chip = statusChip(job.status)
 
@@ -518,7 +521,14 @@ function JobDetailsSection({
             <Building2 size={20} />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-bold text-gray-900 truncate">{job.companyName}</h2>
+            <button
+              type="button"
+              onClick={onShowCompanyInfo}
+              className="text-left text-base font-bold text-gray-900 truncate hover:text-blue hover:underline"
+              title="Voir toutes les infos de l'entreprise"
+            >
+              {job.companyName}
+            </button>
             <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
               {chip.label}
             </span>
@@ -1141,6 +1151,7 @@ function ProposeResultModal({ companyName, onClose }: { companyName: string; onC
 
 function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
+  const [showCompanyInfo, setShowCompanyInfo] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
   const [savedCandidateIds, setSavedCandidateIds] = useState<Set<string>>(new Set())
   const [decisions, setDecisions] = useState<Record<string, CandidateDecision>>({})
@@ -1514,7 +1525,12 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         hasAcceptedCandidates={(jobData.matchedCandidate ?? []).some((c) => c.status === MatchedCandidateStatus.ACCEPTED)}
         isCreatingSession={isCreatingSession}
         onProposeCandidates={handleOpenProposeCandidates}
+        onShowCompanyInfo={() => setShowCompanyInfo(true)}
       />
+
+      {showCompanyInfo && selectedJob && (
+        <CompanyInfoModal jobId={selectedJob.id} onClose={() => setShowCompanyInfo(false)} />
+      )}
 
       <RetainedCandidatesSection
         candidates={jobData.matchedCandidate ?? []}
