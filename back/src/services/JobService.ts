@@ -1,5 +1,8 @@
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
+import { NeedsAnalysisRepository } from '../repositories/mysql/NeedsAnalysisRepository';
+import { toNeedsAnalysis } from './mappers/needsAnalysis.mapper';
+import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
 import { CandidateHistoryService } from './CandidateHistoryService';
@@ -123,10 +126,33 @@ export class JobService {
     private candidateRepository = new CandidateRepository();
     private candidateService = new CandidateService();
     private candidateHistoryService = new CandidateHistoryService();
+    private needsAnalysisRepository = new NeedsAnalysisRepository();
+    private companiesService = new CompaniesService();
 
     async findAll(): Promise<object[]> {
         const jobs = await this.repository.findAll();
         return jobs.map(toGql);
+    }
+
+    /**
+     * Toutes les infos entreprise liées à une offre de matching : la fiche CRM
+     * (companies) + l'analyse du besoin (needs_analysis) qui a généré l'offre.
+     * Accessible au RH depuis le matching (le job porte needs_analysis_id → AB → company_id).
+     */
+    async getCompanyInfo(jobId: string): Promise<object | null> {
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
+
+        let ab = null;
+        let company = null;
+        if (job.needs_analysis_id) {
+            const abRow = await this.needsAnalysisRepository.findById(job.needs_analysis_id);
+            if (abRow) {
+                ab = toNeedsAnalysis(abRow);
+                company = await this.companiesService.findById(ab.companyID);
+            }
+        }
+        return { companyName: job.company_name ?? company?.name ?? null, company, ab };
     }
 
     async find(id: string): Promise<object | null> {
