@@ -207,6 +207,10 @@ CREATE TABLE IF NOT EXISTS needs_analysis (
     conditions TEXT DEFAULT NULL,
     additional_comments TEXT DEFAULT NULL,
 
+    -- Préconisations pédagogiques (cases cochées + zone "Autre")
+    pedagogical_recommendations JSON DEFAULT NULL,
+    pedagogical_recommendations_other TEXT DEFAULT NULL,
+
     -- Etape 4: Logique & Process RH
     recruitment_method ENUM('ALL_CV', 'PRESELECTION', 'PRE_INTERVIEW') NOT NULL,
     immersion_period ENUM('OUI', 'NON', 'A_DISCUTER') NOT NULL,

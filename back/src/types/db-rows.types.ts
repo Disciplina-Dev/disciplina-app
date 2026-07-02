@@ -156,6 +156,8 @@ export interface NeedsAnalysisRow {
     schedule_options: string | null; // JSON string
     conditions: string | null;
     additional_comments: string | null;
+    pedagogical_recommendations: string | null; // JSON string
+    pedagogical_recommendations_other: string | null;
     recruitment_method: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW';
     immersion_period: 'OUI' | 'NON' | 'A_DISCUTER';
     training_days: string; // JSON string
