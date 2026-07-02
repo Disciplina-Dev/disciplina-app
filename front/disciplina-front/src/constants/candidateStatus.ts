@@ -16,7 +16,7 @@ export const CANDIDATE_STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
     [CandidateStatus.UNAVAILABLE]: 'bg-warning text-white',
     [CandidateStatus.CANCELLED]: 'bg-warning text-white',
     [CandidateStatus.CONTRACT]: 'bg-success text-white',
-    [CandidateStatus.IMMERSING]: 'bg-info text-white',
+    [CandidateStatus.IMMERSING]: 'bg-cyan-500 text-white',
     [CandidateStatus.BANNED]: 'bg-danger text-white',
 };
 
