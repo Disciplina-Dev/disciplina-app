@@ -49,7 +49,7 @@ export default function AdminLayout() {
       <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
         {/* Module Header */}
         <div className="shrink-0 p-6 pb-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue mb-1">Disciplina</p>
+          <img src="/icon-logo.png" alt="Disciplina" className="mb-1 h-8 w-8" loading="lazy" />
           <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">Administration</p>
         </div>
 
