@@ -59,8 +59,6 @@ export interface NeedsAnalysis {
     scheduleOptions: string[];
     conditions: string | null;
     additionalComments: string | null;
-    pedagogicalRecommendations: string[];
-    pedagogicalRecommendationsOther: string | null;
     recruitmentMethod: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW';
     immersionPeriod: 'OUI' | 'NON' | 'A_DISCUTER';
     trainingDays: string;

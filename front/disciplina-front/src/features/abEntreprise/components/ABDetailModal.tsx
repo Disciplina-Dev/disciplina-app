@@ -243,17 +243,6 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
               <Row label="Soft skills"     value={ab.softSkills} />
             </Section>
 
-            {(ab.pedagogicalRecommendations?.length > 0 || ab.pedagogicalRecommendationsOther) && (
-              <Section icon={<GraduationCap className="h-3.5 w-3.5" />} title="Préconisations pédagogiques">
-                {ab.pedagogicalRecommendations?.length > 0 && (
-                  <ul className="list-disc space-y-1 py-2 pl-5 text-sm text-gray-900">
-                    {ab.pedagogicalRecommendations.map((p: string) => <li key={p}>{p}</li>)}
-                  </ul>
-                )}
-                <Row label="Autre" value={ab.pedagogicalRecommendationsOther} />
-              </Section>
-            )}
-
             {trainingDaysDisplay && (
               <Section icon={<Calendar className="h-3.5 w-3.5" />} title="Jours de formation">
                 <div className="py-2 text-sm text-gray-900">{trainingDaysDisplay}</div>

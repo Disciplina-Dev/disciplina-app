@@ -119,8 +119,6 @@ export const typeDefs = gql`
         scheduleOptions: [String!]!
         conditions: String
         additionalComments: String
-        pedagogicalRecommendations: [String!]!
-        pedagogicalRecommendationsOther: String
         recruitmentMethod: RecruitmentMethod!
         immersionPeriod: ImmersionPeriod!
         trainingDays: String!
@@ -161,8 +159,6 @@ export const typeDefs = gql`
         scheduleOptions: [String!]
         conditions: String
         additionalComments: String
-        pedagogicalRecommendations: [String!]
-        pedagogicalRecommendationsOther: String
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
         trainingDays: String

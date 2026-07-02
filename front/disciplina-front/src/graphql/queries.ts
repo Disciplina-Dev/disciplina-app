@@ -1350,8 +1350,6 @@ export const GET_NEEDS_ANALYSIS = gql`
       scheduleOptions
       conditions
       additionalComments
-      pedagogicalRecommendations
-      pedagogicalRecommendationsOther
       recruitmentMethod
       immersionPeriod
       trainingDays

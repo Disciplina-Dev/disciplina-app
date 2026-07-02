@@ -71,8 +71,6 @@ interface FormData {
   softSkillsOther: string
   conditions: string
   additionalComments: string
-  pedagogicalRecommendations: string[]
-  pedagogicalRecommendationsOther: string
   drivingLicense: 'OUI' | 'OPTIONNEL'
   experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE'
   ageMin: string
@@ -124,18 +122,6 @@ const OPCO_OPTIONS: { value: Opco; label: string }[] = [
   { value: 'OPCO_SANTE', label: 'Opco Santé' },
   { value: 'OPCOMMERCE', label: "L'Opcommerce" },
   { value: 'UNIFORMATION', label: 'Uniformation' },
-]
-
-const PRECONISATIONS_PEDAGOGIQUES = [
-  'Renforcement en bureautique et outils numériques (Excel, Word, PowerPoint, outils collaboratifs)',
-  'Soutien en communication écrite (orthographe, rédaction, notes, mails professionnels)',
-  "Développement de la confiance à l'oral (prise de parole, accueil, communication interne et externe)",
-  'Accompagnement en gestion du temps et organisation administrative (planification, priorisation, gestion de projets)',
-  'Travail sur la posture professionnelle (rigueur, gestion de la confidentialité, respect des consignes)',
-  'Formation complémentaire en langue (anglais professionnel ou autre langue utile au secteur)',
-  'Immersion renforcée en entreprise (situations réelles de coordination, suivi de direction, gestion de projet)',
-  'Accompagnement spécifique PSH (adaptation du rythme, des supports pédagogiques)',
-  "Suivi individualisé sur la gestion du stress, la confiance en soi et la posture managériale d'assistance à la direction",
 ]
 
 const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
@@ -504,8 +490,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       softSkillsOther:          '',
       conditions:               '',
       additionalComments:       '',
-      pedagogicalRecommendations:      [],
-      pedagogicalRecommendationsOther: '',
       drivingLicense:     undefined,
       experienceRequired: undefined,
       ageMin:             '',
@@ -520,7 +504,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const responsibleFunction    = watch('recruitmentResponsibleFunction')
   const companySectors         = watch('companySectors') ?? []
   const softSkills             = watch('softSkills') ?? []
-  const pedagogicalRecommendations = watch('pedagogicalRecommendations') ?? []
   const companyPostalCode      = watch('companyPostalCode')
 
   // Code postal valide (5 chiffres) → renseigne automatiquement la commune via
@@ -658,8 +641,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       softSkills:             softSkillsFull,
       conditions:             data.conditions || null,
       additionalComments:     data.additionalComments || null,
-      pedagogicalRecommendations:      data.pedagogicalRecommendations,
-      pedagogicalRecommendationsOther: data.pedagogicalRecommendationsOther || null,
       recruitmentMethod:      data.recruitmentMethod,
       immersionPeriod:        data.immersionPeriod,
       trainingDays:           trainingDaysJson,
@@ -1057,22 +1038,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     </table>
                   </div>
                 </div>
-              </section>
-
-              {/* ── Préconisations pédagogiques ──────────────────────────────── */}
-              <section className="flex flex-col gap-5">
-                <SectionTitle>Préconisations pédagogiques</SectionTitle>
-
-                <CheckboxGroup
-                  options={PRECONISATIONS_PEDAGOGIQUES}
-                  selected={pedagogicalRecommendations}
-                  onChange={(v) => setValue('pedagogicalRecommendations', v)}
-                  columns={1}
-                />
-
-                <TextareaField id="pedagogicalRecommendationsOther" label="Autre" optional rows={2}
-                  placeholder="Autre préconisation pédagogique…"
-                  {...register('pedagogicalRecommendationsOther')} />
               </section>
 
               {submitError && (

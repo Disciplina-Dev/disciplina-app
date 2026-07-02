@@ -187,20 +187,6 @@ function sh(title: string): string {
     return `<div class="section-header">${title}</div>`;
 }
 
-// Options fixes des préconisations pédagogiques (AB entreprise). Les valeurs
-// cochées sont stockées telles quelles dans needs_analysis.pedagogical_recommendations.
-const PEDAGOGICAL_RECOMMENDATION_OPTIONS = [
-    'Renforcement en bureautique et outils numériques (Excel, Word, PowerPoint, outils collaboratifs)',
-    'Soutien en communication écrite (orthographe, rédaction, notes, mails professionnels)',
-    "Développement de la confiance à l'oral (prise de parole, accueil, communication interne et externe)",
-    'Accompagnement en gestion du temps et organisation administrative (planification, priorisation, gestion de projets)',
-    'Travail sur la posture professionnelle (rigueur, gestion de la confidentialité, respect des consignes)',
-    'Formation complémentaire en langue (anglais professionnel ou autre langue utile au secteur)',
-    'Immersion renforcée en entreprise (situations réelles de coordination, suivi de direction, gestion de projet)',
-    'Accompagnement spécifique PSH (adaptation du rythme, des supports pédagogiques)',
-    "Suivi individualisé sur la gestion du stress, la confiance en soi et la posture managériale d'assistance à la direction",
-];
-
 function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
     const days = parseDays(analysis.trainingDays);
 
@@ -535,23 +521,6 @@ ${sh('Clause de non-engagement et de confidentialité')}
 </div>
 </div>
 
-<!-- ═══ Préconisations pédagogiques ═══ -->
-<div class="page-break">
-${sh('Préconisations pédagogiques')}
-<div class="field-row">
-    ${PEDAGOGICAL_RECOMMENDATION_OPTIONS.map(
-        (opt) =>
-            `<div class="option-block" style="max-width:95%;">${chk(
-                (analysis.pedagogicalRecommendations ?? []).includes(opt),
-            )}&nbsp;${esc(opt)}</div>`,
-    ).join('')}
-</div>
-<div class="field-row">
-    <span class="field-label">Autre :</span><br/>
-    <div class="text-area">${esc(analysis.pedagogicalRecommendationsOther) || '&nbsp;'}</div>
-</div>
-</div>
-
 <!-- ═══ PAGE 6 — Signature (page dédiée) ═══
      Bloc isolé sur sa propre page pour qu'il soit toujours bas-droite de la
      DERNIÈRE page, quelle que soit la longueur du contenu précédent.
@@ -759,7 +728,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Parcours & prérequis');
     kv(
         'Niveau de formation',
-        c.education?.school_level ? (SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level) : '',
+        c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level : '',
     );
     kv('Justificatif', c.education?.justification);
     kv('Dernier diplôme', c.background?.last_diploma);
@@ -848,7 +817,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv(
         'Comment a connu Disciplina',
         c.job_info?.discovery_source
-            ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source)
+            ? DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source
             : '',
     );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);
@@ -896,31 +865,19 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     // ── Note importante (encadré mis en évidence) ──
     const importantNote = c.synthesis?.important_note?.trim();
     if (importantNote) {
-        const noteH = doc
-            .font('Helvetica')
-            .fontSize(10)
-            .heightOfString(importantNote, { width: contentW - 24 });
+        const noteH = doc.font('Helvetica').fontSize(10).heightOfString(importantNote, { width: contentW - 24 });
         ensure(noteH + 34);
         const y = doc.y;
         doc.save()
             .rect(left, y, contentW, noteH + 26)
             .fill('#FFF7E6')
             .restore();
-        doc.save()
-            .rect(left, y, 4, noteH + 26)
-            .fill('#C9A227')
-            .restore();
-        doc.font('Helvetica-Bold')
-            .fillColor('#8a6d1b')
-            .fontSize(8.5)
-            .text('NOTE IMPORTANTE', left + 12, y + 7);
-        doc.font('Helvetica')
-            .fillColor('#111111')
-            .fontSize(10)
-            .text(importantNote, left + 12, doc.y + 2, {
-                width: contentW - 24,
-                align: 'justify',
-            });
+        doc.save().rect(left, y, 4, noteH + 26).fill('#C9A227').restore();
+        doc.font('Helvetica-Bold').fillColor('#8a6d1b').fontSize(8.5).text('NOTE IMPORTANTE', left + 12, y + 7);
+        doc.font('Helvetica').fillColor('#111111').fontSize(10).text(importantNote, left + 12, doc.y + 2, {
+            width: contentW - 24,
+            align: 'justify',
+        });
         doc.y = y + noteH + 26 + 6;
     }
 
@@ -946,16 +903,14 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
             const imgBuf = Buffer.from(sig.split(',')[1] ?? '', 'base64');
             ensure(120);
             doc.moveDown(1.2);
-            doc.font('Helvetica-Bold').fillColor('#111111').fontSize(10).text("Signature de l'apprenti", left, doc.y);
+            doc.font('Helvetica-Bold')
+                .fillColor('#111111')
+                .fontSize(10)
+                .text("Signature de l'apprenti", left, doc.y);
             doc.moveDown(0.3);
             doc.image(imgBuf, left, doc.y, { fit: [200, 80] });
             doc.y += 86;
-            doc.save()
-                .moveTo(left, doc.y)
-                .lineTo(left + 200, doc.y)
-                .lineWidth(0.5)
-                .stroke('#888888')
-                .restore();
+            doc.save().moveTo(left, doc.y).lineTo(left + 200, doc.y).lineWidth(0.5).stroke('#888888').restore();
         } catch {
             // image invalide : on ignore silencieusement
         }
@@ -1056,10 +1011,7 @@ function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     doc.save().rect(left, boxTop, 4, boxH).fill(verdictColor).restore();
 
     const pct = typeof r.percentage === 'number' ? `${r.percentage}%` : '—';
-    doc.fillColor(verdictColor)
-        .font('Helvetica-Bold')
-        .fontSize(34)
-        .text(pct, left + 18, boxTop + 14, { width: 160 });
+    doc.fillColor(verdictColor).font('Helvetica-Bold').fontSize(34).text(pct, left + 18, boxTop + 14, { width: 160 });
 
     if (r.passed !== undefined) {
         doc.fillColor(verdictColor)
@@ -1187,15 +1139,10 @@ function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     doc.font('Helvetica-Oblique')
         .fillColor('#888888')
         .fontSize(8)
-        .text(
-            `Document généré le ${fmtDate(new Date())} — DISCIPLINA`,
-            left,
-            doc.page.height - doc.page.margins.bottom - 14,
-            {
-                width: contentW,
-                align: 'center',
-            },
-        );
+        .text(`Document généré le ${fmtDate(new Date())} — DISCIPLINA`, left, doc.page.height - doc.page.margins.bottom - 14, {
+            width: contentW,
+            align: 'center',
+        });
 }
 
 // ─── PdfService ───────────────────────────────────────────────────────────────
