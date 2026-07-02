@@ -45,7 +45,7 @@ export default function CommercialLayout() {
           <span className="flex items-center gap-3 after:content-[''] after:h-6 after:w-px after:bg-gray-200">
             <img src="/icon-logo.png" alt="Disciplina" className="h-8 w-8" />
           </span>
-          <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">CRM Commercial</p>
+          <p className="whitespace-nowrap text-[16px] font-extrabold text-gray-900 tracking-tight">Espace Commercial</p>
         </div>
 
         {/* Scrollable nav */}
