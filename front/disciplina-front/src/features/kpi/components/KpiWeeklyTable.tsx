@@ -7,6 +7,8 @@ import { KPI_METRICS, MONTH_FULL_LABELS } from '../config'
 interface Props {
   weeks: KpiWeekEntry[]
   onEdit: (userId: number, userName: string, month: number, week: number, metrics: KpiMetrics) => void
+  /** true = données calculées (portefeuille) : pas d'édition. */
+  readOnly?: boolean
 }
 
 function MetricCells({ metrics, muted = false }: { metrics: KpiMetrics; muted?: boolean }) {
@@ -27,7 +29,7 @@ function MetricCells({ metrics, muted = false }: { metrics: KpiMetrics; muted?: 
 }
 
 /** Tableau hebdomadaire façon feuille « C.R Sem. » : une ligne par semaine, dépliable par commercial. */
-export default function KpiWeeklyTable({ weeks, onEdit }: Props) {
+export default function KpiWeeklyTable({ weeks, onEdit, readOnly = false }: Props) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   const toggle = (week: number) => {
@@ -72,6 +74,7 @@ export default function KpiWeeklyTable({ weeks, onEdit }: Props) {
                   isOpen={isOpen}
                   onToggle={() => toggle(entry.week)}
                   onEdit={onEdit}
+                  readOnly={readOnly}
                 />
               )
             })}
@@ -87,11 +90,13 @@ function WeekRows({
   isOpen,
   onToggle,
   onEdit,
+  readOnly,
 }: {
   entry: KpiWeekEntry
   isOpen: boolean
   onToggle: () => void
   onEdit: Props['onEdit']
+  readOnly?: boolean
 }) {
   return (
     <>
@@ -124,7 +129,7 @@ function WeekRows({
             </td>
             <MetricCells metrics={user.metrics} muted />
             <td className="px-2">
-              {user.userId != null && (
+              {user.userId != null && !readOnly && (
                 <button
                   onClick={() => onEdit(user.userId!, user.userName, entry.month, entry.week, user.metrics)}
                   className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
