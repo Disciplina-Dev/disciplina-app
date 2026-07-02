@@ -119,7 +119,15 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <Relance />, handle: { crumb: "Relance" } },
-      { path: "config-drive", element: <DriveConfig />, handle: { crumb: "Dossiers Drive" } },
+      {
+        path: "config-drive",
+        element: (
+          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
+            <DriveConfig />
+          </ProtectedRoute>
+        ),
+        handle: { crumb: "Dossiers Drive" },
+      },
       {
         path: "config-secteurs",
         element: (

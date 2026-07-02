@@ -57,18 +57,19 @@ export default function RHLayout() {
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
         </nav>
 
-        {/* Configuration (Responsable + Admin) */}
-        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
-          <>
-            <div className="mx-3 my-4 border-t border-gray-100" />
-            <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Configuration</div>
-            <nav className="flex flex-col gap-1 px-3">
+        {/* Configuration : "Modèles mail" pour tous les RH (modèles communs + signature
+            personnelle) ; Drive et secteurs restent réservés Responsable/Admin. */}
+        <div className="mx-3 my-4 border-t border-gray-100" />
+        <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Configuration</div>
+        <nav className="flex flex-col gap-1 px-3">
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
+            <>
               <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
               <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
-              <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
-            </nav>
-          </>
-        )}
+            </>
+          )}
+          <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
+        </nav>
 
         {/* Navigation inter-espaces (Responsable + Admin) */}
         {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
