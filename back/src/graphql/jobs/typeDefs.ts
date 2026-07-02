@@ -237,12 +237,26 @@ export const typeDefs = gql`
         ab: AbInfo
     }
 
+    enum PlacementKind {
+        IMMERSING
+        CONTRACT
+    }
+
+    """Placement courant d'un candidat (immersion ou contrat), dérivé des offres."""
+    type CandidatePlacement {
+        companyName: String
+        kind: PlacementKind!
+        since: String
+        immersionEndDate: String
+    }
+
     type Query {
         jobs: [Job!]!
         matchJob(id: String!): Job!
         jobCompanyInfo(jobId: String!): JobCompanyInfo!
         offerResponseLinks(jobId: String!, candidateId: String!): OfferLinks!
         candidateMatchedJobIds(candidateId: String!): [String!]!
+        candidatePlacement(candidateId: String!): CandidatePlacement
     }
 
     type Mutation {

@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
-import { getYears, getAnnualSummary, getMonthlyDetail, getWeeklyDetail, upsertKpi, importExcel, getSelectableUsers } from './controller';
+import { getYears, getAnnualSummary, getMonthlyDetail, getWeeklyDetail, getOverview, getUserDetail, getLiveSnapshot, getActivity, getCombined, upsertKpi, importExcel, getSelectableUsers } from './controller';
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -10,11 +10,18 @@ const upload = multer({
 });
 
 const kpiAccess = [authenticate, requireRoles('ADMIN', 'RESPONSABLE')];
+// Lecture scopée : un COMMERCIAL n'obtient que ses propres chiffres (contrôle dans le controller).
+const kpiReadAccess = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'COMMERCIAL')];
 
 export const router: Router = Router();
 
 router.get('/users', ...kpiAccess, getSelectableUsers);
-router.get('/years', ...kpiAccess, getYears);
+router.get('/years', ...kpiReadAccess, getYears);
+router.get('/live', ...kpiReadAccess, getLiveSnapshot);
+router.get('/activity', ...kpiReadAccess, getActivity);
+router.get('/combined', ...kpiReadAccess, getCombined);
+router.get('/overview', ...kpiAccess, getOverview);
+router.get('/user/:id', ...kpiReadAccess, getUserDetail);
 router.get('/summary', ...kpiAccess, getAnnualSummary);
 router.get('/monthly', ...kpiAccess, getMonthlyDetail);
 router.get('/weekly', ...kpiAccess, getWeeklyDetail);

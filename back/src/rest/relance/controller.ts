@@ -13,7 +13,9 @@ import { signRelanceUrl, verifyRelanceUrl } from '../../external/crypto';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
+import { MailTemplateService } from '../../services/MailTemplateService';
 
+const mailTemplateService = new MailTemplateService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
@@ -150,6 +152,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     let sent = 0;
     let errors = 0;
 
+    // Signature personnelle du RH, récupérée une seule fois pour tout le lot.
+    const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
+
     for (const candidate of seeking) {
         const name = candidate.identity.full_name?.split(' ')[0] ?? 'Candidat';
         const sig_oui = signRelanceUrl(candidate._id, 'oui');
@@ -182,7 +187,7 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     <a href="${nonUrl}" class="btn btn-non">✗ &nbsp;Non, je ne recherche plus</a>
   </div>
   <p>Un simple clic suffit — votre dossier sera mis à jour automatiquement.</p>
-  <div class="footer">Cordialement,<br>L'équipe DISCIPLINA</div>
+  <div class="footer">Cordialement,<br>L'équipe DISCIPLINA${signatureHtml}</div>
 </body>
 </html>`;
 

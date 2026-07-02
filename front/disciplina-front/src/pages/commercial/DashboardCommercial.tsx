@@ -1,5 +1,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react'
-import { BarChart3, Plus, ShieldAlert, AlertTriangle, CheckCircle2, PhoneCall, Users } from 'lucide-react'
+import { BarChart3, Plus, AlertTriangle, CheckCircle2, PhoneCall, Users } from 'lucide-react'
+
+import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
 import { useAuthStore, useCurrentUser, UserRole, USERS } from '@/store/authStore'
 import { useContactLogStats } from '@/graphql/hooks'
@@ -12,6 +14,7 @@ import {
   type KpiMetrics,
   type KpiSelectableUser,
   type KpiSite,
+  type KpiSource,
   type KpiWeeklyDetail,
 } from '@/api/kpi'
 import { KPI_STATUS_METRICS, SITE_LABELS, emptyMetrics } from '@/features/kpi/config'
@@ -21,6 +24,7 @@ import KpiTable from '@/features/kpi/components/KpiTable'
 import KpiWeeklyTable from '@/features/kpi/components/KpiWeeklyTable'
 import KpiImportButton from '@/features/kpi/components/KpiImportButton'
 import KpiEntryModal, { type KpiEntryDraft } from '@/features/kpi/components/KpiEntryModal'
+import KpiOverviewSection, { KpiLiveSection } from '@/features/kpi/components/KpiOverviewSection'
 import type { ChartMode } from '@/features/kpi/components/KpiStatusChart'
 import { lazyWithRetry } from '@/utils/lazyWithRetry'
 
@@ -28,24 +32,16 @@ import { lazyWithRetry } from '@/utils/lazyWithRetry'
 const KpiStatusChart = lazyWithRetry(() => import('@/features/kpi/components/KpiStatusChart'))
 const KpiYearComparison = lazyWithRetry(() => import('@/features/kpi/components/KpiYearComparison'))
 
-// ─── Dashboard Commercial — KPI annuels (réservé ADMIN / RESPONSABLE) ───────
+// ─── Dashboard Commercial ────────────────────────────────────────────────────
+// ADMIN / RESPONSABLE : vue complète (tous secteurs, tous commerciaux).
+// COMMERCIAL : ses propres KPI uniquement (le backend scope aussi les données).
 export default function DashboardCommercial() {
   const currentUser = useCurrentUser()
   const isManager =
     currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.RESPONSABLE
 
   if (!isManager) {
-    return (
-      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
-        <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
-          <ShieldAlert className="h-8 w-8 text-gray-300" />
-          <h2 className="text-lg font-bold text-gray-900">Accès réservé</h2>
-          <p className="text-[13px] text-gray-500">
-            Le tableau de bord KPI est réservé aux administrateurs et responsables.
-          </p>
-        </div>
-      </div>
-    )
+    return <KpiProfilView userId={Number(currentUser?.id)} canEdit={false} />
   }
 
   return <KpiDashboard />
@@ -102,6 +98,8 @@ function KpiDashboard() {
 
   const [year, setYear] = useState(currentYear)
   const [site, setSite] = useState<KpiSite>('NORD')
+  // Source des chiffres : Combiné (défaut), portefeuille seul ou Excel/saisie seul
+  const [source, setSource] = useState<KpiSource>('combine')
   const [chartMode, setChartMode] = useState<ChartMode>('commercial')
   const [tableMode, setTableMode] = useState<'month' | 'week'>('month')
   // Statuts cochés dans le diagramme ; par défaut seul « Oui » est affiché
@@ -112,7 +110,9 @@ function KpiDashboard() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [selectableUsers, setSelectableUsers] = useState<KpiSelectableUser[]>([])
 
-  const { years, summary, previousSummary, weekly, fetching, error, refresh } = useKpiDashboard(year, site)
+  const { years, summary, previousSummary, weekly, fetching, error, refresh } = useKpiDashboard(year, site, source)
+  // Édition/import seulement quand la source affichée est exactement la table éditée (Excel).
+  const isEditableSource = source === 'excel'
 
   // Liste des commerciaux sélectionnables (saisie manuelle) — chargée une fois.
   useEffect(() => {
@@ -218,24 +218,40 @@ function KpiDashboard() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <KpiImportButton
-              site={site}
-              onImported={handleImported}
-              onError={(text) => setNotice({ kind: 'error', text })}
-            />
-            <button
-              onClick={() => setModalDraft('new')}
-              className="flex items-center gap-2 rounded-lg bg-blue px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_1px_4px_-1px_rgba(0,0,0,0.08)] transition-colors hover:bg-blue-dark"
-            >
-              <Plus className="h-4 w-4" />
-              Saisie manuelle
-            </button>
-          </div>
+          {isEditableSource && (
+            <div className="flex flex-wrap items-center gap-2">
+              <KpiImportButton
+                site={site}
+                onImported={handleImported}
+                onError={(text) => setNotice({ kind: 'error', text })}
+              />
+              <button
+                onClick={() => setModalDraft('new')}
+                className="flex items-center gap-2 rounded-lg bg-blue px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_1px_4px_-1px_rgba(0,0,0,0.08)] transition-colors hover:bg-blue-dark"
+              >
+                <Plus className="h-4 w-4" />
+                Saisie manuelle
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* ─── Filtres année / site ────────────────────────────────────────── */}
+        {/* ─── Filtres source / année / site ───────────────────────────────── */}
         <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
+            {([['combine', 'Combiné'], ['portefeuille', 'Portefeuille'], ['excel', 'Excel / saisie']] as const).map(([s, label]) => (
+              <button
+                key={s}
+                onClick={() => setSource(s)}
+                className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                  s === source ? 'bg-blue text-white' : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
             {selectableYears.map((y) => (
               <button
@@ -325,6 +341,16 @@ function KpiDashboard() {
         {/* ─── Prises de contact (appels) ──────────────────────────────────── */}
         <div className="mb-8">
           <ContactStatsSection />
+        </div>
+
+        {/* ─── Portefeuille temps réel (statuts + appels) ──────────────────── */}
+        <div className="mb-8">
+          <KpiLiveSection />
+        </div>
+
+        {/* ─── Vue globale tous secteurs (clic = page profil) ──────────────── */}
+        <div className="mb-8">
+          <KpiOverviewSection year={year} />
         </div>
 
         {viewSummary && (
@@ -419,9 +445,9 @@ function KpiDashboard() {
                 </div>
               </div>
               {tableMode === 'month' ? (
-                <KpiTable users={viewSummary.users} totals={viewSummary.totals} onEdit={handleEditMonth} />
+                <KpiTable users={viewSummary.users} totals={viewSummary.totals} onEdit={handleEditMonth} readOnly={!isEditableSource} />
               ) : (
-                <KpiWeeklyTable weeks={viewWeekly?.weeks ?? []} onEdit={handleEditWeek} />
+                <KpiWeeklyTable weeks={viewWeekly?.weeks ?? []} onEdit={handleEditWeek} readOnly={!isEditableSource} />
               )}
             </section>
           </div>

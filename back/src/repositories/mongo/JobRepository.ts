@@ -173,6 +173,18 @@ export class JobRepository {
         ).lean();
     }
 
+    /** Offres où le candidat a une conclusion d'entretien immersion ou contrat. */
+    async findPlacementJobs(candidateId: string): Promise<Job[]> {
+        return JobModel.find({
+            proposed_candidate: {
+                $elemMatch: {
+                    id: candidateId,
+                    interview_conclusion: { $in: [InterviewConclusion.IMMERSING, InterviewConclusion.CONTRACT] },
+                },
+            },
+        }).lean();
+    }
+
     async findJobIdsWithCandidate(candidateId: string): Promise<string[]> {
         const jobs = await JobModel.find({ 'matched_candidate.id': candidateId }, { _id: 1 }).lean();
         return jobs.map((j) => String(j._id));

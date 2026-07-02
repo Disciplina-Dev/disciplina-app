@@ -48,9 +48,11 @@ export default function AdminLayout() {
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
       <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
         {/* Module Header */}
-        <div className="shrink-0 p-6 pb-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue mb-1">Disciplina</p>
-          <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">Administration</p>
+        <div className="shrink-0 flex items-center gap-3 p-6 pb-4">
+          <span className="flex items-center gap-3 after:content-[''] after:h-6 after:w-px after:bg-gray-200">
+            <img src="/icon-logo.png" alt="Disciplina" className="h-8 w-8" />
+          </span>
+          <p className="whitespace-nowrap text-[16px] font-extrabold text-gray-900 tracking-tight">Espace Admin</p>
         </div>
 
         {/* Scrollable nav */}
