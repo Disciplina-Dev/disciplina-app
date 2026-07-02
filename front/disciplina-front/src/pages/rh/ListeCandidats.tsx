@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
@@ -13,6 +13,7 @@ import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
+import { usePersistedListView } from '@/hooks/usePersistedListView';
 
 // --- Helpers ---
 
@@ -52,7 +53,7 @@ const PAGE_SIZE = 25;
 
 type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
 
-function toServerFilters(filters: {
+interface CandidateFilterState {
   trainingSite: TrainingSite | '';
   status: CandidateStatus | '';
   schoolLevel: SchoolLevel | '';
@@ -63,7 +64,22 @@ function toServerFilters(filters: {
   dateMode: DateMode;
   dateFrom: string;
   dateTo: string;
-}): CandidateServerFilters | undefined {
+}
+
+const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
+  trainingSite: '',
+  status: '',
+  schoolLevel: '',
+  permis: 'all',
+  ageMin: '',
+  ageMax: '',
+  tpType: '',
+  dateMode: 'any',
+  dateFrom: '',
+  dateTo: '',
+};
+
+function toServerFilters(filters: CandidateFilterState): CandidateServerFilters | undefined {
   // Bornes de création selon le mode choisi (dates yyyy-mm-dd des <input type=date>).
   let createdAfter: string | undefined;
   let createdBefore: string | undefined;
@@ -95,50 +111,24 @@ function toServerFilters(filters: {
 
 export default function ListeCandidats() {
   const navigate = useNavigate();
-  const [afterCursor, setAfterCursor] = useState<string | undefined>(undefined);
-  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([]);
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    searchInput,
+    setSearchInput,
+    debouncedSearch,
+    filters,
+    setFilters,
+    afterCursor,
+    cursorHistory,
+    loadNextPage,
+    loadPrevPage,
+  } = usePersistedListView<CandidateFilterState>('disciplina:list-view:candidats', EMPTY_CANDIDATE_FILTERS);
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  // Filters state
-  const [filterSite, setFilterSite] = useState<TrainingSite | ''>('');
-  const [filterPermis, setFilterPermis] = useState<'all' | 'yes' | 'no'>('all');
-  const [filterLevel, setFilterLevel] = useState<SchoolLevel | ''>('');
-  const [filterMinAge, setFilterMinAge] = useState<number | ''>('');
-  const [filterMaxAge, setFilterMaxAge] = useState<number | ''>('');
-  const [filterTpType, setFilterTpType] = useState<TitleProfessionalType | ''>('');
-  const [filterStatus, setFilterStatus] = useState<CandidateStatus | ''>('');
-  const [filterDateMode, setFilterDateMode] = useState<DateMode>('any');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Debounce the search input before sending it to the server
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(searchInput);
-      setAfterCursor(undefined);
-      setCursorHistory([]);
-    }, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [searchInput]);
-
-  // Reset pagination whenever a filter changes
-  useEffect(() => {
-    setAfterCursor(undefined);
-    setCursorHistory([]);
-  }, [filterSite, filterPermis, filterLevel, filterMinAge, filterMaxAge, filterTpType, filterStatus, filterDateMode, filterDateFrom, filterDateTo]);
-
-  const serverFilters = useMemo(
-    () => toServerFilters({ trainingSite: filterSite, status: filterStatus, schoolLevel: filterLevel, permis: filterPermis, ageMin: filterMinAge, ageMax: filterMaxAge, tpType: filterTpType, dateMode: filterDateMode, dateFrom: filterDateFrom, dateTo: filterDateTo }),
-    [filterSite, filterStatus, filterLevel, filterPermis, filterMinAge, filterMaxAge, filterTpType, filterDateMode, filterDateFrom, filterDateTo],
-  );
+  const serverFilters = useMemo(() => toServerFilters(filters), [filters]);
 
   const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
@@ -150,41 +140,17 @@ export default function ListeCandidats() {
     setLocalCandidates(prev => prev.map(c => c._id === id ? { ...c, status: newStatus } : c));
   };
 
-  const dateFilterActive = filterDateMode !== 'any' && (
-    filterDateMode === 'none' ||
-    (filterDateMode === 'after' && !!filterDateFrom) ||
-    (filterDateMode === 'before' && !!filterDateTo) ||
-    (filterDateMode === 'between' && (!!filterDateFrom || !!filterDateTo))
+  const dateFilterActive = filters.dateMode !== 'any' && (
+    filters.dateMode === 'none' ||
+    (filters.dateMode === 'after' && !!filters.dateFrom) ||
+    (filters.dateMode === 'before' && !!filters.dateTo) ||
+    (filters.dateMode === 'between' && (!!filters.dateFrom || !!filters.dateTo))
   );
-  const activeFiltersCount = [filterSite, filterLevel, filterStatus, filterMinAge, filterMaxAge, filterTpType].filter(Boolean).length + (filterPermis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0);
+  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax, filters.tpType].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
-    setFilterSite('');
-    setFilterPermis('all');
-    setFilterLevel('');
-    setFilterMinAge('');
-    setFilterMaxAge('');
-    setFilterTpType('');
-    setFilterStatus('');
-    setFilterDateMode('any');
-    setFilterDateFrom('');
-    setFilterDateTo('');
-  };
-
-  const loadNextPage = () => {
-    if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) return;
-    setCursorHistory(h => [...h, afterCursor]);
-    setAfterCursor(pageInfo.endCursor);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const loadPrevPage = () => {
-    if (cursorHistory.length === 0) return;
-    const prev = cursorHistory[cursorHistory.length - 1];
-    setCursorHistory(h => h.slice(0, -1));
-    setAfterCursor(prev);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setFilters(EMPTY_CANDIDATE_FILTERS);
   };
 
   // Loading state
@@ -267,7 +233,7 @@ export default function ListeCandidats() {
             {/* Secteur */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Secteur</label>
-              <select value={filterSite} onChange={e => setFilterSite(e.target.value as TrainingSite)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+              <select value={filters.trainingSite} onChange={e => setFilters({ ...filters, trainingSite: e.target.value as TrainingSite })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="">Tous les secteurs</option>
                 {Object.values(TrainingSite).map(site => <option key={site} value={site}>{formatTrainingSite(site)}</option>)}
               </select>
@@ -276,7 +242,7 @@ export default function ListeCandidats() {
             {/* Statut */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Statut</label>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as CandidateStatus)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+              <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value as CandidateStatus })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="">Tous les statuts</option>
                 {Object.values(CandidateStatus).map(status => <option key={status} value={status}>{CANDIDATE_STATUS_LABELS[status]}</option>)}
               </select>
@@ -285,7 +251,7 @@ export default function ListeCandidats() {
             {/* Niveau BAC */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Niveau d'études</label>
-              <select value={filterLevel} onChange={e => setFilterLevel(e.target.value as SchoolLevel)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+              <select value={filters.schoolLevel} onChange={e => setFilters({ ...filters, schoolLevel: e.target.value as SchoolLevel })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="">Tous les niveaux</option>
                 {Object.values(SchoolLevel).map(level => <option key={level} value={level}>{SCHOOL_LEVEL_LABELS[level]}</option>)}
               </select>
@@ -294,7 +260,7 @@ export default function ListeCandidats() {
             {/* Permis B */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Permis B</label>
-              <select value={filterPermis} onChange={e => setFilterPermis(e.target.value as 'all' | 'yes' | 'no')} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+              <select value={filters.permis} onChange={e => setFilters({ ...filters, permis: e.target.value as 'all' | 'yes' | 'no' })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="all">Indifférent</option>
                 <option value="yes">Oui</option>
                 <option value="no">Non</option>
@@ -304,7 +270,7 @@ export default function ListeCandidats() {
             {/* Type TP */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Type TP</label>
-              <select value={filterTpType} onChange={e => setFilterTpType(e.target.value as TitleProfessionalType)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+              <select value={filters.tpType} onChange={e => setFilters({ ...filters, tpType: e.target.value as TitleProfessionalType })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="">Tous les types</option>
                 {Object.values(TitleProfessionalType).map(type => <option key={type} value={type}>{type}</option>)}
               </select>
@@ -316,8 +282,8 @@ export default function ListeCandidats() {
               <input
                 type="number"
                 placeholder="Ex: 18"
-                value={filterMinAge}
-                onChange={e => setFilterMinAge(e.target.value ? Number(e.target.value) : '')}
+                value={filters.ageMin}
+                onChange={e => setFilters({ ...filters, ageMin: e.target.value ? Number(e.target.value) : '' })}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               />
             </div>
@@ -328,8 +294,8 @@ export default function ListeCandidats() {
               <input
                 type="number"
                 placeholder="Ex: 25"
-                value={filterMaxAge}
-                onChange={e => setFilterMaxAge(e.target.value ? Number(e.target.value) : '')}
+                value={filters.ageMax}
+                onChange={e => setFilters({ ...filters, ageMax: e.target.value ? Number(e.target.value) : '' })}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               />
             </div>
@@ -341,8 +307,8 @@ export default function ListeCandidats() {
             <div className="flex flex-col gap-1.5 sm:w-56">
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Date de création</label>
               <select
-                value={filterDateMode}
-                onChange={e => setFilterDateMode(e.target.value as DateMode)}
+                value={filters.dateMode}
+                onChange={e => setFilters({ ...filters, dateMode: e.target.value as DateMode })}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               >
                 <option value="any">Toutes les dates</option>
@@ -353,31 +319,31 @@ export default function ListeCandidats() {
               </select>
             </div>
 
-            {(filterDateMode === 'after' || filterDateMode === 'between') && (
+            {(filters.dateMode === 'after' || filters.dateMode === 'between') && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                  {filterDateMode === 'between' ? 'Du' : 'Après le'}
+                  {filters.dateMode === 'between' ? 'Du' : 'Après le'}
                 </label>
                 <input
                   type="date"
-                  value={filterDateFrom}
-                  max={filterDateTo || undefined}
-                  onChange={e => setFilterDateFrom(e.target.value)}
+                  value={filters.dateFrom}
+                  max={filters.dateTo || undefined}
+                  onChange={e => setFilters({ ...filters, dateFrom: e.target.value })}
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
                 />
               </div>
             )}
 
-            {(filterDateMode === 'before' || filterDateMode === 'between') && (
+            {(filters.dateMode === 'before' || filters.dateMode === 'between') && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                  {filterDateMode === 'between' ? 'Au' : 'Avant le'}
+                  {filters.dateMode === 'between' ? 'Au' : 'Avant le'}
                 </label>
                 <input
                   type="date"
-                  value={filterDateTo}
-                  min={filterDateFrom || undefined}
-                  onChange={e => setFilterDateTo(e.target.value)}
+                  value={filters.dateTo}
+                  min={filters.dateFrom || undefined}
+                  onChange={e => setFilters({ ...filters, dateTo: e.target.value })}
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
                 />
               </div>
@@ -572,7 +538,7 @@ export default function ListeCandidats() {
           </button>
           <button
             type="button"
-            onClick={loadNextPage}
+            onClick={() => loadNextPage(pageInfo)}
             disabled={!pageInfo?.hasNextPage || loading}
             className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
