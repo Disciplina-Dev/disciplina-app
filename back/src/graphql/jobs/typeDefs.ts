@@ -101,7 +101,7 @@ export const typeDefs = gql`
         fullName: String
         age: Int
         sex: Sex
-        city: Localisation
+        city: String
         email: String
         phone: String
         status: MatchedCandidateStatus
@@ -112,7 +112,7 @@ export const typeDefs = gql`
         fullName: String
         age: Int
         sex: Sex
-        city: Localisation
+        city: String
         email: String
         phone: String
         description: String
@@ -159,7 +159,7 @@ export const typeDefs = gql`
         fullName: String
         age: Int
         sex: Sex
-        city: Localisation
+        city: String
         email: String
         phone: String
         status: MatchedCandidateStatus

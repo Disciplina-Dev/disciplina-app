@@ -13,7 +13,6 @@ Environment variables control DB host/port (defaults to localhost for dev).
 
 import os
 import csv
-import glob
 import sys
 import uuid
 from datetime import datetime
@@ -26,6 +25,7 @@ from lib.company_csv import remove_accents
 from clean_companies import clean_all
 from import_company import import_companies
 from import_blacklist import import_blacklist
+from import_jobs import seed_jobs
 
 load_dotenv()
 
@@ -40,13 +40,6 @@ SECTOR_SALES = [
     "PHARMACIE", "BAZAR",
 ]
 
-SECTOR_ENUM = {
-    "BOULANGERIE", "RESTAURATION", "STATION", "PAP", "LIBRE_SERVICE",
-    "TELEPHONIE", "AUTO", "COMMERCIAL", "BIJOUX", "COSMETIQUE",
-    "IMMOBILIER", "ASSURANCE", "ANIMAUX", "SPORT", "ENFANT",
-    "PHARMACIE", "BAZAR", "NONE",
-}
-
 LOCALISATION_ENUM = {
     "SAINT_DENIS", "SAINTE_MARIE", "SAINTE_SUZANNE", "SAINT_PAUL",
     "LA_POSSESSION", "LE_PORT", "TROIS_BASSINS", "SAINT_LEU",
@@ -58,7 +51,6 @@ LOCALISATION_ENUM = {
 }
 
 DESIRED_TP_ENUM = {"AD", "CC", "NTC", "REM", "SA"}
-DESIRED_SEX_ENUM = {"MIXTE", "FILLE", "GARCON"}
 
 POSTAL_CODE_MAP = {
     "SAINT_DENIS": "97400", "SAINT_PAUL": "97460", "SAINT_PIERRE": "97410",
@@ -291,7 +283,7 @@ def import_secretariat_candidates(filepath: str) -> int:
     return count
 
 
-# -- 4. Jobs -> MongoDB ----------------------------------------------------------
+# -- 4. Jobs -> MongoDB: see import_jobs.py --------------------------------------
 
 
 def normalize_loc_part(part: str) -> str:
@@ -301,73 +293,6 @@ def normalize_loc_part(part: str) -> str:
     elif s.startswith("ST "):
         s = "SAINT_" + s[3:]
     return s.replace(" ", "_")
-
-
-def parse_localisation(raw: str) -> list:
-    if not raw.strip():
-        return []
-    parts = raw.split("/") if "/" in raw else [raw]
-    result = []
-    for part in parts:
-        norm = normalize_loc_part(part)
-        if norm in LOCALISATION_ENUM:
-            result.append(norm)
-    return result
-
-
-def resolve_sector(row: dict) -> str:
-    secteur_raw = (row.get("Secteur") or '').strip()
-    if secteur_raw:
-        candidate = secteur_raw.upper().replace(" ", "_")
-        if candidate in SECTOR_ENUM:
-            return candidate
-    activite_raw = (row.get("Activite") or '').strip()
-    if activite_raw:
-        candidate = activite_raw.upper().replace(" ", "_")
-        if candidate in SECTOR_ENUM:
-            return candidate
-    return "NONE"
-
-
-def import_jobs(filepaths: list) -> int:
-    client = get_mongo_connection()
-    collection = client["human_ressources"]["jobs"]
-    total = 0
-
-    for filepath in filepaths:
-        count = 0
-        with open(filepath, "r", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                try:
-                    company_name = (row.get("Nom societe") or '').strip()
-                    if not company_name:
-                        continue
-
-                    formation = (row.get("Formation") or '').strip().upper()
-                    genre_raw = remove_accents((row.get("Genre") or '').strip()).upper()
-
-                    doc = {
-                        "_id": str(uuid.uuid4()),
-                        "company_name": company_name,
-                        "age_range": (row.get("Age") or '').strip(),
-                        "desired_tp": formation if formation in DESIRED_TP_ENUM else None,
-                        "desired_sex": genre_raw if genre_raw in DESIRED_SEX_ENUM else None,
-                        "driving_license_b": (row.get("Permis") or '').strip().upper() == "OUI",
-                        "professional_experience": (row.get("Experience connaissance") or '').strip().upper() == "OUI",
-                        "sector": resolve_sector(row),
-                        "localisation": parse_localisation(row.get("Localisation") or ''),
-                        "status": "NOT_MATCHED",
-                        "matched_candidate": [],
-                    }
-                    collection.insert_one(doc)
-                    count += 1
-                except Exception as e:
-                    print(f"  [WARN] Skipping job row: {e}")
-        print(f"    Inserted {count} jobs from {os.path.basename(filepath)}")
-        total += count
-
-    client.close()
-    return total
 
 
 # -- Main ------------------------------------------------------------------------
@@ -431,15 +356,12 @@ def main() -> int:
 
     # 5. Jobs
     print("\n[5/5] Importing jobs -> MongoDB ...")
-    job_files = sorted(glob.glob(os.path.join(RESOURCE_DIR, 'company_recruitement_nord*.csv')))
-    if not job_files:
-        print(f"  SKIP -- no company_recruitement_nord*.csv files found")
-    elif mongo_has_docs("jobs"):
+    if mongo_has_docs("jobs"):
         print(f"  SKIP -- jobs already exist")
     else:
         try:
-            n = import_jobs(job_files)
-            print(f"  OK -- {n} jobs inserted from {len(job_files)} file(s)")
+            n = seed_jobs()
+            print(f"  OK -- {n} jobs inserted")
         except Exception as e:
             print(f"  FAIL -- Jobs: {e}")
             errors.append(f"Jobs: {e}")

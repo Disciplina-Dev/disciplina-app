@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { User, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
-import type { Candidate } from '@/types/candidate';
+import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
@@ -13,6 +13,20 @@ import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 import SignaturePad from '@/components/ui/SignaturePad';
+
+// Préconisations pédagogiques : clé GraphQL (camel), clé Mongo (snake), libellé.
+const PEDA_OPTIONS: { camel: string; snake: keyof PedagogicalRecommendations; label: string }[] = [
+  { camel: 'officeToolsReinforcement', snake: 'office_tools_reinforcement', label: 'Renforcement en bureautique et outils numériques' },
+  { camel: 'writtenCommunicationSupport', snake: 'written_communication_support', label: 'Soutien en communication écrite' },
+  { camel: 'oralConfidenceDevelopment', snake: 'oral_confidence_development', label: "Développement de la confiance à l'oral" },
+  { camel: 'timeManagementSupport', snake: 'time_management_support', label: 'Accompagnement en gestion du temps et organisation' },
+  { camel: 'professionalPostureWork', snake: 'professional_posture_work', label: 'Travail sur la posture professionnelle' },
+  { camel: 'enhancedCompanyImmersion', snake: 'enhanced_company_immersion', label: 'Immersion renforcée en entreprise' },
+  { camel: 'pshSpecificSupport', snake: 'psh_specific_support', label: 'Accompagnement spécifique PSH' },
+  { camel: 'individualFollowUp', snake: 'individual_follow_up', label: 'Suivi individualisé' },
+  { camel: 'languageTraining', snake: 'language_training', label: 'Formation complémentaire en langue' },
+  { camel: 'stressManagementFollowUp', snake: 'stress_management_follow_up', label: 'Suivi sur la gestion du stress et la confiance en soi' },
+];
 
 // ─── Form helpers ───────────────────────────────────────────────────────────
 
@@ -105,6 +119,9 @@ type ABForm = {
   desiredSectors: string[]; expectedCompanySkills: string[];
   // découverte
   discoverySource: string;
+  // préconisations pédagogiques (clés camel sélectionnées) + zone libre
+  pedagogicalRecommendations: string[];
+  otherRecommendations: string;
   // note importante + signature de l'apprenti (data-URL PNG)
   importantNote: string;
   candidateSignature: string;
@@ -164,6 +181,8 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     domainMotivation: '', questionsConcerns: '', availabilityDate: '', geographicMobility: [], weekendWork: '',
     desiredSectors: [], expectedCompanySkills: [],
     discoverySource: '',
+    pedagogicalRecommendations: [],
+    otherRecommendations: '',
     importantNote: '',
     candidateSignature: '',
   };
@@ -242,6 +261,10 @@ function candidateToForm(c: Candidate): ABForm {
     desiredSectors: c.desired_sectors ?? [],
     expectedCompanySkills: c.expected_company_skills ?? [],
     discoverySource: c.job_info?.discovery_source ?? '',
+    pedagogicalRecommendations: c.synthesis?.pedagogical_recommendations
+      ? PEDA_OPTIONS.filter(o => c.synthesis!.pedagogical_recommendations![o.snake]).map(o => o.camel)
+      : [],
+    otherRecommendations: c.synthesis?.other_recommendations ?? '',
     importantNote: c.synthesis?.important_note ?? '',
     candidateSignature: c.synthesis?.candidate_signature ?? '',
   };
@@ -312,7 +335,14 @@ function toServerInput(f: ABForm) {
       weekendWork: pb(f.weekendWork),
       discoverySource: f.discoverySource || undefined,
     },
-    synthesis: { importantNote: f.importantNote || undefined, candidateSignature: f.candidateSignature || undefined },
+    synthesis: {
+      importantNote: f.importantNote || undefined,
+      candidateSignature: f.candidateSignature || undefined,
+      otherRecommendations: f.otherRecommendations || undefined,
+      pedagogicalRecommendations: Object.fromEntries(
+        PEDA_OPTIONS.map(o => [o.camel, f.pedagogicalRecommendations.includes(o.camel)]),
+      ),
+    },
   };
 }
 
@@ -732,6 +762,28 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </label>
             ))}
           </div>
+
+          {/* Préconisations pédagogiques */}
+          <ABSectionTitle title="Préconisations pédagogiques" />
+          <div className="grid grid-cols-1 gap-y-2">
+            {PEDA_OPTIONS.map(o => (
+              <label key={o.camel} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="accent-blue-600 h-4 w-4"
+                  checked={form.pedagogicalRecommendations.includes(o.camel)}
+                  onChange={() => set(
+                    'pedagogicalRecommendations',
+                    form.pedagogicalRecommendations.includes(o.camel)
+                      ? form.pedagogicalRecommendations.filter(k => k !== o.camel)
+                      : [...form.pedagogicalRecommendations, o.camel],
+                  )}
+                />
+                {o.label}
+              </label>
+            ))}
+          </div>
+          <ABTextarea label="Autres préconisations" value={form.otherRecommendations} onChange={v => set('otherRecommendations', v)} rows={2} />
 
           {/* Note importante */}
           <ABSectionTitle title="Note importante" />
