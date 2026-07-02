@@ -96,7 +96,7 @@ export interface MatchingCandidate {
     full_name?: string;
     age?: number;
     sex?: Sex;
-    city?: Localisation;
+    city?: string;
     email?: string;
     phone?: string;
     status?: MatchedCandidateStatus;
