@@ -7,7 +7,8 @@ import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
 import { candidateGraphqlClient } from '@/graphql/client';
-import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL } from '@/graphql/queries';
+import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER } from '@/graphql/queries';
+import { useAuthStore } from '@/store/authStore';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
@@ -359,6 +360,19 @@ function toServerInput(f: ABForm) {
   };
 }
 
+/**
+ * Profil AB « complet » : identité, TP, statut, niveau scolaire, compétences,
+ * secteurs et mobilité renseignés. En dessous de ce seuil, le PDF AB serait
+ * inexploitable — on ne le génère donc pas à la création.
+ */
+function isAbComplete(f: ABForm): boolean {
+  return Boolean(
+    f.fullName.trim() && f.email.trim() && f.phone.trim() && f.dateOfBirth &&
+    f.tpTypes.length && f.status && f.schoolLevel &&
+    f.skills.length && f.desiredSectors.length && f.geographicMobility.length,
+  );
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 interface CandidateFormModalProps {
@@ -379,6 +393,11 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const token = useAuthStore((s) => s.token);
+  // Génération AB → Drive après création (best-effort, ne bloque pas la création).
+  const [driveStatus, setDriveStatus] = useState<string | null>(null);
+  const [driveWarning, setDriveWarning] = useState<string | null>(null);
+  const createdIdRef = useRef<string | null>(null);
   // Doublon email détecté en direct (autre fiche que celle en cours d'édition).
   const [emailDup, setEmailDup] = useState<{ fullName: string } | null>(null);
 
@@ -470,6 +489,40 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   const updateSkillLevel = (i: number, level: SkillLevel) =>
     setForm(prev => ({ ...prev, skills: prev.skills.map((s, idx) => idx === i ? { ...s, level } : s) }));
 
+  /**
+   * Crée le dossier Drive du candidat (idempotent côté serveur) puis y dépose
+   * le PDF AB. Retourne un message d'avertissement en cas d'échec, null sinon.
+   */
+  const saveAbToDrive = async (id: string): Promise<string | null> => {
+    try {
+      setDriveStatus('Création du dossier Drive du candidat…');
+      const folder = await candidateGraphqlClient.mutation(CREATE_CANDIDATE_DRIVE_FOLDER, { id });
+      if (folder.error) throw new Error(folder.error.message.replace(/^\[GraphQL\]\s*/, ''));
+
+      setDriveStatus('Enregistrement de l’AB dans le Drive…');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/ab-to-drive`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Échec de l'enregistrement dans le Drive");
+      }
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Erreur Drive';
+    } finally {
+      setDriveStatus(null);
+    }
+  };
+
+  /** Ferme le modal après création (utilisé aussi par le bouton « Continuer » de l'avertissement Drive). */
+  const finishCreate = () => {
+    const id = createdIdRef.current;
+    if (id && onCreated) onCreated(id);
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -483,7 +536,19 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       onSaved();
       if (!isEdit) {
         const newId = result.data?.createCandidate?.id;
-        if (newId && onCreated) onCreated(newId);
+        createdIdRef.current = newId ?? null;
+        // AB complet → génère le PDF et le dépose dans le Drive du candidat.
+        // Best-effort : le candidat est créé quoi qu'il arrive ; en cas d'échec
+        // Drive on garde le modal ouvert pour afficher l'avertissement.
+        if (newId && isAbComplete(form)) {
+          const warning = await saveAbToDrive(newId);
+          if (warning) {
+            setDriveWarning(warning);
+            return;
+          }
+        }
+        finishCreate();
+        return;
       }
       onClose();
     } catch (err: any) {
@@ -819,11 +884,33 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
         </form>
 
         {/* Footer fixe */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
-          <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
-          <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
-            {isEdit ? 'Enregistrer les modifications' : 'Créer le candidat'}
-          </Button>
+        <div className="px-6 py-4 border-t border-gray-100 shrink-0 space-y-3">
+          {driveStatus && (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
+              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-500 border-r-transparent" />
+              {driveStatus}
+            </div>
+          )}
+          {driveWarning && (
+            <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-lg text-sm">
+              <AlertCircle size={16} className="shrink-0" />
+              Candidat créé, mais AB non enregistré dans le Drive ({driveWarning}).
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            {driveWarning ? (
+              <Button type="button" onClick={finishCreate} className="bg-purple hover:bg-purple-dark text-white">
+                Continuer
+              </Button>
+            ) : (
+              <>
+                <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+                <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
+                  {isEdit ? 'Enregistrer les modifications' : 'Créer le candidat'}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
       </div>
