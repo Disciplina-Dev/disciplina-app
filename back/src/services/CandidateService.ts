@@ -64,13 +64,7 @@ export class CandidateService {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
-        const previous = await this.repository.findById(id);
         const updated = await this.repository.update(id, data);
-        if (updated && previous) {
-            for (const { description } of buildFieldChangeEntries(previous, data)) {
-                await this.candidateHistoryService.recordAuto(id, CandidateHistoryType.RH, description);
-            }
-        }
         return updated;
     }
 
