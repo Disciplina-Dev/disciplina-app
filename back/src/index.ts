@@ -29,6 +29,7 @@ import { router as matchRouter } from './rest/match/route';
 import { router as interviewRouter } from './rest/interview/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
+import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -105,6 +106,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/interview', interviewRouter);
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
+    app.use(mcpRouter);
     app.use(errorHandler);
 
     await connectMySQL();
