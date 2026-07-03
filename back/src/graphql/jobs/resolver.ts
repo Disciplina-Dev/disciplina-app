@@ -100,6 +100,33 @@ export const resolvers = {
                 context.user.email,
             );
         },
+        addManualProposedCandidateForImmersion: async (
+            _: unknown,
+            {
+                jobId,
+                candidateId,
+                immersionStartDate,
+                immersionEndDate,
+                immersionLocation,
+            }: {
+                jobId: string;
+                candidateId: string;
+                immersionStartDate: string;
+                immersionEndDate: string;
+                immersionLocation: string;
+            },
+            context: any,
+        ) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            return await jobService.addManualProposedCandidateForImmersion(
+                jobId,
+                candidateId,
+                immersionStartDate,
+                immersionEndDate,
+                immersionLocation,
+                context.user.email,
+            );
+        },
         setInterviewConclusion: async (
             _: unknown,
             {

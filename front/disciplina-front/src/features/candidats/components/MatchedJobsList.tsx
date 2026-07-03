@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck } from 'lucide-react'
-import { candidateGraphqlClient, jobGraphqlClient } from '@/graphql/client'
-import { MATCH_CANDIDATE, ADD_CANDIDATE_TO_JOB } from '@/graphql/queries'
+import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search } from 'lucide-react'
+import { candidateGraphqlClient } from '@/graphql/client'
+import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
-import type { MatchedJob } from '@/types/candidate'
+import type { MatchedJob, TitleProfessionalType } from '@/types/candidate'
+import { useCurrentUser, UserRole } from '@/store/authStore'
+import AddCandidateToJobModal from './AddCandidateToJobModal'
+import JobSearchModal from './JobSearchModal'
 
 interface MatchedJobsListProps {
   candidateId: string
   confirmedJobIds?: Set<string>
+  candidateTpTypes?: TitleProfessionalType[]
 }
 
 function formatSector(raw?: string): string {
@@ -16,12 +20,19 @@ function formatSector(raw?: string): string {
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export default function MatchedJobsList({ candidateId, confirmedJobIds }: MatchedJobsListProps) {
+export default function MatchedJobsList({ candidateId, confirmedJobIds, candidateTpTypes }: MatchedJobsListProps) {
+  const currentUser = useCurrentUser()
+  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN;
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedJob[]>([])
   const [addedJobIds, setAddedJobIds] = useState<Set<string>>(confirmedJobIds ?? new Set())
-  const [addingJobId, setAddingJobId] = useState<string | null>(null)
+  const [modalJobId, setModalJobId] = useState<string | null>(null)
+
+  const [showJobSearch, setShowJobSearch] = useState(false)
+  const [queuedJobs, setQueuedJobs] = useState<MatchedJob[]>([])
+  const [queueIndex, setQueueIndex] = useState(0)
 
   const fetchMatches = useCallback(async () => {
     setLoading(true)
@@ -44,16 +55,14 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds }: Matche
     fetchMatches()
   }, [fetchMatches])
 
-  const handleAddToJob = async (jobId: string) => {
-    setAddingJobId(jobId)
-    try {
-      const result = await jobGraphqlClient.mutation(ADD_CANDIDATE_TO_JOB, { jobId, candidateId }).toPromise()
-      if (!result.error) {
-        setAddedJobIds((p) => new Set(p).add(jobId))
-      }
-    } finally {
-      setAddingJobId(null)
-    }
+  const modalJob = jobs.find((job) => job.id === modalJobId)
+  const queuedJob = queuedJobs[queueIndex]
+  const advanceQueue = () => {
+    setQueueIndex((i) => {
+      const next = i + 1
+      if (next >= queuedJobs.length) setQueuedJobs([])
+      return next
+    })
   }
 
   return (
@@ -68,15 +77,27 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds }: Matche
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={fetchMatches}
-          disabled={loading}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Rafraîchir
-        </button>
+        <div className="flex items-center gap-3">
+          {canProposeOffers && (
+            <button
+              type="button"
+              onClick={() => setShowJobSearch(true)}
+              className="flex items-center gap-1.5 text-sm font-medium text-blue hover:text-blue/80 transition-colors cursor-pointer"
+            >
+              <Search className="w-4 h-4" />
+              Proposer des offres
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={fetchMatches}
+            disabled={loading}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Rafraîchir
+          </button>
+        </div>
       </div>
 
       {loading && (
@@ -142,8 +163,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds }: Matche
               ) : (
                 <button
                   type="button"
-                  onClick={() => handleAddToJob(job.id)}
-                  disabled={addingJobId === job.id}
+                  onClick={() => setModalJobId(job.id)}
                   className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors disabled:opacity-50 shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -153,6 +173,41 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds }: Matche
             </div>
           ))}
         </div>
+      )}
+
+      {modalJob && (
+        <AddCandidateToJobModal
+          job={modalJob}
+          candidateId={candidateId}
+          onSubmit={() => setAddedJobIds((p) => new Set(p).add(modalJob.id))}
+          onClose={() => setModalJobId(null)}
+        />
+      )}
+
+      {showJobSearch && (
+        <JobSearchModal
+          excludedJobIds={new Set([...(confirmedJobIds ?? []), ...addedJobIds])}
+          candidateTpTypes={candidateTpTypes}
+          onConfirm={(selectedJobs) => {
+            setQueuedJobs(selectedJobs)
+            setQueueIndex(0)
+            setShowJobSearch(false)
+          }}
+          onClose={() => setShowJobSearch(false)}
+        />
+      )}
+
+      {queuedJob && (
+        <AddCandidateToJobModal
+          job={queuedJob}
+          candidateId={candidateId}
+          progressLabel={queuedJobs.length > 1 ? `Offre ${queueIndex + 1} / ${queuedJobs.length}` : undefined}
+          onSubmit={() => {
+            setAddedJobIds((p) => new Set(p).add(queuedJob.id))
+            advanceQueue()
+          }}
+          onClose={advanceQueue}
+        />
       )}
     </section>
   )

@@ -58,6 +58,7 @@ function proposedCandidateToGql(pc: ProposedCandidate): object {
         interviewConclusion: pc.interview_conclusion,
         immersionStartDate: pc.immersion_start_date,
         immersionEndDate: pc.immersion_end_date,
+        immersionLocation: pc.immersion_location,
         immersionConclusion: pc.immersion_conclusion,
     };
 }
@@ -282,7 +283,7 @@ export class JobService {
             companyName: hit.job.company_name ?? null,
             kind,
             since,
-            immersionEndDate: kind === 'IMMERSING' ? (hit.pc.immersion_end_date ?? null) : null,
+            immersionEndDate: kind === 'IMMERSING' ? hit.pc.immersion_end_date ?? null : null,
         };
     }
 
@@ -329,6 +330,42 @@ export class JobService {
         await this.candidateHistoryService.recordManual(
             candidateId,
             `Le candidat.e a un entretien avec ${job.company_name} le ${interviewDate} à ${interviewLocation}`,
+            ownerEmail,
+        );
+
+        return toGql(updated);
+    }
+
+    async addManualProposedCandidateForImmersion(
+        jobId: string,
+        candidateId: string,
+        immersionStartDate: string,
+        immersionEndDate: string,
+        immersionLocation: string,
+        ownerEmail: string,
+    ): Promise<object | null> {
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
+
+        const candidate = await this.candidateRepository.findById(candidateId);
+        if (!candidate) throw new Error('Candidat introuvable');
+
+        const proposed: ProposedCandidate = {
+            ...candidateToMatchingCandidate(candidate),
+            answer: ProposedCandidateAnswer.ACCEPTED,
+            immersion_start_date: immersionStartDate,
+            immersion_end_date: immersionEndDate,
+            immersion_location: immersionLocation,
+        };
+
+        const updated = await this.repository.addProposedCandidate(jobId, proposed);
+        if (!updated) return null;
+
+        await this.candidateService.update(candidateId, { status: CandidateStatus.IMMERSING });
+
+        await this.candidateHistoryService.recordManual(
+            candidateId,
+            `Le candidat.e est en immersion chez ${job.company_name} du ${immersionStartDate} au ${immersionEndDate}`,
             ownerEmail,
         );
 

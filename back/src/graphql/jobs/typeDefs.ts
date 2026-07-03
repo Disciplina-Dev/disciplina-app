@@ -123,6 +123,7 @@ export const typeDefs = gql`
         interviewConclusion: InterviewConclusion
         immersionStartDate: String
         immersionEndDate: String
+        immersionLocation: String
         immersionConclusion: ImmersionConclusion
     }
 
@@ -242,7 +243,9 @@ export const typeDefs = gql`
         CONTRACT
     }
 
-    """Placement courant d'un candidat (immersion ou contrat), dérivé des offres."""
+    """
+    Placement courant d'un candidat (immersion ou contrat), dérivé des offres.
+    """
     type CandidatePlacement {
         companyName: String
         kind: PlacementKind!
@@ -271,6 +274,13 @@ export const typeDefs = gql`
             interviewDate: String!
             interviewHour: String!
             interviewLocation: String!
+        ): Job
+        addManualProposedCandidateForImmersion(
+            jobId: String!
+            candidateId: String!
+            immersionStartDate: String!
+            immersionEndDate: String!
+            immersionLocation: String!
         ): Job
         createMatchSession(jobId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
         setInterviewConclusion(
