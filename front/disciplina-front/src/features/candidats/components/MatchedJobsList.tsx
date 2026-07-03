@@ -22,7 +22,7 @@ function formatSector(raw?: string): string {
 
 export default function MatchedJobsList({ candidateId, confirmedJobIds, candidateTpTypes }: MatchedJobsListProps) {
   const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE
+  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN;
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

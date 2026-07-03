@@ -36,7 +36,7 @@ import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '
 import { JobStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { jobGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
@@ -555,9 +555,8 @@ function JobDetailsSection({
               key={status}
               onClick={() => onSetStatus(status)}
               disabled={job.status === status}
-              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                job.status === status ? JOB_STATUS_BADGE_CLASS[status] : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
+              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${job.status === status ? JOB_STATUS_BADGE_CLASS[status] : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
             >
               {JOB_STATUS_LABELS[status]}
             </button>
@@ -968,19 +967,23 @@ function ProposedCandidatesSection({
   onConcludeImmersion: (candidate: ProposedCandidate) => void
 }) {
   const slots = interviewSlots ?? []
+  const currentUser = useCurrentUser()
+  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN;
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
         <Heart size={15} className="text-purple" />
         <h3 className="text-sm font-semibold text-gray-800">Candidats proposés</h3>
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">{candidates.length}</span>
-        <button
-          onClick={onAddCandidate}
-          className="ml-auto flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
-          title="Ajouter manuellement un candidat"
-        >
-          <Plus size={11} /> Ajouter un candidat
-        </button>
+        {canProposeOffers && (
+          <button
+            onClick={onAddCandidate}
+            className="ml-auto flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
+            title="Ajouter manuellement un candidat"
+          >
+            <Plus size={11} /> Ajouter un candidat
+          </button>
+        )}
       </div>
       {slots.length > 0 && (
         <div className="mb-3 rounded-md bg-gray-50 px-3 py-2">
@@ -1228,7 +1231,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
   useEffect(() => {
     if (selectedJob) loadJobData(selectedJob)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJob?.id])
 
   const handleSaveMatch = async (candidateId: string) => {
@@ -1622,11 +1625,11 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           defaultBody={
             datesMailState.bookedInterviewSlot && datesMailState.interviewLocation
               ? buildManualInterviewMailBody(
-                  jobData.companyName,
-                  datesMailState.fullName,
-                  datesMailState.bookedInterviewSlot,
-                  datesMailState.interviewLocation,
-                )
+                jobData.companyName,
+                datesMailState.fullName,
+                datesMailState.bookedInterviewSlot,
+                datesMailState.interviewLocation,
+              )
               : ''
           }
           scope="rh"
