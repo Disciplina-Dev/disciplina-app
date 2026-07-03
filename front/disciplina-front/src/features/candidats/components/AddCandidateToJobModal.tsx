@@ -16,9 +16,10 @@ interface AddCandidateToJobModalProps {
   candidateId: string
   onSubmit: () => void
   onClose: () => void
+  progressLabel?: string
 }
 
-export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onClose }: AddCandidateToJobModalProps) {
+export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onClose, progressLabel }: AddCandidateToJobModalProps) {
   const [choice, setChoice] = useState<Choice | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -91,9 +92,12 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-100 p-5">
-          <h2 className="text-base font-bold text-gray-900">
-            {job.companyName ?? 'Entreprise'}
-          </h2>
+          <div>
+            <h2 className="text-base font-bold text-gray-900">
+              {job.companyName ?? 'Entreprise'}
+            </h2>
+            {progressLabel && <p className="mt-0.5 text-xs text-gray-500">{progressLabel}</p>}
+          </div>
           <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50">
             <X size={18} />
           </button>

@@ -761,7 +761,11 @@ export default function FicheCandidat() {
 
           {/* Offres correspondantes */}
           <div className="md:col-span-2">
-            <MatchedJobsList candidateId={id ?? ''} confirmedJobIds={confirmedJobIds} />
+            <MatchedJobsList
+              candidateId={id ?? ''}
+              confirmedJobIds={confirmedJobIds}
+              candidateTpTypes={formData.tp_types?.length ? formData.tp_types : [formData.tp_type]}
+            />
           </div>
 
           {/* Identité & Contact */}
