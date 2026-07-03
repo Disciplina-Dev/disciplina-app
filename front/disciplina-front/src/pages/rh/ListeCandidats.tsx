@@ -422,10 +422,15 @@ export default function ListeCandidats() {
               <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-purple transition-colors">
                 {candidate.identity.full_name}
               </h3>
-              <div className="mb-4 mt-1">
+              <div className="mb-4 mt-1 flex gap-2 flex-wrap">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ring-1 inset-ring ${getTpTypeColors(candidate.tp_type)}`}>
                   {candidate.tp_type}
                 </span>
+                {candidate.identity.psh_referral_request && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-purple-light text-purple ring-1 ring-purple-light/30">
+                    RQTH
+                  </span>
+                )}
               </div>
               <div className="space-y-2 mt-2">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
