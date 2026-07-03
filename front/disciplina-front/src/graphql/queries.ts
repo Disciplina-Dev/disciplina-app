@@ -275,6 +275,7 @@ const CANDIDATE_FIELDS = gql`
       hasVehicle
       age
       city
+      pshReferralRequest
     }
     education {
       schoolLevel

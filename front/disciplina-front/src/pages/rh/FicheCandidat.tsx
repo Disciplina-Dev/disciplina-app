@@ -618,6 +618,11 @@ export default function FicheCandidat() {
                       Senior
                     </span>
                   )}
+                  {formData.identity.psh_referral_request && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-purple-light text-purple ring-1 ring-purple-light/30">
+                      RQTH
+                    </span>
+                  )}
                   {placement ? (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       {placement.kind === 'IMMERSING' ? (
