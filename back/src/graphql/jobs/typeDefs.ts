@@ -236,6 +236,7 @@ export const typeDefs = gql`
         recruitmentMethod: String
         immersionPeriod: String
         trainingDays: String
+        yousignSignatureRequestID: String
         status: String
         createdAt: String
     }

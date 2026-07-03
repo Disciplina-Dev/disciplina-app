@@ -1,48 +1,9 @@
 import { useState } from 'react'
-import { X, Briefcase, Users, GraduationCap, ClipboardList, Calendar, Hash, Trash2 } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
-
-const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
-  EN_ATTENTE_SIGNATURE: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'En attente de signature' },
-  SIGNE:                { bg: 'bg-green-100',  text: 'text-green-700',  label: 'Signé' },
-  EXPIRE:               { bg: 'bg-red-100',    text: 'text-red-600',    label: 'Expiré' },
-}
-
-const LABELS: Record<string, Record<string, string>> = {
-  localisation:       { NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud' },
-  trainingDomain:     { SECRETARIAT: 'Secrétariat', VENTE: 'Vente' },
-  educationLevel:     { BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3' },
-  drivingLicense:     { OUI: 'Oui', OPTIONNEL: 'Optionnel' },
-  experienceRequired: { DEBUTANT: 'Débutant accepté', OBLIGATOIRE: 'Expérience obligatoire' },
-  recruitmentMethod:  { ALL_CV: 'Tous les CV', PRESELECTION: 'Présélection', PRE_INTERVIEW: 'Pré-entretien' },
-  immersionPeriod:    { OUI: 'Oui', NON: 'Non', A_DISCUTER: 'À discuter' },
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  if (!value) return null
-  return (
-    <div className="flex justify-between gap-4 py-2 border-b border-gray-100 last:border-0">
-      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide shrink-0">{label}</span>
-      <span className="text-sm text-gray-900 text-right">{value}</span>
-    </div>
-  )
-}
-
-function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">
-        {icon}{title}
-      </p>
-      <div className="bg-gray-50 rounded-xl px-4 py-1">
-        {children}
-      </div>
-    </div>
-  )
-}
+import { ABDetailContent, AB_STATUS_BADGE } from './ABDetailContent'
 
 interface Props {
   id: number
@@ -55,36 +16,12 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const ab = result.data?.needsAnalysis
-  const badge = ab ? (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']) : null
+  const badge = ab ? (AB_STATUS_BADGE[ab.status] ?? AB_STATUS_BADGE['BROUILLON']) : null
 
   const handleDelete = async () => {
     await deleteNeedsAnalysis(id)
     onDelete?.()
     onClose()
-  }
-
-  let trainingDaysDisplay: string | null = null
-  if (ab?.trainingDays) {
-    try {
-      const days = JSON.parse(ab.trainingDays)
-      const DAY_LABELS: Record<string, string> = {
-        monday: 'Lundi', tuesday: 'Mardi', wednesday: 'Mercredi',
-        thursday: 'Jeudi', friday: 'Vendredi',
-      }
-      const STATUS_LABELS: Record<string, string> = { OUI: '✓', NON: '✗', PREFERE: '~' }
-      const periodsToLabel = (v: unknown): string => {
-        if (Array.isArray(v)) {
-          if (v.includes('PREFERE')) return '~'
-          return v.length > 0 ? '✓' : '✗'
-        }
-        return STATUS_LABELS[v as string] ?? String(v)
-      }
-      trainingDaysDisplay = Object.entries(days)
-        .map(([k, v]) => `${DAY_LABELS[k] ?? k}: ${periodsToLabel(v)}`)
-        .join('  •  ')
-    } catch {
-      trainingDaysDisplay = ab.trainingDays
-    }
   }
 
   return (
@@ -158,102 +95,8 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
 
         {/* Body */}
         {ab && (
-          <div className="overflow-y-auto flex-1 p-6 space-y-5">
-            {ab.legalRepFunction && (
-              <Section icon={<Users className="h-3.5 w-3.5" />} title="Représentant légal">
-                <Row label="Fonction" value={ab.legalRepFunction} />
-              </Section>
-            )}
-
-            {(ab.recruitmentResponsibleName || ab.recruitmentResponsibleEmail) && (
-              <Section icon={<Users className="h-3.5 w-3.5" />} title="Responsable recrutement">
-                <Row label="Nom"      value={ab.recruitmentResponsibleName} />
-                <Row label="Fonction" value={ab.recruitmentResponsibleFunction} />
-                <Row label="Tél"      value={ab.recruitmentResponsiblePhone} />
-                <Row label="Email"    value={ab.recruitmentResponsibleEmail} />
-              </Section>
-            )}
-
-            {(ab.companySectors?.length > 0 || ab.companyDescription) && (
-              <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
-                {ab.companySectors?.length > 0 && (
-                  <Row label="Secteurs" value={ab.companySectors.join(', ')} />
-                )}
-                <Row label="Description" value={ab.companyDescription} />
-              </Section>
-            )}
-
-            <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Poste">
-              <Row label="Postes"              value={`${ab.positionsCount} poste${ab.positionsCount > 1 ? 's' : ''}`} />
-              <Row label="Méthode recrutement" value={LABELS.recruitmentMethod[ab.recruitmentMethod]} />
-              <Row label="Immersion"           value={LABELS.immersionPeriod[ab.immersionPeriod]} />
-            </Section>
-
-            {(ab.positions?.length > 0
-              ? ab.positions
-              : [{ trainingDomain: ab.trainingDomain, jobTitle: ab.jobTitle, selectedMissions: ab.selectedMissions ?? [], localisation: ab.localisation }]
-            ).map((p: { trainingDomain: string; jobTitle: string; selectedMissions: string[]; localisation: string }, i: number, arr: unknown[]) => (
-              <Section
-                key={i}
-                icon={<ClipboardList className="h-3.5 w-3.5" />}
-                title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
-              >
-                <Row label="Intitulé"     value={p.jobTitle} />
-                <Row label="Domaine"      value={LABELS.trainingDomain[p.trainingDomain]} />
-                <Row label="Localisation" value={LABELS.localisation[p.localisation]} />
-                {p.selectedMissions?.length > 0 && (
-                  <div className="py-2">
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {p.selectedMissions.map((m: string) => (
-                        <li key={m} className="text-sm text-gray-900">{m}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </Section>
-            ))}
-
-            {(ab.jobDescriptionMissions?.length > 0 || ab.jobDescriptionOther) && (
-              <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Missions complémentaires">
-                {ab.jobDescriptionMissions?.length > 0 && (
-                  <Row label="Types" value={ab.jobDescriptionMissions.join(', ')} />
-                )}
-                <Row label="Descriptif" value={ab.jobDescriptionOther} />
-              </Section>
-            )}
-
-            {(ab.conditions || ab.scheduleOptions?.length > 0 || ab.additionalComments) && (
-              <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Conditions & commentaires">
-                <Row label="Conditions" value={ab.conditions ?? (ab.scheduleOptions?.length > 0 ? ab.scheduleOptions.join(', ') : null)} />
-                <Row label="Commentaires" value={ab.additionalComments} />
-              </Section>
-            )}
-
-            <Section icon={<GraduationCap className="h-3.5 w-3.5" />} title="Profil apprenti">
-              {ab.educationLevel && (
-                <Row label="Niveau d'études" value={LABELS.educationLevel[ab.educationLevel]} />
-              )}
-              <Row label="Permis B"        value={LABELS.drivingLicense[ab.drivingLicense]} />
-              <Row label="Expérience"      value={LABELS.experienceRequired[ab.experienceRequired]} />
-              {(ab.ageMin || ab.ageMax) ? (
-                <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin} ans` : null, ab.ageMax ? `à ${ab.ageMax} ans` : null].filter(Boolean).join(' ')} />
-              ) : ab.ageRequirements?.length > 0 && (
-                <Row label="Âge" value={ab.ageRequirements.join(', ')} />
-              )}
-              <Row label="Soft skills"     value={ab.softSkills} />
-            </Section>
-
-            {trainingDaysDisplay && (
-              <Section icon={<Calendar className="h-3.5 w-3.5" />} title="Jours de formation">
-                <div className="py-2 text-sm text-gray-900">{trainingDaysDisplay}</div>
-              </Section>
-            )}
-
-            {ab.yousignSignatureRequestID && (
-              <Section icon={<Hash className="h-3.5 w-3.5" />} title="Signature électronique">
-                <Row label="Référence" value={ab.yousignSignatureRequestID} />
-              </Section>
-            )}
+          <div className="overflow-y-auto flex-1 p-6">
+            <ABDetailContent ab={ab} />
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { X, Building2, Loader2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { jobGraphqlClient } from '@/graphql/client'
 import { GET_JOB_COMPANY_INFO } from '@/graphql/queries'
+import { ABDetailContent, type AbDetail } from '@/features/abEntreprise/components/ABDetailContent'
 
 interface CompanyInfoModalProps {
   jobId: string
@@ -49,6 +50,7 @@ interface Ab {
   recruitmentMethod?: string
   immersionPeriod?: string
   trainingDays?: string
+  yousignSignatureRequestID?: string
   status?: string
   createdAt?: string
 }
@@ -88,25 +90,6 @@ const ENUM_LABELS: Record<string, string> = {
   BROUILLON: 'Brouillon', EN_ATTENTE_SIGNATURE: 'En attente de signature', SIGNE: 'Signé', EXPIRE: 'Expiré',
 }
 const lbl = (v?: string | null) => (v ? ENUM_LABELS[v] ?? v : '')
-
-function fmtDays(raw?: string): string {
-  if (!raw) return ''
-  try {
-    const days: Record<string, string[]> = JSON.parse(raw)
-    const FR: Record<string, string> = { monday: 'Lun', tuesday: 'Mar', wednesday: 'Mer', thursday: 'Jeu', friday: 'Ven' }
-    const parts: string[] = []
-    for (const [k, fr] of Object.entries(FR)) {
-      const periods = days[k] ?? []
-      if (periods.includes('PREFERE')) parts.push(`${fr} (préféré)`)
-      else if (periods.length === 2) parts.push(fr)
-      else if (periods.includes('MATIN')) parts.push(`${fr} (matin)`)
-      else if (periods.includes('APRES_MIDI')) parts.push(`${fr} (après-midi)`)
-    }
-    return parts.join(', ')
-  } catch {
-    return ''
-  }
-}
 
 function Row({ label, value }: { label: string; value?: string | number | null }) {
   const v = value === 0 ? '0' : value
@@ -199,55 +182,14 @@ export default function CompanyInfoModal({ jobId, onClose }: CompanyInfoModalPro
           )}
 
           {ab && (
-            <Section title="Analyse du besoin">
-              <Row label="Fonction du représentant légal" value={ab.legalRepFunction} />
-              <Row label="Responsable recrutement" value={ab.recruitmentResponsibleName} />
-              <Row label="Fonction du responsable" value={ab.recruitmentResponsibleFunction} />
-              <Row label="Téléphone responsable" value={ab.recruitmentResponsiblePhone} />
-              <Row label="Email responsable" value={ab.recruitmentResponsibleEmail} />
-              <Row label="Secteurs d'activité" value={ab.companySectors?.join(', ')} />
-              <Row label="Présentation de l'entreprise" value={ab.companyDescription} />
-              <Row label="OPCO" value={ab.opco} />
-              <Row label="Comment a connu DISCIPLINA" value={lbl(ab.referralSource)} />
-              <Row label="Nombre de postes" value={ab.positionsCount} />
-
-              {(ab.positions ?? []).map((p, i) => (
-                <div key={i} className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-gray-700">Poste {i + 1}</p>
-                  <Row label="Domaine" value={lbl(p.trainingDomain)} />
-                  <Row label="Intitulé" value={p.jobTitle} />
-                  <Row label="Localisation" value={lbl(p.localisation)} />
-                  <Row label="Missions" value={p.selectedMissions?.join(', ')} />
-                </div>
-              ))}
-
-              {(ab.positions ?? []).length === 0 && (ab.jobTitle || ab.trainingDomain) && (
-                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-gray-700">Poste principal</p>
-                  <Row label="Domaine" value={lbl(ab.trainingDomain)} />
-                  <Row label="Intitulé" value={ab.jobTitle} />
-                  <Row label="Localisation" value={lbl(ab.localisation)} />
-                  <Row label="Missions" value={ab.selectedMissions?.join(', ')} />
-                </div>
-              )}
-
-              <Row label="Autres missions" value={ab.otherMissions} />
-              <Row label="Missions fiche de poste" value={ab.jobDescriptionMissions?.join(', ')} />
-              <Row label="Description complémentaire des missions" value={ab.jobDescriptionOther} />
-              <Row label="Niveau d'études" value={lbl(ab.educationLevel)} />
-              <Row label="Permis B" value={lbl(ab.drivingLicense)} />
-              <Row label="Expérience requise" value={lbl(ab.experienceRequired)} />
-              <Row label="Exigences d'âge" value={ab.ageRequirements?.join(', ')} />
-              <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin}` : '', ab.ageMax ? `à ${ab.ageMax} ans` : ''].filter(Boolean).join(' ')} />
-              <Row label="Profils / soft skills" value={ab.softSkills} />
-              <Row label="Méthode de recrutement" value={lbl(ab.recruitmentMethod)} />
-              <Row label="Période d'immersion" value={lbl(ab.immersionPeriod)} />
-              <Row label="Jours de formation possibles" value={fmtDays(ab.trainingDays)} />
-              <Row label="Options d'horaires" value={ab.scheduleOptions?.join(', ')} />
-              <Row label="Conditions" value={ab.conditions} />
-              <Row label="Commentaires" value={ab.additionalComments} />
-              <Row label="Statut AB" value={lbl(ab.status)} />
-            </Section>
+            <>
+              <Section title="Analyse du besoin">
+                <Row label="OPCO" value={ab.opco} />
+                <Row label="Comment a connu DISCIPLINA" value={lbl(ab.referralSource)} />
+                <Row label="Statut AB" value={lbl(ab.status)} />
+              </Section>
+              <ABDetailContent ab={ab as AbDetail} />
+            </>
           )}
         </div>
       </div>

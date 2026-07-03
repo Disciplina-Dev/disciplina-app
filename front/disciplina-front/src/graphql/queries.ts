@@ -1039,6 +1039,7 @@ export const GET_JOB_COMPANY_INFO = gql`
         recruitmentMethod
         immersionPeriod
         trainingDays
+        yousignSignatureRequestID
         status
         createdAt
       }
