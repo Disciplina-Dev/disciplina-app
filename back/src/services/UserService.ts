@@ -172,6 +172,22 @@ export class UserService {
         return { token, user };
     }
 
+    async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+        const userRow = await this.userRepository.findById(userId);
+        if (!userRow || !userRow.password) {
+            throw new Error('Utilisateur introuvable');
+        }
+        const isMatch = await bcrypt.compare(currentPassword, userRow.password);
+        if (!isMatch) {
+            throw new Error('Mot de passe actuel incorrect');
+        }
+        if (newPassword.length < 8) {
+            throw new Error('Le nouveau mot de passe doit contenir au moins 8 caractères');
+        }
+        const hashed = await bcrypt.hash(newPassword, SALT_ROUNDS);
+        await this.userRepository.updateProfile(userId, { password: hashed });
+    }
+
     async updateGoogleTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
         const enc = (t: string | null) => (t ? encryptToken(t) : null);
         await this.userRepository.updateTokens(id, enc(oauthToken), enc(refreshToken));

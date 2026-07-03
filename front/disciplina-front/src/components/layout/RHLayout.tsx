@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog, MapPin, ListTodo } from 'lucide-react'
+import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog, MapPin, ListTodo, Settings } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
@@ -107,13 +107,22 @@ export default function RHLayout() {
               </div>
               <p className="truncate text-[11px] font-medium text-gray-400 capitalize">{currentUser?.role?.toLowerCase()}</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-              title="Se déconnecter"
-            >
-              <LogOut size={16} />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => navigate('/rh/profil')}
+                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-purple hover:bg-purple-light rounded-md transition-colors"
+                title="Mon profil"
+              >
+                <Settings size={16} />
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                title="Se déconnecter"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
           </div>
         </div>
       </aside>

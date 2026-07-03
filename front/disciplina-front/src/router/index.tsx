@@ -46,6 +46,7 @@ import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
 
 import TodoPage from "@/features/todos/TodoPage";
+import ProfilePage from "@/pages/profile/ProfilePage";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { UserRole } from "@/store/authStore";
@@ -104,6 +105,7 @@ export const router = createBrowserRouter([
       { path: "mail", element: <MailTemplates scope="commercial" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <RelanceCommercial />, handle: { crumb: "Relances" } },
       { path: "todos", element: <TodoPage />, handle: { crumb: "Mes tâches" } },
+      { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
   },
   {
@@ -125,6 +127,7 @@ export const router = createBrowserRouter([
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <Relance />, handle: { crumb: "Relance" } },
       { path: "todos", element: <TodoPage />, handle: { crumb: "Mes tâches" } },
+      { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
       {
         path: "config-drive",
         element: (

@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X, Mail, Bell, ShieldOff, ListTodo } from 'lucide-react'
+import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X, Mail, Bell, ShieldOff, ListTodo, Settings } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
@@ -96,13 +96,22 @@ export default function CommercialLayout() {
               </div>
               <p className="truncate text-[11px] font-medium text-gray-400 capitalize">{currentUser?.role?.toLowerCase()}</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-              title="Se déconnecter"
-            >
-              <LogOut size={16} />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => navigate('/commercial/profil')}
+                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue hover:bg-blue-50 rounded-md transition-colors"
+                title="Mon profil"
+              >
+                <Settings size={16} />
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                title="Se déconnecter"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
           </div>
         </div>
       </aside>

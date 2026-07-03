@@ -48,5 +48,6 @@ export const todoTypeDefs = gql`
         updateTodo(id: Int!, input: UpdateTodoInput!): Todo!
         reorderTodos(orderedIds: [Int!]!): [Todo!]!
         deleteTodo(id: Int!): Boolean!
+        changePassword(currentPassword: String!, newPassword: String!): Boolean!
     }
 `;
