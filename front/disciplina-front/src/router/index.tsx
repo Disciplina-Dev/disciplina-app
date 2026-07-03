@@ -45,6 +45,8 @@ import GestionApprentis from "@/pages/entreprise/GestionApprentis";
 import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
 
+import TodoPage from "@/features/todos/TodoPage";
+
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { UserRole } from "@/store/authStore";
 
@@ -101,6 +103,7 @@ export const router = createBrowserRouter([
       { path: "sourcing", element: <Sourcing />, handle: { crumb: "Sourcing SIRET" } },
       { path: "mail", element: <MailTemplates scope="commercial" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <RelanceCommercial />, handle: { crumb: "Relances" } },
+      { path: "todos", element: <TodoPage />, handle: { crumb: "Mes tâches" } },
     ],
   },
   {
@@ -121,6 +124,7 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <Relance />, handle: { crumb: "Relance" } },
+      { path: "todos", element: <TodoPage />, handle: { crumb: "Mes tâches" } },
       {
         path: "config-drive",
         element: (
