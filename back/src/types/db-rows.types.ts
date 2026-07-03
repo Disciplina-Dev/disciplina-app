@@ -5,7 +5,7 @@ export interface UserRow {
     last_name: string;
     password?: string;
     role: 'ADMIN' | 'RESPONSABLE' | 'COMMERCIAL' | 'RH';
-    sectors: string | null;
+    sectors: string | string[] | null; // mysql2 v3 returns JSON columns as parsed objects
     oauth_token: string | null;
     refresh_token: string | null;
 }
