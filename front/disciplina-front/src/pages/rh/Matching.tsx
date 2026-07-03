@@ -1720,7 +1720,7 @@ export default function Matching() {
             </p>
           </div>
         </div>
-        <JobFilters filters={filters} onChange={setFilters} jobs={jobs} />
+        <JobFilters filters={filters} onChange={setFilters} />
       </div>
 
       {/* Two-column layout */}
