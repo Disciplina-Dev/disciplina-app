@@ -39,9 +39,11 @@ export default function RHLayout() {
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
       <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
         {/* Module Header */}
-        <div className="shrink-0 p-6 pb-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-purple mb-1">Disciplina</p>
-          <p className="text-[18px] font-extrabold text-gray-900 tracking-tight">Espace RH</p>
+        <div className="shrink-0 flex items-center gap-3 p-6 pb-4">
+          <span className="flex items-center gap-3 after:content-[''] after:h-6 after:w-px after:bg-gray-200">
+            <img src="/icon-logo.png" alt="Disciplina" className="h-8 w-8" />
+          </span>
+          <p className="whitespace-nowrap text-[16px] font-extrabold text-gray-900 tracking-tight">Espace RH</p>
         </div>
 
         {/* Scrollable nav */}
@@ -55,18 +57,19 @@ export default function RHLayout() {
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
         </nav>
 
-        {/* Configuration (Responsable + Admin) */}
-        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
-          <>
-            <div className="mx-3 my-4 border-t border-gray-100" />
-            <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Configuration</div>
-            <nav className="flex flex-col gap-1 px-3">
+        {/* Configuration : "Modèles mail" pour tous les RH (modèles communs + signature
+            personnelle) ; Drive et secteurs restent réservés Responsable/Admin. */}
+        <div className="mx-3 my-4 border-t border-gray-100" />
+        <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Configuration</div>
+        <nav className="flex flex-col gap-1 px-3">
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
+            <>
               <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
               <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
-              <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
-            </nav>
-          </>
-        )}
+            </>
+          )}
+          <NavItem to="/rh/mail" icon={<Mail size={18} />} label="Modèles mail" />
+        </nav>
 
         {/* Navigation inter-espaces (Responsable + Admin) */}
         {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (

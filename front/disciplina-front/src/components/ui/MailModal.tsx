@@ -44,6 +44,13 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
   const [to, setTo] = useState(defaultTo)
   const [subject, setSubject] = useState(defaultSubject ?? defaultTemplate?.subject ?? '')
   const [body, setBody] = useState(defaultBody ?? (defaultTemplate ? `${defaultTemplate.body}${sigHtml}` : sigHtml))
+
+  // La signature se charge en async (Drive) : dès qu'elle arrive, on l'ajoute au corps
+  // si elle n'y est pas déjà — couvre aussi le cas d'un corps par défaut (ex. relance).
+  useEffect(() => {
+    if (!sigHtml) return
+    setBody((prev) => (prev.includes('alt="signature"') ? prev : `${prev}${sigHtml}`))
+  }, [sigHtml])
   const [attachments, setAttachments] = useState<MailAttachment[]>(defaultAttachments ?? [])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)

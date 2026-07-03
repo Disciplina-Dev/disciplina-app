@@ -7,10 +7,12 @@ import {
     getCompanyRelanceHistory,
 } from './controller';
 import { authenticate } from '../middleware/auth';
+import { requireRoles } from '../middleware/roleGuard';
 
 export const router: Router = Router();
 
-router.post('/api/relance/send', express.json(), authenticate, sendRelance);
+// Relance candidats : réservée aux profils RH (les routes company gardent leur guard interne).
+router.post('/api/relance/send', express.json(), authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH'), sendRelance);
 router.get('/api/relance/response', handleResponse);
 
 // Relances entreprise (commercial) : mail / téléphone + historique.

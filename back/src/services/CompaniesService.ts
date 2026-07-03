@@ -70,6 +70,12 @@ export class CompaniesService {
         return row ? toCompanies(row) : null;
     }
 
+    async findByName(name: string): Promise<Companies | null> {
+        if (!name || name.trim() === '') return null;
+        const row = await this.repository.findByName(name.trim());
+        return row ? toCompanies(row) : null;
+    }
+
     async create(data: Partial<CompaniesRow>): Promise<Companies> {
         this.validateCreateData(data);
         const siret = data.siret as string;

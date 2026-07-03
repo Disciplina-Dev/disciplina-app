@@ -197,7 +197,9 @@ def build_sales_candidate(row: list) -> dict:
         "job_info": job_info,
         "desired_sectors": parse_sales_sectors(row),
     }
-    if interview_date:
+    # Une date d'entretien future (typo année dans le fichier source) fausserait
+    # le tri "plus récent d'abord" : on n'importe jamais un created_at futur.
+    if interview_date and interview_date <= datetime.now():
         doc["created_at"] = interview_date
     return doc
 
@@ -259,7 +261,8 @@ def build_secretariat_candidate(row: dict) -> dict:
         "expected_company_skills": parse_expected_skills(row.get("SPÉCIALITÉ ")),
     }
     created_at = parse_fr_date(row.get("DATE "))
-    if created_at:
+    # Même garde-fou que côté vente : pas de created_at futur.
+    if created_at and created_at <= datetime.now():
         doc["created_at"] = created_at
     return doc
 

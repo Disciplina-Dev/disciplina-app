@@ -122,6 +122,10 @@ type ABForm = {
   // préconisations pédagogiques (clés camel sélectionnées) + zone libre
   pedagogicalRecommendations: string[];
   otherRecommendations: string;
+  // synthèse (chargé(e) de recrutement)
+  feasibilityConclusion: string;
+  pathwayRelevance: string;
+  specialNeeds: string;
   // note importante + signature de l'apprenti (data-URL PNG)
   importantNote: string;
   candidateSignature: string;
@@ -183,6 +187,9 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     discoverySource: '',
     pedagogicalRecommendations: [],
     otherRecommendations: '',
+    feasibilityConclusion: '',
+    pathwayRelevance: '',
+    specialNeeds: '',
     importantNote: '',
     candidateSignature: '',
   };
@@ -265,6 +272,9 @@ function candidateToForm(c: Candidate): ABForm {
       ? PEDA_OPTIONS.filter(o => c.synthesis!.pedagogical_recommendations![o.snake]).map(o => o.camel)
       : [],
     otherRecommendations: c.synthesis?.other_recommendations ?? '',
+    feasibilityConclusion: c.synthesis?.feasibility_conclusion ?? '',
+    pathwayRelevance: c.synthesis?.pathway_relevance ?? '',
+    specialNeeds: c.synthesis?.special_needs ?? '',
     importantNote: c.synthesis?.important_note ?? '',
     candidateSignature: c.synthesis?.candidate_signature ?? '',
   };
@@ -338,6 +348,9 @@ function toServerInput(f: ABForm) {
     synthesis: {
       importantNote: f.importantNote || undefined,
       candidateSignature: f.candidateSignature || undefined,
+      feasibilityConclusion: f.feasibilityConclusion || undefined,
+      pathwayRelevance: f.pathwayRelevance || undefined,
+      specialNeeds: f.specialNeeds || undefined,
       otherRecommendations: f.otherRecommendations || undefined,
       pedagogicalRecommendations: Object.fromEntries(
         PEDA_OPTIONS.map(o => [o.camel, f.pedagogicalRecommendations.includes(o.camel)]),
@@ -784,6 +797,12 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             ))}
           </div>
           <ABTextarea label="Autres préconisations" value={form.otherRecommendations} onChange={v => set('otherRecommendations', v)} rows={2} />
+
+          {/* Synthèse */}
+          <ABSectionTitle title="Synthèse" />
+          <ABTextarea label="Conclusion de faisabilité" value={form.feasibilityConclusion} onChange={v => set('feasibilityConclusion', v)} rows={3} />
+          <ABTextarea label="Pertinence du parcours" value={form.pathwayRelevance} onChange={v => set('pathwayRelevance', v)} rows={2} />
+          <ABTextarea label="Besoins spécifiques" value={form.specialNeeds} onChange={v => set('specialNeeds', v)} rows={2} />
 
           {/* Note importante */}
           <ABSectionTitle title="Note importante" />

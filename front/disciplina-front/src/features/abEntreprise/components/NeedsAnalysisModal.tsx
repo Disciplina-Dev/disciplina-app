@@ -65,6 +65,7 @@ interface FormData {
   recruitmentResponsibleEmail: string
   companySectors: string[]
   opco: Opco | undefined
+  companySectorOther: string
   companyDescriptionOther: string
   jobDescriptionOther: string
   softSkills: string[]
@@ -108,6 +109,11 @@ const SECTEURS = [
   'Immobilier',
   'Éducation / Formation',
   'Agriculture / Agroalimentaire',
+  'Restauration rapide',
+  'Station service',
+  'Boulangerie / Pâtisserie',
+  'Libre Service',
+  'Enseignement de la conduite',
 ]
 
 const OPCO_OPTIONS: { value: Opco; label: string }[] = [
@@ -483,6 +489,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       recruitmentResponsiblePhone:    '',
       recruitmentResponsibleEmail:    '',
       companySectors:           [],
+      companySectorOther:       '',
       opco:                     undefined,
       companyDescriptionOther:  '',
       jobDescriptionOther:      '',
@@ -622,7 +629,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       userID:             currentUser.id,
       legalRepFunction:   resolveFunction(data.legalRepFunction, data.legalRepFunctionOther),
       ...responsible,
-      companySectors:     companySectors,
+      companySectors:     [...companySectors, ...(data.companySectorOther.trim() ? [data.companySectorOther.trim()] : [])],
       opco:               data.opco || null,
       companyDescription: data.companyDescriptionOther || null,
       positionsCount:     postes.length,
@@ -825,6 +832,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   onChange={(v) => setValue('companySectors', v)}
                   columns={2}
                 />
+
+                <InputField id="companySectorOther" label="Autre secteur d'activité (optionnel)"
+                  placeholder="Précisez un autre secteur…"
+                  {...register('companySectorOther')} />
 
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="opco" className="text-sm font-medium text-gray-700">

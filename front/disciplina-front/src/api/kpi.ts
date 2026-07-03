@@ -52,6 +52,53 @@ export interface KpiWeeklyDetail {
   weeks: KpiWeekEntry[];
 }
 
+export interface KpiSiteOverview {
+  site: KpiSite;
+  totals: KpiMetrics;
+  users: { userId: number | null; userName: string; totals: KpiMetrics }[];
+}
+
+export interface KpiOverview {
+  year: number;
+  totals: KpiMetrics;
+  sites: KpiSiteOverview[];
+}
+
+/**
+ * Source des graphiques/tableaux :
+ * - 'combine' : Excel prioritaire, portefeuille en complément (zéro doublon) ;
+ * - 'portefeuille' : activité datée du CRM seule ;
+ * - 'excel' : table commercial_kpi seule (imports + saisie manuelle).
+ */
+export type KpiSource = 'combine' | 'portefeuille' | 'excel';
+
+/** Activité datée du portefeuille — mêmes formes que summary/weekly. */
+export interface KpiActivity {
+  summary: KpiAnnualSummary;
+  weekly: KpiWeeklyDetail;
+}
+
+/** Snapshot temps réel calculé depuis le portefeuille (companies + contact_logs). */
+export interface KpiLiveSnapshot {
+  totals: KpiMetrics;
+  sites: KpiSiteOverview[];
+}
+
+export interface KpiUserSiteDetail {
+  site: KpiSite;
+  totals: KpiMetrics;
+  months: KpiMonthEntry[];
+  weeks: { week: number; month: number; metrics: KpiMetrics }[];
+}
+
+export interface KpiUserDetail {
+  year: number;
+  userId: number;
+  userName: string;
+  totals: KpiMetrics;
+  sites: KpiUserSiteDetail[];
+}
+
 export interface KpiUpsertInput {
   /** Commercial ciblé : un vrai user (plus de nom libre). */
   user_id: number;
@@ -112,6 +159,31 @@ export async function fetchKpiSummary(token: string, year: number, site: KpiSite
 export async function fetchKpiWeekly(token: string, year: number, site: KpiSite): Promise<KpiWeeklyDetail> {
   const res = await kpiFetch(token, `/weekly?year=${year}&site=${site}`);
   return (await res.json()) as KpiWeeklyDetail;
+}
+
+export async function fetchKpiActivity(token: string, year: number, site: KpiSite): Promise<KpiActivity> {
+  const res = await kpiFetch(token, `/activity?year=${year}&site=${site}`);
+  return (await res.json()) as KpiActivity;
+}
+
+export async function fetchKpiCombined(token: string, year: number, site: KpiSite): Promise<KpiActivity> {
+  const res = await kpiFetch(token, `/combined?year=${year}&site=${site}`);
+  return (await res.json()) as KpiActivity;
+}
+
+export async function fetchKpiLive(token: string): Promise<KpiLiveSnapshot> {
+  const res = await kpiFetch(token, '/live');
+  return (await res.json()) as KpiLiveSnapshot;
+}
+
+export async function fetchKpiOverview(token: string, year: number): Promise<KpiOverview> {
+  const res = await kpiFetch(token, `/overview?year=${year}`);
+  return (await res.json()) as KpiOverview;
+}
+
+export async function fetchKpiUserDetail(token: string, userId: number, year: number): Promise<KpiUserDetail> {
+  const res = await kpiFetch(token, `/user/${userId}?year=${year}`);
+  return (await res.json()) as KpiUserDetail;
 }
 
 export async function saveKpi(token: string, input: KpiUpsertInput): Promise<void> {

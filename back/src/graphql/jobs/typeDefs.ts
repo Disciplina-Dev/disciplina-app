@@ -179,11 +179,84 @@ export const typeDefs = gql`
         matchedCandidate: [MatchingCandidateInput]
     }
 
+    type CompanyInfo {
+        id: Int
+        name: String
+        legalReferent: String
+        phone: String
+        email: String
+        address: String
+        sector: String
+        mainActivity: String
+        siret: String
+        idcc: String
+        ape: String
+        notes: String
+        conclusion: String
+        status: String
+    }
+
+    type AbPositionInfo {
+        trainingDomain: String
+        jobTitle: String
+        selectedMissions: [String!]!
+        localisation: String
+    }
+
+    type AbInfo {
+        id: Int
+        legalRepFunction: String
+        recruitmentResponsibleName: String
+        recruitmentResponsiblePhone: String
+        recruitmentResponsibleEmail: String
+        recruitmentResponsibleFunction: String
+        companySectors: [String!]!
+        companyDescription: String
+        opco: String
+        referralSource: String
+        positionsCount: Int
+        positions: [AbPositionInfo!]!
+        jobDescriptionOther: String
+        drivingLicense: String
+        experienceRequired: String
+        ageMin: Int
+        ageMax: Int
+        softSkills: String
+        conditions: String
+        additionalComments: String
+        recruitmentMethod: String
+        immersionPeriod: String
+        trainingDays: String
+        status: String
+        createdAt: String
+    }
+
+    type JobCompanyInfo {
+        companyName: String
+        company: CompanyInfo
+        ab: AbInfo
+    }
+
+    enum PlacementKind {
+        IMMERSING
+        CONTRACT
+    }
+
+    """Placement courant d'un candidat (immersion ou contrat), dérivé des offres."""
+    type CandidatePlacement {
+        companyName: String
+        kind: PlacementKind!
+        since: String
+        immersionEndDate: String
+    }
+
     type Query {
         jobs: [Job!]!
         matchJob(id: String!): Job!
+        jobCompanyInfo(jobId: String!): JobCompanyInfo!
         offerResponseLinks(jobId: String!, candidateId: String!): OfferLinks!
         candidateMatchedJobIds(candidateId: String!): [String!]!
+        candidatePlacement(candidateId: String!): CandidatePlacement
     }
 
     type Mutation {

@@ -11,7 +11,7 @@ import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
 import { jobGraphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_JOB_IDS } from '@/graphql/queries'
+import { GET_CANDIDATE_MATCHED_JOB_IDS, GET_CANDIDATE_PLACEMENT } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
@@ -108,6 +108,14 @@ function buildCandidateSummary(c: Candidate): string {
   if (atouts.length) parts.push(atouts.join(' ; ').replace(/^./, (ch) => ch.toUpperCase()) + '.')
 
   return parts.join(' ')
+}
+
+// Placement courant (immersion/contrat) renvoyé par le endpoint jobs.
+interface CandidatePlacement {
+  companyName: string | null
+  kind: 'IMMERSING' | 'CONTRACT'
+  since: string | null
+  immersionEndDate: string | null
 }
 
 // ─── Drive file types ─────────────────────────────────────────────────────────
@@ -222,6 +230,7 @@ export default function FicheCandidat() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [confirmedJobIds, setConfirmedJobIds] = useState<Set<string>>(new Set())
+  const [placement, setPlacement] = useState<CandidatePlacement | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [immersionModalOpen, setImmersionModalOpen] = useState(false)
@@ -299,6 +308,18 @@ export default function FicheCandidat() {
       }
     })
   }, [id])
+
+  // Placement courant (immersion/contrat) dérivé des offres, seulement si le statut le justifie.
+  useEffect(() => {
+    if (!id || !formData) return
+    if (formData.status !== CandidateStatus.IMMERSING && formData.status !== CandidateStatus.CONTRACT) {
+      setPlacement(null)
+      return
+    }
+    jobGraphqlClient.query(GET_CANDIDATE_PLACEMENT, { candidateId: id }).toPromise().then((result) => {
+      setPlacement(result.data?.candidatePlacement ?? null)
+    })
+  }, [id, formData?.status])
 
   const handleDriveUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : []
@@ -597,7 +618,22 @@ export default function FicheCandidat() {
                       Senior
                     </span>
                   )}
-                  {formData.status === CandidateStatus.IMMERSING && (formData.immersion_start_date || formData.immersion_end_date) && (
+                  {placement ? (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
+                      {placement.kind === 'IMMERSING' ? (
+                        <>
+                          En immersion{placement.companyName ? ` chez ${placement.companyName}` : ''}
+                          {placement.since ? ` depuis le ${new Date(placement.since).toLocaleDateString('fr-FR')}` : ''}
+                          {placement.immersionEndDate ? ` (fin le ${new Date(placement.immersionEndDate).toLocaleDateString('fr-FR')})` : ''}
+                        </>
+                      ) : (
+                        <>
+                          En contrat{placement.companyName ? ` avec ${placement.companyName}` : ''}
+                          {placement.since ? ` depuis le ${new Date(placement.since).toLocaleDateString('fr-FR')}` : ''}
+                        </>
+                      )}
+                    </span>
+                  ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_start_date || formData.immersion_end_date) && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       Immersion : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
                     </span>

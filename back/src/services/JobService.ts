@@ -1,5 +1,8 @@
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
+import { NeedsAnalysisRepository } from '../repositories/mysql/NeedsAnalysisRepository';
+import { toNeedsAnalysis } from './mappers/needsAnalysis.mapper';
+import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
 import { CandidateHistoryService } from './CandidateHistoryService';
@@ -123,10 +126,47 @@ export class JobService {
     private candidateRepository = new CandidateRepository();
     private candidateService = new CandidateService();
     private candidateHistoryService = new CandidateHistoryService();
+    private needsAnalysisRepository = new NeedsAnalysisRepository();
+    private companiesService = new CompaniesService();
 
     async findAll(): Promise<object[]> {
         const jobs = await this.repository.findAll();
         return jobs.map(toGql);
+    }
+
+    /**
+     * Toutes les infos entreprise liées à une offre de matching : la fiche CRM
+     * (companies) + l'analyse du besoin (needs_analysis) qui a généré l'offre.
+     * Accessible au RH depuis le matching (le job porte needs_analysis_id → AB → company_id).
+     */
+    async getCompanyInfo(jobId: string): Promise<object | null> {
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
+
+        let ab = null;
+        let company = null;
+
+        // Chemin normal : le job a été généré depuis une AB (needs_analysis_id).
+        if (job.needs_analysis_id) {
+            const abRow = await this.needsAnalysisRepository.findById(job.needs_analysis_id);
+            if (abRow) {
+                ab = toNeedsAnalysis(abRow);
+                company = await this.companiesService.findById(ab.companyID);
+            }
+        }
+
+        // Fallback (jobs importés / seedés sans lien direct) : on retrouve la
+        // fiche entreprise par sa raison sociale, puis sa dernière AB s'il y en a une.
+        if (!company && job.company_name) {
+            company = await this.companiesService.findByName(job.company_name);
+        }
+        if (!ab && company) {
+            const abRows = await this.needsAnalysisRepository.findByCompanyId(company.id);
+            const latest = abRows.sort((a, b) => b.id - a.id)[0];
+            if (latest) ab = toNeedsAnalysis(latest);
+        }
+
+        return { companyName: job.company_name ?? company?.name ?? null, company, ab };
     }
 
     async find(id: string): Promise<object | null> {
@@ -195,6 +235,55 @@ export class JobService {
 
     async getMatchedJobIds(candidateId: string): Promise<string[]> {
         return this.repository.findJobIdsWithCandidate(candidateId);
+    }
+
+    /**
+     * Placement courant du candidat (immersion ou contrat) dérivé des offres.
+     * Contrat prioritaire sur immersion. La date de début de contrat n'étant pas
+     * stockée sur l'offre, elle est retrouvée via l'entrée d'historique écrite au
+     * moment de la conclusion.
+     */
+    async getCandidatePlacement(candidateId: string): Promise<object | null> {
+        const jobs = await this.repository.findPlacementJobs(candidateId);
+
+        let contract: { job: Job; pc: ProposedCandidate } | null = null;
+        let immersion: { job: Job; pc: ProposedCandidate } | null = null;
+        for (const job of jobs) {
+            const pc = job.proposed_candidate?.find((c) => c.id === candidateId);
+            if (!pc) continue;
+            if (
+                pc.interview_conclusion === InterviewConclusion.CONTRACT ||
+                pc.immersion_conclusion === ImmersionConclusion.CONTRACT
+            ) {
+                contract = { job, pc };
+            } else if (
+                pc.interview_conclusion === InterviewConclusion.IMMERSING &&
+                pc.immersion_conclusion !== ImmersionConclusion.REJECTED
+            ) {
+                immersion = { job, pc };
+            }
+        }
+
+        const hit = contract ?? immersion;
+        if (!hit) return null;
+
+        const kind = contract ? 'CONTRACT' : 'IMMERSING';
+        let since: string | null = null;
+        if (kind === 'IMMERSING') {
+            since = hit.pc.immersion_start_date ?? null;
+        } else {
+            const entries = await this.candidateHistoryService.findByCandidate(candidateId);
+            const company = hit.job.company_name;
+            const entry = company ? entries.find((e) => e.description?.includes(`contrat avec ${company}`)) : undefined;
+            since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
+        }
+
+        return {
+            companyName: hit.job.company_name ?? null,
+            kind,
+            since,
+            immersionEndDate: kind === 'IMMERSING' ? (hit.pc.immersion_end_date ?? null) : null,
+        };
     }
 
     async updateMatchedCandidateStatus(jobId: string, candidateId: string, status: string): Promise<object | null> {

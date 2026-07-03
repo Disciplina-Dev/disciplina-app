@@ -981,6 +981,62 @@ export const GET_JOBS = gql`
   }
 `
 
+export const GET_JOB_COMPANY_INFO = gql`
+  query JobCompanyInfo($jobId: String!) {
+    jobCompanyInfo(jobId: $jobId) {
+      companyName
+      company {
+        id
+        name
+        legalReferent
+        phone
+        email
+        address
+        sector
+        mainActivity
+        siret
+        idcc
+        ape
+        notes
+        conclusion
+        status
+      }
+      ab {
+        id
+        legalRepFunction
+        recruitmentResponsibleName
+        recruitmentResponsiblePhone
+        recruitmentResponsibleEmail
+        recruitmentResponsibleFunction
+        companySectors
+        companyDescription
+        opco
+        referralSource
+        positionsCount
+        positions {
+          trainingDomain
+          jobTitle
+          selectedMissions
+          localisation
+        }
+        jobDescriptionOther
+        drivingLicense
+        experienceRequired
+        ageMin
+        ageMax
+        softSkills
+        conditions
+        additionalComments
+        recruitmentMethod
+        immersionPeriod
+        trainingDays
+        status
+        createdAt
+      }
+    }
+  }
+`
+
 export const MATCH_JOB = gql`
   query MatchJob($id: String!) {
     matchJob(id: $id) {
@@ -1239,6 +1295,17 @@ export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
 export const GET_CANDIDATE_MATCHED_JOB_IDS = gql`
   query GetCandidateMatchedJobIds($candidateId: String!) {
     candidateMatchedJobIds(candidateId: $candidateId)
+  }
+`
+
+export const GET_CANDIDATE_PLACEMENT = gql`
+  query GetCandidatePlacement($candidateId: String!) {
+    candidatePlacement(candidateId: $candidateId) {
+      companyName
+      kind
+      since
+      immersionEndDate
+    }
   }
 `
 

@@ -141,7 +141,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Modèles de mail</h2>
-            <p className="text-sm text-gray-400 mt-0.5">Créez vos propres modèles réutilisables · enregistrés sur le serveur</p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {scope === 'rh'
+                ? 'Modèles communs à toute l’équipe RH · enregistrés sur le serveur'
+                : 'Créez vos propres modèles réutilisables · enregistrés sur le serveur'}
+            </p>
           </div>
           <Button size="sm" leftIcon={<Plus size={15} />} onClick={openNew}>
             Nouveau modèle
