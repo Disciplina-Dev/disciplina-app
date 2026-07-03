@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Plus, Pencil, Trash2, X, Save, Mail, ImagePlus, Paperclip, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Pencil, Trash2, X, Mail, Paperclip, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
@@ -39,13 +39,12 @@ const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boo
 ]
 
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
-  const { templates, signatureImage, loading, loaded, error: storeError, load, add, update, remove, setSignature, removeSignature } =
+  const { templates, loading, loaded, error: storeError, load, add, update, remove } =
     useMailTemplatesStore(scope)
   const [editing, setEditing] = useState<MailTemplate | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [sigSaved, setSigSaved] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
 
   useEffect(() => { load() }, [load])
@@ -109,32 +108,10 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
     }
   }
 
-  async function handleSaveSignature(file: File) {
-    setError(null)
-    try {
-      await setSignature(file)
-      setSigSaved(true)
-      setTimeout(() => setSigSaved(false), 2000)
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de l’enregistrement de la signature.')
-    }
-  }
-
   const attachmentLabel = form.newFile?.name ?? form.existingAttachment?.filename ?? null
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-8">
-
-      {/* ── Signature ───────────────────────────────────────── */}
-      <section className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Signature</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Ajoutée automatiquement à chaque mail · stockée sur votre Drive</p>
-        </div>
-        <SignatureEditor value={signatureImage} onSave={handleSaveSignature} onRemove={removeSignature} saved={sigSaved} />
-      </section>
-
-      <div className="border-t border-gray-100" />
 
       {/* ── Modèles ─────────────────────────────────────────── */}
       <section className="flex flex-col gap-4">
@@ -318,64 +295,3 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   )
 }
 
-// ── Signature sub-component ──────────────────────────────────────────────────
-
-function SignatureEditor({
-  value,
-  onSave,
-  onRemove,
-  saved,
-}: {
-  value: string
-  onSave: (file: File) => void
-  onRemove: () => void
-  saved: boolean
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [preview, setPreview] = useState(value)
-  const [file, setFile] = useState<File | null>(null)
-
-  useEffect(() => { setPreview(value); setFile(null) }, [value])
-
-  function handleFile(f: File | undefined) {
-    if (!f) return
-    setFile(f)
-    const reader = new FileReader()
-    reader.onload = () => setPreview(reader.result as string)
-    reader.readAsDataURL(f)
-  }
-
-  return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 flex flex-col gap-4">
-      {preview ? (
-        <div className="flex flex-col gap-3">
-          <img src={preview} alt="Signature" className="w-full max-w-[480px] h-auto object-contain" />
-          <button
-            onClick={() => { setPreview(''); setFile(null); onRemove() }}
-            className="self-start text-xs text-red-400 hover:text-red-600 transition-colors"
-          >
-            Supprimer
-          </button>
-        </div>
-      ) : (
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 py-8 text-gray-400 hover:border-blue hover:text-blue transition-colors">
-          <ImagePlus size={22} />
-          <span className="text-sm">Cliquer pour importer votre signature (PNG, JPG)</span>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
-            className="hidden"
-            onChange={(e) => handleFile(e.target.files?.[0])}
-          />
-        </label>
-      )}
-
-      <div className="flex justify-end">
-        <Button size="sm" leftIcon={<Save size={15} />} disabled={!file} onClick={() => file && onSave(file)}>
-          {saved ? 'Sauvegardé !' : 'Sauvegarder la signature'}
-        </Button>
-      </div>
-    </div>
-  )
-}
