@@ -25,6 +25,7 @@ export interface TodoRow {
     status: TodoStatus;
     source: TodoSource;
     source_ref: string | null;
+    deleted: number;
     created_at: string;
     updated_at: string;
 }
@@ -33,6 +34,7 @@ export interface CreateTodoInput {
     title: string;
     description?: string | null;
     deadline?: string | null;
+    status?: TodoStatus;
 }
 
 export interface UpdateTodoInput {

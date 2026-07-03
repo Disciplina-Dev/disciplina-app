@@ -4,14 +4,32 @@ import { TodoRow, CreateTodoInput, UpdateTodoInput, TodoSource } from '../../typ
 export class TodoRepository {
     async findByUser(userId: number): Promise<TodoRow[]> {
         return query<TodoRow[]>(
-            'SELECT * FROM todos WHERE user_id = ? ORDER BY position ASC, deadline ASC, created_at ASC',
+            'SELECT * FROM todos WHERE user_id = ? AND deleted = 0 ORDER BY position ASC, deadline ASC, created_at ASC',
             [userId],
         );
     }
 
     async findById(id: number, userId: number): Promise<TodoRow | null> {
-        const rows = await query<TodoRow[]>('SELECT * FROM todos WHERE id = ? AND user_id = ?', [id, userId]);
+        const rows = await query<TodoRow[]>('SELECT * FROM todos WHERE id = ? AND user_id = ? AND deleted = 0', [id, userId]);
         return rows[0] ?? null;
+    }
+
+    /** All source_refs for a user matching a prefix, soft-deleted rows included (dedup key). */
+    async findSourceRefsByPrefix(userId: number, prefix: string): Promise<string[]> {
+        const rows = await query<{ source_ref: string }[]>(
+            "SELECT source_ref FROM todos WHERE user_id = ? AND source = 'SYSTEM' AND source_ref LIKE ?",
+            [userId, `${prefix}%`],
+        );
+        return rows.map((r) => r.source_ref);
+    }
+
+    /** Hard-delete stale SYSTEM todos: prefix matches, ref no longer valid, not DONE. */
+    async deleteStaleSystemTodos(userId: number, prefix: string, validRefs: string[]): Promise<void> {
+        const notIn = validRefs.length ? `AND source_ref NOT IN (${validRefs.map(() => '?').join(',')})` : '';
+        await query(
+            `DELETE FROM todos WHERE user_id = ? AND source = 'SYSTEM' AND source_ref LIKE ? ${notIn} AND status != 'DONE'`,
+            [userId, `${prefix}%`, ...validRefs],
+        );
     }
 
     async create(userId: number, input: CreateTodoInput, source: TodoSource = 'MANUAL', sourceRef?: string): Promise<number> {
@@ -23,8 +41,8 @@ export class TodoRepository {
 
         const result = await query<any>(
             `INSERT INTO todos (user_id, title, description, deadline, position, status, source, source_ref)
-             VALUES (?, ?, ?, ?, ?, 'TODO', ?, ?)`,
-            [userId, input.title, input.description ?? null, input.deadline ?? null, position, source, sourceRef ?? null],
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [userId, input.title, input.description ?? null, input.deadline ?? null, position, input.status ?? 'TODO', source, sourceRef ?? null],
         );
         return result.insertId as number;
     }
@@ -55,6 +73,12 @@ export class TodoRepository {
     }
 
     async delete(id: number, userId: number): Promise<void> {
-        await query('DELETE FROM todos WHERE id = ? AND user_id = ?', [id, userId]);
+        // SYSTEM todos are soft-deleted so the sweep does not recreate them
+        // (source_ref stays as dedup key); MANUAL todos are hard-deleted.
+        await query(
+            "UPDATE todos SET deleted = 1 WHERE id = ? AND user_id = ? AND source = 'SYSTEM'",
+            [id, userId],
+        );
+        await query("DELETE FROM todos WHERE id = ? AND user_id = ? AND source = 'MANUAL'", [id, userId]);
     }
 }

@@ -143,6 +143,15 @@ export class CompanyRepository {
         return query<CompaniesRow[]>('SELECT * FROM companies WHERE user_id = ?', [userID]);
     }
 
+    /** Companies of a commercial whose relance date is due (today or past). */
+    async findDueRelancesByUser(userID: number): Promise<{ id: number; name: string; relance_date: string }[]> {
+        return query<{ id: number; name: string; relance_date: string }[]>(
+            `SELECT id, name, DATE_FORMAT(relance_date, '%Y-%m-%d') AS relance_date
+             FROM companies WHERE user_id = ? AND relance_date IS NOT NULL AND relance_date <= CURDATE()`,
+            [userID],
+        );
+    }
+
     async findBySiret(siret: string): Promise<CompaniesRow | null> {
         const sql = siret.includes('%')
             ? 'SELECT * FROM companies WHERE siret LIKE ?'

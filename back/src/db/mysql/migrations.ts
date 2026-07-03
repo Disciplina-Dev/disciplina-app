@@ -32,6 +32,8 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     // Historique des modifications enrichi : auteur de la modif + statut avant changement.
     { table: 'company_history', column: 'modified_by', definition: 'INT DEFAULT NULL' },
     { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },
+    // Todos : soft delete des todos SYSTEM pour ne pas recréer une relance supprimée par l'utilisateur.
+    { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
 ];
 
 /**
@@ -215,6 +217,28 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             sector VARCHAR(64) NOT NULL PRIMARY KEY,
             location VARCHAR(255) NOT NULL DEFAULT '',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`,
+    },
+    {
+        // Todo list personnelle (une ligne = un todo d'un user). source=SYSTEM pour
+        // les todos créés automatiquement (AB signé, relance échue) avec source_ref
+        // comme clé de déduplication ; deleted=1 = soft delete (ne pas recréer).
+        table: 'todos',
+        ddl: `CREATE TABLE IF NOT EXISTS todos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT DEFAULT NULL,
+            deadline DATE DEFAULT NULL,
+            position INT NOT NULL DEFAULT 0,
+            status ENUM('TODO', 'IN_PROGRESS', 'DONE') NOT NULL DEFAULT 'TODO',
+            source ENUM('MANUAL', 'SYSTEM') NOT NULL DEFAULT 'MANUAL',
+            source_ref VARCHAR(255) DEFAULT NULL,
+            deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            INDEX idx_todos_user (user_id)
         )`,
     },
 ];

@@ -1,5 +1,8 @@
 import { TodoRepository } from '../repositories/mysql/TodoRepository';
+import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { Todo, TodoRow, CreateTodoInput, UpdateTodoInput } from '../types/todo.types';
+
+const RELANCE_REF_PREFIX = 'relance:';
 
 function toTodo(row: TodoRow): Todo {
     return {
@@ -19,10 +22,32 @@ function toTodo(row: TodoRow): Todo {
 
 export class TodoService {
     private repo = new TodoRepository();
+    private companyRepo = new CompanyRepository();
 
     async listForUser(userId: number): Promise<Todo[]> {
+        await this.syncRelanceTodos(userId);
         const rows = await this.repo.findByUser(userId);
         return rows.map(toTodo);
+    }
+
+    /**
+     * Sweep run on todo-list load: one SYSTEM todo per (company, relanceDate) due
+     * today or earlier, keyed by source_ref "relance:<companyId>:<date>". A todo
+     * deleted by the user stays soft-deleted (never recreated for the same date);
+     * when the relance date changes or is cleared, stale non-DONE todos are removed.
+     */
+    private async syncRelanceTodos(userId: number): Promise<void> {
+        const due = await this.companyRepo.findDueRelancesByUser(userId);
+        const validRefs = due.map((c) => `${RELANCE_REF_PREFIX}${c.id}:${c.relance_date}`);
+
+        await this.repo.deleteStaleSystemTodos(userId, RELANCE_REF_PREFIX, validRefs);
+
+        const existing = new Set(await this.repo.findSourceRefsByPrefix(userId, RELANCE_REF_PREFIX));
+        // Sequential: create() computes MAX(position) per insert.
+        for (const [i, c] of due.entries()) {
+            const ref = validRefs[i];
+            if (!existing.has(ref)) await this.createSystemTodo(userId, `Relancer ${c.name}`, ref);
+        }
     }
 
     async create(userId: number, input: CreateTodoInput): Promise<Todo> {

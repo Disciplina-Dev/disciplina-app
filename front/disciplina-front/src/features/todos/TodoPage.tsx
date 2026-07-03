@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
-  Plus, GripVertical, Check, Trash2, Pencil, X, Calendar, Bot,
+  Plus, GripVertical, Trash2, Pencil, X, Calendar, Bot,
   ChevronDown, ChevronUp, Circle, Clock, CheckCircle2,
 } from 'lucide-react'
 import { useAuthStore, UserRole } from '@/store/authStore'
@@ -146,13 +146,12 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
 
 interface TodoCardProps {
   todo: Todo
-  accent: string
   onEdit: () => void
   onDelete: () => void
   overlay?: boolean
 }
 
-function TodoCard({ todo, accent, onEdit, onDelete, overlay = false }: TodoCardProps) {
+function TodoCard({ todo, onEdit, onDelete, overlay = false }: TodoCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: todo.id })
 
@@ -292,7 +291,6 @@ function KanbanColumn({ status, label, icon, bg, accent, todos, onEdit, onDelete
               <TodoCard
                 key={todo.id}
                 todo={todo}
-                accent={accent}
                 onEdit={() => onEdit(todo)}
                 onDelete={() => onDelete(todo.id)}
               />
@@ -432,7 +430,7 @@ export default function TodoPage() {
   )
 
   const handleCreate = async (title: string, description: string, deadline: string) => {
-    await createTodo({ input: { title, description: description || null, deadline: deadline || null } })
+    await createTodo({ input: { title, description: description || null, deadline: deadline || null, status: defaultStatus } })
     setShowForm(false)
     refetch({ requestPolicy: 'network-only' })
   }
@@ -502,7 +500,6 @@ export default function TodoPage() {
             {activeTodo && (
               <TodoCard
                 todo={activeTodo}
-                accent={accent}
                 onEdit={() => {}}
                 onDelete={() => {}}
                 overlay

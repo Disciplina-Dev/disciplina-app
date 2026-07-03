@@ -30,6 +30,7 @@ export const todoTypeDefs = gql`
         title: String!
         description: String
         deadline: String
+        status: TodoStatus
     }
 
     input UpdateTodoInput {
