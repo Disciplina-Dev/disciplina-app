@@ -1149,6 +1149,36 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
   }
 `
 
+export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
+  mutation AddManualProposedCandidateForImmersion(
+    $jobId: String!
+    $candidateId: String!
+    $immersionStartDate: String!
+    $immersionEndDate: String!
+    $immersionLocation: String!
+  ) {
+    addManualProposedCandidateForImmersion(
+      jobId: $jobId
+      candidateId: $candidateId
+      immersionStartDate: $immersionStartDate
+      immersionEndDate: $immersionEndDate
+      immersionLocation: $immersionLocation
+    ) {
+      id
+      proposedCandidate {
+        id
+        fullName
+        email
+        description
+        answer
+        immersionStartDate
+        immersionEndDate
+        immersionLocation
+      }
+    }
+  }
+`
+
 export const SET_INTERVIEW_CONCLUSION = gql`
   mutation SetInterviewConclusion(
     $jobId: String!

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, X, Loader2 } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATES_PAGE } from '@/graphql/queries'
 import type { Candidate } from '@/types/candidate'
+import LocationAutocompleteInput from './LocationAutocompleteInput'
 
 interface InterviewModalProps {
   job: {
@@ -16,7 +16,6 @@ interface InterviewModalProps {
 }
 
 export default function InterviewModal({ job, onSubmit, onClose }: InterviewModalProps) {
-  const token = useAuthStore((s) => s.token)
   const matchedCandidates = job.matchedCandidate ?? []
 
   const [step, setStep] = useState<'candidate' | 'details'>('candidate')
@@ -27,17 +26,11 @@ export default function InterviewModal({ job, onSubmit, onClose }: InterviewModa
   const [searchError, setSearchError] = useState('')
 
   const [location, setLocation] = useState('')
-  const [locationSearch, setLocationSearch] = useState('')
-  const [locationResults, setLocationResults] = useState<string[]>([])
-  const [locationError, setLocationError] = useState('')
-  const [locationLoading, setLocationLoading] = useState(false)
-  const [locationKO, setLocationKO] = useState(false)
 
   const [date, setDate] = useState('')
   const [hour, setHour] = useState('')
 
   const debounceCandidateRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const debounceLocationRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Filter matched candidates by name
   const matchedFiltered = matchedCandidates.filter(
@@ -81,52 +74,6 @@ export default function InterviewModal({ job, onSubmit, onClose }: InterviewModa
       if (debounceCandidateRef.current) clearTimeout(debounceCandidateRef.current)
     }
   }, [candidateSearch, matchedCandidates])
-
-  // Debounced location search
-  useEffect(() => {
-    if (debounceLocationRef.current) clearTimeout(debounceLocationRef.current)
-
-    if (locationSearch.length < 10) {
-      setLocationResults([])
-      setLocationError('')
-      return
-    }
-
-    setLocationLoading(true)
-    debounceLocationRef.current = setTimeout(async () => {
-      try {
-        const url = `${import.meta.env.VITE_API_URL}/api/sourcing/completion?input=${encodeURIComponent(locationSearch)}`;
-        const response = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const data = await response.json()
-
-        if (data.status === 'KO') {
-          setLocationKO(true)
-          setLocationResults([])
-          setLocationError('Service d\'autocomplétion est KO, rentrez manuellement l\'adresse')
-        } else if (data.status === 'OK') {
-          setLocationKO(false)
-          if (data.results?.length === 0) {
-            setLocationError('Aucune localisation ne correspond à votre entrée')
-          } else {
-            setLocationError('')
-          }
-          setLocationResults(data.results ?? [])
-        }
-      } catch {
-        setLocationKO(true)
-        setLocationResults([])
-        setLocationError('Service d\'autocomplétion est KO, rentrez manuellement l\'adresse')
-      } finally {
-        setLocationLoading(false)
-      }
-    }, 300)
-
-    return () => {
-      if (debounceLocationRef.current) clearTimeout(debounceLocationRef.current)
-    }
-  }, [locationSearch, token])
 
   const candidateCombined = [...matchedFiltered, ...allCandidates.filter((c) => !matchedCandidates.some((m) => m.id === c.id))]
 
@@ -197,49 +144,7 @@ export default function InterviewModal({ job, onSubmit, onClose }: InterviewModa
                 <p className="text-sm text-gray-600">{selectedCandidate?.fullName}</p>
               </div>
 
-              <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-800">Localisation</label>
-                <div className="relative">
-                  <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
-                    <Search size={16} className="text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Rechercher une adresse..."
-                      value={locationKO ? location : locationSearch}
-                      onChange={(e) => {
-                        if (!locationKO) {
-                          setLocationSearch(e.target.value)
-                        } else {
-                          setLocation(e.target.value)
-                        }
-                      }}
-                      disabled={locationKO}
-                      className="flex-1 bg-transparent outline-none text-sm disabled:text-gray-400"
-                    />
-                    {locationLoading && <Loader2 size={14} className="animate-spin text-gray-400" />}
-                  </div>
-
-                  {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
-
-                  {locationResults.length > 0 && !locationKO && (
-                    <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-gray-200 bg-white shadow-sm z-10">
-                      {locationResults.map((loc, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setLocation(loc)
-                            setLocationSearch(loc)
-                            setLocationResults([])
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"
-                        >
-                          {loc}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <LocationAutocompleteInput label="Localisation" value={location} onChange={setLocation} />
 
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-800">Date</label>
