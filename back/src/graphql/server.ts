@@ -9,20 +9,24 @@ import { UserTypeDefs } from './common.typeDefs';
 import { jwtContext } from './context';
 import { typeDefs as needsAnalysisTypeDefs } from './needsAnalysis/typeDefs';
 import { resolvers as needsAnalysisResolvers } from './needsAnalysis/resolvers';
+import { todoTypeDefs } from './todo/typeDefs';
+import { todoResolvers } from './todo/resolver';
 
 const combinedCompanyResolvers = {
     Query: {
         ...companyResolvers.Query,
         ...needsAnalysisResolvers.Query,
+        ...todoResolvers.Query,
     },
     Mutation: {
         ...companyResolvers.Mutation,
         ...needsAnalysisResolvers.Mutation,
+        ...todoResolvers.Mutation,
     },
 };
 
 export const CompanyAPI = new ApolloServer({
-    typeDefs: [UserTypeDefs, companyTypeDefs, needsAnalysisTypeDefs],
+    typeDefs: [UserTypeDefs, companyTypeDefs, needsAnalysisTypeDefs, todoTypeDefs],
     resolvers: combinedCompanyResolvers,
     context: jwtContext,
 });
