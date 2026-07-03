@@ -108,7 +108,6 @@ type CandidateDecision = 'accepted' | 'dismissed' | null
 
 function formatEnum(raw: string | null | undefined): string {
   if (!raw) return '—'
-  console.log(raw);
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 

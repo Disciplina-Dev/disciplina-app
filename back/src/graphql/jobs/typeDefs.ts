@@ -216,12 +216,21 @@ export const typeDefs = gql`
         referralSource: String
         positionsCount: Int
         positions: [AbPositionInfo!]!
+        trainingDomain: String
+        jobTitle: String
+        selectedMissions: [String!]!
+        localisation: String
+        otherMissions: String
+        jobDescriptionMissions: [String!]!
         jobDescriptionOther: String
+        educationLevel: String
         drivingLicense: String
         experienceRequired: String
+        ageRequirements: [String!]!
         ageMin: Int
         ageMax: Int
         softSkills: String
+        scheduleOptions: [String!]!
         conditions: String
         additionalComments: String
         recruitmentMethod: String

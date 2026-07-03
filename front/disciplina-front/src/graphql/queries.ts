@@ -1019,12 +1019,21 @@ export const GET_JOB_COMPANY_INFO = gql`
           selectedMissions
           localisation
         }
+        trainingDomain
+        jobTitle
+        selectedMissions
+        localisation
+        otherMissions
+        jobDescriptionMissions
         jobDescriptionOther
+        educationLevel
         drivingLicense
         experienceRequired
+        ageRequirements
         ageMin
         ageMax
         softSkills
+        scheduleOptions
         conditions
         additionalComments
         recruitmentMethod

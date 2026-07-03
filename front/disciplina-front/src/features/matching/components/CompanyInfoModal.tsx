@@ -29,12 +29,21 @@ interface Ab {
   referralSource?: string
   positionsCount?: number
   positions?: Position[]
+  trainingDomain?: string
+  jobTitle?: string
+  selectedMissions?: string[]
+  localisation?: string
+  otherMissions?: string
+  jobDescriptionMissions?: string[]
   jobDescriptionOther?: string
+  educationLevel?: string
   drivingLicense?: string
   experienceRequired?: string
+  ageRequirements?: string[]
   ageMin?: number
   ageMax?: number
   softSkills?: string
+  scheduleOptions?: string[]
   conditions?: string
   additionalComments?: string
   recruitmentMethod?: string
@@ -72,6 +81,7 @@ const ENUM_LABELS: Record<string, string> = {
   NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud',
   OUI: 'Oui', NON: 'Non', OPTIONNEL: 'Optionnel', A_DISCUTER: 'À discuter',
   DEBUTANT: 'Débutant', OBLIGATOIRE: 'Obligatoire',
+  BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3',
   ALL_CV: 'Réception de tous les CV', PRESELECTION: 'Présélection par le centre', PRE_INTERVIEW: 'Pré-entretien par le centre',
   KOANN: 'Koann', E2CR: 'E2CR', FRANCE_TRAVAIL: 'France Travail', TELEVISION_PUB: 'Télévision / Pub',
   BOUCHE_A_OREILLE: 'Bouche à oreille', MISSION_LOCALE: 'Mission Locale', SALON: 'Salon', RSMA: 'RSMA', RESEAUX_SOCIAUX: 'Réseaux sociaux',
@@ -211,14 +221,29 @@ export default function CompanyInfoModal({ jobId, onClose }: CompanyInfoModalPro
                 </div>
               ))}
 
+              {(ab.positions ?? []).length === 0 && (ab.jobTitle || ab.trainingDomain) && (
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                  <p className="mb-1 text-xs font-semibold text-gray-700">Poste principal</p>
+                  <Row label="Domaine" value={lbl(ab.trainingDomain)} />
+                  <Row label="Intitulé" value={ab.jobTitle} />
+                  <Row label="Localisation" value={lbl(ab.localisation)} />
+                  <Row label="Missions" value={ab.selectedMissions?.join(', ')} />
+                </div>
+              )}
+
+              <Row label="Autres missions" value={ab.otherMissions} />
+              <Row label="Missions fiche de poste" value={ab.jobDescriptionMissions?.join(', ')} />
               <Row label="Description complémentaire des missions" value={ab.jobDescriptionOther} />
+              <Row label="Niveau d'études" value={lbl(ab.educationLevel)} />
               <Row label="Permis B" value={lbl(ab.drivingLicense)} />
               <Row label="Expérience requise" value={lbl(ab.experienceRequired)} />
+              <Row label="Exigences d'âge" value={ab.ageRequirements?.join(', ')} />
               <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin}` : '', ab.ageMax ? `à ${ab.ageMax} ans` : ''].filter(Boolean).join(' ')} />
               <Row label="Profils / soft skills" value={ab.softSkills} />
               <Row label="Méthode de recrutement" value={lbl(ab.recruitmentMethod)} />
               <Row label="Période d'immersion" value={lbl(ab.immersionPeriod)} />
               <Row label="Jours de formation possibles" value={fmtDays(ab.trainingDays)} />
+              <Row label="Options d'horaires" value={ab.scheduleOptions?.join(', ')} />
               <Row label="Conditions" value={ab.conditions} />
               <Row label="Commentaires" value={ab.additionalComments} />
               <Row label="Statut AB" value={lbl(ab.status)} />
