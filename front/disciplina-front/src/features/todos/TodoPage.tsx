@@ -324,6 +324,7 @@ export default function TodoPage() {
   const [defaultStatus, setDefaultStatus] = useState<TodoStatus>('TODO')
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
   const [activeId, setActiveId] = useState<number | null>(null)
+  const [originalCol, setOriginalCol] = useState<TodoStatus | null>(null)
 
   // Local column order: { TODO: [id,...], IN_PROGRESS: [...], DONE: [...] }
   const [colOrder, setColOrder] = useState<Record<TodoStatus, number[]>>({ TODO: [], IN_PROGRESS: [], DONE: [] })
@@ -352,7 +353,9 @@ export default function TodoPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const handleDragStart = ({ active }: DragStartEvent) => {
-    setActiveId(active.id as number)
+    const id = active.id as number
+    setActiveId(id)
+    setOriginalCol(findContainer(id))
   }
 
   const handleDragOver = ({ active, over }: DragOverEvent) => {
@@ -391,26 +394,26 @@ export default function TodoPage() {
       const activeId = active.id as number
       const overId = over.id
 
-      const activeCol = findContainer(activeId)
+      // Use originalCol (captured at dragStart, before optimistic moves)
+      const startCol = originalCol
+      const currentCol = findContainer(activeId) // after optimistic moves
       const overCol = typeof overId === 'string'
         ? (overId as TodoStatus)
         : findContainer(overId as number)
 
-      if (!activeCol || !overCol) return
+      if (!startCol || !currentCol || !overCol) return
 
-      const originalTodo = todoMap[activeId]
-
-      if (activeCol !== overCol) {
-        // Status changed
-        await updateTodo({ id: activeId, input: { status: overCol } })
+      if (startCol !== currentCol) {
+        // Status changed — currentCol is the destination after optimistic dragOver
+        await updateTodo({ id: activeId, input: { status: currentCol } })
       } else if (typeof overId === 'number' && activeId !== overId) {
         // Reordered within same column
         setColOrder((prev) => {
-          const ids = prev[activeCol]
+          const ids = prev[currentCol]
           const oldIdx = ids.indexOf(activeId)
           const newIdx = ids.indexOf(overId)
           if (oldIdx === -1 || newIdx === -1) return prev
-          return { ...prev, [activeCol]: arrayMove(ids, oldIdx, newIdx) }
+          return { ...prev, [currentCol]: arrayMove(ids, oldIdx, newIdx) }
         })
         // Persist new order for entire user todo list
         const allIds = [
@@ -425,7 +428,7 @@ export default function TodoPage() {
 
       refetch({ requestPolicy: 'network-only' })
     },
-    [colOrder, todoMap, updateTodo, reorderTodos, refetch],
+    [colOrder, originalCol, todoMap, updateTodo, reorderTodos, refetch],
   )
 
   const handleCreate = async (title: string, description: string, deadline: string) => {
