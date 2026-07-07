@@ -39,6 +39,36 @@ function dayKey(iso: string): string {
 /** Rôles dont on peut consulter l'agenda en lecture dans l'espace RH. */
 const VIEWABLE_ROLES: Role[] = [Role.RH, Role.RESPONSABLE];
 
+/**
+ * Détecte une erreur d'authentification Google (token révoqué, expiré sans refresh,
+ * compte non lié). Dans ce cas l'agenda doit être traité comme « non connecté »
+ * plutôt que comme une panne Google (502).
+ */
+function isGoogleAuthError(error: unknown): boolean {
+    const e = error as { code?: number | string; response?: { status?: number }; message?: string };
+    const status = typeof e?.code === 'number' ? e.code : e?.response?.status;
+    if (status === 401) return true;
+    return /invalid_grant|invalid_credentials|invalid_rapt|unauthorized_client|no access, refresh token/i.test(
+        String(e?.message ?? ''),
+    );
+}
+
+/**
+ * Répond à une erreur d'appel Calendar : 409 « non connecté » si le token Google
+ * est invalide (et purge les tokens périmés pour que `connected` redevienne fiable),
+ * sinon 502 avec le message métier fourni.
+ */
+async function replyCalendarError(res: Response, error: unknown, ownerId: number, fallback: string): Promise<void> {
+    if (isGoogleAuthError(error)) {
+        logger.warn({ err: error, ownerId }, 'Google tokens invalid, marking calendar as disconnected');
+        await userService.updateGoogleTokens(ownerId, null, null).catch(() => undefined);
+        res.status(409).json({ error: 'Compte Google non connecté ou accès expiré. Reconnectez le compte Google.' });
+        return;
+    }
+    logger.error({ err: error, ownerId }, fallback);
+    res.status(502).json({ error: fallback });
+}
+
 const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
     userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
@@ -191,8 +221,7 @@ export async function getEvents(req: AuthRequest, res: Response): Promise<void> 
     try {
         res.json({ events: await calendar.listEvents(timeMin, timeMax) });
     } catch (error) {
-        logger.error({ err: error }, 'Calendar events fetch failed');
-        res.status(502).json({ error: 'Échec de récupération du calendrier Google' });
+        await replyCalendarError(res, error, requestedId, 'Échec de récupération du calendrier Google');
     }
 }
 
@@ -228,8 +257,7 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
         }
         res.status(201).json({ event });
     } catch (error) {
-        logger.error({ err: error }, 'Calendar event create failed');
-        res.status(502).json({ error: 'Échec de création du créneau' });
+        await replyCalendarError(res, error, owner.id, 'Échec de création du créneau');
     }
 }
 
@@ -268,8 +296,7 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         }
         res.json({ event });
     } catch (error) {
-        logger.error({ err: error }, 'Calendar attendance update failed');
-        res.status(502).json({ error: 'Échec de mise à jour de la présence' });
+        await replyCalendarError(res, error, owner.id, 'Échec de mise à jour de la présence');
     }
 }
 
@@ -293,8 +320,7 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
         }
         res.json({ event });
     } catch (error) {
-        logger.error({ err: error }, 'Calendar event update failed');
-        res.status(502).json({ error: 'Échec de modification du créneau' });
+        await replyCalendarError(res, error, owner.id, 'Échec de modification du créneau');
     }
 }
 
@@ -315,7 +341,6 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
         }
         res.status(204).end();
     } catch (error) {
-        logger.error({ err: error }, 'Calendar event delete failed');
-        res.status(502).json({ error: 'Échec de suppression du créneau' });
+        await replyCalendarError(res, error, owner.id, 'Échec de suppression du créneau');
     }
 }
