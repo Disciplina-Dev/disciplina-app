@@ -322,8 +322,8 @@ function toServerInput(f: ABForm) {
     },
     profile: {
       strengthsAndImprovements: f.strengthsAndImprovements || undefined,
-      frenchLevel: f.frenchLevel ? parseInt(f.frenchLevel) : undefined,
-      englishLevel: f.englishLevel ? parseInt(f.englishLevel) : undefined,
+      frenchLevel: f.frenchLevel && parseInt(f.frenchLevel) >= 1 ? parseInt(f.frenchLevel) : undefined,
+      englishLevel: f.englishLevel && parseInt(f.englishLevel) >= 1 ? parseInt(f.englishLevel) : undefined,
       otherLanguages: f.otherLanguages ? f.otherLanguages.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       qualities: qualities.length ? qualities : undefined,
       defects: defects.length ? defects : undefined,
