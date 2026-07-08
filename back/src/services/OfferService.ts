@@ -71,7 +71,7 @@ function toGql(ctx: MatchingOfferContext, suggestedCandidates?: MatchingCandidat
         companyName: analysis.company_infos?.name,
         ageRange,
         desiredTP: offer.tp_type,
-        desiredSex: 'MIXTE',
+        desiredSex: offer.criteria?.desired_sex ?? 'MIXTE',
         drivingLicencseB: offer.criteria?.driving_license ?? false,
         professionalExperience: offer.criteria?.experience_required ?? false,
         status: offer.matching?.status ?? OfferStatus.NOT_MATCHED,

@@ -12,6 +12,7 @@ export interface SeedOfferInput {
     company_name?: string;
     age_range?: string;
     desired_tp?: string | null;
+    desired_sex?: string | null;
     driving_license_b?: boolean;
     professional_experience?: boolean;
     status?: OfferStatus;
@@ -41,6 +42,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
             age_max: max,
             driving_license: input.driving_license_b ?? false,
             experience_required: input.professional_experience ?? false,
+            desired_sex: input.desired_sex ?? null,
         },
         matching: {
             status: input.status ?? OfferStatus.NOT_MATCHED,

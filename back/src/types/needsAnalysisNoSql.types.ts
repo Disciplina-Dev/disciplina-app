@@ -102,6 +102,7 @@ export interface OfferCriteria {
     training_domain?: TrainingDomain | null;
     age_min?: number | null;
     age_max?: number | null;
+    desired_sex?: string | null;
     soft_skills?: string | null;
     schedule_options?: string[];
     conditions?: string | null;
