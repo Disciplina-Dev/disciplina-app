@@ -9,12 +9,12 @@ export function verifyRelanceUrl(id: string, answer: string, sig: string): boole
     return hmac.verify(env.RELANCE_HMAC_SECRET, `${id}:${answer}`, sig);
 }
 
-export function signMatchUrl(jobId: string, candidateId: string, answer: string): string {
-    return hmac.sign(env.RELANCE_HMAC_SECRET, `${jobId}:${candidateId}:${answer}`);
+export function signMatchUrl(offerId: string, candidateId: string, answer: string): string {
+    return hmac.sign(env.RELANCE_HMAC_SECRET, `${offerId}:${candidateId}:${answer}`);
 }
 
-export function verifyMatchUrl(jobId: string, candidateId: string, answer: string, sig: string): boolean {
-    return hmac.verify(env.RELANCE_HMAC_SECRET, `${jobId}:${candidateId}:${answer}`, sig);
+export function verifyMatchUrl(offerId: string, candidateId: string, answer: string, sig: string): boolean {
+    return hmac.verify(env.RELANCE_HMAC_SECRET, `${offerId}:${candidateId}:${answer}`, sig);
 }
 
 export function signGoogleState(userId: number): string {

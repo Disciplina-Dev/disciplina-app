@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Briefcase, Search, X } from 'lucide-react'
-import { jobGraphqlClient } from '@/graphql/client'
-import { GET_JOBS } from '@/graphql/queries'
+import { offerGraphqlClient } from '@/graphql/client'
+import { GET_OFFERS } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
-import type { MatchedJob, TitleProfessionalType } from '@/types/candidate'
+import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
 
 interface JobSearchModalProps {
   excludedJobIds: Set<string>
   candidateTpTypes?: TitleProfessionalType[]
-  onConfirm: (jobs: MatchedJob[]) => void
+  onConfirm: (jobs: MatchedOffer[]) => void
   onClose: () => void
 }
 
@@ -21,7 +21,7 @@ function formatSector(raw?: string): string {
 export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onConfirm, onClose }: JobSearchModalProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [jobs, setJobs] = useState<MatchedJob[]>([])
+  const [jobs, setJobs] = useState<MatchedOffer[]>([])
   const [search, setSearch] = useState('')
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set())
 
@@ -30,12 +30,12 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
       setLoading(true)
       setError(null)
       try {
-        const result = await jobGraphqlClient.query(GET_JOBS, {}).toPromise()
+        const result = await offerGraphqlClient.query(GET_OFFERS, {}).toPromise()
         if (result.error) {
           setError(result.error.message)
           return
         }
-        setJobs(result.data?.jobs ?? [])
+        setJobs(result.data?.offers ?? [])
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur inconnue')
       } finally {
@@ -52,11 +52,11 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
     return (job.companyName ?? '').toLowerCase().includes(search.trim().toLowerCase())
   })
 
-  const toggleJob = (jobId: string) => {
+  const toggleJob = (offerId: string) => {
     setSelectedJobIds((prev) => {
       const next = new Set(prev)
-      if (next.has(jobId)) next.delete(jobId)
-      else next.add(jobId)
+      if (next.has(offerId)) next.delete(offerId)
+      else next.add(offerId)
       return next
     })
   }

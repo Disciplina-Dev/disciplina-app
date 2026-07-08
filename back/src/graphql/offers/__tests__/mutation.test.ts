@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { JobRepository } from '../../../repositories/mongo/JobRepository';
+import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
-import { JobStatus, Localisation, Sector, DesiredSex } from '../../../types/job.types';
+import { OfferStatus, Localisation, Sector, DesiredSex } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 
-const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/jobs`;
+const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 function authHeaders(token: string) {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -22,22 +23,21 @@ async function gql(token: string, body: object) {
 }
 
 describe('GraphQL job mutations', () => {
-    describe('updateJob', () => {
+    describe('updateOffer', () => {
         it('updates companyName and returns the job', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new JobRepository();
 
-            const seeded = await repo.create({
+            const seeded = await seedOffer({
                 _id: `job-update-${suffix}`,
                 company_name: `Old Corp ${suffix}`,
-                status: JobStatus.NOT_MATCHED,
+                status: OfferStatus.NOT_MATCHED,
                 localisation: [Localisation.SAINT_DENIS],
             });
 
             const { res, json } = await gql(token, {
-                query: `mutation($id: String!, $job: JobInput!) {
-                    updateJob(id: $id, job: $job) { id companyName status }
+                query: `mutation($id: String!, $job: OfferInput!) {
+                    updateOffer(id: $id, job: $job) { id companyName status }
                 }`,
                 variables: {
                     id: seeded._id,
@@ -48,32 +48,32 @@ describe('GraphQL job mutations', () => {
             console.log(json);
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.updateJob.companyName).toBe(`Updated Corp ${suffix}`);
+            expect(json.data.updateOffer.companyName).toBe(`Updated Corp ${suffix}`);
         });
 
         it('returns null when updating a non-existent job', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
 
             const { res, json } = await gql(token, {
-                query: `mutation($id: String!, $job: JobInput!) { updateJob(id: $id, job: $job) { id } }`,
+                query: `mutation($id: String!, $job: OfferInput!) { updateOffer(id: $id, job: $job) { id } }`,
                 variables: { id: 'non-existent-id', job: { id: 'non-existent-id', companyName: 'Ghost' } },
             });
 
             expect(res.status).toBe(200);
-            expect(json.data.updateJob).toBe(null);
+            expect(json.data.updateOffer).toBe(null);
         });
     });
 
-    describe('unmatchJob', () => {
+    describe('unmatchOffer', () => {
         it('clears matched candidates and sets NOT_MATCHED', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new JobRepository();
+            const repo = new NeedsAnalysisRepository();
 
-            const seeded = await repo.create({
+            const seeded = await seedOffer({
                 _id: `job-unmatch-${suffix}`,
                 company_name: `Unmatch Corp ${suffix}`,
-                status: JobStatus.MATCHED,
+                status: OfferStatus.MATCHED,
             });
             await repo.addMatchedCandidate(seeded._id, {
                 id: `cand-${suffix}`,
@@ -83,53 +83,52 @@ describe('GraphQL job mutations', () => {
             });
 
             const { res, json } = await gql(token, {
-                query: `mutation($id: String!) { unmatchJob(id: $id) { id status matchedCandidate { id } } }`,
+                query: `mutation($id: String!) { unmatchOffer(id: $id) { id status matchedCandidate { id } } }`,
                 variables: { id: seeded._id },
             });
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.unmatchJob.status).toBe('NOT_MATCHED');
-            expect(json.data.unmatchJob.matchedCandidate).toEqual([]);
+            expect(json.data.unmatchOffer.status).toBe('NOT_MATCHED');
+            expect(json.data.unmatchOffer.matchedCandidate).toEqual([]);
 
             const { json: vJson } = await gql(token, {
-                query: `query($id: String!) { matchJob(id: $id) { status matchedCandidate { id } } }`,
+                query: `query($id: String!) { matchOffer(id: $id) { status matchedCandidate { id } } }`,
                 variables: { id: seeded._id },
             });
-            expect(vJson.data.matchJob.status).toBe('NOT_MATCHED');
-            expect(vJson.data.matchJob.matchedCandidate).toEqual([]);
+            expect(vJson.data.matchOffer.status).toBe('NOT_MATCHED');
+            expect(vJson.data.matchOffer.matchedCandidate).toEqual([]);
         });
 
         it('returns null when unmatching a non-existent job', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
 
             const { res, json } = await gql(token, {
-                query: `mutation($id: String!) { unmatchJob(id: $id) { id } }`,
+                query: `mutation($id: String!) { unmatchOffer(id: $id) { id } }`,
                 variables: { id: 'non-existent-id' },
             });
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.unmatchJob).toBeNull();
+            expect(json.data.unmatchOffer).toBeNull();
         });
     });
 
-    describe('addCandidateToJob', () => {
+    describe('addCandidateToOffer', () => {
         it('adds a matching candidate and sets status to MATCHED', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const jobRepo = new JobRepository();
             const candidateRepo = new CandidateRepository();
 
-            const jobId = `job-add-${suffix}`;
-            await jobRepo.create({
-                _id: jobId,
+            const offerId = `job-add-${suffix}`;
+            await seedOffer({
+                _id: offerId,
                 company_name: `Add Corp ${suffix}`,
                 desired_tp: TitleProfessionalType.AD,
                 driving_license_b: true,
                 desired_sex: DesiredSex.MIXTE,
                 age_range: '20-40',
-                status: JobStatus.NOT_MATCHED,
+                status: OfferStatus.NOT_MATCHED,
                 localisation: [Localisation.SAINT_DENIS],
                 sector: Sector.RESTAURATION,
             });
@@ -152,37 +151,36 @@ describe('GraphQL job mutations', () => {
             });
 
             const { res, json } = await gql(token, {
-                query: `mutation($jobId: String!, $candidateId: String!) {
-                    addCandidateToJob(jobId: $jobId, candidateId: $candidateId) {
+                query: `mutation($offerId: String!, $candidateId: String!) {
+                    addCandidateToOffer(offerId: $offerId, candidateId: $candidateId) {
                         id status matchedCandidate { id fullName }
                     }
                 }`,
-                variables: { jobId, candidateId },
+                variables: { offerId, candidateId },
             });
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.addCandidateToJob.status).toBe('NOT_MATCHED');
-            expect(json.data.addCandidateToJob.matchedCandidate).toHaveLength(1);
-            expect(json.data.addCandidateToJob.matchedCandidate[0].id).toBe(candidateId);
-            expect(json.data.addCandidateToJob.matchedCandidate[0].fullName).toBe(`Alice ${suffix}`);
+            expect(json.data.addCandidateToOffer.status).toBe('NOT_MATCHED');
+            expect(json.data.addCandidateToOffer.matchedCandidate).toHaveLength(1);
+            expect(json.data.addCandidateToOffer.matchedCandidate[0].id).toBe(candidateId);
+            expect(json.data.addCandidateToOffer.matchedCandidate[0].fullName).toBe(`Alice ${suffix}`);
         });
 
         it('errors when candidate does not exist', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new JobRepository();
 
-            const seeded = await repo.create({
+            const seeded = await seedOffer({
                 _id: `job-add-miss-${suffix}`,
-                status: JobStatus.NOT_MATCHED,
+                status: OfferStatus.NOT_MATCHED,
             });
 
             const { res, json } = await gql(token, {
-                query: `mutation($jobId: String!, $candidateId: String!) {
-                    addCandidateToJob(jobId: $jobId, candidateId: $candidateId) { id }
+                query: `mutation($offerId: String!, $candidateId: String!) {
+                    addCandidateToOffer(offerId: $offerId, candidateId: $candidateId) { id }
                 }`,
-                variables: { jobId: seeded._id, candidateId: 'non-existent-cand' },
+                variables: { offerId: seeded._id, candidateId: 'non-existent-cand' },
             });
 
             expect(res.status).toBe(200);
@@ -190,15 +188,15 @@ describe('GraphQL job mutations', () => {
         });
     });
 
-    describe('removeCandidateFromJob', () => {
+    describe('removeCandidateFromOffer', () => {
         it('removes a candidate and sets NOT_MATCHED when list becomes empty', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new JobRepository();
+            const repo = new NeedsAnalysisRepository();
 
-            const jobId = `job-remove-${suffix}`;
-            await repo.create({ _id: jobId, status: JobStatus.NOT_MATCHED });
-            await repo.addMatchedCandidate(jobId, {
+            const offerId = `job-remove-${suffix}`;
+            await seedOffer({ _id: offerId, status: OfferStatus.NOT_MATCHED });
+            await repo.addMatchedCandidate(offerId, {
                 id: `cand-rem-${suffix}`,
                 full_name: `Bob ${suffix}`,
                 age: 30,
@@ -206,34 +204,34 @@ describe('GraphQL job mutations', () => {
             });
 
             const { res, json } = await gql(token, {
-                query: `mutation($jobId: String!, $candidateId: String!) {
-                    removeCandidateFromJob(jobId: $jobId, candidateId: $candidateId) {
+                query: `mutation($offerId: String!, $candidateId: String!) {
+                    removeCandidateFromOffer(offerId: $offerId, candidateId: $candidateId) {
                         id status matchedCandidate { id }
                     }
                 }`,
-                variables: { jobId, candidateId: `cand-rem-${suffix}` },
+                variables: { offerId, candidateId: `cand-rem-${suffix}` },
             });
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.removeCandidateFromJob.status).toBe('NOT_MATCHED');
-            expect(json.data.removeCandidateFromJob.matchedCandidate).toEqual([]);
+            expect(json.data.removeCandidateFromOffer.status).toBe('NOT_MATCHED');
+            expect(json.data.removeCandidateFromOffer.matchedCandidate).toEqual([]);
         });
 
         it('removes one candidate and keeps MATCHED status when others remain', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new JobRepository();
+            const repo = new NeedsAnalysisRepository();
 
-            const jobId = `job-remove-multi-${suffix}`;
-            await repo.create({ _id: jobId, status: JobStatus.NOT_MATCHED });
-            await repo.addMatchedCandidate(jobId, {
+            const offerId = `job-remove-multi-${suffix}`;
+            await seedOffer({ _id: offerId, status: OfferStatus.NOT_MATCHED });
+            await repo.addMatchedCandidate(offerId, {
                 id: `cand-a-${suffix}`,
                 full_name: `Carol ${suffix}`,
                 age: 25,
                 email: `carol-${suffix}@test.local`,
             });
-            await repo.addMatchedCandidate(jobId, {
+            await repo.addMatchedCandidate(offerId, {
                 id: `cand-b-${suffix}`,
                 full_name: `Dave ${suffix}`,
                 age: 27,
@@ -241,19 +239,19 @@ describe('GraphQL job mutations', () => {
             });
 
             const { res, json } = await gql(token, {
-                query: `mutation($jobId: String!, $candidateId: String!) {
-                    removeCandidateFromJob(jobId: $jobId, candidateId: $candidateId) {
+                query: `mutation($offerId: String!, $candidateId: String!) {
+                    removeCandidateFromOffer(offerId: $offerId, candidateId: $candidateId) {
                         id status matchedCandidate { id }
                     }
                 }`,
-                variables: { jobId, candidateId: `cand-a-${suffix}` },
+                variables: { offerId, candidateId: `cand-a-${suffix}` },
             });
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.removeCandidateFromJob.matchedCandidate).toHaveLength(1);
-            expect(json.data.removeCandidateFromJob.matchedCandidate[0].id).toBe(`cand-b-${suffix}`);
-            expect(json.data.removeCandidateFromJob.status).toBe('NOT_MATCHED');
+            expect(json.data.removeCandidateFromOffer.matchedCandidate).toHaveLength(1);
+            expect(json.data.removeCandidateFromOffer.matchedCandidate[0].id).toBe(`cand-b-${suffix}`);
+            expect(json.data.removeCandidateFromOffer.status).toBe('NOT_MATCHED');
         });
     });
 
@@ -262,7 +260,7 @@ describe('GraphQL job mutations', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                query: `mutation($id: String!) { unmatchJob(id: $id) { id } }`,
+                query: `mutation($id: String!) { unmatchOffer(id: $id) { id } }`,
                 variables: { id: 'some-id' },
             }),
         });

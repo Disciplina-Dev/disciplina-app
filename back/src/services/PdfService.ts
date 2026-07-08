@@ -55,6 +55,17 @@ function esc(v: string | null | undefined): string {
     return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function formatCommunes(communes: readonly string[] | null | undefined): string {
+    return (communes ?? [])
+        .map((commune) =>
+            commune
+                .split('_')
+                .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+                .join('-'),
+        )
+        .join(', ');
+}
+
 function label(v: string | null | undefined): string {
     const MAP: Record<string, string> = {
         NORD: 'Nord',
@@ -206,7 +217,7 @@ function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
                   trainingDomain: analysis.trainingDomain,
                   jobTitle: analysis.jobTitle,
                   selectedMissions: analysis.selectedMissions ?? [],
-                  localisation: analysis.localisation,
+                  localisation: analysis.localisation ? [analysis.localisation] : [],
               },
           ];
 
@@ -223,7 +234,7 @@ ${fr('Intitulé de la formation :', p.jobTitle)}
     <span class="option">${chk(p.trainingDomain === 'SECRETARIAT')}&nbsp;Secrétariat</span>
     <span class="option">${chk(p.trainingDomain === 'VENTE')}&nbsp;Vente</span>
 </div>
-${fr('Localisation du poste :', label(p.localisation))}
+${fr('Localisation du poste :', formatCommunes(p.localisation))}
 <div class="field-row">
     <span class="field-label">Description des missions :</span><br/>
     <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
@@ -865,19 +876,31 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     // ── Note importante (encadré mis en évidence) ──
     const importantNote = c.synthesis?.important_note?.trim();
     if (importantNote) {
-        const noteH = doc.font('Helvetica').fontSize(10).heightOfString(importantNote, { width: contentW - 24 });
+        const noteH = doc
+            .font('Helvetica')
+            .fontSize(10)
+            .heightOfString(importantNote, { width: contentW - 24 });
         ensure(noteH + 34);
         const y = doc.y;
         doc.save()
             .rect(left, y, contentW, noteH + 26)
             .fill('#FFF7E6')
             .restore();
-        doc.save().rect(left, y, 4, noteH + 26).fill('#C9A227').restore();
-        doc.font('Helvetica-Bold').fillColor('#8a6d1b').fontSize(8.5).text('NOTE IMPORTANTE', left + 12, y + 7);
-        doc.font('Helvetica').fillColor('#111111').fontSize(10).text(importantNote, left + 12, doc.y + 2, {
-            width: contentW - 24,
-            align: 'justify',
-        });
+        doc.save()
+            .rect(left, y, 4, noteH + 26)
+            .fill('#C9A227')
+            .restore();
+        doc.font('Helvetica-Bold')
+            .fillColor('#8a6d1b')
+            .fontSize(8.5)
+            .text('NOTE IMPORTANTE', left + 12, y + 7);
+        doc.font('Helvetica')
+            .fillColor('#111111')
+            .fontSize(10)
+            .text(importantNote, left + 12, doc.y + 2, {
+                width: contentW - 24,
+                align: 'justify',
+            });
         doc.y = y + noteH + 26 + 6;
     }
 
@@ -903,14 +926,16 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
             const imgBuf = Buffer.from(sig.split(',')[1] ?? '', 'base64');
             ensure(120);
             doc.moveDown(1.2);
-            doc.font('Helvetica-Bold')
-                .fillColor('#111111')
-                .fontSize(10)
-                .text("Signature de l'apprenti", left, doc.y);
+            doc.font('Helvetica-Bold').fillColor('#111111').fontSize(10).text("Signature de l'apprenti", left, doc.y);
             doc.moveDown(0.3);
             doc.image(imgBuf, left, doc.y, { fit: [200, 80] });
             doc.y += 86;
-            doc.save().moveTo(left, doc.y).lineTo(left + 200, doc.y).lineWidth(0.5).stroke('#888888').restore();
+            doc.save()
+                .moveTo(left, doc.y)
+                .lineTo(left + 200, doc.y)
+                .lineWidth(0.5)
+                .stroke('#888888')
+                .restore();
         } catch {
             // image invalide : on ignore silencieusement
         }
@@ -1011,7 +1036,10 @@ function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     doc.save().rect(left, boxTop, 4, boxH).fill(verdictColor).restore();
 
     const pct = typeof r.percentage === 'number' ? `${r.percentage}%` : '—';
-    doc.fillColor(verdictColor).font('Helvetica-Bold').fontSize(34).text(pct, left + 18, boxTop + 14, { width: 160 });
+    doc.fillColor(verdictColor)
+        .font('Helvetica-Bold')
+        .fontSize(34)
+        .text(pct, left + 18, boxTop + 14, { width: 160 });
 
     if (r.passed !== undefined) {
         doc.fillColor(verdictColor)
@@ -1139,10 +1167,15 @@ function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     doc.font('Helvetica-Oblique')
         .fillColor('#888888')
         .fontSize(8)
-        .text(`Document généré le ${fmtDate(new Date())} — DISCIPLINA`, left, doc.page.height - doc.page.margins.bottom - 14, {
-            width: contentW,
-            align: 'center',
-        });
+        .text(
+            `Document généré le ${fmtDate(new Date())} — DISCIPLINA`,
+            left,
+            doc.page.height - doc.page.margins.bottom - 14,
+            {
+                width: contentW,
+                align: 'center',
+            },
+        );
 }
 
 // ─── PdfService ───────────────────────────────────────────────────────────────

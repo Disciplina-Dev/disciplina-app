@@ -1,7 +1,7 @@
 import './config/env'; // validate env vars at startup
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
-import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
+import { CompanyAPI, CandidateAPI, OfferAPI } from './graphql/server';
 import { connectMySQL } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
@@ -127,8 +127,8 @@ export async function createApp(): Promise<express.Express> {
     await CandidateAPI.start();
     CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates' });
 
-    await JobAPI.start();
-    JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' });
+    await OfferAPI.start();
+    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers' });
 
     return app;
 }

@@ -1,5 +1,6 @@
 export interface Companies {
     id: number;
+    abID: string | null;
     userID: number | null;
     legalReferent: string | null;
     name: string | null;

@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { JobRepository } from '../../../repositories/mongo/JobRepository';
+import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
-import { JobStatus, DesiredSex, Localisation, Sector } from '../../../types/job.types';
+import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
-const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/jobs`;
+const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 describe('GraphQL job queries', () => {
     it('returns an empty list when no jobs exist', async () => {
@@ -17,21 +18,20 @@ describe('GraphQL job queries', () => {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ query: '{ jobs { id } }' }),
+            body: JSON.stringify({ query: '{ offers { id } }' }),
         });
         const json = await res.json();
 
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.jobs).toEqual([]);
+        expect(json.data.offers).toEqual([]);
     });
 
     it('returns all seeded jobs with camelCase fields', async () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
         const suffix = Date.now();
-        const repo = new JobRepository();
 
-        const j1 = await repo.create({
+        const j1 = await seedOffer({
             _id: `job-list-${suffix}-1`,
             company_name: `Alpha Corp ${suffix}`,
             age_range: '25-35',
@@ -39,10 +39,10 @@ describe('GraphQL job queries', () => {
             desired_sex: DesiredSex.MIXTE,
             driving_license_b: true,
             professional_experience: false,
-            status: JobStatus.NOT_MATCHED,
+            status: OfferStatus.NOT_MATCHED,
             localisation: [Localisation.SAINT_DENIS],
         });
-        const j2 = await repo.create({
+        const j2 = await seedOffer({
             _id: `job-list-${suffix}-2`,
             company_name: `Beta Corp ${suffix}`,
             age_range: '18-25',
@@ -50,7 +50,7 @@ describe('GraphQL job queries', () => {
             desired_sex: DesiredSex.FILLE,
             driving_license_b: false,
             professional_experience: true,
-            status: JobStatus.MATCHED,
+            status: OfferStatus.MATCHED,
             localisation: [Localisation.SAINT_PAUL, Localisation.LE_PORT],
         });
 
@@ -61,16 +61,16 @@ describe('GraphQL job queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `{ jobs { id companyName ageRange desiredTP desiredSex drivingLicencseB professionalExperience status localisation } }`,
+                query: `{ offers { id companyName ageRange desiredTP desiredSex drivingLicencseB professionalExperience status localisation } }`,
             }),
         });
         const json = await res.json();
 
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.jobs).toHaveLength(2);
+        expect(json.data.offers).toHaveLength(2);
 
-        const first = json.data.jobs.find((j: any) => j.id === j1._id);
+        const first = json.data.offers.find((j: any) => j.id === j1._id);
         expect(first.companyName).toBe(`Alpha Corp ${suffix}`);
         expect(first.ageRange).toBe('25-35');
         expect(first.desiredTP).toBe('AD');
@@ -80,7 +80,7 @@ describe('GraphQL job queries', () => {
         expect(first.status).toBe('NOT_MATCHED');
         expect(first.localisation).toEqual(['SAINT_DENIS']);
 
-        const second = json.data.jobs.find((j: any) => j.id === j2._id);
+        const second = json.data.offers.find((j: any) => j.id === j2._id);
         expect(second.companyName).toBe(`Beta Corp ${suffix}`);
         expect(second.ageRange).toBe('18-25');
         expect(second.desiredTP).toBe('CC');
@@ -94,14 +94,13 @@ describe('GraphQL job queries', () => {
     it('returns a job by id', async () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
         const suffix = Date.now();
-        const repo = new JobRepository();
 
-        const seeded = await repo.create({
+        const seeded = await seedOffer({
             _id: `job-find-${suffix}`,
             company_name: `Target Corp ${suffix}`,
             age_range: '30-40',
             desired_tp: 'NTC',
-            status: JobStatus.NOT_MATCHED,
+            status: OfferStatus.NOT_MATCHED,
         });
 
         const res = await fetch(ENDPOINT, {
@@ -111,7 +110,7 @@ describe('GraphQL job queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `query($id: String!) { matchJob(id: $id) { id companyName ageRange desiredTP status } }`,
+                query: `query($id: String!) { matchOffer(id: $id) { id companyName ageRange desiredTP status } }`,
                 variables: { id: seeded._id },
             }),
         });
@@ -119,26 +118,25 @@ describe('GraphQL job queries', () => {
 
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.matchJob.id).toBe(seeded._id);
-        expect(json.data.matchJob.companyName).toBe(`Target Corp ${suffix}`);
-        expect(json.data.matchJob.desiredTP).toBe('NTC');
+        expect(json.data.matchOffer.id).toBe(seeded._id);
+        expect(json.data.matchOffer.companyName).toBe(`Target Corp ${suffix}`);
+        expect(json.data.matchOffer.desiredTP).toBe('NTC');
     });
 
     it('returns a job with matched candidates', async () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
         const suffix = Date.now();
-        const jobRepo = new JobRepository();
         const candidateRepo = new CandidateRepository();
 
-        const jobId = `job-match-${suffix}`;
-        await jobRepo.create({
-            _id: jobId,
+        const offerId = `job-match-${suffix}`;
+        await seedOffer({
+            _id: offerId,
             company_name: `Matching Corp ${suffix}`,
             desired_tp: 'AD',
             driving_license_b: true,
             desired_sex: DesiredSex.MIXTE,
             age_range: '20-40',
-            status: JobStatus.NOT_MATCHED,
+            status: OfferStatus.NOT_MATCHED,
             localisation: [Localisation.ENTRE_DEUX],
             sector: Sector.RESTAURATION,
         });
@@ -169,16 +167,16 @@ describe('GraphQL job queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `query($id: String!) { matchJob(id: $id) { id companyName suggestedCandidates { id fullName age } } }`,
-                variables: { id: jobId },
+                query: `query($id: String!) { matchOffer(id: $id) { id companyName suggestedCandidates { id fullName age } } }`,
+                variables: { id: offerId },
             }),
         });
         const json = await res.json();
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
-        expect(json.data.matchJob.id).toBe(jobId);
-        expect(json.data.matchJob.suggestedCandidates.length).toBeGreaterThanOrEqual(1);
-        expect(json.data.matchJob.suggestedCandidates[0].fullName).toBe(`Jane ${suffix}`);
+        expect(json.data.matchOffer.id).toBe(offerId);
+        expect(json.data.matchOffer.suggestedCandidates.length).toBeGreaterThanOrEqual(1);
+        expect(json.data.matchOffer.suggestedCandidates[0].fullName).toBe(`Jane ${suffix}`);
     });
 
     it('errors when job not found', async () => {
@@ -191,7 +189,7 @@ describe('GraphQL job queries', () => {
                 Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                query: `query($id: String!) { matchJob(id: $id) { id } }`,
+                query: `query($id: String!) { matchOffer(id: $id) { id } }`,
                 variables: { id: 'non-existent-id' },
             }),
         });
@@ -205,7 +203,7 @@ describe('GraphQL job queries', () => {
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: '{ jobs { id } }' }),
+            body: JSON.stringify({ query: '{ offers { id } }' }),
         });
         const json = await res.json();
 
@@ -214,17 +212,16 @@ describe('GraphQL job queries', () => {
         expect(json.errors[0].message).toMatch(/unauthorized/i);
     });
 
-    describe('candidateMatchedJobIds', () => {
+    describe('candidateMatchedOfferIds', () => {
         it('returns job ids where the candidate is in matched_candidate', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new JobRepository();
 
-            const jobId = `job-mids-${suffix}`;
+            const offerId = `job-mids-${suffix}`;
             const candidateId = `cand-mids-${suffix}`;
 
-            await repo.create({ _id: jobId, status: JobStatus.NOT_MATCHED });
-            await repo.addMatchedCandidate(jobId, {
+            await seedOffer({ _id: offerId, status: OfferStatus.NOT_MATCHED });
+            await new NeedsAnalysisRepository().addMatchedCandidate(offerId, {
                 id: candidateId,
                 full_name: `Eve ${suffix}`,
                 age: 24,
@@ -235,7 +232,7 @@ describe('GraphQL job queries', () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
-                    query: `query($candidateId: String!) { candidateMatchedJobIds(candidateId: $candidateId) }`,
+                    query: `query($candidateId: String!) { candidateMatchedOfferIds(candidateId: $candidateId) }`,
                     variables: { candidateId },
                 }),
             });
@@ -243,7 +240,7 @@ describe('GraphQL job queries', () => {
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.candidateMatchedJobIds).toContain(jobId);
+            expect(json.data.candidateMatchedOfferIds).toContain(offerId);
         });
 
         it('returns an empty array when candidate has no matched jobs', async () => {
@@ -253,7 +250,7 @@ describe('GraphQL job queries', () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
-                    query: `query($candidateId: String!) { candidateMatchedJobIds(candidateId: $candidateId) }`,
+                    query: `query($candidateId: String!) { candidateMatchedOfferIds(candidateId: $candidateId) }`,
                     variables: { candidateId: 'no-match-candidate' },
                 }),
             });
@@ -261,7 +258,7 @@ describe('GraphQL job queries', () => {
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.candidateMatchedJobIds).toEqual([]);
+            expect(json.data.candidateMatchedOfferIds).toEqual([]);
         });
     });
 });

@@ -2,19 +2,19 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateHistoryService } from '../../services/CandidateHistoryService';
-import { JobService } from '../../services/JobService';
+import { OfferService } from '../../services/OfferService';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
 
 const candidates = new CandidateService();
 const candidateHistory = new CandidateHistoryService();
-const jobs = new JobService();
+const offerService = new OfferService();
 
 export function registerCandidateTools(server: McpServer): void {
     readTool(
         server,
         'get_candidate',
-        "Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.",
+        'Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.',
         { id: z.string().describe('Id du candidat (ObjectId Mongo)') },
         async ({ id }) => toolResult(await candidates.findById(id)),
     );
@@ -52,7 +52,7 @@ export function registerCandidateTools(server: McpServer): void {
         'candidate_placement',
         "Placement courant d'un candidat (immersion ou contrat) dérivé des offres.",
         { candidateId: z.string().describe('Id du candidat') },
-        async ({ candidateId }) => toolResult(await jobs.getCandidatePlacement(candidateId)),
+        async ({ candidateId }) => toolResult(await offerService.getCandidatePlacement(candidateId)),
     );
 
     readTool(
@@ -60,6 +60,6 @@ export function registerCandidateTools(server: McpServer): void {
         'candidate_matched_jobs',
         'Ids des offres sur lesquelles le candidat est retenu (matché).',
         { candidateId: z.string().describe('Id du candidat') },
-        async ({ candidateId }) => toolResult(await jobs.getMatchedJobIds(candidateId)),
+        async ({ candidateId }) => toolResult(await offerService.getMatchedOfferIds(candidateId)),
     );
 }

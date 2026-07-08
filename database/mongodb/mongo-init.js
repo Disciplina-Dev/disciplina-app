@@ -310,89 +310,170 @@ db.createCollection('candidates', {
   }
 });
 
-db.createCollection('jobs', {
+// =========================
+// Collection: needs_analysis (Analyse de Besoin entreprise / AB)
+// =========================
+// Remplace l'ancienne table MySQL `needs_analysis`. Le lien entreprise → AB se
+// fait via companies.ab_id (MySQL) = _id (UUID applicatif de ce document).
+const AB_COMMUNES = [
+  "SAINT_DENIS", "SAINTE_MARIE", "SAINTE_SUZANNE", "SAINT_PAUL", "LA_POSSESSION",
+  "LE_PORT", "TROIS_BASSINS", "SAINT_LEU", "SAINT_PIERRE", "CILAOS", "ETANG_SALE",
+  "SAINT_LOUIS", "ENTRE_DEUX", "LES_AVIRONS", "LE_TAMPON", "SAINT_PHILLIPE",
+  "SAINT_JOSEPH", "PETIT_ILE", "SAINTE_ROSE", "SAINT_BENOIT", "BRAS_PANON",
+  "SAINT_ANDRE", "LA_PLAINE_DES_PALMISTES", "SALAZIE", "SAINTE_ANNE"
+];
+
+db.createCollection('needs_analysis', {
   validator: {
     $jsonSchema: {
       bsonType: "object",
       properties: {
         _id: { bsonType: "string" },
-        company_name: { bsonType: "string" },
-        age_range: { bsonType: "string" },
-        desired_tp: { enum: ["AD", "CC", "NTC", "REM", "SA"] },
-        desired_sex: { enum: ["MIXTE", "FILLE", "GARCON"] },
-        driving_license_b: { bsonType: "bool" },
-        professional_experience: { bsonType: "bool" },
-        sector: {
-          enum: [
-            "BOULANGERIE",
-            "RESTAURATION",
-            "STATION",
-            "PAP",
-            "LIBRE_SERVICE",
-            "TELEPHONIE",
-            "AUTO",
-            "COMMERCIAL",
-            "BIJOUX",
-            "COSMETIQUE",
-            "IMMOBILIER",
-            "ASSURANCE",
-            "ANIMAUX",
-            "SPORT",
-            "ENFANT",
-            "PHARMACIE",
-            "BAZAR",
-            "NONE"
-          ]
-        },
-        status: { enum: ["NOT_MATCHED", "MATCHED", "CV_SEND", "IMMERSING", "CONTRACT"] },
-        localisation: {
-          bsonType: "array",
-          items: {
-            enum: [
-              "SAINT_DENIS",
-              "SAINTE_MARIE",
-              "SAINTE_SUZANNE",
-              "SAINT_PAUL",
-              "LA_POSSESSION",
-              "LE_PORT",
-              "TROIS_BASSINS",
-              "SAINT_LEU",
-              "SAINT_PIERRE",
-              "CILAOS",
-              "ETANG_SALE",
-              "SAINT_LOUIS",
-              "ENTRE_DEUX",
-              "LES_AVIRONS",
-              "LE_TAMPON",
-              "SAINT_PHILLIPE",
-              "SAINT_JOSEPH",
-              "PETIT_ILE",
-              "SAINTE_ROSE",
-              "SAINT_BENOIT",
-              "BRAS_PANON",
-              "SAINT_ANDRE",
-              "LA_PLAINE_DES_PALMISTES",
-              "SALAZIE",
-              "SAINTE_ANNE"
-            ]
+
+        // Entreprise (enrichie depuis la fiche CRM companies)
+        company_infos: {
+          bsonType: "object",
+          properties: {
+            id: { bsonType: ["int", "long", "double"] },
+            name: { bsonType: "string" },
+            ape: { bsonType: ["string", "null"] },
+            idcc: { bsonType: ["string", "null"] },
+            siret: { bsonType: "string" },
+            main_activity: { bsonType: ["string", "null"] },
+            opco: {
+              enum: [
+                "AKTO", "ATLAS", "AFDAS", "CONSTRUCTYS", "OCAPIAT", "OPCO_2I",
+                "OPCO_EP", "OPCO_MOBILITES", "OPCO_SANTE", "OPCOMMERCE", "UNIFORMATION", null
+              ]
+            },
+            referral_source: {
+              enum: [
+                "KOANN", "E2CR", "FRANCE_TRAVAIL", "TELEVISION_PUB", "BOUCHE_A_OREILLE",
+                "MISSION_LOCALE", "SALON", "RSMA", "RESEAUX_SOCIAUX", null
+              ]
+            },
+            // Grande zone régionale déduite des communes du 1er poste.
+            sector: { enum: ["NORD", "OUEST", "SUD", null] },
+            // Secteurs d'activité libres de l'entreprise.
+            activities: { bsonType: "array", items: { bsonType: "string" } },
+            description: { bsonType: ["string", "null"] }
           }
         },
-        matched_candidate: {
+
+        // Commercial à l'origine de l'AB
+        saler_info: {
+          bsonType: "object",
+          properties: {
+            id: { bsonType: ["int", "long", "double"] },
+            email: { bsonType: "string" }
+          }
+        },
+
+        // Référents légal et recrutement
+        referents: {
+          bsonType: "object",
+          properties: {
+            is_same: { bsonType: "bool" },
+            legal_referents: {
+              bsonType: "object",
+              properties: {
+                name: { bsonType: ["string", "null"] },
+                phone: { bsonType: ["string", "null"] },
+                email: { bsonType: ["string", "null"] },
+                function: { bsonType: ["string", "null"] }
+              }
+            },
+            recruitment_referents: {
+              bsonType: "object",
+              properties: {
+                name: { bsonType: ["string", "null"] },
+                phone: { bsonType: ["string", "null"] },
+                email: { bsonType: ["string", "null"] },
+                function: { bsonType: ["string", "null"] }
+              }
+            }
+          }
+        },
+
+        // Postes à pourvoir
+        offers: {
           bsonType: "array",
           items: {
             bsonType: "object",
             properties: {
+              // Identifiant stable de l'offre (uuid) : handle du matching (ex-jobId).
               id: { bsonType: "string" },
-              full_name: { bsonType: "string" },
-              age: { bsonType: "int" },
-              sex: { enum: ["FILLE", "GARCON"] },
-              city: { bsonType: "string" },
-              email: { bsonType: "string" },
-              phone: { bsonType: "string" },
-              status: { enum: ["RETAINED", "OFFER_SEND", "ACCEPTED", "DECLINED"] }
+              localisation: { bsonType: "array", items: { enum: AB_COMMUNES } },
+              tp_type: { enum: ["AD", "CC", "NTC", "REM", "SA", null] },
+              training_domain: { enum: ["SECRETARIAT", "VENTE", null] },
+              title: { bsonType: "string" },
+              missions: { bsonType: "array", items: { bsonType: "string" } },
+              description_missions: { bsonType: "array", items: { bsonType: "string" } },
+              other_description_missions: { bsonType: ["string", "null"] },
+              other_missions: { bsonType: ["string", "null"] },
+              // État de matching de l'offre (ex-collection jobs).
+              matching: {
+                bsonType: "object",
+                properties: {
+                  status: { enum: ["NOT_MATCHED", "MATCHED", "CV_SEND", "IMMERSING", "CONTRACT"] },
+                  interview_slots: { bsonType: "array", items: { bsonType: "string" } },
+                  interview_location: { bsonType: "string" },
+                  candidates: {
+                    bsonType: "array",
+                    items: {
+                      bsonType: "object",
+                      properties: {
+                        id: { bsonType: "string" },
+                        full_name: { bsonType: "string" },
+                        age: { bsonType: "int" },
+                        sex: { enum: ["FILLE", "GARCON", "MIXTE"] },
+                        city: { bsonType: "string" },
+                        email: { bsonType: "string" },
+                        phone: { bsonType: "string" },
+                        status: { enum: ["RETAINED", "OFFER_SEND", "ACCEPTED", "DECLINED"] },
+                        description: { bsonType: "string" },
+                        cv_webview: { bsonType: "string" },
+                        answer: { enum: ["REFUSED", "ACCEPTED", "FAVORITE", null] },
+                        comment: { bsonType: "string" },
+                        interview_location: { bsonType: "string" },
+                        booked_interview_slot: { bsonType: "string" },
+                        interview_conclusion: { enum: ["REJECTED", "IMMERSING", "CONTRACT", null] },
+                        immersion_start_date: { bsonType: "string" },
+                        immersion_end_date: { bsonType: "string" },
+                        immersion_location: { bsonType: "string" },
+                        immersion_conclusion: { enum: ["REJECTED", "CONTRACT", null] }
+                      }
+                    }
+                  }
+                }
+              },
+              criteria: {
+                bsonType: "object",
+                properties: {
+                  education_level: { enum: ["BAC", "BAC_PLUS_2", "BAC_PLUS_3", null] },
+                  driving_license: { bsonType: "bool" },
+                  experience_required: { bsonType: "bool" },
+                  training_domain: { enum: ["SECRETARIAT", "VENTE", null] },
+                  age_min: { bsonType: ["int", "long", "double", "null"] },
+                  age_max: { bsonType: ["int", "long", "double", "null"] },
+                  soft_skills: { bsonType: ["string", "null"] },
+                  schedule_options: { bsonType: "array", items: { bsonType: "string" } },
+                  conditions: { bsonType: ["string", "null"] },
+                  additional_comments: { bsonType: ["string", "null"] }
+                }
+              }
             }
           }
-        }
+        },
+
+        // Process RH & signature
+        recruitment_method: { enum: ["ALL_CV", "PRESELECTION", "PRE_INTERVIEW", null] },
+        immersion_period: { enum: ["OUI", "NON", "A_DISCUTER", null] },
+        training_days: { bsonType: "string" },
+        signature_request_id: { bsonType: ["string", "null"] },
+        status: { enum: ["BROUILLON", "EN_ATTENTE_SIGNATURE", "SIGNE", "EXPIRE"] },
+        created_at: { bsonType: "date" },
+        updated_at: { bsonType: "date" }
       }
     }
   }

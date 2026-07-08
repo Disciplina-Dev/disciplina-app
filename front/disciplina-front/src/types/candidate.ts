@@ -200,7 +200,7 @@ export interface Synthesis {
     candidate_signature?: string;
 }
 
-export interface MatchedJob {
+export interface MatchedOffer {
     id: string;
     companyName?: string;
     sector?: string;

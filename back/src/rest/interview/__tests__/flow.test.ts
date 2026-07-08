@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { env } from '../../../config/env';
-import { JobRepository } from '../../../repositories/mongo/JobRepository';
+import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { UserRepository } from '../../../repositories/mysql/UserRepository';
 import { InterviewAccessRepository } from '../../../repositories/mysql/InterviewAccessRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
 import { NotificationRepository } from '../../../repositories/mongo/NotificationRepository';
-import { JobStatus, ProposedCandidateAnswer } from '../../../types/job.types';
+import { OfferStatus, ProposedCandidateAnswer } from '../../../types/matching.types';
 import { CandidateHistoryType } from '../../../types/candidate.types';
 
 const BASE = `http://localhost:${env.API_PORT}/api/interview`;
@@ -27,20 +28,20 @@ async function createRhUser(suffix: number): Promise<{ id: number; email: string
 }
 
 async function seedJobWithSlots(suffix: number, slots: string[]) {
-    const jobRepo = new JobRepository();
-    const jobId = `job-interview-${suffix}`;
-    await jobRepo.create({
-        _id: jobId,
+    const jobRepo = new NeedsAnalysisRepository();
+    const offerId = `job-interview-${suffix}`;
+    await seedOffer({
+        _id: offerId,
         company_name: `Interview Corp ${suffix}`,
-        status: JobStatus.CV_SEND,
+        status: OfferStatus.CV_SEND,
     });
-    await jobRepo.setJobInterviewSlots(jobId, slots, 'Saint-Denis, 12 rue des Tests');
-    return jobId;
+    await jobRepo.setJobInterviewSlots(offerId, slots, 'Saint-Denis, 12 rue des Tests');
+    return offerId;
 }
 
-async function addProposedCandidate(jobId: string, candidateId: string, email: string, bookedSlot?: string) {
-    const jobRepo = new JobRepository();
-    await jobRepo.addProposedCandidate(jobId, {
+async function addProposedCandidate(offerId: string, candidateId: string, email: string, bookedSlot?: string) {
+    const jobRepo = new NeedsAnalysisRepository();
+    await jobRepo.addProposedCandidate(offerId, {
         id: candidateId,
         full_name: `Candidate ${candidateId}`,
         email,
@@ -63,9 +64,9 @@ describe('Interview access flow', () => {
         it('locks after 3 wrong codes and accepts the right one before that', async () => {
             const suffix = Date.now();
             const rh = await createRhUser(suffix);
-            const jobId = await seedJobWithSlots(suffix, ['2030-01-01T09:00:00.000Z']);
+            const offerId = await seedJobWithSlots(suffix, ['2030-01-01T09:00:00.000Z']);
             const candidateId = `cand-auth-${suffix}`;
-            await addProposedCandidate(jobId, candidateId, `candidate-${suffix}@test.local`);
+            await addProposedCandidate(offerId, candidateId, `candidate-${suffix}@test.local`);
 
             const accessRepo = new InterviewAccessRepository();
             const signature = `sig-auth-${suffix}`.padEnd(64, '0');
@@ -73,7 +74,7 @@ describe('Interview access flow', () => {
             await accessRepo.create({
                 signature,
                 code,
-                job_uuid: jobId,
+                offer_uuid: offerId,
                 candidate_id: candidateId,
                 rh_email: rh.email,
                 expires_at: new Date(Date.now() + 60 * 60 * 1000),
@@ -105,9 +106,9 @@ describe('Interview access flow', () => {
         it('issues a token on the right code, usable for guarded routes', async () => {
             const suffix = Date.now() + 1;
             const rh = await createRhUser(suffix);
-            const jobId = await seedJobWithSlots(suffix, ['2030-02-01T09:00:00.000Z', '2030-02-01T10:00:00.000Z']);
+            const offerId = await seedJobWithSlots(suffix, ['2030-02-01T09:00:00.000Z', '2030-02-01T10:00:00.000Z']);
             const candidateId = `cand-auth-ok-${suffix}`;
-            await addProposedCandidate(jobId, candidateId, `candidate-ok-${suffix}@test.local`);
+            await addProposedCandidate(offerId, candidateId, `candidate-ok-${suffix}@test.local`);
 
             const accessRepo = new InterviewAccessRepository();
             const signature = `sig-auth-ok-${suffix}`.padEnd(64, '0');
@@ -115,7 +116,7 @@ describe('Interview access flow', () => {
             await accessRepo.create({
                 signature,
                 code,
-                job_uuid: jobId,
+                offer_uuid: offerId,
                 candidate_id: candidateId,
                 rh_email: rh.email,
                 expires_at: new Date(Date.now() + 60 * 60 * 1000),
@@ -145,13 +146,13 @@ describe('Interview access flow', () => {
             const rh = await createRhUser(suffix);
             const slotA = '2030-03-01T09:00:00.000Z';
             const slotB = '2030-03-01T10:00:00.000Z';
-            const jobId = await seedJobWithSlots(suffix, [slotA, slotB]);
+            const offerId = await seedJobWithSlots(suffix, [slotA, slotB]);
 
             const otherCandidateId = `cand-other-${suffix}`;
-            await addProposedCandidate(jobId, otherCandidateId, `other-${suffix}@test.local`, slotB);
+            await addProposedCandidate(offerId, otherCandidateId, `other-${suffix}@test.local`, slotB);
 
             const candidateId = `cand-view-${suffix}`;
-            await addProposedCandidate(jobId, candidateId, `view-${suffix}@test.local`);
+            await addProposedCandidate(offerId, candidateId, `view-${suffix}@test.local`);
 
             const accessRepo = new InterviewAccessRepository();
             const signature = `sig-slots-${suffix}`.padEnd(64, '0');
@@ -159,7 +160,7 @@ describe('Interview access flow', () => {
             await accessRepo.create({
                 signature,
                 code,
-                job_uuid: jobId,
+                offer_uuid: offerId,
                 candidate_id: candidateId,
                 rh_email: rh.email,
                 expires_at: new Date(Date.now() + 60 * 60 * 1000),
@@ -189,9 +190,9 @@ describe('Interview access flow', () => {
             const suffix = Date.now() + 3;
             const rh = await createRhUser(suffix);
             const slot = '2030-04-01T09:00:00.000Z';
-            const jobId = await seedJobWithSlots(suffix, [slot]);
+            const offerId = await seedJobWithSlots(suffix, [slot]);
             const candidateId = `cand-book-${suffix}`;
-            await addProposedCandidate(jobId, candidateId, `book-${suffix}@test.local`);
+            await addProposedCandidate(offerId, candidateId, `book-${suffix}@test.local`);
 
             const accessRepo = new InterviewAccessRepository();
             const signature = `sig-book-${suffix}`.padEnd(64, '0');
@@ -199,7 +200,7 @@ describe('Interview access flow', () => {
             await accessRepo.create({
                 signature,
                 code,
-                job_uuid: jobId,
+                offer_uuid: offerId,
                 candidate_id: candidateId,
                 rh_email: rh.email,
                 expires_at: new Date(Date.now() + 60 * 60 * 1000),
@@ -219,8 +220,8 @@ describe('Interview access flow', () => {
             });
             expect(bookRes.status).toBe(200);
 
-            const jobRepo = new JobRepository();
-            const job = await jobRepo.find(jobId);
+            const jobRepo = new NeedsAnalysisRepository();
+            const job = await jobRepo.find(offerId);
             const candidate = job?.proposed_candidate?.find((c) => c.id === candidateId);
             expect(candidate?.booked_interview_slot).toBe(slot);
 
@@ -239,12 +240,12 @@ describe('Interview access flow', () => {
             const suffix = Date.now() + 4;
             const rh = await createRhUser(suffix);
             const slot = '2030-05-01T09:00:00.000Z';
-            const jobId = await seedJobWithSlots(suffix, [slot]);
+            const offerId = await seedJobWithSlots(suffix, [slot]);
 
             const candidateAId = `cand-race-a-${suffix}`;
             const candidateBId = `cand-race-b-${suffix}`;
-            await addProposedCandidate(jobId, candidateAId, `race-a-${suffix}@test.local`);
-            await addProposedCandidate(jobId, candidateBId, `race-b-${suffix}@test.local`);
+            await addProposedCandidate(offerId, candidateAId, `race-a-${suffix}@test.local`);
+            await addProposedCandidate(offerId, candidateBId, `race-b-${suffix}@test.local`);
 
             const accessRepo = new InterviewAccessRepository();
             const sigA = `sig-race-a-${suffix}`.padEnd(64, '0');
@@ -252,7 +253,7 @@ describe('Interview access flow', () => {
             await accessRepo.create({
                 signature: sigA,
                 code: '555555',
-                job_uuid: jobId,
+                offer_uuid: offerId,
                 candidate_id: candidateAId,
                 rh_email: rh.email,
                 expires_at: new Date(Date.now() + 60 * 60 * 1000),
@@ -260,7 +261,7 @@ describe('Interview access flow', () => {
             await accessRepo.create({
                 signature: sigB,
                 code: '666666',
-                job_uuid: jobId,
+                offer_uuid: offerId,
                 candidate_id: candidateBId,
                 rh_email: rh.email,
                 expires_at: new Date(Date.now() + 60 * 60 * 1000),

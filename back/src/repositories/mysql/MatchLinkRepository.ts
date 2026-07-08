@@ -4,9 +4,9 @@ import { MatchLinkRow } from '../../types/db-rows.types';
 export class MatchLinkRepository {
     async create(row: Omit<MatchLinkRow, 'status' | 'attempts' | 'created_at' | 'updated_at'>): Promise<void> {
         await query(
-            `INSERT INTO match_link (signature, code, identifier, rh_email, company_email, job_uuid, expires_at)
+            `INSERT INTO match_link (signature, code, identifier, rh_email, company_email, offer_uuid, expires_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [row.signature, row.code, row.identifier, row.rh_email, row.company_email, row.job_uuid, row.expires_at],
+            [row.signature, row.code, row.identifier, row.rh_email, row.company_email, row.offer_uuid, row.expires_at],
         );
     }
 

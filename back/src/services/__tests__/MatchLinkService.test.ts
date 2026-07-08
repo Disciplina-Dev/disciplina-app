@@ -2,9 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { MatchLinkService } from '../MatchLinkService';
 import { InterviewMailService } from '../InterviewMailService';
 import { MatchLinkRepository } from '../../repositories/mysql/MatchLinkRepository';
-import { JobRepository } from '../../repositories/mongo/JobRepository';
+import { NeedsAnalysisRepository } from '../../repositories/mongo/NeedsAnalysisRepository';
+import { seedOffer } from '../../../test/helpers/seedOffer';
 import { UserRepository } from '../../repositories/mysql/UserRepository';
-import { JobStatus, ProposedCandidateAnswer } from '../../types/job.types';
+import { OfferStatus, ProposedCandidateAnswer } from '../../types/matching.types';
 
 async function createRhUser(suffix: number): Promise<{ id: number; email: string }> {
     const repo = new UserRepository();
@@ -26,7 +27,7 @@ describe('MatchLinkService.submitAnswers', () => {
     it('writes the interview pool at the job level and creates an interview_access row + email for accepted candidates', async () => {
         const suffix = Date.now();
         const rh = await createRhUser(suffix);
-        const jobRepo = new JobRepository();
+        const jobRepo = new NeedsAnalysisRepository();
         const matchLinkRepo = new MatchLinkRepository();
 
         // Stub the mailer via constructor injection (same pattern the class already
@@ -35,15 +36,15 @@ describe('MatchLinkService.submitAnswers', () => {
         const stubMailService = { sendInvitation } as unknown as InterviewMailService;
         const service = new MatchLinkService(undefined, undefined, undefined, undefined, stubMailService);
 
-        const jobId = `job-matchlink-${suffix}`;
-        await jobRepo.create({
-            _id: jobId,
+        const offerId = `job-matchlink-${suffix}`;
+        await seedOffer({
+            _id: offerId,
             company_name: `MatchLink Corp ${suffix}`,
-            status: JobStatus.CV_SEND,
+            status: OfferStatus.CV_SEND,
         });
 
         const candidateId = `cand-matchlink-${suffix}`;
-        await jobRepo.addProposedCandidate(jobId, {
+        await jobRepo.addProposedCandidate(offerId, {
             id: candidateId,
             full_name: `Candidate ${suffix}`,
             email: `candidate-matchlink-${suffix}@test.local`,
@@ -57,7 +58,7 @@ describe('MatchLinkService.submitAnswers', () => {
             identifier: 'ENT-TESTID01',
             rh_email: rh.email,
             company_email: `company-${suffix}@test.local`,
-            job_uuid: jobId,
+            offer_uuid: offerId,
             expires_at: new Date(Date.now() + 60 * 60 * 1000),
         });
 
@@ -73,7 +74,7 @@ describe('MatchLinkService.submitAnswers', () => {
             },
         ]);
 
-        const job = await jobRepo.find(jobId);
+        const job = await jobRepo.find(offerId);
         expect(job?.interview_slots).toEqual(slots);
         expect(job?.interview_location).toBe(location);
         expect(job?.proposed_candidate?.[0].answer).toBe(ProposedCandidateAnswer.ACCEPTED);
@@ -92,8 +93,8 @@ describe('MatchLinkService.submitAnswers', () => {
         // Find the interview_access row created for this candidate via a raw lookup.
         const { query } = await import('../../db/mysql/connection');
         const rows = await query<{ signature: string }[]>(
-            'SELECT signature FROM interview_access WHERE candidate_id = ? AND job_uuid = ?',
-            [candidateId, jobId],
+            'SELECT signature FROM interview_access WHERE candidate_id = ? AND offer_uuid = ?',
+            [candidateId, offerId],
         );
         expect(rows).toHaveLength(1);
     });
