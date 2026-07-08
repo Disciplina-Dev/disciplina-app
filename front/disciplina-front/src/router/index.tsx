@@ -38,6 +38,9 @@ import Relance from "@/pages/rh/Relance";
 import DriveConfig from "@/pages/rh/DriveConfig";
 import SectorSettings from "@/pages/rh/SectorSettings";
 
+import PedaLayout from "@/components/layout/PedaLayout";
+import SuiviAbsences from "@/pages/peda/SuiviAbsences";
+
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
 import FormulaireAB from "@/pages/entreprise/FormulaireAB";
@@ -146,6 +149,20 @@ export const router = createBrowserRouter([
         ),
         handle: { crumb: "Lieux par secteur" },
       },
+    ],
+  },
+  {
+    path: "/peda",
+    element: (
+      <ProtectedRoute allowedRoles={[UserRole.PEDA]}>
+        <PedaLayout />
+      </ProtectedRoute>
+    ),
+    handle: { crumb: "Espace Pédagogique" },
+    children: [
+      { index: true, element: <SuiviAbsences />, handle: { crumb: "Suivi absences" } },
+      { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
+      { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
   },
   {

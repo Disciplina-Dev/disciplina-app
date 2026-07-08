@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     first_name VARCHAR(255) NOT NULL,
     last_name VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL,
-    role ENUM('ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH') NOT NULL,
+    role ENUM('ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH', 'PEDA') NOT NULL,
     sectors JSON DEFAULT NULL,
     oauth_token TEXT DEFAULT NULL,
     refresh_token TEXT DEFAULT NULL

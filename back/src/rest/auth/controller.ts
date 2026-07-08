@@ -12,7 +12,7 @@ const userService = new UserService();
 // Gestion des secteurs : réservée à l'admin et au responsable.
 const SECTOR_MANAGER_ROLES = ['ADMIN', 'RESPONSABLE'];
 // Rôles persistables assignables via la gestion des users.
-const ASSIGNABLE_ROLES = ['ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH'] as const;
+const ASSIGNABLE_ROLES = ['ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH', 'PEDA'] as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function listUsers(req: AuthRequest, res: Response): Promise<void> {

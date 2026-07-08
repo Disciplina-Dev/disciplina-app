@@ -11,6 +11,7 @@ export interface MailAttachment {
 
 export type MailTemplate = api.MailTemplate
 export type MailTemplatesScope = api.MailTemplatesScope
+export type MailTemplateInput = api.MailTemplateInput
 
 interface MailTemplatesStore {
   scope: MailTemplatesScope
@@ -20,8 +21,8 @@ interface MailTemplatesStore {
   loaded: boolean
   error: string | null
   load: (force?: boolean) => Promise<void>
-  add: (data: { name: string; subject: string; body: string }, file?: File | null) => Promise<void>
-  update: (id: string, data: { name: string; subject: string; body: string }, file?: File | null, removeAttachment?: boolean) => Promise<void>
+  add: (data: MailTemplateInput, file?: File | null) => Promise<void>
+  update: (id: string, data: MailTemplateInput, file?: File | null, removeAttachment?: boolean) => Promise<void>
   remove: (id: string) => Promise<void>
   setSignature: (file: File) => Promise<void>
   removeSignature: () => Promise<void>
@@ -93,8 +94,11 @@ function createMailTemplatesStore(scope: MailTemplatesScope) {
 
 export const useRhMailTemplatesStore = createMailTemplatesStore('rh')
 export const useCommercialMailTemplatesStore = createMailTemplatesStore('commercial')
+export const usePedaMailTemplatesStore = createMailTemplatesStore('peda')
 
 export function useMailTemplatesStore(scope: MailTemplatesScope) {
   // scope ne change jamais pour un même montage de page/modal → branche stable.
-  return scope === 'commercial' ? useCommercialMailTemplatesStore() : useRhMailTemplatesStore()
+  if (scope === 'commercial') return useCommercialMailTemplatesStore()
+  if (scope === 'peda') return usePedaMailTemplatesStore()
+  return useRhMailTemplatesStore()
 }
