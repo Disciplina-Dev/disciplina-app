@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { X, Building2, CalendarClock, Handshake } from 'lucide-react'
-import { offerGraphqlClient } from '@/graphql/client'
+import { jobGraphqlClient } from '@/graphql/client'
 import {
-  ADD_CANDIDATE_TO_OFFER,
+  ADD_CANDIDATE_TO_JOB,
   UPDATE_MATCHED_CANDIDATE_STATUS,
   ADD_MANUAL_PROPOSED_CANDIDATE,
   ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION,
@@ -33,18 +33,18 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
   const [immersionEndDate, setImmersionEndDate] = useState('')
 
   const proposeToCompany = async () => {
-    const added = await offerGraphqlClient.mutation(ADD_CANDIDATE_TO_OFFER, { offerId: job.id, candidateId }).toPromise()
+    const added = await jobGraphqlClient.mutation(ADD_CANDIDATE_TO_JOB, { jobId: job.id, candidateId }).toPromise()
     if (added.error) throw new Error(added.error.message)
-    const updated = await offerGraphqlClient
-      .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: job.id, candidateId, status: 'ACCEPTED' })
+    const updated = await jobGraphqlClient
+      .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: job.id, candidateId, status: 'ACCEPTED' })
       .toPromise()
     if (updated.error) throw new Error(updated.error.message)
   }
 
   const scheduleInterview = async () => {
-    const result = await offerGraphqlClient
+    const result = await jobGraphqlClient
       .mutation(ADD_MANUAL_PROPOSED_CANDIDATE, {
-        offerId: job.id,
+        jobId: job.id,
         candidateId,
         interviewDate,
         interviewHour,
@@ -55,9 +55,9 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
   }
 
   const proposeImmersion = async () => {
-    const result = await offerGraphqlClient
+    const result = await jobGraphqlClient
       .mutation(ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, {
-        offerId: job.id,
+        jobId: job.id,
         candidateId,
         immersionStartDate,
         immersionEndDate,

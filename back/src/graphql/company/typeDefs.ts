@@ -3,7 +3,6 @@ import gql from 'graphql-tag';
 export const typeDefs = gql`
     type Company {
         id: Int!
-        abID: String
         userID: Int
         legalReferent: String
         name: String
@@ -73,7 +72,6 @@ export const typeDefs = gql`
 
     type BlacklistedCompany {
         id: Int!
-        abID: String
         userID: Int
         legalReferent: String
         name: String

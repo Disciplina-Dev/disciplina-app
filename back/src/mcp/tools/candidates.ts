@@ -2,13 +2,13 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateHistoryService } from '../../services/CandidateHistoryService';
-import { OfferService } from '../../services/OfferService';
+import { JobService } from '../../services/JobService';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
 
 const candidates = new CandidateService();
 const candidateHistory = new CandidateHistoryService();
-const offerService = new OfferService();
+const jobs = new JobService();
 
 export function registerCandidateTools(server: McpServer): void {
     readTool(
@@ -52,7 +52,7 @@ export function registerCandidateTools(server: McpServer): void {
         'candidate_placement',
         "Placement courant d'un candidat (immersion ou contrat) dérivé des offres.",
         { candidateId: z.string().describe('Id du candidat') },
-        async ({ candidateId }) => toolResult(await offerService.getCandidatePlacement(candidateId)),
+        async ({ candidateId }) => toolResult(await jobs.getCandidatePlacement(candidateId)),
     );
 
     readTool(
@@ -60,6 +60,6 @@ export function registerCandidateTools(server: McpServer): void {
         'candidate_matched_jobs',
         'Ids des offres sur lesquelles le candidat est retenu (matché).',
         { candidateId: z.string().describe('Id du candidat') },
-        async ({ candidateId }) => toolResult(await offerService.getMatchedOfferIds(candidateId)),
+        async ({ candidateId }) => toolResult(await jobs.getMatchedJobIds(candidateId)),
     );
 }

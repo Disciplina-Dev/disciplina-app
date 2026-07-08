@@ -1,4 +1,4 @@
-import { Localisation } from './matching.types';
+import { Localisation } from './job.types';
 
 export enum TitleProfessionalType {
     AD = 'AD',

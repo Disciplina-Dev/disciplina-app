@@ -5,11 +5,11 @@ import { Role } from '../types/user.types';
 export interface MatchTokenPayload {
     role: Role.ENTREPRISE_GUEST;
     signature: string;
-    offerId: string;
+    jobId: string;
 }
 
-export function issueMatchToken(signature: string, offerId: string, expiresInSeconds: number): string {
-    const payload: MatchTokenPayload = { role: Role.ENTREPRISE_GUEST, signature, offerId };
+export function issueMatchToken(signature: string, jobId: string, expiresInSeconds: number): string {
+    const payload: MatchTokenPayload = { role: Role.ENTREPRISE_GUEST, signature, jobId };
     return jwt.sign(payload, env.JWT_SECRET, { expiresIn: expiresInSeconds });
 }
 

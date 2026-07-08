@@ -241,14 +241,4 @@ export class CompanyRepository {
             conn.release();
         }
     }
-
-    async setAbId(id: number, abId: string | null): Promise<boolean> {
-        const conn = await getConnection();
-        try {
-            const result = await conn.execute('UPDATE companies SET ab_id = ? WHERE id = ?', [abId, id]);
-            return (result[0] as any).affectedRows > 0;
-        } finally {
-            conn.release();
-        }
-    }
 }

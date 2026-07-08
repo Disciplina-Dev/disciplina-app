@@ -792,7 +792,7 @@ export const MATCH_CANDIDATE = gql`
   query MatchCandidate($id: String!) {
     matchCandidate(id: $id) {
       id
-      matchedOffers {
+      matchedJobs {
         id
         companyName
         sector
@@ -963,11 +963,11 @@ export const REGISTER_USER = gql`
   }
 `
 
-// ─── Offers / Matching ─────────────────────────────────────────────────────────
+// ─── Jobs / Matching ─────────────────────────────────────────────────────────
 
-export const GET_OFFERS = gql`
-  query GetOffers {
-    offers {
+export const GET_JOBS = gql`
+  query GetJobs {
+    jobs {
       id
       companyName
       ageRange
@@ -982,9 +982,9 @@ export const GET_OFFERS = gql`
   }
 `
 
-export const GET_OFFER_COMPANY_INFO = gql`
-  query OfferCompanyInfo($offerId: String!) {
-    offerCompanyInfo(offerId: $offerId) {
+export const GET_JOB_COMPANY_INFO = gql`
+  query JobCompanyInfo($jobId: String!) {
+    jobCompanyInfo(jobId: $jobId) {
       companyName
       company {
         id
@@ -1038,9 +1038,9 @@ export const GET_OFFER_COMPANY_INFO = gql`
   }
 `
 
-export const MATCH_OFFER = gql`
-  query MatchOffer($id: String!) {
-    matchOffer(id: $id) {
+export const MATCH_JOB = gql`
+  query MatchJob($id: String!) {
+    matchJob(id: $id) {
       id
       companyName
       ageRange
@@ -1094,14 +1094,14 @@ export const MATCH_OFFER = gql`
 `
 
 export const CREATE_MATCH_SESSION = gql`
-  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!) {
-    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates)
+  mutation CreateMatchSession($jobId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!) {
+    createMatchSession(jobId: $jobId, companyEmail: $companyEmail, candidates: $candidates)
   }
 `
 
-export const ADD_CANDIDATE_TO_OFFER = gql`
-  mutation AddCandidateToOffer($offerId: String!, $candidateId: String!) {
-    addCandidateToOffer(offerId: $offerId, candidateId: $candidateId) {
+export const ADD_CANDIDATE_TO_JOB = gql`
+  mutation AddCandidateToJob($jobId: String!, $candidateId: String!) {
+    addCandidateToJob(jobId: $jobId, candidateId: $candidateId) {
       id
       status
       matchedCandidate {
@@ -1120,14 +1120,14 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
 
 export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
   mutation AddManualProposedCandidate(
-    $offerId: String!
+    $jobId: String!
     $candidateId: String!
     $interviewDate: String!
     $interviewHour: String!
     $interviewLocation: String!
   ) {
     addManualProposedCandidate(
-      offerId: $offerId
+      jobId: $jobId
       candidateId: $candidateId
       interviewDate: $interviewDate
       interviewHour: $interviewHour
@@ -1152,14 +1152,14 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
 
 export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
   mutation AddManualProposedCandidateForImmersion(
-    $offerId: String!
+    $jobId: String!
     $candidateId: String!
     $immersionStartDate: String!
     $immersionEndDate: String!
     $immersionLocation: String!
   ) {
     addManualProposedCandidateForImmersion(
-      offerId: $offerId
+      jobId: $jobId
       candidateId: $candidateId
       immersionStartDate: $immersionStartDate
       immersionEndDate: $immersionEndDate
@@ -1182,14 +1182,14 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
 
 export const SET_INTERVIEW_CONCLUSION = gql`
   mutation SetInterviewConclusion(
-    $offerId: String!
+    $jobId: String!
     $candidateId: String!
     $conclusion: InterviewConclusion!
     $immersionStartDate: String
     $immersionEndDate: String
   ) {
     setInterviewConclusion(
-      offerId: $offerId
+      jobId: $jobId
       candidateId: $candidateId
       conclusion: $conclusion
       immersionStartDate: $immersionStartDate
@@ -1215,12 +1215,12 @@ export const SET_INTERVIEW_CONCLUSION = gql`
 
 export const SET_IMMERSION_CONCLUSION = gql`
   mutation SetImmersionConclusion(
-    $offerId: String!
+    $jobId: String!
     $candidateId: String!
     $conclusion: ImmersionConclusion!
   ) {
     setImmersionConclusion(
-      offerId: $offerId
+      jobId: $jobId
       candidateId: $candidateId
       conclusion: $conclusion
     ) {
@@ -1243,26 +1243,26 @@ export const SET_IMMERSION_CONCLUSION = gql`
 `
 
 export const OFFER_RESPONSE_LINKS = gql`
-  query OfferResponseLinks($offerId: String!, $candidateId: String!) {
-    offerResponseLinks(offerId: $offerId, candidateId: $candidateId) {
+  query OfferResponseLinks($jobId: String!, $candidateId: String!) {
+    offerResponseLinks(jobId: $jobId, candidateId: $candidateId) {
       ouiUrl
       nonUrl
     }
   }
 `
 
-export const UPDATE_OFFER = gql`
-  mutation UpdateOffer($id: String!, $offer: OfferInput!) {
-    updateOffer(id: $id, offer: $offer) {
+export const UPDATE_JOB = gql`
+  mutation UpdateJob($id: String!, $job: JobInput!) {
+    updateJob(id: $id, job: $job) {
       id
       status
     }
   }
 `
 
-export const UNMATCH_OFFER = gql`
-  mutation UnmatchOffer($id: String!) {
-    unmatchOffer(id: $id) {
+export const UNMATCH_JOB = gql`
+  mutation UnmatchJob($id: String!) {
+    unmatchJob(id: $id) {
       id
       companyName
       ageRange
@@ -1286,9 +1286,9 @@ export const UNMATCH_OFFER = gql`
   }
 `
 
-export const REMOVE_CANDIDATE_FROM_OFFER = gql`
-  mutation RemoveCandidateFromOffer($offerId: String!, $candidateId: String!) {
-    removeCandidateFromOffer(offerId: $offerId, candidateId: $candidateId) {
+export const REMOVE_CANDIDATE_FROM_JOB = gql`
+  mutation RemoveCandidateFromJob($jobId: String!, $candidateId: String!) {
+    removeCandidateFromJob(jobId: $jobId, candidateId: $candidateId) {
       id
       status
       matchedCandidate {
@@ -1306,8 +1306,8 @@ export const REMOVE_CANDIDATE_FROM_OFFER = gql`
 `
 
 export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
-  mutation UpdateMatchedCandidateStatus($offerId: String!, $candidateId: String!, $status: MatchedCandidateStatus!) {
-    updateMatchedCandidateStatus(offerId: $offerId, candidateId: $candidateId, status: $status) {
+  mutation UpdateMatchedCandidateStatus($jobId: String!, $candidateId: String!, $status: MatchedCandidateStatus!) {
+    updateMatchedCandidateStatus(jobId: $jobId, candidateId: $candidateId, status: $status) {
       id
       matchedCandidate {
         id
@@ -1323,9 +1323,9 @@ export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
   }
 `
 
-export const GET_CANDIDATE_MATCHED_OFFER_IDS = gql`
-  query GetCandidateMatchedOfferIds($candidateId: String!) {
-    candidateMatchedOfferIds(candidateId: $candidateId)
+export const GET_CANDIDATE_MATCHED_JOB_IDS = gql`
+  query GetCandidateMatchedJobIds($candidateId: String!) {
+    candidateMatchedJobIds(candidateId: $candidateId)
   }
 `
 
@@ -1449,7 +1449,7 @@ export const CREATE_CONTACT_LOG = gql`
 `
 
 export const GET_NEEDS_ANALYSIS = gql`
-  query NeedsAnalysis($id: ID!) {
+  query NeedsAnalysis($id: Int!) {
     needsAnalysis(id: $id) {
       id
       legalRepFunction
@@ -1496,7 +1496,7 @@ export const GET_NEEDS_ANALYSIS = gql`
 `
 
 export const DELETE_NEEDS_ANALYSIS = gql`
-  mutation DeleteNeedsAnalysis($id: ID!) {
+  mutation DeleteNeedsAnalysis($id: Int!) {
     deleteNeedsAnalysis(id: $id)
   }
 `

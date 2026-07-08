@@ -7,7 +7,7 @@ import { UserService } from '../../services/UserService';
 import { NotificationService } from '../../services/NotificationService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
-import { MatchingCandidate } from '../../types/matching.types';
+import { ProposedCandidate } from '../../types/job.types';
 import { logger } from '../../external/logger/logger';
 import { GeocodageService } from '../../external/insee/geocodage.service';
 
@@ -18,7 +18,7 @@ const userService = new UserService();
 const notificationService = new NotificationService();
 const geocodageService = new GeocodageService();
 
-function proposedCandidateToPublic(candidate: MatchingCandidate): object {
+function proposedCandidateToPublic(candidate: ProposedCandidate): object {
     return {
         id: candidate.id,
         fullName: candidate.full_name,
@@ -72,7 +72,7 @@ async function notifyLock(signature: string): Promise<void> {
             level: 'warning',
             title: 'Session entreprise bloquée',
             message: `${context.companyEmail} a échoué 3 fois. Créez une nouvelle session.`,
-            link: `/rh/matching?offer=${context.offerUuid}`,
+            link: `/rh/matching?job=${context.jobUuid}`,
         });
     }
 }
@@ -165,6 +165,6 @@ async function notifyCompletion(signature: string): Promise<void> {
         level: 'success',
         title: 'Réponses entreprise reçues',
         message: `${context.companyEmail} a répondu aux candidats proposés.`,
-        link: `/rh/matching?offer=${context.offerUuid}`,
+        link: `/rh/matching?job=${context.jobUuid}`,
     });
 }

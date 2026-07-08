@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
-import { seedOffer } from '../../../../test/helpers/seedOffer';
+import { JobRepository } from '../../../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
 import { env } from '../../../config/env';
-import { OfferStatus, ProposedCandidateAnswer, MatchedCandidateStatus } from '../../../types/matching.types';
+import { JobStatus, ProposedCandidateAnswer } from '../../../types/job.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 
-const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
+const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/jobs`;
 
 function authHeaders(token: string) {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -24,14 +23,14 @@ async function gql(token: string, body: object) {
 }
 
 const MUTATION = `mutation(
-    $offerId: String!
+    $jobId: String!
     $candidateId: String!
     $conclusion: InterviewConclusion!
     $immersionStartDate: String
     $immersionEndDate: String
 ) {
     setInterviewConclusion(
-        offerId: $offerId
+        jobId: $jobId
         candidateId: $candidateId
         conclusion: $conclusion
         immersionStartDate: $immersionStartDate
@@ -50,15 +49,15 @@ const MUTATION = `mutation(
 async function seedJobWithProposedCandidate(
     suffix: number,
     bookedInterviewSlot: string,
-): Promise<{ offerId: string; candidateId: string }> {
-    const jobRepo = new NeedsAnalysisRepository();
+): Promise<{ jobId: string; candidateId: string }> {
+    const jobRepo = new JobRepository();
     const candidateRepo = new CandidateRepository();
 
-    const offerId = `job-conclusion-${suffix}`;
-    await seedOffer({
-        _id: offerId,
+    const jobId = `job-conclusion-${suffix}`;
+    await jobRepo.create({
+        _id: jobId,
         company_name: `Conclusion Corp ${suffix}`,
-        status: OfferStatus.CV_SEND,
+        status: JobStatus.CV_SEND,
     });
 
     const candidateId = `cand-conclusion-${suffix}`;
@@ -75,7 +74,7 @@ async function seedJobWithProposedCandidate(
         },
     });
 
-    await jobRepo.addProposedCandidate(offerId, {
+    await jobRepo.addProposedCandidate(jobId, {
         id: candidateId,
         full_name: `Eve ${suffix}`,
         email: `eve-${suffix}@test.local`,
@@ -85,7 +84,7 @@ async function seedJobWithProposedCandidate(
         interview_location: 'Saint-Denis',
     });
 
-    return { offerId, candidateId };
+    return { jobId, candidateId };
 }
 
 describe('GraphQL setInterviewConclusion', () => {
@@ -93,11 +92,11 @@ describe('GraphQL setInterviewConclusion', () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
         const suffix = Date.now();
         const futureSlot = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-        const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, futureSlot);
+        const { jobId, candidateId } = await seedJobWithProposedCandidate(suffix, futureSlot);
 
         const { res, json } = await gql(token, {
             query: MUTATION,
-            variables: { offerId, candidateId, conclusion: 'REJECTED' },
+            variables: { jobId, candidateId, conclusion: 'REJECTED' },
         });
 
         expect(res.status).toBe(200);
@@ -109,11 +108,11 @@ describe('GraphQL setInterviewConclusion', () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
         const suffix = Date.now() + 1;
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
+        const { jobId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
 
         const { res, json } = await gql(token, {
             query: MUTATION,
-            variables: { offerId, candidateId, conclusion: 'IMMERSING' },
+            variables: { jobId, candidateId, conclusion: 'IMMERSING' },
         });
 
         expect(res.status).toBe(200);
@@ -128,11 +127,11 @@ describe('GraphQL setInterviewConclusion', () => {
         const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
+        const { jobId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
 
         const { res, json } = await gql(token, {
             query: MUTATION,
-            variables: { offerId, candidateId, conclusion },
+            variables: { jobId, candidateId, conclusion },
         });
 
         expect(res.status).toBe(200);
@@ -156,12 +155,12 @@ describe('GraphQL setInterviewConclusion', () => {
         const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
+        const { jobId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
 
         const { res, json } = await gql(token, {
             query: MUTATION,
             variables: {
-                offerId,
+                jobId,
                 candidateId,
                 conclusion: 'IMMERSING',
                 immersionStartDate: '2026-07-01',

@@ -2,31 +2,9 @@ import gql from 'graphql-tag';
 
 export const typeDefs = gql`
     enum Localisation {
-        SAINT_DENIS
-        SAINTE_MARIE
-        SAINTE_SUZANNE
-        SAINT_PAUL
-        LA_POSSESSION
-        LE_PORT
-        TROIS_BASSINS
-        SAINT_LEU
-        SAINT_PIERRE
-        CILAOS
-        ETANG_SALE
-        SAINT_LOUIS
-        ENTRE_DEUX
-        LES_AVIRONS
-        LE_TAMPON
-        SAINT_PHILLIPE
-        SAINT_JOSEPH
-        PETIT_ILE
-        SAINTE_ROSE
-        SAINT_BENOIT
-        BRAS_PANON
-        SAINT_ANDRE
-        LA_PLAINE_DES_PALMISTES
-        SALAZIE
-        SAINTE_ANNE
+        NORD
+        OUEST
+        SUD
     }
 
     enum TrainingDomain {
@@ -99,18 +77,18 @@ export const typeDefs = gql`
         trainingDomain: TrainingDomain!
         jobTitle: String!
         selectedMissions: [String!]!
-        localisation: [Localisation!]!
+        localisation: Localisation!
     }
 
     input NeedsAnalysisPositionInput {
         trainingDomain: TrainingDomain!
         jobTitle: String!
         selectedMissions: [String!]!
-        localisation: [Localisation!]!
+        localisation: Localisation!
     }
 
     type NeedsAnalysis {
-        id: ID!
+        id: Int!
         companyID: Int!
         userID: Int!
         legalRepFunction: String
@@ -124,7 +102,7 @@ export const typeDefs = gql`
         referralSource: ReferralSource
         positionsCount: Int!
         positions: [NeedsAnalysisPosition!]!
-        localisation: Localisation
+        localisation: Localisation!
         trainingDomain: TrainingDomain!
         jobTitle: String!
         selectedMissions: [String!]!
@@ -190,13 +168,13 @@ export const typeDefs = gql`
 
     extend type Query {
         needsAnalyses: [NeedsAnalysis!]!
-        needsAnalysis(id: ID!): NeedsAnalysis
+        needsAnalysis(id: Int!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
     }
 
     extend type Mutation {
         createNeedsAnalysis(input: NeedsAnalysisInput!): NeedsAnalysis!
-        updateNeedsAnalysis(id: ID!, input: NeedsAnalysisInput!): NeedsAnalysis!
-        deleteNeedsAnalysis(id: ID!): Boolean!
+        updateNeedsAnalysis(id: Int!, input: NeedsAnalysisInput!): NeedsAnalysis!
+        deleteNeedsAnalysis(id: Int!): Boolean!
     }
 `;

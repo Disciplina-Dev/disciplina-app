@@ -27,14 +27,14 @@ import {
   Heart,
   CalendarClock,
 } from 'lucide-react'
-import { GET_OFFERS, GET_COMPANIES, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, UNMATCH_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { GET_JOBS, GET_COMPANIES, MATCH_JOB, ADD_CANDIDATE_TO_JOB, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_JOB, UNMATCH_JOB, REMOVE_CANDIDATE_FROM_JOB, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { PROPOSED_CANDIDATE_ANSWER_LABELS, PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS, ProposedCandidateAnswer } from '@/constants/proposedCandidateAnswer'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
-import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
-import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
+import { JobStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
+import { jobGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
@@ -132,7 +132,7 @@ function tpLabel(raw: string | null | undefined): string {
 
 function statusChip(status: string | null): { label: string; cls: string } {
   if (!status) return { label: '—', cls: 'bg-gray-100 text-gray-600' }
-  const jobStatus = status as OfferStatus
+  const jobStatus = status as JobStatus
   return JOB_STATUS_LABELS[jobStatus]
     ? { label: JOB_STATUS_LABELS[jobStatus], cls: JOB_STATUS_BADGE_CLASS[jobStatus] }
     : { label: formatEnum(status), cls: 'bg-gray-100 text-gray-600' }
@@ -505,7 +505,7 @@ function JobDetailsSection({
   onShowCompanyInfo,
 }: {
   job: MatchJobResult
-  onSetStatus: (status: OfferStatus) => void
+  onSetStatus: (status: JobStatus) => void
   hasAcceptedCandidates: boolean
   isCreatingSession: boolean
   onProposeCandidates: () => void
@@ -1190,10 +1190,10 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     setMatchError(null)
 
     try {
-      const result = await offerGraphqlClient.query(MATCH_OFFER, { id: job.id }).toPromise()
+      const result = await jobGraphqlClient.query(MATCH_JOB, { id: job.id }).toPromise()
       if (result.error) { setLoadError(result.error.message); return }
-      if (result.data?.matchOffer) {
-        const data = result.data.matchOffer as MatchJobResult
+      if (result.data?.matchJob) {
+        const data = result.data.matchJob as MatchJobResult
         setJobData(data)
         const matchedIds = new Set((data.matchedCandidate ?? []).map((c) => c.id))
         setSavedCandidateIds(matchedIds)
@@ -1213,10 +1213,10 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     setDecisions({})
 
     try {
-      const result = await offerGraphqlClient.query(MATCH_OFFER, { id: job.id }).toPromise()
+      const result = await jobGraphqlClient.query(MATCH_JOB, { id: job.id }).toPromise()
       if (result.error) { setMatchError(result.error.message); return }
-      if (result.data?.matchOffer) {
-        const data = result.data.matchOffer as MatchJobResult
+      if (result.data?.matchJob) {
+        const data = result.data.matchJob as MatchJobResult
         const matchedIds = new Set((data.matchedCandidate ?? []).map((c) => c.id))
         setSavedCandidateIds(matchedIds)
         setSuggestedCandidates((data.suggestedCandidates ?? []).filter((c) => !matchedIds.has(c.id)))
@@ -1238,12 +1238,12 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     if (!selectedJob) return
     setSavingIds((p) => new Set(p).add(candidateId))
     try {
-      const result = await offerGraphqlClient.mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId }).toPromise()
+      const result = await jobGraphqlClient.mutation(ADD_CANDIDATE_TO_JOB, { jobId: selectedJob.id, candidateId }).toPromise()
       if (!result.error) {
         setSavedCandidateIds((p) => new Set(p).add(candidateId))
         setSuggestedCandidates((p) => p.filter((c) => c.id !== candidateId))
-        if (result.data?.addCandidateToOffer?.matchedCandidate && jobData) {
-          setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToOffer.matchedCandidate })
+        if (result.data?.addCandidateToJob?.matchedCandidate && jobData) {
+          setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToJob.matchedCandidate })
         }
       }
     } finally {
@@ -1253,9 +1253,9 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
   const handleRemoveCandidate = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
-    const result = await offerGraphqlClient.mutation(REMOVE_CANDIDATE_FROM_OFFER, { offerId: selectedJob.id, candidateId: candidate.id }).toPromise()
+    const result = await jobGraphqlClient.mutation(REMOVE_CANDIDATE_FROM_JOB, { jobId: selectedJob.id, candidateId: candidate.id }).toPromise()
     if (!result.error && jobData) {
-      const updated = result.data?.removeCandidateFromOffer
+      const updated = result.data?.removeCandidateFromJob
       setJobData({ ...jobData, matchedCandidate: updated?.matchedCandidate ?? [], status: updated?.status ?? jobData.status })
       setSavedCandidateIds((p) => { const n = new Set(p); n.delete(candidate.id); return n })
     }
@@ -1265,7 +1265,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     if (!selectedJob) return
     setIsUnmatching(true)
     try {
-      const result = await offerGraphqlClient.mutation(UNMATCH_OFFER, { id: selectedJob.id }).toPromise()
+      const result = await jobGraphqlClient.mutation(UNMATCH_JOB, { id: selectedJob.id }).toPromise()
       if (!result.error && jobData) {
         setJobData({ ...jobData, matchedCandidate: [], status: 'NOT_MATCHED' })
         setSavedCandidateIds(new Set())
@@ -1296,7 +1296,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           continue
         }
 
-        const linksResult = await offerGraphqlClient.query(OFFER_RESPONSE_LINKS, { offerId: selectedJob.id, candidateId: candidate.id }).toPromise()
+        const linksResult = await jobGraphqlClient.query(OFFER_RESPONSE_LINKS, { jobId: selectedJob.id, candidateId: candidate.id }).toPromise()
         if (linksResult.data?.offerResponseLinks) {
           const { ouiUrl, nonUrl } = linksResult.data.offerResponseLinks
           const subject = `DISCIPLINA – Offre en alternance`
@@ -1306,7 +1306,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ to: candidate.email, subject, body }),
           })
-          await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
+          await jobGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
           sentIds.add(candidate.id)
         }
       } catch {
@@ -1339,7 +1339,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
     setMissingCvCandidateIds((p) => { const n = new Set(p); n.delete(candidate.id); return n })
 
-    const result = await offerGraphqlClient.query(OFFER_RESPONSE_LINKS, { offerId: selectedJob.id, candidateId: candidate.id }).toPromise()
+    const result = await jobGraphqlClient.query(OFFER_RESPONSE_LINKS, { jobId: selectedJob.id, candidateId: candidate.id }).toPromise()
     if (result.data?.offerResponseLinks) {
       const { ouiUrl, nonUrl } = result.data.offerResponseLinks
       setMailState({ candidate, ouiUrl, nonUrl })
@@ -1348,7 +1348,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
   const handleMailSent = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
-    await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
+    await jobGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { jobId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
     if (jobData) {
       setJobData({
         ...jobData,
@@ -1371,8 +1371,8 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     try {
       const companyEmail = await resolveCompanyEmail(jobData.companyName)
       const candidates = proposeState.candidates.map((c) => ({ id: c.id, description: descriptions[c.id] ?? '' }))
-      const result = await offerGraphqlClient
-        .mutation(CREATE_MATCH_SESSION, { offerId: jobData.id, companyEmail, candidates })
+      const result = await jobGraphqlClient
+        .mutation(CREATE_MATCH_SESSION, { jobId: jobData.id, companyEmail, candidates })
         .toPromise()
       if (result.error) throw new Error(result.error.message)
       setProposeState(null)
@@ -1389,9 +1389,9 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const handleAddManualProposedCandidate = async (candidateId: string, location: string, date: string, hour: string) => {
     if (!selectedJob || !jobData) return
     try {
-      const result = await offerGraphqlClient
+      const result = await jobGraphqlClient
         .mutation(ADD_MANUAL_PROPOSED_CANDIDATE, {
-          offerId: selectedJob.id,
+          jobId: selectedJob.id,
           candidateId,
           interviewDate: date,
           interviewHour: hour,
@@ -1421,9 +1421,9 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   ) => {
     if (!selectedJob || !jobData || !conclusionCandidate) return
     try {
-      const result = await offerGraphqlClient
+      const result = await jobGraphqlClient
         .mutation(SET_INTERVIEW_CONCLUSION, {
-          offerId: selectedJob.id,
+          jobId: selectedJob.id,
           candidateId: conclusionCandidate.id,
           conclusion,
           immersionStartDate,
@@ -1452,9 +1452,9 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const handleSetImmersionConclusion = async (conclusion: ImmersionConclusion) => {
     if (!selectedJob || !jobData || !immersionConclusionCandidate) return
     try {
-      const result = await offerGraphqlClient
+      const result = await jobGraphqlClient
         .mutation(SET_IMMERSION_CONCLUSION, {
-          offerId: selectedJob.id,
+          jobId: selectedJob.id,
           candidateId: immersionConclusionCandidate.id,
           conclusion,
         })
@@ -1478,9 +1478,9 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
   }
 
-  const handleSetManualStatus = async (status: OfferStatus) => {
+  const handleSetManualStatus = async (status: JobStatus) => {
     if (!selectedJob) return
-    const result = await offerGraphqlClient.mutation(UPDATE_OFFER, { id: selectedJob.id, offer: { id: selectedJob.id, status } }).toPromise()
+    const result = await jobGraphqlClient.mutation(UPDATE_JOB, { id: selectedJob.id, job: { id: selectedJob.id, status } }).toPromise()
     if (!result.error && jobData) {
       setJobData({ ...jobData, status })
     }
@@ -1532,7 +1532,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
       />
 
       {showCompanyInfo && selectedJob && (
-        <CompanyInfoModal offerId={selectedJob.id} onClose={() => setShowCompanyInfo(false)} />
+        <CompanyInfoModal jobId={selectedJob.id} onClose={() => setShowCompanyInfo(false)} />
       )}
 
       <RetainedCandidatesSection
@@ -1674,17 +1674,17 @@ export default function Matching() {
 
   const token = useAuthStore((s) => s.token)
   const [jobsResult] = useQuery({
-    query: GET_OFFERS,
+    query: GET_JOBS,
     context: {
-      url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
+      url: `${import.meta.env.VITE_API_URL}/api/graphql/jobs`,
       fetchOptions: { headers: { Authorization: `Bearer ${token}` } },
     },
   })
 
-  const jobs: Job[] = jobsResult.data?.offers ?? []
+  const jobs: Job[] = jobsResult.data?.jobs ?? []
   const filteredJobs = applyJobFilters(jobs, filters)
-  // ?offer= (lien de notification) sert d'offre présélectionnée tant qu'aucune sélection manuelle
-  const effectiveJobId = selectedJobId ?? searchParams.get('offer')
+  // ?job= (lien de notification) sert d'offre présélectionnée tant qu'aucune sélection manuelle
+  const effectiveJobId = selectedJobId ?? searchParams.get('job')
   const selectedJob = filteredJobs.find((j) => j.id === effectiveJobId) ?? null
 
   if (jobsResult.fetching) {

@@ -68,7 +68,7 @@ async function notifyBooked(signature: string): Promise<void> {
             level: 'success',
             title: "Créneau d'entretien réservé",
             message: "Un candidat a réservé son créneau d'entretien.",
-            link: `/rh/matching?offer=${context.offerUuid}`,
+            link: `/rh/matching?job=${context.jobUuid}`,
         });
     } catch (err) {
         logger.error({ err }, '[interview] failed to notify RH of slot booking');

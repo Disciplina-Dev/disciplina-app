@@ -115,12 +115,12 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
   const owner = entreprise.proprietaire_id ? USERS[entreprise.proprietaire_id] : null
   const abResult = useNeedsAnalysesByCompany(entreprise.id ? Number(entreprise.id) : null)
   const abList = abResult.data?.needsAnalysesByCompany ?? []
-  const [selectedAbId, setSelectedAbId] = useState<string | null>(null)
-  const [selectedAbIds, setSelectedAbIds] = useState<Set<string>>(new Set())
+  const [selectedAbId, setSelectedAbId] = useState<number | null>(null)
+  const [selectedAbIds, setSelectedAbIds] = useState<Set<number>>(new Set())
   const [mailOpen, setMailOpen] = useState(false)
   const { deleteNeedsAnalysis } = useDeleteNeedsAnalysis()
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: number) => {
     setSelectedAbIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)

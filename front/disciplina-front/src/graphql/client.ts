@@ -41,8 +41,8 @@ export const candidateGraphqlClient = new Client({
 })
 
 // Client dédié aux jobs (matching – endpoint séparé)
-export const offerGraphqlClient = new Client({
-  url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
+export const jobGraphqlClient = new Client({
+  url: `${import.meta.env.VITE_API_URL}/api/graphql/jobs`,
   exchanges,
   fetchOptions: getFetchOptions,
 })

@@ -10,7 +10,7 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return needsAnalysisService.findAll();
         },
-        needsAnalysis: async (_: unknown, { id }: { id: string }, context: any) => {
+        needsAnalysis: async (_: unknown, { id }: { id: number }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return needsAnalysisService.findById(id);
         },
@@ -28,7 +28,7 @@ export const resolvers = {
             };
             return needsAnalysisService.create(ownedInput);
         },
-        updateNeedsAnalysis: async (_: unknown, { id, input }: { id: string; input: any }, context: any) => {
+        updateNeedsAnalysis: async (_: unknown, { id, input }: { id: number; input: any }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             if (context.user.role === Role.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
@@ -38,7 +38,7 @@ export const resolvers = {
             }
             return needsAnalysisService.update(id, input);
         },
-        deleteNeedsAnalysis: async (_: unknown, { id }: { id: string }, context: any) => {
+        deleteNeedsAnalysis: async (_: unknown, { id }: { id: number }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             if (context.user.role === Role.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);

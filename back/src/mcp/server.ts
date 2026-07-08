@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerCompanyTools } from './tools/companies';
 import { registerNeedsAnalysisTools } from './tools/needsAnalysis';
 import { registerCandidateTools } from './tools/candidates';
-import { registerOfferTools } from './tools/offers';
+import { registerJobTools } from './tools/jobs';
 import { registerKpiTools } from './tools/kpi';
 import { registerMiscTools } from './tools/misc';
 
@@ -23,7 +23,7 @@ export function buildMcpServer(): McpServer {
     registerCompanyTools(server);
     registerNeedsAnalysisTools(server);
     registerCandidateTools(server);
-    registerOfferTools(server);
+    registerJobTools(server);
     registerKpiTools(server);
     registerMiscTools(server);
 

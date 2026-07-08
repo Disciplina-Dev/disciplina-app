@@ -1,7 +1,7 @@
 import './config/env'; // validate env vars at startup
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
-import { CompanyAPI, CandidateAPI, OfferAPI } from './graphql/server';
+import { CompanyAPI, CandidateAPI, JobAPI } from './graphql/server';
 import { connectMySQL } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
@@ -131,8 +131,8 @@ export async function createApp(): Promise<express.Express> {
     await CandidateAPI.start();
     CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates' });
 
-    await OfferAPI.start();
-    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers' });
+    await JobAPI.start();
+    JobAPI.applyMiddleware({ app, path: '/api/graphql/jobs' });
 
     return app;
 }
@@ -143,9 +143,9 @@ export async function startServer(): Promise<http.Server> {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
     // Modèles de relance d'absence par défaut (idempotent, une seule fois).
-    new MailTemplateService().seedPedaDefaults().catch((err) =>
-        logger.error({ err }, 'peda-templates: seed des modèles par défaut échoué'),
-    );
+    new MailTemplateService()
+        .seedPedaDefaults()
+        .catch((err) => logger.error({ err }, 'peda-templates: seed des modèles par défaut échoué'));
     startPedaDraftScheduler();
     return server;
 }

@@ -1,6 +1,6 @@
-import { NeedsAnalysisRepository, MatchingOfferContext } from '../repositories/mongo/NeedsAnalysisRepository';
+import { JobRepository } from '../repositories/mongo/JobRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
-import { NeedsAnalysis } from '../types/needsAnalysisNoSql.types';
+import { NeedsAnalysisRepository } from '../repositories/mysql/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from './mappers/needsAnalysis.mapper';
 import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
@@ -9,12 +9,16 @@ import { CandidateHistoryService } from './CandidateHistoryService';
 import {
     InterviewConclusion,
     ImmersionConclusion,
-    OfferStatus,
+    Job,
+    JobStatus,
+    Localisation,
     MatchedCandidateStatus,
     MatchingCandidate,
+    ProposedCandidate,
     ProposedCandidateAnswer,
+    Sector,
     Sex,
-} from '../types/matching.types';
+} from '../types/job.types';
 import { signMatchUrl } from '../external/crypto';
 import { env } from '../config/env';
 import { isInterviewDatePast } from '../utils/interview';
@@ -43,7 +47,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
     };
 }
 
-function proposedCandidateToGql(pc: MatchingCandidate): object {
+function proposedCandidateToGql(pc: ProposedCandidate): object {
     return {
         ...matchingCandidateToGql(pc),
         description: pc.description,
@@ -59,34 +63,39 @@ function proposedCandidateToGql(pc: MatchingCandidate): object {
     };
 }
 
-function toGql(ctx: MatchingOfferContext, suggestedCandidates?: MatchingCandidate[]): object {
-    const { analysis, offer } = ctx;
-    const ageMin = offer.criteria?.age_min;
-    const ageMax = offer.criteria?.age_max;
-    const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
-    const candidates = offer.matching?.candidates ?? [];
-
+export function toGql(job: Job & { suggestedCandidates?: MatchingCandidate[] }): object {
     return {
-        id: offer.id,
-        companyName: analysis.company_infos?.name,
-        ageRange,
-        desiredTP: offer.tp_type,
-        desiredSex: 'MIXTE',
-        drivingLicencseB: offer.criteria?.driving_license ?? false,
-        professionalExperience: offer.criteria?.experience_required ?? false,
-        status: offer.matching?.status ?? OfferStatus.NOT_MATCHED,
-        localisation: offer.localisation,
-        sector: null,
-        matched: false,
-        matchedCandidate: candidates
-            .filter((c) => c.status !== MatchedCandidateStatus.OFFER_SEND)
-            .map(matchingCandidateToGql),
-        suggestedCandidates: suggestedCandidates?.map(matchingCandidateToGql),
-        proposedCandidate: candidates
-            .filter((c) => c.status === MatchedCandidateStatus.OFFER_SEND)
-            .map(proposedCandidateToGql),
-        interviewSlots: offer.matching?.interview_slots,
-        interviewLocation: offer.matching?.interview_location,
+        id: job._id,
+        companyName: job.company_name,
+        ageRange: job.age_range,
+        desiredTP: job.desired_tp,
+        desiredSex: job.desired_sex,
+        drivingLicencseB: job.driving_license_b,
+        professionalExperience: job.professional_experience,
+        status: job.status,
+        localisation: job.localisation,
+        sector: job.sector,
+        matched: job.matched,
+        matchedCandidate: job.matched_candidate?.map(matchingCandidateToGql),
+        suggestedCandidates: job.suggestedCandidates?.map(matchingCandidateToGql),
+        proposedCandidate: job.proposed_candidate?.map(proposedCandidateToGql),
+        interviewSlots: job.interview_slots,
+        interviewLocation: job.interview_location,
+    };
+}
+
+function fromGql(data: any): Partial<Job> {
+    return {
+        ...(data.companyName !== undefined && { company_name: data.companyName }),
+        ...(data.ageRange !== undefined && { age_range: data.ageRange }),
+        ...(data.desiredTP !== undefined && { desired_tp: data.desiredTP }),
+        ...(data.desiredSex !== undefined && { desired_sex: data.desiredSex }),
+        ...(data.drivingLicencseB !== undefined && { driving_license_b: data.drivingLicencseB }),
+        ...(data.professionalExperience !== undefined && { professional_experience: data.professionalExperience }),
+        ...(data.status !== undefined && { status: data.status }),
+        ...(data.localisation !== undefined && { localisation: data.localisation }),
+        ...(data.sector !== undefined && { sector: data.sector }),
+        ...(data.matchedCandidate !== undefined && { matched_candidate: data.matchedCandidate }),
     };
 }
 
@@ -103,127 +112,156 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
     };
 }
 
-function deriveJobStatus(matchedCandidates: MatchingCandidate[], currentStatus?: OfferStatus): OfferStatus {
-    if (matchedCandidates.length === 0) return OfferStatus.NOT_MATCHED;
+export function deriveJobStatus(matchedCandidates: MatchingCandidate[], currentStatus?: JobStatus): JobStatus {
+    if (matchedCandidates.length === 0) return JobStatus.NOT_MATCHED;
 
-    const manualStages = [OfferStatus.CV_SEND, OfferStatus.IMMERSING, OfferStatus.CONTRACT];
+    const manualStages = [JobStatus.CV_SEND, JobStatus.IMMERSING, JobStatus.CONTRACT];
     if (currentStatus && manualStages.includes(currentStatus)) return currentStatus;
 
     const hasAccepted = matchedCandidates.some((c) => c.status === MatchedCandidateStatus.ACCEPTED);
-    return hasAccepted ? OfferStatus.MATCHED : OfferStatus.NOT_MATCHED;
+    return hasAccepted ? JobStatus.MATCHED : JobStatus.NOT_MATCHED;
 }
 
-export class OfferService {
-    private needsAnalysisRepository = new NeedsAnalysisRepository();
+export class JobService {
+    private repository = new JobRepository();
     private candidateRepository = new CandidateRepository();
     private candidateService = new CandidateService();
     private candidateHistoryService = new CandidateHistoryService();
+    private needsAnalysisRepository = new NeedsAnalysisRepository();
     private companiesService = new CompaniesService();
 
     async findAll(): Promise<object[]> {
-        const contexts = await this.needsAnalysisRepository.listMatchingOffers();
-        return contexts.map((ctx) => toGql(ctx));
+        const jobs = await this.repository.findAll();
+        return jobs.map(toGql);
     }
 
-    async getCompanyInfo(offerId: string): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(offerId);
-        if (!ctx) return null;
+    /**
+     * Toutes les infos entreprise liées à une offre de matching : la fiche CRM
+     * (companies) + l'analyse du besoin (needs_analysis) qui a généré l'offre.
+     * Accessible au RH depuis le matching (le job porte needs_analysis_id → AB → company_id).
+     */
+    async getCompanyInfo(jobId: string): Promise<object | null> {
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
 
-        const companyId = ctx.analysis.company_infos?.id;
-        const companyName = ctx.analysis.company_infos?.name;
-        const company = companyId ? await this.companiesService.findById(companyId) : null;
-        const ab = toNeedsAnalysis(ctx.analysis);
+        let ab = null;
+        let company = null;
 
-        return { companyName: companyName ?? company?.name ?? null, company, ab };
+        // Chemin normal : le job a été généré depuis une AB (needs_analysis_id).
+        if (job.needs_analysis_id) {
+            const abRow = await this.needsAnalysisRepository.findById(job.needs_analysis_id);
+            if (abRow) {
+                ab = toNeedsAnalysis(abRow);
+                company = await this.companiesService.findById(ab.companyID);
+            }
+        }
+
+        // Fallback (jobs importés / seedés sans lien direct) : on retrouve la
+        // fiche entreprise par sa raison sociale, puis sa dernière AB s'il y en a une.
+        if (!company && job.company_name) {
+            company = await this.companiesService.findByName(job.company_name);
+        }
+        if (!ab && company) {
+            const abRows = await this.needsAnalysisRepository.findByCompanyId(company.id);
+            const latest = abRows.sort((a, b) => b.id - a.id)[0];
+            if (latest) ab = toNeedsAnalysis(latest);
+        }
+
+        return { companyName: job.company_name ?? company?.name ?? null, company, ab };
     }
 
     async find(id: string): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(id);
-        if (!ctx) return null;
+        const job = await this.repository.find(id);
+        if (!job) return null;
 
-        const { analysis, offer } = ctx;
         const filter: Record<string, any> = {};
+        if (job.desired_tp) filter['tp_type'] = job.desired_tp;
+        if (job.driving_license_b) filter['identity.driving_license_b'] = true;
+        if (job.desired_sex !== 'MIXTE') filter['identity.sex'] = job.desired_sex;
 
-        if (offer.tp_type) filter['tp_type'] = offer.tp_type;
-        if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
-
-        if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
-            filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
+        if (job.age_range) {
+            const [min, max] = job.age_range.split('-').map(Number);
+            if (!isNaN(min) && !isNaN(max)) filter['identity.age'] = { $gte: min, $lte: max };
         }
 
-        if (offer.localisation?.length) filter['job_info.geographic_mobility'] = { $all: offer.localisation };
+        if (job.localisation?.length) filter['job_info.geographic_mobility'] = { $all: job.localisation };
+        if (job.sector !== Sector.NONE) filter['desired_sectors'] = { $all: [job.sector] };
 
         const candidates = await this.candidateRepository.findByfilter(filter);
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
 
-        return toGql(ctx, suggestedCandidates);
+        return toGql({ ...job, suggestedCandidates });
+    }
+
+    async create(data: any): Promise<object> {
+        const job = await this.repository.create(fromGql(data));
+        return toGql(job);
     }
 
     async update(id: string, data: any): Promise<object | null> {
-        if (data.status) {
-            const ctx = await this.needsAnalysisRepository.setOfferStatus(id, data.status as OfferStatus);
-            return ctx ? toGql(ctx) : null;
-        }
-        return null;
+        const job = await this.repository.update(id, fromGql(data));
+        return job ? toGql(job) : null;
     }
 
     async delete(id: string): Promise<boolean> {
-        return this.needsAnalysisRepository.deleteOffer(id);
+        return this.repository.delete(id);
     }
 
-    async addCandidate(offerId: string, candidateId: string): Promise<object | null> {
+    async addCandidate(jobId: string, candidateId: string): Promise<object | null> {
         const candidate = await this.candidateRepository.findById(candidateId);
         if (!candidate) throw new Error('Candidat introuvable');
 
         const matchingCandidate = candidateToMatchingCandidate(candidate);
-        const ctx = await this.needsAnalysisRepository.addMatchedCandidate(offerId, matchingCandidate);
-        if (!ctx) return null;
+        const job = await this.repository.addMatchedCandidate(jobId, matchingCandidate);
+        if (!job) return null;
 
         await this.candidateHistoryService.recordAuto(
             candidateId,
             CandidateHistoryType.RH,
-            `Le candidat a été retenu pour ${ctx.analysis.company_infos?.name ?? ''}`,
+            `Le candidat a été retenu pour ${job.company_name}`,
         );
-
-        const synced = await this.syncDerivedStatus(offerId, ctx);
-        return toGql(synced);
+        return toGql(await this.syncDerivedStatus(jobId, job));
     }
 
-    async removeCandidate(offerId: string, candidateId: string): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.removeMatchedCandidate(offerId, candidateId);
-        if (!ctx) return null;
-
-        const synced = await this.syncDerivedStatus(offerId, ctx);
-        return toGql(synced);
+    async removeCandidate(jobId: string, candidateId: string): Promise<object | null> {
+        const job = await this.repository.removeMatchedCandidate(jobId, candidateId);
+        if (!job) return null;
+        return toGql(await this.syncDerivedStatus(jobId, job));
     }
 
-    async unmatchAll(offerId: string): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.clearMatchedCandidates(offerId);
-        return ctx ? toGql(ctx) : null;
+    async unmatchAll(jobId: string): Promise<object | null> {
+        const job = await this.repository.clearMatchedCandidates(jobId);
+        return job ? toGql(job) : null;
     }
 
-    async getMatchedOfferIds(candidateId: string): Promise<string[]> {
-        return this.needsAnalysisRepository.findOfferIdsWithCandidate(candidateId);
+    async getMatchedJobIds(candidateId: string): Promise<string[]> {
+        return this.repository.findJobIdsWithCandidate(candidateId);
     }
 
+    /**
+     * Placement courant du candidat (immersion ou contrat) dérivé des offres.
+     * Contrat prioritaire sur immersion. La date de début de contrat n'étant pas
+     * stockée sur l'offre, elle est retrouvée via l'entrée d'historique écrite au
+     * moment de la conclusion.
+     */
     async getCandidatePlacement(candidateId: string): Promise<object | null> {
-        const placements = await this.needsAnalysisRepository.findPlacementOffers(candidateId);
+        const jobs = await this.repository.findPlacementJobs(candidateId);
 
-        let contract: { ctx: MatchingOfferContext; pc: MatchingCandidate } | null = null;
-        let immersion: { ctx: MatchingOfferContext; pc: MatchingCandidate } | null = null;
-        for (const p of placements) {
-            const pc = p.offer.matching?.candidates?.find((c) => c.id === candidateId);
+        let contract: { job: Job; pc: ProposedCandidate } | null = null;
+        let immersion: { job: Job; pc: ProposedCandidate } | null = null;
+        for (const job of jobs) {
+            const pc = job.proposed_candidate?.find((c) => c.id === candidateId);
             if (!pc) continue;
             if (
                 pc.interview_conclusion === InterviewConclusion.CONTRACT ||
                 pc.immersion_conclusion === ImmersionConclusion.CONTRACT
             ) {
-                contract = { ctx: p, pc };
+                contract = { job, pc };
             } else if (
                 pc.interview_conclusion === InterviewConclusion.IMMERSING &&
                 pc.immersion_conclusion !== ImmersionConclusion.REJECTED
             ) {
-                immersion = { ctx: p, pc };
+                immersion = { job, pc };
             }
         }
 
@@ -236,66 +274,62 @@ export class OfferService {
             since = hit.pc.immersion_start_date ?? null;
         } else {
             const entries = await this.candidateHistoryService.findByCandidate(candidateId);
-            const company = hit.ctx.analysis.company_infos?.name;
+            const company = hit.job.company_name;
             const entry = company ? entries.find((e) => e.description?.includes(`contrat avec ${company}`)) : undefined;
             since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
         }
 
         return {
-            companyName: hit.ctx.analysis.company_infos?.name ?? null,
+            companyName: hit.job.company_name ?? null,
             kind,
             since,
             immersionEndDate: kind === 'IMMERSING' ? hit.pc.immersion_end_date ?? null : null,
         };
     }
 
-    async updateMatchedCandidateStatus(offerId: string, candidateId: string, status: string): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.setMatchedCandidateStatus(
-            offerId,
+    async updateMatchedCandidateStatus(jobId: string, candidateId: string, status: string): Promise<object | null> {
+        const job = await this.repository.setMatchedCandidateStatus(
+            jobId,
             candidateId,
             status as MatchedCandidateStatus,
         );
-        if (!ctx) return null;
+        if (!job) return null;
 
         const entry = this.candidateHistoryService.buildMatchedStatusHistoryEntry(
             status as MatchedCandidateStatus,
-            ctx.analysis.company_infos?.name,
+            job.company_name,
         );
         if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
-
-        const synced = await this.syncDerivedStatus(offerId, ctx);
-        return toGql(synced);
+        return toGql(await this.syncDerivedStatus(jobId, job));
     }
 
     async addManualProposedCandidate(
-        offerId: string,
+        jobId: string,
         candidateId: string,
         interviewDate: string,
         interviewHour: string,
         interviewLocation: string,
         ownerEmail: string,
     ): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(offerId);
-        if (!ctx) return null;
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
 
         const candidate = await this.candidateRepository.findById(candidateId);
         if (!candidate) throw new Error('Candidat introuvable');
 
-        const proposed: MatchingCandidate = {
+        const proposed: ProposedCandidate = {
             ...candidateToMatchingCandidate(candidate),
             answer: ProposedCandidateAnswer.ACCEPTED,
             booked_interview_slot: new Date(`${interviewDate}T${interviewHour}`).toISOString(),
             interview_location: interviewLocation,
         };
 
-        const updated = await this.needsAnalysisRepository.addProposedCandidate(offerId, proposed);
+        const updated = await this.repository.addProposedCandidate(jobId, proposed);
         if (!updated) return null;
 
         await this.candidateHistoryService.recordManual(
             candidateId,
-            `Le candidat.e a un entretien avec ${
-                ctx.analysis.company_infos?.name ?? ''
-            } le ${interviewDate} à ${interviewLocation}`,
+            `Le candidat.e a un entretien avec ${job.company_name} le ${interviewDate} à ${interviewLocation}`,
             ownerEmail,
         );
 
@@ -303,20 +337,20 @@ export class OfferService {
     }
 
     async addManualProposedCandidateForImmersion(
-        offerId: string,
+        jobId: string,
         candidateId: string,
         immersionStartDate: string,
         immersionEndDate: string,
         immersionLocation: string,
         ownerEmail: string,
     ): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(offerId);
-        if (!ctx) return null;
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
 
         const candidate = await this.candidateRepository.findById(candidateId);
         if (!candidate) throw new Error('Candidat introuvable');
 
-        const proposed: MatchingCandidate = {
+        const proposed: ProposedCandidate = {
             ...candidateToMatchingCandidate(candidate),
             answer: ProposedCandidateAnswer.ACCEPTED,
             immersion_start_date: immersionStartDate,
@@ -324,16 +358,14 @@ export class OfferService {
             immersion_location: immersionLocation,
         };
 
-        const updated = await this.needsAnalysisRepository.addProposedCandidate(offerId, proposed);
+        const updated = await this.repository.addProposedCandidate(jobId, proposed);
         if (!updated) return null;
 
         await this.candidateService.update(candidateId, { status: CandidateStatus.IMMERSING });
 
         await this.candidateHistoryService.recordManual(
             candidateId,
-            `Le candidat.e est en immersion chez ${
-                ctx.analysis.company_infos?.name ?? ''
-            } du ${immersionStartDate} au ${immersionEndDate}`,
+            `Le candidat.e est en immersion chez ${job.company_name} du ${immersionStartDate} au ${immersionEndDate}`,
             ownerEmail,
         );
 
@@ -341,17 +373,17 @@ export class OfferService {
     }
 
     async setInterviewConclusion(
-        offerId: string,
+        jobId: string,
         candidateId: string,
         conclusion: InterviewConclusion,
         immersionStartDate: string | undefined,
         immersionEndDate: string | undefined,
         ownerEmail: string,
     ): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(offerId);
-        if (!ctx) return null;
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
 
-        const proposed = ctx.offer.matching?.candidates?.find((c) => c.id === candidateId);
+        const proposed = job.proposed_candidate?.find((c) => c.id === candidateId);
         if (!proposed) throw new Error('Candidat proposé introuvable');
 
         if (!isInterviewDatePast(proposed.booked_interview_slot)) {
@@ -362,8 +394,8 @@ export class OfferService {
             throw new Error("Les dates d'immersion sont requises pour cette conclusion");
         }
 
-        const updated = await this.needsAnalysisRepository.setProposedCandidateConclusion(
-            offerId,
+        const updated = await this.repository.setProposedCandidateConclusion(
+            jobId,
             candidateId,
             conclusion,
             immersionStartDate,
@@ -378,7 +410,7 @@ export class OfferService {
         const description = this.buildInterviewConclusionHistoryEntry(
             conclusion,
             proposed.full_name,
-            ctx.analysis.company_infos?.name,
+            job.company_name,
             immersionStartDate,
             immersionEndDate,
         );
@@ -388,37 +420,29 @@ export class OfferService {
     }
 
     async setImmersionConclusion(
-        offerId: string,
+        jobId: string,
         candidateId: string,
         conclusion: ImmersionConclusion,
         ownerEmail: string,
     ): Promise<object | null> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(offerId);
-        if (!ctx) return null;
+        const job = await this.repository.find(jobId);
+        if (!job) return null;
 
-        const proposed = ctx.offer.matching?.candidates?.find((c) => c.id === candidateId);
+        const proposed = job.proposed_candidate?.find((c) => c.id === candidateId);
         if (!proposed) throw new Error('Candidat proposé introuvable');
 
         if (proposed.interview_conclusion !== InterviewConclusion.IMMERSING) {
             throw new Error("Ce candidat n'est pas en immersion");
         }
 
-        const updated = await this.needsAnalysisRepository.setProposedCandidateImmersionConclusion(
-            offerId,
-            candidateId,
-            conclusion,
-        );
+        const updated = await this.repository.setProposedCandidateImmersionConclusion(jobId, candidateId, conclusion);
         if (!updated) return null;
 
         await this.candidateService.update(candidateId, {
             status: IMMERSION_CONCLUSION_TO_CANDIDATE_STATUS[conclusion],
         });
 
-        const description = this.buildImmersionConclusionHistoryEntry(
-            conclusion,
-            proposed.full_name,
-            ctx.analysis.company_infos?.name,
-        );
+        const description = this.buildImmersionConclusionHistoryEntry(conclusion, proposed.full_name, job.company_name);
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
 
         return toGql(updated);
@@ -454,20 +478,19 @@ export class OfferService {
         }
     }
 
-    private async syncDerivedStatus(offerId: string, ctx: MatchingOfferContext): Promise<MatchingOfferContext> {
-        const candidates = ctx.offer.matching?.candidates ?? [];
-        const derived = deriveJobStatus(candidates, ctx.offer.matching?.status);
-        if (derived === ctx.offer.matching?.status) return ctx;
-        const updated = await this.needsAnalysisRepository.setOfferStatus(offerId, derived);
-        return updated ?? ctx;
+    private async syncDerivedStatus(jobId: string, job: Job): Promise<Job> {
+        const derived = deriveJobStatus(job.matched_candidate ?? [], job.status);
+        if (derived === job.status) return job;
+        const updated = await this.repository.update(jobId, { status: derived });
+        return updated ?? job;
     }
 
-    offerResponseLinks(offerId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {
-        const sigOui = signMatchUrl(offerId, candidateId, 'oui');
-        const sigNon = signMatchUrl(offerId, candidateId, 'non');
+    offerResponseLinks(jobId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {
+        const sigOui = signMatchUrl(jobId, candidateId, 'oui');
+        const sigNon = signMatchUrl(jobId, candidateId, 'non');
         return {
-            ouiUrl: `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}&answer=oui&sig=${sigOui}`,
-            nonUrl: `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}&answer=non&sig=${sigNon}`,
+            ouiUrl: `${env.APP_BASE_URL}/api/matching/response?jobId=${jobId}&candidateId=${candidateId}&answer=oui&sig=${sigOui}`,
+            nonUrl: `${env.APP_BASE_URL}/api/matching/response?jobId=${jobId}&candidateId=${candidateId}&answer=non&sig=${sigNon}`,
         };
     }
 }

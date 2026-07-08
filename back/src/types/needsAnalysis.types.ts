@@ -1,14 +1,12 @@
-import { Localisation } from './matching.types';
-
 export interface NeedsAnalysisPosition {
     trainingDomain: 'SECRETARIAT' | 'VENTE';
     jobTitle: string;
     selectedMissions: string[];
-    localisation: Localisation[];
+    localisation: 'NORD' | 'OUEST' | 'SUD';
 }
 
 export interface NeedsAnalysis {
-    id: string;
+    id: number;
     companyID: number;
     userID: number;
     legalRepFunction: string | null;
@@ -44,7 +42,7 @@ export interface NeedsAnalysis {
         | null;
     positionsCount: number;
     positions: NeedsAnalysisPosition[];
-    localisation: Localisation | null;
+    localisation: 'NORD' | 'OUEST' | 'SUD';
     trainingDomain: 'SECRETARIAT' | 'VENTE';
     jobTitle: string;
     selectedMissions: string[];

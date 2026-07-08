@@ -1,6 +1,4 @@
-import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
-import { toNeedsAnalysis } from './mappers/needsAnalysis.mapper';
-import { NeedsAnalysisStatus } from '../types/needsAnalysisNoSql.types';
+import { NeedsAnalysisRepository } from '../repositories/mysql/NeedsAnalysisRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { CompaniesService } from './CompaniesService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
@@ -23,22 +21,21 @@ const gmailService = new GoogleGmailService();
  * @returns true si une AB correspondante a été trouvée et traitée.
  */
 export async function processSignedAb(submissionId: string): Promise<boolean> {
-    const abDoc = await needsAnalysisRepo.findBySignatureRequestId(submissionId);
-    if (!abDoc) {
+    const analysis = await needsAnalysisRepo.findByYousignId(submissionId);
+    if (!analysis) {
         logger.warn(`No Needs Analysis found for signature submission ID: ${submissionId}`);
         return false;
     }
-    const analysis = toNeedsAnalysis(abDoc);
 
-    await needsAnalysisRepo.update(analysis.id, { status: NeedsAnalysisStatus.SIGNE });
+    await needsAnalysisRepo.update(analysis.id, { status: 'SIGNE' });
     logger.info(`Needs Analysis ID ${analysis.id} status updated to SIGNE`);
 
     // Notification temps réel in-app au commercial.
-    notifyUser(analysis.userID, {
+    notifyUser(analysis.user_id, {
         type: 'ab_signed',
         abId: analysis.id,
-        jobTitle: analysis.jobTitle,
-        companyId: analysis.companyID,
+        jobTitle: analysis.job_title,
+        companyId: analysis.company_id,
     });
 
     const signedDocuments = await docusealService.downloadSignedDocuments(submissionId);
@@ -47,8 +44,8 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
         return true;
     }
 
-    const commercial = await userRepo.findById(analysis.userID);
-    const company = await companiesService.findById(analysis.companyID);
+    const commercial = await userRepo.findById(analysis.user_id);
+    const company = await companiesService.findById(analysis.company_id);
     const companyName = company?.name || 'Entreprise';
 
     // Trouver un compte avec des credentials Google valides pour envoyer l'email.
@@ -77,7 +74,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
         };
     });
     const mailOptions = {
-        to: `${analysis.recruitmentResponsibleEmail || ''}, ${senderUser.email}`,
+        to: `${analysis.recruitment_responsible_email || ''}, ${senderUser.email}`,
         subject: `[Disciplina] Fiche Analyse du Besoin Signée - ${companyName}`,
         text: `Bonjour,\n\nL'Analyse du Besoin pour ${companyName} a été signée avec succès.\nVous trouverez le PDF signé en pièce jointe.`,
         html: `
@@ -88,7 +85,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
                 </div>
                 <div style="padding: 24px; background-color: white;">
                     <p>Bonjour,</p>
-                    <p>L'Analyse du Besoin en recrutement pour le poste de <strong>${analysis.jobTitle}</strong> initiée pour <strong>${companyName}</strong> a été signée avec succès.</p>
+                    <p>L'Analyse du Besoin en recrutement pour le poste de <strong>${analysis.job_title}</strong> initiée pour <strong>${companyName}</strong> a été signée avec succès.</p>
                     <p>Le document signé est joint à cet e-mail pour vos archives.</p>
                     <br />
                     <p style="margin-bottom: 0;">Cordialement,</p>

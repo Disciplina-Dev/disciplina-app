@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
-import { seedOffer } from '../../../../test/helpers/seedOffer';
+import { JobRepository } from '../../../repositories/mongo/JobRepository';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
-import { MatchedCandidateStatus } from '../../../types/matching.types';
+import { MatchedCandidateStatus } from '../../../types/job.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
-const JOBS_ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
+const JOBS_ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/jobs`;
 
 async function graphqlRequest(token: string, query: string, variables?: Record<string, unknown>) {
     const res = await fetch(ENDPOINT, {
@@ -167,8 +166,8 @@ describe('candidateHistory', () => {
         const token = mintToken({ id: 1, email: 'jobs@test.local', role: 'ADMIN' });
         const suffix = `accept-${Date.now()}`;
         const candidateId = `hist-job-${suffix}`;
-        const jobRepo = new NeedsAnalysisRepository();
-        const job = await seedOffer({ _id: `job-${suffix}`, company_name: 'ACME' });
+        const jobRepo = new JobRepository();
+        const job = await jobRepo.create({ _id: `job-${suffix}`, company_name: 'ACME' });
         await jobRepo.addMatchedCandidate(job._id, {
             id: candidateId,
             full_name: 'Job Candidate',
@@ -177,10 +176,10 @@ describe('candidateHistory', () => {
 
         const mutationRes = await jobsGraphqlRequest(
             token,
-            `mutation($offerId: String!, $candidateId: String!, $status: MatchedCandidateStatus!) {
-                updateMatchedCandidateStatus(offerId: $offerId, candidateId: $candidateId, status: $status) { id }
+            `mutation($jobId: String!, $candidateId: String!, $status: MatchedCandidateStatus!) {
+                updateMatchedCandidateStatus(jobId: $jobId, candidateId: $candidateId, status: $status) { id }
             }`,
-            { offerId: job._id, candidateId, status: 'ACCEPTED' },
+            { jobId: job._id, candidateId, status: 'ACCEPTED' },
         );
         expect(mutationRes.errors).toBeUndefined();
 

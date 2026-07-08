@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { truncateMysql, dropMongo } from '../../../../test/helpers/db';
+import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
@@ -16,7 +16,6 @@ describe('GraphQL Needs Analysis integration', () => {
 
     beforeEach(async () => {
         await truncateMysql();
-        await dropMongo();
 
         // 1. Seed user
         const conn = await pool.getConnection();
@@ -223,17 +222,15 @@ describe('GraphQL Needs Analysis integration', () => {
             recruitmentResponsibleName: 'Jean Dupont',
             recruitmentResponsiblePhone: '0692112233',
             recruitmentResponsibleEmail: 'jean.dupont@company.local',
-            positions: [
-                {
-                    trainingDomain: 'VENTE',
-                    jobTitle: 'Apprenti Conseiller de Vente',
-                    selectedMissions: ['Accueil client'],
-                    localisation: ['SAINT_DENIS', 'SAINTE_MARIE'],
-                },
-            ],
+            positionsCount: 2,
+            localisation: 'NORD',
+            trainingDomain: 'VENTE',
+            jobTitle: 'Apprenti Conseiller de Vente',
+            selectedMissions: ['Accueil client'],
             educationLevel: 'BAC',
             drivingLicense: 'OPTIONNEL',
             experienceRequired: 'DEBUTANT',
+            ageRequirements: ['18-25'],
             softSkills: 'Dynamique',
             recruitmentMethod: 'PRESELECTION',
             immersionPeriod: 'OUI',
@@ -272,7 +269,7 @@ describe('GraphQL Needs Analysis integration', () => {
         // Creation no longer triggers Yousign: simulate a manually initiated procedure
         const yousignId = `mock-yousign-req-${suffix}`;
         const updateMutation = `
-            mutation UpdateNeedsAnalysis($id: ID!, $input: NeedsAnalysisInput!) {
+            mutation UpdateNeedsAnalysis($id: Int!, $input: NeedsAnalysisInput!) {
                 updateNeedsAnalysis(id: $id, input: $input) {
                     id
                     yousignSignatureRequestID
@@ -319,7 +316,7 @@ describe('GraphQL Needs Analysis integration', () => {
 
         // 3. Query back GraphQL to check status has changed to SIGNE
         const fetchQuery = `
-            query FetchNeedsAnalysis($id: ID!) {
+            query FetchNeedsAnalysis($id: Int!) {
                 needsAnalysis(id: $id) {
                     status
                 }

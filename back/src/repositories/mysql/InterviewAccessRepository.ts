@@ -4,9 +4,9 @@ import { InterviewAccessRow } from '../../types/db-rows.types';
 export class InterviewAccessRepository {
     async create(row: Omit<InterviewAccessRow, 'status' | 'attempts' | 'created_at' | 'updated_at'>): Promise<void> {
         await query(
-            `INSERT INTO interview_access (signature, code, offer_uuid, candidate_id, rh_email, expires_at)
+            `INSERT INTO interview_access (signature, code, job_uuid, candidate_id, rh_email, expires_at)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [row.signature, row.code, row.offer_uuid, row.candidate_id, row.rh_email, row.expires_at],
+            [row.signature, row.code, row.job_uuid, row.candidate_id, row.rh_email, row.expires_at],
         );
     }
 

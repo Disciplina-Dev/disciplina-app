@@ -42,7 +42,6 @@ VALUES
 
 CREATE TABLE IF NOT EXISTS companies (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    ab_id VARCHAR(36) DEFAULT NULL,
     user_id INT,
     legal_referent VARCHAR(255) DEFAULT NULL,
     name VARCHAR(255) NOT NULL,
@@ -162,9 +161,67 @@ CREATE TABLE IF NOT EXISTS companies_blacklist (
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
 );
 
--- L'analyse de besoin (needs_analysis) est désormais stockée dans MongoDB
--- (collection `needs_analysis`, cf. database/mongodb/mongo-init.js). Le lien
--- entreprise → AB se fait via companies.ab_id (UUID du document Mongo).
+CREATE TABLE IF NOT EXISTS needs_analysis (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    user_id INT NOT NULL,
+
+    -- Etape 1: Representant legal & Responsable Recrutement
+    legal_rep_function VARCHAR(255) DEFAULT NULL,
+    recruitment_responsible_name VARCHAR(255) DEFAULT NULL,
+    recruitment_responsible_phone VARCHAR(50) DEFAULT NULL,
+    recruitment_responsible_email VARCHAR(255) DEFAULT NULL,
+    recruitment_responsible_function VARCHAR(255) DEFAULT NULL,
+
+    -- Etape 2: Entreprise
+    company_sectors JSON DEFAULT NULL,
+    company_description TEXT DEFAULT NULL,
+    opco ENUM(
+        'AKTO', 'ATLAS', 'AFDAS', 'CONSTRUCTYS', 'OCAPIAT', 'OPCO_2I',
+        'OPCO_EP', 'OPCO_MOBILITES', 'OPCO_SANTE', 'OPCOMMERCE', 'UNIFORMATION'
+    ) DEFAULT NULL,
+    referral_source ENUM(
+        'KOANN', 'E2CR', 'FRANCE_TRAVAIL', 'TELEVISION_PUB', 'BOUCHE_A_OREILLE',
+        'MISSION_LOCALE', 'SALON', 'RSMA', 'RESEAUX_SOCIAUX'
+    ) DEFAULT NULL,
+
+    -- Etape 3: Le Poste & Les Missions
+    positions_count INT NOT NULL DEFAULT 1,
+    positions JSON DEFAULT NULL,
+    localisation ENUM('NORD', 'OUEST', 'SUD') NOT NULL,
+    training_domain ENUM('SECRETARIAT', 'VENTE') NOT NULL,
+    job_title VARCHAR(255) NOT NULL,
+    selected_missions JSON NOT NULL,
+    other_missions TEXT DEFAULT NULL,
+    job_description_missions JSON DEFAULT NULL,
+    job_description_other TEXT DEFAULT NULL,
+
+    -- Etape 4: Exigences de l'Apprenti
+    education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') DEFAULT NULL,
+    driving_license ENUM('OUI', 'OPTIONNEL') NOT NULL,
+    experience_required ENUM('DEBUTANT', 'OBLIGATOIRE') NOT NULL,
+    age_requirements JSON NOT NULL,
+    age_min INT DEFAULT NULL,
+    age_max INT DEFAULT NULL,
+    soft_skills TEXT DEFAULT NULL,
+    schedule_options JSON DEFAULT NULL,
+    conditions TEXT DEFAULT NULL,
+    additional_comments TEXT DEFAULT NULL,
+
+    -- Etape 4: Logique & Process RH
+    recruitment_method ENUM('ALL_CV', 'PRESELECTION', 'PRE_INTERVIEW') NOT NULL,
+    immersion_period ENUM('OUI', 'NON', 'A_DISCUTER') NOT NULL,
+    training_days JSON NOT NULL,
+
+    -- Etape 5: Yousign & Statut
+    yousign_signature_request_id VARCHAR(255) DEFAULT NULL,
+    status ENUM('BROUILLON', 'EN_ATTENTE_SIGNATURE', 'SIGNE', 'EXPIRE') NOT NULL DEFAULT 'BROUILLON',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
 
 CREATE TABLE IF NOT EXISTS rh_kpi (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -214,7 +271,7 @@ CREATE TABLE IF NOT EXISTS match_link (
     identifier VARCHAR(32) NOT NULL,
     rh_email VARCHAR(255) NOT NULL,
     company_email VARCHAR(255) NOT NULL,
-    offer_uuid VARCHAR(64) NOT NULL,
+    job_uuid VARCHAR(64) NOT NULL,
     status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
     attempts TINYINT NOT NULL DEFAULT 0,
     expires_at TIMESTAMP NOT NULL,
@@ -227,7 +284,7 @@ CREATE TABLE IF NOT EXISTS match_link (
 CREATE TABLE IF NOT EXISTS interview_access (
     signature CHAR(64) PRIMARY KEY,
     code CHAR(6) NOT NULL,
-    offer_uuid VARCHAR(64) NOT NULL,
+    job_uuid VARCHAR(64) NOT NULL,
     candidate_id VARCHAR(64) NOT NULL,
     rh_email VARCHAR(255) NOT NULL,
     status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
@@ -235,7 +292,7 @@ CREATE TABLE IF NOT EXISTS interview_access (
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_interview_access_offer (offer_uuid),
+    INDEX idx_interview_access_job (job_uuid),
     INDEX idx_interview_access_candidate (candidate_id)
 );
 

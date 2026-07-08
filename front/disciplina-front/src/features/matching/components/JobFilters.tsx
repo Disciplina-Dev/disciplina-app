@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, ChevronDown, X, Check, Briefcase, Building2 } from 'lucide-react'
 import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
-import { OfferStatus, DesiredTP, Sector, formatEnumLabel } from '../constants/jobEnums'
+import { JobStatus, DesiredTP, Sector, formatEnumLabel } from '../constants/jobEnums'
 import { JOB_STATUS_LABELS } from '@/constants/jobStatus'
 
 interface Props {
@@ -155,7 +155,7 @@ function SelectContent({
 
 // ─── Main component ──────────────────────────────────────────────────────────
 export function JobFilters({ filters, onChange }: Props) {
-  const statusOptions = Object.values(OfferStatus).map((s) => ({ label: JOB_STATUS_LABELS[s], value: s }))
+  const statusOptions = Object.values(JobStatus).map((s) => ({ label: JOB_STATUS_LABELS[s], value: s }))
   const tpOptions = Object.values(DesiredTP).map((tp) => ({ label: tp, value: tp }))
   const sectorOptions = Object.values(Sector)
     .filter((s) => s !== Sector.NONE)
@@ -184,7 +184,7 @@ export function JobFilters({ filters, onChange }: Props) {
         <ChipDropdown
           icon={<Building2 className="h-3 w-3" />}
           label="Statut"
-          activeLabel={filters.statuses.length === 1 ? JOB_STATUS_LABELS[filters.statuses[0] as OfferStatus] : `${filters.statuses.length} sélectionnés`}
+          activeLabel={filters.statuses.length === 1 ? JOB_STATUS_LABELS[filters.statuses[0] as JobStatus] : `${filters.statuses.length} sélectionnés`}
           isActive={filters.statuses.length > 0}
           onClear={() => onChange({ ...filters, statuses: [] })}
         >

@@ -150,8 +150,8 @@ export default function EntreprisePage() {
 
   const [abOpen, setAbOpen] = useState(false)
   const [mailOpen, setMailOpen] = useState(false)
-  const [selectedAbId, setSelectedAbId] = useState<string | null>(null)
-  const [selectedAbIds, setSelectedAbIds] = useState<Set<string>>(new Set())
+  const [selectedAbId, setSelectedAbId] = useState<number | null>(null)
+  const [selectedAbIds, setSelectedAbIds] = useState<Set<number>>(new Set())
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -213,7 +213,7 @@ export default function EntreprisePage() {
     })
   }
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: number) => {
     setSelectedAbIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
   }
   const handleBulkDelete = async () => {

@@ -22,7 +22,6 @@ function toIso(value?: string | Date | null): string {
 export function toCompanies(row: CompaniesRow): Companies {
     return {
         id: row.id,
-        abID: row.ab_id ?? null,
         userID: row.user_id,
         legalReferent: row.legal_referent,
         name: row.name,

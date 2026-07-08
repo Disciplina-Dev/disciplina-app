@@ -9,7 +9,7 @@ export enum InterviewAccessStatus {
 export interface InterviewAccess {
     signature: string;
     code: string;
-    offerUuid: string;
+    jobUuid: string;
     candidateId: string;
     rhEmail: string;
     status: InterviewAccessStatus;

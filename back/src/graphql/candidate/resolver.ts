@@ -9,7 +9,7 @@ import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
-import { camelToSnakeCase, candidateToGql, offerToMatchedOfferGql } from '../../services/mappers/candidate.mapper';
+import { camelToSnakeCase, candidateToGql, jobToMatchedJobGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
@@ -167,8 +167,8 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
-            const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map(offerToMatchedOfferGql) };
+            const matchedJobs = await candidateService.matchJobs(id);
+            return { ...candidateToGql(candidate), matchedJobs: matchedJobs.map(jobToMatchedJobGql) };
         },
         candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
@@ -283,8 +283,8 @@ export const resolvers = {
                 logger.error({ err: error }, 'Drive folder creation failed');
             }
 
-            const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(newCandidate), matchedOffers: matchedOffers.map(offerToMatchedOfferGql) };
+            const matchedJobs = await candidateService.matchJobs(id);
+            return { ...candidateToGql(newCandidate), matchedJobs: matchedJobs.map(jobToMatchedJobGql) };
         },
 
         updateCandidate: async (
