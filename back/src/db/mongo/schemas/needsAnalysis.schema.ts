@@ -80,6 +80,7 @@ const criteriaSchema = new Schema<OfferCriteria>(
         training_domain: { type: String, enum: Object.values(TrainingDomain), default: null },
         age_min: { type: Number, default: null },
         age_max: { type: Number, default: null },
+        desired_sex: { type: String, default: null },
         soft_skills: { type: String, default: null },
         schedule_options: { type: [String], default: [] },
         conditions: { type: String, default: null },
