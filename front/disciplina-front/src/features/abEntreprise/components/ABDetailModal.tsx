@@ -3,6 +3,7 @@ import { X, Briefcase, Users, GraduationCap, ClipboardList, Calendar, Hash, Tras
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
+import { formatCommune } from '@/data/reunionCommunes'
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -45,7 +46,7 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
 }
 
 interface Props {
-  id: number
+  id: string
   onClose: () => void
   onDelete?: () => void
 }
@@ -191,8 +192,8 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
 
             {(ab.positions?.length > 0
               ? ab.positions
-              : [{ trainingDomain: ab.trainingDomain, jobTitle: ab.jobTitle, selectedMissions: ab.selectedMissions ?? [], localisation: ab.localisation }]
-            ).map((p: { trainingDomain: string; jobTitle: string; selectedMissions: string[]; localisation: string }, i: number, arr: unknown[]) => (
+              : [{ trainingDomain: ab.trainingDomain, jobTitle: ab.jobTitle, selectedMissions: ab.selectedMissions ?? [], localisation: ab.localisation ? [ab.localisation] : [] }]
+            ).map((p: { trainingDomain: string; jobTitle: string; selectedMissions: string[]; localisation: string[] }, i: number, arr: unknown[]) => (
               <Section
                 key={i}
                 icon={<ClipboardList className="h-3.5 w-3.5" />}
@@ -200,7 +201,7 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
               >
                 <Row label="Intitulé"     value={p.jobTitle} />
                 <Row label="Domaine"      value={LABELS.trainingDomain[p.trainingDomain]} />
-                <Row label="Localisation" value={LABELS.localisation[p.localisation]} />
+                <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
                 {p.selectedMissions?.length > 0 && (
                   <div className="py-2">
                     <ul className="list-disc list-inside space-y-0.5">

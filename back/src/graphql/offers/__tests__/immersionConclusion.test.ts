@@ -1,14 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { JobRepository } from '../../../repositories/mongo/JobRepository';
+import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
 import { env } from '../../../config/env';
-import { InterviewConclusion, JobStatus, ProposedCandidateAnswer } from '../../../types/job.types';
+import {
+    InterviewConclusion,
+    OfferStatus,
+    ProposedCandidateAnswer,
+    MatchedCandidateStatus,
+} from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 import { unzipSync } from 'zlib';
 
-const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/jobs`;
+const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 function authHeaders(token: string) {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -24,12 +30,12 @@ async function gql(token: string, body: object) {
 }
 
 const MUTATION = `mutation(
-    $jobId: String!
+    $offerId: String!
     $candidateId: String!
     $conclusion: ImmersionConclusion!
 ) {
     setImmersionConclusion(
-        jobId: $jobId
+        offerId: $offerId
         candidateId: $candidateId
         conclusion: $conclusion
     ) {
@@ -42,15 +48,15 @@ const MUTATION = `mutation(
     }
 }`;
 
-async function seedJobWithImmersionCandidate(suffix: number): Promise<{ jobId: string; candidateId: string }> {
-    const jobRepo = new JobRepository();
+async function seedJobWithImmersionCandidate(suffix: number): Promise<{ offerId: string; candidateId: string }> {
+    const jobRepo = new NeedsAnalysisRepository();
     const candidateRepo = new CandidateRepository();
 
-    const jobId = `job-immersion-concl-${suffix}`;
-    await jobRepo.create({
-        _id: jobId,
+    const offerId = `job-immersion-concl-${suffix}`;
+    await seedOffer({
+        _id: offerId,
         company_name: `Immersion Corp ${suffix}`,
-        status: JobStatus.CV_SEND,
+        status: OfferStatus.CV_SEND,
     });
 
     const candidateId = `cand-immersion-concl-${suffix}`;
@@ -68,11 +74,12 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ jobId: s
     });
 
     const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    await jobRepo.addProposedCandidate(jobId, {
+    await jobRepo.addProposedCandidate(offerId, {
         id: candidateId,
         full_name: `Lea ${suffix}`,
         email: `lea-${suffix}@test.local`,
         answer: ProposedCandidateAnswer.ACCEPTED,
+        status: MatchedCandidateStatus.OFFER_SEND,
         booked_interview_slot: pastSlot,
         interview_location: 'Saint-Denis',
         interview_conclusion: InterviewConclusion.IMMERSING,
@@ -80,20 +87,20 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ jobId: s
         immersion_end_date: '2026-07-31',
     });
 
-    return { jobId, candidateId };
+    return { offerId, candidateId };
 }
 
 describe('GraphQL setImmersionConclusion', () => {
     it('rejects when the candidate is not in immersion', async () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
-        const jobRepo = new JobRepository();
+        const jobRepo = new NeedsAnalysisRepository();
         const candidateRepo = new CandidateRepository();
 
         const suffix = Date.now();
-        const jobId = `job-no-immersion-${suffix}`;
+        const offerId = `job-no-immersion-${suffix}`;
         const candidateId = `cand-no-immersion-${suffix}`;
 
-        await jobRepo.create({ _id: jobId, company_name: `Corp ${suffix}`, status: JobStatus.CV_SEND });
+        await seedOffer({ _id: offerId, company_name: `Corp ${suffix}`, status: OfferStatus.CV_SEND });
         await candidateRepo.create({
             _id: candidateId,
             candidate_id: candidateId,
@@ -103,7 +110,7 @@ describe('GraphQL setImmersionConclusion', () => {
         });
 
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        await jobRepo.addProposedCandidate(jobId, {
+        await jobRepo.addProposedCandidate(offerId, {
             id: candidateId,
             full_name: `Tom ${suffix}`,
             email: `tom-${suffix}@test.local`,
@@ -114,7 +121,7 @@ describe('GraphQL setImmersionConclusion', () => {
 
         const { res, json } = await gql(token, {
             query: MUTATION,
-            variables: { jobId, candidateId, conclusion: 'REJECTED' },
+            variables: { offerId, candidateId, conclusion: 'REJECTED' },
         });
 
         expect(res.status).toBe(200);
@@ -128,11 +135,11 @@ describe('GraphQL setImmersionConclusion', () => {
     ])('sets %s conclusion, candidate status, and a history entry', async (conclusion, expectedStatus) => {
         const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
-        const { jobId, candidateId } = await seedJobWithImmersionCandidate(suffix);
+        const { offerId, candidateId } = await seedJobWithImmersionCandidate(suffix);
 
         const { res, json } = await gql(token, {
             query: MUTATION,
-            variables: { jobId, candidateId, conclusion },
+            variables: { offerId, candidateId, conclusion },
         });
 
         expect(res.status).toBe(200);

@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
-import { JobRepository } from '../../../repositories/mongo/JobRepository';
+import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '../../../types/candidate.types';
-import { JobStatus, DesiredSex, Localisation, Sector } from '../../../types/job.types';
+import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -259,7 +260,6 @@ describe('matchCandidate', () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
         const suffix = `mc-${Date.now()}`;
         const candidateRepo = new CandidateRepository();
-        const jobRepo = new JobRepository();
 
         const candidateId = `cand-mc-${suffix}`;
         await candidateRepo.create({
@@ -279,9 +279,9 @@ describe('matchCandidate', () => {
             job_info: { geographic_mobility: [Localisation.SAINT_BENOIT] },
         });
 
-        const jobId = `job-mc-${suffix}`;
-        await jobRepo.create({
-            _id: jobId,
+        const offerId = `job-mc-${suffix}`;
+        await seedOffer({
+            _id: offerId,
             company_name: `Match Corp ${suffix}`,
             desired_tp: TitleProfessionalType.NTC,
             driving_license_b: true,
@@ -289,14 +289,14 @@ describe('matchCandidate', () => {
             age_range: '20-40',
             localisation: [Localisation.SAINT_BENOIT],
             sector: Sector.STATION,
-            status: JobStatus.NOT_MATCHED,
+            status: OfferStatus.NOT_MATCHED,
         });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({
-                query: `query($id: String!) { matchCandidate(id: $id) { id matchedJobs { id companyName } } }`,
+                query: `query($id: String!) { matchCandidate(id: $id) { id matchedOffers { id companyName } } }`,
                 variables: { id: candidateId },
             }),
         });
@@ -305,8 +305,8 @@ describe('matchCandidate', () => {
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
         expect(json.data.matchCandidate.id).toBe(candidateId);
-        expect(json.data.matchCandidate.matchedJobs).toContainEqual(
-            expect.objectContaining({ id: jobId, companyName: `Match Corp ${suffix}` }),
+        expect(json.data.matchCandidate.matchedOffers).toContainEqual(
+            expect.objectContaining({ id: offerId, companyName: `Match Corp ${suffix}` }),
         );
     });
 

@@ -1,4 +1,4 @@
-export enum JobStatus {
+export enum OfferStatus {
     NOT_MATCHED = 'NOT_MATCHED',
     MATCHED = 'MATCHED',
     CV_SEND = 'CV_SEND',
@@ -91,6 +91,9 @@ export enum Sector {
     NONE = 'NONE',
 }
 
+// Candidat unifié du matching : identité + statut de recrutement (matched) et,
+// une fois proposé à l'entreprise, réponse / entretien / immersion. Un seul type
+// pour la liste unique `matching.candidates` portée par chaque offre d'AB.
 export interface MatchingCandidate {
     id: string;
     full_name?: string;
@@ -100,9 +103,6 @@ export interface MatchingCandidate {
     email?: string;
     phone?: string;
     status?: MatchedCandidateStatus;
-}
-
-export interface ProposedCandidate extends MatchingCandidate {
     description?: string;
     cv_webview?: string;
     answer?: ProposedCandidateAnswer | null;
@@ -114,25 +114,4 @@ export interface ProposedCandidate extends MatchingCandidate {
     immersion_end_date?: string;
     immersion_location?: string;
     immersion_conclusion?: ImmersionConclusion | null;
-}
-
-export interface Job {
-    _id?: string;
-    // Lien vers l'AB (MySQL needs_analysis) qui a généré cette offre, pour pouvoir
-    // supprimer les offres de matching quand le commercial supprime l'AB.
-    needs_analysis_id?: number;
-    company_name?: string;
-    age_range?: string;
-    desired_tp?: string;
-    desired_sex?: DesiredSex;
-    driving_license_b?: boolean;
-    professional_experience?: boolean;
-    status?: JobStatus;
-    sector?: Sector;
-    localisation?: Localisation[];
-    matched?: boolean;
-    matched_candidate?: MatchingCandidate[];
-    proposed_candidate?: ProposedCandidate[];
-    interview_slots?: string[];
-    interview_location?: string;
 }

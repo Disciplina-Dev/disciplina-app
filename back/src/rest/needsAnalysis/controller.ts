@@ -20,8 +20,8 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
         return;
     }
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!id) {
         res.status(400).json({ error: 'Invalid needs analysis ID' });
         return;
     }
@@ -89,8 +89,8 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         return;
     }
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = req.params.id;
+    if (!id) {
         res.status(400).json({ error: 'Invalid needs analysis ID' });
         return;
     }

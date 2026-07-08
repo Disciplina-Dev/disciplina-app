@@ -1,158 +1,197 @@
-import { NeedsAnalysisRow } from '../../types/db-rows.types';
+import { randomUUID } from 'crypto';
 import { NeedsAnalysis, NeedsAnalysisPosition } from '../../types/needsAnalysis.types';
+import {
+    NeedsAnalysis as NeedsAnalysisDocument,
+    CompanyInfos,
+    Referents,
+    Offer,
+    OfferCriteria,
+    CompanyRegion,
+} from '../../types/needsAnalysisNoSql.types';
+import { Companies } from '../../types/company.types';
+import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, Zone } from './abToJob';
 
-export function toNeedsAnalysis(row: NeedsAnalysisRow): NeedsAnalysis {
-    let selectedMissions: string[] = [];
-    try {
-        selectedMissions = typeof row.selected_missions === 'string'
-            ? JSON.parse(row.selected_missions)
-            : (row.selected_missions || []);
-    } catch {
-        selectedMissions = [];
+type Saler = { id?: number; email?: string | null } | null | undefined;
+
+// Domaine (unions de string) et document Mongo (enums) partagent des valeurs identiques :
+// les casts `as unknown as` traversent la frontière sans conversion de valeur.
+
+const COMMUNE_TO_ZONE = new Map<string, Zone>();
+for (const [zone, communes] of Object.entries(ZONE_TO_COMMUNES)) {
+    for (const commune of communes) {
+        COMMUNE_TO_ZONE.set(commune, zone as Zone);
     }
+}
 
-    let ageRequirements: string[] = [];
-    try {
-        ageRequirements = typeof row.age_requirements === 'string'
-            ? JSON.parse(row.age_requirements)
-            : (row.age_requirements || []);
-    } catch {
-        ageRequirements = [];
-    }
+function zoneFromCommunes(communes: string[] | undefined, fallback: Zone): Zone {
+    const first = communes?.[0];
+    return (first && COMMUNE_TO_ZONE.get(first)) || fallback;
+}
 
-    let trainingDays = '{}';
-    if (row.training_days) {
-        trainingDays = typeof row.training_days === 'string'
-            ? row.training_days
-            : JSON.stringify(row.training_days);
-    }
-
-    let companySectors: string[] = [];
-    try {
-        companySectors = typeof row.company_sectors === 'string'
-            ? JSON.parse(row.company_sectors)
-            : (row.company_sectors || []);
-    } catch { companySectors = []; }
-
-    let jobDescriptionMissions: string[] = [];
-    try {
-        jobDescriptionMissions = typeof row.job_description_missions === 'string'
-            ? JSON.parse(row.job_description_missions)
-            : (row.job_description_missions || []);
-    } catch { jobDescriptionMissions = []; }
-
-    let scheduleOptions: string[] = [];
-    try {
-        scheduleOptions = typeof row.schedule_options === 'string'
-            ? JSON.parse(row.schedule_options)
-            : (row.schedule_options || []);
-    } catch { scheduleOptions = []; }
-
-    let positions: NeedsAnalysisPosition[] = [];
-    try {
-        positions = typeof row.positions === 'string'
-            ? JSON.parse(row.positions)
-            : (row.positions || []);
-    } catch { positions = []; }
+function buildOffer(position: NeedsAnalysisPosition, analysis: Partial<NeedsAnalysis>): Offer {
+    const criteria: OfferCriteria = {
+        education_level: (analysis.educationLevel ?? null) as unknown as OfferCriteria['education_level'],
+        driving_license: analysis.drivingLicense === 'OUI',
+        experience_required: analysis.experienceRequired === 'OBLIGATOIRE',
+        training_domain: position.trainingDomain as unknown as OfferCriteria['training_domain'],
+        age_min: analysis.ageMin ?? null,
+        age_max: analysis.ageMax ?? null,
+        soft_skills: analysis.softSkills ?? null,
+        schedule_options: analysis.scheduleOptions ?? [],
+        conditions: analysis.conditions ?? null,
+        additional_comments: analysis.additionalComments ?? null,
+    };
 
     return {
-        id: row.id,
-        companyID: row.company_id,
-        userID: row.user_id,
-        legalRepFunction: row.legal_rep_function,
-        recruitmentResponsibleName: row.recruitment_responsible_name,
-        recruitmentResponsiblePhone: row.recruitment_responsible_phone,
-        recruitmentResponsibleEmail: row.recruitment_responsible_email,
-        recruitmentResponsibleFunction: row.recruitment_responsible_function,
-        companySectors,
-        companyDescription: row.company_description,
-        opco: row.opco,
-        referralSource: row.referral_source,
-        positionsCount: row.positions_count,
-        positions,
-        localisation: row.localisation,
-        trainingDomain: row.training_domain,
-        jobTitle: row.job_title,
-        selectedMissions,
-        otherMissions: row.other_missions,
-        jobDescriptionMissions,
-        jobDescriptionOther: row.job_description_other,
-        educationLevel: row.education_level,
-        drivingLicense: row.driving_license,
-        experienceRequired: row.experience_required,
-        ageRequirements,
-        ageMin: row.age_min,
-        ageMax: row.age_max,
-        softSkills: row.soft_skills,
-        scheduleOptions,
-        conditions: row.conditions,
-        additionalComments: row.additional_comments,
-        recruitmentMethod: row.recruitment_method,
-        immersionPeriod: row.immersion_period,
-        trainingDays,
-        yousignSignatureRequestID: row.yousign_signature_request_id,
-        status: row.status,
-        createdAt: row.created_at ? new Date(row.created_at).toISOString() : undefined,
-        updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
+        id: randomUUID(),
+        localisation: position.localisation ?? [],
+        tp_type: DOMAIN_TO_TP[position.trainingDomain] ?? null,
+        training_domain: position.trainingDomain as unknown as Offer['training_domain'],
+        title: position.jobTitle,
+        missions: position.selectedMissions ?? [],
+        description_missions: analysis.jobDescriptionMissions ?? [],
+        other_description_missions: analysis.jobDescriptionOther ?? null,
+        other_missions: analysis.otherMissions ?? null,
+        criteria,
     };
 }
 
-export function toNeedsAnalysisRow(input: Partial<NeedsAnalysis>): Partial<NeedsAnalysisRow> {
-    const row: Partial<NeedsAnalysisRow> = {};
+function resolvePositions(analysis: Partial<NeedsAnalysis>): NeedsAnalysisPosition[] {
+    if (analysis.positions && analysis.positions.length > 0) {
+        return analysis.positions;
+    }
+    if (!analysis.jobTitle) {
+        return [];
+    }
+    return [
+        {
+            trainingDomain: analysis.trainingDomain ?? 'SECRETARIAT',
+            jobTitle: analysis.jobTitle,
+            selectedMissions: analysis.selectedMissions ?? [],
+            localisation: analysis.localisation ? [analysis.localisation] : [],
+        },
+    ];
+}
 
-    if (input.id !== undefined) row.id = input.id;
-    if (input.companyID !== undefined) row.company_id = input.companyID;
-    if (input.userID !== undefined) row.user_id = input.userID;
-    if (input.legalRepFunction !== undefined) row.legal_rep_function = input.legalRepFunction;
-    if (input.recruitmentResponsibleName !== undefined) row.recruitment_responsible_name = input.recruitmentResponsibleName;
-    if (input.recruitmentResponsiblePhone !== undefined) row.recruitment_responsible_phone = input.recruitmentResponsiblePhone;
-    if (input.recruitmentResponsibleEmail !== undefined) row.recruitment_responsible_email = input.recruitmentResponsibleEmail;
-    if (input.recruitmentResponsibleFunction !== undefined) row.recruitment_responsible_function = input.recruitmentResponsibleFunction;
-    if (input.companyDescription !== undefined) row.company_description = input.companyDescription;
-    if (input.opco !== undefined) row.opco = input.opco;
-    if (input.referralSource !== undefined) row.referral_source = input.referralSource;
-    if (input.positionsCount !== undefined) row.positions_count = input.positionsCount;
-    if (input.localisation !== undefined) row.localisation = input.localisation;
-    if (input.trainingDomain !== undefined) row.training_domain = input.trainingDomain;
-    if (input.jobTitle !== undefined) row.job_title = input.jobTitle;
-    if (input.otherMissions !== undefined) row.other_missions = input.otherMissions;
-    if (input.jobDescriptionOther !== undefined) row.job_description_other = input.jobDescriptionOther;
-    if (input.educationLevel !== undefined) row.education_level = input.educationLevel;
-    if (input.ageMin !== undefined) row.age_min = input.ageMin;
-    if (input.ageMax !== undefined) row.age_max = input.ageMax;
-    if (input.conditions !== undefined) row.conditions = input.conditions;
-    if (input.drivingLicense !== undefined) row.driving_license = input.drivingLicense;
-    if (input.experienceRequired !== undefined) row.experience_required = input.experienceRequired;
-    if (input.softSkills !== undefined) row.soft_skills = input.softSkills;
-    if (input.additionalComments !== undefined) row.additional_comments = input.additionalComments;
-    if (input.recruitmentMethod !== undefined) row.recruitment_method = input.recruitmentMethod;
-    if (input.immersionPeriod !== undefined) row.immersion_period = input.immersionPeriod;
-    if (input.yousignSignatureRequestID !== undefined) row.yousign_signature_request_id = input.yousignSignatureRequestID;
-    if (input.status !== undefined) row.status = input.status;
+function buildCompanyInfos(analysis: Partial<NeedsAnalysis>, company: Companies, region: Zone): CompanyInfos {
+    return {
+        id: company.id,
+        name: company.name ?? undefined,
+        ape: company.ape ?? null,
+        idcc: company.idcc ?? null,
+        siret: company.siret ?? undefined,
+        main_activity: company.mainActivity ?? null,
+        opco: (analysis.opco ?? null) as unknown as CompanyInfos['opco'],
+        referral_source: (analysis.referralSource ?? null) as unknown as CompanyInfos['referral_source'],
+        sector: region as unknown as CompanyRegion,
+        activities: analysis.companySectors ?? [],
+        description: analysis.companyDescription ?? null,
+    };
+}
 
-    if (input.selectedMissions !== undefined) {
-        row.selected_missions = JSON.stringify(input.selectedMissions);
-    }
-    if (input.positions !== undefined) {
-        row.positions = JSON.stringify(input.positions);
-    }
-    if (input.companySectors !== undefined) {
-        row.company_sectors = JSON.stringify(input.companySectors);
-    }
-    if (input.jobDescriptionMissions !== undefined) {
-        row.job_description_missions = JSON.stringify(input.jobDescriptionMissions);
-    }
-    if (input.ageRequirements !== undefined) {
-        row.age_requirements = JSON.stringify(input.ageRequirements);
-    }
-    if (input.scheduleOptions !== undefined) {
-        row.schedule_options = JSON.stringify(input.scheduleOptions);
-    }
-    if (input.trainingDays !== undefined) {
-        row.training_days = typeof input.trainingDays === 'string'
-            ? input.trainingDays
-            : JSON.stringify(input.trainingDays);
-    }
+function buildReferents(analysis: Partial<NeedsAnalysis>, company: Companies): Referents {
+    return {
+        is_same: (analysis.recruitmentResponsibleEmail ?? null) === (company.email ?? null),
+        legal_referents: {
+            name: company.legalReferent ?? null,
+            phone: company.phone ?? null,
+            email: company.email ?? null,
+            function: analysis.legalRepFunction ?? null,
+        },
+        recruitment_referents: {
+            name: analysis.recruitmentResponsibleName ?? null,
+            phone: analysis.recruitmentResponsiblePhone ?? null,
+            email: analysis.recruitmentResponsibleEmail ?? null,
+            function: analysis.recruitmentResponsibleFunction ?? null,
+        },
+    };
+}
 
-    return row;
+export function toNeedsAnalysisDocument(
+    analysis: Partial<NeedsAnalysis>,
+    company: Companies,
+    saler: Saler,
+): NeedsAnalysisDocument {
+    const positions = resolvePositions(analysis);
+    const region = zoneFromCommunes(positions[0]?.localisation, 'NORD');
+    const now = new Date();
+
+    return {
+        _id: analysis.id,
+        company_infos: buildCompanyInfos(analysis, company, region),
+        saler_info: { id: analysis.userID, email: saler?.email ?? undefined },
+        referents: buildReferents(analysis, company),
+        offers: positions.map((position) => buildOffer(position, analysis)),
+        recruitment_method: (analysis.recruitmentMethod ??
+            undefined) as unknown as NeedsAnalysisDocument['recruitment_method'],
+        immersion_period: (analysis.immersionPeriod ??
+            undefined) as unknown as NeedsAnalysisDocument['immersion_period'],
+        training_days: analysis.trainingDays,
+        signature_request_id: analysis.yousignSignatureRequestID ?? null,
+        status: (analysis.status ?? 'BROUILLON') as unknown as NeedsAnalysisDocument['status'],
+        created_at: analysis.createdAt ? new Date(analysis.createdAt) : now,
+        updated_at: now,
+    };
+}
+
+// Une reconstruction complète du document (update) régénère les offres : on
+// réinjecte l'id stable et l'état de matching de l'offre existante (même position)
+// pour ne pas casser le matching RH déjà en cours.
+export function mergeOfferIdentity(existing: Offer | undefined, rebuilt: Offer): Offer {
+    if (!existing) return rebuilt;
+    return { ...rebuilt, id: existing.id ?? rebuilt.id, matching: existing.matching ?? rebuilt.matching };
+}
+
+export function toNeedsAnalysis(doc: NeedsAnalysisDocument): NeedsAnalysis {
+    const offers = doc.offers ?? [];
+    const first = offers[0];
+    const criteria = first?.criteria ?? {};
+
+    const positions: NeedsAnalysisPosition[] = offers.map((offer) => ({
+        trainingDomain: (offer.training_domain ?? 'SECRETARIAT') as unknown as NeedsAnalysisPosition['trainingDomain'],
+        jobTitle: offer.title ?? '',
+        selectedMissions: offer.missions ?? [],
+        localisation: offer.localisation ?? [],
+    }));
+
+    return {
+        id: String(doc._id),
+        companyID: doc.company_infos?.id ?? 0,
+        userID: doc.saler_info?.id ?? 0,
+        legalRepFunction: doc.referents?.legal_referents?.function ?? null,
+        recruitmentResponsibleName: doc.referents?.recruitment_referents?.name ?? null,
+        recruitmentResponsiblePhone: doc.referents?.recruitment_referents?.phone ?? null,
+        recruitmentResponsibleEmail: doc.referents?.recruitment_referents?.email ?? null,
+        recruitmentResponsibleFunction: doc.referents?.recruitment_referents?.function ?? null,
+        companySectors: doc.company_infos?.activities ?? [],
+        companyDescription: doc.company_infos?.description ?? null,
+        opco: (doc.company_infos?.opco ?? null) as unknown as NeedsAnalysis['opco'],
+        referralSource: (doc.company_infos?.referral_source ?? null) as unknown as NeedsAnalysis['referralSource'],
+        positionsCount: positions.length,
+        positions,
+        localisation: positions[0]?.localisation?.[0] ?? null,
+        trainingDomain: (first?.training_domain ?? 'SECRETARIAT') as unknown as NeedsAnalysis['trainingDomain'],
+        jobTitle: first?.title ?? '',
+        selectedMissions: first?.missions ?? [],
+        otherMissions: first?.other_missions ?? null,
+        jobDescriptionMissions: first?.description_missions ?? [],
+        jobDescriptionOther: first?.other_description_missions ?? null,
+        educationLevel: (criteria.education_level ?? null) as unknown as NeedsAnalysis['educationLevel'],
+        drivingLicense: criteria.driving_license ? 'OUI' : 'OPTIONNEL',
+        experienceRequired: criteria.experience_required ? 'OBLIGATOIRE' : 'DEBUTANT',
+        ageRequirements: [],
+        ageMin: criteria.age_min ?? null,
+        ageMax: criteria.age_max ?? null,
+        softSkills: criteria.soft_skills ?? null,
+        scheduleOptions: criteria.schedule_options ?? [],
+        conditions: criteria.conditions ?? null,
+        additionalComments: criteria.additional_comments ?? null,
+        recruitmentMethod: (doc.recruitment_method ?? 'ALL_CV') as unknown as NeedsAnalysis['recruitmentMethod'],
+        immersionPeriod: (doc.immersion_period ?? 'NON') as unknown as NeedsAnalysis['immersionPeriod'],
+        trainingDays: doc.training_days ?? '{}',
+        yousignSignatureRequestID: doc.signature_request_id ?? null,
+        status: (doc.status ?? 'BROUILLON') as unknown as NeedsAnalysis['status'],
+        createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
+        updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
+    };
 }

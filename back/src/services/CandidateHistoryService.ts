@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { CandidateHistoryRepository } from '../repositories/mongo/CandidateHistoryRepository';
 import { CandidateHistoryEntry, CandidateHistoryType } from '../types/candidate.types';
-import { MatchedCandidateStatus } from '../types/job.types';
+import { MatchedCandidateStatus } from '../types/matching.types';
 import { logger } from '../external/logger';
 
 interface MatchedStatusHistoryEntry {
