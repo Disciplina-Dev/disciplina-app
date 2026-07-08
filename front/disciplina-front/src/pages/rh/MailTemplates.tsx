@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, X, Mail, Paperclip, Loader2, Save } from 'lucide-
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
+import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel } from '@/api/mailTemplates'
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
@@ -11,6 +12,8 @@ interface FormState {
   name: string
   subject: string
   body: string
+  // Niveau de relance (scope peda uniquement) ; '' = non rattaché.
+  pedaLevel: PedaLevel | ''
   // PJ déjà stockée sur Drive (métadonnées) ; null si aucune ou supprimée.
   existingAttachment: { filename: string; contentType: string } | null
   // Nouveau fichier à uploader (remplace l'existant) ; null sinon.
@@ -18,7 +21,7 @@ interface FormState {
   removeExisting: boolean
 }
 
-const EMPTY_FORM: FormState = { name: '', subject: '', body: '', existingAttachment: null, newFile: null, removeExisting: false }
+const EMPTY_FORM: FormState = { name: '', subject: '', body: '', pedaLevel: '', existingAttachment: null, newFile: null, removeExisting: false }
 
 // Le fichier est zippé côté serveur puis stocké sur Drive — on tolère des PJ plus lourdes que l'ancien localStorage.
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -38,6 +41,14 @@ const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boo
   { token: 'lien', label: 'Lien de réservation (proposition d’entretien)', example: 'https://app.disciplina.re/booking/xxxx' },
 ]
 
+// Variables du scope peda, remplacées à la génération des brouillons de relance
+// absence (cf. back/src/services/PedaDraftService.ts).
+const PEDA_TEMPLATE_VARS: typeof TEMPLATE_VARS = [
+  { token: 'nom', label: 'Nom de l’apprenant', example: 'Dupont' },
+  { token: 'prenom', label: 'Prénom de l’apprenant', example: 'Marie' },
+  { token: 'mail', label: 'Adresse mail de l’apprenant', example: 'marie.dupont@exemple.re' },
+]
+
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
   const { templates, loading, loaded, error: storeError, load, add, update, remove } =
     useMailTemplatesStore(scope)
@@ -46,6 +57,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const templateVars = scope === 'peda' ? PEDA_TEMPLATE_VARS : TEMPLATE_VARS
 
   useEffect(() => { load() }, [load])
 
@@ -62,10 +74,20 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   }
 
   function openEdit(t: MailTemplate) {
-    setForm({ name: t.name, subject: t.subject, body: t.body, existingAttachment: t.attachment, newFile: null, removeExisting: false })
+    setForm({ name: t.name, subject: t.subject, body: t.body, pedaLevel: t.pedaLevel ?? '', existingAttachment: t.attachment, newFile: null, removeExisting: false })
     setEditing(t)
     setError(null)
   }
+
+  const assignedLevels = new Set(templates.map((t) => t.pedaLevel).filter(Boolean) as PedaLevel[])
+  const missingLevels = PEDA_LEVELS.filter((l) => !assignedLevels.has(l))
+
+  // Niveaux déjà pris par un autre modèle : un niveau ne peut pointer que sur un modèle.
+  const takenLevels = new Set(
+    templates
+      .filter((t) => t.pedaLevel && (editing === 'new' || t.id !== (editing as MailTemplate)?.id))
+      .map((t) => t.pedaLevel as PedaLevel),
+  )
 
   function handleAttachmentFile(file: File | undefined) {
     if (!file) return
@@ -94,7 +116,12 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
     setSaving(true)
     setError(null)
     try {
-      const data = { name: form.name, subject: form.subject, body: form.body }
+      const data = {
+        name: form.name,
+        subject: form.subject,
+        body: form.body,
+        pedaLevel: scope === 'peda' ? (form.pedaLevel || null) : null,
+      }
       if (editing === 'new') {
         await add(data, form.newFile)
       } else if (editing) {
@@ -121,7 +148,9 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
             <p className="text-sm text-gray-400 mt-0.5">
               {scope === 'rh'
                 ? 'Modèles communs à toute l’équipe RH · enregistrés sur le serveur'
-                : 'Créez vos propres modèles réutilisables · enregistrés sur le serveur'}
+                : scope === 'peda'
+                  ? 'Modèles communs à tous les Pedas · rattachez un niveau de relance à chacun pour les brouillons d’absence'
+                  : 'Créez vos propres modèles réutilisables · enregistrés sur le serveur'}
             </p>
           </div>
           <Button size="sm" leftIcon={<Plus size={15} />} onClick={openNew}>
@@ -130,6 +159,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         </div>
 
         {storeError && <p className="text-xs text-red-500">{storeError}</p>}
+
+        {/* Un niveau sans modèle = aucun brouillon généré pour les absences correspondantes. */}
+        {scope === 'peda' && loaded && missingLevels.length > 0 && (
+          <p className="rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Aucun modèle rattaché à : {missingLevels.map((l) => PEDA_LEVEL_LABELS[l]).join(', ')}. Les cases
+            « Mail niv » correspondantes ne généreront aucun brouillon.
+          </p>
+        )}
 
         {/* Form */}
         {editing && (
@@ -153,6 +190,29 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                 className={inputClass}
               />
             </div>
+
+            {scope === 'peda' && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Niveau de relance</label>
+                <select
+                  value={form.pedaLevel}
+                  onChange={(e) => setForm((f) => ({ ...f, pedaLevel: e.target.value as PedaLevel | '' }))}
+                  className={inputClass}
+                >
+                  <option value="">Aucun (modèle non utilisé par le job)</option>
+                  {PEDA_LEVELS.map((lvl) => (
+                    <option key={lvl} value={lvl} disabled={takenLevels.has(lvl)}>
+                      {PEDA_LEVEL_LABELS[lvl]} · {PEDA_LEVEL_HINTS[lvl]}
+                      {takenLevels.has(lvl) ? ' — déjà attribué' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400">
+                  C’est ce niveau — et non le nom du modèle — qui détermine le mail envoyé quand une case
+                  « Mail niv » est cochée dans le Google Sheet.
+                </p>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">Objet</label>
@@ -182,7 +242,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                 Insérez-les dans l’objet ou le corps : elles seront remplacées à l’envoi. Cliquez pour copier.
               </p>
               <div className="mt-2 flex flex-col gap-1">
-                {TEMPLATE_VARS.map((v) => (
+                {templateVars.map((v) => (
                   <button
                     key={v.token}
                     type="button"
@@ -258,7 +318,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">{t.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900 truncate">{t.name}</p>
+                      {t.pedaLevel && (
+                        <span className="shrink-0 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-700">
+                          {PEDA_LEVEL_LABELS[t.pedaLevel]}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-400 truncate">{t.subject}</p>
                   </div>
                   <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">

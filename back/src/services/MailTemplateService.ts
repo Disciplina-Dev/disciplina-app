@@ -1,7 +1,10 @@
 import { randomUUID } from 'crypto';
 import { gzipSync, gunzipSync } from 'zlib';
 import { MailTemplateModel, MailSignatureModel } from '../db/mongo/schemas/mailTemplate.schema';
-import { MailTemplate, MailTemplateScope, MailTemplateAttachment } from '../types/mailTemplate.types';
+import { MailTemplate, MailTemplateScope, MailTemplateAttachment, PedaLevel } from '../types/mailTemplate.types';
+import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
+import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
+import { logger } from '../external/logger/logger';
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
@@ -9,6 +12,8 @@ import { env } from '../config/env';
 
 export class GoogleNotConnectedError extends Error {}
 export class TemplateNotFoundError extends Error {}
+/** Un seul modèle peut porter un niveau de relance donné. */
+export class DuplicatePedaLevelError extends Error {}
 
 /**
  * Les modèles RH sont communs à tous les RH/responsables : ils sont stockés
@@ -17,13 +22,29 @@ export class TemplateNotFoundError extends Error {}
  */
 export const SHARED_RH_USER_ID = 0;
 
+/** Même principe pour les Pedas : modèles communs, propriétaire partagé dédié. */
+export const SHARED_PEDA_USER_ID = -1;
+
+/** Clé app_settings : les modèles Peda par défaut ont déjà été semés une fois. */
+export const PEDA_TEMPLATES_SEEDED_KEY = 'peda_templates_seeded';
+
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
     id: string;
     name: string;
     subject: string;
     body: string;
+    /** Niveau de relance (scope `peda` uniquement) ; null sinon. */
+    pedaLevel: PedaLevel | null;
     attachment: { filename: string; contentType: string } | null;
+}
+
+/** Données modifiables d'un modèle. `pedaLevel` n'est retenu que pour le scope `peda`. */
+export interface MailTemplateInput {
+    name: string;
+    subject: string;
+    body: string;
+    pedaLevel?: PedaLevel | null;
 }
 
 function toDTO(t: MailTemplate): MailTemplateDTO {
@@ -32,6 +53,7 @@ function toDTO(t: MailTemplate): MailTemplateDTO {
         name: t.name,
         subject: t.subject,
         body: t.body,
+        pedaLevel: t.peda_level ?? null,
         attachment: t.attachment ? { filename: t.attachment.filename, contentType: t.attachment.contentType } : null,
     };
 }
@@ -54,14 +76,16 @@ export class MailTemplateService {
         );
     }
 
-    // Propriétaire de stockage : partagé pour le scope RH, sinon le user lui-même.
+    // Propriétaire de stockage : partagé pour les scopes RH et Peda, sinon le user lui-même.
     private ownerFor(userId: number, scope: MailTemplateScope): number {
-        return scope === 'rh' ? SHARED_RH_USER_ID : userId;
+        if (scope === 'rh') return SHARED_RH_USER_ID;
+        if (scope === 'peda') return SHARED_PEDA_USER_ID;
+        return userId;
     }
 
-    // Accès à un modèle : les modèles RH sont communs, les autres sont privés.
+    // Accès à un modèle : les modèles RH et Peda sont communs, les autres sont privés.
     private canAccess(doc: { scope: string; user_id: number }, userId: number): boolean {
-        return doc.scope === 'rh' || doc.user_id === userId;
+        return doc.scope === 'rh' || doc.scope === 'peda' || doc.user_id === userId;
     }
 
     // ── Modèles (CRUD) ───────────────────────────────────────────────────
@@ -72,12 +96,25 @@ export class MailTemplateService {
         return docs.map(toDTO);
     }
 
-    async create(
-        userId: number,
-        scope: MailTemplateScope,
-        data: { name: string; subject: string; body: string },
-    ): Promise<MailTemplateDTO> {
+    /** Le niveau n'a de sens que pour le scope `peda` ; il est ignoré ailleurs. */
+    private pedaLevelFor(scope: MailTemplateScope, level: PedaLevel | null | undefined): PedaLevel | null {
+        return scope === 'peda' ? (level ?? null) : null;
+    }
+
+    /** Refuse deux modèles Peda sur le même niveau : la résolution serait ambiguë. */
+    private async assertLevelFree(level: PedaLevel | null, exceptId?: string): Promise<void> {
+        if (!level) return;
+        const filter: Record<string, unknown> = { scope: 'peda', peda_level: level };
+        if (exceptId) filter._id = { $ne: exceptId };
+        if (await MailTemplateModel.exists(filter)) {
+            throw new DuplicatePedaLevelError(`Un modèle porte déjà le niveau ${level}`);
+        }
+    }
+
+    async create(userId: number, scope: MailTemplateScope, data: MailTemplateInput): Promise<MailTemplateDTO> {
         const now = new Date();
+        const pedaLevel = this.pedaLevelFor(scope, data.pedaLevel);
+        await this.assertLevelFree(pedaLevel);
         const doc = await MailTemplateModel.create({
             _id: randomUUID(),
             user_id: this.ownerFor(userId, scope),
@@ -85,6 +122,7 @@ export class MailTemplateService {
             name: data.name,
             subject: data.subject,
             body: data.body,
+            peda_level: pedaLevel,
             attachment: null,
             created_at: now,
             updated_at: now,
@@ -92,20 +130,64 @@ export class MailTemplateService {
         return toDTO(doc.toObject() as MailTemplate);
     }
 
-    async update(
-        userId: number,
-        id: string,
-        data: { name: string; subject: string; body: string },
-    ): Promise<MailTemplateDTO> {
+    async update(userId: number, id: string, data: MailTemplateInput): Promise<MailTemplateDTO> {
         const existing = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
         if (!existing || !this.canAccess(existing, userId)) throw new TemplateNotFoundError();
+        const pedaLevel = this.pedaLevelFor(existing.scope, data.pedaLevel);
+        await this.assertLevelFree(pedaLevel, id);
         const doc = await MailTemplateModel.findOneAndUpdate(
             { _id: id },
-            { $set: { name: data.name, subject: data.subject, body: data.body, updated_at: new Date() } },
+            {
+                $set: {
+                    name: data.name,
+                    subject: data.subject,
+                    body: data.body,
+                    peda_level: pedaLevel,
+                    updated_at: new Date(),
+                },
+            },
             { new: true },
         ).lean<MailTemplate>();
         if (!doc) throw new TemplateNotFoundError();
         return toDTO(doc);
+    }
+
+    /** Modèle Peda associé à un niveau de relance, ou null s'il n'a pas été défini. */
+    async findPedaTemplateByLevel(level: PedaLevel): Promise<MailTemplateDTO | null> {
+        const doc = await MailTemplateModel.findOne({ scope: 'peda', peda_level: level }).lean<MailTemplate>();
+        return doc ? toDTO(doc) : null;
+    }
+
+    /**
+     * Sème les 4 modèles Peda par défaut (un par niveau) au premier démarrage.
+     * Le flag `app_settings` garantit qu'un modèle supprimé volontairement par
+     * un Peda ne réapparaît pas au redémarrage suivant.
+     */
+    async seedPedaDefaults(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(PEDA_TEMPLATES_SEEDED_KEY)) return;
+
+        let created = 0;
+        for (const tpl of PEDA_DEFAULT_TEMPLATES) {
+            // Un modèle déjà présent sur ce niveau (créé à la main) a la priorité.
+            if (await MailTemplateModel.exists({ scope: 'peda', peda_level: tpl.pedaLevel })) continue;
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_PEDA_USER_ID,
+                scope: 'peda',
+                name: tpl.name,
+                subject: tpl.subject,
+                body: tpl.body,
+                peda_level: tpl.pedaLevel,
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            created++;
+        }
+        await settings.set(PEDA_TEMPLATES_SEEDED_KEY, '1');
+        logger.info({ created }, 'peda-templates: modèles par défaut semés');
     }
 
     async remove(userId: number, id: string): Promise<void> {

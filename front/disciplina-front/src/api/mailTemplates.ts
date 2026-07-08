@@ -1,6 +1,33 @@
 const API_BASE = import.meta.env.VITE_API_URL
 
-export type MailTemplatesScope = 'rh' | 'commercial'
+export type MailTemplatesScope = 'rh' | 'commercial' | 'peda'
+
+/** Niveau de relance d'absence rattaché à un modèle du scope `peda`. */
+export const PEDA_LEVELS = ['niv1', 'niv2', 'niv3', 'nivPlus'] as const
+export type PedaLevel = (typeof PEDA_LEVELS)[number]
+
+export const PEDA_LEVEL_LABELS: Record<PedaLevel, string> = {
+  niv1: 'Niveau 1',
+  niv2: 'Niveau 2',
+  niv3: 'Niveau 3',
+  nivPlus: 'Niveau +',
+}
+
+/** Colonnes « Mail niv » du Sheet qui déclenchent chaque niveau (aide à la saisie). */
+export const PEDA_LEVEL_HINTS: Record<PedaLevel, string> = {
+  niv1: 'absences 1 et 2',
+  niv2: 'absences 3 et 4',
+  niv3: 'absences 5, 6 et 7',
+  nivPlus: 'absences 8, 9 et 10',
+}
+
+/** Données éditables d'un modèle (pedaLevel ignoré hors scope peda). */
+export interface MailTemplateInput {
+  name: string
+  subject: string
+  body: string
+  pedaLevel?: PedaLevel | null
+}
 
 /** Métadonnées de PJ renvoyées par l'API (le contenu reste sur Drive). */
 export interface MailTemplateAttachmentMeta {
@@ -13,6 +40,7 @@ export interface MailTemplate {
   name: string
   subject: string
   body: string
+  pedaLevel: PedaLevel | null
   attachment: MailTemplateAttachmentMeta | null
 }
 
@@ -43,12 +71,12 @@ export async function fetchTemplates(token: string, scope: MailTemplatesScope): 
   return ((await res.json()) as { templates: MailTemplate[] }).templates
 }
 
-export async function createTemplate(token: string, scope: MailTemplatesScope, data: { name: string; subject: string; body: string }): Promise<MailTemplate> {
+export async function createTemplate(token: string, scope: MailTemplatesScope, data: MailTemplateInput): Promise<MailTemplate> {
   const res = await tplFetch(`/?scope=${scope}`, token, { method: 'POST', headers: jsonHeaders, body: JSON.stringify(data) })
   return ((await res.json()) as { template: MailTemplate }).template
 }
 
-export async function updateTemplate(token: string, id: string, data: { name: string; subject: string; body: string }): Promise<MailTemplate> {
+export async function updateTemplate(token: string, id: string, data: MailTemplateInput): Promise<MailTemplate> {
   const res = await tplFetch(`/${id}`, token, { method: 'PUT', headers: jsonHeaders, body: JSON.stringify(data) })
   return ((await res.json()) as { template: MailTemplate }).template
 }

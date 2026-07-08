@@ -1,17 +1,26 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger/logger';
-import { MailTemplateService, GoogleNotConnectedError, TemplateNotFoundError } from '../../services/MailTemplateService';
-import { MailTemplateScope } from '../../types/mailTemplate.types';
+import { MailTemplateService, GoogleNotConnectedError, TemplateNotFoundError, DuplicatePedaLevelError } from '../../services/MailTemplateService';
+import { MailTemplateScope, PedaLevel, isPedaLevel } from '../../types/mailTemplate.types';
 
 const service = new MailTemplateService();
 
 function parseScope(raw: unknown): MailTemplateScope {
-    return raw === 'commercial' ? 'commercial' : 'rh';
+    if (raw === 'commercial') return 'commercial';
+    if (raw === 'peda') return 'peda';
+    return 'rh';
+}
+
+/** `pedaLevel` absent/vide ⇒ null (modèle Peda non rattaché à un niveau). */
+function parsePedaLevel(raw: unknown): PedaLevel | null | undefined {
+    if (raw === undefined || raw === null || raw === '') return null;
+    return isPedaLevel(raw) ? raw : undefined; // undefined = valeur invalide
 }
 
 function handleError(err: unknown, res: Response): void {
     if (err instanceof TemplateNotFoundError) { res.status(404).json({ error: 'Modèle introuvable' }); return; }
+    if (err instanceof DuplicatePedaLevelError) { res.status(409).json({ error: 'Un autre modèle porte déjà ce niveau de relance' }); return; }
     if (err instanceof GoogleNotConnectedError) { res.status(400).json({ error: 'Google Drive non connecté' }); return; }
     logger.error(err, 'mail-templates error');
     res.status(500).json({ error: 'Erreur interne' });
@@ -26,28 +35,32 @@ export async function listTemplates(req: AuthRequest, res: Response): Promise<vo
 }
 
 export async function createTemplate(req: AuthRequest, res: Response): Promise<void> {
-    const { name, subject, body } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, subject, body, pedaLevel } = (req.body ?? {}) as Record<string, unknown>;
     if (!String(name ?? '').trim() || !String(subject ?? '').trim() || !String(body ?? '').trim()) {
         res.status(400).json({ error: 'name, subject et body sont requis' });
         return;
     }
+    const level = parsePedaLevel(pedaLevel);
+    if (level === undefined) { res.status(400).json({ error: 'pedaLevel invalide' }); return; }
     try {
         const template = await service.create(Number(req.user.id), parseScope(req.query.scope), {
-            name: String(name), subject: String(subject), body: String(body),
+            name: String(name), subject: String(subject), body: String(body), pedaLevel: level,
         });
         res.status(201).json({ template });
     } catch (err) { handleError(err, res); }
 }
 
 export async function updateTemplate(req: AuthRequest, res: Response): Promise<void> {
-    const { name, subject, body } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, subject, body, pedaLevel } = (req.body ?? {}) as Record<string, unknown>;
     if (!String(name ?? '').trim() || !String(subject ?? '').trim() || !String(body ?? '').trim()) {
         res.status(400).json({ error: 'name, subject et body sont requis' });
         return;
     }
+    const level = parsePedaLevel(pedaLevel);
+    if (level === undefined) { res.status(400).json({ error: 'pedaLevel invalide' }); return; }
     try {
         const template = await service.update(Number(req.user.id), req.params.id, {
-            name: String(name), subject: String(subject), body: String(body),
+            name: String(name), subject: String(subject), body: String(body), pedaLevel: level,
         });
         res.json({ template });
     } catch (err) { handleError(err, res); }
