@@ -307,10 +307,17 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
         );
 
         const meta = await driveService.getFileMeta(fileId);
-        // Google Docs natifs : export en PDF ; sinon téléchargement binaire.
-        const { buffer, mimeType } = meta.mimeType?.startsWith('application/vnd.google-apps.')
-            ? await driveService.exportFile(fileId, 'application/pdf')
-            : await driveService.downloadFile(fileId);
+        // Google Docs natifs : export PDF direct.
+        // Office/OpenDocument : conversion Drive → PDF. Sinon : téléchargement binaire brut.
+        let buffer: Buffer;
+        let mimeType: string;
+        if (meta.mimeType?.startsWith('application/vnd.google-apps.')) {
+            ({ buffer, mimeType } = await driveService.exportFile(fileId, 'application/pdf'));
+        } else if (meta.mimeType && GoogleDriveService.isConvertibleToPdf(meta.mimeType)) {
+            ({ buffer, mimeType } = await driveService.convertToPdf(fileId, meta.mimeType));
+        } else {
+            ({ buffer, mimeType } = await driveService.downloadFile(fileId));
+        }
 
         res.setHeader('Content-Type', mimeType);
         res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(meta.name || fileId)}"`);

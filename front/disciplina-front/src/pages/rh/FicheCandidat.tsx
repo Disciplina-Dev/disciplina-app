@@ -130,12 +130,28 @@ interface DriveFile {
 }
 
 // Types prévisualisables via le proxy backend (rendu natif navigateur depuis un blob) :
-// PDF, images, et Google Docs natifs (exportés en PDF côté backend).
+// Types Office / OpenDocument convertis en PDF côté backend (via Google Drive).
+const CONVERTIBLE_OFFICE_MIMES = new Set([
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'application/vnd.oasis.opendocument.text',
+  'application/rtf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.oasis.opendocument.presentation',
+])
+
+// PDF, images, Google Docs natifs et fichiers Office (tous rendus en PDF/blob côté backend).
 function isProxyablePreview(mimeType: string): boolean {
   return (
     mimeType === 'application/pdf' ||
     mimeType.startsWith('image/') ||
-    mimeType.startsWith('application/vnd.google-apps.')
+    mimeType.startsWith('application/vnd.google-apps.') ||
+    CONVERTIBLE_OFFICE_MIMES.has(mimeType)
   )
 }
 
