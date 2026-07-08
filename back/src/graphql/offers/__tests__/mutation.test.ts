@@ -24,7 +24,7 @@ async function gql(token: string, body: object) {
 
 describe('GraphQL job mutations', () => {
     describe('updateOffer', () => {
-        it('updates companyName and returns the job', async () => {
+        it('updates status and returns the job', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
 
@@ -36,27 +36,26 @@ describe('GraphQL job mutations', () => {
             });
 
             const { res, json } = await gql(token, {
-                query: `mutation($id: String!, $job: OfferInput!) {
-                    updateOffer(id: $id, job: $job) { id companyName status }
+                query: `mutation($id: String!, $offer: OfferInput!) {
+                    updateOffer(id: $id, offer: $offer) { id companyName status }
                 }`,
                 variables: {
                     id: seeded._id,
-                    job: { id: seeded._id, companyName: `Updated Corp ${suffix}`, localisation: ['SAINT_DENIS'] },
+                    offer: { id: seeded._id, status: 'MATCHED' },
                 },
             });
 
-            console.log(json);
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.updateOffer.companyName).toBe(`Updated Corp ${suffix}`);
+            expect(json.data.updateOffer.status).toBe('MATCHED');
         });
 
         it('returns null when updating a non-existent job', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
 
             const { res, json } = await gql(token, {
-                query: `mutation($id: String!, $job: OfferInput!) { updateOffer(id: $id, job: $job) { id } }`,
-                variables: { id: 'non-existent-id', job: { id: 'non-existent-id', companyName: 'Ghost' } },
+                query: `mutation($id: String!, $offer: OfferInput!) { updateOffer(id: $id, offer: $offer) { id } }`,
+                variables: { id: 'non-existent-id', offer: { id: 'non-existent-id', companyName: 'Ghost' } },
             });
 
             expect(res.status).toBe(200);

@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS commercial_kpi (
 CREATE TABLE IF NOT EXISTS companies_blacklist (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
+    ab_id VARCHAR(36) DEFAULT NULL,
     legal_referent VARCHAR(255) DEFAULT NULL,
     name VARCHAR(255) NOT NULL,
     phone VARCHAR(50) DEFAULT NULL,

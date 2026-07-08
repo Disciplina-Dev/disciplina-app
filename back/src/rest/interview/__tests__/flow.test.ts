@@ -35,7 +35,7 @@ async function seedJobWithSlots(suffix: number, slots: string[]) {
         company_name: `Interview Corp ${suffix}`,
         status: OfferStatus.CV_SEND,
     });
-    await jobRepo.setJobInterviewSlots(offerId, slots, 'Saint-Denis, 12 rue des Tests');
+    await jobRepo.setOfferInterviewSlots(offerId, slots, 'Saint-Denis, 12 rue des Tests');
     return offerId;
 }
 
@@ -221,8 +221,8 @@ describe('Interview access flow', () => {
             expect(bookRes.status).toBe(200);
 
             const jobRepo = new NeedsAnalysisRepository();
-            const job = await jobRepo.find(offerId);
-            const candidate = job?.proposed_candidate?.find((c) => c.id === candidateId);
+            const ctx = await jobRepo.findOfferById(offerId);
+            const candidate = ctx?.offer.matching?.candidates?.find((c) => c.id === candidateId);
             expect(candidate?.booked_interview_slot).toBe(slot);
 
             const historyRepo = new CandidateHistoryRepository();

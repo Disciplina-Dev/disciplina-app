@@ -5,7 +5,7 @@ import { MatchLinkRepository } from '../../repositories/mysql/MatchLinkRepositor
 import { NeedsAnalysisRepository } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { seedOffer } from '../../../test/helpers/seedOffer';
 import { UserRepository } from '../../repositories/mysql/UserRepository';
-import { OfferStatus, ProposedCandidateAnswer } from '../../types/matching.types';
+import { OfferStatus, ProposedCandidateAnswer, MatchedCandidateStatus } from '../../types/matching.types';
 
 async function createRhUser(suffix: number): Promise<{ id: number; email: string }> {
     const repo = new UserRepository();
@@ -49,6 +49,7 @@ describe('MatchLinkService.submitAnswers', () => {
             full_name: `Candidate ${suffix}`,
             email: `candidate-matchlink-${suffix}@test.local`,
             answer: null,
+            status: MatchedCandidateStatus.OFFER_SEND,
         });
 
         const signature = `sig-matchlink-${suffix}`.padEnd(64, '0');
@@ -74,12 +75,14 @@ describe('MatchLinkService.submitAnswers', () => {
             },
         ]);
 
-        const job = await jobRepo.find(offerId);
-        expect(job?.interview_slots).toEqual(slots);
-        expect(job?.interview_location).toBe(location);
-        expect(job?.proposed_candidate?.[0].answer).toBe(ProposedCandidateAnswer.ACCEPTED);
+        const ctx = await jobRepo.findOfferById(offerId);
+        expect(ctx?.offer.matching?.interview_slots).toEqual(slots);
+        expect(ctx?.offer.matching?.interview_location).toBe(location);
+        expect(ctx?.offer.matching?.candidates?.[0].answer).toBe(ProposedCandidateAnswer.ACCEPTED);
         // The job-level pool is shared, not duplicated per-candidate.
-        expect((job?.proposed_candidate?.[0] as Record<string, unknown> | undefined)?.interview).toBeUndefined();
+        expect(
+            (ctx?.offer.matching?.candidates?.[0] as Record<string, unknown> | undefined)?.interview,
+        ).toBeUndefined();
 
         expect(sendInvitation).toHaveBeenCalledTimes(1);
         expect(sendInvitation).toHaveBeenCalledWith(
