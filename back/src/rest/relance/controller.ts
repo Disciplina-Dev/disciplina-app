@@ -213,6 +213,71 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     res.json({ sent, errors, total: seeking.length });
 }
 
+/**
+ * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Contrairement
+ * à `sendRelance` (relance de disponibilité codée en dur avec liens Oui/Non), le
+ * corps provient d'un modèle RH partagé et part tel quel à chaque destinataire.
+ */
+export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<void> {
+    const user = await userService.findById(req.user.id);
+    if (!user?.oauthToken || !user?.refreshToken) {
+        res.status(403).json({ error: 'Compte Google non connecté. Veuillez connecter votre compte Google.' });
+        return;
+    }
+
+    const { ids, templateId } = req.body as { ids?: string[]; templateId?: string };
+    if (!Array.isArray(ids) || ids.length === 0 || !templateId) {
+        res.status(400).json({ error: 'Sélection de candidats et modèle requis' });
+        return;
+    }
+
+    // Modèles RH partagés : on récupère le modèle par son id.
+    const templates = await mailTemplateService.list(req.user.id, 'rh');
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) {
+        res.status(404).json({ error: 'Modèle introuvable' });
+        return;
+    }
+
+    // Pièce jointe éventuelle (décompressée depuis Drive) — best-effort.
+    let attachments: { filename: string; contentType: string; content: string }[] | undefined;
+    if (template.attachment) {
+        try {
+            attachments = [await mailTemplateService.resolveAttachment(req.user.id, templateId)];
+        } catch (err) {
+            logger.error({ err, templateId }, '[relance] attachment resolve failed');
+        }
+    }
+
+    const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
+
+    const candidates = await candidateService.findAll();
+    const recipients = candidates.filter((c) => c.identity?.email && ids.includes(c._id));
+
+    let sent = 0;
+    let errors = 0;
+    for (const candidate of recipients) {
+        try {
+            await gmailService.sendEmail(
+                { access_token: user.oauthToken, refresh_token: user.refreshToken },
+                {
+                    to: candidate.identity.email!,
+                    subject: template.subject,
+                    html: `${template.body}${signatureHtml}`,
+                    text: '',
+                    attachments,
+                },
+                persistRefreshedTokens(user.id),
+            );
+            sent++;
+        } catch {
+            errors++;
+        }
+    }
+
+    res.json({ sent, errors, total: recipients.length });
+}
+
 export async function handleResponse(req: Request, res: Response) {
     const { id, answer, sig } = req.query as { id?: string; answer?: string; sig?: string };
 
