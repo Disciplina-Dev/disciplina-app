@@ -10,8 +10,8 @@ import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
-import { jobGraphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_JOB_IDS, GET_CANDIDATE_PLACEMENT } from '@/graphql/queries'
+import { offerGraphqlClient } from '@/graphql/client'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
@@ -318,9 +318,9 @@ export default function FicheCandidat() {
 
   useEffect(() => {
     if (!id) return
-    jobGraphqlClient.query(GET_CANDIDATE_MATCHED_JOB_IDS, { candidateId: id }).toPromise().then((result) => {
-      if (result.data?.candidateMatchedJobIds) {
-        setConfirmedJobIds(new Set(result.data.candidateMatchedJobIds as string[]))
+    offerGraphqlClient.query(GET_CANDIDATE_MATCHED_OFFER_IDS, { candidateId: id }).toPromise().then((result) => {
+      if (result.data?.candidateMatchedOfferIds) {
+        setConfirmedJobIds(new Set(result.data.candidateMatchedOfferIds as string[]))
       }
     })
   }, [id])
@@ -332,7 +332,7 @@ export default function FicheCandidat() {
       setPlacement(null)
       return
     }
-    jobGraphqlClient.query(GET_CANDIDATE_PLACEMENT, { candidateId: id }).toPromise().then((result) => {
+    offerGraphqlClient.query(GET_CANDIDATE_PLACEMENT, { candidateId: id }).toPromise().then((result) => {
       setPlacement(result.data?.candidatePlacement ?? null)
     })
   }, [id, formData?.status])

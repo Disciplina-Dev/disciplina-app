@@ -21,7 +21,7 @@ import {
     ClassMarkerResult,
     CandidateOwner,
 } from '../../../types/candidate.types';
-import { Localisation } from '../../../types/job.types';
+import { Localisation } from '../../../types/matching.types';
 
 const ownerSchema = new Schema<CandidateOwner>(
     {

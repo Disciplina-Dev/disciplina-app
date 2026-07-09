@@ -12,7 +12,7 @@ export interface MatchLink {
     identifier: string;
     rhEmail: string;
     companyEmail: string;
-    jobUuid: string;
+    offerUuid: string;
     status: MatchLinkStatus;
     attempts: number;
     expiresAt: Date;

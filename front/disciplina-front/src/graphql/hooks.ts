@@ -743,7 +743,7 @@ export function useCreateContactLog() {
   return { createContactLog, result }
 }
 
-export function useNeedsAnalysis(id: number | null) {
+export function useNeedsAnalysis(id: string | null) {
   const [result] = useQuery({
     query: GET_NEEDS_ANALYSIS,
     variables: { id: id ?? 0 },
@@ -755,7 +755,7 @@ export function useNeedsAnalysis(id: number | null) {
 export function useDeleteNeedsAnalysis() {
   const [result, executeMutation] = useMutation(DELETE_NEEDS_ANALYSIS)
 
-  const deleteNeedsAnalysis = (id: number) => {
+  const deleteNeedsAnalysis = (id: string) => {
     return executeMutation({ id }).then((response) => {
       if (response.error) {
         console.error('deleteNeedsAnalysis failed:', response.error)

@@ -159,6 +159,14 @@ export class CompaniesService {
         return this.repository.delete(id);
     }
 
+    /** Lie (ou délie) une entreprise à son analyse de besoin Mongo, sans tracer d'historique. */
+    async setAbId(id: number, abId: string | null): Promise<void> {
+        if (!id || id <= 0) {
+            throw new Error('Valid company ID is required');
+        }
+        await this.repository.setAbId(id, abId);
+    }
+
     /** Vide la relance en cours d'une entreprise (après qu'elle a été effectuée). */
     async clearRelance(id: number): Promise<void> {
         if (!id || id <= 0) {

@@ -5,17 +5,17 @@ import { Role } from '../types/user.types';
 export interface InterviewTokenPayload {
     role: Role.CANDIDATE_GUEST;
     signature: string;
-    jobId: string;
+    offerId: string;
     candidateId: string;
 }
 
 export function issueInterviewToken(
     signature: string,
-    jobId: string,
+    offerId: string,
     candidateId: string,
     expiresInSeconds: number,
 ): string {
-    const payload: InterviewTokenPayload = { role: Role.CANDIDATE_GUEST, signature, jobId, candidateId };
+    const payload: InterviewTokenPayload = { role: Role.CANDIDATE_GUEST, signature, offerId, candidateId };
     return jwt.sign(payload, env.JWT_SECRET, { expiresIn: expiresInSeconds });
 }
 

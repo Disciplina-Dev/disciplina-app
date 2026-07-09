@@ -1,4 +1,4 @@
-export enum JobStatus {
+export enum OfferStatus {
   NOT_MATCHED = 'NOT_MATCHED',
   MATCHED = 'MATCHED',
   CV_SEND = 'CV_SEND',
