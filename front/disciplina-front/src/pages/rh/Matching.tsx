@@ -62,6 +62,24 @@ interface MatchedCandidate {
   status?: string
 }
 
+interface SalerInfo {
+  id?: number | null
+  email?: string | null
+}
+
+interface ReferentDetails {
+  name?: string | null
+  phone?: string | null
+  email?: string | null
+  function?: string | null
+}
+
+interface Referents {
+  isSame?: boolean | null
+  legalReferents?: ReferentDetails | null
+  recruitmentReferents?: ReferentDetails | null
+}
+
 interface Job {
   id: string
   companyName: string
@@ -73,6 +91,8 @@ interface Job {
   status: string | null
   localisation: string[] | null
   sector: string | null
+  salerInfo?: SalerInfo | null
+  referents?: Referents | null
 }
 
 interface ProposedCandidate {
@@ -636,6 +656,108 @@ function JobDetailsSection({
           </div>
         </div>
       )}
+
+      {(job.salerInfo?.id != null || job.salerInfo?.email) && (
+        <div className="mt-3 pt-3 border-t border-gray-50">
+          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
+            <User size={10} className="inline mr-1 text-gray-300" />
+            Commercial
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {job.salerInfo.email && (
+              <div className="flex items-start gap-2">
+                <Mail size={13} className="text-gray-300 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Email commercial</p>
+                  <p className="text-xs font-medium text-gray-800 mt-0.5">{job.salerInfo.email}</p>
+                </div>
+              </div>
+            )}
+            {job.salerInfo.id != null && (
+              <div className="flex items-start gap-2">
+                <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">ID commercial</p>
+                  <p className="text-xs font-medium text-gray-800 mt-0.5">{job.salerInfo.id}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {job.referents && (
+        <div className="mt-3 pt-3 border-t border-gray-50">
+          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
+            <User size={10} className="inline mr-1 text-gray-300" />
+            Référents
+          </p>
+          {job.referents.isSame
+            ? (
+              <ReferentBlock
+                label="Référent"
+                details={job.referents.legalReferents ?? job.referents.recruitmentReferents}
+              />
+            )
+            : (
+              <div className="grid grid-cols-2 gap-3">
+                <ReferentBlock label="Référent légal" details={job.referents.legalReferents} />
+                <ReferentBlock label="Référent recrutement" details={job.referents.recruitmentReferents} />
+              </div>
+            )
+          }
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReferentBlock({ label, details }: { label: string; details: ReferentDetails | null | undefined }) {
+  if (!details) return null
+  const hasData = details.name || details.phone || details.email || details.function
+  if (!hasData) return null
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+      <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">{label}</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        {details.name && (
+          <div className="flex items-start gap-1.5">
+            <User size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Nom</p>
+              <p className="text-xs font-medium text-gray-800">{details.name}</p>
+            </div>
+          </div>
+        )}
+        {details.phone && (
+          <div className="flex items-start gap-1.5">
+            <Phone size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Téléphone</p>
+              <p className="text-xs font-medium text-gray-800">{details.phone}</p>
+            </div>
+          </div>
+        )}
+        {details.email && (
+          <div className="flex items-start gap-1.5">
+            <Mail size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Email</p>
+              <p className="text-xs font-medium text-gray-800">{details.email}</p>
+            </div>
+          </div>
+        )}
+        {details.function && (
+          <div className="flex items-start gap-1.5">
+            <Briefcase size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Fonction</p>
+              <p className="text-xs font-medium text-gray-800">{details.function}</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -137,6 +137,24 @@ export const typeDefs = gql`
         nonUrl: String!
     }
 
+    type SalerInfo {
+        id: Int
+        email: String
+    }
+
+    type ReferentDetails {
+        name: String
+        phone: String
+        email: String
+        function: String
+    }
+
+    type Referents {
+        isSame: Boolean
+        legalReferents: ReferentDetails
+        recruitmentReferents: ReferentDetails
+    }
+
     type Offer {
         id: String!
         companyName: String
@@ -153,6 +171,8 @@ export const typeDefs = gql`
         proposedCandidate: [ProposedCandidate]
         interviewSlots: [String]
         interviewLocation: String
+        salerInfo: SalerInfo
+        referents: Referents
     }
 
     input MatchingCandidateInput {
