@@ -1,88 +1,88 @@
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
-import { InterviewConclusion, ImmersionConclusion } from '../../types/job.types';
-import { JobService } from '../../services/JobService';
+import { InterviewConclusion, ImmersionConclusion } from '../../types/matching.types';
+import { OfferService } from '../../services/OfferService';
 import { MatchLinkService } from '../../services/MatchLinkService';
 import { MatchMailService } from '../../services/MatchMailService';
 
-const jobService = new JobService();
+const offerService = new OfferService();
 const matchLinkService = new MatchLinkService();
 const matchMailService = new MatchMailService();
 
 export const resolvers = {
     Query: {
-        jobs: async (_: unknown, __: unknown, context: any) => {
+        offers: async (_: unknown, __: unknown, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.findAll();
+            return await offerService.findAll();
         },
-        matchJob: async (_: unknown, { id }: { id: string }, context: any) => {
+        matchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.find(id);
+            return await offerService.find(id);
         },
-        jobCompanyInfo: async (_: unknown, { jobId }: { jobId: string }, context: any) => {
+        offerCompanyInfo: async (_: unknown, { offerId }: { offerId: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.getCompanyInfo(jobId);
+            return await offerService.getCompanyInfo(offerId);
         },
         offerResponseLinks: (
             _: unknown,
-            { jobId, candidateId }: { jobId: string; candidateId: string },
+            { offerId, candidateId }: { offerId: string; candidateId: string },
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return jobService.offerResponseLinks(jobId, candidateId);
+            return offerService.offerResponseLinks(offerId, candidateId);
         },
-        candidateMatchedJobIds: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+        candidateMatchedOfferIds: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return jobService.getMatchedJobIds(candidateId);
+            return offerService.getMatchedOfferIds(candidateId);
         },
         candidatePlacement: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return jobService.getCandidatePlacement(candidateId);
+            return offerService.getCandidatePlacement(candidateId);
         },
     },
     Mutation: {
-        updateJob: async (_: unknown, { id, job }: { id: string; job: any }, context: any) => {
+        updateOffer: async (_: unknown, { id, offer }: { id: string; offer: any }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.update(id, job);
+            return await offerService.update(id, offer);
         },
-        unmatchJob: async (_: unknown, { id }: { id: string }, context: any) => {
+        unmatchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return jobService.unmatchAll(id);
+            return offerService.unmatchAll(id);
         },
-        addCandidateToJob: async (
+        addCandidateToOffer: async (
             _: unknown,
-            { jobId, candidateId }: { jobId: string; candidateId: string },
+            { offerId, candidateId }: { offerId: string; candidateId: string },
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.addCandidate(jobId, candidateId);
+            return await offerService.addCandidate(offerId, candidateId);
         },
-        removeCandidateFromJob: async (
+        removeCandidateFromOffer: async (
             _: unknown,
-            { jobId, candidateId }: { jobId: string; candidateId: string },
+            { offerId, candidateId }: { offerId: string; candidateId: string },
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return jobService.removeCandidate(jobId, candidateId);
+            return offerService.removeCandidate(offerId, candidateId);
         },
         updateMatchedCandidateStatus: async (
             _: unknown,
-            { jobId, candidateId, status }: { jobId: string; candidateId: string; status: string },
+            { offerId, candidateId, status }: { offerId: string; candidateId: string; status: string },
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return jobService.updateMatchedCandidateStatus(jobId, candidateId, status);
+            return offerService.updateMatchedCandidateStatus(offerId, candidateId, status);
         },
         addManualProposedCandidate: async (
             _: unknown,
             {
-                jobId,
+                offerId,
                 candidateId,
                 interviewDate,
                 interviewHour,
                 interviewLocation,
             }: {
-                jobId: string;
+                offerId: string;
                 candidateId: string;
                 interviewDate: string;
                 interviewHour: string;
@@ -91,8 +91,8 @@ export const resolvers = {
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.addManualProposedCandidate(
-                jobId,
+            return await offerService.addManualProposedCandidate(
+                offerId,
                 candidateId,
                 interviewDate,
                 interviewHour,
@@ -103,13 +103,13 @@ export const resolvers = {
         addManualProposedCandidateForImmersion: async (
             _: unknown,
             {
-                jobId,
+                offerId,
                 candidateId,
                 immersionStartDate,
                 immersionEndDate,
                 immersionLocation,
             }: {
-                jobId: string;
+                offerId: string;
                 candidateId: string;
                 immersionStartDate: string;
                 immersionEndDate: string;
@@ -118,8 +118,8 @@ export const resolvers = {
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.addManualProposedCandidateForImmersion(
-                jobId,
+            return await offerService.addManualProposedCandidateForImmersion(
+                offerId,
                 candidateId,
                 immersionStartDate,
                 immersionEndDate,
@@ -130,13 +130,13 @@ export const resolvers = {
         setInterviewConclusion: async (
             _: unknown,
             {
-                jobId,
+                offerId,
                 candidateId,
                 conclusion,
                 immersionStartDate,
                 immersionEndDate,
             }: {
-                jobId: string;
+                offerId: string;
                 candidateId: string;
                 conclusion: string;
                 immersionStartDate?: string;
@@ -145,8 +145,8 @@ export const resolvers = {
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.setInterviewConclusion(
-                jobId,
+            return await offerService.setInterviewConclusion(
+                offerId,
                 candidateId,
                 conclusion as InterviewConclusion,
                 immersionStartDate,
@@ -156,12 +156,12 @@ export const resolvers = {
         },
         setImmersionConclusion: async (
             _: unknown,
-            { jobId, candidateId, conclusion }: { jobId: string; candidateId: string; conclusion: string },
+            { offerId, candidateId, conclusion }: { offerId: string; candidateId: string; conclusion: string },
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return await jobService.setImmersionConclusion(
-                jobId,
+            return await offerService.setImmersionConclusion(
+                offerId,
                 candidateId,
                 conclusion as ImmersionConclusion,
                 context.user.email,
@@ -170,15 +170,15 @@ export const resolvers = {
         createMatchSession: async (
             _: unknown,
             {
-                jobId,
+                offerId,
                 companyEmail,
                 candidates,
-            }: { jobId: string; companyEmail: string; candidates: { id: string; description?: string }[] },
+            }: { offerId: string; companyEmail: string; candidates: { id: string; description?: string }[] },
             context: any,
         ) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const credentials = await matchLinkService.createSession({
-                jobId,
+                offerId,
                 rhEmail: context.user.email,
                 companyEmail,
                 candidates,

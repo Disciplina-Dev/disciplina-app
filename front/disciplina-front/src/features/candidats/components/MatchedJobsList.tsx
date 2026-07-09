@@ -4,7 +4,7 @@ import { candidateGraphqlClient } from '@/graphql/client'
 import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
-import type { MatchedJob, TitleProfessionalType } from '@/types/candidate'
+import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
 import { useCurrentUser, UserRole } from '@/store/authStore'
 import AddCandidateToJobModal from './AddCandidateToJobModal'
 import JobSearchModal from './JobSearchModal'
@@ -26,12 +26,12 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [jobs, setJobs] = useState<MatchedJob[]>([])
+  const [jobs, setJobs] = useState<MatchedOffer[]>([])
   const [addedJobIds, setAddedJobIds] = useState<Set<string>>(confirmedJobIds ?? new Set())
   const [modalJobId, setModalJobId] = useState<string | null>(null)
 
   const [showJobSearch, setShowJobSearch] = useState(false)
-  const [queuedJobs, setQueuedJobs] = useState<MatchedJob[]>([])
+  const [queuedJobs, setQueuedJobs] = useState<MatchedOffer[]>([])
   const [queueIndex, setQueueIndex] = useState(0)
 
   const fetchMatches = useCallback(async () => {
@@ -43,7 +43,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
         setError(result.error.message)
         return
       }
-      setJobs(result.data?.matchCandidate?.matchedJobs ?? [])
+      setJobs(result.data?.matchCandidate?.matchedOffers ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {

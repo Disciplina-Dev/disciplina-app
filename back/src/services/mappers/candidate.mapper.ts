@@ -1,5 +1,5 @@
 import { Candidate, CandidateStatus } from '../../types/candidate.types';
-import { Job } from '../../types/job.types';
+import { MatchingOfferContext } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { FilizStudentInfos } from '../../external/filiz/type';
 
 export function camelToSnakeCase(obj: any): any {
@@ -112,14 +112,18 @@ export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentIn
     };
 }
 
-export function jobToMatchedJobGql(job: Job): object {
+export function offerToMatchedOfferGql(ctx: MatchingOfferContext): object {
+    const { analysis, offer } = ctx;
+    const ageMin = offer.criteria?.age_min;
+    const ageMax = offer.criteria?.age_max;
+    const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
     return {
-        id: job._id,
-        companyName: job.company_name,
-        sector: job.sector,
-        localisation: job.localisation,
-        desiredTP: job.desired_tp,
-        ageRange: job.age_range,
-        status: job.status,
+        id: offer.id,
+        companyName: analysis.company_infos?.name,
+        sector: null,
+        localisation: offer.localisation,
+        desiredTP: offer.tp_type,
+        ageRange,
+        status: offer.matching?.status,
     };
 }
