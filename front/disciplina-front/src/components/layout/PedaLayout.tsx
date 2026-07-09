@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LogOut, User, Mail, Settings, FileSpreadsheet } from 'lucide-react'
+import { LogOut, User, Mail, Settings, FileSpreadsheet, Briefcase, Users, UserPlus } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
@@ -54,6 +54,19 @@ export default function PedaLayout() {
             <NavItem to="/peda" end icon={<FileSpreadsheet size={18} />} label="Suivi absences" />
             <NavItem to="/peda/mail" icon={<Mail size={18} />} label="Modèles mail" />
           </nav>
+
+          {/* Navigation inter-espaces (Admin) */}
+          {currentUser?.role === 'ADMIN' && (
+            <>
+              <div className="mx-3 my-4 border-t border-gray-100" />
+              <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>
+              <nav className="flex flex-col gap-1 px-3">
+                <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
+                <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
+                <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
+              </nav>
+            </>
+          )}
         </div>
 
         {/* Profile Footer */}
@@ -69,7 +82,9 @@ export default function PedaLayout() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{`${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim()}</p>
-              <p className="truncate text-[11px] font-medium text-gray-400 capitalize">Pédagogique</p>
+              <p className="truncate text-[11px] font-medium text-gray-400 capitalize">
+                {currentUser?.role === 'PEDA' ? 'Pédagogique' : currentUser?.role?.toLowerCase()}
+              </p>
             </div>
             <div className="flex items-center gap-0.5">
               <button

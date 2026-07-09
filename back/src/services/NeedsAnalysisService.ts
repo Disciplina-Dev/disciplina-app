@@ -183,10 +183,10 @@ export class NeedsAnalysisService {
         );
         logger.info({ id: analysis.id, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
 
-        // Responsables only: create an actionable todo
-        const responsables = rhUsers.filter((u) => u.role === Role.RESPONSABLE);
+        // Responsables + RH: create an actionable todo
+        const todoRecipients = rhUsers.filter((u) => u.role === Role.RESPONSABLE || u.role === Role.RH);
         await Promise.all(
-            responsables.map((user) =>
+            todoRecipients.map((user) =>
                 this.todoService.createSystemTodo(
                     user.id,
                     `AB à traiter — ${companyName} (${positionsLabel})`,
