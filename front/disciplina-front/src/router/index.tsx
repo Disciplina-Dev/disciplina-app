@@ -154,7 +154,7 @@ export const router = createBrowserRouter([
   {
     path: "/peda",
     element: (
-      <ProtectedRoute allowedRoles={[UserRole.PEDA]}>
+      <ProtectedRoute allowedRoles={[UserRole.PEDA, UserRole.ADMIN]}>
         <PedaLayout />
       </ProtectedRoute>
     ),
