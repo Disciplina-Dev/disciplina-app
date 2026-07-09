@@ -59,6 +59,27 @@ const STATUS_KPI_COLUMN: Partial<Record<CandidateStatus, 'immersions' | 'contrac
     [CandidateStatus.CANCELLED]: 'ruptures',
 };
 
+/**
+ * Crédite +1 « entretien » au RH qui a réellement mené l'entretien : la personne
+ * choisie dans le champ « Entretien fait par » de l'AB (synthesis.interviewed_by).
+ * Le compteur va dans SON secteur. Aucun crédit si le champ est vide ou si le nom
+ * ne correspond à aucun interviewer connu (ex. compte supprimé). Best-effort.
+ */
+async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
+    const name = interviewedBy?.trim();
+    if (!name) return;
+    try {
+        const interviewers = await userService.findInterviewers();
+        const match = interviewers.find((u) => `${u.firstName} ${u.lastName}`.trim() === name);
+        if (!match) return;
+        await rhKpiService.bump(match.id, primarySector(match.sectors) ?? '', new Date(), {
+            interviews_attended: 1,
+        });
+    } catch (error) {
+        logger.error({ err: error, interviewedBy }, 'rh_kpi interview bump failed');
+    }
+}
+
 const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
     userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
@@ -248,15 +269,10 @@ export const resolvers = {
                 ...snakeInput,
             });
 
-            // KPI RH : un dossier candidat créé = un entretien « venu », compté pour
-            // le RH créateur dans son secteur. Best-effort : ne casse jamais la création.
-            try {
-                await rhKpiService.bump(creator?.id ?? Number(context.user.id), ownerSector ?? '', new Date(), {
-                    interviews_attended: 1,
-                });
-            } catch (error) {
-                logger.error({ err: error }, 'rh_kpi attended bump failed');
-            }
+            // KPI RH : le +1 « entretien » va au RH qui a mené l'entretien (champ
+            // « Entretien fait par »), pas au créateur du dossier. Rien si aucun
+            // interviewer n'est choisi (ex. création rapide nom/mail/tél).
+            await creditInterviewKpi(snakeInput.synthesis?.interviewed_by);
 
             try {
                 if (creator && creator.oauthToken) {
@@ -302,8 +318,13 @@ export const resolvers = {
             if (Array.isArray(snakeInput.tp_types) && snakeInput.tp_types.length) {
                 snakeInput.tp_type = snakeInput.tp_types[0];
             }
-            // Statut avant mise à jour, pour ne compter que les vraies transitions entrantes.
-            const previousStatus = snakeInput.status ? (await candidateService.findById(id))?.status : undefined;
+            // État avant mise à jour : statut (transitions KPI) + interviewer (crédit
+            // entretien une seule fois). On ne relit le dossier que si l'un des deux change.
+            const newInterviewer = snakeInput.synthesis?.interviewed_by?.trim();
+            const previous =
+                snakeInput.status || newInterviewer ? await candidateService.findById(id) : undefined;
+            const previousStatus = previous?.status;
+            const previousInterviewer = previous?.synthesis?.interviewed_by?.trim();
             const updated = await candidateService.update(id, snakeInput);
 
             if (!updated) {
@@ -316,6 +337,12 @@ export const resolvers = {
                 await rhKpiService.bump(Number(context.user.id), updated.owner?.sector ?? '', new Date(), {
                     [column]: 1,
                 });
+            }
+
+            // KPI RH : entretien crédité à l'interviewer quand le champ passe de vide →
+            // renseigné (une seule fois). Une AB déjà attribuée qu'on ré-édite ne recompte pas.
+            if (newInterviewer && !previousInterviewer) {
+                await creditInterviewKpi(newInterviewer);
             }
 
             return candidateToGql(updated);
