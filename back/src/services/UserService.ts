@@ -104,6 +104,12 @@ export class UserService {
         return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
     }
 
+    /** Users habilités à mener les entretiens AB (flag is_interviewer). */
+    async findInterviewers(): Promise<User[]> {
+        const rows = await this.userRepository.findInterviewers();
+        return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
+    }
+
     /**
      * Renvoie le premier utilisateur (parmi les rôles donnés, dans l'ordre)
      * disposant de jetons Google valides. Utilisé par les traitements sans

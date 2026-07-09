@@ -24,6 +24,11 @@ export class UserRepository {
         return query<UserRow[]>(`SELECT * FROM users WHERE role IN (${placeholders})`, roles);
     }
 
+    /** Users habilités à mener les entretiens AB (flag is_interviewer). */
+    async findInterviewers(): Promise<UserRow[]> {
+        return query<UserRow[]>('SELECT * FROM users WHERE is_interviewer = 1 ORDER BY first_name, last_name');
+    }
+
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
         const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(

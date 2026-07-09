@@ -121,9 +121,11 @@ export const resolvers = {
             return userService.findByRoles([Role.COMMERCIAL, Role.RESPONSABLE]);
         },
 
+        // Liste « Entretien fait par » : users cochés is_interviewer, tous rôles
+        // confondus (l'équipe qui mène les AB déborde le seul rôle RH).
         rhUsers: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH]);
-            return userService.findByRoles([Role.RH]);
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE, Role.ADMIN]);
+            return userService.findInterviewers();
         },
 
         salePerson: async (_: unknown, { id }: { id: number }, context: any) => {

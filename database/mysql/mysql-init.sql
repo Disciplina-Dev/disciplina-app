@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS users (
     role ENUM('ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH', 'PEDA') NOT NULL,
     sectors JSON DEFAULT NULL,
     oauth_token TEXT DEFAULT NULL,
-    refresh_token TEXT DEFAULT NULL
+    refresh_token TEXT DEFAULT NULL,
+    -- Habilité à mener les entretiens AB (liste « Entretien fait par »).
+    is_interviewer TINYINT(1) NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS filiz (
