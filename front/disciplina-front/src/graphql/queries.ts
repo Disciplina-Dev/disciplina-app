@@ -1104,6 +1104,8 @@ export const MATCH_OFFER = gql`
       }
       interviewSlots
       interviewLocation
+      title
+      missions
       salerInfo {
         id
         email

@@ -173,6 +173,8 @@ export const typeDefs = gql`
         interviewLocation: String
         salerInfo: SalerInfo
         referents: Referents
+        title: String
+        missions: [String]
     }
 
     input MatchingCandidateInput {

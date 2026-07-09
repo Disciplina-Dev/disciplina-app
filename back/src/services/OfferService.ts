@@ -95,6 +95,8 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
                   recruitmentReferents: offer.referents.recruitment_referents,
               }
             : undefined,
+        title: offer.title,
+        missions: offer.missions,
     };
 }
 
