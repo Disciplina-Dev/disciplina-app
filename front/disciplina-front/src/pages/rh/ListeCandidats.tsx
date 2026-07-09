@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate';
-import { formatCommune } from '@/data/reunionCommunes';
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
+import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
+import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
+import MultiSelectField from '@/components/ui/MultiSelectField';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
@@ -61,6 +63,8 @@ interface CandidateFilterState {
   ageMin: number | '';
   ageMax: number | '';
   tpType: TitleProfessionalType | '';
+  geographicMobility: Localisation[];
+  desiredSectors: string[];
   dateMode: DateMode;
   dateFrom: string;
   dateTo: string;
@@ -74,6 +78,8 @@ const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   ageMin: '',
   ageMax: '',
   tpType: '',
+  geographicMobility: [],
+  desiredSectors: [],
   dateMode: 'any',
   dateFrom: '',
   dateTo: '',
@@ -99,6 +105,8 @@ function toServerFilters(filters: CandidateFilterState): CandidateServerFilters 
     ageMin: filters.ageMin || undefined,
     ageMax: filters.ageMax || undefined,
     tpType: filters.tpType || undefined,
+    geographicMobility: filters.geographicMobility?.length ? filters.geographicMobility : undefined,
+    desiredSectors: filters.desiredSectors?.length ? filters.desiredSectors : undefined,
     createdAfter,
     createdBefore,
     createdMissing,
@@ -146,7 +154,7 @@ export default function ListeCandidats() {
     (filters.dateMode === 'before' && !!filters.dateTo) ||
     (filters.dateMode === 'between' && (!!filters.dateFrom || !!filters.dateTo))
   );
-  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax, filters.tpType].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0);
+  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax, filters.tpType].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
@@ -300,6 +308,27 @@ export default function ListeCandidats() {
               />
             </div>
 
+          </div>
+
+          {/* Mobilité géographique + secteurs souhaités (multi-sélection, OR) */}
+          <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <MultiSelectField
+              id="filter-geographic-mobility"
+              label="Ville demandée (mobilité)"
+              options={Object.values(Localisation)}
+              value={filters.geographicMobility ?? []}
+              onChange={vals => setFilters({ ...filters, geographicMobility: vals as Localisation[] })}
+              getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
+              placeholder="Toutes les villes"
+            />
+            <MultiSelectField
+              id="filter-desired-sectors"
+              label="Secteurs d'activité souhaités"
+              options={ALL_DESIRED_SECTORS}
+              value={filters.desiredSectors ?? []}
+              onChange={vals => setFilters({ ...filters, desiredSectors: vals })}
+              placeholder="Tous les secteurs"
+            />
           </div>
 
           {/* Filtre par date de création */}

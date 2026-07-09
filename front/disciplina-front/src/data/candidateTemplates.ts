@@ -195,6 +195,14 @@ export const CANDIDATE_TEMPLATES: Record<TitleProfessionalType, CandidateTemplat
   },
 }
 
+/**
+ * Union dédupliquée et triée de tous les secteurs d'activité proposés, tous
+ * types de TP confondus. Dérivée des templates pour rester synchronisée.
+ */
+export const ALL_DESIRED_SECTORS: string[] = Array.from(
+  new Set(Object.values(CANDIDATE_TEMPLATES).flatMap((t) => t.availableSectors)),
+).sort((a, b) => a.localeCompare(b, 'fr'))
+
 export const TP_TYPE_LABELS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.CC]: 'Conseiller Commercial',
   [TitleProfessionalType.SA]: 'SA',

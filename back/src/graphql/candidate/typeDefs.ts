@@ -426,6 +426,10 @@ export const typeDefs = gql`
         ageMin: Int
         ageMax: Int
         tpType: TitleProfessionalType
+        "Villes de mobilité géographique souhaitées (OR : au moins une)"
+        geographicMobility: [Localisation!]
+        "Secteurs d'activité souhaités (OR : au moins un)"
+        desiredSectors: [String!]
         "Date de création minimale (ISO, incluse)"
         createdAfter: String
         "Date de création maximale (ISO, incluse jusqu'à fin de journée)"
