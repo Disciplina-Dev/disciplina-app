@@ -1,5 +1,5 @@
+import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { InterviewAccessRepository } from '../repositories/mysql/InterviewAccessRepository';
-import { JobRepository } from '../repositories/mongo/JobRepository';
 import { InterviewAccessRow } from '../types/db-rows.types';
 import { InterviewAccessStatus } from '../types/interviewAccess.types';
 import { generateSignature, generateNumericCode, timingSafeEqualString } from '../external/crypto';
@@ -45,12 +45,12 @@ function formatFr(iso: string): string {
 export class InterviewAccessService {
     constructor(
         private readonly repository = new InterviewAccessRepository(),
-        private readonly jobRepository = new JobRepository(),
+        private readonly needsAnalysisRepository = new NeedsAnalysisRepository(),
         private readonly candidateHistoryService = new CandidateHistoryService(),
     ) {}
 
     async createAccess(
-        jobId: string,
+        offerId: string,
         candidateId: string,
         rhEmail: string,
     ): Promise<{ signature: string; code: string }> {
@@ -59,7 +59,7 @@ export class InterviewAccessService {
         await this.repository.create({
             signature,
             code,
-            job_uuid: jobId,
+            offer_uuid: offerId,
             candidate_id: candidateId,
             rh_email: rhEmail,
             expires_at: new Date(Date.now() + LINK_TTL_MS),
@@ -84,17 +84,17 @@ export class InterviewAccessService {
 
         await this.repository.setStatus(signature, InterviewAccessStatus.AUTHENTICATED);
         const expiresIn = Math.floor((new Date(row.expires_at).getTime() - Date.now()) / 1000);
-        return { ok: true, token: issueInterviewToken(signature, row.job_uuid, row.candidate_id, expiresIn) };
+        return { ok: true, token: issueInterviewToken(signature, row.offer_uuid, row.candidate_id, expiresIn) };
     }
 
     async getContext(
         signature: string,
-    ): Promise<{ rhEmail: string; jobUuid: string; candidateId: string; status: InterviewAccessStatus } | null> {
+    ): Promise<{ rhEmail: string; offerUuid: string; candidateId: string; status: InterviewAccessStatus } | null> {
         const row = await this.repository.findBySignature(signature);
         if (!row) return null;
         return {
             rhEmail: row.rh_email,
-            jobUuid: row.job_uuid,
+            offerUuid: row.offer_uuid,
             candidateId: row.candidate_id,
             status: row.status as InterviewAccessStatus,
         };
@@ -103,11 +103,12 @@ export class InterviewAccessService {
     async getSlots(signature: string, candidateId: string): Promise<SlotsView> {
         const row = await this.repository.findBySignature(signature);
         if (!row) throw new Error('Session not found');
-        const job = await this.jobRepository.find(row.job_uuid);
-        const taken = new Set((job?.proposed_candidate ?? []).map((c) => c.booked_interview_slot).filter(Boolean));
-        const slots = (job?.interview_slots ?? []).map((slot) => ({ slot, taken: taken.has(slot) }));
-        const bookedSlot = job?.proposed_candidate?.find((c) => c.id === candidateId)?.booked_interview_slot;
-        return { location: job?.interview_location, slots, bookedSlot };
+        const ctx = await this.needsAnalysisRepository.findOfferById(row.offer_uuid);
+        const candidates = ctx?.offer.matching?.candidates ?? [];
+        const taken = new Set(candidates.map((c) => c.booked_interview_slot).filter(Boolean));
+        const slots = (ctx?.offer.matching?.interview_slots ?? []).map((slot) => ({ slot, taken: taken.has(slot) }));
+        const bookedSlot = candidates.find((c) => c.id === candidateId)?.booked_interview_slot;
+        return { location: ctx?.offer.matching?.interview_location, slots, bookedSlot };
     }
 
     async bookSlot(signature: string, candidateId: string, slot: string): Promise<void> {
@@ -115,15 +116,15 @@ export class InterviewAccessService {
         if (!row) throw new Error('Session not found');
         if (row.status === InterviewAccessStatus.COMPLETED) throw new Error('Session already completed');
 
-        const job = await this.jobRepository.bookInterviewSlot(row.job_uuid, candidateId, slot);
-        if (!job) throw new SlotUnavailableError("Ce créneau n'est plus disponible");
+        const ctx = await this.needsAnalysisRepository.bookInterviewSlot(row.offer_uuid, candidateId, slot);
+        if (!ctx) throw new SlotUnavailableError("Ce créneau n'est plus disponible");
 
         await this.candidateHistoryService.recordAuto(
             candidateId,
             CandidateHistoryType.CANDIDATE,
-            `Le candidat a accepté l'entretien avec ${job.company_name ?? "l'entreprise"} le ${formatFr(slot)} à ${
-                job.interview_location ?? '—'
-            }`,
+            `Le candidat a accepté l'entretien avec ${ctx.analysis.company_infos?.name ?? "l'entreprise"} le ${formatFr(
+                slot,
+            )} à ${ctx.offer.matching?.interview_location ?? '—'}`,
         );
         await this.repository.setStatus(signature, InterviewAccessStatus.COMPLETED);
     }

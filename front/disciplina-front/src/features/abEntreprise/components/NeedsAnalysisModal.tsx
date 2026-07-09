@@ -11,13 +11,16 @@ import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCreateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
+import { Localisation } from '@/types/candidate'
+import { formatCommune } from '@/data/reunionCommunes'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+const COMMUNES = Object.values(Localisation)
+
 type DayStatus = 'OUI' | 'NON' | 'PREFERE'
 type TrainingDomain = 'SECRETARIAT' | 'VENTE'
-type Localisation = 'NORD' | 'OUEST' | 'SUD'
 type Opco =
   | 'AKTO'
   | 'ATLAS'
@@ -43,7 +46,7 @@ interface Poste {
   trainingDomain: TrainingDomain | undefined
   jobTitle: string
   selectedMissions: string[]
-  localisation: Localisation | undefined
+  localisation: Localisation[]
 }
 
 interface FormData {
@@ -248,7 +251,7 @@ const EMPTY_POSTE: Poste = {
   trainingDomain: undefined,
   jobTitle: '',
   selectedMissions: [],
-  localisation: undefined,
+  localisation: [],
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -378,13 +381,14 @@ function RadioGroup<T extends string>({
 }
 
 function CheckboxGroup({
-  label, options, selected, onChange, columns = 2,
+  label, options, selected, onChange, columns = 2, renderLabel,
 }: {
   label?: string
   options: string[]
   selected: string[]
   onChange: (values: string[]) => void
   columns?: 1 | 2 | 3
+  renderLabel?: (value: string) => string
 }) {
   const toggle = (val: string) =>
     selected.includes(val)
@@ -417,7 +421,7 @@ function CheckboxGroup({
               ].join(' ')}>
                 {checked && <Check size={10} className="text-white" strokeWidth={3} />}
               </span>
-              {opt}
+              {renderLabel ? renderLabel(opt) : opt}
             </button>
           )
         })}
@@ -463,7 +467,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const [postes, setPostes] = useState<Poste[]>([{ ...EMPTY_POSTE }])
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [previewId, setPreviewId] = useState<number | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
   // Quelle action a déclenché la soumission : télécharger le PDF ou l'envoyer en signature.
   const intentRef = useRef<'download' | 'sign'>('download')
 
@@ -552,7 +556,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       if (!p.trainingDomain) return 'Sélectionnez le domaine de formation.'
       if (!p.jobTitle) return 'Sélectionnez l\'intitulé de la formation.'
       if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
-      if (!p.localisation) return 'Sélectionnez la localisation du poste.'
+      if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
       return ''
     })
     setPosteErrors(errs)
@@ -683,7 +687,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     onClose()
   }
 
-  const sendForSignature = async (id: number) => {
+  const sendForSignature = async (id: string) => {
     const token = useAuthStore.getState().token
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/needs-analysis/${id}/sign`, {
       method: 'POST',
@@ -695,7 +699,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     }
   }
 
-  const downloadPdf = async (id: number) => {
+  const downloadPdf = async (id: string) => {
     const token = useAuthStore.getState().token
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/needs-analysis/${id}/pdf`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -915,15 +919,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       </div>
                     )}
 
-                    <RadioGroup label="Localisation du poste *"
-                      options={[
-                        { value: 'NORD' as const,  label: 'Nord' },
-                        { value: 'OUEST' as const, label: 'Ouest' },
-                        { value: 'SUD' as const,   label: 'Sud' },
-                      ]}
-                      value={poste.localisation}
-                      onChange={(v) => updatePoste(index, { localisation: v })}
-                      required />
+                    <CheckboxGroup label="Localisation du poste (communes) *"
+                      options={COMMUNES}
+                      selected={poste.localisation}
+                      onChange={(v) => updatePoste(index, { localisation: v as Localisation[] })}
+                      renderLabel={formatCommune}
+                      columns={2} />
 
                     {posteErrors[index] && <FieldError message={posteErrors[index]} />}
                   </div>

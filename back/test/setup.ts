@@ -2,7 +2,7 @@ import { beforeAll, afterAll, beforeEach } from 'vitest';
 import http from 'http';
 import mongoose from 'mongoose';
 import { startServer } from '../src/index';
-import { CompanyAPI, CandidateAPI, JobAPI } from '../src/graphql/server';
+import { CompanyAPI, CandidateAPI, OfferAPI } from '../src/graphql/server';
 import { dropMongo } from './helpers/db';
 
 let server: http.Server;
@@ -19,7 +19,7 @@ afterAll(async () => {
     await Promise.all([
         CompanyAPI.stop(),
         CandidateAPI.stop(),
-        JobAPI.stop(),
+        OfferAPI.stop(),
     ]);
     await mongoose.disconnect();
     await new Promise<void>((resolve) => server.close(() => resolve()));

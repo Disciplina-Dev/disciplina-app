@@ -3,8 +3,8 @@ import { typeDefs as companyTypeDefs } from './company/typeDefs';
 import { resolvers as companyResolvers } from './company/resolvers';
 import { typeDefs as candidateTypeDefs } from './candidate/typeDefs';
 import { resolvers as candidateResolvers } from './candidate/resolver';
-import { resolvers as jobResolvers } from './jobs/resolver';
-import { typeDefs as jobTypeDefs } from './jobs/typeDefs';
+import { resolvers as offerResolvers } from './offers/resolver';
+import { typeDefs as offerTypeDefs } from './offers/typeDefs';
 import { UserTypeDefs } from './common.typeDefs';
 import { jwtContext } from './context';
 import { typeDefs as needsAnalysisTypeDefs } from './needsAnalysis/typeDefs';
@@ -37,8 +37,8 @@ export const CandidateAPI = new ApolloServer({
     context: jwtContext,
 });
 
-export const JobAPI = new ApolloServer({
-    typeDefs: jobTypeDefs,
-    resolvers: jobResolvers,
+export const OfferAPI = new ApolloServer({
+    typeDefs: offerTypeDefs,
+    resolvers: offerResolvers,
     context: jwtContext,
 });

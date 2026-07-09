@@ -92,6 +92,7 @@ export class CompaniesBlacklistService {
             const data: Partial<CompaniesRow> = { ...entry };
             delete (data as Partial<CompaniesBlacklistRow>).id;
             delete (data as Partial<CompaniesBlacklistRow>).all_blacklist;
+            delete (data as Partial<CompaniesBlacklistRow>).ab_id;
             delete data.created_at;
 
             const fields = Object.keys(data).join(', ');

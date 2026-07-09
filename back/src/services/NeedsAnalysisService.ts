@@ -1,14 +1,14 @@
-import { NeedsAnalysisRepository } from '../repositories/mysql/NeedsAnalysisRepository';
+import { randomUUID } from 'crypto';
+import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { NeedsAnalysis } from '../types/needsAnalysis.types';
-import { toNeedsAnalysis, toNeedsAnalysisRow } from './mappers/needsAnalysis.mapper';
+import { NeedsAnalysisStatus } from '../types/needsAnalysisNoSql.types';
+import { toNeedsAnalysis, toNeedsAnalysisDocument, mergeOfferIdentity } from './mappers/needsAnalysis.mapper';
 import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
-import { JobRepository } from '../repositories/mongo/JobRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
-import { buildJobsFromAb } from './mappers/abToJob';
 import { Role } from '../types/user.types';
 import { logger } from '../external/logger';
 import { PDFDocument } from 'pdf-lib';
@@ -33,7 +33,6 @@ export class NeedsAnalysisService {
     private repository: NeedsAnalysisRepository;
     private companiesService: CompaniesService;
     private docusealService: DocuSealService;
-    private jobRepository: JobRepository;
     private userRepository: UserRepository;
     private notificationService: NotificationService;
     private todoService: TodoService;
@@ -42,25 +41,24 @@ export class NeedsAnalysisService {
         this.repository = new NeedsAnalysisRepository();
         this.companiesService = new CompaniesService();
         this.docusealService = new DocuSealService();
-        this.jobRepository = new JobRepository();
         this.userRepository = new UserRepository();
         this.notificationService = new NotificationService();
         this.todoService = new TodoService();
     }
 
     async findAll(): Promise<NeedsAnalysis[]> {
-        const rows = await this.repository.findAll();
-        return rows.map(toNeedsAnalysis);
+        const docs = await this.repository.findAll();
+        return docs.map(toNeedsAnalysis);
     }
 
-    async findById(id: number): Promise<NeedsAnalysis | null> {
-        const row = await this.repository.findById(id);
-        return row ? toNeedsAnalysis(row) : null;
+    async findById(id: string): Promise<NeedsAnalysis | null> {
+        const doc = await this.repository.findById(id);
+        return doc ? toNeedsAnalysis(doc) : null;
     }
 
     async findByCompanyId(companyId: number): Promise<NeedsAnalysis[]> {
-        const rows = await this.repository.findByCompanyId(companyId);
-        return rows.map(toNeedsAnalysis);
+        const docs = await this.repository.findByCompanyId(companyId);
+        return docs.map(toNeedsAnalysis);
     }
 
     async create(data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
@@ -70,51 +68,29 @@ export class NeedsAnalysisService {
         );
         this.validateData(data);
 
-        // 1. Fetch Company details
         const company = await this.companiesService.findById(data.companyID!);
         if (!company) {
             logger.error({ companyID: data.companyID }, '[NeedsAnalysis] Company not found');
             throw new Error(`Company with ID ${data.companyID} not found`);
         }
-        logger.info(`[NeedsAnalysis] Company found: ${company.name}`);
 
-        // 2. Map input and create initial Brouillon in DB to get an ID
-        // Legacy single-position columns are NOT NULL: mirror the first position into them
-        const firstPosition = data.positions?.[0];
-        const initialData = {
-            ...data,
-            ...(firstPosition
-                ? {
-                      trainingDomain: data.trainingDomain ?? firstPosition.trainingDomain,
-                      jobTitle: data.jobTitle ?? firstPosition.jobTitle,
-                      selectedMissions: data.selectedMissions ?? firstPosition.selectedMissions,
-                      localisation: data.localisation ?? firstPosition.localisation,
-                      positionsCount: data.positionsCount ?? data.positions!.length,
-                  }
-                : {}),
-            ageRequirements: data.ageRequirements ?? [],
-            status: 'BROUILLON' as const,
-        };
-        const rowData = toNeedsAnalysisRow(initialData);
-        const id = await this.repository.create(rowData);
-        logger.info({ id }, '[NeedsAnalysis] Brouillon created in DB');
-
-        const created = await this.repository.findById(id);
-        if (!created) {
-            throw new Error('Failed to retrieve created needs analysis');
-        }
+        const saler = data.userID ? await this.userRepository.findById(data.userID) : null;
+        const id = randomUUID();
+        const document = toNeedsAnalysisDocument({ ...data, id, status: 'BROUILLON' }, company, saler);
+        const created = await this.repository.create(document);
+        await this.companiesService.setAbId(company.id, id);
         logger.info({ id, status: created.status }, '[NeedsAnalysis] create() complete');
         return toNeedsAnalysis(created);
     }
 
     // Yousign sending is intentionally not wired up yet: the AB stays BROUILLON
     // and the commercial downloads the PDF instead.
-    async generatePdf(id: number): Promise<{ buffer: Buffer; filename: string }> {
-        const row = await this.repository.findById(id);
-        if (!row) {
+    async generatePdf(id: string): Promise<{ buffer: Buffer; filename: string }> {
+        const doc = await this.repository.findById(id);
+        if (!doc) {
             throw new Error('Needs analysis not found');
         }
-        const analysis = toNeedsAnalysis(row);
+        const analysis = toNeedsAnalysis(doc);
         const company = await this.companiesService.findById(analysis.companyID);
         if (!company) {
             throw new Error(`Company with ID ${analysis.companyID} not found`);
@@ -129,12 +105,12 @@ export class NeedsAnalysisService {
      * responsable recrutement. Passe le statut à EN_ATTENTE_SIGNATURE et stocke
      * l'identifiant de submission.
      */
-    async sendForSignature(id: number): Promise<NeedsAnalysis> {
-        const row = await this.repository.findById(id);
-        if (!row) {
+    async sendForSignature(id: string): Promise<NeedsAnalysis> {
+        const doc = await this.repository.findById(id);
+        if (!doc) {
             throw new Error('Needs analysis not found');
         }
-        const analysis = toNeedsAnalysis(row);
+        const analysis = toNeedsAnalysis(doc);
 
         const signerEmail = analysis.recruitmentResponsibleEmail;
         if (!signerEmail) {
@@ -161,11 +137,11 @@ export class NeedsAnalysisService {
             await countPdfPages(buffer),
         );
 
-        const wasDraft = row.status === 'BROUILLON';
+        const wasDraft = doc.status === NeedsAnalysisStatus.BROUILLON;
 
         await this.repository.update(id, {
-            status: 'EN_ATTENTE_SIGNATURE',
-            yousign_signature_request_id: submissionId,
+            status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
+            signature_request_id: submissionId,
         });
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
@@ -183,15 +159,16 @@ export class NeedsAnalysisService {
         return toNeedsAnalysis(updated);
     }
 
-    /** Crée une offre de matching par poste et notifie tous les RH (cloche CRM). */
+    /** Initialise le matching sur les offres de l'AB et notifie tous les RH (cloche CRM). */
     private async createMatchingJobsAndNotifyRh(analysis: NeedsAnalysis, companyName: string): Promise<void> {
-        const jobs = buildJobsFromAb(analysis, companyName);
-        await Promise.all(jobs.map((job) => this.jobRepository.create(job)));
-        logger.info({ id: analysis.id, count: jobs.length }, '[NeedsAnalysis] Matching jobs created from AB');
+        await this.repository.initializeOfferMatching(analysis.id);
+        const abDoc = await this.repository.findById(analysis.id);
+        const offerCount = abDoc?.offers?.length ?? 0;
+        logger.info({ id: analysis.id, count: offerCount }, '[NeedsAnalysis] Offer matching initialized for AB');
 
         // RH + Responsables + Admin : tous ont accès à l'espace de matching.
         const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
-        const positionsLabel = `${jobs.length} poste${jobs.length > 1 ? 's' : ''}`;
+        const positionsLabel = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
         await Promise.all(
             rhUsers.map((user) =>
                 this.notificationService.create({
@@ -206,10 +183,10 @@ export class NeedsAnalysisService {
         );
         logger.info({ id: analysis.id, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
 
-        // Responsables only: create an actionable todo
-        const responsables = rhUsers.filter((u) => u.role === Role.RESPONSABLE);
+        // Responsables + RH: create an actionable todo
+        const todoRecipients = rhUsers.filter((u) => u.role === Role.RESPONSABLE || u.role === Role.RH);
         await Promise.all(
-            responsables.map((user) =>
+            todoRecipients.map((user) =>
                 this.todoService.createSystemTodo(
                     user.id,
                     `AB à traiter — ${companyName} (${positionsLabel})`,
@@ -219,25 +196,33 @@ export class NeedsAnalysisService {
         );
     }
 
-    async update(id: number, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
-        if (!id || id <= 0) {
+    async update(id: string, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
+        if (!id) {
             throw new Error('Valid needs analysis ID is required');
         }
         const existing = await this.repository.findById(id);
         if (!existing) {
             throw new Error('Needs analysis not found');
         }
-        const rowData = toNeedsAnalysisRow(data);
-        await this.repository.update(id, rowData);
-        const updated = await this.repository.findById(id);
+        const merged = { ...toNeedsAnalysis(existing), ...data, id };
+        const company = await this.companiesService.findById(merged.companyID);
+        if (!company) {
+            throw new Error(`Company with ID ${merged.companyID} not found`);
+        }
+        const saler = merged.userID ? await this.userRepository.findById(merged.userID) : null;
+        const document = toNeedsAnalysisDocument(merged, company, saler);
+        document.offers = (document.offers ?? []).map((offer, index) =>
+            mergeOfferIdentity(existing.offers?.[index], offer),
+        );
+        const updated = await this.repository.update(id, document);
         if (!updated) {
             throw new Error('Needs analysis not found after update');
         }
         return toNeedsAnalysis(updated);
     }
 
-    async delete(id: number): Promise<boolean> {
-        if (!id || id <= 0) {
+    async delete(id: string): Promise<boolean> {
+        if (!id) {
             throw new Error('Valid needs analysis ID is required');
         }
         const existing = await this.repository.findById(id);
@@ -249,13 +234,23 @@ export class NeedsAnalysisService {
             return true;
         }
 
-        // Supprime aussi les offres de matching (côté RH) générées par cette AB.
+        // Supprime les offres de matching de cette AB.
         // Hors du chemin critique : un échec ne doit pas empêcher la suppression de l'AB.
         try {
-            const removed = await this.jobRepository.deleteByNeedsAnalysisId(id);
-            logger.info({ id, removed }, '[NeedsAnalysis] matching jobs deleted with AB');
+            const removed = await this.repository.clearOffersByNeedsAnalysisId(id);
+            logger.info({ id, removed }, '[NeedsAnalysis] offers cleared for AB');
         } catch (err) {
-            logger.error({ err, id }, '[NeedsAnalysis] Failed to delete matching jobs for AB');
+            logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers for AB');
+        }
+
+        // Délie l'entreprise de l'AB supprimée (company.ab_id). Hors chemin critique.
+        const companyId = existing.company_infos?.id;
+        if (companyId) {
+            try {
+                await this.companiesService.setAbId(companyId, null);
+            } catch (err) {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to clear company.ab_id');
+            }
         }
 
         return this.repository.delete(id);

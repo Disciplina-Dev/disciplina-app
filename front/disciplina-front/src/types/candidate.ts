@@ -201,7 +201,7 @@ export interface Synthesis {
     interviewed_by?: string;
 }
 
-export interface MatchedJob {
+export interface MatchedOffer {
     id: string;
     companyName?: string;
     sector?: string;

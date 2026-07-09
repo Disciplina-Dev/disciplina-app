@@ -6,7 +6,7 @@ import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import { ABDetailContent, AB_STATUS_BADGE } from './ABDetailContent'
 
 interface Props {
-  id: number
+  id: string
   onClose: () => void
   onDelete?: () => void
 }

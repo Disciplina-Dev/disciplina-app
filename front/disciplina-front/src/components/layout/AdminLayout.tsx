@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Users, UserPlus, MapPin, LogOut, User, ArrowLeft } from 'lucide-react'
+import { Users, UserPlus, MapPin, LogOut, User, ArrowLeft, Briefcase, GraduationCap } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
@@ -77,6 +77,17 @@ export default function AdminLayout() {
         </div>
         <nav className="flex flex-col gap-1 px-3">
           <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Secteurs" />
+        </nav>
+
+        {/* Espaces */}
+        <div className="mx-3 my-4 border-t border-gray-100" />
+        <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          Espaces
+        </div>
+        <nav className="flex flex-col gap-1 px-3">
+          <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
+          <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
+          <NavItem to="/peda" icon={<GraduationCap size={18} />} label="Espace Péda" />
         </nav>
         </div>
 
