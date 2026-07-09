@@ -230,6 +230,7 @@ db.createCollection('candidates', {
                   "SAINTE_MARIE",
                   "SAINTE_SUZANNE",
                   "SAINT_PAUL",
+                  "SAINT_GILLES",
                   "LA_POSSESSION",
                   "LE_PORT",
                   "TROIS_BASSINS",
@@ -317,7 +318,7 @@ db.createCollection('candidates', {
 // Remplace l'ancienne table MySQL `needs_analysis`. Le lien entreprise → AB se
 // fait via companies.ab_id (MySQL) = _id (UUID applicatif de ce document).
 const AB_COMMUNES = [
-  "SAINT_DENIS", "SAINTE_MARIE", "SAINTE_SUZANNE", "SAINT_PAUL", "LA_POSSESSION",
+  "SAINT_DENIS", "SAINTE_MARIE", "SAINTE_SUZANNE", "SAINT_PAUL", "SAINT_GILLES", "LA_POSSESSION",
   "LE_PORT", "TROIS_BASSINS", "SAINT_LEU", "SAINT_PIERRE", "CILAOS", "ETANG_SALE",
   "SAINT_LOUIS", "ENTRE_DEUX", "LES_AVIRONS", "LE_TAMPON", "SAINT_PHILLIPE",
   "SAINT_JOSEPH", "PETIT_ILE", "SAINTE_ROSE", "SAINT_BENOIT", "BRAS_PANON",
