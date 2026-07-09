@@ -32,6 +32,24 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
 ];
 
 /**
+ * Emails des users habilités à mener les entretiens AB (liste « Entretien fait
+ * par »). Sert uniquement au backfill initial de la colonne is_interviewer :
+ * l'équipe déborde le rôle RH (responsables + un admin). Une fois la colonne
+ * créée, la liste est éditable en base et n'est plus réécrite par le boot.
+ */
+const INTERVIEWER_EMAILS = [
+    'grondin.rh@disciplina.re', // Loic Grondin
+    'boyer.rh@leholding.re', // Céline Boyer
+    'gouard.rh@disciplina.re', // Marion Gouard
+    'solati.rh@disciplina.re', // Solati Melody
+    'armouet.rh@disciplina.re', // Armouet
+    'galais.rh@disciplina.re', // Galais
+    'nativel.rh@disciplina.re', // Nativel
+    'payet.rh@disciplina.re', // Payet
+    'direction@disciplina.re', // Lorenzo Encatassamy (Admin)
+];
+
+/**
  * Tables that must exist for the current code to work. Same rationale as
  * REQUIRED_COLUMNS: mysql-init.sql only runs on a fresh volume.
  */
@@ -401,5 +419,19 @@ export async function runMysqlMigrations(): Promise<void> {
     // déjà personnalisée par l'admin, crée seulement les lignes manquantes.
     for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS) {
         await query('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
+    }
+
+    // Marqueur « fait passer les entretiens » (2026-07-09) : la liste « Entretien
+    // fait par » de l'AB déborde le rôle RH. On ajoute la colonne et on coche la
+    // liste initiale UNIQUEMENT à la création de la colonne, pour ne pas réécrire
+    // les choix ultérieurs (un décochage en base doit survivre aux redéploiements).
+    const interviewerCol = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'is_interviewer'",
+    );
+    if (Number(interviewerCol[0]?.count) === 0) {
+        await query('ALTER TABLE users ADD COLUMN is_interviewer TINYINT(1) NOT NULL DEFAULT 0');
+        const placeholders = INTERVIEWER_EMAILS.map(() => '?').join(', ');
+        await query(`UPDATE users SET is_interviewer = 1 WHERE email IN (${placeholders})`, INTERVIEWER_EMAILS);
+        logger.info('MySQL migration: added users.is_interviewer and seeded the AB interviewer list');
     }
 }
