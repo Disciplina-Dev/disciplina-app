@@ -520,7 +520,6 @@ function JobCard({
 
 function JobDetailsSection({
   job,
-  onSetStatus,
   hasAcceptedCandidates,
   isCreatingSession,
   onProposeCandidates,

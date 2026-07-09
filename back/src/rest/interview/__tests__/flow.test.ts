@@ -221,8 +221,8 @@ describe('Interview access flow', () => {
             expect(bookRes.status).toBe(200);
 
             const jobRepo = new OfferRepository();
-            const ctx = await jobRepo.findOfferById(offerId);
-            const candidate = ctx?.offer.matching?.candidates?.find((c) => c.id === candidateId);
+            const ctx = await jobRepo.findById(offerId);
+            const candidate = ctx?.matching?.candidates?.find((c) => c.id === candidateId);
             expect(candidate?.booked_interview_slot).toBe(slot);
 
             const historyRepo = new CandidateHistoryRepository();
