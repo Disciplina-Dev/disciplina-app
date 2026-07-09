@@ -32,7 +32,7 @@ import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, 
 import { PROPOSED_CANDIDATE_ANSWER_LABELS, PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS, ProposedCandidateAnswer } from '@/constants/proposedCandidateAnswer'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
-import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, MANUAL_JOB_STATUSES } from '@/constants/jobStatus'
+import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
@@ -62,6 +62,24 @@ interface MatchedCandidate {
   status?: string
 }
 
+interface SalerInfo {
+  id?: number | null
+  email?: string | null
+}
+
+interface ReferentDetails {
+  name?: string | null
+  phone?: string | null
+  email?: string | null
+  function?: string | null
+}
+
+interface Referents {
+  isSame?: boolean | null
+  legalReferents?: ReferentDetails | null
+  recruitmentReferents?: ReferentDetails | null
+}
+
 interface Job {
   id: string
   companyName: string
@@ -73,6 +91,10 @@ interface Job {
   status: string | null
   localisation: string[] | null
   sector: string | null
+  salerInfo?: SalerInfo | null
+  referents?: Referents | null
+  title?: string | null
+  missions?: string[] | null
 }
 
 interface ProposedCandidate {
@@ -498,7 +520,6 @@ function JobCard({
 
 function JobDetailsSection({
   job,
-  onSetStatus,
   hasAcceptedCandidates,
   isCreatingSession,
   onProposeCandidates,
@@ -548,47 +569,59 @@ function JobDetailsSection({
       </div>
 
       <div className="mb-4 pb-4 border-b border-gray-50">
-        <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">Étape manuelle</p>
-        <div className="flex flex-wrap gap-1.5">
-          {MANUAL_JOB_STATUSES.map((status) => (
-            <button
-              key={status}
-              onClick={() => onSetStatus(status)}
-              disabled={job.status === status}
-              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${job.status === status ? JOB_STATUS_BADGE_CLASS[status] : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-            >
-              {JOB_STATUS_LABELS[status]}
-            </button>
-          ))}
+        <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
+          <Briefcase size={10} className="inline mr-1 text-gray-300" />
+          Critères
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {job.desiredTP && (
+            <div className="flex items-start gap-2">
+              <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Type de TP</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{tpLabel(job.desiredTP)}</p>
+              </div>
+            </div>
+          )}
+          {job.title && (
+            <div className="flex items-start gap-2">
+              <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Intitulé du poste</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{job.title}</p>
+              </div>
+            </div>
+          )}
+          {job.missions && job.missions.length > 0 && (
+            <div className="col-span-2">
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    {job.missions.length} mission{job.missions.length > 1 ? 's' : ''}
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {job.missions.map((mission, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {mission}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {job.desiredTP && (
-          <div className="col-span-2 flex items-start gap-2">
-            <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Titre professionnel</p>
-              <p className="text-xs font-medium text-gray-800 mt-0.5">{tpLabel(job.desiredTP)}</p>
-            </div>
-          </div>
-        )}
         {job.ageRange && (
           <div className="flex items-start gap-2">
             <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
             <div>
               <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Tranche d'âge</p>
               <p className="text-xs font-medium text-gray-800 mt-0.5">{job.ageRange} ans</p>
-            </div>
-          </div>
-        )}
-        {job.desiredSex && (
-          <div className="flex items-start gap-2">
-            <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Sexe</p>
-              <p className="text-xs font-medium text-gray-800 mt-0.5">{sexLabel(job.desiredSex)}</p>
             </div>
           </div>
         )}
@@ -636,6 +669,108 @@ function JobDetailsSection({
           </div>
         </div>
       )}
+
+      {(job.salerInfo?.id != null || job.salerInfo?.email) && (
+        <div className="mt-3 pt-3 border-t border-gray-50">
+          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
+            <User size={10} className="inline mr-1 text-gray-300" />
+            Commercial
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {job.salerInfo.email && (
+              <div className="flex items-start gap-2">
+                <Mail size={13} className="text-gray-300 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Email commercial</p>
+                  <p className="text-xs font-medium text-gray-800 mt-0.5">{job.salerInfo.email}</p>
+                </div>
+              </div>
+            )}
+            {job.salerInfo.id != null && (
+              <div className="flex items-start gap-2">
+                <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">ID commercial</p>
+                  <p className="text-xs font-medium text-gray-800 mt-0.5">{job.salerInfo.id}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {job.referents && (
+        <div className="mt-3 pt-3 border-t border-gray-50">
+          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
+            <User size={10} className="inline mr-1 text-gray-300" />
+            Référents
+          </p>
+          {job.referents.isSame
+            ? (
+              <ReferentBlock
+                label="Référent"
+                details={job.referents.legalReferents ?? job.referents.recruitmentReferents}
+              />
+            )
+            : (
+              <div className="grid grid-cols-2 gap-3">
+                <ReferentBlock label="Référent légal" details={job.referents.legalReferents} />
+                <ReferentBlock label="Référent recrutement" details={job.referents.recruitmentReferents} />
+              </div>
+            )
+          }
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReferentBlock({ label, details }: { label: string; details: ReferentDetails | null | undefined }) {
+  if (!details) return null
+  const hasData = details.name || details.phone || details.email || details.function
+  if (!hasData) return null
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+      <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">{label}</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        {details.name && (
+          <div className="flex items-start gap-1.5">
+            <User size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Nom</p>
+              <p className="text-xs font-medium text-gray-800">{details.name}</p>
+            </div>
+          </div>
+        )}
+        {details.phone && (
+          <div className="flex items-start gap-1.5">
+            <Phone size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Téléphone</p>
+              <p className="text-xs font-medium text-gray-800">{details.phone}</p>
+            </div>
+          </div>
+        )}
+        {details.email && (
+          <div className="flex items-start gap-1.5">
+            <Mail size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Email</p>
+              <p className="text-xs font-medium text-gray-800">{details.email}</p>
+            </div>
+          </div>
+        )}
+        {details.function && (
+          <div className="flex items-start gap-1.5">
+            <Briefcase size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Fonction</p>
+              <p className="text-xs font-medium text-gray-800">{details.function}</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

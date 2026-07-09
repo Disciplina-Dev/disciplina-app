@@ -87,6 +87,16 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
             .map(proposedCandidateToGql),
         interviewSlots: offer.matching?.interview_slots,
         interviewLocation: offer.matching?.interview_location,
+        salerInfo: offer.saler_info,
+        referents: offer.referents
+            ? {
+                  isSame: offer.referents.is_same,
+                  legalReferents: offer.referents.legal_referents,
+                  recruitmentReferents: offer.referents.recruitment_referents,
+              }
+            : undefined,
+        title: offer.title,
+        missions: offer.missions,
     };
 }
 
