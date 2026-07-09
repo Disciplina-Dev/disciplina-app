@@ -169,6 +169,7 @@ const synthesisSchema = new Schema<Synthesis>(
         date: { type: Date },
         recruiter_signature: { type: String },
         candidate_signature: { type: String },
+        interviewed_by: { type: String },
     },
     { _id: false },
 );

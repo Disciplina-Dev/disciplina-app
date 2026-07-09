@@ -198,6 +198,7 @@ export interface Synthesis {
     date?: string;
     recruiter_signature?: string;
     candidate_signature?: string;
+    interviewed_by?: string;
 }
 
 export interface MatchedJob {

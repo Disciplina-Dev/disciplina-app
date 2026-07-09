@@ -191,6 +191,7 @@ export const typeDefs = gql`
         date: String
         recruiterSignature: String
         candidateSignature: String
+        interviewedBy: String
     }
 
     type MatchedJob {
@@ -345,6 +346,7 @@ export const typeDefs = gql`
         date: String
         recruiterSignature: String
         candidateSignature: String
+        interviewedBy: String
     }
 
     input CreateCandidateInput {

@@ -156,6 +156,7 @@ export const typeDefs = gql`
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
         companyStats(year: Int!): CompanyStats!
         salePersons: [User!]!
+        rhUsers: [User!]!
         salePerson(id: Int!): User
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!
         companyBySiret(siret: String!): Company

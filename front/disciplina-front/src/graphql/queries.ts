@@ -11,6 +11,17 @@ export const GET_SALE_PERSONS = gql`
   }
 `
 
+export const GET_RH_USERS = gql`
+  query GetRhUsers {
+    rhUsers {
+      id
+      email
+      firstName
+      lastName
+    }
+  }
+`
+
 export const GET_SALE_PERSON = gql`
   query GetSalePerson($id: Int!) {
     salePerson(id: $id) {
@@ -487,6 +498,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         location
         date
         candidateSignature
+        interviewedBy
       }
       skillsAssessment {
         competence
@@ -599,6 +611,7 @@ export const UPDATE_CANDIDATE = gql`
         location
         date
         candidateSignature
+        interviewedBy
       }
       professionalProjects {
         careerObjectives
@@ -781,6 +794,7 @@ export const GET_CANDIDATE_FULL = gql`
         location
         date
         candidateSignature
+        interviewedBy
       }
       pdfLink
       createdAt
@@ -911,6 +925,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         location
         date
         candidateSignature
+        interviewedBy
       }
       pdfLink
       createdAt

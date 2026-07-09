@@ -908,6 +908,18 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
             .text(closing, left, doc.y, { width: contentW, align: 'right' });
     }
 
+    // ── Entretien réalisé par (RH sélectionné dans le formulaire) ──
+    const interviewer = c.synthesis?.interviewed_by?.trim();
+    if (interviewer) {
+        ensure(24);
+        doc.moveDown(0.8);
+        doc.font('Helvetica-Bold')
+            .fillColor('#111111')
+            .fontSize(10)
+            .text('Entretien réalisé par : ', left, doc.y, { continued: true, width: contentW });
+        doc.font('Helvetica').text(interviewer);
+    }
+
     // ── Signature de l'apprenti (dessinée dans le formulaire, data-URL PNG) ──
     const sig = c.synthesis?.candidate_signature;
     if (sig && sig.startsWith('data:image')) {
