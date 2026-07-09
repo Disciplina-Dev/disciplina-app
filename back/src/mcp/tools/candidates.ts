@@ -14,7 +14,7 @@ export function registerCandidateTools(server: McpServer): void {
     readTool(
         server,
         'get_candidate',
-        "Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.",
+        'Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.',
         { id: z.string().describe('Id du candidat (ObjectId Mongo)') },
         async ({ id }) => toolResult(await candidates.findById(id)),
     );

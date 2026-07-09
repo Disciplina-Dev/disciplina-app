@@ -16,7 +16,10 @@ export class NeedsAnalysisRepository {
     }
 
     async findByYousignId(yousignId: string): Promise<NeedsAnalysisRow | null> {
-        const results = await query<NeedsAnalysisRow[]>('SELECT * FROM needs_analysis WHERE yousign_signature_request_id = ?', [yousignId]);
+        const results = await query<NeedsAnalysisRow[]>(
+            'SELECT * FROM needs_analysis WHERE yousign_signature_request_id = ?',
+            [yousignId],
+        );
         return results.length > 0 ? results[0] : null;
     }
 
@@ -28,7 +31,10 @@ export class NeedsAnalysisRepository {
                 .map(() => '?')
                 .join(', ');
             const values = Object.values(data);
-            const result = await conn.execute(`INSERT INTO needs_analysis (${fields}) VALUES (${placeholders})`, values);
+            const result = await conn.execute(
+                `INSERT INTO needs_analysis (${fields}) VALUES (${placeholders})`,
+                values,
+            );
             return (result[0] as any).insertId;
         } finally {
             conn.release();

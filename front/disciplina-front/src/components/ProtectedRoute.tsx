@@ -36,6 +36,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     if (user.role === 'COMMERCIAL') {
       return <Navigate to="/commercial" replace />
     }
+    if (user.role === 'PEDA') {
+      return <Navigate to="/peda" replace />
+    }
     return <Navigate to="/" replace />
   }
 

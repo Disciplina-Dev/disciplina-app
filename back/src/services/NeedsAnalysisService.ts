@@ -64,7 +64,10 @@ export class NeedsAnalysisService {
     }
 
     async create(data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
-        logger.info({ companyID: data.companyID, userID: data.userID, jobTitle: data.jobTitle }, '[NeedsAnalysis] create() called');
+        logger.info(
+            { companyID: data.companyID, userID: data.userID, jobTitle: data.jobTitle },
+            '[NeedsAnalysis] create() called',
+        );
         this.validateData(data);
 
         // 1. Fetch Company details
@@ -90,7 +93,7 @@ export class NeedsAnalysisService {
                   }
                 : {}),
             ageRequirements: data.ageRequirements ?? [],
-            status: 'BROUILLON' as const
+            status: 'BROUILLON' as const,
         };
         const rowData = toNeedsAnalysisRow(initialData);
         const id = await this.repository.create(rowData);

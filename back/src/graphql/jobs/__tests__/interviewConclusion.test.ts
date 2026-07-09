@@ -79,6 +79,7 @@ async function seedJobWithProposedCandidate(
         full_name: `Eve ${suffix}`,
         email: `eve-${suffix}@test.local`,
         answer: ProposedCandidateAnswer.ACCEPTED,
+        status: MatchedCandidateStatus.OFFER_SEND,
         booked_interview_slot: bookedInterviewSlot,
         interview_location: 'Saint-Denis',
     });

@@ -1,8 +1,18 @@
 import { SendEmailOptions } from './types';
 
+/**
+ * Un CR/LF dans une valeur de header permettrait d'injecter des headers
+ * arbitraires (Bcc, Content-Type…). Les valeurs viennent de sources éditables
+ * (modèles de mail, Google Sheet), donc on les neutralise systématiquement.
+ */
+function sanitizeHeaderValue(value: string): string {
+    return value.replace(/[\r\n]+/g, ' ').trim();
+}
+
 function encodeSubject(subject: string): string {
-    if (!/[^ -~]/.test(subject)) return subject;
-    return `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`;
+    const safe = sanitizeHeaderValue(subject);
+    if (!/[^ -~]/.test(safe)) return safe;
+    return `=?UTF-8?B?${Buffer.from(safe).toString('base64')}?=`;
 }
 
 interface InlineImage {
@@ -63,7 +73,7 @@ export function buildRawMessage(options: SendEmailOptions): string {
     const { html, images } = extractInlineImages(options.html);
     const attachments = (options.attachments ?? []).filter((a) => a.content && a.filename);
     const subject = encodeSubject(options.subject);
-    const headers = ['MIME-Version: 1.0', `To: ${options.to}`, `Subject: ${subject}`];
+    const headers = ['MIME-Version: 1.0', `To: ${sanitizeHeaderValue(options.to)}`, `Subject: ${subject}`];
 
     let message: string;
 

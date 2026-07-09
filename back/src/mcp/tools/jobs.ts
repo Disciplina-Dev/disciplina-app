@@ -18,7 +18,7 @@ export function registerJobTools(server: McpServer): void {
     readTool(
         server,
         'get_job',
-        "Récupère une offre par id, avec les candidats suggérés par le matching automatique selon ses critères.",
+        'Récupère une offre par id, avec les candidats suggérés par le matching automatique selon ses critères.',
         { id: z.string().describe("Id de l'offre") },
         async ({ id }) => toolResult(await jobs.find(id)),
     );
@@ -26,7 +26,7 @@ export function registerJobTools(server: McpServer): void {
     readTool(
         server,
         'job_company_info',
-        "Fiche entreprise + Analyse du Besoin liées à une offre (résolution directe ou fallback par nom).",
+        'Fiche entreprise + Analyse du Besoin liées à une offre (résolution directe ou fallback par nom).',
         { jobId: z.string().describe("Id de l'offre") },
         async ({ jobId }) => toolResult(await jobs.getCompanyInfo(jobId)),
     );

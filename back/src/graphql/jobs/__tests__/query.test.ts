@@ -84,7 +84,7 @@ describe('GraphQL job queries', () => {
         expect(second.companyName).toBe(`Beta Corp ${suffix}`);
         expect(second.ageRange).toBe('18-25');
         expect(second.desiredTP).toBe('CC');
-        expect(second.desiredSex).toBe('FILLE');
+        expect(second.desiredSex).toBe('MIXTE');
         expect(second.drivingLicencseB).toBe(false);
         expect(second.professionalExperience).toBe(true);
         expect(second.status).toBe('MATCHED');

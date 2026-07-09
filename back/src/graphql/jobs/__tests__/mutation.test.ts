@@ -41,11 +41,10 @@ describe('GraphQL job mutations', () => {
                 }`,
                 variables: {
                     id: seeded._id,
-                    job: { id: seeded._id, companyName: `Updated Corp ${suffix}`, localisation: ['SAINT_DENIS'] },
+                    offer: { id: seeded._id, status: 'MATCHED' },
                 },
             });
 
-            console.log(json);
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             expect(json.data.updateJob.companyName).toBe(`Updated Corp ${suffix}`);

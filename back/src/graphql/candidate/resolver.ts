@@ -12,11 +12,7 @@ import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql, jobToMatchedJobGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
-import {
-    driveFolderConfigService,
-    DRIVE_REGIONS,
-    driveFolderKey,
-} from '../../services/DriveFolderConfigService';
+import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { CandidateFilters, encodeCandidateCursor } from '../../repositories/mongo/CandidateRepository';
 
@@ -317,7 +313,9 @@ export const resolvers = {
             // KPI RH : transition de statut vers immersion / contrat / rupture (compté pour le RH agissant).
             const column = STATUS_KPI_COLUMN[updated.status];
             if (column && snakeInput.status && previousStatus !== updated.status) {
-                await rhKpiService.bump(Number(context.user.id), updated.owner?.sector ?? '', new Date(), { [column]: 1 });
+                await rhKpiService.bump(Number(context.user.id), updated.owner?.sector ?? '', new Date(), {
+                    [column]: 1,
+                });
             }
 
             return candidateToGql(updated);
@@ -350,11 +348,7 @@ export const resolvers = {
             const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
             const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                 folderName,
-                await driveParentFolderForTp(
-                    candidate.tp_type,
-                    candidate.training_site,
-                    regionFromSector(ownerSector),
-                ),
+                await driveParentFolderForTp(candidate.tp_type, candidate.training_site, regionFromSector(ownerSector)),
             );
 
             // Backfill / rafraîchit l'owner (utile pour les candidats créés avant la feature secteurs).

@@ -48,6 +48,7 @@ describe('MatchLinkService.submitAnswers', () => {
             full_name: `Candidate ${suffix}`,
             email: `candidate-matchlink-${suffix}@test.local`,
             answer: null,
+            status: MatchedCandidateStatus.OFFER_SEND,
         });
 
         const signature = `sig-matchlink-${suffix}`.padEnd(64, '0');
@@ -78,7 +79,9 @@ describe('MatchLinkService.submitAnswers', () => {
         expect(job?.interview_location).toBe(location);
         expect(job?.proposed_candidate?.[0].answer).toBe(ProposedCandidateAnswer.ACCEPTED);
         // The job-level pool is shared, not duplicated per-candidate.
-        expect((job?.proposed_candidate?.[0] as Record<string, unknown> | undefined)?.interview).toBeUndefined();
+        expect(
+            (ctx?.offer.matching?.candidates?.[0] as Record<string, unknown> | undefined)?.interview,
+        ).toBeUndefined();
 
         expect(sendInvitation).toHaveBeenCalledTimes(1);
         expect(sendInvitation).toHaveBeenCalledWith(

@@ -8,6 +8,9 @@ const SCOPES = [
     'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/gmail.modify',
+    // Lecture seule des Google Sheets (suivi d'absences Peda). Les comptes
+    // connectés avant l'ajout de ce scope doivent refaire la connexion Google.
+    'https://www.googleapis.com/auth/spreadsheets.readonly',
 ] as const;
 
 export class GoogleOAuthClient {

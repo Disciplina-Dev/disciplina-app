@@ -20,6 +20,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.RESPONSABLE]: 'Responsable',
   [UserRole.COMMERCIAL]: 'Commercial',
   [UserRole.RH]: 'Ressources Humaines',
+  [UserRole.PEDA]: 'Pédagogique',
   [UserRole.ENTREPRISE]: 'Entreprise',
 }
 
@@ -31,11 +32,13 @@ const SECTOR_LABELS: Record<string, string> = {
 
 function useAccentColor() {
   const role = useAuthStore((s) => s.user?.role)
+  if (role === UserRole.PEDA) return '#0F766E'
   return role === UserRole.RH || role === UserRole.RESPONSABLE ? '#60207E' : '#1130A7'
 }
 
 function useMailScope(): MailTemplatesScope {
   const { pathname } = useLocation()
+  if (pathname.startsWith('/peda')) return 'peda'
   return pathname.startsWith('/rh') ? 'rh' : 'commercial'
 }
 
