@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
@@ -167,7 +167,7 @@ describe('candidateHistory', () => {
         const token = mintToken({ id: 1, email: 'jobs@test.local', role: 'ADMIN' });
         const suffix = `accept-${Date.now()}`;
         const candidateId = `hist-job-${suffix}`;
-        const jobRepo = new NeedsAnalysisRepository();
+        const jobRepo = new OfferRepository();
         const job = await seedOffer({ _id: `job-${suffix}`, company_name: 'ACME' });
         await jobRepo.addMatchedCandidate(job._id, {
             id: candidateId,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
@@ -49,7 +49,7 @@ const MUTATION = `mutation(
 }`;
 
 async function seedJobWithImmersionCandidate(suffix: number): Promise<{ offerId: string; candidateId: string }> {
-    const jobRepo = new NeedsAnalysisRepository();
+    const jobRepo = new OfferRepository();
     const candidateRepo = new CandidateRepository();
 
     const offerId = `job-immersion-concl-${suffix}`;
@@ -93,7 +93,7 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ offerId:
 describe('GraphQL setImmersionConclusion', () => {
     it('rejects when the candidate is not in immersion', async () => {
         const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
-        const jobRepo = new NeedsAnalysisRepository();
+        const jobRepo = new OfferRepository();
         const candidateRepo = new CandidateRepository();
 
         const suffix = Date.now();
