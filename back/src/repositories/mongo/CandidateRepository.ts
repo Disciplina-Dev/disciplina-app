@@ -38,6 +38,10 @@ export interface CandidateFilters {
     ageMin?: number;
     ageMax?: number;
     tpType?: string;
+    /** Villes de mobilité géographique souhaitées (OR). */
+    geographicMobility?: string[];
+    /** Secteurs d'activité souhaités (OR). */
+    desiredSectors?: string[];
     /** Bornes sur la date de création (incluses). */
     createdAfter?: Date;
     createdBefore?: Date;
@@ -115,6 +119,11 @@ export class CandidateRepository {
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
         if (filters?.tpType) conditions.push({ tp_type: filters.tpType });
+        // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
+        // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
+        if (filters?.geographicMobility?.length)
+            conditions.push({ 'job_info.geographic_mobility': { $in: filters.geographicMobility } });
+        if (filters?.desiredSectors?.length) conditions.push({ desired_sectors: { $in: filters.desiredSectors } });
         if (filters?.createdMissing) {
             // `null` matche aussi le champ absent en Mongo → couvre les fiches héritées.
             conditions.push({ created_at: null });

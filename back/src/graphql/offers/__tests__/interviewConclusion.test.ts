@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
@@ -51,7 +51,7 @@ async function seedJobWithProposedCandidate(
     suffix: number,
     bookedInterviewSlot: string,
 ): Promise<{ offerId: string; candidateId: string }> {
-    const jobRepo = new NeedsAnalysisRepository();
+    const jobRepo = new OfferRepository();
     const candidateRepo = new CandidateRepository();
 
     const offerId = `job-conclusion-${suffix}`;

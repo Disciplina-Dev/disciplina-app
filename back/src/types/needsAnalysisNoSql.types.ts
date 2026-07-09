@@ -1,4 +1,4 @@
-import { OfferStatus, Localisation, MatchingCandidate } from './matching.types';
+import { Localisation } from './matching.types';
 import { TitleProfessionalType } from './candidate.types';
 
 export enum CompanyRegion {
@@ -109,19 +109,10 @@ export interface OfferCriteria {
     additional_comments?: string | null;
 }
 
-// État de matching d'une offre : statut de l'offre (OfferStatus) + candidats
-// (liste unique retenus/proposés) + créneaux d'entretien partagés.
-export interface Matching {
-    status?: OfferStatus;
-    candidates?: MatchingCandidate[];
-    interview_slots?: string[];
-    interview_location?: string;
-}
-
-export interface Offer {
-    // Identifiant stable de l'offre (uuid). Remplace l'ancien offerId : sert de
-    // handle au matching (GraphQL/REST/URLs signées) sans exposer l'_id de l'AB.
-    id?: string;
+// Poste demandé par l'AB (formulaire commercial). Contient uniquement la donnée de
+// poste : le snapshot entreprise/référents/saler et l'état de matching ne vivent que
+// dans la collection `offers`, créée au premier envoi en signature.
+export interface Position {
     localisation?: Localisation[];
     tp_type?: TitleProfessionalType | null;
     training_domain?: TrainingDomain | null;
@@ -130,7 +121,6 @@ export interface Offer {
     description_missions?: string[];
     other_description_missions?: string | null;
     other_missions?: string | null;
-    matching?: Matching;
     criteria?: OfferCriteria;
 }
 
@@ -139,7 +129,7 @@ export interface NeedsAnalysis {
     company_infos?: CompanyInfos;
     saler_info?: SalerInfo;
     referents?: Referents;
-    offers?: Offer[];
+    positions?: Position[];
     recruitment_method?: RecruitmentMethod;
     immersion_period?: ImmersionPeriod;
     training_days?: string;

@@ -1,12 +1,11 @@
 import { randomUUID } from 'crypto';
-import { NeedsAnalysisModel } from '../../src/db/mongo/schemas/needsAnalysis.schema';
-import { NeedsAnalysisStatus, Offer } from '../../src/types/needsAnalysisNoSql.types';
+import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
+import { Offer } from '../../src/types/offer.types';
 import { OfferStatus, Localisation, Sector, MatchingCandidate } from '../../src/types/matching.types';
 
-// Seed d'une offre de matching : une AB NoSQL (needs_analysis) portant une seule
-// offre (offers[0]) avec son bloc `matching`. Remplace l'ancien JobRepository.create
-// des tests. Accepte l'ancienne forme plate d'un « job » et la projette sur le
-// nouveau modèle offre/AB ; renvoie { _id } = l'id stable de l'offre (ex-jobId).
+// Seed d'une offre de matching dans la collection `offers`. Remplace l'ancien
+// JobRepository.create des tests. Accepte l'ancienne forme plate d'un « job » et
+// la projette sur le modèle Offer ; renvoie { _id } = l'id stable de l'offre.
 export interface SeedOfferInput {
     _id?: string;
     company_name?: string;
@@ -21,7 +20,6 @@ export interface SeedOfferInput {
     candidates?: MatchingCandidate[];
     interview_slots?: string[];
     interview_location?: string;
-    abStatus?: NeedsAnalysisStatus;
 }
 
 function parseAgeRange(range?: string): { min: number | null; max: number | null } {
@@ -34,7 +32,9 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
     const offerId = input._id ?? randomUUID();
     const { min, max } = parseAgeRange(input.age_range);
     const offer: Offer = {
-        id: offerId,
+        _id: offerId,
+        needs_analysis_id: `ab-${offerId}`,
+        company_infos: input.company_name ? { name: input.company_name } : undefined,
         localisation: input.localisation ?? [],
         tp_type: (input.desired_tp ?? null) as Offer['tp_type'],
         criteria: {
@@ -51,11 +51,6 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
             interview_location: input.interview_location,
         },
     };
-    await NeedsAnalysisModel.create({
-        _id: `ab-${offerId}`,
-        company_infos: input.company_name ? { name: input.company_name } : undefined,
-        status: input.abStatus ?? NeedsAnalysisStatus.SIGNE,
-        offers: [offer],
-    });
+    await OfferModel.create(offer);
     return { _id: offerId };
 }

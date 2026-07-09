@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from '../../../config/env';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { UserRepository } from '../../../repositories/mysql/UserRepository';
 import { InterviewAccessRepository } from '../../../repositories/mysql/InterviewAccessRepository';
@@ -28,7 +28,7 @@ async function createRhUser(suffix: number): Promise<{ id: number; email: string
 }
 
 async function seedJobWithSlots(suffix: number, slots: string[]) {
-    const jobRepo = new NeedsAnalysisRepository();
+    const jobRepo = new OfferRepository();
     const offerId = `job-interview-${suffix}`;
     await seedOffer({
         _id: offerId,
@@ -40,7 +40,7 @@ async function seedJobWithSlots(suffix: number, slots: string[]) {
 }
 
 async function addProposedCandidate(offerId: string, candidateId: string, email: string, bookedSlot?: string) {
-    const jobRepo = new NeedsAnalysisRepository();
+    const jobRepo = new OfferRepository();
     await jobRepo.addProposedCandidate(offerId, {
         id: candidateId,
         full_name: `Candidate ${candidateId}`,
@@ -220,9 +220,9 @@ describe('Interview access flow', () => {
             });
             expect(bookRes.status).toBe(200);
 
-            const jobRepo = new NeedsAnalysisRepository();
-            const ctx = await jobRepo.findOfferById(offerId);
-            const candidate = ctx?.offer.matching?.candidates?.find((c) => c.id === candidateId);
+            const jobRepo = new OfferRepository();
+            const ctx = await jobRepo.findById(offerId);
+            const candidate = ctx?.matching?.candidates?.find((c) => c.id === candidateId);
             expect(candidate?.booked_interview_slot).toBe(slot);
 
             const historyRepo = new CandidateHistoryRepository();

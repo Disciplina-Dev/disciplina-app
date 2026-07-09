@@ -115,3 +115,12 @@ export interface MatchingCandidate {
     immersion_location?: string;
     immersion_conclusion?: ImmersionConclusion | null;
 }
+
+// État de matching d'une offre : statut de l'offre (OfferStatus) + candidats
+// (liste unique retenus/proposés) + créneaux d'entretien partagés.
+export interface Matching {
+    status?: OfferStatus;
+    candidates?: MatchingCandidate[];
+    interview_slots?: string[];
+    interview_location?: string;
+}

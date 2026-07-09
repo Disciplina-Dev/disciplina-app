@@ -45,6 +45,10 @@ export interface CandidateServerFilters {
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType
+  /** Villes de mobilité géographique souhaitées (OR). */
+  geographicMobility?: string[]
+  /** Secteurs d'activité souhaités (OR). */
+  desiredSectors?: string[]
   /** Bornes de date de création (ISO yyyy-mm-dd), incluses. */
   createdAfter?: string
   createdBefore?: string

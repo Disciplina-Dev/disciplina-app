@@ -391,11 +391,50 @@ interface CandidateFormModalProps {
   onCreated?: (id: string) => void;
 }
 
+// ─── Brouillon localStorage (création uniquement) ─────────────────────────────
+// Sauvegarde auto du formulaire de création : la saisie n'est pas perdue si le
+// modal est fermé ou en cas de bug. Effacé à la création réussie ou sur reset.
+const DRAFT_KEY = 'rh-candidate-form-draft';
+
+function loadDraft(): Partial<ABForm> | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as Partial<ABForm>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(form: ABForm): void {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+  } catch {
+    /* quota dépassé / mode privé : autosave best-effort, on ignore */
+  }
+}
+
+function clearDraft(): void {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Un brouillon mérite d'être restauré s'il contient au moins une donnée d'identité. */
+function isDraftMeaningful(d: Partial<ABForm> | null): d is Partial<ABForm> {
+  return !!d && !!(d.fullName || d.email || d.phone);
+}
+
 export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated }: CandidateFormModalProps) {
   const isEdit = !!candidate;
-  const [form, setForm] = useState<ABForm>(() =>
-    candidate ? candidateToForm(candidate) : { ...emptyABForm(), ...prefill },
-  );
+  const [form, setForm] = useState<ABForm>(() => {
+    if (candidate) return candidateToForm(candidate);
+    const draft = loadDraft();
+    // En création, on repart d'un brouillon sauvegardé s'il est exploitable.
+    return isDraftMeaningful(draft) ? { ...emptyABForm(), ...draft } : { ...emptyABForm(), ...prefill };
+  });
+  const [draftRestored, setDraftRestored] = useState(() => !candidate && isDraftMeaningful(loadDraft()));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const token = useAuthStore((s) => s.token);
@@ -415,6 +454,21 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       .then(res => setRhUsers(res.data?.rhUsers ?? []))
       .catch(() => setRhUsers([]));
   }, []);
+
+  // Autosave du brouillon (création uniquement), débounce pour éviter d'écrire
+  // à chaque frappe. Non effacé à la fermeture du modal → la reprise est possible.
+  useEffect(() => {
+    if (isEdit) return;
+    const t = setTimeout(() => saveDraft(form), 400);
+    return () => clearTimeout(t);
+  }, [form, isEdit]);
+
+  // Repartir de zéro : efface le brouillon et réinitialise le formulaire.
+  const resetDraft = () => {
+    clearDraft();
+    setForm({ ...emptyABForm(), ...prefill });
+    setDraftRestored(false);
+  };
 
   // Template fusionné sur tous les TP cochés (options = union, anglais = si au moins un).
   const selectedTps = form.tpTypes.length ? form.tpTypes : [TitleProfessionalType.CC];
@@ -552,6 +606,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       if (!isEdit) {
         const newId = result.data?.createCandidate?.id;
         createdIdRef.current = newId ?? null;
+        // Candidat créé → le brouillon n'a plus de raison d'être conservé.
+        clearDraft();
         // AB complet → génère le PDF et le dépose dans le Drive du candidat.
         // Best-effort : le candidat est créé quoi qu'il arrive ; en cas d'échec
         // Drive on garde le modal ouvert pour afficher l'avertissement.
@@ -602,6 +658,19 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {error && (
             <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
               <AlertCircle size={16} className="shrink-0" />{error}
+            </div>
+          )}
+
+          {draftRestored && !isEdit && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+              <span>Brouillon récupéré — votre saisie en cours a été restaurée.</span>
+              <button
+                type="button"
+                onClick={resetDraft}
+                className="shrink-0 font-medium text-amber-700 underline hover:text-amber-900"
+              >
+                Repartir de zéro
+              </button>
             </div>
           )}
 

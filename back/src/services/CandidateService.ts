@@ -1,14 +1,14 @@
-import { NeedsAnalysisRepository, MatchingOfferContext } from '../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
-import { Offer } from '../types/needsAnalysisNoSql.types';
+import { Offer } from '../types/offer.types';
 import { computeAge } from '../utils/age';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { buildFieldChangeEntries } from './mappers/candidateFieldDiff';
 
 export class CandidateService {
     private repository = new CandidateRepository();
-    private needsAnalysisRepository = new NeedsAnalysisRepository();
+    private offerRepository = new OfferRepository();
     private candidateHistoryService = new CandidateHistoryService();
 
     async findAll(): Promise<Candidate[]> {
@@ -72,15 +72,15 @@ export class CandidateService {
         return this.repository.delete(id);
     }
 
-    async matchOffers(id: string): Promise<MatchingOfferContext[]> {
+    async matchOffers(id: string): Promise<Offer[]> {
         const candidate = await this.repository.findById(id);
         if (!candidate) return [];
 
-        const offers = await this.needsAnalysisRepository.listMatchingOffers();
-        return offers.filter(({ analysis, offer }) => this.offerMatchesCandidate(analysis, offer, candidate));
+        const offers = await this.offerRepository.listMatchingOffers();
+        return offers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
     }
 
-    private offerMatchesCandidate(_analysis: unknown, offer: Offer, candidate: Candidate): boolean {
+    private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {
         if (offer.tp_type && offer.tp_type !== candidate.tp_type) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
 

@@ -59,9 +59,14 @@ function resolveInitialState<TFilters>(
   const stored = readStoredState<TFilters>(storageKey)
   const fromUrl = readUrlState<TFilters>(searchParams)
 
-  if (fromUrl && stored && isSamePosition(fromUrl, stored)) return stored
-  if (stored) return stored
-  if (fromUrl) return { afterCursor: fromUrl.afterCursor, cursorHistory: [], search: fromUrl.search, filters: fromUrl.filters }
+  // Fusion avec les défauts : un état persisté antérieur à l'ajout d'un filtre
+  // n'a pas ses clés → on les complète pour éviter un `undefined` côté consommateur.
+  const withDefaults = (filters: TFilters): TFilters => ({ ...defaultFilters, ...filters })
+
+  if (fromUrl && stored && isSamePosition(fromUrl, stored))
+    return { ...stored, filters: withDefaults(stored.filters) }
+  if (stored) return { ...stored, filters: withDefaults(stored.filters) }
+  if (fromUrl) return { afterCursor: fromUrl.afterCursor, cursorHistory: [], search: fromUrl.search, filters: withDefaults(fromUrl.filters) }
   return { afterCursor: undefined, cursorHistory: [], search: '', filters: defaultFilters }
 }
 

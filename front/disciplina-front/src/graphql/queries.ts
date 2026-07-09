@@ -1114,6 +1114,27 @@ export const MATCH_OFFER = gql`
       }
       interviewSlots
       interviewLocation
+      title
+      missions
+      salerInfo {
+        id
+        email
+      }
+      referents {
+        isSame
+        legalReferents {
+          name
+          phone
+          email
+          function
+        }
+        recruitmentReferents {
+          name
+          phone
+          email
+          function
+        }
+      }
     }
   }
 `
