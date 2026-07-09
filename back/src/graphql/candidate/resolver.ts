@@ -136,6 +136,17 @@ export const resolvers = {
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,
                       tpType: filtersInput.tpType,
+                      // Bornage défensif : on ignore les tableaux vides et on plafonne
+                      // la taille pour éviter un `$in` démesuré. Les secteurs sont des
+                      // chaînes libres → on écarte les valeurs non-string/vides.
+                      geographicMobility: filtersInput.geographicMobility?.length
+                          ? filtersInput.geographicMobility.slice(0, 30)
+                          : undefined,
+                      desiredSectors: filtersInput.desiredSectors?.length
+                          ? filtersInput.desiredSectors
+                                .filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+                                .slice(0, 50)
+                          : undefined,
                       createdAfter: parseFilterDate(filtersInput.createdAfter, false),
                       createdBefore: parseFilterDate(filtersInput.createdBefore, true),
                       createdMissing: filtersInput.createdMissing || undefined,

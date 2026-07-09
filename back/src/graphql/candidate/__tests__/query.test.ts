@@ -538,4 +538,90 @@ describe('candidatesPage with filters', () => {
         expect(nodes[0].id).toBe(`${suffix}-with`);
         expect(nodes[0].identity.drivingLicenseB).toBe(true);
     });
+
+    it('filters by geographicMobility (OR sur les villes souhaitées)', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `flt-gm-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-paul`,
+            candidate_id: `${suffix}-paul`,
+            tp_type: TitleProfessionalType.CC,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-GM-${suffix} PAUL`, email: `fgm-p-${suffix}@test.local`, phone: '0600000000' },
+            job_info: { geographic_mobility: ['SAINT_PAUL', 'LE_PORT'] },
+        } as any);
+        await repo.create({
+            _id: `${suffix}-denis`,
+            candidate_id: `${suffix}-denis`,
+            tp_type: TitleProfessionalType.CC,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-GM-${suffix} DENIS`, email: `fgm-d-${suffix}@test.local`, phone: '0600000001' },
+            job_info: { geographic_mobility: ['SAINT_DENIS'] },
+        } as any);
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: `FLT-GM-${suffix}`, filters: { geographicMobility: ['SAINT_PAUL'] } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].id).toBe(`${suffix}-paul`);
+    });
+
+    it('filters by desiredSectors (OR sur les secteurs souhaités)', async () => {
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const suffix = `flt-ds-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-boul`,
+            candidate_id: `${suffix}-boul`,
+            tp_type: TitleProfessionalType.CC,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-DS-${suffix} BOUL`, email: `fds-b-${suffix}@test.local`, phone: '0600000000' },
+            desired_sectors: ['Boulangerie', 'Restauration'],
+        } as any);
+        await repo.create({
+            _id: `${suffix}-auto`,
+            candidate_id: `${suffix}-auto`,
+            tp_type: TitleProfessionalType.CC,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `FLT-DS-${suffix} AUTO`, email: `fds-a-${suffix}@test.local`, phone: '0600000001' },
+            desired_sectors: ['Automobile'],
+        } as any);
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: `FLT-DS-${suffix}`, filters: { desiredSectors: ['Boulangerie'] } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].id).toBe(`${suffix}-boul`);
+    });
 });
