@@ -16,7 +16,8 @@ const gmailService = new GoogleGmailService();
 
 export async function handleYousignWebhook(req: Request, res: Response): Promise<void> {
     const eventName = req.body.eventName || req.body.event;
-    const signatureRequestId = req.body.data?.id || req.body.signature_request?.id || req.body.procedure?.id || req.body.id;
+    const signatureRequestId =
+        req.body.data?.id || req.body.signature_request?.id || req.body.procedure?.id || req.body.id;
 
     logger.info(`Received Yousign Webhook: Event = ${eventName}, SignatureRequestID = ${signatureRequestId}`);
 
@@ -25,7 +26,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         'procedure.signed',
         'procedure.done',
         'signature_request.signed',
-        'signature_request.done'
+        'signature_request.done',
     ].includes(eventName || '');
 
     if (!isSignedEvent) {
@@ -79,8 +80,10 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         // Try to find a user with valid Google OAuth credentials to dispatch the email
         let senderUser: any = commercial;
         if (!senderUser?.oauth_token || !senderUser?.refresh_token) {
-            logger.warn(`Commercial owner ID ${analysis.user_id} has no Google OAuth tokens. Searching for any administrative/commercial fallback account with tokens...`);
-            const allUsers = await userRepo.findByRole(Role.COMMERCIAL) || [];
+            logger.warn(
+                `Commercial owner ID ${analysis.user_id} has no Google OAuth tokens. Searching for any administrative/commercial fallback account with tokens...`,
+            );
+            const allUsers = (await userRepo.findByRole(Role.COMMERCIAL)) || [];
             const fallback = allUsers.find((u: any) => u.oauth_token && u.refresh_token);
             if (fallback) {
                 senderUser = fallback;
@@ -119,15 +122,19 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                 attachment: {
                     content: base64Pdf,
                     filename: `Analyse_Besoin_${companyName.replace(/\s+/g, '_')}_Signee.pdf`,
-                    contentType: 'application/pdf'
-                }
+                    contentType: 'application/pdf',
+                },
             };
 
             const persistRefreshedTokens = (uid: number) => async (refreshed: any) => {
                 logger.info(`Refreshed Google OAuth tokens for user ID ${uid}`);
                 const userServiceModule = require('../../services/UserService');
                 const userService = new userServiceModule.UserService();
-                await userService.updateGoogleTokens(uid, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+                await userService.updateGoogleTokens(
+                    uid,
+                    refreshed.access_token ?? null,
+                    refreshed.refresh_token ?? null,
+                );
             };
 
             try {
@@ -135,14 +142,16 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                 await gmailService.sendEmail(
                     { access_token: senderUser.oauth_token, refresh_token: senderUser.refresh_token },
                     mailOptions,
-                    persistRefreshedTokens(senderUser.id)
+                    persistRefreshedTokens(senderUser.id),
                 );
                 logger.info('Notification email sent successfully!');
             } catch (err: any) {
                 logger.error(err, 'Failed to send notification email via Google Gmail Service');
             }
         } else {
-            logger.warn('No Google OAuth account available to dispatch the signed PDF email. Proceeding anyway (status is still marked as SIGNE).');
+            logger.warn(
+                'No Google OAuth account available to dispatch the signed PDF email. Proceeding anyway (status is still marked as SIGNE).',
+            );
         }
 
         res.status(200).json({ success: true, message: 'Webhook processed successfully' });

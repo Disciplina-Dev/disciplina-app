@@ -3,6 +3,8 @@ export enum Role {
     RESPONSABLE = 'RESPONSABLE',
     COMMERCIAL = 'COMMERCIAL',
     RH = 'RH',
+    // Pôle pédagogique : suivi des absences apprenants + relances par brouillons Gmail.
+    PEDA = 'PEDA',
     // Rôle non persistant : vit uniquement dans le JWT d'une session de portail entreprise (match_link).
     ENTREPRISE_GUEST = 'ENTREPRISE_GUEST',
     // Rôle non persistant : vit uniquement dans le JWT d'une session de choix de créneau candidat (interview_access).

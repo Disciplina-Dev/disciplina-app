@@ -7,6 +7,7 @@ import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { JobRepository } from '../repositories/mongo/JobRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
+import { TodoService } from './TodoService';
 import { buildJobsFromAb } from './mappers/abToJob';
 import { Role } from '../types/user.types';
 import { logger } from '../external/logger';
@@ -35,6 +36,7 @@ export class NeedsAnalysisService {
     private jobRepository: JobRepository;
     private userRepository: UserRepository;
     private notificationService: NotificationService;
+    private todoService: TodoService;
 
     constructor() {
         this.repository = new NeedsAnalysisRepository();
@@ -43,6 +45,7 @@ export class NeedsAnalysisService {
         this.jobRepository = new JobRepository();
         this.userRepository = new UserRepository();
         this.notificationService = new NotificationService();
+        this.todoService = new TodoService();
     }
 
     async findAll(): Promise<NeedsAnalysis[]> {
@@ -61,7 +64,10 @@ export class NeedsAnalysisService {
     }
 
     async create(data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
-        logger.info({ companyID: data.companyID, userID: data.userID, jobTitle: data.jobTitle }, '[NeedsAnalysis] create() called');
+        logger.info(
+            { companyID: data.companyID, userID: data.userID, jobTitle: data.jobTitle },
+            '[NeedsAnalysis] create() called',
+        );
         this.validateData(data);
 
         // 1. Fetch Company details
@@ -87,7 +93,7 @@ export class NeedsAnalysisService {
                   }
                 : {}),
             ageRequirements: data.ageRequirements ?? [],
-            status: 'BROUILLON' as const
+            status: 'BROUILLON' as const,
         };
         const rowData = toNeedsAnalysisRow(initialData);
         const id = await this.repository.create(rowData);
@@ -199,6 +205,18 @@ export class NeedsAnalysisService {
             ),
         );
         logger.info({ id: analysis.id, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
+
+        // Responsables only: create an actionable todo
+        const responsables = rhUsers.filter((u) => u.role === Role.RESPONSABLE);
+        await Promise.all(
+            responsables.map((user) =>
+                this.todoService.createSystemTodo(
+                    user.id,
+                    `AB à traiter — ${companyName} (${positionsLabel})`,
+                    `ab:${analysis.id}`,
+                ),
+            ),
+        );
     }
 
     async update(id: number, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {

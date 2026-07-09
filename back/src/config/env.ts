@@ -158,6 +158,10 @@ const data = {
     DRIVE_TEMPLATES_FOLDER_ID: optionalString('DRIVE_TEMPLATES_FOLDER_ID'),
 
     OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
+
+    // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
+    // If unset, the MCP endpoint is disabled entirely.
+    MCP_API_KEY: optionalString('MCP_API_KEY'),
 };
 
 if (errors.length > 0) {

@@ -29,6 +29,10 @@ import { router as matchRouter } from './rest/match/route';
 import { router as interviewRouter } from './rest/interview/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
+import { router as pedaRouter } from './rest/peda/route';
+import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
+import { MailTemplateService } from './services/MailTemplateService';
+import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -105,6 +109,8 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/interview', interviewRouter);
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
+    app.use('/api/peda', pedaRouter);
+    app.use(mcpRouter);
     app.use(errorHandler);
 
     await connectMySQL();
@@ -136,6 +142,11 @@ export async function startServer(): Promise<http.Server> {
     const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
+    // Modèles de relance d'absence par défaut (idempotent, une seule fois).
+    new MailTemplateService()
+        .seedPedaDefaults()
+        .catch((err) => logger.error({ err }, 'peda-templates: seed des modèles par défaut échoué'));
+    startPedaDraftScheduler();
     return server;
 }
 

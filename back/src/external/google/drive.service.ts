@@ -108,6 +108,52 @@ export class GoogleDriveService {
         );
         return { buffer: Buffer.from(response.data as ArrayBuffer), mimeType };
     }
+
+    /** Types Office / OpenDocument convertibles en Google-natif (donc exportables en PDF). */
+    private static readonly CONVERTIBLE_TO_GOOGLE: Record<string, string> = {
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+            'application/vnd.google-apps.document',
+        'application/msword': 'application/vnd.google-apps.document',
+        'application/vnd.oasis.opendocument.text': 'application/vnd.google-apps.document',
+        'application/rtf': 'application/vnd.google-apps.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            'application/vnd.google-apps.spreadsheet',
+        'application/vnd.ms-excel': 'application/vnd.google-apps.spreadsheet',
+        'application/vnd.oasis.opendocument.spreadsheet': 'application/vnd.google-apps.spreadsheet',
+        'text/csv': 'application/vnd.google-apps.spreadsheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+            'application/vnd.google-apps.presentation',
+        'application/vnd.ms-powerpoint': 'application/vnd.google-apps.presentation',
+        'application/vnd.oasis.opendocument.presentation': 'application/vnd.google-apps.presentation',
+    };
+
+    /** True si le type Office peut être converti en PDF via Google Drive. */
+    static isConvertibleToPdf(mimeType: string): boolean {
+        return mimeType in GoogleDriveService.CONVERTIBLE_TO_GOOGLE;
+    }
+
+    /**
+     * Convertit un fichier Office/OpenDocument en PDF via Google Drive :
+     * copie temporaire convertie en Google-natif → export PDF → suppression best-effort de la copie.
+     */
+    async convertToPdf(fileId: string, sourceMimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
+        const googleType = GoogleDriveService.CONVERTIBLE_TO_GOOGLE[sourceMimeType];
+        if (!googleType) return this.downloadFile(fileId);
+
+        const meta = await this.getFileMeta(fileId);
+        const copy = await this.drive.files.copy({
+            fileId,
+            requestBody: { name: `__preview_${meta.name}`, mimeType: googleType },
+            fields: 'id',
+            supportsAllDrives: true,
+        });
+        const tempId = copy.data.id as string;
+        try {
+            return await this.exportFile(tempId, 'application/pdf');
+        } finally {
+            await this.deleteFile(tempId).catch(() => {});
+        }
+    }
 }
 
 export function extractDriveFileId(webViewLink: string): string | null {

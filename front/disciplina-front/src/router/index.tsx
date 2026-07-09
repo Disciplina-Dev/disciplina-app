@@ -38,12 +38,18 @@ import Relance from "@/pages/rh/Relance";
 import DriveConfig from "@/pages/rh/DriveConfig";
 import SectorSettings from "@/pages/rh/SectorSettings";
 
+import PedaLayout from "@/components/layout/PedaLayout";
+import SuiviAbsences from "@/pages/peda/SuiviAbsences";
+
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
 import FormulaireAB from "@/pages/entreprise/FormulaireAB";
 import GestionApprentis from "@/pages/entreprise/GestionApprentis";
 import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
+
+import TodoPage from "@/features/todos/TodoPage";
+import ProfilePage from "@/pages/profile/ProfilePage";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { UserRole } from "@/store/authStore";
@@ -101,6 +107,8 @@ export const router = createBrowserRouter([
       { path: "sourcing", element: <Sourcing />, handle: { crumb: "Sourcing SIRET" } },
       { path: "mail", element: <MailTemplates scope="commercial" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <RelanceCommercial />, handle: { crumb: "Relances" } },
+      { path: "todos", element: <TodoPage />, handle: { crumb: "Mes tâches" } },
+      { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
   },
   {
@@ -121,6 +129,8 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <Relance />, handle: { crumb: "Relance" } },
+      { path: "todos", element: <TodoPage />, handle: { crumb: "Mes tâches" } },
+      { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
       {
         path: "config-drive",
         element: (
@@ -139,6 +149,20 @@ export const router = createBrowserRouter([
         ),
         handle: { crumb: "Lieux par secteur" },
       },
+    ],
+  },
+  {
+    path: "/peda",
+    element: (
+      <ProtectedRoute allowedRoles={[UserRole.PEDA]}>
+        <PedaLayout />
+      </ProtectedRoute>
+    ),
+    handle: { crumb: "Espace Pédagogique" },
+    children: [
+      { index: true, element: <SuiviAbsences />, handle: { crumb: "Suivi absences" } },
+      { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
+      { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
   },
   {

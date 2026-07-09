@@ -5,7 +5,9 @@ export function toUser(row: UserRow): User {
     let parsedSectors: string[] | null = null;
     if (row.sectors) {
         try {
-            parsedSectors = JSON.parse(row.sectors);
+            parsedSectors = typeof row.sectors === 'string'
+                ? JSON.parse(row.sectors)
+                : (row.sectors as unknown as string[]);
         } catch {
             parsedSectors = [];
         }

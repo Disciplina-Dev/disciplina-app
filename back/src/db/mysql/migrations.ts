@@ -32,6 +32,8 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     // Historique des modifications enrichi : auteur de la modif + statut avant changement.
     { table: 'company_history', column: 'modified_by', definition: 'INT DEFAULT NULL' },
     { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },
+    // Todos : soft delete des todos SYSTEM pour ne pas recréer une relance supprimée par l'utilisateur.
+    { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
 ];
 
 /**
@@ -190,6 +192,41 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Config du pôle pédagogique : un Google Sheet de suivi d'absences par Peda.
+        // Le backend le lit chaque jour (lecture seule) pour générer des brouillons Gmail.
+        table: 'peda_config',
+        ddl: `CREATE TABLE IF NOT EXISTS peda_config (
+            user_id INT PRIMARY KEY,
+            sheet_id VARCHAR(128) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Déduplication des brouillons de relance absence : une ligne = un brouillon
+        // déjà généré pour (sheet, feuille, apprenant, colonne "Mail niv").
+        table: 'peda_draft_history',
+        ddl: `CREATE TABLE IF NOT EXISTS peda_draft_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            dedup_key VARCHAR(512) NOT NULL UNIQUE,
+            user_id INT DEFAULT NULL,
+            level VARCHAR(8) NOT NULL,
+            recipient VARCHAR(255) NOT NULL DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Réglages applicatifs clé/valeur (ex: heure globale du job de brouillons Peda).
+        table: 'app_settings',
+        ddl: `CREATE TABLE IF NOT EXISTS app_settings (
+            setting_key VARCHAR(64) NOT NULL PRIMARY KEY,
+            setting_value TEXT DEFAULT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`,
+    },
+    {
         // Historique des relances commerciales (canal + objet/note), une ligne par relance.
         table: 'relance_history',
         ddl: `CREATE TABLE IF NOT EXISTS relance_history (
@@ -215,6 +252,28 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             sector VARCHAR(64) NOT NULL PRIMARY KEY,
             location VARCHAR(255) NOT NULL DEFAULT '',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`,
+    },
+    {
+        // Todo list personnelle (une ligne = un todo d'un user). source=SYSTEM pour
+        // les todos créés automatiquement (AB signé, relance échue) avec source_ref
+        // comme clé de déduplication ; deleted=1 = soft delete (ne pas recréer).
+        table: 'todos',
+        ddl: `CREATE TABLE IF NOT EXISTS todos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT DEFAULT NULL,
+            deadline DATE DEFAULT NULL,
+            position INT NOT NULL DEFAULT 0,
+            status ENUM('TODO', 'IN_PROGRESS', 'DONE') NOT NULL DEFAULT 'TODO',
+            source ENUM('MANUAL', 'SYSTEM') NOT NULL DEFAULT 'MANUAL',
+            source_ref VARCHAR(255) DEFAULT NULL,
+            deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            INDEX idx_todos_user (user_id)
         )`,
     },
 ];
@@ -327,6 +386,18 @@ export async function runMysqlMigrations(): Promise<void> {
             "ALTER TABLE needs_analysis MODIFY COLUMN education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') DEFAULT NULL",
         );
         logger.info('MySQL migration: needs_analysis.education_level is now nullable');
+    }
+
+    // Rôle PEDA (2026-07-08) : élargit l'ENUM users.role. mysql-init.sql ne
+    // tourne que sur un volume neuf, les bases existantes sont migrées ici.
+    const roleColumn = await query<{ COLUMN_TYPE: string }[]>(
+        "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'",
+    );
+    if (roleColumn[0] && !roleColumn[0].COLUMN_TYPE.includes('PEDA')) {
+        await query(
+            "ALTER TABLE users MODIFY COLUMN role ENUM('ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH', 'PEDA') NOT NULL",
+        );
+        logger.info('MySQL migration: added PEDA to users.role enum');
     }
 
     // Seed des lieux de RDV par secteur. INSERT IGNORE : ne réécrit pas une valeur

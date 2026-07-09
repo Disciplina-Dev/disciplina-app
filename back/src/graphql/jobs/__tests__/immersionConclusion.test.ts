@@ -73,6 +73,7 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ jobId: s
         full_name: `Lea ${suffix}`,
         email: `lea-${suffix}@test.local`,
         answer: ProposedCandidateAnswer.ACCEPTED,
+        status: MatchedCandidateStatus.OFFER_SEND,
         booked_interview_slot: pastSlot,
         interview_location: 'Saint-Denis',
         interview_conclusion: InterviewConclusion.IMMERSING,

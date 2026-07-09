@@ -11,7 +11,7 @@ import {
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
-import { fetchSectorSettings } from '@/api/sectorSettings'
+import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
 import { SECTEUR_VALUES } from '@/types/entreprise'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
@@ -172,6 +172,11 @@ export default function Calendrier() {
   const [loading, setLoading] = useState(true)
   const [notConnected, setNotConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Agendas de collègues inaccessibles (compte Google non lié / accès expiré) : avertissement non bloquant.
+  const [unavailableIds, setUnavailableIds] = useState<number[]>([])
+  // Bannière fermée manuellement pour cette liste d'agendas (clé = ids triés) ; réapparaît si nouveaux échecs.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null)
+  const unavailableKey = unavailableIds.slice().sort().join(',')
   const [detail, setDetail] = useState<OwnedEvent | null>(null)
   const [editing, setEditing] = useState<{ event?: CalendarEvent; ownerId?: number; start?: Date; end?: Date } | null>(null)
   const [showBooking, setShowBooking] = useState(false)
@@ -228,21 +233,22 @@ export default function Calendrier() {
     const ids = visibleKey ? visibleKey.split(',').map(Number) : []
     setLoading(true); setError(null); setNotConnected(false)
     try {
+      const failed: number[] = []
       const perUser = await Promise.all(
         ids.map(async (id) => {
-          // Le 409 (agenda non connecté) ne doit pas bloquer les autres agendas.
+          // Un agenda en échec (409 non connecté ou erreur Google) ne doit jamais bloquer les autres.
           try {
             const evs = await fetchCalendarEvents(token, range.min, range.max, id === selfId ? undefined : id)
             return evs.map((e) => ({ ...e, ownerId: id }))
           } catch (err) {
-            if (err instanceof CalendarNotConnectedError) {
-              if (id === selfId) setNotConnected(true)
-              return []
-            }
-            throw err
+            if (err instanceof CalendarNotConnectedError && id === selfId) setNotConnected(true)
+            else failed.push(id)
+            return []
           }
         }),
       )
+      // Cumule les échecs (un rechargement sans erreur ne masque pas la bannière : fermeture via la croix).
+      setUnavailableIds((prev) => (failed.length ? Array.from(new Set([...prev, ...failed])) : prev))
       setEvents(perUser.flat())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -327,7 +333,31 @@ export default function Calendrier() {
           <AlertCircle size={16} /> {error}
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          {unavailableIds.length > 0 && dismissedKey !== unavailableKey && (
+            <div className="flex items-center gap-2 rounded-xl bg-warning-bg p-3 text-[13px] font-semibold text-warning">
+              <AlertCircle size={16} className="flex-shrink-0" />
+              <span className="flex-1">
+                {(() => {
+                  const names = unavailableIds
+                    .map((id) => users.find((u) => u.id === id))
+                    .filter(Boolean)
+                    .map((u) => `${u!.firstName} ${u!.lastName}`.trim())
+                  return names.length
+                    ? `Agenda${names.length > 1 ? 's' : ''} indisponible${names.length > 1 ? 's' : ''} : ${names.join(', ')} — compte Google non connecté ou accès expiré.`
+                    : 'Certains agendas sont indisponibles (compte Google non connecté ou accès expiré).'
+                })()}
+              </span>
+              <button
+                onClick={() => setDismissedKey(unavailableKey)}
+                className="flex-shrink-0 rounded-lg p-1 text-warning transition-colors hover:bg-warning/10"
+                aria-label="Fermer l'avertissement"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+          <div className="flex min-h-0 flex-1 gap-4">
           <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} />
           <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white">
             {loading && (
@@ -338,6 +368,7 @@ export default function Calendrier() {
             {view === 'month'
               ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} selfId={selfId} />
               : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} selfId={selfId} />}
+          </div>
           </div>
         </div>
       )}
@@ -493,7 +524,7 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
                 <input value={settings.title} onChange={(e) => patch({ title: e.target.value })} className={inputCls} />
               </Field>
               <Field label="Lieu (optionnel)" className="col-span-2">
-                <input value={settings.location ?? ''} onChange={(e) => patch({ location: e.target.value || null })} placeholder="Visio, bureau…" className={inputCls} />
+                <LocationPicker token={token} value={settings.location ?? ''} onChange={(v) => patch({ location: v || null })} autoDefault />
               </Field>
               <Field label="Durée (min)">
                 <input type="number" min={5} max={480} value={settings.durationMin} onChange={(e) => patch({ durationMin: Number(e.target.value) })} className={inputCls} />
@@ -619,6 +650,76 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
 }
 
 const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple'
+
+const CUSTOM_LOCATION = '__custom'
+
+/**
+ * Sélecteur de lieu : dropdown des lieux par secteur (sector_settings) + saisie libre (« Autre… »).
+ * `autoDefault` pré-sélectionne le lieu du secteur de l'utilisateur (fallback Nord-Est) si la valeur est vide.
+ */
+function LocationPicker({ token, value, onChange, autoDefault }: {
+  token: string; value: string; onChange: (v: string) => void; autoDefault?: boolean
+}) {
+  const [options, setOptions] = useState<SectorSetting[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [custom, setCustom] = useState(false)
+  const selfSectors = useAuthStore((s) => s.user?.sectors)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchSectorSettings(token)
+      .then((all) => {
+        if (cancelled) return
+        const withLocation = all.filter((s) => s.location.trim())
+        setOptions(withLocation)
+        setLoaded(true)
+        // Défaut : lieu du secteur de l'utilisateur, sinon Nord-Est ; rien si non configuré.
+        if (autoDefault && !value.trim()) {
+          const sector = selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)) ?? 'Nord-Est'
+          const match = withLocation.find((s) => s.sector === sector)
+          if (match) onChange(match.location)
+        }
+      })
+      .catch(() => setLoaded(true)) // best-effort : saisie libre reste possible
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
+  // Valeur existante hors liste (ancien lieu libre) → mode « Autre » automatiquement.
+  const isKnown = options.some((s) => s.location === value)
+  const showCustom = custom || (loaded && value.trim() !== '' && !isKnown)
+  const selectValue = showCustom ? CUSTOM_LOCATION : (isKnown ? value : '')
+
+  const pick = (v: string) => {
+    if (v === CUSTOM_LOCATION) { setCustom(true); onChange(''); return }
+    setCustom(false)
+    onChange(v)
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
+        <MapPin size={15} className="flex-shrink-0 text-gray-400" />
+        <select value={selectValue} onChange={(e) => pick(e.target.value)} className="w-full bg-transparent py-2 text-[13px] outline-none">
+          <option value="">Aucun lieu</option>
+          {options.map((s) => (
+            <option key={s.sector} value={s.location}>{s.sector} — {s.location}</option>
+          ))}
+          <option value={CUSTOM_LOCATION}>Autre…</option>
+        </select>
+      </div>
+      {showCustom && (
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Lieu personnalisé (visio, adresse…)"
+          className={inputCls}
+        />
+      )}
+    </div>
+  )
+}
 
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
@@ -937,28 +1038,6 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
   const [err, setErr] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
 
-  // Secteur principal du RH/responsable hôte = 1er secteur valide assigné.
-  const selfSectors = useAuthStore((s) => s.user?.sectors)
-  const primarySector = useMemo(
-    () => selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)),
-    [selfSectors],
-  )
-
-  // Pré-remplit le lieu depuis le secteur de l'hôte (nouveau créneau, lieu vide).
-  // Reste éditable : on n'écrase jamais une saisie ou un lieu existant.
-  useEffect(() => {
-    if (isEdit || location.trim() || !primarySector) return
-    let cancelled = false
-    fetchSectorSettings(token)
-      .then((settings) => {
-        const match = settings.find((s) => s.sector === primarySector)
-        if (!cancelled && match?.location) setLocation((cur) => (cur.trim() ? cur : match.location))
-      })
-      .catch(() => { /* pré-remplissage best-effort */ })
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, primarySector, isEdit])
-
   const pickType = (t: 'entretien' | 'autre') => {
     setSlotType(t)
     if (t === 'entretien' && !summary.trim()) setSummary('Entretien')
@@ -1098,8 +1177,7 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
             <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-lg border border-gray-200 px-2 py-2 text-[13px] outline-none focus:border-purple" />
           </div>
 
-          <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Lieu (optionnel)"
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
+          <LocationPicker token={token} value={location} onChange={setLocation} autoDefault={!isEdit} />
 
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
             <Mail size={15} className="flex-shrink-0 text-gray-400" />

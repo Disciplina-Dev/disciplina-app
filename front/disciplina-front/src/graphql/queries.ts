@@ -275,6 +275,7 @@ const CANDIDATE_FIELDS = gql`
       hasVehicle
       age
       city
+      pshReferralRequest
     }
     education {
       schoolLevel
@@ -1154,6 +1155,36 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         interviewConclusion
         immersionStartDate
         immersionEndDate
+      }
+    }
+  }
+`
+
+export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
+  mutation AddManualProposedCandidateForImmersion(
+    $jobId: String!
+    $candidateId: String!
+    $immersionStartDate: String!
+    $immersionEndDate: String!
+    $immersionLocation: String!
+  ) {
+    addManualProposedCandidateForImmersion(
+      jobId: $jobId
+      candidateId: $candidateId
+      immersionStartDate: $immersionStartDate
+      immersionEndDate: $immersionEndDate
+      immersionLocation: $immersionLocation
+    ) {
+      id
+      proposedCandidate {
+        id
+        fullName
+        email
+        description
+        answer
+        immersionStartDate
+        immersionEndDate
+        immersionLocation
       }
     }
   }

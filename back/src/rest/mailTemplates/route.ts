@@ -12,7 +12,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 export const router: Router = Router();
 
-const access = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH', 'COMMERCIAL')];
+const access = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH', 'COMMERCIAL', 'PEDA')];
 const json = express.json({ limit: '2mb' });
 
 // Signature (une par user + scope) — déclarée avant '/:id' pour ne pas être captée comme un id.

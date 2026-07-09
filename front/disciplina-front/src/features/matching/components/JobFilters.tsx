@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, ChevronDown, X, Check, Car, Briefcase, MapPin, Users, Building2, Clock } from 'lucide-react'
+import { Search, ChevronDown, X, Check, Briefcase, Building2 } from 'lucide-react'
 import type { JobFilters } from '../services/jobFilters'
-import { EMPTY_JOB_FILTERS, getDistinctAgeRanges } from '../services/jobFilters'
-import type { Job } from '../types'
-import { JobStatus, DesiredTP, DesiredSex, Sector, Localisation, formatEnumLabel } from '../constants/jobEnums'
+import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
+import { JobStatus, DesiredTP, Sector, formatEnumLabel } from '../constants/jobEnums'
+import { JOB_STATUS_LABELS } from '@/constants/jobStatus'
 
 interface Props {
   filters: JobFilters
   onChange: (filters: JobFilters) => void
-  jobs: Job[]
 }
 
 // ─── Generic dropdown chip ────────────────────────────────────────────────────
@@ -74,33 +73,6 @@ function ChipDropdown({ icon, label, activeLabel, isActive, children, onClear }:
         </div>
       )}
     </div>
-  )
-}
-
-// ─── Toggle chip (no dropdown) ────────────────────────────────────────────────
-interface ToggleChipProps {
-  icon: React.ReactNode
-  label: string
-  active: boolean
-  onToggle: () => void
-}
-
-function ToggleChip({ icon, label, active, onToggle }: ToggleChipProps) {
-  return (
-    <button
-      onClick={onToggle}
-      className={[
-        'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium',
-        'border transition-all duration-150 whitespace-nowrap',
-        active
-          ? 'border-blue bg-blue text-white'
-          : 'border-gray-100 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900',
-      ].join(' ')}
-    >
-      <span className={active ? 'text-white' : 'text-gray-400'}>{icon}</span>
-      {label}
-      {active && <X className="h-2.5 w-2.5 ml-0.5 text-white/70" />}
-    </button>
   )
 }
 
@@ -182,26 +154,16 @@ function SelectContent({
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────
-export function JobFilters({ filters, onChange, jobs }: Props) {
-  const statusOptions = Object.values(JobStatus).map((s) => ({ label: formatEnumLabel(s), value: s }))
+export function JobFilters({ filters, onChange }: Props) {
+  const statusOptions = Object.values(JobStatus).map((s) => ({ label: JOB_STATUS_LABELS[s], value: s }))
   const tpOptions = Object.values(DesiredTP).map((tp) => ({ label: tp, value: tp }))
-  const sexOptions = Object.values(DesiredSex).map((s) => ({ label: formatEnumLabel(s), value: s }))
   const sectorOptions = Object.values(Sector)
     .filter((s) => s !== Sector.NONE)
     .map((s) => ({ label: formatEnumLabel(s), value: s }))
-  const localisationOptions = Object.values(Localisation).map((l) => ({ label: formatEnumLabel(l), value: l }))
-  const ageRangeOptions = getDistinctAgeRanges(jobs).map((ar) => ({ label: ar, value: ar }))
 
-  const activeCount = [
-    filters.search,
-    ...filters.statuses,
-    filters.desiredTP,
-    filters.desiredSex,
-    filters.sector,
-    ...filters.localisations,
-    filters.ageRange,
-    filters.drivingLicenceB !== null ? 'drivingLicenceB' : '',
-  ].filter(Boolean).length
+  const activeCount = [filters.search, ...filters.statuses, filters.desiredTP, filters.sector].filter(
+    Boolean,
+  ).length
 
   return (
     <div className="space-y-3">
@@ -222,7 +184,7 @@ export function JobFilters({ filters, onChange, jobs }: Props) {
         <ChipDropdown
           icon={<Building2 className="h-3 w-3" />}
           label="Statut"
-          activeLabel={filters.statuses.length === 1 ? filters.statuses[0] : `${filters.statuses.length} sélectionnés`}
+          activeLabel={filters.statuses.length === 1 ? JOB_STATUS_LABELS[filters.statuses[0] as JobStatus] : `${filters.statuses.length} sélectionnés`}
           isActive={filters.statuses.length > 0}
           onClear={() => onChange({ ...filters, statuses: [] })}
         >
@@ -255,21 +217,6 @@ export function JobFilters({ filters, onChange, jobs }: Props) {
         </ChipDropdown>
 
         <ChipDropdown
-          icon={<Users className="h-3 w-3" />}
-          label="Sexe"
-          activeLabel={filters.desiredSex ? formatEnumLabel(filters.desiredSex) : undefined}
-          isActive={filters.desiredSex !== null}
-          onClear={() => onChange({ ...filters, desiredSex: null })}
-        >
-          <SelectContent
-            options={sexOptions}
-            value={filters.desiredSex}
-            onChange={(s) => onChange({ ...filters, desiredSex: s })}
-            placeholder="Tous les sexes"
-          />
-        </ChipDropdown>
-
-        <ChipDropdown
           icon={<Building2 className="h-3 w-3" />}
           label="Secteur"
           activeLabel={filters.sector ? formatEnumLabel(filters.sector) : undefined}
@@ -283,48 +230,6 @@ export function JobFilters({ filters, onChange, jobs }: Props) {
             placeholder="Tous les secteurs"
           />
         </ChipDropdown>
-
-        <ChipDropdown
-          icon={<MapPin className="h-3 w-3" />}
-          label="Localisation"
-          activeLabel={filters.localisations.length === 1 ? formatEnumLabel(filters.localisations[0]) : `${filters.localisations.length} sélectionnées`}
-          isActive={filters.localisations.length > 0}
-          onClear={() => onChange({ ...filters, localisations: [] })}
-        >
-          <MultiSelectContent
-            options={localisationOptions}
-            selected={filters.localisations}
-            onToggle={(l) => {
-              const updated = filters.localisations.includes(l)
-                ? filters.localisations.filter((x) => x !== l)
-                : [...filters.localisations, l]
-              onChange({ ...filters, localisations: updated })
-            }}
-            placeholder="Toutes les localisations"
-          />
-        </ChipDropdown>
-
-        <ChipDropdown
-          icon={<Clock className="h-3 w-3" />}
-          label="Tranche d'âge"
-          activeLabel={filters.ageRange ? filters.ageRange : undefined}
-          isActive={filters.ageRange !== null}
-          onClear={() => onChange({ ...filters, ageRange: null })}
-        >
-          <SelectContent
-            options={ageRangeOptions}
-            value={filters.ageRange}
-            onChange={(ar) => onChange({ ...filters, ageRange: ar })}
-            placeholder="Toutes les tranches"
-          />
-        </ChipDropdown>
-
-        <ToggleChip
-          icon={<Car className="h-3 w-3" />}
-          label="Permis B"
-          active={filters.drivingLicenceB === true}
-          onToggle={() => onChange({ ...filters, drivingLicenceB: filters.drivingLicenceB === true ? null : true })}
-        />
 
         {activeCount > 0 && (
           <button

@@ -112,6 +112,7 @@ export interface ProposedCandidate extends MatchingCandidate {
     interview_conclusion?: InterviewConclusion | null;
     immersion_start_date?: string;
     immersion_end_date?: string;
+    immersion_location?: string;
     immersion_conclusion?: ImmersionConclusion | null;
 }
 

@@ -47,6 +47,7 @@ const proposedCandidateSchema = new Schema<ProposedCandidate>(
         interview_conclusion: { type: String, enum: Object.values(InterviewConclusion), default: null },
         immersion_start_date: { type: String },
         immersion_end_date: { type: String },
+        immersion_location: { type: String },
         immersion_conclusion: { type: String, enum: Object.values(ImmersionConclusion), default: null },
     },
     { _id: false },
