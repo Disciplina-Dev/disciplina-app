@@ -55,6 +55,17 @@ function esc(v: string | null | undefined): string {
     return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function formatCommunes(communes: readonly string[] | null | undefined): string {
+    return (communes ?? [])
+        .map((commune) =>
+            commune
+                .split('_')
+                .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+                .join('-'),
+        )
+        .join(', ');
+}
+
 function label(v: string | null | undefined): string {
     const MAP: Record<string, string> = {
         NORD: 'Nord',
@@ -206,7 +217,7 @@ function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
                   trainingDomain: analysis.trainingDomain,
                   jobTitle: analysis.jobTitle,
                   selectedMissions: analysis.selectedMissions ?? [],
-                  localisation: analysis.localisation,
+                  localisation: analysis.localisation ? [analysis.localisation] : [],
               },
           ];
 
@@ -223,7 +234,7 @@ ${fr('Intitulé de la formation :', p.jobTitle)}
     <span class="option">${chk(p.trainingDomain === 'SECRETARIAT')}&nbsp;Secrétariat</span>
     <span class="option">${chk(p.trainingDomain === 'VENTE')}&nbsp;Vente</span>
 </div>
-${fr('Localisation du poste :', label(p.localisation))}
+${fr('Localisation du poste :', formatCommunes(p.localisation))}
 <div class="field-row">
     <span class="field-label">Description des missions :</span><br/>
     <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>

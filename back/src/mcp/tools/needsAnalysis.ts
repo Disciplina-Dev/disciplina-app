@@ -11,7 +11,7 @@ export function registerNeedsAnalysisTools(server: McpServer): void {
         server,
         'get_needs_analysis',
         'Récupère une Analyse du Besoin (AB) entreprise complète par son id : postes, missions, profil recherché, conditions, jours de formation, statut de signature.',
-        { id: z.number().int().describe("Id de l'AB") },
+        { id: z.string().describe("Id de l'AB") },
         async ({ id }) => toolResult(await needsAnalysis.findById(id)),
     );
 

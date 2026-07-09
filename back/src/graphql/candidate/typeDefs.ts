@@ -193,7 +193,7 @@ export const typeDefs = gql`
         candidateSignature: String
     }
 
-    type MatchedJob {
+    type MatchedOffer {
         id: String
         companyName: String
         sector: String
@@ -235,7 +235,7 @@ export const typeDefs = gql`
         cvLink: String
         driveFolderId: String
         filizFolderId: String
-        matchedJobs: [MatchedJob]
+        matchedOffers: [MatchedOffer]
         photoLink: String
         createdAt: String
     }

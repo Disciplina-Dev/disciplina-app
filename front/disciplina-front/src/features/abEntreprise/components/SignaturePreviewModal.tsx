@@ -10,14 +10,14 @@ import Button from '@/components/ui/Button'
 // réel (send_email côté API). Annuler laisse l'AB en BROUILLON.
 
 interface Props {
-  abId: number
+  abId: string
   onConfirm: () => Promise<void> | void
   onCancel: () => void
 }
 
 type TabKey = 'ab' | 'mandat' | 'catalogue'
 
-const TABS: { key: TabKey; label: string; path: (id: number) => string }[] = [
+const TABS: { key: TabKey; label: string; path: (id: string) => string }[] = [
   { key: 'ab', label: 'Analyse du Besoin', path: (id) => `/api/needs-analysis/${id}/pdf` },
   { key: 'mandat', label: 'Mandat', path: () => `/api/needs-analysis/signature/mandat-pdf` },
   { key: 'catalogue', label: 'Catalogue', path: () => `/api/needs-analysis/signature/catalogue-pdf` },

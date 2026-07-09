@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { X, Building2, Loader2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { jobGraphqlClient } from '@/graphql/client'
-import { GET_JOB_COMPANY_INFO } from '@/graphql/queries'
+import { offerGraphqlClient } from '@/graphql/client'
+import { GET_OFFER_COMPANY_INFO } from '@/graphql/queries'
+import { formatCommune } from '@/data/reunionCommunes'
 
 interface CompanyInfoModalProps {
-  jobId: string
+  offerId: string
   onClose: () => void
 }
 
@@ -13,7 +14,7 @@ interface Position {
   trainingDomain?: string
   jobTitle?: string
   selectedMissions?: string[]
-  localisation?: string
+  localisation?: string[]
 }
 
 interface Ab {
@@ -117,7 +118,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export default function CompanyInfoModal({ jobId, onClose }: CompanyInfoModalProps) {
+export default function CompanyInfoModal({ offerId, onClose }: CompanyInfoModalProps) {
   const [data, setData] = useState<JobCompanyInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -125,17 +126,17 @@ export default function CompanyInfoModal({ jobId, onClose }: CompanyInfoModalPro
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    jobGraphqlClient
-      .query(GET_JOB_COMPANY_INFO, { jobId })
+    offerGraphqlClient
+      .query(GET_OFFER_COMPANY_INFO, { offerId })
       .toPromise()
       .then((res) => {
         if (cancelled) return
         if (res.error) setError(res.error.message)
-        else setData(res.data?.jobCompanyInfo ?? null)
+        else setData(res.data?.offerCompanyInfo ?? null)
       })
       .finally(() => !cancelled && setLoading(false))
     return () => { cancelled = true }
-  }, [jobId])
+  }, [offerId])
 
   const company = data?.company
   const ab = data?.ab
@@ -206,7 +207,7 @@ export default function CompanyInfoModal({ jobId, onClose }: CompanyInfoModalPro
                   <p className="mb-1 text-xs font-semibold text-gray-700">Poste {i + 1}</p>
                   <Row label="Domaine" value={lbl(p.trainingDomain)} />
                   <Row label="Intitulé" value={p.jobTitle} />
-                  <Row label="Localisation" value={lbl(p.localisation)} />
+                  <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
                   <Row label="Missions" value={p.selectedMissions?.join(', ')} />
                 </div>
               ))}

@@ -1,6 +1,6 @@
 # MongoDB — human_ressources
 
-The `human_ressources` database stores candidate profiles and job listings for apprenticeship matching. Two collections: `candidates` (detailed candidate information, Titre Professionnel type, skills assessment, synthesis) and `jobs` (company job postings with matching candidate references).
+The `human_ressources` database stores candidate profiles and company needs analyses for apprenticeship matching. Two collections: `candidates` (detailed candidate information, Titre Professionnel type, skills assessment, synthesis) and `needs_analysis` (the company needs analysis / *Analyse de Besoin* — replaces the former MySQL `needs_analysis` table, linked from `companies.ab_id`). Each AB carries its matching state per position in `offers[].matching` (this replaced the former standalone `jobs` collection).
 
 ---
 
@@ -172,38 +172,121 @@ Stores complete candidate profiles including identity, education, support system
 
 ---
 
-## Collection: jobs
+## Collection: needs_analysis
 
-Stores company job postings for apprenticeships with candidate matching information.
+The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Replaces the former MySQL `needs_analysis` table; `companies.ab_id` (MySQL) holds this document's `_id`.
 
 ### Top-level fields
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| _id | string | — | Auto-generated UUID |
-| company_name | string | — | Company hiring |
-| age_range | string | — | Required age range for candidate |
-| desired_tp | string | — | enum: TitleProfessionalType |
-| desired_sex | string | — | enum: DesiredSex |
-| driving_license_b | bool | — | Category B license required |
-| professional_experience | bool | — | Professional experience required |
-| sector | string | — | enum: Sector |
-| status | string | — | enum: JobStatus |
-| localisation | string[] | — | Cities where job is located (enum: Localisation) |
-| matched_candidate | array of objects | — | Candidates matched to this job (see below) |
+| _id | string | — | Application UUID (= `companies.ab_id`) |
+| company_infos | object | — | Company data, enriched from the CRM `companies` row (see below) |
+| saler_info | object | — | Commercial who created the AB (see below) |
+| referents | object | — | Legal and recruitment referents (see below) |
+| offers | array of objects | — | One entry per position to fill (see below) |
+| recruitment_method | string | — | enum: RecruitmentMethod |
+| immersion_period | string | — | enum: ImmersionPeriod |
+| training_days | string | — | JSON string of per-day availability (not parsed) |
+| signature_request_id | string | — | DocuSeal submission id (e-signature) |
+| status | string | — | enum: NeedsAnalysisStatus |
+| created_at | date | — | Creation date |
+| updated_at | date | — | Last update date |
 
-### matched_candidate[] (array of objects)
+### Embedded object: company_infos
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| id | int | — | `companies.id` (MySQL) |
+| name | string | — | Company name |
+| ape | string | — | APE code |
+| idcc | string | — | IDCC collective agreement code |
+| siret | string | — | SIRET |
+| main_activity | string | — | Main activity |
+| opco | string | — | enum: Opco |
+| referral_source | string | — | enum: ReferralSource |
+| sector | string | — | enum: CompanyRegion — regional zone, derived from the first position's communes |
+| activities | string[] | — | Free-text business activities of the company |
+| description | string | — | Company description |
+
+### Embedded object: saler_info
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| id | int | — | `users.id` of the commercial |
+| email | string | — | Commercial email |
+
+### Embedded object: referents
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| is_same | bool | — | Whether recruitment referent is the legal referent |
+| legal_referents | object | — | name, phone, email, function |
+| recruitment_referents | object | — | name, phone, email, function |
+
+### offers[] (array of objects)
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| id | string | — | Stable offer UUID — matching handle (replaces the former `jobs._id`) |
+| localisation | string[] | — | Réunion communes (enum: Localisation) |
+| tp_type | string | — | enum: TitleProfessionalType (derived from training_domain) |
+| training_domain | string | — | enum: TrainingDomain |
+| title | string | — | Job title |
+| missions | string[] | — | Selected missions |
+| description_missions | string[] | — | Detailed mission descriptions |
+| other_description_missions | string | — | Free-text extra description |
+| other_missions | string | — | Free-text extra missions |
+| matching | object | — | Matching state for this offer (see below) — replaces the former `jobs` collection |
+| criteria | object | — | Apprentice criteria for this position (see below) |
+
+#### offers[].matching
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| status | string | — | enum: JobStatus (default NOT_MATCHED) — offer-level matching stage |
+| candidates | array of objects | — | Unified candidate list: retained + proposed (see below) |
+| interview_slots | string[] | — | Shared pool of interview slots (ISO datetimes) |
+| interview_location | string | — | Default interview location |
+
+#### offers[].matching.candidates[]
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | id | string | — | Candidate _id |
 | full_name | string | — | Candidate name |
 | age | int | — | Candidate age |
-| sex | string | — | enum: Sex (FILLE, GARCON, MIXTE) |
+| sex | string | — | enum: Sex |
 | city | string | — | enum: Localisation |
 | email | string | — | Candidate email |
 | phone | string | — | Candidate phone |
-| status | string | — | enum: MatchedCandidateStatus |
+| status | string | — | enum: MatchedCandidateStatus (RETAINED once matched, OFFER_SEND once proposed) |
+| description | string | — | Candidate description (proposal) |
+| cv_webview | string | — | CV web view URL |
+| answer | string | — | enum: ProposedCandidateAnswer — company's answer |
+| comment | string | — | Company comment |
+| interview_location | string | — | Interview location for this candidate |
+| booked_interview_slot | string | — | Booked slot (ISO datetime) |
+| interview_conclusion | string | — | enum: InterviewConclusion |
+| immersion_start_date | string | — | Immersion start |
+| immersion_end_date | string | — | Immersion end |
+| immersion_location | string | — | Immersion location |
+| immersion_conclusion | string | — | enum: ImmersionConclusion |
+
+#### offers[].criteria
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| education_level | string | — | enum: EducationLevel |
+| driving_license | bool | — | Category B license required |
+| experience_required | bool | — | Professional experience required |
+| training_domain | string | — | enum: TrainingDomain |
+| age_min | int | — | Minimum age |
+| age_max | int | — | Maximum age |
+| soft_skills | string | — | Expected soft skills |
+| schedule_options | string[] | — | Schedule options |
+| conditions | string | — | Work conditions |
+| additional_comments | string | — | Additional comments |
 
 ---
 
@@ -361,3 +444,81 @@ Stores company job postings for apprenticeships with candidate matching informat
 | FILLE | Female |
 | GARCON | Male |
 | MIXTE | Any gender |
+
+### CompanyRegion
+
+| Value | Meaning |
+|-------|---------|
+| NORD | North zone |
+| OUEST | West zone |
+| SUD | South zone |
+
+### Opco
+
+| Value |
+|-------|
+| AKTO |
+| ATLAS |
+| AFDAS |
+| CONSTRUCTYS |
+| OCAPIAT |
+| OPCO_2I |
+| OPCO_EP |
+| OPCO_MOBILITES |
+| OPCO_SANTE |
+| OPCOMMERCE |
+| UNIFORMATION |
+
+### ReferralSource
+
+| Value |
+|-------|
+| KOANN |
+| E2CR |
+| FRANCE_TRAVAIL |
+| TELEVISION_PUB |
+| BOUCHE_A_OREILLE |
+| MISSION_LOCALE |
+| SALON |
+| RSMA |
+| RESEAUX_SOCIAUX |
+
+### EducationLevel
+
+| Value | Meaning |
+|-------|---------|
+| BAC | Baccalauréat |
+| BAC_PLUS_2 | 2 years post-bac |
+| BAC_PLUS_3 | 3 years post-bac |
+
+### TrainingDomain
+
+| Value | Meaning |
+|-------|---------|
+| SECRETARIAT | Secretariat / office |
+| VENTE | Sales |
+
+### RecruitmentMethod
+
+| Value | Meaning |
+|-------|---------|
+| ALL_CV | Send all CVs |
+| PRESELECTION | Pre-selected CVs |
+| PRE_INTERVIEW | Pre-interviewed candidates |
+
+### ImmersionPeriod
+
+| Value | Meaning |
+|-------|---------|
+| OUI | Immersion period wanted |
+| NON | No immersion period |
+| A_DISCUTER | To be discussed |
+
+### NeedsAnalysisStatus
+
+| Value | Meaning |
+|-------|---------|
+| BROUILLON | Draft |
+| EN_ATTENTE_SIGNATURE | Awaiting e-signature |
+| SIGNE | Signed |
+| EXPIRE | Expired |

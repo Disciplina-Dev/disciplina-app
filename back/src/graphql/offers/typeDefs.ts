@@ -1,7 +1,7 @@
 import gql from 'graphql-tag';
 
 export const typeDefs = gql`
-    enum JobStatus {
+    enum OfferStatus {
         NOT_MATCHED
         MATCHED
         CV_SEND
@@ -137,7 +137,7 @@ export const typeDefs = gql`
         nonUrl: String!
     }
 
-    type Job {
+    type Offer {
         id: String!
         companyName: String
         ageRange: String
@@ -145,7 +145,7 @@ export const typeDefs = gql`
         desiredSex: Sex
         drivingLicencseB: Boolean
         professionalExperience: Boolean
-        status: JobStatus
+        status: OfferStatus
         localisation: [Localisation]
         sector: Sector
         matchedCandidate: [MatchingCandidate]
@@ -166,7 +166,7 @@ export const typeDefs = gql`
         status: MatchedCandidateStatus
     }
 
-    input JobInput {
+    input OfferInput {
         id: String!
         companyName: String
         ageRange: String
@@ -174,7 +174,7 @@ export const typeDefs = gql`
         desiredSex: Sex
         drivingLicencseB: Boolean
         professionalExperience: Boolean
-        status: JobStatus
+        status: OfferStatus
         localisation: [Localisation]
         sector: Sector
         matchedCandidate: [MatchingCandidateInput]
@@ -201,7 +201,7 @@ export const typeDefs = gql`
         trainingDomain: String
         jobTitle: String
         selectedMissions: [String!]!
-        localisation: String
+        localisation: [Localisation]
     }
 
     type AbInfo {
@@ -232,7 +232,7 @@ export const typeDefs = gql`
         createdAt: String
     }
 
-    type JobCompanyInfo {
+    type OfferCompanyInfo {
         companyName: String
         company: CompanyInfo
         ab: AbInfo
@@ -254,42 +254,42 @@ export const typeDefs = gql`
     }
 
     type Query {
-        jobs: [Job!]!
-        matchJob(id: String!): Job!
-        jobCompanyInfo(jobId: String!): JobCompanyInfo!
-        offerResponseLinks(jobId: String!, candidateId: String!): OfferLinks!
-        candidateMatchedJobIds(candidateId: String!): [String!]!
+        offers: [Offer!]!
+        matchOffer(id: String!): Offer!
+        offerCompanyInfo(offerId: String!): OfferCompanyInfo!
+        offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!
+        candidateMatchedOfferIds(candidateId: String!): [String!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
     }
 
     type Mutation {
-        updateJob(id: String!, job: JobInput!): Job
-        unmatchJob(id: String!): Job
-        addCandidateToJob(jobId: String!, candidateId: String!): Job
-        removeCandidateFromJob(jobId: String!, candidateId: String!): Job
-        updateMatchedCandidateStatus(jobId: String!, candidateId: String!, status: MatchedCandidateStatus!): Job
+        updateOffer(id: String!, offer: OfferInput!): Offer
+        unmatchOffer(id: String!): Offer
+        addCandidateToOffer(offerId: String!, candidateId: String!): Offer
+        removeCandidateFromOffer(offerId: String!, candidateId: String!): Offer
+        updateMatchedCandidateStatus(offerId: String!, candidateId: String!, status: MatchedCandidateStatus!): Offer
         addManualProposedCandidate(
-            jobId: String!
+            offerId: String!
             candidateId: String!
             interviewDate: String!
             interviewHour: String!
             interviewLocation: String!
-        ): Job
+        ): Offer
         addManualProposedCandidateForImmersion(
-            jobId: String!
+            offerId: String!
             candidateId: String!
             immersionStartDate: String!
             immersionEndDate: String!
             immersionLocation: String!
-        ): Job
-        createMatchSession(jobId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
+        ): Offer
+        createMatchSession(offerId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
         setInterviewConclusion(
-            jobId: String!
+            offerId: String!
             candidateId: String!
             conclusion: InterviewConclusion!
             immersionStartDate: String
             immersionEndDate: String
-        ): Job
-        setImmersionConclusion(jobId: String!, candidateId: String!, conclusion: ImmersionConclusion!): Job
+        ): Offer
+        setImmersionConclusion(offerId: String!, candidateId: String!, conclusion: ImmersionConclusion!): Offer
     }
 `;

@@ -18,11 +18,6 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'companies', column: 'relance_template_id', definition: 'VARCHAR(64) DEFAULT NULL' },
     { table: 'companies', column: 'relance_channel', definition: "ENUM('PHONE', 'MAIL') DEFAULT NULL" },
     { table: 'companies', column: 'created_at', definition: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
-    // AB rework (2026-06-12): multi-position support, age range, free-text conditions
-    { table: 'needs_analysis', column: 'positions', definition: 'JSON DEFAULT NULL' },
-    { table: 'needs_analysis', column: 'age_min', definition: 'INT DEFAULT NULL' },
-    { table: 'needs_analysis', column: 'age_max', definition: 'INT DEFAULT NULL' },
-    { table: 'needs_analysis', column: 'conditions', definition: 'TEXT DEFAULT NULL' },
     // Booking: modèle de mail de confirmation choisi par l'hôte (copié depuis ses modèles RH).
     { table: 'booking_settings', column: 'confirmation_subject', definition: 'VARCHAR(255) DEFAULT NULL' },
     { table: 'booking_settings', column: 'confirmation_body', definition: 'TEXT DEFAULT NULL' },
@@ -143,7 +138,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             identifier VARCHAR(32) NOT NULL,
             rh_email VARCHAR(255) NOT NULL,
             company_email VARCHAR(255) NOT NULL,
-            job_uuid VARCHAR(64) NOT NULL,
+            offer_uuid VARCHAR(64) NOT NULL,
             status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
             attempts TINYINT NOT NULL DEFAULT 0,
             expires_at TIMESTAMP NOT NULL,
@@ -158,7 +153,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         ddl: `CREATE TABLE IF NOT EXISTS interview_access (
             signature CHAR(64) PRIMARY KEY,
             code CHAR(6) NOT NULL,
-            job_uuid VARCHAR(64) NOT NULL,
+            offer_uuid VARCHAR(64) NOT NULL,
             candidate_id VARCHAR(64) NOT NULL,
             rh_email VARCHAR(255) NOT NULL,
             status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
@@ -166,7 +161,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             expires_at TIMESTAMP NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_interview_access_job (job_uuid),
+            INDEX idx_interview_access_offer (offer_uuid),
             INDEX idx_interview_access_candidate (candidate_id)
         )`,
     },
@@ -376,16 +371,18 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info('MySQL migration: widened rh_kpi unique key to include sector');
     }
 
-    // AB rework (2026-06-12): education_level was removed from the form, the
-    // column must accept NULL for new rows.
-    const educationLevel = await query<{ IS_NULLABLE: string }[]>(
-        "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'needs_analysis' AND COLUMN_NAME = 'education_level'",
-    );
-    if (educationLevel[0]?.IS_NULLABLE === 'NO') {
-        await query(
-            "ALTER TABLE needs_analysis MODIFY COLUMN education_level ENUM('BAC', 'BAC_PLUS_2', 'BAC_PLUS_3') DEFAULT NULL",
+    // Renommage job_uuid → offer_uuid (unification jobs → offers d'AB). Sur les
+    // tables de session déjà créées avec l'ancienne colonne, on la renomme ;
+    // idempotent : gardé sur la présence de la colonne legacy.
+    for (const table of ['match_link', 'interview_access']) {
+        const legacyColumn = await query<{ count: number }[]>(
+            "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'job_uuid'",
+            [table],
         );
-        logger.info('MySQL migration: needs_analysis.education_level is now nullable');
+        if (Number(legacyColumn[0]?.count) === 0) continue;
+        // Identifiers come from the hardcoded list above, never from user input
+        await query(`ALTER TABLE ${table} CHANGE COLUMN job_uuid offer_uuid VARCHAR(64) NOT NULL`);
+        logger.info(`MySQL migration: renamed ${table}.job_uuid to offer_uuid`);
     }
 
     // Rôle PEDA (2026-07-08) : élargit l'ENUM users.role. mysql-init.sql ne
