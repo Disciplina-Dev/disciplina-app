@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
@@ -224,7 +224,7 @@ describe('GraphQL job queries', () => {
             const candidateId = `cand-mids-${suffix}`;
 
             await seedOffer({ _id: offerId, status: OfferStatus.NOT_MATCHED });
-            await new NeedsAnalysisRepository().addMatchedCandidate(offerId, {
+            await new OfferRepository().addMatchedCandidate(offerId, {
                 id: candidateId,
                 full_name: `Eve ${suffix}`,
                 age: 24,

@@ -1,8 +1,10 @@
 import { randomUUID } from 'crypto';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { NeedsAnalysis } from '../types/needsAnalysis.types';
-import { NeedsAnalysisStatus } from '../types/needsAnalysisNoSql.types';
-import { toNeedsAnalysis, toNeedsAnalysisDocument, mergeOfferIdentity } from './mappers/needsAnalysis.mapper';
+import { NeedsAnalysis as NeedsAnalysisNoSql, NeedsAnalysisStatus } from '../types/needsAnalysisNoSql.types';
+import { toNeedsAnalysis, toNeedsAnalysisDocument } from './mappers/needsAnalysis.mapper';
+import { buildOffers, mergeOfferIdentity } from './mappers/offer.mapper';
 import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
@@ -31,6 +33,7 @@ async function countPdfPages(buffer: Buffer): Promise<number> {
 
 export class NeedsAnalysisService {
     private repository: NeedsAnalysisRepository;
+    private offerRepository: OfferRepository;
     private companiesService: CompaniesService;
     private docusealService: DocuSealService;
     private userRepository: UserRepository;
@@ -39,6 +42,7 @@ export class NeedsAnalysisService {
 
     constructor() {
         this.repository = new NeedsAnalysisRepository();
+        this.offerRepository = new OfferRepository();
         this.companiesService = new CompaniesService();
         this.docusealService = new DocuSealService();
         this.userRepository = new UserRepository();
@@ -147,8 +151,8 @@ export class NeedsAnalysisService {
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.
         if (wasDraft) {
-            await this.createMatchingJobsAndNotifyRh(analysis, company.name || 'Entreprise').catch((err) => {
-                logger.error({ err, id }, '[NeedsAnalysis] Failed to create matching jobs / notify RH');
+            await this.createOffersAndNotifyRh(doc, analysis.id, company.name || 'Entreprise').catch((err) => {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
             });
         }
 
@@ -159,12 +163,15 @@ export class NeedsAnalysisService {
         return toNeedsAnalysis(updated);
     }
 
-    /** Initialise le matching sur les offres de l'AB et notifie tous les RH (cloche CRM). */
-    private async createMatchingJobsAndNotifyRh(analysis: NeedsAnalysis, companyName: string): Promise<void> {
-        await this.repository.initializeOfferMatching(analysis.id);
-        const abDoc = await this.repository.findById(analysis.id);
-        const offerCount = abDoc?.offers?.length ?? 0;
-        logger.info({ id: analysis.id, count: offerCount }, '[NeedsAnalysis] Offer matching initialized for AB');
+    /** Crée les offres de matching (collection `offers`) pour l'AB et notifie tous les RH (cloche CRM). */
+    private async createOffersAndNotifyRh(
+        doc: NeedsAnalysisNoSql,
+        analysisId: string,
+        companyName: string,
+    ): Promise<void> {
+        const offers = await this.offerRepository.createMany(buildOffers(doc));
+        const offerCount = offers.length;
+        logger.info({ id: analysisId, count: offerCount }, '[NeedsAnalysis] Offers created for AB');
 
         // RH + Responsables + Admin : tous ont accès à l'espace de matching.
         const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
@@ -181,7 +188,7 @@ export class NeedsAnalysisService {
                 }),
             ),
         );
-        logger.info({ id: analysis.id, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
+        logger.info({ id: analysisId, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
 
         // Responsables + RH: create an actionable todo
         const todoRecipients = rhUsers.filter((u) => u.role === Role.RESPONSABLE || u.role === Role.RH);
@@ -190,7 +197,7 @@ export class NeedsAnalysisService {
                 this.todoService.createSystemTodo(
                     user.id,
                     `AB à traiter — ${companyName} (${positionsLabel})`,
-                    `ab:${analysis.id}`,
+                    `ab:${analysisId}`,
                 ),
             ),
         );
@@ -211,14 +218,35 @@ export class NeedsAnalysisService {
         }
         const saler = merged.userID ? await this.userRepository.findById(merged.userID) : null;
         const document = toNeedsAnalysisDocument(merged, company, saler);
-        document.offers = (document.offers ?? []).map((offer, index) =>
-            mergeOfferIdentity(existing.offers?.[index], offer),
-        );
         const updated = await this.repository.update(id, document);
         if (!updated) {
             throw new Error('Needs analysis not found after update');
         }
+
+        // L'AB n'a d'offres que si elle a déjà été envoyée en signature au moins une
+        // fois : dans ce cas, on répercute les changements de poste sur les offres
+        // existantes en préservant leur id stable et leur état de matching.
+        await this.syncOffers(id, updated);
+
         return toNeedsAnalysis(updated);
+    }
+
+    private async syncOffers(id: string, updated: NeedsAnalysisNoSql): Promise<void> {
+        const existingOffers = await this.offerRepository.findByNeedsAnalysisId(id);
+        if (existingOffers.length === 0) return;
+
+        const rebuilt = buildOffers(updated);
+        const toUpdate = rebuilt
+            .slice(0, existingOffers.length)
+            .map((offer, index) => mergeOfferIdentity(existingOffers[index], offer));
+        const toCreate = rebuilt.slice(existingOffers.length);
+        const toDelete = existingOffers.slice(rebuilt.length);
+
+        await Promise.all([
+            ...toUpdate.map((offer) => this.offerRepository.updateContent(offer._id!, offer)),
+            ...(toCreate.length ? [this.offerRepository.createMany(toCreate)] : []),
+            ...toDelete.map((offer) => this.offerRepository.deleteById(offer._id!)),
+        ]);
     }
 
     async delete(id: string): Promise<boolean> {
@@ -237,7 +265,7 @@ export class NeedsAnalysisService {
         // Supprime les offres de matching de cette AB.
         // Hors du chemin critique : un échec ne doit pas empêcher la suppression de l'AB.
         try {
-            const removed = await this.repository.clearOffersByNeedsAnalysisId(id);
+            const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
             logger.info({ id, removed }, '[NeedsAnalysis] offers cleared for AB');
         } catch (err) {
             logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers for AB');

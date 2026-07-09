@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mintToken } from '../../../../test/helpers/auth';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
@@ -67,7 +67,7 @@ describe('GraphQL job mutations', () => {
         it('clears matched candidates and sets NOT_MATCHED', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new NeedsAnalysisRepository();
+            const repo = new OfferRepository();
 
             const seeded = await seedOffer({
                 _id: `job-unmatch-${suffix}`,
@@ -191,7 +191,7 @@ describe('GraphQL job mutations', () => {
         it('removes a candidate and sets NOT_MATCHED when list becomes empty', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new NeedsAnalysisRepository();
+            const repo = new OfferRepository();
 
             const offerId = `job-remove-${suffix}`;
             await seedOffer({ _id: offerId, status: OfferStatus.NOT_MATCHED });
@@ -220,7 +220,7 @@ describe('GraphQL job mutations', () => {
         it('removes one candidate and keeps MATCHED status when others remain', async () => {
             const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
             const suffix = Date.now();
-            const repo = new NeedsAnalysisRepository();
+            const repo = new OfferRepository();
 
             const offerId = `job-remove-multi-${suffix}`;
             await seedOffer({ _id: offerId, status: OfferStatus.NOT_MATCHED });

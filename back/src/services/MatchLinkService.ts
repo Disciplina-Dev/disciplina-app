@@ -1,4 +1,5 @@
-import { NeedsAnalysisRepository, MatchingOfferContext } from '../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../repositories/mongo/OfferRepository';
+import { Offer } from '../types/offer.types';
 import { MatchLinkRepository } from '../repositories/mysql/MatchLinkRepository';
 import { MatchLinkRow } from '../types/db-rows.types';
 import { MatchLinkStatus } from '../types/matchLink.types';
@@ -41,13 +42,12 @@ export type AuthResult =
     | { ok: true; token: string }
     | { ok: false; reason: 'invalid' | 'locked' | 'expired'; remaining?: number };
 
-function buildProposedCandidates(
-    ctx: MatchingOfferContext,
-    inputs: CreateSessionInput['candidates'],
-): MatchingCandidate[] {
-    const candidates = ctx.offer.matching?.candidates ?? [];
+function buildProposedCandidates(offer: Offer, inputs: CreateSessionInput['candidates']): MatchingCandidate[] {
+    const candidates = offer.matching?.candidates ?? [];
     const accepted = new Map(
-        candidates.filter((c) => c.status === MatchedCandidateStatus.ACCEPTED).map((c) => [c.id, c]),
+        candidates
+            .filter((c: MatchingCandidate) => c.status === MatchedCandidateStatus.ACCEPTED)
+            .map((c: MatchingCandidate) => [c.id, c]),
     );
     return inputs.map((input) => {
         const candidate = accepted.get(input.id);
@@ -74,23 +74,23 @@ function validateAnswers(answers: AnswerInput[], proposedIds: Set<string>): void
 export class MatchLinkService {
     constructor(
         private readonly matchLinkRepository = new MatchLinkRepository(),
-        private readonly needsAnalysisRepository = new NeedsAnalysisRepository(),
+        private readonly offerRepository = new OfferRepository(),
         private readonly candidateHistoryService = new CandidateHistoryService(),
         private readonly interviewAccessService = new InterviewAccessService(),
         private readonly interviewMailService = new InterviewMailService(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(input.offerId);
-        if (!ctx) throw new Error('Offer not found');
+        const offer = await this.offerRepository.findById(input.offerId);
+        if (!offer) throw new Error('Offer not found');
 
-        const proposed = buildProposedCandidates(ctx, input.candidates);
-        await this.needsAnalysisRepository.setProposedCandidates(input.offerId, proposed);
+        const proposed = buildProposedCandidates(offer, input.candidates);
+        await this.offerRepository.setProposedCandidates(input.offerId, proposed);
         for (const candidate of proposed) {
             await this.candidateHistoryService.recordAuto(
                 candidate.id,
                 CandidateHistoryType.RH,
-                `Le CV du candidat a été envoyé à ${ctx.analysis.company_infos?.name ?? ''} en attente de réponse`,
+                `Le CV du candidat a été envoyé à ${offer.company_infos?.name ?? ''} en attente de réponse`,
             );
         }
 
@@ -159,8 +159,12 @@ export class MatchLinkService {
     async getProposedCandidates(signature: string): Promise<MatchingCandidate[]> {
         const row = await this.matchLinkRepository.findBySignature(signature);
         if (!row) throw new Error('Session not found');
-        const ctx = await this.needsAnalysisRepository.findOfferById(row.offer_uuid);
-        return ctx?.offer.matching?.candidates?.filter((c) => c.status === MatchedCandidateStatus.OFFER_SEND) ?? [];
+        const offer = await this.offerRepository.findById(row.offer_uuid);
+        return (
+            offer?.matching?.candidates?.filter(
+                (c: MatchingCandidate) => c.status === MatchedCandidateStatus.OFFER_SEND,
+            ) ?? []
+        );
     }
 
     async submitAnswers(signature: string, answers: AnswerInput[]): Promise<void> {
@@ -168,17 +172,17 @@ export class MatchLinkService {
         if (!row) throw new Error('Session not found');
         if (row.status === MatchLinkStatus.COMPLETED) throw new Error('Session already completed');
 
-        const ctx = await this.needsAnalysisRepository.findOfferById(row.offer_uuid);
-        const proposedIds = new Set(
-            (ctx?.offer.matching?.candidates ?? [])
-                .filter((c) => c.status === MatchedCandidateStatus.OFFER_SEND)
-                .map((c) => c.id),
+        const offer = await this.offerRepository.findById(row.offer_uuid);
+        const proposedIds = new Set<string>(
+            (offer?.matching?.candidates ?? [])
+                .filter((c: MatchingCandidate) => c.status === MatchedCandidateStatus.OFFER_SEND)
+                .map((c: MatchingCandidate) => c.id),
         );
         validateAnswers(answers, proposedIds);
 
         const slotsAnswer = answers.find((a) => a.interviewSlots?.length);
         if (slotsAnswer?.interviewSlots) {
-            await this.needsAnalysisRepository.setOfferInterviewSlots(
+            await this.offerRepository.setOfferInterviewSlots(
                 row.offer_uuid,
                 slotsAnswer.interviewSlots,
                 slotsAnswer.interviewLocation,
@@ -186,7 +190,7 @@ export class MatchLinkService {
         }
 
         for (const answer of answers) {
-            await this.needsAnalysisRepository.setProposedCandidateAnswer(
+            await this.offerRepository.setProposedCandidateAnswer(
                 row.offer_uuid,
                 answer.candidateId,
                 answer.answer,
@@ -213,7 +217,7 @@ export class MatchLinkService {
                     row.offer_uuid,
                     answer.candidateId,
                     row.rh_email,
-                    ctx?.analysis.company_infos?.name,
+                    offer?.company_infos?.name,
                 );
             }
         }
@@ -226,8 +230,8 @@ export class MatchLinkService {
         rhEmail: string,
         companyName?: string,
     ): Promise<void> {
-        const ctx = await this.needsAnalysisRepository.findOfferById(offerId);
-        const candidate = ctx?.offer.matching?.candidates?.find((c) => c.id === candidateId);
+        const offer = await this.offerRepository.findById(offerId);
+        const candidate = offer?.matching?.candidates?.find((c: MatchingCandidate) => c.id === candidateId);
         if (!candidate?.email) return;
         const { signature, code } = await this.interviewAccessService.createAccess(offerId, candidateId, rhEmail);
         await this.interviewMailService.sendInvitation(

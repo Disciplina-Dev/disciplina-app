@@ -1,6 +1,7 @@
 import pool from '../../src/db/mysql/connection';
 import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
 import { NeedsAnalysisModel } from '../../src/db/mongo/schemas/needsAnalysis.schema';
+import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 
 export async function truncateMysql(): Promise<void> {
     const conn = await pool.getConnection();
@@ -21,4 +22,5 @@ export async function truncateMysql(): Promise<void> {
 export async function dropMongo(): Promise<void> {
     await CandidateModel.deleteMany({});
     await NeedsAnalysisModel.deleteMany({});
+    await OfferModel.deleteMany({});
 }

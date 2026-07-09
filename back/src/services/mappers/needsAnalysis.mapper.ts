@@ -1,10 +1,9 @@
-import { randomUUID } from 'crypto';
 import { NeedsAnalysis, NeedsAnalysisPosition } from '../../types/needsAnalysis.types';
 import {
     NeedsAnalysis as NeedsAnalysisDocument,
     CompanyInfos,
     Referents,
-    Offer,
+    Position,
     OfferCriteria,
     CompanyRegion,
 } from '../../types/needsAnalysisNoSql.types';
@@ -23,12 +22,12 @@ for (const [zone, communes] of Object.entries(ZONE_TO_COMMUNES)) {
     }
 }
 
-function zoneFromCommunes(communes: string[] | undefined, fallback: Zone): Zone {
+export function zoneFromCommunes(communes: string[] | undefined, fallback: Zone): Zone {
     const first = communes?.[0];
     return (first && COMMUNE_TO_ZONE.get(first)) || fallback;
 }
 
-function buildOffer(position: NeedsAnalysisPosition, analysis: Partial<NeedsAnalysis>): Offer {
+function buildPosition(position: NeedsAnalysisPosition, analysis: Partial<NeedsAnalysis>): Position {
     const criteria: OfferCriteria = {
         education_level: (analysis.educationLevel ?? null) as unknown as OfferCriteria['education_level'],
         driving_license: analysis.drivingLicense === 'OUI',
@@ -43,10 +42,9 @@ function buildOffer(position: NeedsAnalysisPosition, analysis: Partial<NeedsAnal
     };
 
     return {
-        id: randomUUID(),
         localisation: position.localisation ?? [],
         tp_type: DOMAIN_TO_TP[position.trainingDomain] ?? null,
-        training_domain: position.trainingDomain as unknown as Offer['training_domain'],
+        training_domain: position.trainingDomain as unknown as Position['training_domain'],
         title: position.jobTitle,
         missions: position.selectedMissions ?? [],
         description_missions: analysis.jobDescriptionMissions ?? [],
@@ -56,7 +54,7 @@ function buildOffer(position: NeedsAnalysisPosition, analysis: Partial<NeedsAnal
     };
 }
 
-function resolvePositions(analysis: Partial<NeedsAnalysis>): NeedsAnalysisPosition[] {
+export function resolvePositions(analysis: Partial<NeedsAnalysis>): NeedsAnalysisPosition[] {
     if (analysis.positions && analysis.positions.length > 0) {
         return analysis.positions;
     }
@@ -89,7 +87,7 @@ function buildCompanyInfos(analysis: Partial<NeedsAnalysis>, company: Companies,
     };
 }
 
-function buildReferents(analysis: Partial<NeedsAnalysis>, company: Companies): Referents {
+export function buildReferents(analysis: Partial<NeedsAnalysis>, company: Companies): Referents {
     return {
         is_same: (analysis.recruitmentResponsibleEmail ?? null) === (company.email ?? null),
         legal_referents: {
@@ -121,7 +119,7 @@ export function toNeedsAnalysisDocument(
         company_infos: buildCompanyInfos(analysis, company, region),
         saler_info: { id: analysis.userID, email: saler?.email ?? undefined },
         referents: buildReferents(analysis, company),
-        offers: positions.map((position) => buildOffer(position, analysis)),
+        positions: positions.map((position) => buildPosition(position, analysis)),
         recruitment_method: (analysis.recruitmentMethod ??
             undefined) as unknown as NeedsAnalysisDocument['recruitment_method'],
         immersion_period: (analysis.immersionPeriod ??
@@ -134,24 +132,17 @@ export function toNeedsAnalysisDocument(
     };
 }
 
-// Une reconstruction complète du document (update) régénère les offres : on
-// réinjecte l'id stable et l'état de matching de l'offre existante (même position)
-// pour ne pas casser le matching RH déjà en cours.
-export function mergeOfferIdentity(existing: Offer | undefined, rebuilt: Offer): Offer {
-    if (!existing) return rebuilt;
-    return { ...rebuilt, id: existing.id ?? rebuilt.id, matching: existing.matching ?? rebuilt.matching };
-}
-
 export function toNeedsAnalysis(doc: NeedsAnalysisDocument): NeedsAnalysis {
-    const offers = doc.offers ?? [];
-    const first = offers[0];
+    const positions = doc.positions ?? [];
+    const first = positions[0];
     const criteria = first?.criteria ?? {};
 
-    const positions: NeedsAnalysisPosition[] = offers.map((offer) => ({
-        trainingDomain: (offer.training_domain ?? 'SECRETARIAT') as unknown as NeedsAnalysisPosition['trainingDomain'],
-        jobTitle: offer.title ?? '',
-        selectedMissions: offer.missions ?? [],
-        localisation: offer.localisation ?? [],
+    const gqlPositions: NeedsAnalysisPosition[] = positions.map((position) => ({
+        trainingDomain: (position.training_domain ??
+            'SECRETARIAT') as unknown as NeedsAnalysisPosition['trainingDomain'],
+        jobTitle: position.title ?? '',
+        selectedMissions: position.missions ?? [],
+        localisation: position.localisation ?? [],
     }));
 
     return {
@@ -167,9 +158,9 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument): NeedsAnalysis {
         companyDescription: doc.company_infos?.description ?? null,
         opco: (doc.company_infos?.opco ?? null) as unknown as NeedsAnalysis['opco'],
         referralSource: (doc.company_infos?.referral_source ?? null) as unknown as NeedsAnalysis['referralSource'],
-        positionsCount: positions.length,
-        positions,
-        localisation: positions[0]?.localisation?.[0] ?? null,
+        positionsCount: gqlPositions.length,
+        positions: gqlPositions,
+        localisation: gqlPositions[0]?.localisation?.[0] ?? null,
         trainingDomain: (first?.training_domain ?? 'SECRETARIAT') as unknown as NeedsAnalysis['trainingDomain'],
         jobTitle: first?.title ?? '',
         selectedMissions: first?.missions ?? [],

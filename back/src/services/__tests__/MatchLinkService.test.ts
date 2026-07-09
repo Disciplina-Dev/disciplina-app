@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { MatchLinkService } from '../MatchLinkService';
 import { InterviewMailService } from '../InterviewMailService';
 import { MatchLinkRepository } from '../../repositories/mysql/MatchLinkRepository';
-import { NeedsAnalysisRepository } from '../../repositories/mongo/NeedsAnalysisRepository';
+import { OfferRepository } from '../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../test/helpers/seedOffer';
 import { UserRepository } from '../../repositories/mysql/UserRepository';
 import { OfferStatus, ProposedCandidateAnswer, MatchedCandidateStatus } from '../../types/matching.types';
@@ -27,7 +27,7 @@ describe('MatchLinkService.submitAnswers', () => {
     it('writes the interview pool at the job level and creates an interview_access row + email for accepted candidates', async () => {
         const suffix = Date.now();
         const rh = await createRhUser(suffix);
-        const jobRepo = new NeedsAnalysisRepository();
+        const jobRepo = new OfferRepository();
         const matchLinkRepo = new MatchLinkRepository();
 
         // Stub the mailer via constructor injection (same pattern the class already
@@ -75,14 +75,12 @@ describe('MatchLinkService.submitAnswers', () => {
             },
         ]);
 
-        const ctx = await jobRepo.findOfferById(offerId);
-        expect(ctx?.offer.matching?.interview_slots).toEqual(slots);
-        expect(ctx?.offer.matching?.interview_location).toBe(location);
-        expect(ctx?.offer.matching?.candidates?.[0].answer).toBe(ProposedCandidateAnswer.ACCEPTED);
+        const offer = await jobRepo.findById(offerId);
+        expect(offer?.matching?.interview_slots).toEqual(slots);
+        expect(offer?.matching?.interview_location).toBe(location);
+        expect(offer?.matching?.candidates?.[0].answer).toBe(ProposedCandidateAnswer.ACCEPTED);
         // The job-level pool is shared, not duplicated per-candidate.
-        expect(
-            (ctx?.offer.matching?.candidates?.[0] as Record<string, unknown> | undefined)?.interview,
-        ).toBeUndefined();
+        expect((offer?.matching?.candidates?.[0] as Record<string, unknown> | undefined)?.interview).toBeUndefined();
 
         expect(sendInvitation).toHaveBeenCalledTimes(1);
         expect(sendInvitation).toHaveBeenCalledWith(
