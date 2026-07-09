@@ -302,7 +302,8 @@ db.createCollection('candidates', {
             location: { bsonType: "string" },
             date: { bsonType: "date" },
             recruiter_signature: { bsonType: "string" },
-            candidate_signature: { bsonType: "string" }
+            candidate_signature: { bsonType: "string" },
+            interviewed_by: { bsonType: "string" }
           }
         }
       }

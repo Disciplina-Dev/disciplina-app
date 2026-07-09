@@ -6,8 +6,8 @@ import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
-import { candidateGraphqlClient } from '@/graphql/client';
-import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER } from '@/graphql/queries';
+import { candidateGraphqlClient, graphqlClient } from '@/graphql/client';
+import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS } from '@/graphql/queries';
 import { useAuthStore } from '@/store/authStore';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
@@ -130,6 +130,8 @@ type ABForm = {
   // note importante + signature de l'apprenti (data-URL PNG)
   importantNote: string;
   candidateSignature: string;
+  // RH ayant mené l'entretien (nom complet)
+  interviewedBy: string;
 };
 
 // Union des compétences des templates de plusieurs TP (dédupliquée par nom).
@@ -193,6 +195,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     specialNeeds: '',
     importantNote: '',
     candidateSignature: '',
+    interviewedBy: '',
   };
 }
 
@@ -278,6 +281,7 @@ function candidateToForm(c: Candidate): ABForm {
     specialNeeds: c.synthesis?.special_needs ?? '',
     importantNote: c.synthesis?.important_note ?? '',
     candidateSignature: c.synthesis?.candidate_signature ?? '',
+    interviewedBy: c.synthesis?.interviewed_by ?? '',
   };
 }
 
@@ -349,6 +353,7 @@ function toServerInput(f: ABForm) {
     synthesis: {
       importantNote: f.importantNote || undefined,
       candidateSignature: f.candidateSignature || undefined,
+      interviewedBy: f.interviewedBy || undefined,
       feasibilityConclusion: f.feasibilityConclusion || undefined,
       pathwayRelevance: f.pathwayRelevance || undefined,
       specialNeeds: f.specialNeeds || undefined,
@@ -400,6 +405,16 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   const createdIdRef = useRef<string | null>(null);
   // Doublon email détecté en direct (autre fiche que celle en cours d'édition).
   const [emailDup, setEmailDup] = useState<{ fullName: string } | null>(null);
+  // Liste des RH pour le choix « Entretien fait par » (noms complets).
+  const [rhUsers, setRhUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+
+  useEffect(() => {
+    graphqlClient
+      .query(GET_RH_USERS, {})
+      .toPromise()
+      .then(res => setRhUsers(res.data?.rhUsers ?? []))
+      .catch(() => setRhUsers([]));
+  }, []);
 
   // Template fusionné sur tous les TP cochés (options = union, anglais = si au moins un).
   const selectedTps = form.tpTypes.length ? form.tpTypes : [TitleProfessionalType.CC];
@@ -872,6 +887,20 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Note importante */}
           <ABSectionTitle title="Note importante" />
           <ABTextarea label="Note importante" value={form.importantNote} onChange={v => set('importantNote', v)} rows={3} />
+
+          {/* Entretien fait par — RH ayant mené l'entretien */}
+          <ABSectionTitle title="Entretien fait par" />
+          <ABSelectField id="cn-interviewer" label="Entretien fait par :" value={form.interviewedBy} onChange={v => set('interviewedBy', v)}>
+            <option value="">— Sélectionner un RH —</option>
+            {rhUsers.map(u => {
+              const name = `${u.firstName} ${u.lastName}`.trim();
+              return <option key={u.id} value={name}>{name}</option>;
+            })}
+            {/* Valeur existante absente de la liste (RH supprimé…) : on la garde sélectionnable */}
+            {form.interviewedBy && !rhUsers.some(u => `${u.firstName} ${u.lastName}`.trim() === form.interviewedBy) && (
+              <option value={form.interviewedBy}>{form.interviewedBy}</option>
+            )}
+          </ABSelectField>
 
           {/* Signature de l'apprenti — toute fin */}
           <ABSectionTitle title="Signature de l'apprenti" />

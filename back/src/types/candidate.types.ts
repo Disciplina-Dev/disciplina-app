@@ -162,6 +162,7 @@ export interface Synthesis {
     date?: Date;
     recruiter_signature?: string;
     candidate_signature?: string;
+    interviewed_by?: string;
 }
 
 export interface ClassMarkerQuestion {

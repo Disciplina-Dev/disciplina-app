@@ -121,6 +121,11 @@ export const resolvers = {
             return userService.findByRoles([Role.COMMERCIAL, Role.RESPONSABLE]);
         },
 
+        rhUsers: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.RH]);
+            return userService.findByRoles([Role.RH]);
+        },
+
         salePerson: async (_: unknown, { id }: { id: number }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return userService.findById(id);
