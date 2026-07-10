@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X, Mail, Bell, ShieldOff, ListTodo, Settings, GraduationCap } from 'lucide-react'
+import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X, Mail, Bell, ShieldOff, ListTodo, Settings, GraduationCap, FolderCog } from 'lucide-react'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
@@ -67,6 +67,7 @@ export default function CommercialLayout() {
             <div className="mx-3 my-4 border-t border-gray-100" />
             <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>
             <nav className="flex flex-col gap-1 px-3">
+              <NavItem to="/commercial/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
               <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
               {currentUser?.role === 'ADMIN' && (
                 <>

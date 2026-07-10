@@ -189,15 +189,37 @@ export const typeDefs = gql`
         status: NeedsAnalysisStatus
     }
 
+    type AbDriveFolder {
+        sector: String!
+        kind: String!
+        folderId: String
+    }
+
+    type AbDriveConfig {
+        sectorFolders: [AbDriveFolder!]!
+    }
+
+    input AbDriveFolderInput {
+        sector: String!
+        kind: String!
+        folderId: String
+    }
+
+    input AbDriveConfigInput {
+        sectorFolders: [AbDriveFolderInput!]!
+    }
+
     extend type Query {
         needsAnalyses: [NeedsAnalysis!]!
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
+        abDriveConfig: AbDriveConfig!
     }
 
     extend type Mutation {
         createNeedsAnalysis(input: NeedsAnalysisInput!): NeedsAnalysis!
         updateNeedsAnalysis(id: ID!, input: NeedsAnalysisInput!): NeedsAnalysis!
         deleteNeedsAnalysis(id: ID!): Boolean!
+        updateAbDriveConfig(input: AbDriveConfigInput!): AbDriveConfig!
     }
 `;

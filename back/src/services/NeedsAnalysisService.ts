@@ -12,6 +12,7 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
 import { Role } from '../types/user.types';
+import { abDriveConfigService } from './AbDriveConfigService';
 import { logger } from '../external/logger';
 import { PDFDocument } from 'pdf-lib';
 
@@ -147,6 +148,10 @@ export class NeedsAnalysisService {
             status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
             signature_request_id: submissionId,
         });
+
+        // Archivage Drive du PDF non signé, dans le dossier du secteur du commercial.
+        // Best-effort : n'échoue pas l'envoi en signature.
+        await abDriveConfigService.archiveAbPdf(analysis.userID, 'UNSIGNED', buffer, filename);
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.

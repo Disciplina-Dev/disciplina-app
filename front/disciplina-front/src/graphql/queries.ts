@@ -389,6 +389,30 @@ export const UPDATE_DRIVE_FOLDER_CONFIG = gql`
   }
 `
 
+export const GET_AB_DRIVE_CONFIG = gql`
+  query AbDriveConfig {
+    abDriveConfig {
+      sectorFolders {
+        sector
+        kind
+        folderId
+      }
+    }
+  }
+`
+
+export const UPDATE_AB_DRIVE_CONFIG = gql`
+  mutation UpdateAbDriveConfig($input: AbDriveConfigInput!) {
+    updateAbDriveConfig(input: $input) {
+      sectorFolders {
+        sector
+        kind
+        folderId
+      }
+    }
+  }
+`
+
 export const CHECK_CANDIDATE_EMAIL = gql`
   query CandidateByEmail($email: String!) {
     candidateByEmail(email: $email) {
