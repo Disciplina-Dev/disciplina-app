@@ -28,7 +28,7 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
 
     if (role === Role.COMMERCIAL) {
         const analysis = await needsAnalysisService.findById(id);
-        if (analysis?.userID && analysis.userID !== req.user?.id) {
+        if (analysis?.salerInfo?.id && analysis.salerInfo.id !== req.user?.id) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -97,7 +97,7 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
 
     if (role === Role.COMMERCIAL) {
         const analysis = await needsAnalysisService.findById(id);
-        if (analysis?.userID && analysis.userID !== req.user?.id) {
+        if (analysis?.salerInfo?.id && analysis.salerInfo.id !== req.user?.id) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }

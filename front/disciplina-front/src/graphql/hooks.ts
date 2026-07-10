@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useMutation } from 'urql'
+import { useQuery, useMutation, useClient } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useBlacklistStore } from '@/store/blacklistStore'
 import {
@@ -23,6 +23,7 @@ import {
   GET_NEEDS_ANALYSES_BY_COMPANY,
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
+  UPDATE_NEEDS_ANALYSIS,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
@@ -55,7 +56,7 @@ export interface CandidateServerFilters {
   /** Ne renvoyer que les fiches sans date de création. */
   createdMissing?: boolean
 }
-import { candidateGraphqlClient } from './client'
+import { candidateGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -117,14 +118,20 @@ export function useSalePersons() {
 }
 
 export function useCompanyBySiret() {
-  const [result, executeQuery] = useQuery({
-    query: GET_COMPANY_BY_SIRET,
-    variables: { siret: '' },
-    pause: true,
+  const client = useClient()
+  const [result, setResult] = useState<{ data?: any; error?: any; fetching: boolean }>({
+    data: undefined, error: undefined, fetching: false,
   })
 
-  const searchBySiret = (siret: string) =>
-    executeQuery({ variables: { siret }, requestPolicy: 'network-only' })
+  const searchBySiret = (siret: string) => {
+    if (!siret || siret.trim() === '') return
+    setResult({ data: undefined, error: undefined, fetching: true })
+    client
+      .query(GET_COMPANY_BY_SIRET, { siret }, { requestPolicy: 'network-only' })
+      .toPromise()
+      .then((res) => setResult({ data: res.data, error: res.error, fetching: false }))
+      .catch((err) => setResult({ data: undefined, error: err, fetching: false }))
+  }
 
   return { result, searchBySiret }
 }
@@ -686,7 +693,7 @@ export function useCreateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(CREATE_NEEDS_ANALYSIS)
 
   const createNeedsAnalysis = (input: any) => {
-    return executeMutation({ input }).then((response) => {
+    return executeMutation({ input }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
       if (response.error) {
         console.error("createNeedsAnalysis failed:", response.error)
       }
@@ -702,6 +709,7 @@ export function useNeedsAnalysesByCompany(companyID: number | null) {
     query: GET_NEEDS_ANALYSES_BY_COMPANY,
     variables: { companyID: companyID ?? 0 },
     pause: companyID === null,
+    context: { url: NEEDS_ANALYSIS_URL },
   })
   return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
 }
@@ -752,6 +760,7 @@ export function useNeedsAnalysis(id: string | null) {
     query: GET_NEEDS_ANALYSIS,
     variables: { id: id ?? 0 },
     pause: id === null,
+    context: { url: NEEDS_ANALYSIS_URL },
   })
   return result
 }
@@ -760,7 +769,7 @@ export function useDeleteNeedsAnalysis() {
   const [result, executeMutation] = useMutation(DELETE_NEEDS_ANALYSIS)
 
   const deleteNeedsAnalysis = (id: string) => {
-    return executeMutation({ id }).then((response) => {
+    return executeMutation({ id }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
       if (response.error) {
         console.error('deleteNeedsAnalysis failed:', response.error)
       }
@@ -769,6 +778,21 @@ export function useDeleteNeedsAnalysis() {
   }
 
   return { deleteNeedsAnalysis, result }
+}
+
+export function useUpdateNeedsAnalysis() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS)
+
+  const updateNeedsAnalysis = (id: string, input: any) => {
+    return executeMutation({ id, input }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('updateNeedsAnalysis failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { updateNeedsAnalysis, result }
 }
 
 export function useDeleteCandidate() {

@@ -156,7 +156,14 @@ export const typeDefs = gql`
         recruitmentReferents: ReferentDetails
     }
 
+    type CompanyInfos {
+        id: Int
+        name: String
+        activities: [String!]
+    }
+
     type Offer {
+        needsAnalysisId: String
         id: String!
         companyName: String
         ageRange: String
@@ -174,8 +181,10 @@ export const typeDefs = gql`
         interviewLocation: String
         salerInfo: SalerInfo
         referents: Referents
+        companyInfos: CompanyInfos
         title: String
         missions: [String]
+        softSkills: String
     }
 
     input MatchingCandidateInput {
@@ -220,55 +229,9 @@ export const typeDefs = gql`
         status: String
     }
 
-    type AbPositionInfo {
-        trainingDomain: String
-        jobTitle: String
-        selectedMissions: [String!]!
-        localisation: [Localisation]
-    }
-
-    type AbInfo {
-        id: Int
-        legalRepFunction: String
-        recruitmentResponsibleName: String
-        recruitmentResponsiblePhone: String
-        recruitmentResponsibleEmail: String
-        recruitmentResponsibleFunction: String
-        companySectors: [String!]!
-        companyDescription: String
-        opco: String
-        referralSource: String
-        positionsCount: Int
-        positions: [AbPositionInfo!]!
-        trainingDomain: String
-        jobTitle: String
-        selectedMissions: [String!]!
-        localisation: String
-        otherMissions: String
-        jobDescriptionMissions: [String!]!
-        jobDescriptionOther: String
-        educationLevel: String
-        drivingLicense: String
-        experienceRequired: String
-        ageRequirements: [String!]!
-        ageMin: Int
-        ageMax: Int
-        softSkills: String
-        scheduleOptions: [String!]!
-        conditions: String
-        additionalComments: String
-        recruitmentMethod: String
-        immersionPeriod: String
-        trainingDays: String
-        yousignSignatureRequestID: String
-        status: String
-        createdAt: String
-    }
-
     type OfferCompanyInfo {
         companyName: String
         company: CompanyInfo
-        ab: AbInfo
     }
 
     enum PlacementKind {

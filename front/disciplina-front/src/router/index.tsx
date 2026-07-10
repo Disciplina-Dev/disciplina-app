@@ -24,6 +24,7 @@ import EntreprisePage from "@/pages/commercial/EntreprisePage";
 import Sourcing from "@/pages/commercial/sourcing";
 import RelanceCommercial from "@/pages/commercial/RelanceCommercial";
 import ListeNoire from "@/pages/commercial/ListeNoire";
+import AbDriveConfig from "@/pages/commercial/AbDriveConfig";
 
 import RHLayout from "@/components/layout/RHLayout";
 import DashboardRH from "@/pages/rh/DashboardRH";
@@ -109,6 +110,15 @@ export const router = createBrowserRouter([
       { path: "relance", element: <RelanceCommercial />, handle: { crumb: "Relances" } },
       { path: "todos", element: <TodoPage />, handle: { crumb: "Mes tâches" } },
       { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
+      {
+        path: "config-drive",
+        element: (
+          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
+            <AbDriveConfig />
+          </ProtectedRoute>
+        ),
+        handle: { crumb: "Dossiers Drive" },
+      },
     ],
   },
   {

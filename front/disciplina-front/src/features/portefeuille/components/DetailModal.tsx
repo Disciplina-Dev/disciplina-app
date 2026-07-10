@@ -316,7 +316,7 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
                         className="h-4 w-4 shrink-0 rounded border-gray-300 accent-blue cursor-pointer"
                       />
                       <div className="min-w-0 flex-1">
-                        <span className="font-medium text-gray-900 truncate">{ab.jobTitle}</span>
+                        <span className="font-medium text-gray-900 truncate">{ab.positions?.[0]?.title ?? 'Analyse du besoin'}</span>
                         <span className="ml-2 text-xs text-gray-400">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">

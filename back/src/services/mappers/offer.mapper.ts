@@ -12,6 +12,7 @@ function buildOffer(position: Position, doc: NeedsAnalysisDocument): Offer {
             id: doc.company_infos?.id,
             name: doc.company_infos?.name,
             sector: doc.company_infos?.sector,
+            activities: doc.company_infos?.activities,
         },
         saler_info: doc.saler_info,
         referents: doc.referents,

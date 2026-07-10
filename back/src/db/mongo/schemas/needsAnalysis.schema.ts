@@ -25,6 +25,8 @@ const companyInfosSchema = new Schema<CompanyInfos>(
         sector: { type: String, enum: Object.values(CompanyRegion) },
         activities: { type: [String], default: [] },
         description: { type: String, default: null },
+        postal_code: { type: String, default: null },
+        commune: { type: String, default: null },
     },
     { _id: false },
 );

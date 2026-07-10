@@ -104,6 +104,7 @@ export const GET_COMPANY_BY_SIRET = gql`
     companyBySiret(siret: $siret) {
       id
       userID
+      legalReferent
       name
       phone
       email
@@ -383,6 +384,30 @@ export const UPDATE_DRIVE_FOLDER_CONFIG = gql`
       tpFolders {
         tp
         region
+        folderId
+      }
+    }
+  }
+`
+
+export const GET_AB_DRIVE_CONFIG = gql`
+  query AbDriveConfig {
+    abDriveConfig {
+      sectorFolders {
+        sector
+        kind
+        folderId
+      }
+    }
+  }
+`
+
+export const UPDATE_AB_DRIVE_CONFIG = gql`
+  mutation UpdateAbDriveConfig($input: AbDriveConfigInput!) {
+    updateAbDriveConfig(input: $input) {
+      sectorFolders {
+        sector
+        kind
         folderId
       }
     }
@@ -984,6 +1009,8 @@ export const GET_OFFERS = gql`
   query GetOffers {
     offers {
       id
+      needsAnalysisId
+      companyInfos { id name }
       companyName
       ageRange
       desiredTP
@@ -1017,48 +1044,6 @@ export const GET_OFFER_COMPANY_INFO = gql`
         conclusion
         status
       }
-      ab {
-        id
-        legalRepFunction
-        recruitmentResponsibleName
-        recruitmentResponsiblePhone
-        recruitmentResponsibleEmail
-        recruitmentResponsibleFunction
-        companySectors
-        companyDescription
-        opco
-        referralSource
-        positionsCount
-        positions {
-          trainingDomain
-          jobTitle
-          selectedMissions
-          localisation
-        }
-        trainingDomain
-        jobTitle
-        selectedMissions
-        localisation
-        otherMissions
-        jobDescriptionMissions
-        jobDescriptionOther
-        educationLevel
-        drivingLicense
-        experienceRequired
-        ageRequirements
-        ageMin
-        ageMax
-        softSkills
-        scheduleOptions
-        conditions
-        additionalComments
-        recruitmentMethod
-        immersionPeriod
-        trainingDays
-        yousignSignatureRequestID
-        status
-        createdAt
-      }
     }
   }
 `
@@ -1067,6 +1052,8 @@ export const MATCH_OFFER = gql`
   query MatchOffer($id: String!) {
     matchOffer(id: $id) {
       id
+      needsAnalysisId
+      companyInfos { id name activities }
       companyName
       ageRange
       desiredTP
@@ -1076,6 +1063,7 @@ export const MATCH_OFFER = gql`
       status
       localisation
       sector
+      softSkills
       matchedCandidate {
         id
         fullName
@@ -1437,7 +1425,9 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
   query NeedsAnalysesByCompany($companyID: Int!) {
     needsAnalysesByCompany(companyID: $companyID) {
       id
-      jobTitle
+      positions {
+        title
+      }
       positionsCount
       status
       createdAt
@@ -1498,38 +1488,64 @@ export const GET_NEEDS_ANALYSIS = gql`
   query NeedsAnalysis($id: ID!) {
     needsAnalysis(id: $id) {
       id
-      legalRepFunction
-      recruitmentResponsibleName
-      recruitmentResponsiblePhone
-      recruitmentResponsibleEmail
-      recruitmentResponsibleFunction
-      companySectors
-      companyDescription
-      opco
-      referralSource
+      companyInfos {
+        id
+        name
+        ape
+        idcc
+        siret
+        mainActivity
+        opco
+        referralSource
+        sector
+        activities
+        description
+        postalCode
+        commune
+      }
+      salerInfo {
+        id
+        email
+      }
+      referents {
+        isSame
+        legalReferents {
+          name
+          phone
+          email
+          function
+        }
+        recruitmentReferents {
+          name
+          phone
+          email
+          function
+        }
+      }
       positionsCount
       positions {
-        trainingDomain
-        jobTitle
-        selectedMissions
         localisation
+        tpType
+        trainingDomain
+        title
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+        criteria {
+          educationLevel
+          drivingLicense
+          experienceRequired
+          trainingDomain
+          ageMin
+          ageMax
+          desiredSex
+          softSkills
+          scheduleOptions
+          conditions
+          additionalComments
+        }
       }
-      localisation
-      trainingDomain
-      jobTitle
-      selectedMissions
-      jobDescriptionMissions
-      jobDescriptionOther
-      educationLevel
-      drivingLicense
-      experienceRequired
-      ageRequirements
-      ageMin
-      ageMax
-      softSkills
-      scheduleOptions
-      conditions
-      additionalComments
       recruitmentMethod
       immersionPeriod
       trainingDays
@@ -1585,6 +1601,16 @@ export const CREATE_FILIZ_FOLDER = gql`
     ) {
       id
       filizFolderId
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS = gql`
+  mutation UpdateNeedsAnalysis($id: ID!, $input: NeedsAnalysisInput!) {
+    updateNeedsAnalysis(id: $id, input: $input) {
+      id
+      status
+      updatedAt
     }
   }
 `

@@ -35,6 +35,14 @@ export const typeDefs = gql`
         VENTE
     }
 
+    enum TitleProfessionalType {
+        AD
+        CC
+        NTC
+        REM
+        SA
+    }
+
     enum Opco {
         AKTO
         ATLAS
@@ -67,16 +75,6 @@ export const typeDefs = gql`
         BAC_PLUS_3
     }
 
-    enum DrivingLicense {
-        OUI
-        OPTIONNEL
-    }
-
-    enum ExperienceRequired {
-        DEBUTANT
-        OBLIGATOIRE
-    }
-
     enum RecruitmentMethod {
         ALL_CV
         PRESELECTION
@@ -96,55 +94,100 @@ export const typeDefs = gql`
         EXPIRE
     }
 
-    type NeedsAnalysisPosition {
-        trainingDomain: TrainingDomain!
-        jobTitle: String!
-        selectedMissions: [String!]!
-        localisation: [Localisation!]!
-    }
-
-    input NeedsAnalysisPositionInput {
-        trainingDomain: TrainingDomain!
-        jobTitle: String!
-        selectedMissions: [String!]!
-        localisation: [Localisation!]!
-    }
-
-    type NeedsAnalysis {
-        id: ID!
-        companyID: Int!
-        userID: Int!
-        legalRepFunction: String
-        recruitmentResponsibleName: String
-        recruitmentResponsiblePhone: String
-        recruitmentResponsibleEmail: String
-        recruitmentResponsibleFunction: String
-        companySectors: [String!]!
-        companyDescription: String
+    type CompanyInfos {
+        id: Int
+        name: String
+        ape: String
+        idcc: String
+        siret: String
+        mainActivity: String
         opco: Opco
         referralSource: ReferralSource
-        positionsCount: Int!
-        positions: [NeedsAnalysisPosition!]!
-        localisation: Localisation
-        trainingDomain: TrainingDomain!
-        jobTitle: String!
-        selectedMissions: [String!]!
-        otherMissions: String
-        jobDescriptionMissions: [String!]!
-        jobDescriptionOther: String
+        sector: String
+        activities: [String!]!
+        description: String
+        postalCode: String
+        commune: String
+    }
+
+    type SalerInfo {
+        id: Int
+        email: String
+    }
+
+    type ReferentDetails {
+        name: String
+        phone: String
+        email: String
+        function: String
+    }
+
+    type Referents {
+        isSame: Boolean
+        legalReferents: ReferentDetails
+        recruitmentReferents: ReferentDetails
+    }
+
+    type OfferCriteria {
         educationLevel: EducationLevel
-        drivingLicense: DrivingLicense!
-        experienceRequired: ExperienceRequired!
-        ageRequirements: [String!]!
+        drivingLicense: Boolean
+        experienceRequired: Boolean
+        trainingDomain: TrainingDomain
         ageMin: Int
         ageMax: Int
+        desiredSex: String
         softSkills: String
         scheduleOptions: [String!]!
         conditions: String
         additionalComments: String
-        recruitmentMethod: RecruitmentMethod!
-        immersionPeriod: ImmersionPeriod!
-        trainingDays: String!
+    }
+
+    input OfferCriteriaInput {
+        educationLevel: EducationLevel
+        drivingLicense: Boolean
+        experienceRequired: Boolean
+        ageMin: Int
+        ageMax: Int
+        desiredSex: String
+        softSkills: String
+        scheduleOptions: [String!]
+        conditions: String
+        additionalComments: String
+    }
+
+    type Position {
+        localisation: [Localisation!]!
+        tpType: TitleProfessionalType
+        trainingDomain: TrainingDomain
+        title: String!
+        missions: [String!]!
+        descriptionMissions: [String!]!
+        otherDescriptionMissions: String
+        otherMissions: String
+        criteria: OfferCriteria
+    }
+
+    input PositionInput {
+        localisation: [Localisation!]!
+        trainingDomain: TrainingDomain
+        title: String!
+        missions: [String!]
+        descriptionMissions: [String!]
+        otherDescriptionMissions: String
+        otherMissions: String
+        criteria: OfferCriteriaInput
+    }
+
+    type NeedsAnalysis {
+        id: ID!
+        companyInfos: CompanyInfos
+        salerInfo: SalerInfo
+        referents: Referents
+        positionsCount: Int!
+        positions: [Position!]!
+        recruitmentMethod: RecruitmentMethod
+        immersionPeriod: ImmersionPeriod
+        trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
         createdAt: String
@@ -163,25 +206,9 @@ export const typeDefs = gql`
         companyDescription: String
         opco: Opco
         referralSource: ReferralSource
-        positionsCount: Int
-        positions: [NeedsAnalysisPositionInput!]
-        localisation: Localisation
-        trainingDomain: TrainingDomain
-        jobTitle: String
-        selectedMissions: [String!]
-        otherMissions: String
-        jobDescriptionMissions: [String!]
-        jobDescriptionOther: String
-        educationLevel: EducationLevel
-        drivingLicense: DrivingLicense
-        experienceRequired: ExperienceRequired
-        ageRequirements: [String!]
-        ageMin: Int
-        ageMax: Int
-        softSkills: String
-        scheduleOptions: [String!]
-        conditions: String
-        additionalComments: String
+        postalCode: String
+        commune: String
+        positions: [PositionInput!]
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
         trainingDays: String
@@ -189,15 +216,37 @@ export const typeDefs = gql`
         status: NeedsAnalysisStatus
     }
 
-    extend type Query {
+    type AbDriveFolder {
+        sector: String!
+        kind: String!
+        folderId: String
+    }
+
+    type AbDriveConfig {
+        sectorFolders: [AbDriveFolder!]!
+    }
+
+    input AbDriveFolderInput {
+        sector: String!
+        kind: String!
+        folderId: String
+    }
+
+    input AbDriveConfigInput {
+        sectorFolders: [AbDriveFolderInput!]!
+    }
+
+    type Query {
         needsAnalyses: [NeedsAnalysis!]!
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
+        abDriveConfig: AbDriveConfig!
     }
 
-    extend type Mutation {
+    type Mutation {
         createNeedsAnalysis(input: NeedsAnalysisInput!): NeedsAnalysis!
         updateNeedsAnalysis(id: ID!, input: NeedsAnalysisInput!): NeedsAnalysis!
         deleteNeedsAnalysis(id: ID!): Boolean!
+        updateAbDriveConfig(input: AbDriveConfigInput!): AbDriveConfig!
     }
 `;

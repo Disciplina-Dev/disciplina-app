@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
-import { NeedsAnalysis } from '../types/needsAnalysis.types';
+import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // Sur Vercel/Lambda (pas de Chromium système), on utilise @sparticuz/chromium
@@ -198,37 +198,25 @@ function sh(title: string): string {
     return `<div class="section-header">${title}</div>`;
 }
 
-function buildHtml(analysis: NeedsAnalysis, company: Companies): string {
-    const days = parseDays(analysis.trainingDays);
+function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
+    const days = parseDays(analysis.trainingDays ?? '{}');
 
-    const legalRepFunction = analysis.legalRepFunction ?? '';
-    const secteurs = (analysis.companySectors ?? []).join(', ');
-    const descriptionActivite = analysis.companyDescription ?? '';
-    const missionsType = (analysis.jobDescriptionMissions ?? []).join(', ');
-    const descriptifMissions = analysis.jobDescriptionOther ?? '';
-    const conditions = analysis.conditions ?? (analysis.scheduleOptions ?? []).join(', ');
-    const commentaires = analysis.additionalComments ?? '';
+    const legalRepFunction = analysis.referents?.legalReferents?.function ?? '';
+    const secteurs = (analysis.companyInfos?.activities ?? []).join(', ');
+    const descriptionActivite = analysis.companyInfos?.description ?? '';
 
-    // Legacy rows have no positions array: rebuild one from the single-position columns
-    const positions = analysis.positions?.length
-        ? analysis.positions
-        : [
-              {
-                  trainingDomain: analysis.trainingDomain,
-                  jobTitle: analysis.jobTitle,
-                  selectedMissions: analysis.selectedMissions ?? [],
-                  localisation: analysis.localisation ? [analysis.localisation] : [],
-              },
-          ];
+    const positions = analysis.positions ?? [];
 
     const positionBlocks = positions
         .map((p, i) => {
             const title =
                 positions.length > 1 ? `Poste ${i + 1} sur ${positions.length}` : 'Exigences du poste à pourvoir';
-            const missionItems = (p.selectedMissions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
+            const missionItems = (p.missions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
+            const missionsType = (p.descriptionMissions ?? []).join(', ');
+            const descriptifMissions = p.otherDescriptionMissions ?? '';
             return `
 ${sh(title)}
-${fr('Intitulé de la formation :', p.jobTitle)}
+${fr('Intitulé de la formation :', p.title)}
 <div class="inline-row">
     <span class="field-label">Domaine de formation :</span>
     <span class="option">${chk(p.trainingDomain === 'SECRETARIAT')}&nbsp;Secrétariat</span>
@@ -239,16 +227,62 @@ ${fr('Localisation du poste :', formatCommunes(p.localisation))}
     <span class="field-label">Description des missions :</span><br/>
     <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
     ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : '<div class="text-area">&nbsp;</div>'}
-</div>`;
+</div>
+${
+    missionsType || descriptifMissions
+        ? `
+<div class="field-row">
+    <span class="field-label">Description complémentaire des missions :</span><br/>
+    ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
+    ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
+</div>`
+        : ''
+}`;
         })
         .join('');
 
-    const ageLine =
-        analysis.ageMin || analysis.ageMax
-            ? [analysis.ageMin ? `de ${analysis.ageMin} ans` : '', analysis.ageMax ? `à ${analysis.ageMax} ans` : '']
-                  .filter(Boolean)
-                  .join(' ')
-            : (analysis.ageRequirements ?? []).join(', ');
+    const criteriaBlocks = positions
+        .map((p, i) => {
+            const c = p.criteria ?? ({} as NonNullable<typeof p.criteria>);
+            const title =
+                positions.length > 1 ? `Exigences — Poste ${i + 1} sur ${positions.length}` : "Exigences de l'apprenti";
+            const ageLine =
+                c.ageMin || c.ageMax
+                    ? [c.ageMin ? `de ${c.ageMin} ans` : '', c.ageMax ? `à ${c.ageMax} ans` : '']
+                          .filter(Boolean)
+                          .join(' ')
+                    : '';
+            const conditions = c.conditions ?? (c.scheduleOptions ?? []).join(', ');
+            const commentaires = c.additionalComments ?? '';
+            return `
+${sh(title)}
+<div class="field-row">
+    <span class="field-label">Permis :</span><br/>
+    <div class="option-block">${chk(c.drivingLicense === true)}&nbsp;Oui</div>
+    <div class="option-block">${chk(c.drivingLicense === false)}&nbsp;Optionnel</div>
+</div>
+
+<div class="field-row">
+    <span class="field-label">Expérience requis :</span><br/>
+    <div class="option-block">${chk(c.experienceRequired === false)}&nbsp;Débutant</div>
+    <div class="option-block">${chk(c.experienceRequired === true)}&nbsp;Obligatoire</div>
+</div>
+
+${ageLine ? fr("Âge exigé de l'apprenti :", ageLine) : ''}
+${c.educationLevel ? fr('Niveau de formation :', label(c.educationLevel)) : ''}
+
+<div class="field-row">
+    <span class="field-label">Profils recherchés, compétences et savoir-être requises (techniques, comportementales, soft skills) :</span><br/>
+    <span class="hint">(Préciser les formations et expériences professionnelles souhaitées, compétences techniques spécifiques requises, qualités personnelles recherchées, etc.)</span>
+    <div class="text-area">${esc(c.softSkills) || '&nbsp;'}</div>
+</div>
+<div class="field-row">
+    <span class="field-label">Commentaires supplémentaires :</span><br/>
+    <span class="hint">(Précisions sur les horaires, les salaires, les avantages éventuels, etc.)</span>
+    <div class="text-area">${[esc(conditions), esc(commentaires)].filter(Boolean).join('\n') || '&nbsp;'}</div>
+</div>`;
+        })
+        .join('');
 
     const daysRows = Object.entries(days)
         .map(
@@ -390,9 +424,9 @@ ${fr('Courriel du représentant légal :', company.email)}
 ${sh(
     'Informations du responsable de recrutement <em style="font-weight:normal;font-size:9.5pt;">(si différent du représentant légal)</em>',
 )}
-${fr('Nom et prénom du responsable de recrutement :', analysis.recruitmentResponsibleName)}
-${fr('Téléphone du responsable de recrutement :', analysis.recruitmentResponsiblePhone)}
-${fr('Courriel du responsable de recrutement :', analysis.recruitmentResponsibleEmail)}
+${fr('Nom et prénom du responsable de recrutement :', analysis.referents?.recruitmentReferents?.name)}
+${fr('Téléphone du responsable de recrutement :', analysis.referents?.recruitmentReferents?.phone)}
+${fr('Courriel du responsable de recrutement :', analysis.referents?.recruitmentReferents?.email)}
 
 <!-- ═══ PAGE 2 — Entreprise & Poste ═══ -->
 <div class="page-break">
@@ -405,50 +439,20 @@ ${sh("A propos de l'entreprise")}
     }</div>
 </div>
 ${secteurs ? fr("Secteur(s) d'activité :", secteurs) : company.sector ? fr("Secteur d'activité :", company.sector) : ''}
-${analysis.opco ? fr('OPCO :', label(analysis.opco)) : ''}
-${analysis.referralSource ? fr('Comment a-t-il connu DISCIPLINA ? :', label(analysis.referralSource)) : ''}
+${analysis.companyInfos?.opco ? fr('OPCO :', label(analysis.companyInfos.opco)) : ''}
+${
+    analysis.companyInfos?.referralSource
+        ? fr('Comment a-t-il connu DISCIPLINA ? :', label(analysis.companyInfos.referralSource))
+        : ''
+}
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
 
 ${positionBlocks}
-${
-    missionsType || descriptifMissions
-        ? `
-<div class="field-row">
-    <span class="field-label">Description complémentaire des missions :</span><br/>
-    ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
-    ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
-</div>`
-        : ''
-}
-<div class="field-row">
-    <span class="field-label">Profils recherchés, compétences et savoir-être requises (techniques, comportementales, soft skills) :</span><br/>
-    <span class="hint">(Préciser les formations et expériences professionnelles souhaitées, compétences techniques spécifiques requises, qualités personnelles recherchées, etc.)</span>
-    <div class="text-area">${esc(analysis.softSkills) || '&nbsp;'}</div>
-</div>
-<div class="field-row">
-    <span class="field-label">Commentaires supplémentaires :</span><br/>
-    <span class="hint">(Précisions sur les horaires, les salaires, les avantages éventuels, etc.)</span>
-    <div class="text-area">${[esc(conditions), esc(commentaires)].filter(Boolean).join('\n') || '&nbsp;'}</div>
-</div>
 </div>
 
 <!-- ═══ PAGE 3 — Exigences apprenti ═══ -->
 <div class="page-break">
-${sh("Exigences de l'apprenti")}
-
-<div class="field-row">
-    <span class="field-label">Permis :</span><br/>
-    <div class="option-block">${chk(analysis.drivingLicense === 'OUI')}&nbsp;Oui</div>
-    <div class="option-block">${chk(analysis.drivingLicense === 'OPTIONNEL')}&nbsp;Optionnel</div>
-</div>
-
-<div class="field-row">
-    <span class="field-label">Expérience requis :</span><br/>
-    <div class="option-block">${chk(analysis.experienceRequired === 'DEBUTANT')}&nbsp;Débutant</div>
-    <div class="option-block">${chk(analysis.experienceRequired === 'OBLIGATOIRE')}&nbsp;Obligatoire</div>
-</div>
-
-${ageLine ? fr("Âge exigé de l'apprenti :", ageLine) : ''}
+${criteriaBlocks}
 
 <div class="field-row">
     <span class="field-label">Méthode de recrutement :</span><br/>
@@ -1232,7 +1236,7 @@ export class PdfService {
         });
     }
 
-    static async generateNeedsAnalysisPdf(analysis: NeedsAnalysis, company: Companies): Promise<Buffer> {
+    static async generateNeedsAnalysisPdf(analysis: NeedsAnalysisGql, company: Companies): Promise<Buffer> {
         const logoDataUrl = getLogoDataUrl();
         const html = buildHtml(analysis, company);
 

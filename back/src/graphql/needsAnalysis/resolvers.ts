@@ -1,6 +1,12 @@
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
+import {
+    abDriveConfigService,
+    abDriveConfigToGql,
+    abFolderKey,
+    AbFolderKind,
+} from '../../services/AbDriveConfigService';
 
 const needsAnalysisService = new NeedsAnalysisService();
 
@@ -18,6 +24,11 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return needsAnalysisService.findByCompanyId(companyID);
         },
+        abDriveConfig: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            const config = await abDriveConfigService.getConfig();
+            return abDriveConfigToGql(config);
+        },
     },
     Mutation: {
         createNeedsAnalysis: async (_: unknown, { input }: { input: any }, context: any) => {
@@ -32,7 +43,7 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             if (context.user.role === Role.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
-                if (existing?.userID && existing.userID !== context.user.id) {
+                if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
                     throw new Error('Forbidden: You can only edit your own needs analyses');
                 }
             }
@@ -42,11 +53,21 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             if (context.user.role === Role.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
-                if (existing?.userID && existing.userID !== context.user.id) {
+                if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
                     throw new Error('Forbidden: You can only delete your own needs analyses');
                 }
             }
             return needsAnalysisService.delete(id);
+        },
+        updateAbDriveConfig: async (_: unknown, { input }: { input: any }, context: any) => {
+            authGuard(context.user, [Role.RESPONSABLE]);
+            const sectorFolders: Record<string, string> = {};
+            for (const f of input.sectorFolders ?? []) {
+                const folderId = (f.folderId ?? '').trim();
+                if (folderId) sectorFolders[abFolderKey(f.sector, f.kind as AbFolderKind)] = folderId;
+            }
+            const updated = await abDriveConfigService.updateConfig({ sectorFolders });
+            return abDriveConfigToGql(updated);
         },
     },
 };
