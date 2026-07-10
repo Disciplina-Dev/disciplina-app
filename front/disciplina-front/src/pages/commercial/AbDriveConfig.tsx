@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FolderCog, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import { graphqlClient } from '@/graphql/client'
+import { needsAnalysisGraphqlClient } from '@/graphql/client'
 import { GET_AB_DRIVE_CONFIG, UPDATE_AB_DRIVE_CONFIG } from '@/graphql/queries'
 
 // Secteurs métier Disciplina (valeurs canoniques côté back : utils/sector.ts).
@@ -22,7 +22,7 @@ export default function AbDriveConfig() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    graphqlClient
+    needsAnalysisGraphqlClient
       .query(GET_AB_DRIVE_CONFIG, {})
       .toPromise()
       .then((res) => {
@@ -51,7 +51,9 @@ export default function AbDriveConfig() {
         folderId: (folders[folderKey(sector, kind)] ?? '').trim() || null,
       })),
     )
-    const res = await graphqlClient.mutation(UPDATE_AB_DRIVE_CONFIG, { input: { sectorFolders } }).toPromise()
+    const res = await needsAnalysisGraphqlClient
+      .mutation(UPDATE_AB_DRIVE_CONFIG, { input: { sectorFolders } })
+      .toPromise()
     setSaving(false)
     if (res.error) {
       setError(res.error.message)

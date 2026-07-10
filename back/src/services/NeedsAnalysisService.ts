@@ -158,7 +158,7 @@ export class NeedsAnalysisService {
 
         // Archivage Drive du PDF non signé, dans le dossier du secteur du commercial.
         // Best-effort : n'échoue pas l'envoi en signature.
-        await abDriveConfigService.archiveAbPdf(analysis.userID, 'UNSIGNED', buffer, filename);
+        await abDriveConfigService.archiveAbPdf(analysis.salerInfo?.id ?? undefined, 'UNSIGNED', buffer, filename);
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.

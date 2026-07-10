@@ -58,7 +58,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
     for (const signedDoc of signedDocuments) {
         const isMandat = /mandat/i.test(signedDoc.name);
         const fname = isMandat ? `Mandat_Publication_${safeName}_Signe.pdf` : `Analyse_Besoin_${safeName}_Signee.pdf`;
-        await abDriveConfigService.archiveAbPdf(analysis.userID, 'SIGNED', signedDoc.buffer, fname);
+        await abDriveConfigService.archiveAbPdf(analysis.salerInfo?.id ?? undefined, 'SIGNED', signedDoc.buffer, fname);
     }
 
     // Trouver un compte avec des credentials Google valides pour envoyer l'email.
