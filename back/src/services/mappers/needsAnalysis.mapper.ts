@@ -7,6 +7,7 @@ import {
     OfferCriteria,
     CompanyRegion,
     NeedsAnalysisStatus,
+    TrainingDomain,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
 import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, Zone } from './abToJob';
@@ -30,29 +31,37 @@ export function zoneFromCommunes(communes: string[] | undefined, fallback: Zone)
 
 function buildPosition(position: Position): Position {
     const c = position.criteria ?? {};
+    const trainingDomain =
+        position.training_domain ??
+        (position as any).trainingDomain ??
+        c.training_domain ??
+        (c as any).trainingDomain ??
+        null;
+    const tDomain = trainingDomain as TrainingDomain | null;
     const criteria: OfferCriteria = {
-        education_level: c.education_level ?? null,
-        driving_license: c.driving_license ?? false,
-        experience_required: c.experience_required ?? false,
-        training_domain: position.training_domain ?? null,
-        age_min: c.age_min ?? null,
-        age_max: c.age_max ?? null,
-        desired_sex: c.desired_sex ?? null,
-        soft_skills: c.soft_skills ?? null,
-        schedule_options: c.schedule_options ?? [],
+        education_level: c.education_level ?? (c as any).educationLevel ?? null,
+        driving_license: c.driving_license ?? (c as any).drivingLicense ?? false,
+        experience_required: c.experience_required ?? (c as any).experienceRequired ?? false,
+        training_domain: trainingDomain,
+        age_min: c.age_min ?? (c as any).ageMin ?? null,
+        age_max: c.age_max ?? (c as any).ageMax ?? null,
+        desired_sex: c.desired_sex ?? (c as any).desiredSex ?? null,
+        soft_skills: c.soft_skills ?? (c as any).softSkills ?? null,
+        schedule_options: c.schedule_options ?? (c as any).scheduleOptions ?? [],
         conditions: c.conditions ?? null,
-        additional_comments: c.additional_comments ?? null,
+        additional_comments: c.additional_comments ?? (c as any).additionalComments ?? null,
     };
 
     return {
         localisation: position.localisation ?? [],
-        tp_type: (position.training_domain && DOMAIN_TO_TP[position.training_domain]) ?? null,
-        training_domain: position.training_domain ?? null,
+        tp_type: (tDomain && DOMAIN_TO_TP[tDomain]) ?? null,
+        training_domain: trainingDomain,
         title: position.title,
         missions: position.missions ?? [],
-        description_missions: position.description_missions ?? [],
-        other_description_missions: position.other_description_missions ?? null,
-        other_missions: position.other_missions ?? null,
+        description_missions: position.description_missions ?? (position as any).descriptionMissions ?? [],
+        other_description_missions:
+            position.other_description_missions ?? (position as any).otherDescriptionMissions ?? null,
+        other_missions: position.other_missions ?? (position as any).otherMissions ?? null,
         criteria,
     };
 }
