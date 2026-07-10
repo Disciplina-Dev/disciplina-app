@@ -26,6 +26,7 @@ import {
   Send,
   Heart,
   CalendarClock,
+  FileEdit,
 } from 'lucide-react'
 import { GET_OFFERS, GET_COMPANIES, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, UNMATCH_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
@@ -46,6 +47,9 @@ import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
 import { isInterviewDatePast } from '@/utils/interview'
+import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
+import { useNeedsAnalysis, useCompanyBySiret } from '@/graphql/hooks'
+import type { Entreprise } from '@/types/entreprise'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 
@@ -82,6 +86,9 @@ interface Referents {
 
 interface Job {
   id: string
+  needsAnalysisId?: string | null
+  companyInfos?: { id?: number; name?: string; activities?: string[] | null } | null
+  softSkills?: string | null
   companyName: string
   ageRange: string
   desiredTP: string | null
@@ -523,6 +530,7 @@ function JobDetailsSection({
   isCreatingSession,
   onProposeCandidates,
   onShowCompanyInfo,
+  onEditAb,
 }: {
   job: MatchJobResult
   onSetStatus: (status: OfferStatus) => void
@@ -530,6 +538,7 @@ function JobDetailsSection({
   isCreatingSession: boolean
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
+  onEditAb?: () => void
 }) {
   const chip = statusChip(job.status)
 
@@ -554,17 +563,29 @@ function JobDetailsSection({
             </span>
           </div>
         </div>
-        {hasAcceptedCandidates && (
-          <button
-            onClick={onProposeCandidates}
-            disabled={isCreatingSession}
-            className="flex shrink-0 items-center gap-2 rounded-xl border border-blue/20 px-4 py-2 text-sm font-semibold text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
-            title="Proposer les candidats acceptés à l'entreprise via un lien sécurisé"
-          >
-            {isCreatingSession ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            Proposer les candidats
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {onEditAb && (
+            <button
+              onClick={onEditAb}
+              className="flex items-center justify-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue/20 hover:text-blue hover:bg-blue-light/30 md:px-4"
+              title="Modifier l'analyse du besoin"
+            >
+              <FileEdit size={16} />
+              <span className="hidden md:inline">Modifier l'AB</span>
+            </button>
+          )}
+          {hasAcceptedCandidates && (
+            <button
+              onClick={onProposeCandidates}
+              disabled={isCreatingSession}
+              className="flex shrink-0 items-center gap-2 rounded-xl border border-blue/20 px-4 py-2 text-sm font-semibold text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
+              title="Proposer les candidats acceptés à l'entreprise via un lien sécurisé"
+            >
+              {isCreatingSession ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              Proposer les candidats
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-4 pb-4 border-b border-gray-50">
@@ -591,8 +612,10 @@ function JobDetailsSection({
               </div>
             </div>
           )}
+        </div>
+        <div className="flex flex-wrap gap-2 mt-2">
           {job.missions && job.missions.length > 0 && (
-            <div className="col-span-2">
+            <div>
               <details className="group">
                 <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
                   <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
@@ -605,6 +628,46 @@ function JobDetailsSection({
                     <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
                       <span className="text-gray-300 mt-0.5 shrink-0">•</span>
                       {mission}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+          {job.companyInfos?.activities && job.companyInfos.activities.length > 0 && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    {job.companyInfos.activities.length} secteur{job.companyInfos.activities.length > 1 ? 's' : ''} d'activité
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {job.companyInfos.activities.map((activity, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {activity}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+          {job.softSkills && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    Soft skills
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {job.softSkills.split(',').map((skill, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {skill.trim()}
                     </p>
                   ))}
                 </div>
@@ -1286,7 +1349,7 @@ function ProposeResultModal({ companyName, onClose }: { companyName: string; onC
   )
 }
 
-function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
+function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null }) {
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
   const [showCompanyInfo, setShowCompanyInfo] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
@@ -1311,7 +1374,20 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [conclusionCandidate, setConclusionCandidate] = useState<ProposedCandidate | null>(null)
   const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<ProposedCandidate | null>(null)
   const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
+  const [abEditOpen, setAbEditOpen] = useState(false)
+  const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
+  const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
+  const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
+  const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
+  const abCompany = abCompanyResult.data?.companyBySiret
   const token = useAuthStore((s) => s.token)
+
+  useEffect(() => {
+    if (abEditOpen && needsAnalysisData?.companyInfos?.siret) {
+      searchAbCompanyBySiret(needsAnalysisData.companyInfos.siret)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abEditOpen, needsAnalysisData?.companyInfos?.siret])
 
   const loadJobData = useCallback(async (job: Job) => {
     setIsLoading(true)
@@ -1620,6 +1696,17 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
   }
 
+  const handleEditAb = () => {
+    if (!selectedJob?.needsAnalysisId) return
+    setAbNeedsAnalysisId(selectedJob.needsAnalysisId)
+    setAbEditOpen(true)
+  }
+
+  const handleAbEditClose = () => {
+    setAbEditOpen(false)
+    setAbNeedsAnalysisId(null)
+  }
+
   if (!selectedJob) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 py-24 text-center">
@@ -1663,10 +1750,15 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         isCreatingSession={isCreatingSession}
         onProposeCandidates={handleOpenProposeCandidates}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
+        onEditAb={
+          selectedJob?.needsAnalysisId && (currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN)
+            ? handleEditAb
+            : undefined
+        }
       />
 
       {showCompanyInfo && selectedJob && (
-        <CompanyInfoModal offerId={selectedJob.id} onClose={() => setShowCompanyInfo(false)} />
+        <CompanyInfoModal offerId={selectedJob.id} needsAnalysisId={selectedJob.needsAnalysisId} onClose={() => setShowCompanyInfo(false)} />
       )}
 
       <RetainedCandidatesSection
@@ -1795,6 +1887,43 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           onClose={() => setImmersionConclusionCandidate(null)}
         />
       )}
+
+      {abEditOpen && needsAnalysisData && selectedJob && (
+        <NeedsAnalysisModal
+          entreprise={{
+            // Fusionne la fiche entreprise réelle (siret/adresse/légal, si trouvée) avec
+            // les infos de l'analyse du besoin — champ par champ, l'un comblant les trous de l'autre.
+            id: String(abCompany?.id ?? selectedJob.companyInfos?.id ?? ''),
+            nom_commercial: abCompany?.name ?? selectedJob.companyName ?? null,
+            proprietaire_contact: null,
+            commercial: null,
+            proprietaire_id: abCompany?.userID ?? null,
+            representant_legal: abCompany?.legalReferent ?? needsAnalysisData.referents?.legalReferents?.name ?? null,
+            telephone: abCompany?.phone ?? needsAnalysisData.referents?.legalReferents?.phone ?? null,
+            email: abCompany?.email ?? needsAnalysisData.referents?.legalReferents?.email ?? null,
+            adresse: abCompany?.address ?? null,
+            secteur: abCompany?.sector ?? needsAnalysisData.companyInfos?.activities?.join(', ') ?? null,
+            metier: abCompany?.mainActivity ?? null,
+            siret: abCompany?.siret ?? needsAnalysisData.companyInfos?.siret ?? null,
+            idcc: abCompany?.idcc ?? needsAnalysisData.companyInfos?.idcc ?? null,
+            note: abCompany?.notes ?? needsAnalysisData.companyInfos?.description ?? null,
+            conclusion: abCompany?.conclusion ?? null,
+            status: (abCompany?.status as Entreprise['status']) || (needsAnalysisData.status as Entreprise['status']) || 'À Réfléchir',
+            date_insertion: null,
+            date_relance: null,
+            type_relance: null,
+            relance_template_id: null,
+            relance_channel: null,
+          }}
+          currentUser={currentUser!}
+          initialData={needsAnalysisData}
+          onClose={handleAbEditClose}
+          onSuccess={() => {
+            handleAbEditClose()
+            if (selectedJob) loadJobData(selectedJob)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -1803,6 +1932,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
 export default function Matching() {
   const [searchParams] = useSearchParams()
+  const currentUser = useCurrentUser()
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [filters, setFilters] = useState<JobFiltersType>(EMPTY_JOB_FILTERS)
 
@@ -1887,7 +2017,7 @@ export default function Matching() {
 
         {/* ─ Right: Detail panel ─ */}
         <div className="flex-1 overflow-y-auto px-5 pt-5">
-          <RightPanel selectedJob={selectedJob} />
+          <RightPanel selectedJob={selectedJob} currentUser={currentUser} />
         </div>
       </div>
     </div>

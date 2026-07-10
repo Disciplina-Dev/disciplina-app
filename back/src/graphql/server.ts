@@ -15,19 +15,23 @@ import { todoResolvers } from './todo/resolver';
 const combinedCompanyResolvers = {
     Query: {
         ...companyResolvers.Query,
-        ...needsAnalysisResolvers.Query,
         ...todoResolvers.Query,
     },
     Mutation: {
         ...companyResolvers.Mutation,
-        ...needsAnalysisResolvers.Mutation,
         ...todoResolvers.Mutation,
     },
 };
 
 export const CompanyAPI = new ApolloServer({
-    typeDefs: [UserTypeDefs, companyTypeDefs, needsAnalysisTypeDefs, todoTypeDefs],
+    typeDefs: [UserTypeDefs, companyTypeDefs, todoTypeDefs],
     resolvers: combinedCompanyResolvers,
+    context: jwtContext,
+});
+
+export const NeedsAnalysisAPI = new ApolloServer({
+    typeDefs: [UserTypeDefs, needsAnalysisTypeDefs],
+    resolvers: needsAnalysisResolvers,
     context: jwtContext,
 });
 

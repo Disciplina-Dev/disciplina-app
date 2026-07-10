@@ -1,4 +1,5 @@
 import { Briefcase, Users, GraduationCap, ClipboardList, Calendar, Hash } from 'lucide-react'
+import { formatTrainingDays } from '@/utils/trainingDays'
 
 export const AB_STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -80,30 +81,6 @@ export interface AbDetail {
   softSkills?: string | null
   trainingDays?: string
   yousignSignatureRequestID?: string | null
-}
-
-function formatTrainingDays(raw?: string): string | null {
-  if (!raw) return null
-  try {
-    const days = JSON.parse(raw)
-    const DAY_LABELS: Record<string, string> = {
-      monday: 'Lundi', tuesday: 'Mardi', wednesday: 'Mercredi',
-      thursday: 'Jeudi', friday: 'Vendredi',
-    }
-    const STATUS_LABELS: Record<string, string> = { OUI: '✓', NON: '✗', PREFERE: '~' }
-    const periodsToLabel = (v: unknown): string => {
-      if (Array.isArray(v)) {
-        if (v.includes('PREFERE')) return '~'
-        return v.length > 0 ? '✓' : '✗'
-      }
-      return STATUS_LABELS[v as string] ?? String(v)
-    }
-    return Object.entries(days)
-      .map(([k, v]) => `${DAY_LABELS[k] ?? k}: ${periodsToLabel(v)}`)
-      .join('  •  ')
-  } catch {
-    return raw
-  }
 }
 
 export function ABDetailContent({ ab }: { ab: AbDetail }) {

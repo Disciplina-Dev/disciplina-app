@@ -10,8 +10,9 @@ import type { AppUser } from '@/store/authStore'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
-import { useCreateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
+import { useCreateNeedsAnalysis, useUpdateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
 import { Localisation } from '@/types/candidate'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
@@ -42,11 +43,24 @@ interface TrainingDaysState {
   friday: DayStatus
 }
 
+interface PosteCriteria {
+  drivingLicense: 'OUI' | 'OPTIONNEL' | undefined
+  experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE' | undefined
+  ageMin: string
+  ageMax: string
+  softSkills: string[]
+  softSkillsOther: string
+  conditions: string
+  additionalComments: string
+}
+
 interface Poste {
   trainingDomain: TrainingDomain | undefined
   jobTitle: string
   selectedMissions: string[]
   localisation: Localisation[]
+  otherDescriptionMissions: string
+  criteria: PosteCriteria
 }
 
 interface FormData {
@@ -70,15 +84,6 @@ interface FormData {
   opco: Opco | undefined
   companySectorOther: string
   companyDescriptionOther: string
-  jobDescriptionOther: string
-  softSkills: string[]
-  softSkillsOther: string
-  conditions: string
-  additionalComments: string
-  drivingLicense: 'OUI' | 'OPTIONNEL'
-  experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE'
-  ageMin: string
-  ageMax: string
   recruitmentMethod: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW'
   immersionPeriod: 'OUI' | 'NON' | 'A_DISCUTER'
 }
@@ -252,6 +257,17 @@ const EMPTY_POSTE: Poste = {
   jobTitle: '',
   selectedMissions: [],
   localisation: [],
+  otherDescriptionMissions: '',
+  criteria: {
+    drivingLicense: undefined,
+    experienceRequired: undefined,
+    ageMin: '',
+    ageMax: '',
+    softSkills: [],
+    softSkillsOther: '',
+    conditions: '',
+    additionalComments: '',
+  },
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -456,65 +472,116 @@ interface Props {
   currentUser: AppUser
   onClose: () => void
   onSuccess: () => void
+  initialData?: NeedsAnalysis | null
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, onSuccess }: Props) {
-  const [trainingDays, setTrainingDays] = useState<TrainingDaysState>({
-    monday: 'OUI', tuesday: 'OUI', wednesday: 'OUI', thursday: 'OUI', friday: 'OUI',
+export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, onSuccess, initialData }: Props) {
+  const parseSoftSkills = (raw: string | null | undefined): string[] => {
+    if (!raw) return []
+    return raw.split(',').map((s) => s.trim()).filter(Boolean)
+  }
+
+  const parseTrainingDays = (raw: string | null | undefined): TrainingDaysState => {
+    const defaults: TrainingDaysState = { monday: 'OUI', tuesday: 'OUI', wednesday: 'OUI', thursday: 'OUI', friday: 'OUI' }
+    if (!raw) return defaults
+    try {
+      const days: Record<string, string[]> = JSON.parse(raw)
+      const mapPeriod = (periods: string[]): DayStatus => {
+        if (periods.includes('PREFERE')) return 'PREFERE'
+        if (periods.length === 0) return 'NON'
+        return 'OUI'
+      }
+      return {
+        monday:    mapPeriod(days.monday ?? []),
+        tuesday:   mapPeriod(days.tuesday ?? []),
+        wednesday: mapPeriod(days.wednesday ?? []),
+        thursday:  mapPeriod(days.thursday ?? []),
+        friday:    mapPeriod(days.friday ?? []),
+      }
+    } catch {
+      return defaults
+    }
+  }
+
+  const [trainingDays, setTrainingDays] = useState<TrainingDaysState>(
+    parseTrainingDays(initialData?.trainingDays)
+  )
+  const [postes, setPostes] = useState<Poste[]>(() => {
+    if (initialData?.positions && initialData.positions.length > 0) {
+      return initialData.positions.map((p) => ({
+        trainingDomain: p.trainingDomain as TrainingDomain | undefined,
+        jobTitle: p.title ?? '',
+        selectedMissions: p.missions ?? [],
+        localisation: (p.localisation ?? []) as Localisation[],
+        otherDescriptionMissions: p.otherDescriptionMissions ?? '',
+        criteria: {
+          drivingLicense: p.criteria?.drivingLicense == null ? undefined : p.criteria.drivingLicense ? 'OUI' : 'OPTIONNEL',
+          experienceRequired: p.criteria?.experienceRequired == null ? undefined : p.criteria.experienceRequired ? 'OBLIGATOIRE' : 'DEBUTANT',
+          ageMin: p.criteria?.ageMin != null ? String(p.criteria.ageMin) : '',
+          ageMax: p.criteria?.ageMax != null ? String(p.criteria.ageMax) : '',
+          softSkills: parseSoftSkills(p.criteria?.softSkills),
+          softSkillsOther: '',
+          conditions: p.criteria?.conditions ?? '',
+          additionalComments: p.criteria?.additionalComments ?? '',
+        },
+      }))
+    }
+    return [{ ...EMPTY_POSTE }]
   })
-  const [postes, setPostes] = useState<Poste[]>([{ ...EMPTY_POSTE }])
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
   // Quelle action a déclenché la soumission : télécharger le PDF ou l'envoyer en signature.
   const intentRef = useRef<'download' | 'sign'>('download')
 
-  const { createNeedsAnalysis, result } = useCreateNeedsAnalysis()
+  const isEditing = !!initialData
+  const { createNeedsAnalysis, result: createResult } = useCreateNeedsAnalysis()
+  const { updateNeedsAnalysis: updateMutation, result: updateResult } = useUpdateNeedsAnalysis()
+  const result = isEditing ? updateResult : createResult
   const { update: updateCompany } = useUpdateCompany()
+
+  const initialReferents = initialData?.referents
+  const initialCompanyInfos = initialData?.companyInfos
 
   const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       companyName:        entreprise.nom_commercial ?? '',
       companySiret:       entreprise.siret ?? '',
       companyAddress:     entreprise.adresse ?? '',
-      companyPostalCode:  '',
-      companyCommune:     '',
+      companyPostalCode:  initialCompanyInfos?.postalCode ?? '',
+      companyCommune:     initialCompanyInfos?.commune ?? '',
       legalRepName:       entreprise.representant_legal ?? '',
-      legalRepFunction:   '',
+      legalRepFunction:   initialReferents?.legalReferents?.function ?? '',
       legalRepFunctionOther: '',
       legalRepPhone:      entreprise.telephone ?? '',
       legalRepEmail:      entreprise.email ?? '',
-      isDifferentRecruitmentResponsible: false,
-      recruitmentResponsibleName:     '',
-      recruitmentResponsibleFunction: '',
+      isDifferentRecruitmentResponsible: !!(initialReferents?.recruitmentReferents?.name && initialReferents.recruitmentReferents.name !== entreprise.representant_legal),
+      recruitmentResponsibleName:     initialReferents?.recruitmentReferents?.name ?? '',
+      recruitmentResponsibleFunction: initialReferents?.recruitmentReferents?.function ?? '',
       recruitmentResponsibleFunctionOther: '',
-      recruitmentResponsiblePhone:    '',
-      recruitmentResponsibleEmail:    '',
-      companySectors:           [],
+      recruitmentResponsiblePhone:    initialReferents?.recruitmentReferents?.phone ?? '',
+      recruitmentResponsibleEmail:    initialReferents?.recruitmentReferents?.email ?? '',
+      companySectors:           initialCompanyInfos?.activities ?? [],
       companySectorOther:       '',
-      opco:                     undefined,
-      companyDescriptionOther:  '',
-      jobDescriptionOther:      '',
-      softSkills:               [],
-      softSkillsOther:          '',
-      conditions:               '',
-      additionalComments:       '',
-      drivingLicense:     undefined,
-      experienceRequired: undefined,
-      ageMin:             '',
-      ageMax:             '',
-      recruitmentMethod:  undefined,
-      immersionPeriod:    undefined,
+      opco:                     (initialCompanyInfos?.opco as Opco | undefined) ?? undefined,
+      companyDescriptionOther:  initialCompanyInfos?.description ?? '',
+      recruitmentMethod:  (initialData?.recruitmentMethod as 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW' | undefined) ?? undefined,
+      immersionPeriod:    (initialData?.immersionPeriod as 'OUI' | 'NON' | 'A_DISCUTER' | undefined) ?? undefined,
     },
   })
+
+  useEffect(() => {
+    if (entreprise.adresse) {
+      setValue('companyAddress', entreprise.adresse)
+    }
+  }, [entreprise.adresse, setValue])
 
   const isDifferentResponsible = watch('isDifferentRecruitmentResponsible')
   const legalRepFunction       = watch('legalRepFunction')
   const responsibleFunction    = watch('recruitmentResponsibleFunction')
   const companySectors         = watch('companySectors') ?? []
-  const softSkills             = watch('softSkills') ?? []
   const companyPostalCode      = watch('companyPostalCode')
 
   // Code postal valide (5 chiffres) → renseigne automatiquement la commune via
@@ -557,6 +624,8 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       if (!p.jobTitle) return 'Sélectionnez l\'intitulé de la formation.'
       if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
       if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
+      if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
+      if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
       return ''
     })
     setPosteErrors(errs)
@@ -566,6 +635,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   // ─── Submit ──────────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: FormData) => {
+    console.log('[NeedsAnalysisModal] onSubmit triggered', { isEditing, initialDataId: initialData?.id })
     setSubmitError(null)
 
     if (!validatePostes()) {
@@ -573,6 +643,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       return
     }
 
+    try {
     // L'identité de l'entreprise (raison sociale, SIRET, adresse, représentant
     // légal) vit dans la table `companies` — le PDF de l'AB est généré côté
     // serveur à partir de cet enregistrement, pas du formulaire. On persiste donc
@@ -594,11 +665,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       phone: data.legalRepPhone,
       email: data.legalRepEmail,
     })
-
-    const softSkillsFull = [
-      ...data.softSkills,
-      ...(data.softSkillsOther ? [data.softSkillsOther] : []),
-    ].join(', ') || null
 
     const dayToPeriods = (v: DayStatus): string[] =>
       v === 'OUI' ? ['MATIN', 'APRES_MIDI'] : v === 'PREFERE' ? ['PREFERE'] : []
@@ -628,7 +694,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           recruitmentResponsibleFunction: null,
         }
 
-    const response = await createNeedsAnalysis({
+    const input = {
       companyID:          parseInt(entreprise.id),
       userID:             currentUser.id,
       legalRepFunction:   resolveFunction(data.legalRepFunction, data.legalRepFunctionOther),
@@ -636,34 +702,45 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companySectors:     [...companySectors, ...(data.companySectorOther.trim() ? [data.companySectorOther.trim()] : [])],
       opco:               data.opco || null,
       companyDescription: data.companyDescriptionOther || null,
-      positionsCount:     postes.length,
+      postalCode:         data.companyPostalCode || null,
+      commune:            data.companyCommune || null,
       positions:          postes.map((p) => ({
         trainingDomain:   p.trainingDomain,
-        jobTitle:         p.jobTitle,
-        selectedMissions: p.selectedMissions,
+        title:            p.jobTitle,
+        missions:         p.selectedMissions,
         localisation:     p.localisation,
+        descriptionMissions: [],
+        otherDescriptionMissions: p.otherDescriptionMissions || null,
+        otherMissions:    null,
+        criteria: {
+          educationLevel:     null,
+          drivingLicense:     p.criteria.drivingLicense === 'OUI',
+          experienceRequired: p.criteria.experienceRequired === 'OBLIGATOIRE',
+          ageMin:             p.criteria.ageMin ? Number(p.criteria.ageMin) : null,
+          ageMax:             p.criteria.ageMax ? Number(p.criteria.ageMax) : null,
+          softSkills:         [...p.criteria.softSkills, ...(p.criteria.softSkillsOther ? [p.criteria.softSkillsOther] : [])].join(', ') || null,
+          scheduleOptions:    [],
+          conditions:         p.criteria.conditions || null,
+          additionalComments: p.criteria.additionalComments || null,
+        },
       })),
-      jobDescriptionMissions: [],
-      jobDescriptionOther:    data.jobDescriptionOther || null,
-      drivingLicense:         data.drivingLicense,
-      experienceRequired:     data.experienceRequired,
-      ageMin:                 data.ageMin ? Number(data.ageMin) : null,
-      ageMax:                 data.ageMax ? Number(data.ageMax) : null,
-      softSkills:             softSkillsFull,
-      conditions:             data.conditions || null,
-      additionalComments:     data.additionalComments || null,
       recruitmentMethod:      data.recruitmentMethod,
       immersionPeriod:        data.immersionPeriod,
       trainingDays:           trainingDaysJson,
-    })
+    }
+
+    let response
+    if (isEditing && initialData) {
+      response = await updateMutation(initialData.id, input)
+    } else {
+      response = await createNeedsAnalysis(input)
+    }
 
     if (response.error) { setSubmitError(response.error.message); return }
 
-    const createdId = response.data?.createNeedsAnalysis?.id
-    if (createdId) {
+    const createdId = isEditing ? initialData?.id : response.data?.createNeedsAnalysis?.id
+    if (createdId && !isEditing) {
       if (intentRef.current === 'sign') {
-        // L'AB est créée (BROUILLON). On ouvre l'aperçu avant l'envoi DocuSeal :
-        // l'envoi réel n'a lieu qu'à la confirmation dans SignaturePreviewModal.
         setPreviewId(createdId)
         return
       }
@@ -677,6 +754,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
     onSuccess()
     onClose()
+  } catch (error) {
+    console.error('[NeedsAnalysisModal] onSubmit error:', error)
+    setSubmitError(error instanceof Error ? error.message : 'Erreur inattendue lors de l\'enregistrement')
+  }
   }
 
   // Confirmation de l'aperçu → envoi en signature réel, puis fermeture.
@@ -737,7 +818,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-black">Analyse du Besoin</h2>
+            <h2 className="text-lg font-bold text-black">{isEditing ? "Modifier l'Analyse du Besoin" : "Analyse du Besoin"}</h2>
             <p className="text-sm text-gray-500">{entreprise.nom_commercial}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900">
@@ -926,77 +1007,70 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       renderLabel={formatCommune}
                       columns={2} />
 
+                    <TextareaField id={`jobDescriptionOther-${index}`} label="Description complémentaire" optional rows={3}
+                      placeholder="Responsabilités spécifiques, contexte…"
+                      value={poste.otherDescriptionMissions}
+                      onChange={(e) => updatePoste(index, { otherDescriptionMissions: e.target.value })} />
+
+                    <CheckboxGroup
+                      label="Compétences et savoir-être attendus"
+                      options={SOFT_SKILLS_LIST}
+                      selected={poste.criteria.softSkills}
+                      onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, softSkills: v } })}
+                      columns={2}
+                    />
+                    <InputField id={`softSkillsOther-${index}`} label="Autre compétence (optionnel)"
+                      placeholder="Ex : maîtrise d'un logiciel spécifique…"
+                      value={poste.criteria.softSkillsOther}
+                      onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, softSkillsOther: e.target.value } })} />
+
+                    <TextareaField id={`conditions-${index}`} label="Conditions du poste" optional rows={3}
+                      placeholder="Horaires, télétravail, avantages, véhicule…"
+                      value={poste.criteria.conditions}
+                      onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, conditions: e.target.value } })} />
+
+                    <TextareaField id={`additionalComments-${index}`} label="Commentaires supplémentaires" optional rows={2}
+                      placeholder="Salaire, avantages, informations spécifiques…"
+                      value={poste.criteria.additionalComments}
+                      onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, additionalComments: e.target.value } })} />
+
+                    <RadioGroup label="Permis de conduire B *"
+                      options={[{ value: 'OUI' as const, label: 'Obligatoire' }, { value: 'OPTIONNEL' as const, label: 'Optionnel' }]}
+                      value={poste.criteria.drivingLicense}
+                      onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, drivingLicense: v } })}
+                      required />
+
+                    <RadioGroup label="Expérience requise *"
+                      options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}
+                      value={poste.criteria.experienceRequired}
+                      onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, experienceRequired: v } })}
+                      required />
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700">
+                        Âge souhaité <span className="text-gray-400">(optionnel)</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={99} placeholder="18"
+                          value={poste.criteria.ageMin}
+                          onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMin: e.target.value } })} />
+                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={15} max={99} placeholder="29"
+                          value={poste.criteria.ageMax}
+                          onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMax: e.target.value } })} />
+                      </div>
+                    </div>
+
                     {posteErrors[index] && <FieldError message={posteErrors[index]} />}
                   </div>
                 ))}
-
-                <TextareaField id="jobDescriptionOther" label="Description complémentaire" optional rows={3}
-                  placeholder="Responsabilités spécifiques, contexte…"
-                  {...register('jobDescriptionOther')} />
-
-                <CheckboxGroup
-                  label="Compétences et savoir-être attendus"
-                  options={SOFT_SKILLS_LIST}
-                  selected={softSkills}
-                  onChange={(v) => setValue('softSkills', v)}
-                  columns={2}
-                />
-                <InputField id="softSkillsOther" label="Autre compétence (optionnel)"
-                  placeholder="Ex : maîtrise d'un logiciel spécifique…"
-                  {...register('softSkillsOther')} />
-
-                <TextareaField id="conditions" label="Conditions du poste" optional rows={3}
-                  placeholder="Horaires, télétravail, avantages, véhicule…"
-                  {...register('conditions')} />
-
-                <TextareaField id="additionalComments" label="Commentaires supplémentaires" optional rows={2}
-                  placeholder="Salaire, avantages, informations spécifiques…"
-                  {...register('additionalComments')} />
               </section>
 
               {/* ── Exigences de l'apprenti ──────────────────────────────────── */}
               <section className="flex flex-col gap-5">
-                <SectionTitle>Exigences de l'apprenti</SectionTitle>
+                <SectionTitle>Recrutement</SectionTitle>
 
-                <input type="hidden" {...register('drivingLicense',     { required: 'Champ obligatoire' })} />
-                <input type="hidden" {...register('experienceRequired', { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('recruitmentMethod',  { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('immersionPeriod',    { required: 'Champ obligatoire' })} />
-
-                <RadioGroup label="Permis de conduire B *"
-                  options={[{ value: 'OUI' as const, label: 'Obligatoire' }, { value: 'OPTIONNEL' as const, label: 'Optionnel' }]}
-                  value={watch('drivingLicense')}
-                  onChange={(v) => setValue('drivingLicense', v, { shouldValidate: true })}
-                  error={errors.drivingLicense?.message} required />
-
-                <RadioGroup label="Expérience requise *"
-                  options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}
-                  value={watch('experienceRequired')}
-                  onChange={(v) => setValue('experienceRequired', v, { shouldValidate: true })}
-                  error={errors.experienceRequired?.message} required />
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-gray-700">
-                    Âge souhaité <span className="text-gray-400">(optionnel)</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <InputField id="ageMin" label="De (ans)" type="number" min={15} max={99} placeholder="18"
-                      error={errors.ageMin?.message}
-                      {...register('ageMin', {
-                        validate: (v) => !v || (Number(v) >= 15 && Number(v) <= 99) || 'Âge invalide',
-                      })} />
-                    <InputField id="ageMax" label="À (ans)" type="number" min={15} max={99} placeholder="29"
-                      error={errors.ageMax?.message}
-                      {...register('ageMax', {
-                        validate: (v, form) => {
-                          if (!v) return true
-                          if (Number(v) < 15 || Number(v) > 99) return 'Âge invalide'
-                          if (form.ageMin && Number(v) < Number(form.ageMin)) return 'Doit être ≥ âge min'
-                          return true
-                        },
-                      })} />
-                  </div>
-                </div>
 
                 <RadioGroup label="Méthode de recrutement *"
                   options={[
@@ -1064,23 +1138,31 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4">
             <Button variant="secondary" onClick={onClose}>Annuler</Button>
             <div className="flex items-center gap-2">
-              <Button
-                type="submit"
-                variant="secondary"
-                isLoading={result.fetching}
-                leftIcon={<Check size={16} />}
-                onClick={() => { intentRef.current = 'download' }}
-              >
-                Enregistrer & télécharger
-              </Button>
-              <Button
-                type="submit"
-                isLoading={result.fetching}
-                leftIcon={<PenLine size={16} />}
-                onClick={() => { intentRef.current = 'sign' }}
-              >
-                Enregistrer & envoyer en signature
-              </Button>
+              {isEditing ? (
+                <Button type="submit" isLoading={result.fetching} leftIcon={<Check size={16} />}>
+                  Enregistrer les modifications
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    isLoading={result.fetching}
+                    leftIcon={<Check size={16} />}
+                    onClick={() => { intentRef.current = 'download' }}
+                  >
+                    Enregistrer & télécharger
+                  </Button>
+                  <Button
+                    type="submit"
+                    isLoading={result.fetching}
+                    leftIcon={<PenLine size={16} />}
+                    onClick={() => { intentRef.current = 'sign' }}
+                  >
+                    Enregistrer & envoyer en signature
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </form>

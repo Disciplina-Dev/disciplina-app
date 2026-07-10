@@ -46,3 +46,11 @@ export const offerGraphqlClient = new Client({
   exchanges,
   fetchOptions: getFetchOptions,
 })
+
+// Client dédié aux analyses de besoins (endpoint séparé)
+export const NEEDS_ANALYSIS_URL = `${import.meta.env.VITE_API_URL}/api/graphql/needs-analysis`
+export const needsAnalysisGraphqlClient = new Client({
+  url: NEEDS_ANALYSIS_URL,
+  exchanges,
+  fetchOptions: getFetchOptions,
+})

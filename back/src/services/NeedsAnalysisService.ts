@@ -1,9 +1,12 @@
 import { randomUUID } from 'crypto';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { NeedsAnalysis } from '../types/needsAnalysis.types';
-import { NeedsAnalysis as NeedsAnalysisNoSql, NeedsAnalysisStatus } from '../types/needsAnalysisNoSql.types';
-import { toNeedsAnalysis, toNeedsAnalysisDocument } from './mappers/needsAnalysis.mapper';
+import {
+    NeedsAnalysis as NeedsAnalysisNoSql,
+    NeedsAnalysisWriteInput,
+    NeedsAnalysisStatus,
+} from '../types/needsAnalysisNoSql.types';
+import { toNeedsAnalysis, toNeedsAnalysisDocument, NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { buildOffers, mergeOfferIdentity } from './mappers/offer.mapper';
 import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
@@ -51,24 +54,24 @@ export class NeedsAnalysisService {
         this.todoService = new TodoService();
     }
 
-    async findAll(): Promise<NeedsAnalysis[]> {
+    async findAll(): Promise<NeedsAnalysisGql[]> {
         const docs = await this.repository.findAll();
         return docs.map(toNeedsAnalysis);
     }
 
-    async findById(id: string): Promise<NeedsAnalysis | null> {
+    async findById(id: string): Promise<NeedsAnalysisGql | null> {
         const doc = await this.repository.findById(id);
         return doc ? toNeedsAnalysis(doc) : null;
     }
 
-    async findByCompanyId(companyId: number): Promise<NeedsAnalysis[]> {
+    async findByCompanyId(companyId: number): Promise<NeedsAnalysisGql[]> {
         const docs = await this.repository.findByCompanyId(companyId);
         return docs.map(toNeedsAnalysis);
     }
 
-    async create(data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
+    async create(data: Partial<NeedsAnalysisWriteInput>): Promise<NeedsAnalysisGql> {
         logger.info(
-            { companyID: data.companyID, userID: data.userID, jobTitle: data.jobTitle },
+            { companyID: data.companyID, userID: data.userID, title: data.positions?.[0]?.title },
             '[NeedsAnalysis] create() called',
         );
         this.validateData(data);
@@ -81,7 +84,11 @@ export class NeedsAnalysisService {
 
         const saler = data.userID ? await this.userRepository.findById(data.userID) : null;
         const id = randomUUID();
-        const document = toNeedsAnalysisDocument({ ...data, id, status: 'BROUILLON' }, company, saler);
+        const document = toNeedsAnalysisDocument(
+            { ...data, id, status: NeedsAnalysisStatus.BROUILLON },
+            company,
+            saler,
+        );
         const created = await this.repository.create(document);
         await this.companiesService.setAbId(company.id, id);
         logger.info({ id, status: created.status }, '[NeedsAnalysis] create() complete');
@@ -96,9 +103,9 @@ export class NeedsAnalysisService {
             throw new Error('Needs analysis not found');
         }
         const analysis = toNeedsAnalysis(doc);
-        const company = await this.companiesService.findById(analysis.companyID);
+        const company = await this.companiesService.findById(analysis.companyInfos?.id!);
         if (!company) {
-            throw new Error(`Company with ID ${analysis.companyID} not found`);
+            throw new Error(`Company with ID ${analysis.companyInfos?.id} not found`);
         }
         const buffer = await PdfService.generateNeedsAnalysisPdf(analysis, company);
         const filename = `Analyse_Besoin_${company.name?.replace(/\s+/g, '_') || 'Entreprise'}_${id}.pdf`;
@@ -110,27 +117,27 @@ export class NeedsAnalysisService {
      * responsable recrutement. Passe le statut à EN_ATTENTE_SIGNATURE et stocke
      * l'identifiant de submission.
      */
-    async sendForSignature(id: string): Promise<NeedsAnalysis> {
+    async sendForSignature(id: string): Promise<NeedsAnalysisGql> {
         const doc = await this.repository.findById(id);
         if (!doc) {
             throw new Error('Needs analysis not found');
         }
         const analysis = toNeedsAnalysis(doc);
 
-        const signerEmail = analysis.recruitmentResponsibleEmail;
+        const signerEmail = analysis.referents?.recruitmentReferents?.email;
         if (!signerEmail) {
             throw new Error('No recruitment responsible email to send the signature request to');
         }
 
-        const company = await this.companiesService.findById(analysis.companyID);
+        const company = await this.companiesService.findById(analysis.companyInfos?.id!);
         if (!company) {
-            throw new Error(`Company with ID ${analysis.companyID} not found`);
+            throw new Error(`Company with ID ${analysis.companyInfos?.id} not found`);
         }
 
         const buffer = await PdfService.generateNeedsAnalysisPdf(analysis, company);
         const filename = `Analyse_Besoin_${company.name?.replace(/\s+/g, '_') || 'Entreprise'}_${id}.pdf`;
 
-        const [firstName, ...rest] = (analysis.recruitmentResponsibleName ?? '').trim().split(/\s+/);
+        const [firstName, ...rest] = (analysis.referents?.recruitmentReferents?.name ?? '').trim().split(/\s+/);
         const lastName = rest.join(' ');
 
         const submissionId = await this.docusealService.initiateSignatureProcedure(
@@ -208,7 +215,7 @@ export class NeedsAnalysisService {
         );
     }
 
-    async update(id: string, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis> {
+    async update(id: string, data: Partial<NeedsAnalysisWriteInput>): Promise<NeedsAnalysisGql> {
         if (!id) {
             throw new Error('Valid needs analysis ID is required');
         }
@@ -216,12 +223,44 @@ export class NeedsAnalysisService {
         if (!existing) {
             throw new Error('Needs analysis not found');
         }
-        const merged = { ...toNeedsAnalysis(existing), ...data, id };
-        const company = await this.companiesService.findById(merged.companyID);
-        if (!company) {
-            throw new Error(`Company with ID ${merged.companyID} not found`);
+
+        const companyID = data.companyID ?? existing.company_infos?.id;
+        const userID = data.userID ?? existing.saler_info?.id;
+        const merged: NeedsAnalysisWriteInput = {
+            id,
+            companyID,
+            userID,
+            legalRepFunction: data.legalRepFunction ?? existing.referents?.legal_referents?.function ?? null,
+            recruitmentResponsibleName:
+                data.recruitmentResponsibleName ?? existing.referents?.recruitment_referents?.name ?? null,
+            recruitmentResponsiblePhone:
+                data.recruitmentResponsiblePhone ?? existing.referents?.recruitment_referents?.phone ?? null,
+            recruitmentResponsibleEmail:
+                data.recruitmentResponsibleEmail ?? existing.referents?.recruitment_referents?.email ?? null,
+            recruitmentResponsibleFunction:
+                data.recruitmentResponsibleFunction ?? existing.referents?.recruitment_referents?.function ?? null,
+            companySectors: data.companySectors ?? existing.company_infos?.activities ?? [],
+            companyDescription: data.companyDescription ?? existing.company_infos?.description ?? null,
+            opco: data.opco ?? existing.company_infos?.opco ?? null,
+            referralSource: data.referralSource ?? existing.company_infos?.referral_source ?? null,
+            postalCode: data.postalCode ?? existing.company_infos?.postal_code ?? null,
+            commune: data.commune ?? existing.company_infos?.commune ?? null,
+            positions: data.positions ?? existing.positions ?? [],
+            recruitmentMethod: data.recruitmentMethod ?? existing.recruitment_method,
+            immersionPeriod: data.immersionPeriod ?? existing.immersion_period,
+            trainingDays: data.trainingDays ?? existing.training_days,
+            yousignSignatureRequestID: data.yousignSignatureRequestID ?? existing.signature_request_id ?? null,
+            status: data.status ?? existing.status,
+        };
+
+        if (!companyID) {
+            throw new Error(`Company with ID ${companyID} not found`);
         }
-        const saler = merged.userID ? await this.userRepository.findById(merged.userID) : null;
+        const company = await this.companiesService.findById(companyID);
+        if (!company) {
+            throw new Error(`Company with ID ${companyID} not found`);
+        }
+        const saler = userID ? await this.userRepository.findById(userID) : null;
         const document = toNeedsAnalysisDocument(merged, company, saler);
         const updated = await this.repository.update(id, document);
         if (!updated) {
@@ -289,14 +328,14 @@ export class NeedsAnalysisService {
         return this.repository.delete(id);
     }
 
-    private validateData(data: Partial<NeedsAnalysis>): void {
+    private validateData(data: Partial<NeedsAnalysisWriteInput>): void {
         if (!data.companyID) {
             throw new Error('Company ID is required');
         }
         if (!data.userID) {
             throw new Error('User ID is required');
         }
-        if (!data.jobTitle && !data.positions?.[0]?.jobTitle) {
+        if (!data.positions?.[0]?.title) {
             throw new Error('Job title is required');
         }
     }

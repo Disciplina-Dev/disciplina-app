@@ -1,9 +1,48 @@
 import { useState } from 'react'
-import { X, Trash2 } from 'lucide-react'
+import { X, Briefcase, Users, ClipboardList, Calendar, Hash, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
-import { ABDetailContent, AB_STATUS_BADGE } from './ABDetailContent'
+import { formatCommune } from '@/data/reunionCommunes'
+import { formatTrainingDays } from '@/utils/trainingDays'
+
+const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
+  EN_ATTENTE_SIGNATURE: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'En attente de signature' },
+  SIGNE:                { bg: 'bg-green-100',  text: 'text-green-700',  label: 'Signé' },
+  EXPIRE:               { bg: 'bg-red-100',    text: 'text-red-600',    label: 'Expiré' },
+}
+
+const LABELS: Record<string, Record<string, string>> = {
+  localisation:       { NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud' },
+  trainingDomain:     { SECRETARIAT: 'Secrétariat', VENTE: 'Vente' },
+  educationLevel:     { BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3' },
+  recruitmentMethod:  { ALL_CV: 'Tous les CV', PRESELECTION: 'Présélection', PRE_INTERVIEW: 'Pré-entretien' },
+  immersionPeriod:    { OUI: 'Oui', NON: 'Non', A_DISCUTER: 'À discuter' },
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  if (!value) return null
+  return (
+    <div className="flex justify-between gap-4 py-2 border-b border-gray-100 last:border-0">
+      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide shrink-0">{label}</span>
+      <span className="text-sm text-gray-900 text-right">{value}</span>
+    </div>
+  )
+}
+
+function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">
+        {icon}{title}
+      </p>
+      <div className="bg-gray-50 rounded-xl px-4 py-1">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 interface Props {
   id: string
@@ -16,7 +55,8 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const ab = result.data?.needsAnalysis
-  const badge = ab ? (AB_STATUS_BADGE[ab.status] ?? AB_STATUS_BADGE['BROUILLON']) : null
+  const badge = ab ? (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']) : null
+  const trainingDaysDisplay = formatTrainingDays(ab?.trainingDays)
 
   const handleDelete = async () => {
     await deleteNeedsAnalysis(id)
@@ -37,7 +77,9 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
             {result.fetching && <p className="text-sm text-gray-400">Chargement...</p>}
             {ab && (
               <>
-                <h2 className="text-lg font-bold text-gray-900 truncate">{ab.jobTitle}</h2>
+                <h2 className="text-lg font-bold text-gray-900 truncate">
+                  {ab.positions?.map((p: { title?: string }) => p.title).filter(Boolean).join(' / ') || 'Analyse du besoin'}
+                </h2>
                 <div className="flex items-center gap-2 mt-1">
                   {badge && (
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.bg} ${badge.text}`}>
@@ -95,8 +137,91 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
 
         {/* Body */}
         {ab && (
-          <div className="overflow-y-auto flex-1 p-6">
-            <ABDetailContent ab={ab} />
+          <div className="overflow-y-auto flex-1 p-6 space-y-5">
+            {ab.referents?.legalReferents?.function && (
+              <Section icon={<Users className="h-3.5 w-3.5" />} title="Représentant légal">
+                <Row label="Fonction" value={ab.referents.legalReferents.function} />
+              </Section>
+            )}
+
+            {(ab.referents?.recruitmentReferents?.name || ab.referents?.recruitmentReferents?.email) && (
+              <Section icon={<Users className="h-3.5 w-3.5" />} title="Responsable recrutement">
+                <Row label="Nom"      value={ab.referents.recruitmentReferents.name} />
+                <Row label="Fonction" value={ab.referents.recruitmentReferents.function} />
+                <Row label="Tél"      value={ab.referents.recruitmentReferents.phone} />
+                <Row label="Email"    value={ab.referents.recruitmentReferents.email} />
+              </Section>
+            )}
+
+            {(ab.companyInfos?.activities?.length > 0 || ab.companyInfos?.description) && (
+              <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
+                {ab.companyInfos.activities?.length > 0 && (
+                  <Row label="Secteurs" value={ab.companyInfos.activities.join(', ')} />
+                )}
+                <Row label="Description" value={ab.companyInfos.description} />
+              </Section>
+            )}
+
+            <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Poste">
+              <Row label="Postes"              value={`${ab.positionsCount} poste${ab.positionsCount > 1 ? 's' : ''}`} />
+              <Row label="Méthode recrutement" value={LABELS.recruitmentMethod[ab.recruitmentMethod]} />
+              <Row label="Immersion"           value={LABELS.immersionPeriod[ab.immersionPeriod]} />
+            </Section>
+
+            {(ab.positions ?? []).map((p: any, i: number, arr: unknown[]) => {
+              const c = p.criteria ?? {}
+              return (
+                <Section
+                  key={i}
+                  icon={<ClipboardList className="h-3.5 w-3.5" />}
+                  title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
+                >
+                  <Row label="Intitulé"     value={p.title} />
+                  <Row label="Domaine"      value={LABELS.trainingDomain[p.trainingDomain]} />
+                  <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
+                  {p.missions?.length > 0 && (
+                    <div className="py-2">
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {p.missions.map((m: string) => (
+                          <li key={m} className="text-sm text-gray-900">{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(p.descriptionMissions?.length > 0 || p.otherDescriptionMissions) && (
+                    <>
+                      {p.descriptionMissions?.length > 0 && (
+                        <Row label="Types de missions" value={p.descriptionMissions.join(', ')} />
+                      )}
+                      <Row label="Descriptif" value={p.otherDescriptionMissions} />
+                    </>
+                  )}
+                  {c.educationLevel && (
+                    <Row label="Niveau d'études" value={LABELS.educationLevel[c.educationLevel]} />
+                  )}
+                  <Row label="Permis B"   value={c.drivingLicense == null ? null : c.drivingLicense ? 'Oui' : 'Optionnel'} />
+                  <Row label="Expérience" value={c.experienceRequired == null ? null : c.experienceRequired ? 'Expérience obligatoire' : 'Débutant accepté'} />
+                  {(c.ageMin || c.ageMax) && (
+                    <Row label="Âge" value={[c.ageMin ? `de ${c.ageMin} ans` : null, c.ageMax ? `à ${c.ageMax} ans` : null].filter(Boolean).join(' ')} />
+                  )}
+                  <Row label="Soft skills" value={c.softSkills} />
+                  <Row label="Conditions" value={c.conditions ?? (c.scheduleOptions?.length > 0 ? c.scheduleOptions.join(', ') : null)} />
+                  <Row label="Commentaires" value={c.additionalComments} />
+                </Section>
+              )
+            })}
+
+            {trainingDaysDisplay && (
+              <Section icon={<Calendar className="h-3.5 w-3.5" />} title="Jours de formation">
+                <div className="py-2 text-sm text-gray-900">{trainingDaysDisplay}</div>
+              </Section>
+            )}
+
+            {ab.yousignSignatureRequestID && (
+              <Section icon={<Hash className="h-3.5 w-3.5" />} title="Signature électronique">
+                <Row label="Référence" value={ab.yousignSignatureRequestID} />
+              </Section>
+            )}
           </div>
         )}
       </div>

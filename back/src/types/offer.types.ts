@@ -5,6 +5,7 @@ export interface OfferCompanyInfos {
     id?: number;
     name?: string;
     sector?: CompanyRegion;
+    activities?: string[];
 }
 
 export interface Offer extends Position {

@@ -1,8 +1,6 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { Offer } from '../types/offer.types';
-import { toNeedsAnalysis } from './mappers/needsAnalysis.mapper';
 import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
@@ -65,9 +63,11 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
     const ageMax = offer.criteria?.age_max;
     const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
     const candidates = offer.matching?.candidates ?? [];
+    console.log('offer: ', offer);
 
     return {
         id: offer._id,
+        needsAnalysisId: offer.needs_analysis_id,
         companyName: offer.company_infos?.name,
         ageRange,
         desiredTP: offer.tp_type,
@@ -95,6 +95,10 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
                   recruitmentReferents: offer.referents.recruitment_referents,
               }
             : undefined,
+        softSkills: offer.criteria?.soft_skills,
+        companyInfos: offer.company_infos
+            ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
+            : null,
         title: offer.title,
         missions: offer.missions,
     };
@@ -125,7 +129,6 @@ function deriveJobStatus(matchedCandidates: MatchingCandidate[], currentStatus?:
 
 export class OfferService {
     private offerRepository = new OfferRepository();
-    private needsAnalysisRepository = new NeedsAnalysisRepository();
     private candidateRepository = new CandidateRepository();
     private candidateService = new CandidateService();
     private candidateHistoryService = new CandidateHistoryService();
@@ -143,12 +146,8 @@ export class OfferService {
         const companyId = offer.company_infos?.id;
         const companyName = offer.company_infos?.name;
         const company = companyId ? await this.companiesService.findById(companyId) : null;
-        const analysis = offer.needs_analysis_id
-            ? await this.needsAnalysisRepository.findById(offer.needs_analysis_id)
-            : null;
-        const ab = analysis ? toNeedsAnalysis(analysis) : null;
 
-        return { companyName: companyName ?? company?.name ?? null, company, ab };
+        return { companyName: companyName ?? company?.name ?? null, company };
     }
 
     async find(id: string): Promise<object | null> {
@@ -165,6 +164,10 @@ export class OfferService {
         }
 
         if (offer.localisation?.length) filter['job_info.geographic_mobility'] = { $all: offer.localisation };
+
+        if (offer.company_infos?.activities?.length) {
+            filter['desired_sectors'] = { $in: offer.company_infos.activities };
+        }
 
         const candidates = await this.candidateRepository.findByfilter(filter);
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);

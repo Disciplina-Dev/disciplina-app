@@ -75,6 +75,8 @@ export interface CompanyInfos {
     sector?: CompanyRegion;
     activities?: string[];
     description?: string | null;
+    postal_code?: string | null;
+    commune?: string | null;
 }
 
 export interface SalerInfo {
@@ -137,4 +139,31 @@ export interface NeedsAnalysis {
     status?: NeedsAnalysisStatus;
     created_at?: Date;
     updated_at?: Date;
+}
+
+// Forme d'écriture (mutation GraphQL) : les FK relationnelles (companyID/userID)
+// et les champs référent/entreprise restent plats côté input — le mapper les
+// replie dans company_infos/referents. `positions` correspond 1:1 à PositionInput.
+export interface NeedsAnalysisWriteInput {
+    id?: string;
+    companyID?: number;
+    userID?: number;
+    legalRepFunction?: string | null;
+    recruitmentResponsibleName?: string | null;
+    recruitmentResponsiblePhone?: string | null;
+    recruitmentResponsibleEmail?: string | null;
+    recruitmentResponsibleFunction?: string | null;
+    companySectors?: string[];
+    companyDescription?: string | null;
+    opco?: Opco | null;
+    referralSource?: ReferralSource | null;
+    postalCode?: string | null;
+    commune?: string | null;
+    positions?: Position[];
+    recruitmentMethod?: RecruitmentMethod;
+    immersionPeriod?: ImmersionPeriod;
+    trainingDays?: string;
+    yousignSignatureRequestID?: string | null;
+    status?: NeedsAnalysisStatus;
+    createdAt?: string;
 }
