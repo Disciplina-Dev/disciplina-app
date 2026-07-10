@@ -4,6 +4,7 @@ import { NeedsAnalysisStatus } from '../types/needsAnalysisNoSql.types';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { CompaniesService } from './CompaniesService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
+import { abDriveConfigService } from './AbDriveConfigService';
 import { GoogleGmailService } from '../external/google/gmail.service';
 import { logger } from '../external/logger/logger';
 import { Role } from '../types/user.types';
@@ -50,6 +51,17 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
     const commercial = analysis.salerInfo?.id ? await userRepo.findById(analysis.salerInfo.id) : null;
     const company = analysis.companyInfos?.id ? await companiesService.findById(analysis.companyInfos.id) : null;
     const companyName = company?.name || 'Entreprise';
+
+    // Archivage Drive du/des PDF signé(s) dans le dossier "signé" du secteur du commercial.
+    // Best-effort : n'empêche pas l'envoi de l'email ci-dessous.
+    const safeName = companyName.replace(/\s+/g, '_');
+    for (const signedDoc of signedDocuments) {
+        const isMandat = /mandat/i.test(signedDoc.name);
+        const fname = isMandat
+            ? `Mandat_Publication_${safeName}_Signe.pdf`
+            : `Analyse_Besoin_${safeName}_Signee.pdf`;
+        await abDriveConfigService.archiveAbPdf(analysis.userID, 'SIGNED', signedDoc.buffer, fname);
+    }
 
     // Trouver un compte avec des credentials Google valides pour envoyer l'email.
     let senderUser: any = commercial;

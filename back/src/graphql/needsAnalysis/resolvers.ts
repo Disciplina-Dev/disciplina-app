@@ -1,6 +1,12 @@
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { authGuard } from '../authGuard';
 import { Role } from '../../types/user.types';
+import {
+    abDriveConfigService,
+    abDriveConfigToGql,
+    abFolderKey,
+    AbFolderKind,
+} from '../../services/AbDriveConfigService';
 
 const needsAnalysisService = new NeedsAnalysisService();
 
@@ -17,6 +23,11 @@ export const resolvers = {
         needsAnalysesByCompany: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return needsAnalysisService.findByCompanyId(companyID);
+        },
+        abDriveConfig: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            const config = await abDriveConfigService.getConfig();
+            return abDriveConfigToGql(config);
         },
     },
     Mutation: {
@@ -47,6 +58,16 @@ export const resolvers = {
                 }
             }
             return needsAnalysisService.delete(id);
+        },
+        updateAbDriveConfig: async (_: unknown, { input }: { input: any }, context: any) => {
+            authGuard(context.user, [Role.RESPONSABLE]);
+            const sectorFolders: Record<string, string> = {};
+            for (const f of input.sectorFolders ?? []) {
+                const folderId = (f.folderId ?? '').trim();
+                if (folderId) sectorFolders[abFolderKey(f.sector, f.kind as AbFolderKind)] = folderId;
+            }
+            const updated = await abDriveConfigService.updateConfig({ sectorFolders });
+            return abDriveConfigToGql(updated);
         },
     },
 };
