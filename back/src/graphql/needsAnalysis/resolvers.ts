@@ -32,7 +32,7 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             if (context.user.role === Role.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
-                if (existing?.userID && existing.userID !== context.user.id) {
+                if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
                     throw new Error('Forbidden: You can only edit your own needs analyses');
                 }
             }
@@ -42,7 +42,7 @@ export const resolvers = {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             if (context.user.role === Role.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
-                if (existing?.userID && existing.userID !== context.user.id) {
+                if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
                     throw new Error('Forbidden: You can only delete your own needs analyses');
                 }
             }

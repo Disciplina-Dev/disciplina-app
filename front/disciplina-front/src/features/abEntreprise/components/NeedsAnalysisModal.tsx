@@ -12,6 +12,7 @@ import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCreateNeedsAnalysis, useUpdateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
 import { Localisation } from '@/types/candidate'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
@@ -42,11 +43,24 @@ interface TrainingDaysState {
   friday: DayStatus
 }
 
+interface PosteCriteria {
+  drivingLicense: 'OUI' | 'OPTIONNEL' | undefined
+  experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE' | undefined
+  ageMin: string
+  ageMax: string
+  softSkills: string[]
+  softSkillsOther: string
+  conditions: string
+  additionalComments: string
+}
+
 interface Poste {
   trainingDomain: TrainingDomain | undefined
   jobTitle: string
   selectedMissions: string[]
   localisation: Localisation[]
+  otherDescriptionMissions: string
+  criteria: PosteCriteria
 }
 
 interface FormData {
@@ -70,15 +84,6 @@ interface FormData {
   opco: Opco | undefined
   companySectorOther: string
   companyDescriptionOther: string
-  jobDescriptionOther: string
-  softSkills: string[]
-  softSkillsOther: string
-  conditions: string
-  additionalComments: string
-  drivingLicense: 'OUI' | 'OPTIONNEL'
-  experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE'
-  ageMin: string
-  ageMax: string
   recruitmentMethod: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW'
   immersionPeriod: 'OUI' | 'NON' | 'A_DISCUTER'
 }
@@ -252,6 +257,17 @@ const EMPTY_POSTE: Poste = {
   jobTitle: '',
   selectedMissions: [],
   localisation: [],
+  otherDescriptionMissions: '',
+  criteria: {
+    drivingLicense: undefined,
+    experienceRequired: undefined,
+    ageMin: '',
+    ageMax: '',
+    softSkills: [],
+    softSkillsOther: '',
+    conditions: '',
+    additionalComments: '',
+  },
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -449,37 +465,6 @@ function TextareaField({
   )
 }
 
-// ─── NeedsAnalysisData type for edit mode ──────────────────────────────────────
-
-interface NeedsAnalysisData {
-  id: string
-  legalRepFunction?: string | null
-  recruitmentResponsibleName?: string | null
-  recruitmentResponsiblePhone?: string | null
-  recruitmentResponsibleEmail?: string | null
-  recruitmentResponsibleFunction?: string | null
-  companySectors?: string[] | null
-  companyDescription?: string | null
-  opco?: string | null
-  referralSource?: string | null
-  positionsCount?: number | null
-  positions?: { trainingDomain?: string; jobTitle?: string; selectedMissions?: string[]; localisation?: string[] }[] | null
-  jobDescriptionOther?: string | null
-  drivingLicense?: string | null
-  experienceRequired?: string | null
-  ageRequirements?: string[] | null
-  ageMin?: number | null
-  ageMax?: number | null
-  softSkills?: string | null
-  scheduleOptions?: string[] | null
-  conditions?: string | null
-  additionalComments?: string | null
-  recruitmentMethod?: string | null
-  immersionPeriod?: string | null
-  trainingDays?: string | null
-  status?: string | null
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -487,13 +472,8 @@ interface Props {
   currentUser: AppUser
   onClose: () => void
   onSuccess: () => void
-  initialData?: NeedsAnalysisData | null
+  initialData?: NeedsAnalysis | null
 }
-  // entreprise: Entreprise
-  // currentUser: AppUser
-  // onClose: () => void
-  // onSuccess: () => void
-// }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -501,12 +481,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const parseSoftSkills = (raw: string | null | undefined): string[] => {
     if (!raw) return []
     return raw.split(',').map((s) => s.trim()).filter(Boolean)
-  }
-
-  const parseAgeRequirements = (requirements: string[] | null | undefined): { ageMin: string; ageMax: string } => {
-    if (!requirements || requirements.length === 0) return { ageMin: '', ageMax: '' }
-    const [min, max] = requirements
-    return { ageMin: min ?? '', ageMax: max ?? '' }
   }
 
   const parseTrainingDays = (raw: string | null | undefined): TrainingDaysState => {
@@ -538,9 +512,20 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     if (initialData?.positions && initialData.positions.length > 0) {
       return initialData.positions.map((p) => ({
         trainingDomain: p.trainingDomain as TrainingDomain | undefined,
-        jobTitle: p.jobTitle ?? '',
-        selectedMissions: p.selectedMissions ?? [],
+        jobTitle: p.title ?? '',
+        selectedMissions: p.missions ?? [],
         localisation: (p.localisation ?? []) as Localisation[],
+        otherDescriptionMissions: p.otherDescriptionMissions ?? '',
+        criteria: {
+          drivingLicense: p.criteria?.drivingLicense == null ? undefined : p.criteria.drivingLicense ? 'OUI' : 'OPTIONNEL',
+          experienceRequired: p.criteria?.experienceRequired == null ? undefined : p.criteria.experienceRequired ? 'OBLIGATOIRE' : 'DEBUTANT',
+          ageMin: p.criteria?.ageMin != null ? String(p.criteria.ageMin) : '',
+          ageMax: p.criteria?.ageMax != null ? String(p.criteria.ageMax) : '',
+          softSkills: parseSoftSkills(p.criteria?.softSkills),
+          softSkillsOther: '',
+          conditions: p.criteria?.conditions ?? '',
+          additionalComments: p.criteria?.additionalComments ?? '',
+        },
       }))
     }
     return [{ ...EMPTY_POSTE }]
@@ -557,7 +542,8 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const result = isEditing ? updateResult : createResult
   const { update: updateCompany } = useUpdateCompany()
 
-  const ages = parseAgeRequirements(initialData?.ageRequirements)
+  const initialReferents = initialData?.referents
+  const initialCompanyInfos = initialData?.companyInfos
 
   const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
@@ -567,29 +553,20 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companyPostalCode:  '',
       companyCommune:     '',
       legalRepName:       entreprise.representant_legal ?? '',
-      legalRepFunction:   initialData?.legalRepFunction ?? '',
+      legalRepFunction:   initialReferents?.legalReferents?.function ?? '',
       legalRepFunctionOther: '',
       legalRepPhone:      entreprise.telephone ?? '',
       legalRepEmail:      entreprise.email ?? '',
-      isDifferentRecruitmentResponsible: !!(initialData?.recruitmentResponsibleName && initialData.recruitmentResponsibleName !== entreprise.representant_legal),
-      recruitmentResponsibleName:     initialData?.recruitmentResponsibleName ?? '',
-      recruitmentResponsibleFunction: initialData?.recruitmentResponsibleFunction ?? '',
+      isDifferentRecruitmentResponsible: !!(initialReferents?.recruitmentReferents?.name && initialReferents.recruitmentReferents.name !== entreprise.representant_legal),
+      recruitmentResponsibleName:     initialReferents?.recruitmentReferents?.name ?? '',
+      recruitmentResponsibleFunction: initialReferents?.recruitmentReferents?.function ?? '',
       recruitmentResponsibleFunctionOther: '',
-      recruitmentResponsiblePhone:    initialData?.recruitmentResponsiblePhone ?? '',
-      recruitmentResponsibleEmail:    initialData?.recruitmentResponsibleEmail ?? '',
-      companySectors:           initialData?.companySectors ?? [],
+      recruitmentResponsiblePhone:    initialReferents?.recruitmentReferents?.phone ?? '',
+      recruitmentResponsibleEmail:    initialReferents?.recruitmentReferents?.email ?? '',
+      companySectors:           initialCompanyInfos?.activities ?? [],
       companySectorOther:       '',
-      opco:                     (initialData?.opco as Opco | undefined) ?? undefined,
-      companyDescriptionOther:  initialData?.companyDescription ?? '',
-      jobDescriptionOther:      initialData?.jobDescriptionOther ?? '',
-      softSkills:               parseSoftSkills(initialData?.softSkills),
-      softSkillsOther:          '',
-      conditions:               initialData?.conditions ?? '',
-      additionalComments:       initialData?.additionalComments ?? '',
-      drivingLicense:     (initialData?.drivingLicense as 'OUI' | 'OPTIONNEL' | undefined) ?? undefined,
-      experienceRequired: (initialData?.experienceRequired as 'DEBUTANT' | 'OBLIGATOIRE' | undefined) ?? undefined,
-      ageMin:             ages.ageMin,
-      ageMax:             ages.ageMax,
+      opco:                     (initialCompanyInfos?.opco as Opco | undefined) ?? undefined,
+      companyDescriptionOther:  initialCompanyInfos?.description ?? '',
       recruitmentMethod:  (initialData?.recruitmentMethod as 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW' | undefined) ?? undefined,
       immersionPeriod:    (initialData?.immersionPeriod as 'OUI' | 'NON' | 'A_DISCUTER' | undefined) ?? undefined,
     },
@@ -599,7 +576,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const legalRepFunction       = watch('legalRepFunction')
   const responsibleFunction    = watch('recruitmentResponsibleFunction')
   const companySectors         = watch('companySectors') ?? []
-  const softSkills             = watch('softSkills') ?? []
   const companyPostalCode      = watch('companyPostalCode')
 
   // Code postal valide (5 chiffres) → renseigne automatiquement la commune via
@@ -642,6 +618,8 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       if (!p.jobTitle) return 'Sélectionnez l\'intitulé de la formation.'
       if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
       if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
+      if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
+      if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
       return ''
     })
     setPosteErrors(errs)
@@ -680,11 +658,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       email: data.legalRepEmail,
     })
 
-    const softSkillsFull = [
-      ...data.softSkills,
-      ...(data.softSkillsOther ? [data.softSkillsOther] : []),
-    ].join(', ') || null
-
     const dayToPeriods = (v: DayStatus): string[] =>
       v === 'OUI' ? ['MATIN', 'APRES_MIDI'] : v === 'PREFERE' ? ['PREFERE'] : []
 
@@ -721,22 +694,26 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companySectors:     [...companySectors, ...(data.companySectorOther.trim() ? [data.companySectorOther.trim()] : [])],
       opco:               data.opco || null,
       companyDescription: data.companyDescriptionOther || null,
-      positionsCount:     postes.length,
       positions:          postes.map((p) => ({
         trainingDomain:   p.trainingDomain,
-        jobTitle:         p.jobTitle,
-        selectedMissions: p.selectedMissions,
+        title:            p.jobTitle,
+        missions:         p.selectedMissions,
         localisation:     p.localisation,
+        descriptionMissions: [],
+        otherDescriptionMissions: p.otherDescriptionMissions || null,
+        otherMissions:    null,
+        criteria: {
+          educationLevel:     null,
+          drivingLicense:     p.criteria.drivingLicense === 'OUI',
+          experienceRequired: p.criteria.experienceRequired === 'OBLIGATOIRE',
+          ageMin:             p.criteria.ageMin ? Number(p.criteria.ageMin) : null,
+          ageMax:             p.criteria.ageMax ? Number(p.criteria.ageMax) : null,
+          softSkills:         [...p.criteria.softSkills, ...(p.criteria.softSkillsOther ? [p.criteria.softSkillsOther] : [])].join(', ') || null,
+          scheduleOptions:    [],
+          conditions:         p.criteria.conditions || null,
+          additionalComments: p.criteria.additionalComments || null,
+        },
       })),
-      jobDescriptionMissions: [],
-      jobDescriptionOther:    data.jobDescriptionOther || null,
-      drivingLicense:         data.drivingLicense,
-      experienceRequired:     data.experienceRequired,
-      ageMin:                 data.ageMin ? Number(data.ageMin) : null,
-      ageMax:                 data.ageMax ? Number(data.ageMax) : null,
-      softSkills:             softSkillsFull,
-      conditions:             data.conditions || null,
-      additionalComments:     data.additionalComments || null,
       recruitmentMethod:      data.recruitmentMethod,
       immersionPeriod:        data.immersionPeriod,
       trainingDays:           trainingDaysJson,
@@ -1016,77 +993,70 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       renderLabel={formatCommune}
                       columns={2} />
 
+                    <TextareaField id={`jobDescriptionOther-${index}`} label="Description complémentaire" optional rows={3}
+                      placeholder="Responsabilités spécifiques, contexte…"
+                      value={poste.otherDescriptionMissions}
+                      onChange={(e) => updatePoste(index, { otherDescriptionMissions: e.target.value })} />
+
+                    <CheckboxGroup
+                      label="Compétences et savoir-être attendus"
+                      options={SOFT_SKILLS_LIST}
+                      selected={poste.criteria.softSkills}
+                      onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, softSkills: v } })}
+                      columns={2}
+                    />
+                    <InputField id={`softSkillsOther-${index}`} label="Autre compétence (optionnel)"
+                      placeholder="Ex : maîtrise d'un logiciel spécifique…"
+                      value={poste.criteria.softSkillsOther}
+                      onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, softSkillsOther: e.target.value } })} />
+
+                    <TextareaField id={`conditions-${index}`} label="Conditions du poste" optional rows={3}
+                      placeholder="Horaires, télétravail, avantages, véhicule…"
+                      value={poste.criteria.conditions}
+                      onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, conditions: e.target.value } })} />
+
+                    <TextareaField id={`additionalComments-${index}`} label="Commentaires supplémentaires" optional rows={2}
+                      placeholder="Salaire, avantages, informations spécifiques…"
+                      value={poste.criteria.additionalComments}
+                      onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, additionalComments: e.target.value } })} />
+
+                    <RadioGroup label="Permis de conduire B *"
+                      options={[{ value: 'OUI' as const, label: 'Obligatoire' }, { value: 'OPTIONNEL' as const, label: 'Optionnel' }]}
+                      value={poste.criteria.drivingLicense}
+                      onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, drivingLicense: v } })}
+                      required />
+
+                    <RadioGroup label="Expérience requise *"
+                      options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}
+                      value={poste.criteria.experienceRequired}
+                      onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, experienceRequired: v } })}
+                      required />
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700">
+                        Âge souhaité <span className="text-gray-400">(optionnel)</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={99} placeholder="18"
+                          value={poste.criteria.ageMin}
+                          onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMin: e.target.value } })} />
+                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={15} max={99} placeholder="29"
+                          value={poste.criteria.ageMax}
+                          onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMax: e.target.value } })} />
+                      </div>
+                    </div>
+
                     {posteErrors[index] && <FieldError message={posteErrors[index]} />}
                   </div>
                 ))}
-
-                <TextareaField id="jobDescriptionOther" label="Description complémentaire" optional rows={3}
-                  placeholder="Responsabilités spécifiques, contexte…"
-                  {...register('jobDescriptionOther')} />
-
-                <CheckboxGroup
-                  label="Compétences et savoir-être attendus"
-                  options={SOFT_SKILLS_LIST}
-                  selected={softSkills}
-                  onChange={(v) => setValue('softSkills', v)}
-                  columns={2}
-                />
-                <InputField id="softSkillsOther" label="Autre compétence (optionnel)"
-                  placeholder="Ex : maîtrise d'un logiciel spécifique…"
-                  {...register('softSkillsOther')} />
-
-                <TextareaField id="conditions" label="Conditions du poste" optional rows={3}
-                  placeholder="Horaires, télétravail, avantages, véhicule…"
-                  {...register('conditions')} />
-
-                <TextareaField id="additionalComments" label="Commentaires supplémentaires" optional rows={2}
-                  placeholder="Salaire, avantages, informations spécifiques…"
-                  {...register('additionalComments')} />
               </section>
 
               {/* ── Exigences de l'apprenti ──────────────────────────────────── */}
               <section className="flex flex-col gap-5">
-                <SectionTitle>Exigences de l'apprenti</SectionTitle>
+                <SectionTitle>Recrutement</SectionTitle>
 
-                <input type="hidden" {...register('drivingLicense',     { required: 'Champ obligatoire' })} />
-                <input type="hidden" {...register('experienceRequired', { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('recruitmentMethod',  { required: 'Champ obligatoire' })} />
                 <input type="hidden" {...register('immersionPeriod',    { required: 'Champ obligatoire' })} />
-
-                <RadioGroup label="Permis de conduire B *"
-                  options={[{ value: 'OUI' as const, label: 'Obligatoire' }, { value: 'OPTIONNEL' as const, label: 'Optionnel' }]}
-                  value={watch('drivingLicense')}
-                  onChange={(v) => setValue('drivingLicense', v, { shouldValidate: true })}
-                  error={errors.drivingLicense?.message} required />
-
-                <RadioGroup label="Expérience requise *"
-                  options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}
-                  value={watch('experienceRequired')}
-                  onChange={(v) => setValue('experienceRequired', v, { shouldValidate: true })}
-                  error={errors.experienceRequired?.message} required />
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-gray-700">
-                    Âge souhaité <span className="text-gray-400">(optionnel)</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <InputField id="ageMin" label="De (ans)" type="number" min={15} max={99} placeholder="18"
-                      error={errors.ageMin?.message}
-                      {...register('ageMin', {
-                        validate: (v) => !v || (Number(v) >= 15 && Number(v) <= 99) || 'Âge invalide',
-                      })} />
-                    <InputField id="ageMax" label="À (ans)" type="number" min={15} max={99} placeholder="29"
-                      error={errors.ageMax?.message}
-                      {...register('ageMax', {
-                        validate: (v, form) => {
-                          if (!v) return true
-                          if (Number(v) < 15 || Number(v) > 99) return 'Âge invalide'
-                          if (form.ageMin && Number(v) < Number(form.ageMin)) return 'Doit être ≥ âge min'
-                          return true
-                        },
-                      })} />
-                  </div>
-                </div>
 
                 <RadioGroup label="Méthode de recrutement *"
                   options={[

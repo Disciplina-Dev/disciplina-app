@@ -59,11 +59,11 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         logger.info(`Needs Analysis ID ${analysis.id} status updated to SIGNE`);
 
         // 3a. Notify commercial via SSE (real-time in-app)
-        notifyUser(analysis.userID, {
+        notifyUser(analysis.salerInfo?.id ?? 0, {
             type: 'ab_signed',
             abId: analysis.id,
-            jobTitle: analysis.jobTitle,
-            companyId: analysis.companyID,
+            jobTitle: analysis.positions?.[0]?.title,
+            companyId: analysis.companyInfos?.id,
         });
 
         // 3. Download the signed PDF from Yousign
@@ -75,8 +75,8 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         }
 
         // 4. Fetch associated Commercial and Company details
-        const commercial = await userRepo.findById(analysis.userID);
-        const company = await companiesService.findById(analysis.companyID);
+        const commercial = analysis.salerInfo?.id ? await userRepo.findById(analysis.salerInfo.id) : null;
+        const company = analysis.companyInfos?.id ? await companiesService.findById(analysis.companyInfos.id) : null;
         const companyName = company?.name || 'Entreprise';
 
         // 5. Send notification email using Gmail API
@@ -84,7 +84,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         let senderUser: any = commercial;
         if (!senderUser?.oauth_token || !senderUser?.refresh_token) {
             logger.warn(
-                `Commercial owner ID ${analysis.userID} has no Google OAuth tokens. Searching for any administrative/commercial fallback account with tokens...`,
+                `Commercial owner ID ${analysis.salerInfo?.id} has no Google OAuth tokens. Searching for any administrative/commercial fallback account with tokens...`,
             );
             const allUsers = (await userRepo.findByRole(Role.COMMERCIAL)) || [];
             const fallback = allUsers.find((u: any) => u.oauth_token && u.refresh_token);
@@ -99,7 +99,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         if (senderUser && senderUser.oauth_token && senderUser.refresh_token) {
             const base64Pdf = pdfBuffer.toString('base64');
             const mailOptions = {
-                to: `${analysis.recruitmentResponsibleEmail || ''}, ${senderUser.email}`,
+                to: `${analysis.referents?.recruitmentReferents?.email || ''}, ${senderUser.email}`,
                 subject: `[Disciplina] Fiche Analyse du Besoin Signée - ${companyName}`,
                 text: `Bonjour,\n\nL'Analyse du Besoin pour ${companyName} a été signée avec succès.\nVous trouverez le PDF signé en pièce jointe.`,
                 html: `
@@ -110,7 +110,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                         </div>
                         <div style="padding: 24px; background-color: white;">
                             <p>Bonjour,</p>
-                            <p>Nous avons le plaisir de vous informer que l'Analyse du Besoin en recrutement pour le poste de <strong>${analysis.jobTitle}</strong> initiée pour <strong>${companyName}</strong> a été signée avec succès par les parties prenantes.</p>
+                            <p>Nous avons le plaisir de vous informer que l'Analyse du Besoin en recrutement pour le poste de <strong>${analysis.positions?.[0]?.title}</strong> initiée pour <strong>${companyName}</strong> a été signée avec succès par les parties prenantes.</p>
                             <p>Le document officiel signé numériquement et revêtu du cachet électronique de conformité Yousign est joint à cet e-mail pour vos archives.</p>
                             <p>Notre équipe administrative prend désormais le relais pour organiser le rapprochement des profils candidats et planifier l'alternance.</p>
                             <br />

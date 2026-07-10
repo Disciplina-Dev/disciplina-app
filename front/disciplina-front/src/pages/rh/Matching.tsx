@@ -1336,7 +1336,6 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
   const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
-  console.log(needsAnalysisData);
   const token = useAuthStore((s) => s.token)
 
   const loadJobData = useCallback(async (job: Job) => {
@@ -1708,7 +1707,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       />
 
       {showCompanyInfo && selectedJob && (
-        <CompanyInfoModal offerId={selectedJob.id} onClose={() => setShowCompanyInfo(false)} />
+        <CompanyInfoModal offerId={selectedJob.id} needsAnalysisId={selectedJob.needsAnalysisId} onClose={() => setShowCompanyInfo(false)} />
       )}
 
       <RetainedCandidatesSection
@@ -1846,15 +1845,15 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
             proprietaire_contact: null,
             commercial: null,
             proprietaire_id: null,
-            representant_legal: needsAnalysisData.recruitmentResponsibleName ?? null,
-            telephone: needsAnalysisData.recruitmentResponsiblePhone ?? null,
-            email: needsAnalysisData.recruitmentResponsibleEmail ?? null,
+            representant_legal: needsAnalysisData.referents?.recruitmentReferents?.name ?? null,
+            telephone: needsAnalysisData.referents?.recruitmentReferents?.phone ?? null,
+            email: needsAnalysisData.referents?.recruitmentReferents?.email ?? null,
             adresse: null,
-            secteur: needsAnalysisData.companySectors?.join(', ') ?? null,
+            secteur: needsAnalysisData.companyInfos?.activities?.join(', ') ?? null,
             metier: null,
             siret: null,
             idcc: null,
-            note: needsAnalysisData.companyDescription ?? null,
+            note: needsAnalysisData.companyInfos?.description ?? null,
             conclusion: null,
             status: (needsAnalysisData.status as Entreprise['status']) ?? 'Oui' as const,
             date_insertion: null,

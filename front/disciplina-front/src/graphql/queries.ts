@@ -1019,38 +1019,6 @@ export const GET_OFFER_COMPANY_INFO = gql`
         conclusion
         status
       }
-      ab {
-        id
-        legalRepFunction
-        recruitmentResponsibleName
-        recruitmentResponsiblePhone
-        recruitmentResponsibleEmail
-        recruitmentResponsibleFunction
-        companySectors
-        companyDescription
-        opco
-        referralSource
-        positionsCount
-        positions {
-          trainingDomain
-          jobTitle
-          selectedMissions
-          localisation
-        }
-        jobDescriptionOther
-        drivingLicense
-        experienceRequired
-        ageMin
-        ageMax
-        softSkills
-        conditions
-        additionalComments
-        recruitmentMethod
-        immersionPeriod
-        trainingDays
-        status
-        createdAt
-      }
     }
   }
 `
@@ -1431,7 +1399,9 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
   query NeedsAnalysesByCompany($companyID: Int!) {
     needsAnalysesByCompany(companyID: $companyID) {
       id
-      jobTitle
+      positions {
+        title
+      }
       positionsCount
       status
       createdAt
@@ -1492,38 +1462,62 @@ export const GET_NEEDS_ANALYSIS = gql`
   query NeedsAnalysis($id: ID!) {
     needsAnalysis(id: $id) {
       id
-      legalRepFunction
-      recruitmentResponsibleName
-      recruitmentResponsiblePhone
-      recruitmentResponsibleEmail
-      recruitmentResponsibleFunction
-      companySectors
-      companyDescription
-      opco
-      referralSource
+      companyInfos {
+        id
+        name
+        ape
+        idcc
+        siret
+        mainActivity
+        opco
+        referralSource
+        sector
+        activities
+        description
+      }
+      salerInfo {
+        id
+        email
+      }
+      referents {
+        isSame
+        legalReferents {
+          name
+          phone
+          email
+          function
+        }
+        recruitmentReferents {
+          name
+          phone
+          email
+          function
+        }
+      }
       positionsCount
       positions {
-        trainingDomain
-        jobTitle
-        selectedMissions
         localisation
+        tpType
+        trainingDomain
+        title
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+        criteria {
+          educationLevel
+          drivingLicense
+          experienceRequired
+          trainingDomain
+          ageMin
+          ageMax
+          desiredSex
+          softSkills
+          scheduleOptions
+          conditions
+          additionalComments
+        }
       }
-      localisation
-      trainingDomain
-      jobTitle
-      selectedMissions
-      jobDescriptionMissions
-      jobDescriptionOther
-      educationLevel
-      drivingLicense
-      experienceRequired
-      ageRequirements
-      ageMin
-      ageMax
-      softSkills
-      scheduleOptions
-      conditions
-      additionalComments
       recruitmentMethod
       immersionPeriod
       trainingDays

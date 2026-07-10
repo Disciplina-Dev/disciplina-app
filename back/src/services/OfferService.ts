@@ -1,8 +1,6 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { Offer } from '../types/offer.types';
-import { toNeedsAnalysis } from './mappers/needsAnalysis.mapper';
 import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
@@ -128,7 +126,6 @@ function deriveJobStatus(matchedCandidates: MatchingCandidate[], currentStatus?:
 
 export class OfferService {
     private offerRepository = new OfferRepository();
-    private needsAnalysisRepository = new NeedsAnalysisRepository();
     private candidateRepository = new CandidateRepository();
     private candidateService = new CandidateService();
     private candidateHistoryService = new CandidateHistoryService();
@@ -146,12 +143,8 @@ export class OfferService {
         const companyId = offer.company_infos?.id;
         const companyName = offer.company_infos?.name;
         const company = companyId ? await this.companiesService.findById(companyId) : null;
-        const analysis = offer.needs_analysis_id
-            ? await this.needsAnalysisRepository.findById(offer.needs_analysis_id)
-            : null;
-        const ab = analysis ? toNeedsAnalysis(analysis) : null;
 
-        return { companyName: companyName ?? company?.name ?? null, company, ab };
+        return { companyName: companyName ?? company?.name ?? null, company };
     }
 
     async find(id: string): Promise<object | null> {

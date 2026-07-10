@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Briefcase, Users, GraduationCap, ClipboardList, Calendar, Hash, Trash2 } from 'lucide-react'
+import { X, Briefcase, Users, ClipboardList, Calendar, Hash, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
@@ -16,8 +16,6 @@ const LABELS: Record<string, Record<string, string>> = {
   localisation:       { NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud' },
   trainingDomain:     { SECRETARIAT: 'Secrétariat', VENTE: 'Vente' },
   educationLevel:     { BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3' },
-  drivingLicense:     { OUI: 'Oui', OPTIONNEL: 'Optionnel' },
-  experienceRequired: { DEBUTANT: 'Débutant accepté', OBLIGATOIRE: 'Expérience obligatoire' },
   recruitmentMethod:  { ALL_CV: 'Tous les CV', PRESELECTION: 'Présélection', PRE_INTERVIEW: 'Pré-entretien' },
   immersionPeriod:    { OUI: 'Oui', NON: 'Non', A_DISCUTER: 'À discuter' },
 }
@@ -101,7 +99,9 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
             {result.fetching && <p className="text-sm text-gray-400">Chargement...</p>}
             {ab && (
               <>
-                <h2 className="text-lg font-bold text-gray-900 truncate">{ab.jobTitle}</h2>
+                <h2 className="text-lg font-bold text-gray-900 truncate">
+                  {ab.positions?.map((p: { title?: string }) => p.title).filter(Boolean).join(' / ') || 'Analyse du besoin'}
+                </h2>
                 <div className="flex items-center gap-2 mt-1">
                   {badge && (
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.bg} ${badge.text}`}>
@@ -160,27 +160,27 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
         {/* Body */}
         {ab && (
           <div className="overflow-y-auto flex-1 p-6 space-y-5">
-            {ab.legalRepFunction && (
+            {ab.referents?.legalReferents?.function && (
               <Section icon={<Users className="h-3.5 w-3.5" />} title="Représentant légal">
-                <Row label="Fonction" value={ab.legalRepFunction} />
+                <Row label="Fonction" value={ab.referents.legalReferents.function} />
               </Section>
             )}
 
-            {(ab.recruitmentResponsibleName || ab.recruitmentResponsibleEmail) && (
+            {(ab.referents?.recruitmentReferents?.name || ab.referents?.recruitmentReferents?.email) && (
               <Section icon={<Users className="h-3.5 w-3.5" />} title="Responsable recrutement">
-                <Row label="Nom"      value={ab.recruitmentResponsibleName} />
-                <Row label="Fonction" value={ab.recruitmentResponsibleFunction} />
-                <Row label="Tél"      value={ab.recruitmentResponsiblePhone} />
-                <Row label="Email"    value={ab.recruitmentResponsibleEmail} />
+                <Row label="Nom"      value={ab.referents.recruitmentReferents.name} />
+                <Row label="Fonction" value={ab.referents.recruitmentReferents.function} />
+                <Row label="Tél"      value={ab.referents.recruitmentReferents.phone} />
+                <Row label="Email"    value={ab.referents.recruitmentReferents.email} />
               </Section>
             )}
 
-            {(ab.companySectors?.length > 0 || ab.companyDescription) && (
+            {(ab.companyInfos?.activities?.length > 0 || ab.companyInfos?.description) && (
               <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
-                {ab.companySectors?.length > 0 && (
-                  <Row label="Secteurs" value={ab.companySectors.join(', ')} />
+                {ab.companyInfos.activities?.length > 0 && (
+                  <Row label="Secteurs" value={ab.companyInfos.activities.join(', ')} />
                 )}
-                <Row label="Description" value={ab.companyDescription} />
+                <Row label="Description" value={ab.companyInfos.description} />
               </Section>
             )}
 
@@ -190,59 +190,48 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
               <Row label="Immersion"           value={LABELS.immersionPeriod[ab.immersionPeriod]} />
             </Section>
 
-            {(ab.positions?.length > 0
-              ? ab.positions
-              : [{ trainingDomain: ab.trainingDomain, jobTitle: ab.jobTitle, selectedMissions: ab.selectedMissions ?? [], localisation: ab.localisation ? [ab.localisation] : [] }]
-            ).map((p: { trainingDomain: string; jobTitle: string; selectedMissions: string[]; localisation: string[] }, i: number, arr: unknown[]) => (
-              <Section
-                key={i}
-                icon={<ClipboardList className="h-3.5 w-3.5" />}
-                title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
-              >
-                <Row label="Intitulé"     value={p.jobTitle} />
-                <Row label="Domaine"      value={LABELS.trainingDomain[p.trainingDomain]} />
-                <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
-                {p.selectedMissions?.length > 0 && (
-                  <div className="py-2">
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {p.selectedMissions.map((m: string) => (
-                        <li key={m} className="text-sm text-gray-900">{m}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </Section>
-            ))}
-
-            {(ab.jobDescriptionMissions?.length > 0 || ab.jobDescriptionOther) && (
-              <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Missions complémentaires">
-                {ab.jobDescriptionMissions?.length > 0 && (
-                  <Row label="Types" value={ab.jobDescriptionMissions.join(', ')} />
-                )}
-                <Row label="Descriptif" value={ab.jobDescriptionOther} />
-              </Section>
-            )}
-
-            {(ab.conditions || ab.scheduleOptions?.length > 0 || ab.additionalComments) && (
-              <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Conditions & commentaires">
-                <Row label="Conditions" value={ab.conditions ?? (ab.scheduleOptions?.length > 0 ? ab.scheduleOptions.join(', ') : null)} />
-                <Row label="Commentaires" value={ab.additionalComments} />
-              </Section>
-            )}
-
-            <Section icon={<GraduationCap className="h-3.5 w-3.5" />} title="Profil apprenti">
-              {ab.educationLevel && (
-                <Row label="Niveau d'études" value={LABELS.educationLevel[ab.educationLevel]} />
-              )}
-              <Row label="Permis B"        value={LABELS.drivingLicense[ab.drivingLicense]} />
-              <Row label="Expérience"      value={LABELS.experienceRequired[ab.experienceRequired]} />
-              {(ab.ageMin || ab.ageMax) ? (
-                <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin} ans` : null, ab.ageMax ? `à ${ab.ageMax} ans` : null].filter(Boolean).join(' ')} />
-              ) : ab.ageRequirements?.length > 0 && (
-                <Row label="Âge" value={ab.ageRequirements.join(', ')} />
-              )}
-              <Row label="Soft skills"     value={ab.softSkills} />
-            </Section>
+            {(ab.positions ?? []).map((p: any, i: number, arr: unknown[]) => {
+              const c = p.criteria ?? {}
+              return (
+                <Section
+                  key={i}
+                  icon={<ClipboardList className="h-3.5 w-3.5" />}
+                  title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
+                >
+                  <Row label="Intitulé"     value={p.title} />
+                  <Row label="Domaine"      value={LABELS.trainingDomain[p.trainingDomain]} />
+                  <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
+                  {p.missions?.length > 0 && (
+                    <div className="py-2">
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {p.missions.map((m: string) => (
+                          <li key={m} className="text-sm text-gray-900">{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(p.descriptionMissions?.length > 0 || p.otherDescriptionMissions) && (
+                    <>
+                      {p.descriptionMissions?.length > 0 && (
+                        <Row label="Types de missions" value={p.descriptionMissions.join(', ')} />
+                      )}
+                      <Row label="Descriptif" value={p.otherDescriptionMissions} />
+                    </>
+                  )}
+                  {c.educationLevel && (
+                    <Row label="Niveau d'études" value={LABELS.educationLevel[c.educationLevel]} />
+                  )}
+                  <Row label="Permis B"   value={c.drivingLicense == null ? null : c.drivingLicense ? 'Oui' : 'Optionnel'} />
+                  <Row label="Expérience" value={c.experienceRequired == null ? null : c.experienceRequired ? 'Expérience obligatoire' : 'Débutant accepté'} />
+                  {(c.ageMin || c.ageMax) && (
+                    <Row label="Âge" value={[c.ageMin ? `de ${c.ageMin} ans` : null, c.ageMax ? `à ${c.ageMax} ans` : null].filter(Boolean).join(' ')} />
+                  )}
+                  <Row label="Soft skills" value={c.softSkills} />
+                  <Row label="Conditions" value={c.conditions ?? (c.scheduleOptions?.length > 0 ? c.scheduleOptions.join(', ') : null)} />
+                  <Row label="Commentaires" value={c.additionalComments} />
+                </Section>
+              )
+            })}
 
             {trainingDaysDisplay && (
               <Section icon={<Calendar className="h-3.5 w-3.5" />} title="Jours de formation">

@@ -3,46 +3,13 @@ import { X, Building2, Loader2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { offerGraphqlClient } from '@/graphql/client'
 import { GET_OFFER_COMPANY_INFO } from '@/graphql/queries'
+import { useNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 
 interface CompanyInfoModalProps {
   offerId: string
+  needsAnalysisId?: string | null
   onClose: () => void
-}
-
-interface Position {
-  trainingDomain?: string
-  jobTitle?: string
-  selectedMissions?: string[]
-  localisation?: string[]
-}
-
-interface Ab {
-  id?: number
-  legalRepFunction?: string
-  recruitmentResponsibleName?: string
-  recruitmentResponsiblePhone?: string
-  recruitmentResponsibleEmail?: string
-  recruitmentResponsibleFunction?: string
-  companySectors?: string[]
-  companyDescription?: string
-  opco?: string
-  referralSource?: string
-  positionsCount?: number
-  positions?: Position[]
-  jobDescriptionOther?: string
-  drivingLicense?: string
-  experienceRequired?: string
-  ageMin?: number
-  ageMax?: number
-  softSkills?: string
-  conditions?: string
-  additionalComments?: string
-  recruitmentMethod?: string
-  immersionPeriod?: string
-  trainingDays?: string
-  status?: string
-  createdAt?: string
 }
 
 interface Company {
@@ -65,7 +32,6 @@ interface Company {
 interface JobCompanyInfo {
   companyName?: string
   company?: Company | null
-  ab?: Ab | null
 }
 
 const ENUM_LABELS: Record<string, string> = {
@@ -118,10 +84,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export default function CompanyInfoModal({ offerId, onClose }: CompanyInfoModalProps) {
+export default function CompanyInfoModal({ offerId, needsAnalysisId, onClose }: CompanyInfoModalProps) {
   const [data, setData] = useState<JobCompanyInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const needsAnalysisResult = useNeedsAnalysis(needsAnalysisId ?? null)
+  const ab = needsAnalysisResult.data?.needsAnalysis
 
   useEffect(() => {
     let cancelled = false
@@ -139,7 +107,6 @@ export default function CompanyInfoModal({ offerId, onClose }: CompanyInfoModalP
   }, [offerId])
 
   const company = data?.company
-  const ab = data?.ab
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -160,7 +127,7 @@ export default function CompanyInfoModal({ offerId, onClose }: CompanyInfoModalP
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {loading && (
+          {(loading || needsAnalysisResult.fetching) && (
             <div className="flex items-center justify-center py-10 text-gray-400">
               <Loader2 size={20} className="animate-spin" />
             </div>
@@ -191,37 +158,40 @@ export default function CompanyInfoModal({ offerId, onClose }: CompanyInfoModalP
 
           {ab && (
             <Section title="Analyse du besoin">
-              <Row label="Fonction du représentant légal" value={ab.legalRepFunction} />
-              <Row label="Responsable recrutement" value={ab.recruitmentResponsibleName} />
-              <Row label="Fonction du responsable" value={ab.recruitmentResponsibleFunction} />
-              <Row label="Téléphone responsable" value={ab.recruitmentResponsiblePhone} />
-              <Row label="Email responsable" value={ab.recruitmentResponsibleEmail} />
-              <Row label="Secteurs d'activité" value={ab.companySectors?.join(', ')} />
-              <Row label="Présentation de l'entreprise" value={ab.companyDescription} />
-              <Row label="OPCO" value={ab.opco} />
-              <Row label="Comment a connu DISCIPLINA" value={lbl(ab.referralSource)} />
+              <Row label="Fonction du représentant légal" value={ab.referents?.legalReferents?.function} />
+              <Row label="Responsable recrutement" value={ab.referents?.recruitmentReferents?.name} />
+              <Row label="Fonction du responsable" value={ab.referents?.recruitmentReferents?.function} />
+              <Row label="Téléphone responsable" value={ab.referents?.recruitmentReferents?.phone} />
+              <Row label="Email responsable" value={ab.referents?.recruitmentReferents?.email} />
+              <Row label="Secteurs d'activité" value={ab.companyInfos?.activities?.join(', ')} />
+              <Row label="Présentation de l'entreprise" value={ab.companyInfos?.description} />
+              <Row label="OPCO" value={ab.companyInfos?.opco} />
+              <Row label="Comment a connu DISCIPLINA" value={lbl(ab.companyInfos?.referralSource)} />
               <Row label="Nombre de postes" value={ab.positionsCount} />
 
-              {(ab.positions ?? []).map((p, i) => (
-                <div key={i} className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-gray-700">Poste {i + 1}</p>
-                  <Row label="Domaine" value={lbl(p.trainingDomain)} />
-                  <Row label="Intitulé" value={p.jobTitle} />
-                  <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
-                  <Row label="Missions" value={p.selectedMissions?.join(', ')} />
-                </div>
-              ))}
+              {(ab.positions ?? []).map((p: any, i: number) => {
+                const c = p.criteria ?? {}
+                return (
+                  <div key={i} className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                    <p className="mb-1 text-xs font-semibold text-gray-700">Poste {i + 1}</p>
+                    <Row label="Domaine" value={lbl(p.trainingDomain)} />
+                    <Row label="Intitulé" value={p.title} />
+                    <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
+                    <Row label="Missions" value={p.missions?.join(', ')} />
+                    <Row label="Description complémentaire des missions" value={p.otherDescriptionMissions} />
+                    <Row label="Permis B" value={c.drivingLicense == null ? '' : c.drivingLicense ? 'Oui' : 'Optionnel'} />
+                    <Row label="Expérience requise" value={c.experienceRequired == null ? '' : c.experienceRequired ? 'Obligatoire' : 'Débutant'} />
+                    <Row label="Âge" value={[c.ageMin ? `de ${c.ageMin}` : '', c.ageMax ? `à ${c.ageMax} ans` : ''].filter(Boolean).join(' ')} />
+                    <Row label="Profils / soft skills" value={c.softSkills} />
+                    <Row label="Conditions" value={c.conditions} />
+                    <Row label="Commentaires" value={c.additionalComments} />
+                  </div>
+                )
+              })}
 
-              <Row label="Description complémentaire des missions" value={ab.jobDescriptionOther} />
-              <Row label="Permis B" value={lbl(ab.drivingLicense)} />
-              <Row label="Expérience requise" value={lbl(ab.experienceRequired)} />
-              <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin}` : '', ab.ageMax ? `à ${ab.ageMax} ans` : ''].filter(Boolean).join(' ')} />
-              <Row label="Profils / soft skills" value={ab.softSkills} />
               <Row label="Méthode de recrutement" value={lbl(ab.recruitmentMethod)} />
               <Row label="Période d'immersion" value={lbl(ab.immersionPeriod)} />
               <Row label="Jours de formation possibles" value={fmtDays(ab.trainingDays)} />
-              <Row label="Conditions" value={ab.conditions} />
-              <Row label="Commentaires" value={ab.additionalComments} />
               <Row label="Statut AB" value={lbl(ab.status)} />
             </Section>
           )}

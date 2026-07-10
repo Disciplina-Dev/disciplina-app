@@ -226,45 +226,9 @@ export const typeDefs = gql`
         status: String
     }
 
-    type AbPositionInfo {
-        trainingDomain: String
-        jobTitle: String
-        selectedMissions: [String!]!
-        localisation: [Localisation]
-    }
-
-    type AbInfo {
-        id: Int
-        legalRepFunction: String
-        recruitmentResponsibleName: String
-        recruitmentResponsiblePhone: String
-        recruitmentResponsibleEmail: String
-        recruitmentResponsibleFunction: String
-        companySectors: [String!]!
-        companyDescription: String
-        opco: String
-        referralSource: String
-        positionsCount: Int
-        positions: [AbPositionInfo!]!
-        jobDescriptionOther: String
-        drivingLicense: String
-        experienceRequired: String
-        ageMin: Int
-        ageMax: Int
-        softSkills: String
-        conditions: String
-        additionalComments: String
-        recruitmentMethod: String
-        immersionPeriod: String
-        trainingDays: String
-        status: String
-        createdAt: String
-    }
-
     type OfferCompanyInfo {
         companyName: String
         company: CompanyInfo
-        ab: AbInfo
     }
 
     enum PlacementKind {

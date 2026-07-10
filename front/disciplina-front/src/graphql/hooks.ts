@@ -56,7 +56,7 @@ export interface CandidateServerFilters {
   /** Ne renvoyer que les fiches sans date de création. */
   createdMissing?: boolean
 }
-import { candidateGraphqlClient } from './client'
+import { candidateGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -685,10 +685,9 @@ export function useDeleteCandidateHistoryEntry() {
 
 export function useCreateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(CREATE_NEEDS_ANALYSIS)
-  const needsAnalysisUrl = `${import.meta.env.VITE_API_URL}/api/graphql/needs-analysis`
 
   const createNeedsAnalysis = (input: any) => {
-    return executeMutation({ input }, { url: needsAnalysisUrl }).then((response) => {
+    return executeMutation({ input }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
       if (response.error) {
         console.error("createNeedsAnalysis failed:", response.error)
       }
@@ -704,7 +703,7 @@ export function useNeedsAnalysesByCompany(companyID: number | null) {
     query: GET_NEEDS_ANALYSES_BY_COMPANY,
     variables: { companyID: companyID ?? 0 },
     pause: companyID === null,
-    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/needs-analysis` },
+    context: { url: NEEDS_ANALYSIS_URL },
   })
   return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
 }
@@ -755,17 +754,16 @@ export function useNeedsAnalysis(id: string | null) {
     query: GET_NEEDS_ANALYSIS,
     variables: { id: id ?? 0 },
     pause: id === null,
-    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/needs-analysis` },
+    context: { url: NEEDS_ANALYSIS_URL },
   })
   return result
 }
 
 export function useDeleteNeedsAnalysis() {
   const [result, executeMutation] = useMutation(DELETE_NEEDS_ANALYSIS)
-  const needsAnalysisUrl = `${import.meta.env.VITE_API_URL}/api/graphql/needs-analysis`
 
   const deleteNeedsAnalysis = (id: string) => {
-    return executeMutation({ id }, { url: needsAnalysisUrl }).then((response) => {
+    return executeMutation({ id }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
       if (response.error) {
         console.error('deleteNeedsAnalysis failed:', response.error)
       }
@@ -778,10 +776,9 @@ export function useDeleteNeedsAnalysis() {
 
 export function useUpdateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS)
-  const needsAnalysisUrl = `${import.meta.env.VITE_API_URL}/api/graphql/needs-analysis`
 
   const updateNeedsAnalysis = (id: string, input: any) => {
-    return executeMutation({ id, input }, { url: needsAnalysisUrl }).then((response) => {
+    return executeMutation({ id, input }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
       if (response.error) {
         console.error('updateNeedsAnalysis failed:', response.error)
       }
