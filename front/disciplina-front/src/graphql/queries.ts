@@ -1475,6 +1475,8 @@ export const GET_NEEDS_ANALYSIS = gql`
         sector
         activities
         description
+        postalCode
+        commune
       }
       salerInfo {
         id

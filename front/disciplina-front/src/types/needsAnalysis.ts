@@ -10,6 +10,8 @@ export interface CompanyInfos {
   sector?: string | null
   activities?: string[] | null
   description?: string | null
+  postalCode?: string | null
+  commune?: string | null
 }
 
 export interface SalerInfo {

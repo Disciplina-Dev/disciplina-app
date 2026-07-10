@@ -75,6 +75,8 @@ export interface CompanyInfos {
     sector?: CompanyRegion;
     activities?: string[];
     description?: string | null;
+    postal_code?: string | null;
+    commune?: string | null;
 }
 
 export interface SalerInfo {
@@ -155,6 +157,8 @@ export interface NeedsAnalysisWriteInput {
     companyDescription?: string | null;
     opco?: Opco | null;
     referralSource?: ReferralSource | null;
+    postalCode?: string | null;
+    commune?: string | null;
     positions?: Position[];
     recruitmentMethod?: RecruitmentMethod;
     immersionPeriod?: ImmersionPeriod;

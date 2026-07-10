@@ -79,6 +79,8 @@ function buildCompanyInfos(data: NeedsAnalysisWriteInput, company: Companies, re
         sector: region as unknown as CompanyRegion,
         activities: data.companySectors ?? [],
         description: data.companyDescription ?? null,
+        postal_code: data.postalCode ?? null,
+        commune: data.commune ?? null,
     };
 }
 
@@ -172,6 +174,8 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
                   sector: doc.company_infos.sector ?? null,
                   activities: doc.company_infos.activities ?? [],
                   description: doc.company_infos.description ?? null,
+                  postalCode: doc.company_infos.postal_code ?? null,
+                  commune: doc.company_infos.commune ?? null,
               }
             : null,
         salerInfo: doc.saler_info ? { id: doc.saler_info.id ?? null, email: doc.saler_info.email ?? null } : null,

@@ -238,6 +238,8 @@ export class NeedsAnalysisService {
             companyDescription: data.companyDescription ?? existing.company_infos?.description ?? null,
             opco: data.opco ?? existing.company_infos?.opco ?? null,
             referralSource: data.referralSource ?? existing.company_infos?.referral_source ?? null,
+            postalCode: data.postalCode ?? existing.company_infos?.postal_code ?? null,
+            commune: data.commune ?? existing.company_infos?.commune ?? null,
             positions: data.positions ?? existing.positions ?? [],
             recruitmentMethod: data.recruitmentMethod ?? existing.recruitment_method,
             immersionPeriod: data.immersionPeriod ?? existing.immersion_period,

@@ -105,6 +105,8 @@ export const typeDefs = gql`
         sector: String
         activities: [String!]!
         description: String
+        postalCode: String
+        commune: String
     }
 
     type SalerInfo {
@@ -203,6 +205,8 @@ export const typeDefs = gql`
         companyDescription: String
         opco: Opco
         referralSource: ReferralSource
+        postalCode: String
+        commune: String
         positions: [PositionInput!]
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
