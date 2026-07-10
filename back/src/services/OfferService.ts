@@ -95,7 +95,10 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
                   recruitmentReferents: offer.referents.recruitment_referents,
               }
             : undefined,
-        companyInfos: offer.company_infos ? { id: offer.company_infos.id, name: offer.company_infos.name } : null,
+        softSkills: offer.criteria?.soft_skills,
+        companyInfos: offer.company_infos
+            ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
+            : null,
         title: offer.title,
         missions: offer.missions,
     };
@@ -161,6 +164,10 @@ export class OfferService {
         }
 
         if (offer.localisation?.length) filter['job_info.geographic_mobility'] = { $all: offer.localisation };
+
+        if (offer.company_infos?.activities?.length) {
+            filter['desired_sectors'] = { $in: offer.company_infos.activities };
+        }
 
         const candidates = await this.candidateRepository.findByfilter(filter);
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);

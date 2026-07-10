@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useMutation } from 'urql'
+import { useQuery, useMutation, useClient } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useBlacklistStore } from '@/store/blacklistStore'
 import {
@@ -118,14 +118,20 @@ export function useSalePersons() {
 }
 
 export function useCompanyBySiret() {
-  const [result, executeQuery] = useQuery({
-    query: GET_COMPANY_BY_SIRET,
-    variables: { siret: '' },
-    pause: true,
+  const client = useClient()
+  const [result, setResult] = useState<{ data?: any; error?: any; fetching: boolean }>({
+    data: undefined, error: undefined, fetching: false,
   })
 
-  const searchBySiret = (siret: string) =>
-    executeQuery({ variables: { siret }, requestPolicy: 'network-only' })
+  const searchBySiret = (siret: string) => {
+    if (!siret || siret.trim() === '') return
+    setResult({ data: undefined, error: undefined, fetching: true })
+    client
+      .query(GET_COMPANY_BY_SIRET, { siret }, { requestPolicy: 'network-only' })
+      .toPromise()
+      .then((res) => setResult({ data: res.data, error: res.error, fetching: false }))
+      .catch((err) => setResult({ data: undefined, error: err, fetching: false }))
+  }
 
   return { result, searchBySiret }
 }

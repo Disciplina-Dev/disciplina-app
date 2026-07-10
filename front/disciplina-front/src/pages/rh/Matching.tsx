@@ -87,7 +87,8 @@ interface Referents {
 interface Job {
   id: string
   needsAnalysisId?: string | null
-  companyInfos?: { id?: number; name?: string } | null
+  companyInfos?: { id?: number; name?: string; activities?: string[] | null } | null
+  softSkills?: string | null
   companyName: string
   ageRange: string
   desiredTP: string | null
@@ -612,8 +613,10 @@ function JobDetailsSection({
               </div>
             </div>
           )}
+        </div>
+        <div className="flex flex-wrap gap-2 mt-2">
           {job.missions && job.missions.length > 0 && (
-            <div className="col-span-2">
+            <div>
               <details className="group">
                 <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
                   <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
@@ -626,6 +629,46 @@ function JobDetailsSection({
                     <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
                       <span className="text-gray-300 mt-0.5 shrink-0">•</span>
                       {mission}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+          {job.companyInfos?.activities && job.companyInfos.activities.length > 0 && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    {job.companyInfos.activities.length} secteur{job.companyInfos.activities.length > 1 ? 's' : ''} d'activité
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {job.companyInfos.activities.map((activity, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {activity}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+          {job.softSkills && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    Soft skills
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {job.softSkills.split(',').map((skill, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {skill.trim()}
                     </p>
                   ))}
                 </div>
@@ -1338,10 +1381,12 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
   const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
   const abCompany = abCompanyResult.data?.companyBySiret
+  console.log('abcompany', abCompanyResult);
   const token = useAuthStore((s) => s.token)
 
   useEffect(() => {
     if (abEditOpen && needsAnalysisData?.companyInfos?.siret) {
+      console.log(needsAnalysisData.companyInfos.siret);
       searchAbCompanyBySiret(needsAnalysisData.companyInfos.siret)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

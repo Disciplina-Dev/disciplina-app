@@ -10,6 +10,7 @@ const offerCompanyInfosSchema = new Schema<OfferCompanyInfos>(
         id: { type: Number },
         name: { type: String },
         sector: { type: String, enum: Object.values(CompanyRegion) },
+        activities: { type: [String], default: [] },
     },
     { _id: false },
 );

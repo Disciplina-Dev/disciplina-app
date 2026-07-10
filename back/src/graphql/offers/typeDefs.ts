@@ -158,6 +158,7 @@ export const typeDefs = gql`
     type CompanyInfos {
         id: Int
         name: String
+        activities: [String!]
     }
 
     type Offer {
@@ -182,6 +183,7 @@ export const typeDefs = gql`
         companyInfos: CompanyInfos
         title: String
         missions: [String]
+        softSkills: String
     }
 
     input MatchingCandidateInput {

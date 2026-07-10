@@ -1029,7 +1029,7 @@ export const MATCH_OFFER = gql`
     matchOffer(id: $id) {
       id
       needsAnalysisId
-      companyInfos { id name }
+      companyInfos { id name activities }
       companyName
       ageRange
       desiredTP
@@ -1039,6 +1039,7 @@ export const MATCH_OFFER = gql`
       status
       localisation
       sector
+      softSkills
       matchedCandidate {
         id
         fullName

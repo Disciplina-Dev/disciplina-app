@@ -10,7 +10,7 @@ import {
     TrainingDomain,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
-import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, Zone } from './abToJob';
+import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, TITLE_TO_TP, Zone } from './abToJob';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
 
@@ -54,7 +54,7 @@ function buildPosition(position: Position): Position {
 
     return {
         localisation: position.localisation ?? [],
-        tp_type: (tDomain && DOMAIN_TO_TP[tDomain]) ?? null,
+        tp_type: TITLE_TO_TP[position.title ?? ''] ?? (tDomain && DOMAIN_TO_TP[tDomain]) ?? null,
         training_domain: trainingDomain,
         title: position.title,
         missions: position.missions ?? [],

@@ -572,6 +572,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     },
   })
 
+  useEffect(() => {
+    if (entreprise.adresse) {
+      setValue('companyAddress', entreprise.adresse)
+    }
+  }, [entreprise.adresse, setValue])
+
   const isDifferentResponsible = watch('isDifferentRecruitmentResponsible')
   const legalRepFunction       = watch('legalRepFunction')
   const responsibleFunction    = watch('recruitmentResponsibleFunction')

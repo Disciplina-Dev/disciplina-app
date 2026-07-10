@@ -30,9 +30,18 @@ export const ZONE_TO_COMMUNES: Record<Zone, Localisation[]> = {
     ],
 };
 
-// Domaine de formation de l'AB → Titre Professionnel du matching.
+// Domaine de formation de l'AB → Titre Professionnel du matching (fallback).
 // Seuls deux domaines existent côté AB ; correspondance la plus proche.
 export const DOMAIN_TO_TP: Record<TrainingDomain, TitleProfessionalType> = {
     [TrainingDomain.SECRETARIAT]: TitleProfessionalType.SA,
     [TrainingDomain.VENTE]: TitleProfessionalType.NTC,
+};
+
+// Titre du poste saisi par le commercial → Titre Professionnel exact.
+export const TITLE_TO_TP: Record<string, TitleProfessionalType> = {
+    'Secrétaire Assistante': TitleProfessionalType.SA,
+    'Assistante de Direction': TitleProfessionalType.AD,
+    'Conseiller Commercial': TitleProfessionalType.CC,
+    'Négociateur Technico-Commercial': TitleProfessionalType.NTC,
+    "Responsable d'Établissement Marchand": TitleProfessionalType.REM,
 };
