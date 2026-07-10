@@ -48,7 +48,7 @@ import InterviewConclusionModal from '@/features/matching/components/InterviewCo
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
-import { useNeedsAnalysis } from '@/graphql/hooks'
+import { useNeedsAnalysis, useCompanyBySiret } from '@/graphql/hooks'
 import type { Entreprise } from '@/types/entreprise'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
@@ -1336,7 +1336,16 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
   const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
+  const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
+  const abCompany = abCompanyResult.data?.companyBySiret
   const token = useAuthStore((s) => s.token)
+
+  useEffect(() => {
+    if (abEditOpen && needsAnalysisData?.companyInfos?.siret) {
+      searchAbCompanyBySiret(needsAnalysisData.companyInfos.siret)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abEditOpen, needsAnalysisData?.companyInfos?.siret])
 
   const loadJobData = useCallback(async (job: Job) => {
     setIsLoading(true)
@@ -1840,22 +1849,24 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       {abEditOpen && needsAnalysisData && selectedJob && (
         <NeedsAnalysisModal
           entreprise={{
-            id: String(selectedJob.companyInfos?.id ?? ''),
-            nom_commercial: selectedJob.companyName,
+            // Fusionne la fiche entreprise réelle (siret/adresse/légal, si trouvée) avec
+            // les infos de l'analyse du besoin — champ par champ, l'un comblant les trous de l'autre.
+            id: String(abCompany?.id ?? selectedJob.companyInfos?.id ?? ''),
+            nom_commercial: abCompany?.name ?? selectedJob.companyName ?? null,
             proprietaire_contact: null,
             commercial: null,
-            proprietaire_id: null,
-            representant_legal: needsAnalysisData.referents?.recruitmentReferents?.name ?? null,
-            telephone: needsAnalysisData.referents?.recruitmentReferents?.phone ?? null,
-            email: needsAnalysisData.referents?.recruitmentReferents?.email ?? null,
-            adresse: null,
-            secteur: needsAnalysisData.companyInfos?.activities?.join(', ') ?? null,
-            metier: null,
-            siret: null,
-            idcc: null,
-            note: needsAnalysisData.companyInfos?.description ?? null,
-            conclusion: null,
-            status: (needsAnalysisData.status as Entreprise['status']) ?? 'Oui' as const,
+            proprietaire_id: abCompany?.userID ?? null,
+            representant_legal: abCompany?.legalReferent ?? needsAnalysisData.referents?.legalReferents?.name ?? null,
+            telephone: abCompany?.phone ?? needsAnalysisData.referents?.legalReferents?.phone ?? null,
+            email: abCompany?.email ?? needsAnalysisData.referents?.legalReferents?.email ?? null,
+            adresse: abCompany?.address ?? null,
+            secteur: abCompany?.sector ?? needsAnalysisData.companyInfos?.activities?.join(', ') ?? null,
+            metier: abCompany?.mainActivity ?? null,
+            siret: abCompany?.siret ?? needsAnalysisData.companyInfos?.siret ?? null,
+            idcc: abCompany?.idcc ?? needsAnalysisData.companyInfos?.idcc ?? null,
+            note: abCompany?.notes ?? needsAnalysisData.companyInfos?.description ?? null,
+            conclusion: abCompany?.conclusion ?? null,
+            status: (abCompany?.status as Entreprise['status']) || (needsAnalysisData.status as Entreprise['status']) || 'À Réfléchir',
             date_insertion: null,
             date_relance: null,
             type_relance: null,

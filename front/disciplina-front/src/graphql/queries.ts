@@ -104,6 +104,7 @@ export const GET_COMPANY_BY_SIRET = gql`
     companyBySiret(siret: $siret) {
       id
       userID
+      legalReferent
       name
       phone
       email
