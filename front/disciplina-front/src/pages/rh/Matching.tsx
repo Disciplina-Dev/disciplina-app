@@ -26,6 +26,7 @@ import {
   Send,
   Heart,
   CalendarClock,
+  FileEdit,
 } from 'lucide-react'
 import { GET_OFFERS, GET_COMPANIES, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, UNMATCH_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
@@ -46,6 +47,9 @@ import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
 import { isInterviewDatePast } from '@/utils/interview'
+import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
+import { useNeedsAnalysis } from '@/graphql/hooks'
+import type { Entreprise } from '@/types/entreprise'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 
@@ -82,6 +86,8 @@ interface Referents {
 
 interface Job {
   id: string
+  needsAnalysisId?: string | null
+  companyInfos?: { id?: number; name?: string } | null
   companyName: string
   ageRange: string
   desiredTP: string | null
@@ -1287,7 +1293,7 @@ function ProposeResultModal({ companyName, onClose }: { companyName: string; onC
   )
 }
 
-function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
+function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null }) {
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
   const [showCompanyInfo, setShowCompanyInfo] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
@@ -1312,6 +1318,11 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
   const [conclusionCandidate, setConclusionCandidate] = useState<ProposedCandidate | null>(null)
   const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<ProposedCandidate | null>(null)
   const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
+  const [abEditOpen, setAbEditOpen] = useState(false)
+  const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
+  const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
+  const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
+  console.log(needsAnalysisData);
   const token = useAuthStore((s) => s.token)
 
   const loadJobData = useCallback(async (job: Job) => {
@@ -1621,6 +1632,17 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
     }
   }
 
+  const handleEditAb = () => {
+    if (!selectedJob?.needsAnalysisId) return
+    setAbNeedsAnalysisId(selectedJob.needsAnalysisId)
+    setAbEditOpen(true)
+  }
+
+  const handleAbEditClose = () => {
+    setAbEditOpen(false)
+    setAbNeedsAnalysisId(null)
+  }
+
   if (!selectedJob) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 py-24 text-center">
@@ -1665,6 +1687,18 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
         onProposeCandidates={handleOpenProposeCandidates}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
       />
+
+      {selectedJob?.needsAnalysisId && (currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN) && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleEditAb}
+            className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue/20 hover:text-blue hover:bg-blue-light/30"
+          >
+            <FileEdit size={16} />
+            Modifier l'AB
+          </button>
+        </div>
+      )}
 
       {showCompanyInfo && selectedJob && (
         <CompanyInfoModal offerId={selectedJob.id} onClose={() => setShowCompanyInfo(false)} />
@@ -1796,6 +1830,41 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
           onClose={() => setImmersionConclusionCandidate(null)}
         />
       )}
+
+      {abEditOpen && needsAnalysisData && selectedJob && (
+        <NeedsAnalysisModal
+          entreprise={{
+            id: String(selectedJob.companyInfos?.id ?? ''),
+            nom_commercial: selectedJob.companyName,
+            proprietaire_contact: null,
+            commercial: null,
+            proprietaire_id: null,
+            representant_legal: needsAnalysisData.recruitmentResponsibleName ?? null,
+            telephone: needsAnalysisData.recruitmentResponsiblePhone ?? null,
+            email: needsAnalysisData.recruitmentResponsibleEmail ?? null,
+            adresse: null,
+            secteur: needsAnalysisData.companySectors?.join(', ') ?? null,
+            metier: null,
+            siret: null,
+            idcc: null,
+            note: needsAnalysisData.companyDescription ?? null,
+            conclusion: null,
+            status: (needsAnalysisData.status as Entreprise['status']) ?? 'Oui' as const,
+            date_insertion: null,
+            date_relance: null,
+            type_relance: null,
+            relance_template_id: null,
+            relance_channel: null,
+          }}
+          currentUser={currentUser!}
+          initialData={needsAnalysisData}
+          onClose={handleAbEditClose}
+          onSuccess={() => {
+            handleAbEditClose()
+            if (selectedJob) loadJobData(selectedJob)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -1804,6 +1873,7 @@ function RightPanel({ selectedJob }: { selectedJob: Job | null }) {
 
 export default function Matching() {
   const [searchParams] = useSearchParams()
+  const currentUser = useCurrentUser()
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [filters, setFilters] = useState<JobFiltersType>(EMPTY_JOB_FILTERS)
 
@@ -1817,6 +1887,7 @@ export default function Matching() {
   })
 
   const jobs: Job[] = jobsResult.data?.offers ?? []
+  console.log('jobs: ', jobs);
   const filteredJobs = applyJobFilters(jobs, filters)
   // ?offer= (lien de notification) sert d'offre présélectionnée tant qu'aucune sélection manuelle
   const effectiveJobId = selectedJobId ?? searchParams.get('offer')
@@ -1888,7 +1959,7 @@ export default function Matching() {
 
         {/* ─ Right: Detail panel ─ */}
         <div className="flex-1 overflow-y-auto px-5 pt-5">
-          <RightPanel selectedJob={selectedJob} />
+          <RightPanel selectedJob={selectedJob} currentUser={currentUser} />
         </div>
       </div>
     </div>

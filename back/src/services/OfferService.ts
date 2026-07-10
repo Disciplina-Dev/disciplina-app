@@ -65,9 +65,11 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
     const ageMax = offer.criteria?.age_max;
     const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
     const candidates = offer.matching?.candidates ?? [];
+    console.log('offer: ', offer);
 
     return {
         id: offer._id,
+        needsAnalysisId: offer.needs_analysis_id,
         companyName: offer.company_infos?.name,
         ageRange,
         desiredTP: offer.tp_type,
@@ -95,6 +97,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
                   recruitmentReferents: offer.referents.recruitment_referents,
               }
             : undefined,
+        companyInfos: offer.company_infos ? { id: offer.company_infos.id, name: offer.company_infos.name } : null,
         title: offer.title,
         missions: offer.missions,
     };

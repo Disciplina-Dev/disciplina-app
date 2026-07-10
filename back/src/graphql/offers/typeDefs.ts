@@ -155,7 +155,13 @@ export const typeDefs = gql`
         recruitmentReferents: ReferentDetails
     }
 
+    type CompanyInfos {
+        id: Int
+        name: String
+    }
+
     type Offer {
+        needsAnalysisId: String
         id: String!
         companyName: String
         ageRange: String
@@ -173,6 +179,7 @@ export const typeDefs = gql`
         interviewLocation: String
         salerInfo: SalerInfo
         referents: Referents
+        companyInfos: CompanyInfos
         title: String
         missions: [String]
     }

@@ -984,6 +984,8 @@ export const GET_OFFERS = gql`
   query GetOffers {
     offers {
       id
+      needsAnalysisId
+      companyInfos { id name }
       companyName
       ageRange
       desiredTP
@@ -1057,6 +1059,8 @@ export const MATCH_OFFER = gql`
   query MatchOffer($id: String!) {
     matchOffer(id: $id) {
       id
+      needsAnalysisId
+      companyInfos { id name }
       companyName
       ageRange
       desiredTP
@@ -1575,6 +1579,16 @@ export const CREATE_FILIZ_FOLDER = gql`
     ) {
       id
       filizFolderId
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS = gql`
+  mutation UpdateNeedsAnalysis($id: ID!, $input: NeedsAnalysisInput!) {
+    updateNeedsAnalysis(id: $id, input: $input) {
+      id
+      status
+      updatedAt
     }
   }
 `

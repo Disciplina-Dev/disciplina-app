@@ -188,13 +188,13 @@ export const typeDefs = gql`
         status: NeedsAnalysisStatus
     }
 
-    extend type Query {
+    type Query {
         needsAnalyses: [NeedsAnalysis!]!
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
     }
 
-    extend type Mutation {
+    type Mutation {
         createNeedsAnalysis(input: NeedsAnalysisInput!): NeedsAnalysis!
         updateNeedsAnalysis(id: ID!, input: NeedsAnalysisInput!): NeedsAnalysis!
         deleteNeedsAnalysis(id: ID!): Boolean!

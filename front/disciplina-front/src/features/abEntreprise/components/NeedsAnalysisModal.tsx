@@ -10,7 +10,7 @@ import type { AppUser } from '@/store/authStore'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
-import { useCreateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
+import { useCreateNeedsAnalysis, useUpdateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
 import { Localisation } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import SignaturePreviewModal from './SignaturePreviewModal'
@@ -449,6 +449,37 @@ function TextareaField({
   )
 }
 
+// ─── NeedsAnalysisData type for edit mode ──────────────────────────────────────
+
+interface NeedsAnalysisData {
+  id: string
+  legalRepFunction?: string | null
+  recruitmentResponsibleName?: string | null
+  recruitmentResponsiblePhone?: string | null
+  recruitmentResponsibleEmail?: string | null
+  recruitmentResponsibleFunction?: string | null
+  companySectors?: string[] | null
+  companyDescription?: string | null
+  opco?: string | null
+  referralSource?: string | null
+  positionsCount?: number | null
+  positions?: { trainingDomain?: string; jobTitle?: string; selectedMissions?: string[]; localisation?: string[] }[] | null
+  jobDescriptionOther?: string | null
+  drivingLicense?: string | null
+  experienceRequired?: string | null
+  ageRequirements?: string[] | null
+  ageMin?: number | null
+  ageMax?: number | null
+  softSkills?: string | null
+  scheduleOptions?: string[] | null
+  conditions?: string | null
+  additionalComments?: string | null
+  recruitmentMethod?: string | null
+  immersionPeriod?: string | null
+  trainingDays?: string | null
+  status?: string | null
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -456,23 +487,77 @@ interface Props {
   currentUser: AppUser
   onClose: () => void
   onSuccess: () => void
+  initialData?: NeedsAnalysisData | null
 }
+  // entreprise: Entreprise
+  // currentUser: AppUser
+  // onClose: () => void
+  // onSuccess: () => void
+// }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, onSuccess }: Props) {
-  const [trainingDays, setTrainingDays] = useState<TrainingDaysState>({
-    monday: 'OUI', tuesday: 'OUI', wednesday: 'OUI', thursday: 'OUI', friday: 'OUI',
+export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, onSuccess, initialData }: Props) {
+  const parseSoftSkills = (raw: string | null | undefined): string[] => {
+    if (!raw) return []
+    return raw.split(',').map((s) => s.trim()).filter(Boolean)
+  }
+
+  const parseAgeRequirements = (requirements: string[] | null | undefined): { ageMin: string; ageMax: string } => {
+    if (!requirements || requirements.length === 0) return { ageMin: '', ageMax: '' }
+    const [min, max] = requirements
+    return { ageMin: min ?? '', ageMax: max ?? '' }
+  }
+
+  const parseTrainingDays = (raw: string | null | undefined): TrainingDaysState => {
+    const defaults: TrainingDaysState = { monday: 'OUI', tuesday: 'OUI', wednesday: 'OUI', thursday: 'OUI', friday: 'OUI' }
+    if (!raw) return defaults
+    try {
+      const days: Record<string, string[]> = JSON.parse(raw)
+      const mapPeriod = (periods: string[]): DayStatus => {
+        if (periods.includes('PREFERE')) return 'PREFERE'
+        if (periods.length === 0) return 'NON'
+        return 'OUI'
+      }
+      return {
+        monday:    mapPeriod(days.monday ?? []),
+        tuesday:   mapPeriod(days.tuesday ?? []),
+        wednesday: mapPeriod(days.wednesday ?? []),
+        thursday:  mapPeriod(days.thursday ?? []),
+        friday:    mapPeriod(days.friday ?? []),
+      }
+    } catch {
+      return defaults
+    }
+  }
+
+  const [trainingDays, setTrainingDays] = useState<TrainingDaysState>(
+    parseTrainingDays(initialData?.trainingDays)
+  )
+  const [postes, setPostes] = useState<Poste[]>(() => {
+    if (initialData?.positions && initialData.positions.length > 0) {
+      return initialData.positions.map((p) => ({
+        trainingDomain: p.trainingDomain as TrainingDomain | undefined,
+        jobTitle: p.jobTitle ?? '',
+        selectedMissions: p.selectedMissions ?? [],
+        localisation: (p.localisation ?? []) as Localisation[],
+      }))
+    }
+    return [{ ...EMPTY_POSTE }]
   })
-  const [postes, setPostes] = useState<Poste[]>([{ ...EMPTY_POSTE }])
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
   // Quelle action a déclenché la soumission : télécharger le PDF ou l'envoyer en signature.
   const intentRef = useRef<'download' | 'sign'>('download')
 
-  const { createNeedsAnalysis, result } = useCreateNeedsAnalysis()
+  const isEditing = !!initialData
+  const { createNeedsAnalysis, result: createResult } = useCreateNeedsAnalysis()
+  const { updateNeedsAnalysis, result: updateResult } = useUpdateNeedsAnalysis()
+  const result = isEditing ? updateResult : createResult
   const { update: updateCompany } = useUpdateCompany()
+
+  const ages = parseAgeRequirements(initialData?.ageRequirements)
 
   const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
@@ -482,31 +567,31 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companyPostalCode:  '',
       companyCommune:     '',
       legalRepName:       entreprise.representant_legal ?? '',
-      legalRepFunction:   '',
+      legalRepFunction:   initialData?.legalRepFunction ?? '',
       legalRepFunctionOther: '',
       legalRepPhone:      entreprise.telephone ?? '',
       legalRepEmail:      entreprise.email ?? '',
-      isDifferentRecruitmentResponsible: false,
-      recruitmentResponsibleName:     '',
-      recruitmentResponsibleFunction: '',
+      isDifferentRecruitmentResponsible: !!(initialData?.recruitmentResponsibleName && initialData.recruitmentResponsibleName !== entreprise.representant_legal),
+      recruitmentResponsibleName:     initialData?.recruitmentResponsibleName ?? '',
+      recruitmentResponsibleFunction: initialData?.recruitmentResponsibleFunction ?? '',
       recruitmentResponsibleFunctionOther: '',
-      recruitmentResponsiblePhone:    '',
-      recruitmentResponsibleEmail:    '',
-      companySectors:           [],
+      recruitmentResponsiblePhone:    initialData?.recruitmentResponsiblePhone ?? '',
+      recruitmentResponsibleEmail:    initialData?.recruitmentResponsibleEmail ?? '',
+      companySectors:           initialData?.companySectors ?? [],
       companySectorOther:       '',
-      opco:                     undefined,
-      companyDescriptionOther:  '',
-      jobDescriptionOther:      '',
-      softSkills:               [],
+      opco:                     (initialData?.opco as Opco | undefined) ?? undefined,
+      companyDescriptionOther:  initialData?.companyDescription ?? '',
+      jobDescriptionOther:      initialData?.jobDescriptionOther ?? '',
+      softSkills:               parseSoftSkills(initialData?.softSkills),
       softSkillsOther:          '',
-      conditions:               '',
-      additionalComments:       '',
-      drivingLicense:     undefined,
-      experienceRequired: undefined,
-      ageMin:             '',
-      ageMax:             '',
-      recruitmentMethod:  undefined,
-      immersionPeriod:    undefined,
+      conditions:               initialData?.conditions ?? '',
+      additionalComments:       initialData?.additionalComments ?? '',
+      drivingLicense:     (initialData?.drivingLicense as 'OUI' | 'OPTIONNEL' | undefined) ?? undefined,
+      experienceRequired: (initialData?.experienceRequired as 'DEBUTANT' | 'OBLIGATOIRE' | undefined) ?? undefined,
+      ageMin:             ages.ageMin,
+      ageMax:             ages.ageMax,
+      recruitmentMethod:  (initialData?.recruitmentMethod as 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW' | undefined) ?? undefined,
+      immersionPeriod:    (initialData?.immersionPeriod as 'OUI' | 'NON' | 'A_DISCUTER' | undefined) ?? undefined,
     },
   })
 
@@ -628,7 +713,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           recruitmentResponsibleFunction: null,
         }
 
-    const response = await createNeedsAnalysis({
+    const input = {
       companyID:          parseInt(entreprise.id),
       userID:             currentUser.id,
       legalRepFunction:   resolveFunction(data.legalRepFunction, data.legalRepFunctionOther),
@@ -655,15 +740,20 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       recruitmentMethod:      data.recruitmentMethod,
       immersionPeriod:        data.immersionPeriod,
       trainingDays:           trainingDaysJson,
-    })
+    }
+
+    let response
+    if (isEditing && initialData) {
+      response = await updateNeedsAnalysis(initialData.id, input)
+    } else {
+      response = await createNeedsAnalysis(input)
+    }
 
     if (response.error) { setSubmitError(response.error.message); return }
 
-    const createdId = response.data?.createNeedsAnalysis?.id
-    if (createdId) {
+    const createdId = isEditing ? initialData?.id : response.data?.createNeedsAnalysis?.id
+    if (createdId && !isEditing) {
       if (intentRef.current === 'sign') {
-        // L'AB est créée (BROUILLON). On ouvre l'aperçu avant l'envoi DocuSeal :
-        // l'envoi réel n'a lieu qu'à la confirmation dans SignaturePreviewModal.
         setPreviewId(createdId)
         return
       }
@@ -737,7 +827,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-black">Analyse du Besoin</h2>
+            <h2 className="text-lg font-bold text-black">{isEditing ? "Modifier l'Analyse du Besoin" : "Analyse du Besoin"}</h2>
             <p className="text-sm text-gray-500">{entreprise.nom_commercial}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900">
@@ -1071,7 +1161,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                 leftIcon={<Check size={16} />}
                 onClick={() => { intentRef.current = 'download' }}
               >
-                Enregistrer & télécharger
+                {isEditing ? 'Mettre à jour & télécharger' : 'Enregistrer & télécharger'}
               </Button>
               <Button
                 type="submit"
@@ -1079,7 +1169,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                 leftIcon={<PenLine size={16} />}
                 onClick={() => { intentRef.current = 'sign' }}
               >
-                Enregistrer & envoyer en signature
+                {isEditing ? 'Mettre à jour & envoyer en signature' : 'Enregistrer & envoyer en signature'}
               </Button>
             </div>
           </div>
