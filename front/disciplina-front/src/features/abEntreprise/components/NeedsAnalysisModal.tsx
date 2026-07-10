@@ -538,7 +538,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
   const isEditing = !!initialData
   const { createNeedsAnalysis, result: createResult } = useCreateNeedsAnalysis()
-  const { updateNeedsAnalysis, result: updateResult } = useUpdateNeedsAnalysis()
+  const { updateNeedsAnalysis: updateMutation, result: updateResult } = useUpdateNeedsAnalysis()
   const result = isEditing ? updateResult : createResult
   const { update: updateCompany } = useUpdateCompany()
 
@@ -629,6 +629,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   // ─── Submit ──────────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: FormData) => {
+    console.log('[NeedsAnalysisModal] onSubmit triggered', { isEditing, initialDataId: initialData?.id })
     setSubmitError(null)
 
     if (!validatePostes()) {
@@ -636,6 +637,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       return
     }
 
+    try {
     // L'identité de l'entreprise (raison sociale, SIRET, adresse, représentant
     // légal) vit dans la table `companies` — le PDF de l'AB est généré côté
     // serveur à partir de cet enregistrement, pas du formulaire. On persiste donc
@@ -721,7 +723,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
     let response
     if (isEditing && initialData) {
-      response = await updateNeedsAnalysis(initialData.id, input)
+      response = await updateMutation(initialData.id, input)
     } else {
       response = await createNeedsAnalysis(input)
     }
@@ -744,6 +746,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
     onSuccess()
     onClose()
+  } catch (error) {
+    console.error('[NeedsAnalysisModal] onSubmit error:', error)
+    setSubmitError(error instanceof Error ? error.message : 'Erreur inattendue lors de l\'enregistrement')
+  }
   }
 
   // Confirmation de l'aperçu → envoi en signature réel, puis fermeture.
@@ -1124,23 +1130,31 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4">
             <Button variant="secondary" onClick={onClose}>Annuler</Button>
             <div className="flex items-center gap-2">
-              <Button
-                type="submit"
-                variant="secondary"
-                isLoading={result.fetching}
-                leftIcon={<Check size={16} />}
-                onClick={() => { intentRef.current = 'download' }}
-              >
-                {isEditing ? 'Mettre à jour & télécharger' : 'Enregistrer & télécharger'}
-              </Button>
-              <Button
-                type="submit"
-                isLoading={result.fetching}
-                leftIcon={<PenLine size={16} />}
-                onClick={() => { intentRef.current = 'sign' }}
-              >
-                {isEditing ? 'Mettre à jour & envoyer en signature' : 'Enregistrer & envoyer en signature'}
-              </Button>
+              {isEditing ? (
+                <Button type="submit" isLoading={result.fetching} leftIcon={<Check size={16} />}>
+                  Enregistrer les modifications
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    isLoading={result.fetching}
+                    leftIcon={<Check size={16} />}
+                    onClick={() => { intentRef.current = 'download' }}
+                  >
+                    Enregistrer & télécharger
+                  </Button>
+                  <Button
+                    type="submit"
+                    isLoading={result.fetching}
+                    leftIcon={<PenLine size={16} />}
+                    onClick={() => { intentRef.current = 'sign' }}
+                  >
+                    Enregistrer & envoyer en signature
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </form>
