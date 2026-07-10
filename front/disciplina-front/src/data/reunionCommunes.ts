@@ -78,6 +78,7 @@ export const LOCALISATION_LABELS: Record<Localisation, string> = {
   [Localisation.SAINTE_MARIE]: 'Sainte-Marie',
   [Localisation.SAINTE_SUZANNE]: 'Sainte-Suzanne',
   [Localisation.SAINT_PAUL]: 'Saint-Paul',
+  [Localisation.SAINT_GILLES]: 'Saint-Gilles',
   [Localisation.LA_POSSESSION]: 'La Possession',
   [Localisation.LE_PORT]: 'Le Port',
   [Localisation.TROIS_BASSINS]: 'Trois-Bassins',

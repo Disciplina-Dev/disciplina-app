@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
+import { formatTrainingDays } from '@/utils/trainingDays'
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -55,35 +56,12 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const ab = result.data?.needsAnalysis
   const badge = ab ? (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']) : null
+  const trainingDaysDisplay = formatTrainingDays(ab?.trainingDays)
 
   const handleDelete = async () => {
     await deleteNeedsAnalysis(id)
     onDelete?.()
     onClose()
-  }
-
-  let trainingDaysDisplay: string | null = null
-  if (ab?.trainingDays) {
-    try {
-      const days = JSON.parse(ab.trainingDays)
-      const DAY_LABELS: Record<string, string> = {
-        monday: 'Lundi', tuesday: 'Mardi', wednesday: 'Mercredi',
-        thursday: 'Jeudi', friday: 'Vendredi',
-      }
-      const STATUS_LABELS: Record<string, string> = { OUI: '✓', NON: '✗', PREFERE: '~' }
-      const periodsToLabel = (v: unknown): string => {
-        if (Array.isArray(v)) {
-          if (v.includes('PREFERE')) return '~'
-          return v.length > 0 ? '✓' : '✗'
-        }
-        return STATUS_LABELS[v as string] ?? String(v)
-      }
-      trainingDaysDisplay = Object.entries(days)
-        .map(([k, v]) => `${DAY_LABELS[k] ?? k}: ${periodsToLabel(v)}`)
-        .join('  •  ')
-    } catch {
-      trainingDaysDisplay = ab.trainingDays
-    }
   }
 
   return (

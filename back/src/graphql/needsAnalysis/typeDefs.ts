@@ -6,6 +6,7 @@ export const typeDefs = gql`
         SAINTE_MARIE
         SAINTE_SUZANNE
         SAINT_PAUL
+        SAINT_GILLES
         LA_POSSESSION
         LE_PORT
         TROIS_BASSINS
@@ -215,15 +216,37 @@ export const typeDefs = gql`
         status: NeedsAnalysisStatus
     }
 
+    type AbDriveFolder {
+        sector: String!
+        kind: String!
+        folderId: String
+    }
+
+    type AbDriveConfig {
+        sectorFolders: [AbDriveFolder!]!
+    }
+
+    input AbDriveFolderInput {
+        sector: String!
+        kind: String!
+        folderId: String
+    }
+
+    input AbDriveConfigInput {
+        sectorFolders: [AbDriveFolderInput!]!
+    }
+
     type Query {
         needsAnalyses: [NeedsAnalysis!]!
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
+        abDriveConfig: AbDriveConfig!
     }
 
     type Mutation {
         createNeedsAnalysis(input: NeedsAnalysisInput!): NeedsAnalysis!
         updateNeedsAnalysis(id: ID!, input: NeedsAnalysisInput!): NeedsAnalysis!
         deleteNeedsAnalysis(id: ID!): Boolean!
+        updateAbDriveConfig(input: AbDriveConfigInput!): AbDriveConfig!
     }
 `;

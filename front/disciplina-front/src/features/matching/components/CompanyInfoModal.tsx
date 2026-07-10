@@ -5,6 +5,7 @@ import { offerGraphqlClient } from '@/graphql/client'
 import { GET_OFFER_COMPANY_INFO } from '@/graphql/queries'
 import { useNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
+import { formatTrainingDays } from '@/utils/trainingDays'
 
 interface CompanyInfoModalProps {
   offerId: string
@@ -39,31 +40,13 @@ const ENUM_LABELS: Record<string, string> = {
   NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud',
   OUI: 'Oui', NON: 'Non', OPTIONNEL: 'Optionnel', A_DISCUTER: 'À discuter',
   DEBUTANT: 'Débutant', OBLIGATOIRE: 'Obligatoire',
+  BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3',
   ALL_CV: 'Réception de tous les CV', PRESELECTION: 'Présélection par le centre', PRE_INTERVIEW: 'Pré-entretien par le centre',
   KOANN: 'Koann', E2CR: 'E2CR', FRANCE_TRAVAIL: 'France Travail', TELEVISION_PUB: 'Télévision / Pub',
   BOUCHE_A_OREILLE: 'Bouche à oreille', MISSION_LOCALE: 'Mission Locale', SALON: 'Salon', RSMA: 'RSMA', RESEAUX_SOCIAUX: 'Réseaux sociaux',
   BROUILLON: 'Brouillon', EN_ATTENTE_SIGNATURE: 'En attente de signature', SIGNE: 'Signé', EXPIRE: 'Expiré',
 }
 const lbl = (v?: string | null) => (v ? ENUM_LABELS[v] ?? v : '')
-
-function fmtDays(raw?: string): string {
-  if (!raw) return ''
-  try {
-    const days: Record<string, string[]> = JSON.parse(raw)
-    const FR: Record<string, string> = { monday: 'Lun', tuesday: 'Mar', wednesday: 'Mer', thursday: 'Jeu', friday: 'Ven' }
-    const parts: string[] = []
-    for (const [k, fr] of Object.entries(FR)) {
-      const periods = days[k] ?? []
-      if (periods.includes('PREFERE')) parts.push(`${fr} (préféré)`)
-      else if (periods.length === 2) parts.push(fr)
-      else if (periods.includes('MATIN')) parts.push(`${fr} (matin)`)
-      else if (periods.includes('APRES_MIDI')) parts.push(`${fr} (après-midi)`)
-    }
-    return parts.join(', ')
-  } catch {
-    return ''
-  }
-}
 
 function Row({ label, value }: { label: string; value?: string | number | null }) {
   const v = value === 0 ? '0' : value
@@ -191,7 +174,7 @@ export default function CompanyInfoModal({ offerId, needsAnalysisId, onClose }: 
 
               <Row label="Méthode de recrutement" value={lbl(ab.recruitmentMethod)} />
               <Row label="Période d'immersion" value={lbl(ab.immersionPeriod)} />
-              <Row label="Jours de formation possibles" value={fmtDays(ab.trainingDays)} />
+              <Row label="Jours de formation possibles" value={formatTrainingDays(ab.trainingDays)} />
               <Row label="Statut AB" value={lbl(ab.status)} />
             </Section>
           )}

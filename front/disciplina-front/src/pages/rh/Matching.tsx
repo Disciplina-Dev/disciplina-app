@@ -137,7 +137,6 @@ type CandidateDecision = 'accepted' | 'dismissed' | null
 
 function formatEnum(raw: string | null | undefined): string {
   if (!raw) return '—'
-  console.log(raw);
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
@@ -1381,12 +1380,10 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
   const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
   const abCompany = abCompanyResult.data?.companyBySiret
-  console.log('abcompany', abCompanyResult);
   const token = useAuthStore((s) => s.token)
 
   useEffect(() => {
     if (abEditOpen && needsAnalysisData?.companyInfos?.siret) {
-      console.log(needsAnalysisData.companyInfos.siret);
       searchAbCompanyBySiret(needsAnalysisData.companyInfos.siret)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1949,7 +1946,6 @@ export default function Matching() {
   })
 
   const jobs: Job[] = jobsResult.data?.offers ?? []
-  console.log('jobs: ', jobs);
   const filteredJobs = applyJobFilters(jobs, filters)
   // ?offer= (lien de notification) sert d'offre présélectionnée tant qu'aucune sélection manuelle
   const effectiveJobId = selectedJobId ?? searchParams.get('offer')

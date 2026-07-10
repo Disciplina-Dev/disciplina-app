@@ -21,6 +21,7 @@ export const typeDefs = gql`
         SAINTE_MARIE
         SAINTE_SUZANNE
         SAINT_PAUL
+        SAINT_GILLES
         LA_POSSESSION
         LE_PORT
         TROIS_BASSINS
