@@ -530,6 +530,7 @@ function JobDetailsSection({
   isCreatingSession,
   onProposeCandidates,
   onShowCompanyInfo,
+  onEditAb,
 }: {
   job: MatchJobResult
   onSetStatus: (status: OfferStatus) => void
@@ -537,6 +538,7 @@ function JobDetailsSection({
   isCreatingSession: boolean
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
+  onEditAb?: () => void
 }) {
   const chip = statusChip(job.status)
 
@@ -561,17 +563,29 @@ function JobDetailsSection({
             </span>
           </div>
         </div>
-        {hasAcceptedCandidates && (
-          <button
-            onClick={onProposeCandidates}
-            disabled={isCreatingSession}
-            className="flex shrink-0 items-center gap-2 rounded-xl border border-blue/20 px-4 py-2 text-sm font-semibold text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
-            title="Proposer les candidats acceptés à l'entreprise via un lien sécurisé"
-          >
-            {isCreatingSession ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            Proposer les candidats
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {onEditAb && (
+            <button
+              onClick={onEditAb}
+              className="flex items-center justify-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue/20 hover:text-blue hover:bg-blue-light/30 md:px-4"
+              title="Modifier l'analyse du besoin"
+            >
+              <FileEdit size={16} />
+              <span className="hidden md:inline">Modifier l'AB</span>
+            </button>
+          )}
+          {hasAcceptedCandidates && (
+            <button
+              onClick={onProposeCandidates}
+              disabled={isCreatingSession}
+              className="flex shrink-0 items-center gap-2 rounded-xl border border-blue/20 px-4 py-2 text-sm font-semibold text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
+              title="Proposer les candidats acceptés à l'entreprise via un lien sécurisé"
+            >
+              {isCreatingSession ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              Proposer les candidats
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-4 pb-4 border-b border-gray-50">
@@ -1686,19 +1700,12 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         isCreatingSession={isCreatingSession}
         onProposeCandidates={handleOpenProposeCandidates}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
+        onEditAb={
+          selectedJob?.needsAnalysisId && (currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN)
+            ? handleEditAb
+            : undefined
+        }
       />
-
-      {selectedJob?.needsAnalysisId && (currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN) && (
-        <div className="flex justify-end">
-          <button
-            onClick={handleEditAb}
-            className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue/20 hover:text-blue hover:bg-blue-light/30"
-          >
-            <FileEdit size={16} />
-            Modifier l'AB
-          </button>
-        </div>
-      )}
 
       {showCompanyInfo && selectedJob && (
         <CompanyInfoModal offerId={selectedJob.id} onClose={() => setShowCompanyInfo(false)} />
