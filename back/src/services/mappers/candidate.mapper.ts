@@ -52,6 +52,7 @@ export function candidateToGql(candidate: Candidate): any {
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
         identity: candidate.identity ? snakeToCamelCase(candidate.identity) : null,
+        emergencyContact: candidate.emergency_contact ? snakeToCamelCase(candidate.emergency_contact) : null,
         education: candidate.education ? snakeToCamelCase(candidate.education) : null,
         support: candidate.support ? snakeToCamelCase(candidate.support) : null,
         background: candidate.background ? snakeToCamelCase(candidate.background) : null,

@@ -746,6 +746,16 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv("Détail du contrat d'apprentissage", id.apprenticeship_contract_details);
     para('Description (contexte du candidat)', id.description);
 
+    // ── Contact d'urgence ──
+    const ec = c.emergency_contact;
+    if (ec && (ec.last_name || ec.first_name || ec.relationship || ec.phone || ec.email)) {
+        section("Personne à contacter en cas d'urgence");
+        kv('Nom', [ec.first_name, ec.last_name].filter(Boolean).join(' '));
+        kv('Rôle pour le candidat', ec.relationship);
+        kv('Téléphone', ec.phone);
+        kv('Email', ec.email);
+    }
+
     // ── Parcours ──
     section('Parcours & prérequis');
     kv(
