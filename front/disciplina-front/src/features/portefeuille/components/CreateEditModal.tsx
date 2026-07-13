@@ -419,7 +419,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                           </option>
                         ))}
                       </select>
-                      {currentUser.role === UserRole.COMMERCIAL || currentUser.role === UserRole.RESPONSABLE (
+                      {currentUser.role === UserRole.COMMERCIAL && (
                         <p className="text-xs text-gray-500">Vous serez automatiquement défini comme propriétaire</p>
                       )}
                     </div>
