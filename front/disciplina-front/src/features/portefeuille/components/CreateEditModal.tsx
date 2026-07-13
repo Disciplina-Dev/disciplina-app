@@ -157,7 +157,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       relance_channel: values.relance_channel || null,
       ...(mode === 'create' && {
         date_insertion: new Date().toISOString(),
-        proprietaire_contact: USERS[currentUser.id]?.email ?? null,
+        proprietaire_contact: currentUser.email ?? null,
       }),
     })
   }

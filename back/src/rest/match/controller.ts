@@ -26,7 +26,7 @@ function proposedCandidateToPublic(candidate: MatchingCandidate): object {
         sex: candidate.sex,
         city: candidate.city,
         description: candidate.description ?? '',
-        answer: candidate.answer ?? null,
+        status: candidate.status ?? null,
     };
 }
 

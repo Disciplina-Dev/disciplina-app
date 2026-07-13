@@ -172,7 +172,7 @@ describe('candidateHistory', () => {
         await jobRepo.addMatchedCandidate(job._id, {
             id: candidateId,
             full_name: 'Job Candidate',
-            status: MatchedCandidateStatus.RETAINED,
+            status: MatchedCandidateStatus.PRE_SELECTED,
         });
 
         const mutationRes = await jobsGraphqlRequest(

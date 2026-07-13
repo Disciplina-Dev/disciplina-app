@@ -4,6 +4,7 @@ import { Loader2, AlertCircle, ChevronLeft, ChevronRight, Check, Send } from 'lu
 import {
   getMatchCandidates,
   submitMatchAnswers,
+  PROPOSED_ANSWER_TO_STATUS,
   type ProposedCandidateView,
   type ProposedAnswer,
   type SubmitAnswerPayload,
@@ -67,7 +68,7 @@ export default function MatchComparator() {
       const comment = answer === 'REFUSED' ? comments[candidate.id]?.trim() || undefined : undefined
       return {
         candidateId: candidate.id,
-        answer,
+        status: PROPOSED_ANSWER_TO_STATUS[answer],
         interviewSlots: withSlots ? cleanSlots : undefined,
         interviewLocation: withSlots ? cleanLocation : undefined,
         comment,

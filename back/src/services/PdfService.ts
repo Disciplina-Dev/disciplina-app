@@ -7,8 +7,11 @@ import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
-// Sur Vercel/Lambda (pas de Chromium système), on utilise @sparticuz/chromium
-// avec puppeteer-core. En local, on garde le Chromium fourni par puppeteer.
+// On utilise @sparticuz/chromium + puppeteer-core partout (Docker, dev local,
+// Vercel/Lambda). Plus de Chromium système ni de paquet `puppeteer` full.
+// @sparticuz/chromium embarque un binaire Chromium qui fonctionne sur amd64
+// comme sur arm64 (pas de SIGTRAP sous Apple Silicon).
+//
 // Import dynamique natif : `@sparticuz/chromium` et `puppeteer-core` sont des
 // modules ESM-only. Avec TypeScript en CommonJS, un `import()` classique est
 // transpilé en `require()` (→ ERR_REQUIRE_ESM). Passer par `Function` empêche
@@ -26,25 +29,25 @@ if ((globalThis as { __nftTraceOnly__?: boolean }).__nftTraceOnly__) {
     void import('puppeteer-core');
 }
 
-async function launchBrowser(): Promise<Browser> {
-    const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_VERSION;
-
-    if (isServerless) {
-        const chromium = (await nativeImport('@sparticuz/chromium')).default;
-        const puppeteerCore = (await nativeImport('puppeteer-core')).default;
-        return puppeteerCore.launch({
-            args: chromium.args,
-            executablePath: await chromium.executablePath(),
-            headless: true,
-        }) as unknown as Promise<Browser>;
+async function importEsm(specifier: string): Promise<any> {
+    try {
+        return await nativeImport(specifier);
+    } catch {
+        // Fallback pour vitest/VM contextes où new Function + import() ne
+        // fonctionne pas (["A dynamic import callback was not specified"]).
+        return await import(specifier);
     }
+}
 
-    // Indirection volontaire: empêche le bundler Vercel (nft) d'embarquer le
-    // gros paquet `puppeteer` dans la fonction serverless (jamais utilisé là-bas).
-    const puppeteer = (await nativeImport('puppeteer')).default;
-    return puppeteer.launch({
+async function launchBrowser(): Promise<Browser> {
+    const mod = await importEsm('@sparticuz/chromium');
+    const chromium = mod.default;
+    const puppeteerCoreMod = await importEsm('puppeteer-core');
+    const puppeteerCore = puppeteerCoreMod.default;
+    return puppeteerCore.launch({
+        args: chromium.args,
+        executablePath: await chromium.executablePath(),
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     }) as unknown as Promise<Browser>;
 }
 

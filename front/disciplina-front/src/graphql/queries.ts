@@ -1099,7 +1099,6 @@ export const MATCH_OFFER = gql`
         email
         phone
         description
-        answer
         comment
         interviewLocation
         bookedInterviewSlot
