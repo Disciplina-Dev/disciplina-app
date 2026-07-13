@@ -21,6 +21,8 @@ export interface SendEmailOptions {
     subject: string;
     html: string;
     text: string;
+    /** Valeur du header `List-Unsubscribe` (ex. `<mailto:rh@disciplina.re?subject=Desabonnement>`). Envois en nombre uniquement. */
+    listUnsubscribe?: string;
     attachments?: {
         filename: string;
         content: string;
