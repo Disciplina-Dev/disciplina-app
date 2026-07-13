@@ -88,6 +88,8 @@ type ABForm = {
   hadApprenticeshipContract: string;
   apprenticeshipContractDetails: string;
   description: string;
+  // contact d'urgence
+  ecLastName: string; ecFirstName: string; ecRelationship: string; ecPhone: string; ecEmail: string;
   // TP (multi) + statut
   tpTypes: TitleProfessionalType[]; status: string;
   // éducation
@@ -171,6 +173,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '',
+    ecLastName: '', ecFirstName: '', ecRelationship: '', ecPhone: '', ecEmail: '',
     tpTypes: [tpType], status: 'SEEKING',
     schoolLevel: '', schoolJustification: '',
     trainingSites: [],
@@ -227,6 +230,11 @@ function candidateToForm(c: Candidate): ABForm {
     pshReferralRequest: bs(c.identity.psh_referral_request),
     hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
     apprenticeshipContractDetails: c.identity.apprenticeship_contract_details ?? '',
+    ecLastName: c.emergency_contact?.last_name ?? '',
+    ecFirstName: c.emergency_contact?.first_name ?? '',
+    ecRelationship: c.emergency_contact?.relationship ?? '',
+    ecPhone: c.emergency_contact?.phone ?? '',
+    ecEmail: c.emergency_contact?.email ?? '',
     tpTypes,
     status: statusKey,
     schoolLevel: c.education?.school_level ?? '',
@@ -310,6 +318,13 @@ function toServerInput(f: ABForm) {
       pshReferralRequest: pb(f.pshReferralRequest),
       hadApprenticeshipContract: pb(f.hadApprenticeshipContract),
       apprenticeshipContractDetails: f.hadApprenticeshipContract === 'true' ? (f.apprenticeshipContractDetails || undefined) : undefined,
+    },
+    emergencyContact: {
+      lastName: f.ecLastName || undefined,
+      firstName: f.ecFirstName || undefined,
+      relationship: f.ecRelationship || undefined,
+      phone: f.ecPhone || undefined,
+      email: f.ecEmail || undefined,
     },
     education: { schoolLevel: f.schoolLevel || undefined, justification: f.schoolJustification || undefined },
     support: {
@@ -751,6 +766,18 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {form.hadApprenticeshipContract === 'true' && (
             <ABTextarea label="Précisez le contrat d'apprentissage (entreprise, période, métier…)" value={form.apprenticeshipContractDetails} onChange={v => set('apprenticeshipContractDetails', v)} />
           )}
+
+          {/* Contact d'urgence */}
+          <ABSectionTitle title="Personne à contacter en cas d'urgence" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InputField id="cn-ec-lastname" label="Nom" value={form.ecLastName} onChange={e => set('ecLastName', e.target.value)} />
+            <InputField id="cn-ec-firstname" label="Prénom" value={form.ecFirstName} onChange={e => set('ecFirstName', e.target.value)} />
+          </div>
+          <InputField id="cn-ec-role" label="Rôle pour le candidat (parent, tuteur, ami…)" value={form.ecRelationship} onChange={e => set('ecRelationship', e.target.value)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InputField id="cn-ec-phone" label="Téléphone" type="tel" value={form.ecPhone} onChange={e => set('ecPhone', e.target.value)} />
+            <InputField id="cn-ec-email" label="Mail" type="email" value={form.ecEmail} onChange={e => set('ecEmail', e.target.value)} />
+          </div>
 
           {/* Prérequis */}
           <ABSectionTitle title="Parcours et prérequis" />
