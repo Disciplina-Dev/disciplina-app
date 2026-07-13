@@ -310,6 +310,8 @@ const CANDIDATE_FIELDS = gql`
     }
     pdfLink
     createdAt
+    lastRelanceAt
+    relanceResponseAt
   }
 `
 

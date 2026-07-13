@@ -71,6 +71,10 @@ export function candidateToGql(candidate: Candidate): any {
         filizFolderId: candidate.filiz_folder_id || null,
         photoLink: candidate.photo_link || null,
         createdAt: candidate.created_at ? new Date(candidate.created_at).toISOString() : null,
+        lastRelanceAt: candidate.last_relance_at ? new Date(candidate.last_relance_at).toISOString() : null,
+        relanceResponseAt: candidate.relance_response_at
+            ? new Date(candidate.relance_response_at).toISOString()
+            : null,
     };
 }
 
