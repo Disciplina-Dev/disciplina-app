@@ -728,16 +728,23 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Identité & contact');
     kv(tpTypes.length > 1 ? 'Titres professionnels' : 'Titre professionnel', tpTypesLabel);
     kv('Statut', STATUS_LABELS[c.status] ?? c.status);
+    kv('Numéro de sécurité sociale', id.social_security_number);
     kv('Email', id.email);
     kv('Téléphone', id.phone);
     kv('Date de naissance', fmtDate(id.date_of_birth));
     kv('Lieu de naissance', id.place_of_birth);
+    kv('Département de naissance', id.department_of_birth);
     kv('Âge', id.age ? `${id.age} ans` : '');
+    kv('Adresse', id.address);
     kv('Ville', id.city);
     kv('Code postal', id.postal_code);
     if (id.driving_license_b != null) kv('Permis B', yn(id.driving_license_b));
     kv('Moyen de transport', id.transport_means);
     if (id.psh_referral_request != null) kv('Accompagnement PSH', yn(id.psh_referral_request));
+    if (id.had_apprenticeship_contract != null)
+        kv("A déjà eu un contrat d'apprentissage", yn(id.had_apprenticeship_contract));
+    kv("Détail du contrat d'apprentissage", id.apprenticeship_contract_details);
+    para('Description (contexte du candidat)', id.description);
 
     // ── Parcours ──
     section('Parcours & prérequis');
@@ -746,7 +753,8 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
         c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level : '',
     );
     kv('Justificatif', c.education?.justification);
-    kv('Dernier diplôme', c.background?.last_diploma);
+    kv('Dernier diplôme obtenu', c.background?.last_diploma);
+    kv('Dernier diplôme préparé', c.background?.last_diploma_prepared);
     kv(trainingSites.length > 1 ? 'Sites de formation' : 'Site de formation', trainingSitesLabel);
     para('Formations suivies auparavant', c.background?.previous_trainings);
 
