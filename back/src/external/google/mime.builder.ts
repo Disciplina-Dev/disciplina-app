@@ -44,6 +44,31 @@ function htmlPart(html: string): string {
     return ['Content-Type: text/html; charset=utf-8', '', html].join('\r\n');
 }
 
+function textPart(text: string): string {
+    return ['Content-Type: text/plain; charset=utf-8', '', text].join('\r\n');
+}
+
+/**
+ * Corps du message : HTML seul si aucun texte fourni, sinon `multipart/alternative`
+ * (texte + HTML). Un mail HTML-only sans alternative text/plain est un signal spam
+ * fort (Gmail notamment) ; on émet toujours les deux quand le texte est disponible.
+ */
+function bodyBlock(html: string, text?: string): string {
+    if (!text) return htmlPart(html);
+    const alt = '==Disciplina-alt==';
+    return [
+        `Content-Type: multipart/alternative; boundary="${alt}"`,
+        '',
+        `--${alt}`,
+        textPart(text),
+        '',
+        `--${alt}`,
+        htmlPart(html),
+        '',
+        `--${alt}--`,
+    ].join('\r\n');
+}
+
 function inlineImagePart(img: InlineImage, boundary: string): string {
     return [
         `--${boundary}`,
@@ -73,13 +98,20 @@ export function buildRawMessage(options: SendEmailOptions): string {
     const { html, images } = extractInlineImages(options.html);
     const attachments = (options.attachments ?? []).filter((a) => a.content && a.filename);
     const subject = encodeSubject(options.subject);
+    const text = options.text?.trim() ? options.text : undefined;
     const headers = ['MIME-Version: 1.0', `To: ${sanitizeHeaderValue(options.to)}`, `Subject: ${subject}`];
+
+    // En-tête de désabonnement (Gmail bulk sender rules) : réduit le marquage spam et
+    // offre le lien natif « Se désabonner ». Fourni uniquement pour les envois en nombre.
+    if (options.listUnsubscribe) {
+        headers.push(`List-Unsubscribe: ${sanitizeHeaderValue(options.listUnsubscribe)}`);
+    }
 
     let message: string;
 
     if (images.length === 0 && attachments.length === 0) {
-        // HTML simple.
-        message = [...headers, htmlPart(html)].join('\r\n');
+        // HTML simple (ou multipart/alternative si texte fourni).
+        message = [...headers, bodyBlock(html, text)].join('\r\n');
     } else if (images.length > 0 && attachments.length === 0) {
         // HTML + images inline → multipart/related.
         const rel = '==Disciplina-rel==';
@@ -88,7 +120,7 @@ export function buildRawMessage(options: SendEmailOptions): string {
             `Content-Type: multipart/related; boundary="${rel}"`,
             '',
             `--${rel}`,
-            htmlPart(html),
+            bodyBlock(html, text),
             '',
             ...images.map((img) => inlineImagePart(img, rel)),
             `--${rel}--`,
@@ -101,7 +133,7 @@ export function buildRawMessage(options: SendEmailOptions): string {
             `Content-Type: multipart/mixed; boundary="${mix}"`,
             '',
             `--${mix}`,
-            htmlPart(html),
+            bodyBlock(html, text),
             '',
             ...attachments.map((a) => attachmentPart(a, mix)),
             `--${mix}--`,
@@ -118,7 +150,7 @@ export function buildRawMessage(options: SendEmailOptions): string {
             `Content-Type: multipart/related; boundary="${rel}"`,
             '',
             `--${rel}`,
-            htmlPart(html),
+            bodyBlock(html, text),
             '',
             ...images.map((img) => inlineImagePart(img, rel)),
             `--${rel}--`,
