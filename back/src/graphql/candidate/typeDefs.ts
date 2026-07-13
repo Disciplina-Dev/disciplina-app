@@ -240,6 +240,8 @@ export const typeDefs = gql`
         matchedOffers: [MatchedOffer]
         photoLink: String
         createdAt: String
+        lastRelanceAt: String
+        relanceResponseAt: String
     }
 
     input IdentityInput {

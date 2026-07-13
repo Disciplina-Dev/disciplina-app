@@ -220,6 +220,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         photo_link: { type: String },
         classmarker: { type: classMarkerResultSchema },
         created_at: { type: Date },
+        last_relance_at: { type: Date },
+        relance_response_at: { type: Date },
         classmarker_history: { type: [classMarkerResultSchema], default: undefined },
     },
     { collection: 'candidates' },

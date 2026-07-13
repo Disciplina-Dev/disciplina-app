@@ -221,6 +221,11 @@ export async function sendRelance(req: AuthRequest, res: Response) {
                 },
                 persistRefreshedTokens(user.id),
             );
+            // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;
+            // l'affichage ne la considère « à jour » que si elle est postérieure à cette relance.
+            await candidateService
+                .update(candidate._id, { last_relance_at: new Date() })
+                .catch((err) => logger.error({ err, id: candidate._id }, '[relance] last_relance_at update failed'));
             sent++;
         } catch {
             errors++;
@@ -316,7 +321,7 @@ export async function handleResponse(req: Request, res: Response) {
 
     let updated;
     try {
-        updated = await candidateService.update(id, { status: newStatus });
+        updated = await candidateService.update(id, { status: newStatus, relance_response_at: new Date() });
         logger.info({ id, answer, newStatus }, '[relance] status updated');
     } catch (err) {
         logger.error({ err }, '[relance] update error');

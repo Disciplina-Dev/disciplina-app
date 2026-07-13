@@ -245,6 +245,8 @@ export interface Candidate {
     drive_folder_id?: string;
     filiz_folder_id?: string;
     created_at?: string;
+    last_relance_at?: string;      // dernière relance de disponibilité envoyée
+    relance_response_at?: string;  // date de réponse du candidat à la relance
 }
 
 export enum CandidateHistoryType {

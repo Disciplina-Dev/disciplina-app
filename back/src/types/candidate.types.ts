@@ -233,6 +233,9 @@ export interface Candidate {
     photo_link?: string;
     classmarker?: ClassMarkerResult;
     created_at?: Date;
+    // Relance de disponibilité : date du dernier envoi et date de la réponse du candidat.
+    last_relance_at?: Date;
+    relance_response_at?: Date;
     // Historique complet : un entrée par test passé (append-only). `classmarker`
     // reste le dernier résultat pour compat ; ici on garde la trace de tous.
     classmarker_history?: ClassMarkerResult[];

@@ -410,6 +410,8 @@ function fromGql(c: any): Candidate {
     drive_folder_id: c.driveFolderId,
     filiz_folder_id: c.filizFolderId,
     created_at: c.createdAt,
+    last_relance_at: c.lastRelanceAt ?? undefined,
+    relance_response_at: c.relanceResponseAt ?? undefined,
   }
 }
 
