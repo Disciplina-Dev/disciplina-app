@@ -56,7 +56,7 @@ export class CandidateHistoryService {
     ): MatchedStatusHistoryEntry | null {
         const company = companyName ?? "l'entreprise";
         switch (status) {
-            case MatchedCandidateStatus.OFFER_SEND:
+            case MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND:
                 return {
                     type: CandidateHistoryType.RH,
                     description: `Un mail de proposition de ${company} a été envoyé au candidat`,

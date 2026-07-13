@@ -30,7 +30,6 @@ import {
 } from 'lucide-react'
 import { GET_OFFERS, GET_COMPANIES, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, UNMATCH_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
-import { PROPOSED_CANDIDATE_ANSWER_LABELS, PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS, ProposedCandidateAnswer } from '@/constants/proposedCandidateAnswer'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
@@ -113,7 +112,7 @@ interface ProposedCandidate {
   email: string
   phone: string
   description: string | null
-  answer: ProposedCandidateAnswer | null
+  status: MatchedCandidateStatus | null
   comment?: string | null
   interviewLocation?: string
   bookedInterviewSlot?: string | null
@@ -1201,15 +1200,15 @@ function ProposedCandidatesSection({
             <div key={c.id} className="rounded-lg border border-gray-100 p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-gray-900">{c.fullName}</p>
-                {c.answer ? (
-                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${PROPOSED_CANDIDATE_ANSWER_BADGE_CLASS[c.answer]}`}>
-                    {PROPOSED_CANDIDATE_ANSWER_LABELS[c.answer]}
+                {c.status && c.status !== MatchedCandidateStatus.SEND ? (
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[c.status]}`}>
+                    {MATCHED_CANDIDATE_STATUS_LABELS[c.status]}
                   </span>
                 ) : (
                   <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-medium text-gray-500">En attente</span>
                 )}
               </div>
-              {c.answer === ProposedCandidateAnswer.REFUSED && c.comment && (
+              {c.status === MatchedCandidateStatus.REFUSED && c.comment && (
                 <p className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
                   Motif du refus : {c.comment}
                 </p>
@@ -1223,7 +1222,7 @@ function ProposedCandidatesSection({
                   <p>📍 {c.interviewLocation}</p>
                 </div>
               )}
-              {c.answer === ProposedCandidateAnswer.ACCEPTED && c.bookedInterviewSlot && c.interviewLocation && (
+              {c.status === MatchedCandidateStatus.INTERVIEW && c.bookedInterviewSlot && c.interviewLocation && (
                 <button
                   onClick={() => onSendDates(c)}
                   className="mt-2 flex items-center gap-1.5 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
@@ -1516,7 +1515,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ to: candidate.email, subject, body }),
           })
-          await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
+          await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }).toPromise()
           sentIds.add(candidate.id)
         }
       } catch {
@@ -1531,7 +1530,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       setJobData({
         ...jobData,
         matchedCandidate: (jobData.matchedCandidate ?? []).map((c) =>
-          sentIds.has(c.id) ? { ...c, status: MatchedCandidateStatus.OFFER_SEND } : c
+          sentIds.has(c.id) ? { ...c, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND } : c
         ),
       })
     }
@@ -1558,12 +1557,12 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
 
   const handleMailSent = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
-    await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.OFFER_SEND }).toPromise()
+    await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.SEND }).toPromise()
     if (jobData) {
       setJobData({
         ...jobData,
         matchedCandidate: (jobData.matchedCandidate ?? []).map((c) =>
-          c.id === candidate.id ? { ...c, status: MatchedCandidateStatus.OFFER_SEND } : c
+          c.id === candidate.id ? { ...c, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND } : c
         ),
       })
     }

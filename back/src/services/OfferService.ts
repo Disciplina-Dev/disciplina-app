@@ -11,12 +11,24 @@ import {
     OfferStatus,
     MatchedCandidateStatus,
     MatchingCandidate,
-    ProposedCandidateAnswer,
     Sex,
 } from '../types/matching.types';
 import { signMatchUrl } from '../external/crypto';
 import { env } from '../config/env';
 import { isInterviewDatePast } from '../utils/interview';
+import { NotificationService } from './NotificationService';
+import { UserRepository } from '../repositories/mysql/UserRepository';
+import { MatchMailService } from './MatchMailService';
+import { Role } from '../types/user.types';
+import { logger } from '../external/logger';
+
+// Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
+const PROPOSED_STATUSES = [
+    MatchedCandidateStatus.SEND,
+    MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.INTERVIEW,
+    MatchedCandidateStatus.IMMERSING,
+];
 
 const INTERVIEW_CONCLUSION_TO_CANDIDATE_STATUS: Record<InterviewConclusion, CandidateStatus> = {
     [InterviewConclusion.REJECTED]: CandidateStatus.SEEKING,
@@ -46,7 +58,6 @@ function proposedCandidateToGql(pc: MatchingCandidate): object {
     return {
         ...matchingCandidateToGql(pc),
         description: pc.description,
-        answer: pc.answer,
         comment: pc.comment,
         interviewLocation: pc.interview_location,
         bookedInterviewSlot: pc.booked_interview_slot,
@@ -63,7 +74,6 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
     const ageMax = offer.criteria?.age_max;
     const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
     const candidates = offer.matching?.candidates ?? [];
-    console.log('offer: ', offer);
 
     return {
         id: offer._id,
@@ -79,11 +89,11 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
         sector: null,
         matched: false,
         matchedCandidate: candidates
-            .filter((c) => c.status !== MatchedCandidateStatus.OFFER_SEND)
+            .filter((c) => !c.status || !PROPOSED_STATUSES.includes(c.status))
             .map(matchingCandidateToGql),
         suggestedCandidates: suggestedCandidates?.map(matchingCandidateToGql),
         proposedCandidate: candidates
-            .filter((c) => c.status === MatchedCandidateStatus.OFFER_SEND)
+            .filter((c) => c.status && PROPOSED_STATUSES.includes(c.status))
             .map(proposedCandidateToGql),
         interviewSlots: offer.matching?.interview_slots,
         interviewLocation: offer.matching?.interview_location,
@@ -113,7 +123,7 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
         email: c.identity.email,
         phone: c.identity.phone,
         sex: c.identity.sex as Sex,
-        status: MatchedCandidateStatus.RETAINED,
+        status: MatchedCandidateStatus.PRE_SELECTED,
     };
 }
 
@@ -133,6 +143,9 @@ export class OfferService {
     private candidateService = new CandidateService();
     private candidateHistoryService = new CandidateHistoryService();
     private companiesService = new CompaniesService();
+    private notificationService = new NotificationService();
+    private userRepository = new UserRepository();
+    private matchMailService = new MatchMailService();
 
     async findAll(): Promise<object[]> {
         const offers = await this.offerRepository.listMatchingOffers();
@@ -198,7 +211,7 @@ export class OfferService {
         await this.candidateHistoryService.recordAuto(
             candidateId,
             CandidateHistoryType.RH,
-            `Le candidat a été retenu pour ${offer.company_infos?.name ?? ''}`,
+            `Le candidat a été pré-sélectionné pour l'entreprise ${offer.company_infos?.name ?? ''}`,
         );
 
         const synced = await this.syncDerivedStatus(offerId, offer);
@@ -279,8 +292,74 @@ export class OfferService {
         );
         if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
 
+        if (status === MatchedCandidateStatus.ACCEPTED || status === MatchedCandidateStatus.DECLINED) {
+            const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
+            await this.notifyRhCandidateAnswer(
+                status as MatchedCandidateStatus,
+                candidate?.full_name,
+                offer.company_infos?.name,
+            );
+        }
+
         const synced = await this.syncDerivedStatus(offerId, offer);
         return toGql(synced);
+    }
+
+    // Le candidat a répondu au mail de proposition : on prévient les RH.
+    private async notifyRhCandidateAnswer(
+        status: MatchedCandidateStatus,
+        candidateName?: string,
+        companyName?: string,
+    ): Promise<void> {
+        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const name = candidateName ?? 'Un candidat';
+        const company = companyName ?? "l'entreprise";
+        const accepted = status === MatchedCandidateStatus.ACCEPTED;
+        await Promise.all(
+            rhUsers.map((user) =>
+                this.notificationService.create({
+                    userId: user.id,
+                    type: 'candidate_offer_answer',
+                    level: accepted ? 'success' : 'info',
+                    title: accepted ? 'Offre acceptée' : 'Offre déclinée',
+                    message: `${name} a ${accepted ? 'accepté' : 'refusé'} l'offre de ${company}`,
+                    link: '/rh/matching',
+                }),
+            ),
+        );
+    }
+
+    // Envoie au candidat le mail de proposition (liens oui/non) et passe son statut
+    // à PRE_SELECTED_MAIL_SEND.
+    async sendInterestMailToCandidate(offerId: string, candidateId: string, rhEmail: string): Promise<object | null> {
+        const offer = await this.offerRepository.setMatchedCandidateStatus(
+            offerId,
+            candidateId,
+            MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+        );
+        if (!offer) return null;
+
+        const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
+        if (candidate?.email) {
+            const { ouiUrl, nonUrl } = this.offerResponseLinks(offerId, candidateId);
+            await this.matchMailService.sendCandidateInterest(
+                rhEmail,
+                candidate.email,
+                offer.company_infos?.name,
+                ouiUrl,
+                nonUrl,
+            );
+        } else {
+            logger.warn({ offerId, candidateId }, '[matching] candidate has no email for interest mail');
+        }
+
+        const entry = this.candidateHistoryService.buildMatchedStatusHistoryEntry(
+            MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+            offer.company_infos?.name,
+        );
+        if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
+
+        return toGql(offer);
     }
 
     async addManualProposedCandidate(
@@ -299,7 +378,7 @@ export class OfferService {
 
         const proposed: MatchingCandidate = {
             ...candidateToMatchingCandidate(candidate),
-            answer: ProposedCandidateAnswer.ACCEPTED,
+            status: MatchedCandidateStatus.INTERVIEW,
             booked_interview_slot: new Date(`${interviewDate}T${interviewHour}`).toISOString(),
             interview_location: interviewLocation,
         };
@@ -334,7 +413,7 @@ export class OfferService {
 
         const proposed: MatchingCandidate = {
             ...candidateToMatchingCandidate(candidate),
-            answer: ProposedCandidateAnswer.ACCEPTED,
+            status: MatchedCandidateStatus.IMMERSING,
             immersion_start_date: immersionStartDate,
             immersion_end_date: immersionEndDate,
             immersion_location: immersionLocation,

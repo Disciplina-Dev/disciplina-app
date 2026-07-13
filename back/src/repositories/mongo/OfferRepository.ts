@@ -6,7 +6,6 @@ import {
     OfferStatus,
     MatchedCandidateStatus,
     MatchingCandidate,
-    ProposedCandidateAnswer,
 } from '../../types/matching.types';
 
 const PLACEMENT_CONCLUSIONS = [InterviewConclusion.IMMERSING, InterviewConclusion.CONTRACT];
@@ -16,7 +15,6 @@ function resetProposal(candidate: MatchingCandidate): MatchingCandidate {
     const {
         description,
         cv_webview,
-        answer,
         comment,
         interview_location,
         booked_interview_slot,
@@ -101,7 +99,7 @@ export class OfferRepository {
     }
 
     /**
-     * Marque le sous-ensemble proposé (status OFFER_SEND + champs de proposition) et
+     * Marque le sous-ensemble proposé (status SEND + champs de proposition) et
      * rebascule les anciens proposés hors liste en simples retenus. Passe l'offre en CV_SEND.
      */
     async setProposedCandidates(offerId: string, proposed: MatchingCandidate[]): Promise<Offer | null> {
@@ -111,12 +109,12 @@ export class OfferRepository {
         const proposedById = new Map(proposed.map((candidate) => [candidate.id, candidate]));
         const merged = (offer.matching?.candidates ?? []).map((candidate: MatchingCandidate) => {
             const update = proposedById.get(candidate.id);
-            if (update) return { ...candidate, ...update, status: MatchedCandidateStatus.OFFER_SEND };
-            return candidate.status === MatchedCandidateStatus.OFFER_SEND ? resetProposal(candidate) : candidate;
+            if (update) return { ...candidate, ...update, status: MatchedCandidateStatus.SEND };
+            return candidate.status === MatchedCandidateStatus.SEND ? resetProposal(candidate) : candidate;
         });
         for (const candidate of proposed) {
             if (!merged.some((existing: MatchingCandidate) => existing.id === candidate.id)) {
-                merged.push({ ...candidate, status: MatchedCandidateStatus.OFFER_SEND });
+                merged.push({ ...candidate, status: MatchedCandidateStatus.SEND });
             }
         }
 
@@ -143,13 +141,13 @@ export class OfferRepository {
         ).lean();
     }
 
-    async setProposedCandidateAnswer(
+    async setProposedCandidateStatus(
         offerId: string,
         candidateId: string,
-        answer: ProposedCandidateAnswer,
+        status: MatchedCandidateStatus,
         comment?: string,
     ): Promise<Offer | null> {
-        const update: Record<string, unknown> = { 'matching.candidates.$.answer': answer };
+        const update: Record<string, unknown> = { 'matching.candidates.$.status': status };
         if (comment) update['matching.candidates.$.comment'] = comment;
         return OfferModel.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
