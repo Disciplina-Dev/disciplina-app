@@ -5,6 +5,8 @@ import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../../../repositories/mysql/CompanyBlacklistRepository';
 import { SireneService } from '../../../external/insee/sirene.service';
+import { Role } from '../../../types/user.types';
+import pool from '../../../db/mysql/connection';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
 
@@ -53,6 +55,15 @@ describe('createCompany INSEE + blacklist validation', () => {
 
     beforeEach(async () => {
         await truncateMysql();
+        const conn = await pool.getConnection();
+        await conn.execute('INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)', [
+            'admin@test.local',
+            'Admin',
+            'User',
+            'password',
+            Role.ADMIN,
+        ]);
+        conn.release();
         checkSiret = vi.spyOn(SireneService.prototype, 'checkSiret');
     });
 

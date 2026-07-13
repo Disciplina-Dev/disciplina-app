@@ -157,7 +157,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       relance_channel: values.relance_channel || null,
       ...(mode === 'create' && {
         date_insertion: new Date().toISOString(),
-        proprietaire_contact: USERS[currentUser.id]?.email ?? null,
+        proprietaire_contact: currentUser.email ?? null,
       }),
     })
   }
@@ -419,7 +419,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                           </option>
                         ))}
                       </select>
-                      {currentUser.role === UserRole.COMMERCIAL && (
+                      {currentUser.role === UserRole.COMMERCIAL || currentUser.role === UserRole.RESPONSABLE (
                         <p className="text-xs text-gray-500">Vous serez automatiquement défini comme propriétaire</p>
                       )}
                     </div>

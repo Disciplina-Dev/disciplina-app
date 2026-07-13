@@ -188,8 +188,11 @@ export const resolvers = {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             const rowData = mapInputToRow(input);
-            rowData.user_id = context.user.id;
-            console.log('user id: ', rowData.user_id);
+            if (context.user.role === Role.COMMERCIAL) {
+                rowData.user_id = context.user.id;
+            } else if (rowData.user_id === undefined) {
+                rowData.user_id = context.user.id;
+            }
             const company = await companiesService.create(rowData);
             return {
                 ...company,
