@@ -6,7 +6,7 @@ import { UserRepository } from '../../../repositories/mysql/UserRepository';
 import { InterviewAccessRepository } from '../../../repositories/mysql/InterviewAccessRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
 import { NotificationRepository } from '../../../repositories/mongo/NotificationRepository';
-import { OfferStatus, ProposedCandidateAnswer } from '../../../types/matching.types';
+import { OfferStatus, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateHistoryType } from '../../../types/candidate.types';
 
 const BASE = `http://localhost:${env.API_PORT}/api/interview`;
@@ -45,7 +45,7 @@ async function addProposedCandidate(offerId: string, candidateId: string, email:
         id: candidateId,
         full_name: `Candidate ${candidateId}`,
         email,
-        answer: ProposedCandidateAnswer.ACCEPTED,
+        status: MatchedCandidateStatus.INTERVIEW,
         ...(bookedSlot ? { booked_interview_slot: bookedSlot } : {}),
     });
 }

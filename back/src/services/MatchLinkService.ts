@@ -3,16 +3,27 @@ import { Offer } from '../types/offer.types';
 import { MatchLinkRepository } from '../repositories/mysql/MatchLinkRepository';
 import { MatchLinkRow } from '../types/db-rows.types';
 import { MatchLinkStatus } from '../types/matchLink.types';
-import { MatchedCandidateStatus, MatchingCandidate, ProposedCandidateAnswer } from '../types/matching.types';
+import { MatchedCandidateStatus, MatchingCandidate } from '../types/matching.types';
 import { generateSignature, generateNumericCode, generateIdentifier, timingSafeEqualString } from '../external/crypto';
 import { issueMatchToken } from './matchToken';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { CandidateHistoryType } from '../types/candidate.types';
 import { InterviewAccessService } from './InterviewAccessService';
 import { InterviewMailService } from './InterviewMailService';
+import { TodoService } from './TodoService';
+import { UserRepository } from '../repositories/mysql/UserRepository';
+import { Role } from '../types/user.types';
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
+
+// Réponses possibles de l'entreprise sur le lien externe : refuser, garder pour
+// entretien, ou coup de cœur (fast-track immersion).
+const COMPANY_ANSWER_STATUSES = [
+    MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.INTERVIEW,
+    MatchedCandidateStatus.IMMERSING,
+];
 
 export interface CreateSessionInput {
     offerId: string;
@@ -32,7 +43,7 @@ export interface SessionCredentials {
 
 export interface AnswerInput {
     candidateId: string;
-    answer: ProposedCandidateAnswer;
+    status: MatchedCandidateStatus;
     interviewSlots?: string[];
     interviewLocation?: string;
     comment?: string;
@@ -52,7 +63,7 @@ function buildProposedCandidates(offer: Offer, inputs: CreateSessionInput['candi
     return inputs.map((input) => {
         const candidate = accepted.get(input.id);
         if (!candidate) throw new Error(`Candidate ${input.id} is not an accepted candidate of this job`);
-        return { ...candidate, description: input.description ?? '', answer: null };
+        return { ...candidate, description: input.description ?? '' };
     });
 }
 
@@ -61,12 +72,12 @@ function isExpired(row: MatchLinkRow): boolean {
 }
 
 function validateAnswers(answers: AnswerInput[], proposedIds: Set<string>): void {
-    const allowed = new Set(Object.values(ProposedCandidateAnswer));
+    const allowed = new Set<MatchedCandidateStatus>(COMPANY_ANSWER_STATUSES);
     let favorites = 0;
     for (const answer of answers) {
         if (!proposedIds.has(answer.candidateId)) throw new Error('Unknown candidate in answers');
-        if (!allowed.has(answer.answer)) throw new Error('Invalid answer status');
-        if (answer.answer === ProposedCandidateAnswer.FAVORITE) favorites++;
+        if (!allowed.has(answer.status)) throw new Error('Invalid answer status');
+        if (answer.status === MatchedCandidateStatus.IMMERSING) favorites++;
     }
     if (favorites > 1) throw new Error('Only one FAVORITE allowed');
 }
@@ -78,6 +89,8 @@ export class MatchLinkService {
         private readonly candidateHistoryService = new CandidateHistoryService(),
         private readonly interviewAccessService = new InterviewAccessService(),
         private readonly interviewMailService = new InterviewMailService(),
+        private readonly todoService = new TodoService(),
+        private readonly userRepository = new UserRepository(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -161,9 +174,8 @@ export class MatchLinkService {
         if (!row) throw new Error('Session not found');
         const offer = await this.offerRepository.findById(row.offer_uuid);
         return (
-            offer?.matching?.candidates?.filter(
-                (c: MatchingCandidate) => c.status === MatchedCandidateStatus.OFFER_SEND,
-            ) ?? []
+            offer?.matching?.candidates?.filter((c: MatchingCandidate) => c.status === MatchedCandidateStatus.SEND) ??
+            []
         );
     }
 
@@ -175,7 +187,7 @@ export class MatchLinkService {
         const offer = await this.offerRepository.findById(row.offer_uuid);
         const proposedIds = new Set<string>(
             (offer?.matching?.candidates ?? [])
-                .filter((c: MatchingCandidate) => c.status === MatchedCandidateStatus.OFFER_SEND)
+                .filter((c: MatchingCandidate) => c.status === MatchedCandidateStatus.SEND)
                 .map((c: MatchingCandidate) => c.id),
         );
         validateAnswers(answers, proposedIds);
@@ -190,18 +202,18 @@ export class MatchLinkService {
         }
 
         for (const answer of answers) {
-            await this.offerRepository.setProposedCandidateAnswer(
+            await this.offerRepository.setProposedCandidateStatus(
                 row.offer_uuid,
                 answer.candidateId,
-                answer.answer,
+                answer.status,
                 answer.comment,
             );
             await this.candidateHistoryService.recordAuto(
                 answer.candidateId,
                 CandidateHistoryType.COMPANY,
-                this.buildProposedAnswerLabel(answer.answer),
+                this.buildProposedAnswerLabel(answer.status),
             );
-            if (answer.answer === ProposedCandidateAnswer.REFUSED && answer.comment) {
+            if (answer.status === MatchedCandidateStatus.REFUSED && answer.comment) {
                 await this.candidateHistoryService.recordAuto(
                     answer.candidateId,
                     CandidateHistoryType.COMPANY,
@@ -209,19 +221,37 @@ export class MatchLinkService {
                 );
             }
             if (
-                (answer.answer === ProposedCandidateAnswer.ACCEPTED ||
-                    answer.answer === ProposedCandidateAnswer.FAVORITE) &&
-                slotsAnswer?.interviewSlots?.length
+                answer.status === MatchedCandidateStatus.INTERVIEW ||
+                answer.status === MatchedCandidateStatus.IMMERSING
             ) {
-                await this.triggerInterviewAccess(
-                    row.offer_uuid,
-                    answer.candidateId,
-                    row.rh_email,
-                    offer?.company_infos?.name,
-                );
+                await this.notifyRhCandidateKept(row.offer_uuid, answer.candidateId, offer?.company_infos?.name);
+                if (slotsAnswer?.interviewSlots?.length) {
+                    await this.triggerInterviewAccess(
+                        row.offer_uuid,
+                        answer.candidateId,
+                        row.rh_email,
+                        offer?.company_infos?.name,
+                    );
+                }
             }
         }
         await this.matchLinkRepository.setStatus(signature, MatchLinkStatus.COMPLETED);
+    }
+
+    // L'entreprise a fini son matching pour ce candidat : To-Do RH pour organiser
+    // l'entretien / l'immersion puis en partager la conclusion.
+    private async notifyRhCandidateKept(offerId: string, candidateId: string, companyName?: string): Promise<void> {
+        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE])) ?? [];
+        const company = companyName ?? "l'entreprise";
+        await Promise.all(
+            rhUsers.map((user) =>
+                this.todoService.createSystemTodo(
+                    user.id,
+                    `Organiser l'entretien du candidat retenu par ${company}`,
+                    `interview:${offerId}:${candidateId}`,
+                ),
+            ),
+        );
     }
 
     private async triggerInterviewAccess(
@@ -252,14 +282,14 @@ export class MatchLinkService {
         return { ok: false, reason: 'invalid', remaining: MAX_ATTEMPTS - attempts };
     }
 
-    private buildProposedAnswerLabel(answer: ProposedCandidateAnswer): string {
-        switch (answer) {
-            case ProposedCandidateAnswer.REFUSED:
+    private buildProposedAnswerLabel(status: MatchedCandidateStatus): string {
+        switch (status) {
+            case MatchedCandidateStatus.REFUSED:
                 return "L'entreprise a refusé le candidat";
-            case ProposedCandidateAnswer.FAVORITE:
+            case MatchedCandidateStatus.IMMERSING:
                 return "Le candidat est le coup de cœur de l'entreprise";
             default:
-                return "L'entreprise a accepté le candidat en attente de la réponse du candidat";
+                return "L'entreprise garde le candidat pour un entretien";
         }
     }
 

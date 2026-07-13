@@ -7,16 +7,14 @@ export enum OfferStatus {
 }
 
 export enum MatchedCandidateStatus {
-    RETAINED = 'RETAINED',
-    OFFER_SEND = 'OFFER_SEND',
-    ACCEPTED = 'ACCEPTED',
+    PRE_SELECTED = 'PRE_SELECTED',
+    PRE_SELECTED_MAIL_SEND = 'PRE_SELECTED_MAIL_SEND',
     DECLINED = 'DECLINED',
-}
-
-export enum ProposedCandidateAnswer {
-    REFUSED = 'REFUSED',
     ACCEPTED = 'ACCEPTED',
-    FAVORITE = 'FAVORITE',
+    SEND = 'SEND',
+    REFUSED = 'REFUSED',
+    INTERVIEW = 'INTERVIEW',
+    IMMERSING = 'IMMERSING',
 }
 
 export enum InterviewConclusion {
@@ -105,7 +103,6 @@ export interface MatchingCandidate {
     status?: MatchedCandidateStatus;
     description?: string;
     cv_webview?: string;
-    answer?: ProposedCandidateAnswer | null;
     interview_location?: string;
     booked_interview_slot?: string;
     comment?: string;

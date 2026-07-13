@@ -5,7 +5,6 @@ import {
     MatchingCandidate,
     OfferStatus,
     MatchedCandidateStatus,
-    ProposedCandidateAnswer,
     InterviewConclusion,
     ImmersionConclusion,
 } from '../../../types/matching.types';
@@ -39,7 +38,6 @@ export const matchingCandidateSchema = new Schema<MatchingCandidate>(
         status: { type: String, enum: Object.values(MatchedCandidateStatus) },
         description: { type: String },
         cv_webview: { type: String },
-        answer: { type: String, enum: Object.values(ProposedCandidateAnswer), default: null },
         comment: { type: String },
         interview_location: { type: String },
         booked_interview_slot: { type: String },
