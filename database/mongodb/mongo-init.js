@@ -93,6 +93,20 @@ db.createCollection('candidates', {
         },
 
         // ===========================
+        // Contact d'urgence
+        // ===========================
+        emergency_contact: {
+          bsonType: "object",
+          properties: {
+            last_name: { bsonType: "string" },
+            first_name: { bsonType: "string" },
+            relationship: { bsonType: "string" },
+            phone: { bsonType: "string" },
+            email: { bsonType: "string" }
+          }
+        },
+
+        // ===========================
         // Accompagnement et dispositifs
         // ===========================
         support: {

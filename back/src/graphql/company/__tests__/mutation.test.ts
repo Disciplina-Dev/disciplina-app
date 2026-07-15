@@ -34,6 +34,15 @@ function validEtablissement(siret: string) {
 describe('GraphQL company mutations', () => {
     beforeEach(async () => {
         await truncateMysql();
+        const conn = await pool.getConnection();
+        await conn.execute('INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)', [
+            'admin@test.local',
+            'Admin',
+            'User',
+            'password',
+            Role.ADMIN,
+        ]);
+        conn.release();
     });
 
     describe('createCompany', () => {
@@ -88,7 +97,7 @@ describe('GraphQL company mutations', () => {
             expect(json.data.createCompany.address).toBe('123 Rue de Paris');
             expect(json.data.createCompany.sector).toBe('Ouest');
             expect(json.data.createCompany.conclusion).toBe('Profile matches requirements');
-            expect(json.data.createCompany.userID).toBeNull();
+            expect(json.data.createCompany.userID).toBe(1);
 
             // Verify via follow-up query
             const verify = await fetch(ENDPOINT, {

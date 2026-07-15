@@ -310,6 +310,8 @@ const CANDIDATE_FIELDS = gql`
     }
     pdfLink
     createdAt
+    lastRelanceAt
+    relanceResponseAt
   }
 `
 
@@ -464,6 +466,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         apprenticeshipContractDetails
         description
       }
+      emergencyContact { lastName firstName relationship phone email }
       education {
         schoolLevel
         justification
@@ -594,6 +597,7 @@ export const UPDATE_CANDIDATE = gql`
         apprenticeshipContractDetails
         description
       }
+      emergencyContact { lastName firstName relationship phone email }
       education {
         schoolLevel
         justification
@@ -693,6 +697,7 @@ export const CREATE_CANDIDATE = gql`
         sex
         description
       }
+      emergencyContact { lastName firstName relationship phone email }
       education {
         schoolLevel
       }
@@ -759,6 +764,7 @@ export const GET_CANDIDATE_FULL = gql`
         apprenticeshipContractDetails
         description
       }
+      emergencyContact { lastName firstName relationship phone email }
       education { schoolLevel justification }
       support {
         franceTravailRegistered
@@ -879,6 +885,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         apprenticeshipContractDetails
         description
       }
+      emergencyContact { lastName firstName relationship phone email }
       education {
         schoolLevel
         justification

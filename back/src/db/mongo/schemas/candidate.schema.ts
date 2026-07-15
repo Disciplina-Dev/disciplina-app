@@ -20,6 +20,7 @@ import {
     Synthesis,
     ClassMarkerResult,
     CandidateOwner,
+    EmergencyContact,
 } from '../../../types/candidate.types';
 import { Localisation } from '../../../types/matching.types';
 
@@ -28,6 +29,17 @@ const ownerSchema = new Schema<CandidateOwner>(
         user_id: { type: Number, required: true },
         name: { type: String, required: true },
         sector: { type: String },
+    },
+    { _id: false },
+);
+
+const emergencyContactSchema = new Schema<EmergencyContact>(
+    {
+        last_name: { type: String },
+        first_name: { type: String },
+        relationship: { type: String },
+        phone: { type: String },
+        email: { type: String },
     },
     { _id: false },
 );
@@ -197,6 +209,7 @@ const candidateSchema = new Schema<Candidate & Document>(
         tp_type: { type: String, enum: Object.values(TitleProfessionalType), required: true },
         tp_types: { type: [String], enum: Object.values(TitleProfessionalType), default: undefined },
         identity: { type: identitySchema, required: true },
+        emergency_contact: { type: emergencyContactSchema },
         status: { type: String, enum: Object.values(CandidateStatus), required: true },
         training_site: { type: String, enum: Object.values(TrainingSite) },
         training_sites: { type: [String], enum: Object.values(TrainingSite), default: undefined },
@@ -220,6 +233,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         photo_link: { type: String },
         classmarker: { type: classMarkerResultSchema },
         created_at: { type: Date },
+        last_relance_at: { type: Date },
+        relance_response_at: { type: Date },
         classmarker_history: { type: [classMarkerResultSchema], default: undefined },
     },
     { collection: 'candidates' },

@@ -202,6 +202,14 @@ export interface CandidateOwner {
     sector?: string;
 }
 
+export interface EmergencyContact {
+    last_name?: string;
+    first_name?: string;
+    relationship?: string; // rôle / lien avec le candidat
+    phone?: string;
+    email?: string;
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -209,6 +217,7 @@ export interface Candidate {
     tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
+    emergency_contact?: EmergencyContact;
     status: CandidateStatus;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
@@ -233,6 +242,9 @@ export interface Candidate {
     photo_link?: string;
     classmarker?: ClassMarkerResult;
     created_at?: Date;
+    // Relance de disponibilité : date du dernier envoi et date de la réponse du candidat.
+    last_relance_at?: Date;
+    relance_response_at?: Date;
     // Historique complet : un entrée par test passé (append-only). `classmarker`
     // reste le dernier résultat pour compat ; ici on garde la trace de tous.
     classmarker_history?: ClassMarkerResult[];

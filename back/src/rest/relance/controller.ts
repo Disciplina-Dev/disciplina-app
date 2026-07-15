@@ -132,6 +132,19 @@ export async function getCompanyRelanceHistory(req: AuthRequest, res: Response):
     res.status(200).json(rows.map(toRelanceHistory));
 }
 
+/** Conversion HTML → texte brut, best-effort, pour l'alternative text/plain d'un mail. */
+function htmlToText(html: string): string {
+    return html
+        .replace(/<\s*(br|\/p|\/div|\/h[1-6]|\/li)\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
     userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
@@ -154,6 +167,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 
     // Signature personnelle du RH, récupérée une seule fois pour tout le lot.
     const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
+
+    // Désabonnement pointant vers la boîte du RH émetteur : répondre à ce mail suffit à sortir.
+    const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
 
     for (const candidate of seeking) {
         const name = candidate.identity.full_name?.split(' ')[0] ?? 'Candidat';
@@ -198,12 +214,18 @@ export async function sendRelance(req: AuthRequest, res: Response) {
                 { access_token: user.oauthToken, refresh_token: user.refreshToken },
                 {
                     to: candidate.identity.email!,
-                    subject: 'DISCIPLINA – Êtes-vous toujours en recherche ?',
+                    subject: `${name}, êtes-vous toujours en recherche d'une alternance ?`,
                     html,
                     text,
+                    listUnsubscribe,
                 },
                 persistRefreshedTokens(user.id),
             );
+            // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;
+            // l'affichage ne la considère « à jour » que si elle est postérieure à cette relance.
+            await candidateService
+                .update(candidate._id, { last_relance_at: new Date() })
+                .catch((err) => logger.error({ err, id: candidate._id }, '[relance] last_relance_at update failed'));
             sent++;
         } catch {
             errors++;
@@ -251,6 +273,11 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
 
     const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
 
+    // Désabonnement pointant vers la boîte du RH émetteur (Gmail bulk sender rules).
+    const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
+    // Version texte dérivée du modèle HTML : évite un mail HTML-only (signal spam).
+    const bodyText = htmlToText(template.body);
+
     const candidates = await candidateService.findAll();
     const recipients = candidates.filter((c) => c.identity?.email && ids.includes(c._id));
 
@@ -264,7 +291,8 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
                     to: candidate.identity.email!,
                     subject: template.subject,
                     html: `${template.body}${signatureHtml}`,
-                    text: '',
+                    text: bodyText,
+                    listUnsubscribe,
                     attachments,
                 },
                 persistRefreshedTokens(user.id),
@@ -293,7 +321,7 @@ export async function handleResponse(req: Request, res: Response) {
 
     let updated;
     try {
-        updated = await candidateService.update(id, { status: newStatus });
+        updated = await candidateService.update(id, { status: newStatus, relance_response_at: new Date() });
         logger.info({ id, answer, newStatus }, '[relance] status updated');
     } catch (err) {
         logger.error({ err }, '[relance] update error');

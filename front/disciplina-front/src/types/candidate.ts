@@ -218,12 +218,21 @@ export interface CandidateOwner {
     sector?: string;
 }
 
+export interface EmergencyContact {
+    last_name?: string;
+    first_name?: string;
+    relationship?: string;  // rôle / lien avec le candidat
+    phone?: string;
+    email?: string;
+}
+
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
     tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
+    emergency_contact?: EmergencyContact;
     status: CandidateStatus;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
@@ -245,6 +254,8 @@ export interface Candidate {
     drive_folder_id?: string;
     filiz_folder_id?: string;
     created_at?: string;
+    last_relance_at?: string;      // dernière relance de disponibilité envoyée
+    relance_response_at?: string;  // date de réponse du candidat à la relance
 }
 
 export enum CandidateHistoryType {

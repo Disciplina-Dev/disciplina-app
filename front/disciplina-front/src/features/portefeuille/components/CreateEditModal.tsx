@@ -4,7 +4,7 @@ import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { useAuthStore, USERS, UserRole, fullName } from '@/store/authStore'
+import { useAuthStore, fullName } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
@@ -57,7 +57,6 @@ const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode, submitError }: Props) {
   const token = useAuthStore((s) => s.token)
-  const ownerList = Object.values(USERS)
   const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
 
   const defaultOwner =
@@ -134,7 +133,6 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
   }
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
-    const owner = USERS[values.proprietaire_id]
     await onSave({
       id: initial?.id,
       nom_commercial: values.nom_commercial || null,
@@ -149,15 +147,15 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       note: values.note || null,
       conclusion: values.conclusion || null,
       status: values.status,
-      proprietaire_id: owner?.id ? Number(owner.id) : null,
-      commercial: owner ? fullName(owner) : null,
+      proprietaire_id: currentUser.id ? Number(currentUser.id) : null,
+      commercial: fullName(currentUser),
       date_relance: values.date_relance || null,
       type_relance: values.type_relance ? Number(values.type_relance) : null,
       relance_template_id: values.relance_channel === 'MAIL' ? values.relance_template_id || null : null,
       relance_channel: values.relance_channel || null,
       ...(mode === 'create' && {
         date_insertion: new Date().toISOString(),
-        proprietaire_contact: USERS[currentUser.id]?.email ?? null,
+        proprietaire_contact: currentUser.email ?? null,
       }),
     })
   }
@@ -404,24 +402,12 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                     {/* Propriétaire */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="proprietaire_id">
+                      <label className="text-sm font-medium text-gray-700">
                         Propriétaire du contact
                       </label>
-                      <select
-                        id="proprietaire_id"
-                        disabled={currentUser.role === UserRole.COMMERCIAL}
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue disabled:opacity-60 disabled:cursor-not-allowed"
-                        {...register('proprietaire_id')}
-                      >
-                        {ownerList.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {fullName(u)} ({u.role})
-                          </option>
-                        ))}
-                      </select>
-                      {currentUser.role === UserRole.COMMERCIAL && (
-                        <p className="text-xs text-gray-500">Vous serez automatiquement défini comme propriétaire</p>
-                      )}
+                      <div className="w-full rounded-[10px] border border-gray-100 bg-gray-50 py-2.5 px-4 text-sm text-gray-500">
+                        {currentUser.email ?? 'Email non disponible'}
+                      </div>
                     </div>
 
                     {/* Canal de relance */}
