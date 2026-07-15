@@ -25,11 +25,13 @@ afterAll(async () => {
     await timeout(OfferAPI.stop(), 3000).catch(() => {});
     await timeout(NeedsAnalysisAPI.stop(), 3000).catch(() => {});
     await timeout(mongoose.disconnect(), 3000).catch(() => {});
-    await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, 3000);
-        server.close(() => {
-            clearTimeout(timer);
-            resolve();
+    if (server) {
+        await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, 3000);
+            server.close(() => {
+                clearTimeout(timer);
+                resolve();
+            });
         });
-    });
+    }
 }, 20000);
