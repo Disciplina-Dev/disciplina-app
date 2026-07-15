@@ -8,6 +8,7 @@ import {
   ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION,
 } from '@/graphql/queries'
 import LocationAutocompleteInput from '@/features/matching/components/LocationAutocompleteInput'
+import { MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 
 type Choice = 'company' | 'interview' | 'immersion'
 
@@ -36,7 +37,7 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
     const added = await offerGraphqlClient.mutation(ADD_CANDIDATE_TO_OFFER, { offerId: job.id, candidateId }).toPromise()
     if (added.error) throw new Error(added.error.message)
     const updated = await offerGraphqlClient
-      .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: job.id, candidateId, status: 'ACCEPTED' })
+      .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: job.id, candidateId, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND })
       .toPromise()
     if (updated.error) throw new Error(updated.error.message)
   }
@@ -111,7 +112,7 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
                 className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors"
               >
                 <Building2 size={18} className="text-blue" />
-                <span className="font-medium text-gray-900">Proposer à l'entreprise</span>
+                <span className="font-medium text-gray-900">Pré-sélectionné le candidat</span>
               </button>
               <button
                 onClick={() => setChoice('interview')}
