@@ -294,6 +294,8 @@ function fromGql(c: any): Candidate {
     immersion_agreement: c.immersionAgreement,
     immersion_start_date: c.immersionStartDate ?? undefined,
     immersion_end_date: c.immersionEndDate ?? undefined,
+    immersion_company_id: c.immersionCompanyId ?? undefined,
+    immersion_company_name: c.immersionCompanyName ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -433,6 +435,8 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
     ...(c.immersion_start_date !== undefined && { immersionStartDate: c.immersion_start_date }),
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
+    ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
+    ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
