@@ -44,15 +44,14 @@ export default function AddPreselectedCandidateModal({ job, onSubmit, onClose }:
           setSearchError('Erreur lors de la recherche')
           setCandidates([])
         } else {
-          type CandidateNode = { _id: string; identity: { fullName: string }; tpType: string }
+          type CandidateNode = { id: string; identity: { fullName: string }; tpType: string }
           const nodes: CandidateNode[] = (result.data?.candidatesPage?.edges ?? []).map(
             (edge: { node: Record<string, unknown> }) => edge.node as CandidateNode,
           )
-          console.log(nodes);
           setCandidates(
             nodes
-              .filter((c) => !matchedIds.has(c._id))
-              .map((c) => ({ id: c._id, fullName: c.identity.fullName, tpType: c.tpType })),
+              .filter((c) => !matchedIds.has(c.id))
+              .map((c) => ({ id: c.id, fullName: c.identity.fullName, tpType: c.tpType })),
           )
           setSearchError('')
         }
