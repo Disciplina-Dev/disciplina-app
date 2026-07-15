@@ -42,6 +42,7 @@ import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
 import AddPreselectedCandidateModal from '@/features/matching/components/AddPreselectedCandidateModal'
+import AddAcceptedCandidateModal from '@/features/matching/components/AddAcceptedCandidateModal'
 import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
@@ -938,12 +939,17 @@ function ToSendCandidatesSection({
   onInfo,
   onSendMail,
   onRemove,
+  onAddCandidate,
 }: {
   candidates: MatchedCandidate[]
   onInfo: (c: MatchedCandidate) => void
   onSendMail: (c: MatchedCandidate) => void
   onRemove: (c: MatchedCandidate) => void
+  onAddCandidate?: () => void
 }) {
+  const currentUser = useCurrentUser()
+  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
@@ -952,6 +958,17 @@ function ToSendCandidatesSection({
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">
           {candidates.length}
         </span>
+        <div className="ml-auto flex items-center gap-1">
+          {canAdd && (
+            <button
+              onClick={onAddCandidate}
+              className="flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
+              title="Ajouter manuellement un candidat accepté"
+            >
+              <Plus size={11} /> Ajouter un candidat
+            </button>
+          )}
+        </div>
       </div>
 
       {candidates.length === 0 ? (
@@ -1351,6 +1368,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [datesMailState, setDatesMailState] = useState<MatchedCandidate | null>(null)
   const [interviewModalOpen, setInterviewModalOpen] = useState(false)
   const [addPreselectedOpen, setAddPreselectedOpen] = useState(false)
+  const [addAcceptedOpen, setAddAcceptedOpen] = useState(false)
   const [conclusionCandidate, setConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [abEditOpen, setAbEditOpen] = useState(false)
@@ -1630,6 +1648,29 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     setAddPreselectedOpen(false)
   }
 
+  const handleAddAcceptedCandidate = async (candidateId: string, _candidateName: string) => {
+    if (!selectedJob) return
+    try {
+      const result = await offerGraphqlClient
+        .mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+
+      await offerGraphqlClient
+        .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, {
+          offerId: selectedJob.id,
+          candidateId,
+          status: MatchedCandidateStatus.ACCEPTED,
+        })
+        .toPromise()
+
+      if (selectedJob) loadJobData(selectedJob)
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du candidat accepté:", error)
+    }
+    setAddAcceptedOpen(false)
+  }
+
   const handleSetManualStatus = async (status: OfferStatus) => {
     if (!selectedJob) return
     const result = await offerGraphqlClient.mutation(UPDATE_OFFER, { id: selectedJob.id, offer: { id: selectedJob.id, status } }).toPromise()
@@ -1723,6 +1764,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         onInfo={setDrawerCandidate}
         onSendMail={handleOpenMail}
         onRemove={handleRemoveCandidate}
+        onAddCandidate={() => setAddAcceptedOpen(true)}
       />
 
       <AlreadySentCandidatesSection
@@ -1797,6 +1839,14 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
           job={jobData}
           onSubmit={handleAddPreselectedCandidate}
           onClose={() => setAddPreselectedOpen(false)}
+        />
+      )}
+
+      {addAcceptedOpen && (
+        <AddAcceptedCandidateModal
+          job={jobData}
+          onSubmit={handleAddAcceptedCandidate}
+          onClose={() => setAddAcceptedOpen(false)}
         />
       )}
 
