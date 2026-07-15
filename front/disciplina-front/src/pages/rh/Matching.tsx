@@ -51,6 +51,7 @@ import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysis
 import { useNeedsAnalysis, useCompanyBySiret } from '@/graphql/hooks'
 import type { Entreprise } from '@/types/entreprise'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
+import { SECTOR_LABELS } from '@/data/sectors'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -663,7 +664,7 @@ function JobDetailsSection({
                   {job.companyInfos.activities.map((activity, i) => (
                     <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
                       <span className="text-gray-300 mt-0.5 shrink-0">•</span>
-                      {activity}
+                      {SECTOR_LABELS[activity] ?? activity}
                     </p>
                   ))}
                 </div>
@@ -1113,7 +1114,7 @@ function buildOfferMailBody(
     segments.push(`<div class="field"><div class="field-label">Missions</div><ul class="mission-list">${items}</ul></div>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
-    const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${a}</span>`).join(' ')
+    const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
     segments.push(`<div class="field"><div class="field-label">Activités de l'entreprise</div><div>${tags}</div></div>`)
   }
   const offerCard = segments.length > 0

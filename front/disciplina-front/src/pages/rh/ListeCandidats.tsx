@@ -10,6 +10,7 @@ import CandidateFormModal from '@/components/rh/CandidateFormModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
+import { SECTOR_LABELS } from '@/data/sectors';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
@@ -328,6 +329,7 @@ export default function ListeCandidats() {
               value={filters.desiredSectors ?? []}
               onChange={vals => setFilters({ ...filters, desiredSectors: vals })}
               placeholder="Tous les secteurs"
+              getOptionLabel={(s) => SECTOR_LABELS[s] ?? s}
             />
           </div>
 
