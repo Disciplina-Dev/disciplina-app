@@ -5,7 +5,7 @@ import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
 import { env } from '../../../config/env';
-import { OfferStatus, ProposedCandidateAnswer, MatchedCandidateStatus } from '../../../types/matching.types';
+import { OfferStatus, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
@@ -79,8 +79,7 @@ async function seedJobWithProposedCandidate(
         id: candidateId,
         full_name: `Eve ${suffix}`,
         email: `eve-${suffix}@test.local`,
-        answer: ProposedCandidateAnswer.ACCEPTED,
-        status: MatchedCandidateStatus.OFFER_SEND,
+        status: MatchedCandidateStatus.INTERVIEW,
         booked_interview_slot: bookedInterviewSlot,
         interview_location: 'Saint-Denis',
     });

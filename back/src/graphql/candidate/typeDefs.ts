@@ -211,6 +211,14 @@ export const typeDefs = gql`
         sector: String
     }
 
+    type CandidateEmergencyContact {
+        lastName: String
+        firstName: String
+        relationship: String
+        phone: String
+        email: String
+    }
+
     type Candidate {
         id: String!
         owner: CandidateOwner
@@ -218,6 +226,7 @@ export const typeDefs = gql`
         tpType: TitleProfessionalType!
         tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
+        emergencyContact: CandidateEmergencyContact
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -316,6 +325,14 @@ export const typeDefs = gql`
         level: SkillLevel!
     }
 
+    input EmergencyContactInput {
+        lastName: String
+        firstName: String
+        relationship: String
+        phone: String
+        email: String
+    }
+
     input JobInfoInput {
         domainMotivation: String
         questionsConcerns: String
@@ -357,6 +374,7 @@ export const typeDefs = gql`
         tpType: TitleProfessionalType!
         tpTypes: [TitleProfessionalType!]
         identity: IdentityInput!
+        emergencyContact: EmergencyContactInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -379,6 +397,7 @@ export const typeDefs = gql`
         tpType: TitleProfessionalType
         tpTypes: [TitleProfessionalType!]
         identity: IdentityInput
+        emergencyContact: EmergencyContactInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean

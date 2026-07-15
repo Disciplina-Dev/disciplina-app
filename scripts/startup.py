@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Disciplina — consolidated database seed script.
 
-Imports CSV data into MySQL and MongoDB in 7 steps:
+Imports CSV data into MySQL and MongoDB in 9 steps:
   1. Companies -> MySQL (disciplina.companies)
   2. Blacklist -> MySQL (disciplina.blacklist)
   3. Sales candidates (Nord) -> MongoDB (human_ressources.candidates)
   4. Secretariat candidates (Nord) -> MongoDB (human_ressources.candidates)
   5. Sales candidates (Ouest) -> MongoDB (human_ressources.candidates)
   6. Secretariat candidates (Ouest) -> MongoDB (human_ressources.candidates)
-  7. Jobs -> MongoDB (human_ressources.jobs)
+  7. Sales candidates (Sud) -> MongoDB (human_ressources.candidates)
+  8. Secretariat candidates (Sud) -> MongoDB (human_ressources.candidates)
+  9. Offers -> MongoDB (human_ressources.offers)
 
 Missing CSV files are skipped gracefully.
 Environment variables control DB host/port (defaults to localhost for dev).
@@ -28,7 +30,7 @@ from lib.company_csv import remove_accents
 from clean_companies import clean_all
 from import_company import import_companies
 from import_blacklist import import_blacklist
-from import_jobs import seed_jobs
+from import_jobs import seed_offers
 
 load_dotenv()
 
@@ -48,6 +50,13 @@ OUEST_SECTOR_HEADERS = [
     "TELEPHONIE", "AUTO", "Commercial", "Commercial terrain",
     "COSMETIQUE PARFUMERIE", "Jardinnerie / Espaces verts",
     "Immobilier", "Assurance", "Animaux", "Sport", "Bazar", "Enfant",
+]
+
+SUD_SECTOR_HEADERS = [
+    "BOULANGERIE", "RESTAURATION", "STATION", "PAP", "LIBRE SERVICE",
+    "TELEPHONIE", "AUTO", "COMMERCIAL", "Commercial terrain",
+    "COSMETIQUE PARFUMERIE", "Jardinnerie / Espaces verts",
+    "Immobilier", "Assurance", "Animaux", "Sport", "Bazar",
 ]
 
 LOCALISATION_ENUM = {
@@ -142,15 +151,34 @@ def parse_availability(dispo: str, interview_date: datetime | None) -> tuple:
     return "UNAVAILABLE", datetime(year, month, 1)
 
 
-# -- Seeded checks -----------------------------------------------------------------
+# -- Upsert helper ----------------------------------------------------------------
 
 
-def mongo_has_docs(collection: str, filter_: dict | None = None) -> bool:
-    client = get_mongo_connection()
-    db = client["human_ressources"]
-    count = db[collection].count_documents(filter_ or {})
-    client.close()
-    return count > 0
+def upsert_candidate(collection, doc: dict) -> None:
+    """Upsert a candidate by email. Falls back to insert_one if no email."""
+    email = doc.get("identity", {}).get("email")
+    if not email:
+        collection.insert_one(doc)
+        return
+
+    # Pull out fields that should only be set on first creation
+    doc_id = doc.pop("_id", None)
+    cand_id = doc.pop("candidate_id", None)
+    created_at = doc.pop("created_at", None)
+
+    set_on_insert = {}
+    if doc_id:
+        set_on_insert["_id"] = doc_id
+    if cand_id:
+        set_on_insert["candidate_id"] = cand_id
+    if created_at:
+        set_on_insert["created_at"] = created_at
+
+    collection.update_one(
+        {"identity.email": email},
+        {"$set": doc, "$setOnInsert": set_on_insert} if set_on_insert else {"$set": doc},
+        upsert=True,
+    )
 
 
 # -- 1. Companies -> MySQL: see clean_companies.py + import_company.py ------------
@@ -226,7 +254,7 @@ def import_sales_candidates(filepath: str) -> int:
             if len(row) < 2 or not (row[1] or '').strip():
                 continue
             try:
-                collection.insert_one(build_sales_candidate(row))
+                upsert_candidate(collection, build_sales_candidate(row))
                 count += 1
             except Exception as e:
                 print(f"  [WARN] Skipping sales candidate row: {e}")
@@ -287,7 +315,7 @@ def import_secretariat_candidates(filepath: str) -> int:
             if not (row.get("NOM - PRENOM") or '').strip():
                 continue
             try:
-                collection.insert_one(build_secretariat_candidate(row))
+                upsert_candidate(collection, build_secretariat_candidate(row))
                 count += 1
             except Exception as e:
                 print(f"  [WARN] Skipping secretariat candidate row: {e}")
@@ -368,7 +396,7 @@ def import_ouest_sales_candidates(filepath: str, tp_type: str) -> int:
             if not (row.get("NOM PRENOM") or '').strip():
                 continue
             try:
-                collection.insert_one(build_ouest_sales_candidate(row, tp_type))
+                upsert_candidate(collection, build_ouest_sales_candidate(row, tp_type))
                 count += 1
             except Exception as e:
                 print(f"  [WARN] Skipping ouest sales candidate row: {e}")
@@ -377,7 +405,80 @@ def import_ouest_sales_candidates(filepath: str, tp_type: str) -> int:
     return count
 
 
-# -- 5. Ouest secretariat candidates -> MongoDB ---------------------------------
+# -- 5. Sud sales candidates -> MongoDB -----------------------------------------
+
+
+def build_sud_sales_candidate(row: dict, tp_type: str) -> dict:
+    city = normalize_city((row.get("Ville ") or '').strip())
+    age_raw = (row.get("ÂGE") or row.get(" AGE") or row.get("AGE") or '').strip()
+    age = int(age_raw) if age_raw.isdigit() else 0
+    candidate_id = str(uuid.uuid4())
+    interview_date = parse_fr_date(row.get("Date 1er entretien"))
+
+    mobility_raw = (row.get("SAINT PAUL") or row.get("SECTEUR") or '')
+    status, availability_date = parse_availability(row.get("Disponibilité"), interview_date)
+
+    identity = {
+        "sex": "GARCON" if normalize_token(_first_value(row)) == "GARCON" else "FILLE",
+        "full_name": (row.get("NOM PRENOM") or '').strip(),
+        "city": city,
+        "age": age,
+        "postal_code": POSTAL_CODE_MAP.get(city, '974'),
+        "phone": (row.get("TÉLÉPHONE") or '').replace(" ", ""),
+        "email": (row.get("ADRESSE MAIL") or '').strip(),
+        "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
+        "has_vehicle": False,
+        "description": (row.get("Descriptif") or row.get("INFOS COMPLÉMENTAIRES") or '').strip(),
+    }
+    birth = birth_date_from_age(age)
+    if birth:
+        identity["date_of_birth"] = birth
+
+    sectors = []
+    for header in SUD_SECTOR_HEADERS:
+        if (row.get(header) or '').strip().upper() == "OUI":
+            sectors.append(_sector_token(header))
+
+    job_info = {"geographic_mobility": parse_sales_mobility(mobility_raw)}
+    if availability_date:
+        job_info["availability_date"] = availability_date
+
+    doc = {
+        "_id": candidate_id,
+        "candidate_id": candidate_id,
+        "training_site": "SUD_SAINT_PIERRE",
+        "formation_type": "VENTE",
+        "tp_type": tp_type,
+        "status": status,
+        "identity": identity,
+        "job_info": job_info,
+        "desired_sectors": sectors,
+    }
+    if interview_date and interview_date <= datetime.now():
+        doc["created_at"] = interview_date
+    return doc
+
+
+def import_sud_sales_candidates(filepath: str, tp_type: str) -> int:
+    client = get_mongo_connection()
+    collection = client["human_ressources"]["candidates"]
+    count = 0
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if not (row.get("NOM PRENOM") or '').strip():
+                continue
+            try:
+                upsert_candidate(collection, build_sud_sales_candidate(row, tp_type))
+                count += 1
+            except Exception as e:
+                print(f"  [WARN] Skipping sud sales candidate row: {e}")
+
+    client.close()
+    return count
+
+
+# -- 6. Ouest secretariat candidates -> MongoDB ---------------------------------
 
 
 def build_ouest_secretariat_candidate(row: dict) -> dict:
@@ -429,7 +530,7 @@ def import_ouest_secretariat_candidates(filepath: str) -> int:
             if not (row.get("NOM - PRENOM") or '').strip():
                 continue
             try:
-                collection.insert_one(build_ouest_secretariat_candidate(row))
+                upsert_candidate(collection, build_ouest_secretariat_candidate(row))
                 count += 1
             except Exception as e:
                 print(f"  [WARN] Skipping ouest secretariat candidate row: {e}")
@@ -438,7 +539,68 @@ def import_ouest_secretariat_candidates(filepath: str) -> int:
     return count
 
 
-# -- 6. Jobs -> MongoDB: see import_jobs.py ------
+# -- 7. Sud secretariat candidates -> MongoDB -----------------------------------
+
+
+def build_sud_secretariat_candidate(row: dict) -> dict:
+    city = normalize_city((row.get("Ville") or '').strip())
+    age_raw = (row.get("Âge") or '').strip()
+    age = int(age_raw) if age_raw.isdigit() else 0
+    candidate_id = str(uuid.uuid4())
+    interview_date = parse_fr_date(row.get("Date 1er entretien"))
+
+    identity = {
+        "sex": "GARCON" if normalize_token(_first_value(row)) == "GARCON" else "FILLE",
+        "full_name": (row.get("NOM - PRENOM") or '').strip(),
+        "city": city,
+        "age": age,
+        "postal_code": POSTAL_CODE_MAP.get(city, '974'),
+        "phone": (row.get("TELEPHONE") or '').replace(" ", ""),
+        "email": (row.get("ADRESSE MAIL") or '').strip(),
+        "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
+        "has_vehicle": False,
+        "description": (row.get("INFOS COMPLÉMENTAIRES") or '').strip(),
+    }
+    birth = birth_date_from_age(age)
+    if birth:
+        identity["date_of_birth"] = birth
+
+    doc = {
+        "_id": candidate_id,
+        "candidate_id": candidate_id,
+        "training_site": "SUD_SAINT_PIERRE",
+        "formation_type": "SECRETARIAT",
+        "tp_type": "AD",
+        "status": "SEEKING",
+        "identity": identity,
+        "job_info": {"geographic_mobility": parse_geographic_mobility(row.get("SECTEUR GÉOGRAPHIQUE"))},
+        "expected_company_skills": parse_expected_skills(row.get("SPÉCIALITÉ ")),
+    }
+    if interview_date and interview_date <= datetime.now():
+        doc["created_at"] = interview_date
+    return doc
+
+
+def import_sud_secretariat_candidates(filepath: str) -> int:
+    client = get_mongo_connection()
+    collection = client["human_ressources"]["candidates"]
+    count = 0
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if not (row.get("NOM - PRENOM") or '').strip():
+                continue
+            try:
+                upsert_candidate(collection, build_sud_secretariat_candidate(row))
+                count += 1
+            except Exception as e:
+                print(f"  [WARN] Skipping sud secretariat candidate row: {e}")
+
+    client.close()
+    return count
+
+
+# -- 8. Jobs -> MongoDB: see import_jobs.py ------
 
 
 def normalize_loc_part(part: str) -> str:
@@ -461,7 +623,7 @@ def main() -> int:
     errors = []
 
     # 1. Companies -- idempotent via INSERT IGNORE, runs even on a populated table.
-    print("\n[1/7] Importing companies -> MySQL ...")
+    print("\n[1/9] Importing companies -> MySQL ...")
     try:
         clean_all()
         n = import_companies()
@@ -471,7 +633,7 @@ def main() -> int:
         errors.append(f"Companies: {e}")
 
     # 2. Blacklist -- idempotent via INSERT IGNORE, runs even on a populated table.
-    print("\n[2/7] Importing blacklist -> MySQL ...")
+    print("\n[2/9] Importing blacklist -> MySQL ...")
     try:
         n = import_blacklist()
         print(f"  OK -- {n} blacklisted companies inserted")
@@ -479,88 +641,104 @@ def main() -> int:
         print(f"  FAIL -- Blacklist: {e}")
         errors.append(f"Blacklist: {e}")
 
-    # 3. Sales candidates (Nord)
-    print("\n[3/7] Importing sales candidates (Nord) -> MongoDB ...")
+    # 3. Sales candidates (Nord) — idempotent via upsert on email
+    print("\n[3/9] Importing sales candidates (Nord) -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidat-nord-vente.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidat-nord-vente.csv not found")
-    elif mongo_has_docs("candidates", {"formation_type": "VENTE"}):
-        print(f"  SKIP -- sales candidates (Nord) already exist")
     else:
         try:
             n = import_sales_candidates(path)
-            print(f"  OK -- {n} sales candidates inserted")
+            print(f"  OK -- {n} sales candidates upserted")
         except Exception as e:
             print(f"  FAIL -- Sales candidates (Nord): {e}")
             errors.append(f"Sales candidates (Nord): {e}")
 
-    # 4. Secretariat candidates (Nord)
-    print("\n[4/7] Importing secretariat candidates (Nord) -> MongoDB ...")
+    # 4. Secretariat candidates (Nord) — idempotent via upsert on email
+    print("\n[4/9] Importing secretariat candidates (Nord) -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidat-nord-secretariat.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidat-nord-secretariat.csv not found")
-    elif mongo_has_docs("candidates", {"formation_type": "SECRETARIAT"}):
-        print(f"  SKIP -- secretariat candidates (Nord) already exist")
     else:
         try:
             n = import_secretariat_candidates(path)
-            print(f"  OK -- {n} secretariat candidates inserted")
+            print(f"  OK -- {n} secretariat candidates upserted")
         except Exception as e:
             print(f"  FAIL -- Secretariat candidates (Nord): {e}")
             errors.append(f"Secretariat candidates (Nord): {e}")
 
-    # 5. Sales candidates (Ouest)
+    # 5. Sales candidates (Ouest) — idempotent via upsert on email
     ouest_sales_files = [
         ("candidat-ouest-vente-CC.csv", "CC"),
         ("candidat-ouest-vente-NTC.csv", "NTC"),
         ("candidat-ouest-vente-REM.csv", "REM"),
     ]
-    print("\n[5/7] Importing sales candidates (Ouest) -> MongoDB ...")
-    any_ouest_sales = False
+    print("\n[5/9] Importing sales candidates (Ouest) -> MongoDB ...")
     for filename, tp_type in ouest_sales_files:
         path = os.path.join(RESOURCE_DIR, filename)
         if not os.path.exists(path):
             print(f"  SKIP -- {filename} not found")
             continue
-        if mongo_has_docs("candidates", {"formation_type": "VENTE", "training_site": "OUEST_SAINT_PAUL", "tp_type": tp_type}):
-            print(f"  SKIP -- ouest sales {tp_type} already exist")
-            continue
-        any_ouest_sales = True
         try:
             n = import_ouest_sales_candidates(path, tp_type)
-            print(f"  OK -- {n} ouest sales {tp_type} candidates inserted")
+            print(f"  OK -- {n} ouest sales {tp_type} candidates upserted")
         except Exception as e:
             print(f"  FAIL -- Ouest sales candidates ({tp_type}): {e}")
             errors.append(f"Ouest sales candidates ({tp_type}): {e}")
-    if not any_ouest_sales:
-        print(f"  (no new ouest sales files to process)")
 
-    # 6. Secretariat candidates (Ouest)
-    print("\n[6/7] Importing secretariat candidates (Ouest) -> MongoDB ...")
+    # 6. Secretariat candidates (Ouest) — idempotent via upsert on email
+    print("\n[6/9] Importing secretariat candidates (Ouest) -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidat-ouest-secretariat-AD.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidat-ouest-secretariat-AD.csv not found")
-    elif mongo_has_docs("candidates", {"formation_type": "SECRETARIAT", "training_site": "OUEST_SAINT_PAUL"}):
-        print(f"  SKIP -- secretariat candidates (Ouest) already exist")
     else:
         try:
             n = import_ouest_secretariat_candidates(path)
-            print(f"  OK -- {n} ouest secretariat candidates inserted")
+            print(f"  OK -- {n} ouest secretariat candidates upserted")
         except Exception as e:
             print(f"  FAIL -- Secretariat candidates (Ouest): {e}")
             errors.append(f"Secretariat candidates (Ouest): {e}")
 
-    # 7. Jobs
-    print("\n[7/7] Importing jobs -> MongoDB ...")
-    if mongo_has_docs("jobs"):
-        print(f"  SKIP -- jobs already exist")
+    # 7. Sales candidates (Sud) — idempotent via upsert on email
+    sud_sales_files = [
+        ("candidat-sud-vente-CC.csv", "CC"),
+        ("candidat-sud-vente-NTC.csv", "NTC"),
+        ("candidat-sud-vente-REM.csv", "REM"),
+    ]
+    print("\n[7/9] Importing sales candidates (Sud) -> MongoDB ...")
+    for filename, tp_type in sud_sales_files:
+        path = os.path.join(RESOURCE_DIR, filename)
+        if not os.path.exists(path):
+            print(f"  SKIP -- {filename} not found")
+            continue
+        try:
+            n = import_sud_sales_candidates(path, tp_type)
+            print(f"  OK -- {n} sud sales {tp_type} candidates upserted")
+        except Exception as e:
+            print(f"  FAIL -- Sud sales candidates ({tp_type}): {e}")
+            errors.append(f"Sud sales candidates ({tp_type}): {e}")
+
+    # 8. Secretariat candidates (Sud) — idempotent via upsert on email
+    print("\n[8/9] Importing secretariat candidates (Sud) -> MongoDB ...")
+    path = os.path.join(RESOURCE_DIR, 'candidat-sud-secretariat-AD.csv')
+    if not os.path.exists(path):
+        print(f"  SKIP -- candidat-sud-secretariat-AD.csv not found")
     else:
         try:
-            n = seed_jobs()
-            print(f"  OK -- {n} jobs inserted")
+            n = import_sud_secretariat_candidates(path)
+            print(f"  OK -- {n} sud secretariat candidates upserted")
         except Exception as e:
-            print(f"  FAIL -- Jobs: {e}")
-            errors.append(f"Jobs: {e}")
+            print(f"  FAIL -- Secretariat candidates (Sud): {e}")
+            errors.append(f"Secretariat candidates (Sud): {e}")
+
+    # 9. Offers — idempotent via upsert on (company_infos.name, tp_type, localisation[0])
+    print("\n[9/9] Importing offers -> MongoDB ...")
+    try:
+        n = seed_offers()
+        print(f"  OK -- {n} offers upserted")
+    except Exception as e:
+        print(f"  FAIL -- Offers: {e}")
+        errors.append(f"Offers: {e}")
 
     print()
     print("=" * 50)

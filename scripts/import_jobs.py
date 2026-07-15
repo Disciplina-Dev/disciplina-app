@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Seed the MongoDB `jobs` collection from the recrutment-nord-<theme>.csv files.
+"""Seed the MongoDB `offers` collection from the recrutment-nord-<theme>.csv files.
 
-Each CSV row becomes one job per desired TP (Formation split on '/'), and the
+Each CSV row becomes one offer per desired TP (Formation split on '/'), and the
 'A envoyer' / 'Candidat ... à envoyer' columns are resolved against existing
-candidates to populate matched_candidate[]. Unmatched/ambiguous names and unknown
+candidates to populate matching.candidates[]. Unmatched/ambiguous names and unknown
 localisations are collected into a JSON report under scripts/backups/.
 
-The collection is expected to be empty: each run inserts fresh UUIDs, so a re-run
-duplicates jobs — clear `db.jobs` before re-seeding.
+Offers are upserted by (company_infos.name, tp_type, localisation[0]) so the
+script is idempotent — re-runs update existing offers instead of duplicating them.
 """
 
 import argparse
@@ -28,10 +28,18 @@ from lib.recruitment_csv import FILE_CONFIG, build_jobs, theme_from_path
 DB_NAME = "human_ressources"
 RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resources")
 BACKUP_DIR = os.path.join(os.path.dirname(__file__), "backups")
-MATCHED_STATUS = "RETAINED"
+MATCHED_STATUS = "PRE_SELECTED"
 JOB_STATUS = "NOT_MATCHED"
 VALID_MATCHED_SEX = {"FILLE", "GARCON"}
 CITY_OVERRIDES = {"STE_CLOTILDE": "SAINT_DENIS", "SAINTE_CLOTILDE": "SAINT_DENIS"}
+
+TP_TO_TITLE = {
+    "CC": "conseiller commercial",
+    "NTC": "négociateur technico-commercial",
+    "REM": "responsable d'établissement marchand",
+    "AD": "assistante de direction",
+    "SA": "secrétaire assistante",
+}
 
 
 def load_candidates(db):
@@ -72,11 +80,85 @@ def resolve_matched_candidates(names, matcher):
     return list(matched.values()), unmatched, ambiguous
 
 
-def build_job_document(job, matched_candidates):
-    document = {"_id": str(uuid.uuid4()), "status": JOB_STATUS, **job}
-    if matched_candidates:
-        document["matched_candidate"] = matched_candidates
-    return document
+def parse_age_range(raw):
+    if not raw or "-" not in raw:
+        return None, None
+    parts = raw.strip().split("-")
+    if len(parts) == 2:
+        try:
+            return int(parts[0]), int(parts[1])
+        except ValueError:
+            return None, None
+    return None, None
+
+
+def build_offer_document(job, matched_candidates):
+    age_min, age_max = parse_age_range(job.get("age_range"))
+
+    criteria = {}
+    if job.get("driving_license_b") is not None:
+        criteria["driving_license"] = job["driving_license_b"]
+    if job.get("professional_experience") is not None:
+        criteria["experience_required"] = job["professional_experience"]
+    if age_min is not None:
+        criteria["age_min"] = age_min
+    if age_max is not None:
+        criteria["age_max"] = age_max
+    if job.get("desired_sex"):
+        criteria["desired_sex"] = job["desired_sex"]
+
+    tp = job["desired_tp"]
+    training_domain = "VENTE" if tp in ("CC", "NTC", "REM") else "SECRETARIAT"
+
+    company_infos = {"name": job["company_name"], "sector": "NORD"}
+    if job.get("sector") and job["sector"] != "NONE":
+        company_infos["activities"] = [job["sector"]]
+
+    document = {
+        "_id": str(uuid.uuid4()),
+        "needs_analysis_id": None,
+        "company_infos": company_infos,
+        "localisation": job.get("localisation", []),
+        "tp_type": tp,
+        "training_domain": training_domain,
+        "title": TP_TO_TITLE.get(tp),
+        "criteria": criteria,
+        "matching": {
+            "status": "NOT_MATCHED",
+            "candidates": matched_candidates,
+        },
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    return {k: v for k, v in document.items() if v not in (None, "", [], {}, ())}
+
+
+def upsert_offer(collection, doc):
+    name = doc.get("company_infos", {}).get("name")
+    tp = doc.get("tp_type")
+    loc = doc.get("localisation", [])
+    if not name or not tp or not loc:
+        collection.insert_one(doc)
+        return
+
+    doc_id = doc.pop("_id", None)
+    created_at = doc.pop("created_at", None)
+    updated_at = doc.pop("updated_at", None)
+
+    set_on_insert = {}
+    if doc_id:
+        set_on_insert["_id"] = doc_id
+    if created_at:
+        set_on_insert["created_at"] = created_at
+
+    filter_ = {"company_infos.name": name, "tp_type": tp, "localisation.0": loc[0]}
+    update = {"$set": doc}
+    if updated_at:
+        update["$set"]["updated_at"] = updated_at
+    if set_on_insert:
+        update["$setOnInsert"] = set_on_insert
+
+    collection.update_one(filter_, update, upsert=True)
 
 
 def process_row(theme, values, matcher, report):
@@ -84,7 +166,7 @@ def process_row(theme, values, matcher, report):
     if not jobs:
         return []
     matched, unmatched, ambiguous = resolve_matched_candidates(names, matcher)
-    documents = [build_job_document(job, matched) for job in jobs]
+    documents = [build_offer_document(job, matched) for job in jobs]
     if unmatched or ambiguous or unknown_loc:
         report.append({
             "file": f"recrutment-nord-{theme}.csv",
@@ -112,9 +194,9 @@ def read_documents(path, theme, matcher, report):
 def write_report(report, total):
     os.makedirs(BACKUP_DIR, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    path = os.path.join(BACKUP_DIR, f"jobs_import_report_{stamp}.json")
+    path = os.path.join(BACKUP_DIR, f"offers_import_report_{stamp}.json")
     with open(path, "w", encoding="utf-8") as file:
-        json.dump({"total_jobs": total, "rows_with_issues": report}, file,
+        json.dump({"total_offers": total, "rows_with_issues": report}, file,
                   ensure_ascii=False, indent=2, default=str)
     return path
 
@@ -132,12 +214,12 @@ def collect_documents(db, report):
             continue
         file_docs = read_documents(path, theme, matcher, report)
         documents.extend(file_docs)
-        print(f"  {os.path.basename(path)}: {len(file_docs)} jobs built")
+        print(f"  {os.path.basename(path)}: {len(file_docs)} offers built")
     return documents
 
 
-def seed_jobs(write_report_output=False):
-    """Build and insert all jobs; used by startup.py. Returns the inserted count."""
+def seed_offers(write_report_output=False):
+    """Build and upsert all offers; used by startup.py. Returns the upserted count."""
     client = get_mongo_connection()
     try:
         db = client[DB_NAME]
@@ -146,7 +228,8 @@ def seed_jobs(write_report_output=False):
         if write_report_output:
             write_report(report, len(documents))
         if documents:
-            db["jobs"].insert_many(documents)
+            for doc in documents:
+                upsert_offer(db["offers"], doc)
         return len(documents)
     finally:
         client.close()
@@ -172,18 +255,19 @@ def main():
         report = []
         documents = collect_documents(db, report)
         report_path = write_report(report, len(documents))
-        matched_count = sum(len(d.get("matched_candidate", [])) for d in documents)
-        print(f"Built {len(documents)} jobs, {matched_count} matched candidates")
+        matched_count = sum(len(d.get("matching", {}).get("candidates", [])) for d in documents)
+        print(f"Built {len(documents)} offers, {matched_count} matched candidates")
         print(f"Report written to {report_path}")
 
         if args.dry_run:
             print("Dry-run -- nothing inserted")
             return 0
-        if not args.yes and not confirm(f"Insert {len(documents)} jobs into MongoDB?"):
+        if not args.yes and not confirm(f"Upsert {len(documents)} offers into MongoDB?"):
             print("Aborted.")
             return 0
-        result = db["jobs"].insert_many(documents)
-        print(f"Done -- {len(result.inserted_ids)} jobs inserted")
+        for doc in documents:
+            upsert_offer(db["offers"], doc)
+        print(f"Done -- {len(documents)} offers upserted")
         return 0
     finally:
         client.close()

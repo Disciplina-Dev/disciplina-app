@@ -190,7 +190,7 @@ export const resolvers = {
             const rowData = mapInputToRow(input);
             if (context.user.role === Role.COMMERCIAL) {
                 rowData.user_id = context.user.id;
-            } else if (context.user.role === Role.RESPONSABLE && rowData.user_id === undefined) {
+            } else if (rowData.user_id === undefined) {
                 rowData.user_id = context.user.id;
             }
             const company = await companiesService.create(rowData);

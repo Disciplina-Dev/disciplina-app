@@ -412,6 +412,15 @@ function fromGql(c: any): Candidate {
     created_at: c.createdAt,
     last_relance_at: c.lastRelanceAt ?? undefined,
     relance_response_at: c.relanceResponseAt ?? undefined,
+    emergency_contact: c.emergencyContact
+      ? {
+          last_name: c.emergencyContact.lastName ?? undefined,
+          first_name: c.emergencyContact.firstName ?? undefined,
+          relationship: c.emergencyContact.relationship ?? undefined,
+          phone: c.emergencyContact.phone ?? undefined,
+          email: c.emergencyContact.email ?? undefined,
+        }
+      : undefined,
   }
 }
 

@@ -10,10 +10,14 @@ export const typeDefs = gql`
     }
 
     enum MatchedCandidateStatus {
-        RETAINED
-        OFFER_SEND
-        ACCEPTED
+        PRE_SELECTED
+        PRE_SELECTED_MAIL_SEND
         DECLINED
+        ACCEPTED
+        SEND
+        REFUSED
+        INTERVIEW
+        IMMERSING
     }
 
     enum Localisation {
@@ -80,12 +84,6 @@ export const typeDefs = gql`
         NONE
     }
 
-    enum ProposedCandidateAnswer {
-        REFUSED
-        ACCEPTED
-        FAVORITE
-    }
-
     enum InterviewConclusion {
         REJECTED
         IMMERSING
@@ -116,8 +114,8 @@ export const typeDefs = gql`
         city: String
         email: String
         phone: String
+        status: MatchedCandidateStatus
         description: String
-        answer: ProposedCandidateAnswer
         comment: String
         interviewLocation: String
         bookedInterviewSlot: String
@@ -264,6 +262,7 @@ export const typeDefs = gql`
         addCandidateToOffer(offerId: String!, candidateId: String!): Offer
         removeCandidateFromOffer(offerId: String!, candidateId: String!): Offer
         updateMatchedCandidateStatus(offerId: String!, candidateId: String!, status: MatchedCandidateStatus!): Offer
+        sendCandidateInterestMail(offerId: String!, candidateId: String!): Offer
         addManualProposedCandidate(
             offerId: String!
             candidateId: String!

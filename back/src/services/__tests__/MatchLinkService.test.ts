@@ -5,7 +5,7 @@ import { MatchLinkRepository } from '../../repositories/mysql/MatchLinkRepositor
 import { OfferRepository } from '../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../test/helpers/seedOffer';
 import { UserRepository } from '../../repositories/mysql/UserRepository';
-import { OfferStatus, ProposedCandidateAnswer, MatchedCandidateStatus } from '../../types/matching.types';
+import { OfferStatus, MatchedCandidateStatus } from '../../types/matching.types';
 
 async function createRhUser(suffix: number): Promise<{ id: number; email: string }> {
     const repo = new UserRepository();
@@ -48,8 +48,7 @@ describe('MatchLinkService.submitAnswers', () => {
             id: candidateId,
             full_name: `Candidate ${suffix}`,
             email: `candidate-matchlink-${suffix}@test.local`,
-            answer: null,
-            status: MatchedCandidateStatus.OFFER_SEND,
+            status: MatchedCandidateStatus.SEND,
         });
 
         const signature = `sig-matchlink-${suffix}`.padEnd(64, '0');
@@ -69,7 +68,7 @@ describe('MatchLinkService.submitAnswers', () => {
         await service.submitAnswers(signature, [
             {
                 candidateId,
-                answer: ProposedCandidateAnswer.ACCEPTED,
+                status: MatchedCandidateStatus.INTERVIEW,
                 interviewSlots: slots,
                 interviewLocation: location,
             },
@@ -78,7 +77,7 @@ describe('MatchLinkService.submitAnswers', () => {
         const offer = await jobRepo.findById(offerId);
         expect(offer?.matching?.interview_slots).toEqual(slots);
         expect(offer?.matching?.interview_location).toBe(location);
-        expect(offer?.matching?.candidates?.[0].answer).toBe(ProposedCandidateAnswer.ACCEPTED);
+        expect(offer?.matching?.candidates?.[0].status).toBe(MatchedCandidateStatus.INTERVIEW);
         // The job-level pool is shared, not duplicated per-candidate.
         expect((offer?.matching?.candidates?.[0] as Record<string, unknown> | undefined)?.interview).toBeUndefined();
 

@@ -1,7 +1,16 @@
 const API_BASE = import.meta.env.VITE_API_URL;
 
 export type MatchStatus = 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+// Choix UI de l'entreprise sur un candidat.
 export type ProposedAnswer = 'REFUSED' | 'ACCEPTED' | 'FAVORITE';
+// Statut de matching envoyé au backend (Accepter → entretien, Coup de cœur → immersion).
+export type CompanyDecision = 'REFUSED' | 'INTERVIEW' | 'IMMERSING';
+
+export const PROPOSED_ANSWER_TO_STATUS: Record<ProposedAnswer, CompanyDecision> = {
+  REFUSED: 'REFUSED',
+  ACCEPTED: 'INTERVIEW',
+  FAVORITE: 'IMMERSING',
+};
 
 export interface MatchInspectResult {
   exists: boolean;
@@ -20,7 +29,7 @@ export interface ProposedCandidateView {
   sex: string | null;
   city: string | null;
   description: string;
-  answer: ProposedAnswer | null;
+  status: CompanyDecision | null;
 }
 
 export interface MatchCvFile {
@@ -31,7 +40,7 @@ export interface MatchCvFile {
 
 export interface SubmitAnswerPayload {
   candidateId: string;
-  answer: ProposedAnswer;
+  status: CompanyDecision;
   interviewSlots?: string[];
   interviewLocation?: string;
   comment?: string;

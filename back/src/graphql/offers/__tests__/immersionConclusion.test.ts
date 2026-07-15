@@ -5,12 +5,7 @@ import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
 import { env } from '../../../config/env';
-import {
-    InterviewConclusion,
-    OfferStatus,
-    ProposedCandidateAnswer,
-    MatchedCandidateStatus,
-} from '../../../types/matching.types';
+import { InterviewConclusion, OfferStatus, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 import { unzipSync } from 'zlib';
 
@@ -78,8 +73,7 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ offerId:
         id: candidateId,
         full_name: `Lea ${suffix}`,
         email: `lea-${suffix}@test.local`,
-        answer: ProposedCandidateAnswer.ACCEPTED,
-        status: MatchedCandidateStatus.OFFER_SEND,
+        status: MatchedCandidateStatus.INTERVIEW,
         booked_interview_slot: pastSlot,
         interview_location: 'Saint-Denis',
         interview_conclusion: InterviewConclusion.IMMERSING,
@@ -114,7 +108,7 @@ describe('GraphQL setImmersionConclusion', () => {
             id: candidateId,
             full_name: `Tom ${suffix}`,
             email: `tom-${suffix}@test.local`,
-            answer: ProposedCandidateAnswer.ACCEPTED,
+            status: MatchedCandidateStatus.INTERVIEW,
             booked_interview_slot: pastSlot,
             interview_location: 'Saint-Denis',
         });

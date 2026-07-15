@@ -168,8 +168,8 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     // Signature personnelle du RH, récupérée une seule fois pour tout le lot.
     const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
 
-    // Désabonnement pointant vers la boîte du RH émetteur : répondre à ce mail suffit à sortir.
-    const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
+    // NB : pas de header List-Unsubscribe ici. Ce mail vise une réponse individuelle
+    // (Oui/Non) ; l'ajouter le fait classer « bulk » par Gmail et bascule en spam.
 
     for (const candidate of seeking) {
         const name = candidate.identity.full_name?.split(' ')[0] ?? 'Candidat';
@@ -178,34 +178,20 @@ export async function sendRelance(req: AuthRequest, res: Response) {
         const ouiUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=oui&sig=${sig_oui}`;
         const nonUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=non&sig=${sig_non}`;
 
-        const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
-  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
-  p { line-height: 1.6; margin: 0 0 16px; }
-  .question { font-size: 17px; font-weight: 700; margin: 28px 0 24px; }
-  .buttons { display: flex; gap: 12px; margin: 28px 0; }
-  .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
-  .btn-oui { background: #60207E; color: #ffffff; }
-  .btn-non { background: #f3f4f6; color: #374151; }
-  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
-</style>
-</head>
-<body>
-  <div class="logo">DISCIPLINA</div>
+        // Volontairement sobre : pas de <style>/DOCTYPE, pas de gros boutons colorés
+        // ni de footer type newsletter. Une mise en forme « campagne » fait basculer
+        // le mail dans l'onglet Promotions / Spam de Gmail, même à faible volume.
+        const html = `<div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
   <p>Bonjour ${name},</p>
   <p>Nous faisons le point sur votre recherche d'alternance et souhaitons mettre votre dossier à jour.</p>
-  <p class="question">Êtes-vous toujours en recherche d'une alternance ?</p>
-  <div class="buttons">
-    <a href="${ouiUrl}" class="btn btn-oui">✓ &nbsp;Oui, je suis toujours en recherche</a>
-    <a href="${nonUrl}" class="btn btn-non">✗ &nbsp;Non, je ne recherche plus</a>
-  </div>
-  <p>Un simple clic suffit — votre dossier sera mis à jour automatiquement.</p>
-  <div class="footer">Cordialement,<br>L'équipe DISCIPLINA${signatureHtml}</div>
-</body>
-</html>`;
+  <p>Êtes-vous toujours en recherche d'une alternance ?</p>
+  <p>
+    <a href="${ouiUrl}" style="color: #60207E;">Oui, je suis toujours en recherche</a><br>
+    <a href="${nonUrl}" style="color: #60207E;">Non, je ne recherche plus</a>
+  </p>
+  <p>Un simple clic suffit, votre dossier sera mis à jour automatiquement.</p>
+  <p>Cordialement,<br>L'équipe DISCIPLINA${signatureHtml}</p>
+</div>`;
 
         const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA`;
 
@@ -217,7 +203,6 @@ export async function sendRelance(req: AuthRequest, res: Response) {
                     subject: `${name}, êtes-vous toujours en recherche d'une alternance ?`,
                     html,
                     text,
-                    listUnsubscribe,
                 },
                 persistRefreshedTokens(user.id),
             );
