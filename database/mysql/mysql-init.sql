@@ -10,6 +10,21 @@ CREATE TABLE IF NOT EXISTS `app_settings` (
   PRIMARY KEY (`setting_key`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `users` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `email` varchar(255) NOT NULL,
+  `first_name` varchar(255) NOT NULL,
+  `last_name` varchar(255) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `role` enum('ADMIN','RESPONSABLE','COMMERCIAL','RH','PEDA') NOT NULL,
+  `sectors` json DEFAULT NULL,
+  `oauth_token` text DEFAULT NULL,
+  `refresh_token` text DEFAULT NULL,
+  `is_interviewer` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `booking_settings` (
   `user_id` int NOT NULL,
   `slug` varchar(32) NOT NULL,
@@ -307,21 +322,6 @@ CREATE TABLE IF NOT EXISTS `todos` (
   KEY `idx_user_deadline` (`user_id`,`deadline`),
   KEY `idx_user_position` (`user_id`,`position`),
   CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
-CREATE TABLE IF NOT EXISTS `users` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `email` varchar(255) NOT NULL,
-  `first_name` varchar(255) NOT NULL,
-  `last_name` varchar(255) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `role` enum('ADMIN','RESPONSABLE','COMMERCIAL','RH','PEDA') NOT NULL,
-  `sectors` json DEFAULT NULL,
-  `oauth_token` text DEFAULT NULL,
-  `refresh_token` text DEFAULT NULL,
-  `is_interviewer` tinyint(1) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 INSERT IGNORE INTO sector_settings (sector, location) VALUES
