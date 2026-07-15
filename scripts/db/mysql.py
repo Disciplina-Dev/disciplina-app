@@ -19,6 +19,14 @@ def get_mysql_connection():
     return _connect_local()
 
 
+def connect_source_mysql():
+    return _connect_from_uri()
+
+
+def connect_target_mysql():
+    return _connect_local()
+
+
 def _connect_from_uri():
     mysql_uri = os.getenv("MYSQL_URI")
     if not mysql_uri:
@@ -42,8 +50,9 @@ def _connect_local():
     if not password:
         raise ValueError("MYSQL_ROOT_PASSWORD must be set")
     config = {
-        "host": os.getenv("MYSQL_HOST", "localhost"),
-        "port": 3306,
+        # "host": os.getenv("MYSQL_HOST", "localhost"),
+        "host": "localhost",
+        "port": 5001,
         "user": os.getenv("MYSQL_USER", "root"),
         "password": password,
         "database": os.getenv("MYSQL_DATABASE", "disciplina"),
