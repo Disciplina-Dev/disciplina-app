@@ -27,7 +27,7 @@ import {
   CalendarClock,
   FileEdit,
 } from 'lucide-react'
-import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
+import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
@@ -1209,6 +1209,41 @@ function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: stri
 </html>`
 }
 
+function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string): string {
+  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
+  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; }
+  p { line-height: 1.6; margin: 0 0 16px; }
+  .details { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 16px 0; }
+  .details strong { color: #374151; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="logo">DISCIPLINA</div>
+  <p>Bonjour ${name},</p>
+  <p>Nous avons le plaisir de vous proposer une immersion dans le cadre de votre candidature.</p>
+  <div class="details">
+    <p><strong>Date de début :</strong> ${startFormatted}</p>
+    <p><strong>Date de fin :</strong> ${endFormatted}</p>
+    <p><strong>Lieu :</strong> ${location}</p>
+  </div>
+  <p>Merci de confirmer votre disponibilité par retour de mail. Nous vous souhaitons une excellente immersion !</p>
+  <div class="footer">
+    Cordialement,<br>
+    L'équipe DISCIPLINA<br>
+    <small style="color:#9ca3af;">Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</small>
+  </div>
+</body>
+</html>`
+}
+
 function MatchingSection({
   suggestedCandidates,
   savedCandidateIds,
@@ -1366,6 +1401,15 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [drawerCandidate, setDrawerCandidate] = useState<MatchedCandidate | null>(null)
   const [mailState, setMailState] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
   const [datesMailState, setDatesMailState] = useState<MatchedCandidate | null>(null)
+  const [notifyMailState, setNotifyMailState] = useState<{
+    email: string
+    candidateName: string
+    type: 'interview' | 'immersion'
+    interviewLocation?: string
+    bookedInterviewSlot?: string
+    immersionStartDate?: string
+    immersionEndDate?: string
+  } | null>(null)
   const [interviewModalOpen, setInterviewModalOpen] = useState(false)
   const [addPreselectedOpen, setAddPreselectedOpen] = useState(false)
   const [addAcceptedOpen, setAddAcceptedOpen] = useState(false)
@@ -1377,6 +1421,14 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
   const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
   const abCompany = abCompanyResult.data?.companyBySiret
+
+  const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
+  const interviewDefaultLocation =
+    interviewLocationNeedsAnalysis.data?.needsAnalysis?.companyInfos?.commune ||
+    (interviewLocationNeedsAnalysis.data?.needsAnalysis?.companyInfos?.postalCode
+      ? `Commune ${interviewLocationNeedsAnalysis.data.needsAnalysis.companyInfos.postalCode}`
+      : '')
+
   const token = useAuthStore((s) => s.token)
 
   useEffect(() => {
@@ -1558,22 +1610,51 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     setDatesMailState(candidate)
   }
 
-  const handleAddManualProposedCandidate = async (candidateId: string, location: string, date: string, hour: string) => {
+  const handleAddManualProposedCandidate = async (candidateId: string, location: string, dateOrStartDate: string, hourOrEndDate: string, type: 'interview' | 'immersion', email: string, candidateName: string) => {
     if (!selectedJob || !jobData) return
     try {
-      const result = await offerGraphqlClient
-        .mutation(ADD_MANUAL_PROPOSED_CANDIDATE, {
-          offerId: selectedJob.id,
-          candidateId,
-          interviewDate: date,
-          interviewHour: hour,
+      if (type === 'interview') {
+        const result = await offerGraphqlClient
+          .mutation(ADD_MANUAL_PROPOSED_CANDIDATE, {
+            offerId: selectedJob.id,
+            candidateId,
+            interviewDate: dateOrStartDate,
+            interviewHour: hourOrEndDate,
+            interviewLocation: location,
+          })
+          .toPromise()
+        if (result.error) throw new Error(result.error.message)
+
+        setNotifyMailState({
+          email,
+          candidateName,
+          type: 'interview',
+          interviewLocation: location,
+          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}`).toISOString(),
+        })
+      } else {
+        const result = await offerGraphqlClient
+          .mutation(ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, {
+            offerId: selectedJob.id,
+            candidateId,
+            immersionStartDate: dateOrStartDate,
+            immersionEndDate: hourOrEndDate,
+            immersionLocation: location,
+          })
+          .toPromise()
+        if (result.error) throw new Error(result.error.message)
+
+        setNotifyMailState({
+          email,
+          candidateName,
+          type: 'immersion',
+          immersionStartDate: dateOrStartDate,
+          immersionEndDate: hourOrEndDate,
           interviewLocation: location,
         })
-        .toPromise()
-      if (result.error) throw new Error(result.error.message)
+      }
 
       setInterviewModalOpen(false)
-      if (selectedJob) loadJobData(selectedJob)
     } catch (error) {
       console.error('Erreur lors de l\'ajout du candidat proposé:', error)
     }
@@ -1834,6 +1915,41 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         />
       )}
 
+      {notifyMailState && (
+        <MailModal
+          defaultTo={notifyMailState.email}
+          candidateName={notifyMailState.candidateName}
+          defaultSubject={
+            notifyMailState.type === 'interview'
+              ? 'DISCIPLINA – Convocation à un entretien'
+              : 'DISCIPLINA – Proposition d\'immersion'
+          }
+          defaultBody={
+            notifyMailState.type === 'interview'
+              ? buildInterviewMailBody(
+                  notifyMailState.candidateName,
+                  notifyMailState.bookedInterviewSlot ?? '',
+                  notifyMailState.interviewLocation ?? '',
+                )
+              : buildImmersionMailBody(
+                  notifyMailState.candidateName,
+                  notifyMailState.immersionStartDate ?? '',
+                  notifyMailState.immersionEndDate ?? '',
+                  notifyMailState.interviewLocation ?? '',
+                )
+          }
+          scope="rh"
+          onClose={() => {
+            setNotifyMailState(null)
+            if (selectedJob) loadJobData(selectedJob)
+          }}
+          onSent={() => {
+            setNotifyMailState(null)
+            if (selectedJob) loadJobData(selectedJob)
+          }}
+        />
+      )}
+
       {addPreselectedOpen && (
         <AddPreselectedCandidateModal
           job={jobData}
@@ -1853,6 +1969,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       {interviewModalOpen && (
         <InterviewModal
           job={jobData}
+          defaultLocation={interviewDefaultLocation}
           onSubmit={handleAddManualProposedCandidate}
           onClose={() => setInterviewModalOpen(false)}
         />

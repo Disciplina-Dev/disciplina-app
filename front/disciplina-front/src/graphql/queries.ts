@@ -1170,7 +1170,6 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         fullName
         email
         description
-        answer
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1202,7 +1201,6 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
         fullName
         email
         description
-        answer
         immersionStartDate
         immersionEndDate
         immersionLocation
