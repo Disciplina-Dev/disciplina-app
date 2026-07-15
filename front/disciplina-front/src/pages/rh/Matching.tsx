@@ -41,6 +41,7 @@ import type { JobFilters as JobFiltersType } from '@/features/matching/services/
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
+import AddPreselectedCandidateModal from '@/features/matching/components/AddPreselectedCandidateModal'
 import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
@@ -861,6 +862,7 @@ function PreselectedCandidatesSection({
   onSendMail,
   onRemove,
   onMailAll,
+  onAddCandidate,
 }: {
   candidates: MatchedCandidate[]
   isMailingAll: boolean
@@ -869,7 +871,11 @@ function PreselectedCandidatesSection({
   onSendMail: (c: MatchedCandidate) => void
   onRemove: (c: MatchedCandidate) => void
   onMailAll: () => void
+  onAddCandidate?: () => void
 }) {
+  const currentUser = useCurrentUser()
+  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
@@ -878,8 +884,17 @@ function PreselectedCandidatesSection({
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue/10 text-blue">
           {candidates.length}
         </span>
-        {candidates.length > 0 && (
-          <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1">
+          {canAdd && (
+            <button
+              onClick={onAddCandidate}
+              className="flex items-center gap-1 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue-light transition-colors"
+              title="Ajouter manuellement un candidat pré-sélectionné"
+            >
+              <Plus size={11} /> Ajouter un candidat
+            </button>
+          )}
+          {candidates.length > 0 && (
             <button
               onClick={onMailAll}
               disabled={isMailingAll}
@@ -891,8 +906,8 @@ function PreselectedCandidatesSection({
                 <><MailCheck size={11} /> Mail à tous</>
               )}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {candidates.length === 0 ? (
@@ -1335,6 +1350,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [mailState, setMailState] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
   const [datesMailState, setDatesMailState] = useState<MatchedCandidate | null>(null)
   const [interviewModalOpen, setInterviewModalOpen] = useState(false)
+  const [addPreselectedOpen, setAddPreselectedOpen] = useState(false)
   const [conclusionCandidate, setConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [abEditOpen, setAbEditOpen] = useState(false)
@@ -1589,6 +1605,31 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     }
   }
 
+  const handleAddPreselectedCandidate = async (candidateId: string, _candidateName: string, hasAccepted: boolean) => {
+    if (!selectedJob) return
+    try {
+      const result = await offerGraphqlClient
+        .mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+
+      if (hasAccepted) {
+        await offerGraphqlClient
+          .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, {
+            offerId: selectedJob.id,
+            candidateId,
+            status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+          })
+          .toPromise()
+      }
+
+      if (selectedJob) loadJobData(selectedJob)
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du candidat pré-sélectionné:", error)
+    }
+    setAddPreselectedOpen(false)
+  }
+
   const handleSetManualStatus = async (status: OfferStatus) => {
     if (!selectedJob) return
     const result = await offerGraphqlClient.mutation(UPDATE_OFFER, { id: selectedJob.id, offer: { id: selectedJob.id, status } }).toPromise()
@@ -1674,6 +1715,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         onSendMail={handleOpenMail}
         onRemove={handleRemoveCandidate}
         onMailAll={handleMailAll}
+        onAddCandidate={() => setAddPreselectedOpen(true)}
       />
 
       <ToSendCandidatesSection
@@ -1747,6 +1789,14 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
           }
           scope="rh"
           onClose={() => setDatesMailState(null)}
+        />
+      )}
+
+      {addPreselectedOpen && (
+        <AddPreselectedCandidateModal
+          job={jobData}
+          onSubmit={handleAddPreselectedCandidate}
+          onClose={() => setAddPreselectedOpen(false)}
         />
       )}
 
