@@ -254,6 +254,8 @@ export default function FicheCandidat() {
   const [immersionEnd, setImmersionEnd] = useState('')
   const [immersionCompanyId, setImmersionCompanyId] = useState('')
   const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([])
+  const [companyQuery, setCompanyQuery] = useState('')
+  const [companyListOpen, setCompanyListOpen] = useState(false)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -457,6 +459,8 @@ export default function FicheCandidat() {
       setImmersionStart(formData.immersion_start_date?.slice(0, 10) ?? '')
       setImmersionEnd(formData.immersion_end_date?.slice(0, 10) ?? '')
       setImmersionCompanyId(formData.immersion_company_id != null ? String(formData.immersion_company_id) : '')
+      setCompanyQuery(formData.immersion_company_name ?? '')
+      setCompanyListOpen(false)
       // Charge la liste des entreprises (MySQL) une seule fois pour le sélecteur.
       if (companyOptions.length === 0) {
         graphqlClient.query(GET_COMPANY_OPTIONS, {}).toPromise().then((res) => {
@@ -1404,14 +1408,39 @@ export default function FicheCandidat() {
             <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
             <p className="mt-1 text-sm text-gray-500">Renseigne l'entreprise et les dates de début et de fin de l'immersion.</p>
             <div className="mt-4 space-y-3">
-              <div>
+              <div className="relative">
                 <label className={labelCls} htmlFor="imm-company">Entreprise</label>
-                <select id="imm-company" className={inputCls} value={immersionCompanyId} onChange={e => setImmersionCompanyId(e.target.value)}>
-                  <option value="">— Sélectionner une entreprise —</option>
-                  {companyOptions.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <input
+                  id="imm-company"
+                  type="text"
+                  autoComplete="off"
+                  className={inputCls}
+                  placeholder="Rechercher une entreprise…"
+                  value={companyQuery}
+                  onChange={e => { setCompanyQuery(e.target.value); setImmersionCompanyId(''); setCompanyListOpen(true) }}
+                  onFocus={() => setCompanyListOpen(true)}
+                />
+                {companyListOpen && (() => {
+                  const filtered = companyOptions.filter(c => c.name?.toLowerCase().includes(companyQuery.toLowerCase()))
+                  return (
+                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                      {filtered.slice(0, 50).map(c => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100"
+                            onClick={() => { setImmersionCompanyId(String(c.id)); setCompanyQuery(c.name); setCompanyListOpen(false) }}
+                          >
+                            {c.name}
+                          </button>
+                        </li>
+                      ))}
+                      {filtered.length === 0 && (
+                        <li className="px-3 py-1.5 text-sm text-gray-400">Aucune entreprise</li>
+                      )}
+                    </ul>
+                  )
+                })()}
               </div>
               <div>
                 <label className={labelCls} htmlFor="imm-start">Date de début</label>
