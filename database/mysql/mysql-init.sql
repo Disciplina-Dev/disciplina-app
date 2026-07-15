@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS `commercial_kpi` (
 CREATE TABLE IF NOT EXISTS `companies` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int DEFAULT NULL,
+  `ab_id` varchar(36) DEFAULT NULL,
   `legal_referent` varchar(255) DEFAULT NULL,
   `name` varchar(255) NOT NULL,
   `phone` varchar(50) DEFAULT NULL,
@@ -121,6 +122,7 @@ CREATE TABLE IF NOT EXISTS `companies_blacklist` (
   `relance_date` date DEFAULT NULL,
   `relance_type` tinyint DEFAULT NULL,
   `relance_template_id` varchar(64) DEFAULT NULL,
+  `relance_channel` enum('PHONE','MAIL') DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `all_blacklist` tinyint DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
