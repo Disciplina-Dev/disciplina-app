@@ -232,6 +232,8 @@ export const typeDefs = gql`
         immersionAgreement: Boolean
         immersionStartDate: String
         immersionEndDate: String
+        immersionCompanyId: Int
+        immersionCompanyName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -380,6 +382,8 @@ export const typeDefs = gql`
         immersionAgreement: Boolean
         immersionStartDate: String
         immersionEndDate: String
+        immersionCompanyId: Int
+        immersionCompanyName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -403,6 +407,8 @@ export const typeDefs = gql`
         immersionAgreement: Boolean
         immersionStartDate: String
         immersionEndDate: String
+        immersionCompanyId: Int
+        immersionCompanyName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput

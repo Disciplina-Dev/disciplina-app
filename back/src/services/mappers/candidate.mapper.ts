@@ -49,6 +49,8 @@ export function candidateToGql(candidate: Candidate): any {
         immersionAgreement: candidate.immersion_agreement,
         immersionStartDate: candidate.immersion_start_date?.toISOString() ?? null,
         immersionEndDate: candidate.immersion_end_date?.toISOString() ?? null,
+        immersionCompanyId: candidate.immersion_company_id ?? null,
+        immersionCompanyName: candidate.immersion_company_name ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
         identity: candidate.identity ? snakeToCamelCase(candidate.identity) : null,
