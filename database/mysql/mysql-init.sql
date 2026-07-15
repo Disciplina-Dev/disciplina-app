@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS `commercial_kpi` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  KEY `fk_1` (`user_id`),
+--   KEY `fk_1` (`user_id`),
   UNIQUE KEY `unique_kpi` (`user_id`,`year`,`month`,`week`,`site`),
   CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
