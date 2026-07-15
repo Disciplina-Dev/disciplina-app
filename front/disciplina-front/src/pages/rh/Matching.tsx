@@ -21,20 +21,19 @@ import {
   Info,
   PlayCircle,
   RefreshCw,
-  Trash2,
   MailCheck,
   Send,
   Heart,
   CalendarClock,
   FileEdit,
 } from 'lucide-react'
-import { GET_OFFERS, GET_COMPANIES, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, UNMATCH_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, GET_CANDIDATE_CV_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
-import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
+import { offerGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
@@ -42,6 +41,8 @@ import type { JobFilters as JobFiltersType } from '@/features/matching/services/
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
+import AddPreselectedCandidateModal from '@/features/matching/components/AddPreselectedCandidateModal'
+import AddAcceptedCandidateModal from '@/features/matching/components/AddAcceptedCandidateModal'
 import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
@@ -50,7 +51,7 @@ import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysis
 import { useNeedsAnalysis, useCompanyBySiret } from '@/graphql/hooks'
 import type { Entreprise } from '@/types/entreprise'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
-import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
+import { SECTOR_LABELS } from '@/data/sectors'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,16 @@ interface MatchedCandidate {
   city: string
   email: string
   phone: string
-  status?: string
+  status?: string | null
+  description?: string | null
+  comment?: string | null
+  interviewLocation?: string
+  bookedInterviewSlot?: string | null
+  interviewConclusion?: InterviewConclusion | null
+  immersionStartDate?: string | null
+  immersionEndDate?: string | null
+  immersionLocation?: string | null
+  immersionConclusion?: ImmersionConclusion | null
 }
 
 interface SalerInfo {
@@ -103,31 +113,9 @@ interface Job {
   missions?: string[] | null
 }
 
-interface ProposedCandidate {
-  id: string
-  fullName: string
-  age: number
-  sex: string
-  city: string
-  email: string
-  phone: string
-  description: string | null
-  status: MatchedCandidateStatus | null
-  comment?: string | null
-  interviewLocation?: string
-  bookedInterviewSlot?: string | null
-  interviewConclusion?: InterviewConclusion | null
-  immersionStartDate?: string | null
-  immersionEndDate?: string | null
-  immersionConclusion?: ImmersionConclusion | null
-}
-
 interface MatchJobResult extends Job {
   matchedCandidate: MatchedCandidate[]
   suggestedCandidates: MatchedCandidate[]
-  proposedCandidate: ProposedCandidate[]
-  interviewSlots: string[] | null
-  interviewLocation: string | null
 }
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
@@ -221,75 +209,105 @@ function CandidateInfoDrawer({ candidate, onClose }: InfoDrawerProps) {
   )
 }
 
-// ─── Retained Candidate Row ───────────────────────────────────────────────────
+// ─── Candidate Row ────────────────────────────────────────────────────────────
 
-function RetainedCandidateRow({
+function CandidateRow({
   candidate,
-  hasMissingCv,
   onInfo,
   onSendMail,
   onRemove,
+  actions,
 }: {
   candidate: MatchedCandidate
-  hasMissingCv: boolean
   onInfo: () => void
-  onSendMail: () => void
-  onRemove: () => void
+  onSendMail?: () => void
+  onRemove?: () => void
+  actions?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-success/20 bg-success-bg/40 px-4 py-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success-bg text-success">
-        <UserCheck size={14} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-gray-900 truncate">{candidate.fullName}</p>
-          {candidate.status && (
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[candidate.status as MatchedCandidateStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-              {MATCHED_CANDIDATE_STATUS_LABELS[candidate.status as MatchedCandidateStatus] ?? candidate.status}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-3 mt-0.5">
-          {candidate.email && (
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <Mail size={10} className="text-gray-300" /> {candidate.email}
-            </span>
-          )}
-          {candidate.city && (
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <MapPin size={10} className="text-gray-300" /> {formatEnum(candidate.city)}
-            </span>
-          )}
-        </div>
-        {hasMissingCv && (
-          <p className="flex items-center gap-1 mt-1 text-[11px] font-medium text-danger">
-            <AlertCircle size={10} /> Aucun CV sur le Drive du candidat
-          </p>
+    <div className="rounded-lg border border-gray-100 p-3">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <p className="text-sm font-semibold text-gray-900">{candidate.fullName}</p>
+        {candidate.status && (
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[candidate.status as MatchedCandidateStatus] ?? 'bg-gray-100 text-gray-600'}`}>
+            {MATCHED_CANDIDATE_STATUS_LABELS[candidate.status as MatchedCandidateStatus] ?? candidate.status}
+          </span>
         )}
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={onSendMail}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-white hover:text-blue transition-colors"
-          title="Envoyer un mail"
-        >
-          <Mail size={14} />
-        </button>
+      <div className="flex flex-wrap gap-3 mb-2">
+        {candidate.email && (
+          <span className="flex items-center gap-1 text-xs text-gray-500">
+            <Mail size={10} className="text-gray-300" /> {candidate.email}
+          </span>
+        )}
+        {candidate.city && (
+          <span className="flex items-center gap-1 text-xs text-gray-500">
+            <MapPin size={10} className="text-gray-300" /> {formatEnum(candidate.city)}
+          </span>
+        )}
+        {candidate.age && (
+          <span className="text-xs text-gray-500">{candidate.age} ans</span>
+        )}
+      </div>
+
+      {candidate.status === MatchedCandidateStatus.REFUSED && candidate.comment && (
+        <p className="mb-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+          Motif du refus : {candidate.comment}
+        </p>
+      )}
+
+      {candidate.bookedInterviewSlot && candidate.interviewLocation && (
+        <div className="mb-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+          <p><CalendarClock size={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot)}</p>
+          <p>📍 {candidate.interviewLocation}</p>
+        </div>
+      )}
+
+      {candidate.immersionStartDate && candidate.immersionEndDate && (
+        <p className="mb-2 text-[11px] text-gray-500">
+          Immersion du {candidate.immersionStartDate} au {candidate.immersionEndDate}
+        </p>
+      )}
+
+      {candidate.interviewConclusion && (
+        <span className={`mb-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${INTERVIEW_CONCLUSION_BADGE_CLASS[candidate.interviewConclusion]}`}>
+          {INTERVIEW_CONCLUSION_LABELS[candidate.interviewConclusion]}
+        </span>
+      )}
+
+      {candidate.immersionConclusion && (
+        <span className={`mb-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${IMMERSION_CONCLUSION_BADGE_CLASS[candidate.immersionConclusion]}`}>
+          {IMMERSION_CONCLUSION_LABELS[candidate.immersionConclusion]}
+        </span>
+      )}
+
+      <div className="flex items-center gap-1">
         <button
           onClick={onInfo}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-white hover:text-gray-700 transition-colors"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
           title="Voir la fiche"
         >
           <Info size={14} />
         </button>
-        <button
-          onClick={onRemove}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-danger-bg hover:text-danger transition-colors"
-          title="Retirer ce candidat"
-        >
-          <UserX size={14} />
-        </button>
+        {onSendMail && (
+          <button
+            onClick={onSendMail}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-blue transition-colors"
+            title="Envoyer un mail"
+          >
+            <Mail size={14} />
+          </button>
+        )}
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-danger-bg hover:text-danger transition-colors"
+            title="Retirer ce candidat"
+          >
+            <UserX size={14} />
+          </button>
+        )}
+        {actions}
       </div>
     </div>
   )
@@ -646,7 +664,7 @@ function JobDetailsSection({
                   {job.companyInfos.activities.map((activity, i) => (
                     <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
                       <span className="text-gray-300 mt-0.5 shrink-0">•</span>
-                      {activity}
+                      {SECTOR_LABELS[activity] ?? activity}
                     </p>
                   ))}
                 </div>
@@ -836,46 +854,53 @@ function ReferentBlock({ label, details }: { label: string; details: ReferentDet
   )
 }
 
-// ─── Retained Candidates Section ──────────────────────────────────────────────
+// ─── Preselected Candidates Section (PRE_SELECTED, PRE_SELECTED_MAIL_SEND, DECLINED) ──
 
-function RetainedCandidatesSection({
+function PreselectedCandidatesSection({
   candidates,
-  isUnmatching,
   isMailingAll,
   mailAllProgress,
-  missingCvCandidateIds,
   onInfo,
   onSendMail,
   onRemove,
-  onUnmatchAll,
   onMailAll,
+  onAddCandidate,
 }: {
   candidates: MatchedCandidate[]
-  isUnmatching: boolean
   isMailingAll: boolean
   mailAllProgress: { sent: number; total: number } | null
-  missingCvCandidateIds: Set<string>
   onInfo: (c: MatchedCandidate) => void
   onSendMail: (c: MatchedCandidate) => void
   onRemove: (c: MatchedCandidate) => void
-  onUnmatchAll: () => void
   onMailAll: () => void
+  onAddCandidate?: () => void
 }) {
+  const currentUser = useCurrentUser()
+  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
-        <UserCheck size={15} className="text-success" />
-        <h3 className="text-sm font-semibold text-gray-800">Candidats retenus</h3>
-        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success">
+        <UserCheck size={15} className="text-blue" />
+        <h3 className="text-sm font-semibold text-gray-800">Candidats pré-sélectionnés</h3>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue/10 text-blue">
           {candidates.length}
         </span>
-        {candidates.length > 0 && (
-          <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1">
+          {canAdd && (
+            <button
+              onClick={onAddCandidate}
+              className="flex items-center gap-1 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue-light transition-colors"
+              title="Ajouter manuellement un candidat pré-sélectionné"
+            >
+              <Plus size={11} /> Ajouter un candidat
+            </button>
+          )}
+          {candidates.length > 0 && (
             <button
               onClick={onMailAll}
               disabled={isMailingAll}
               className="flex items-center gap-1 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
-              title="Envoyer le mail d'offre à tous"
             >
               {isMailingAll ? (
                 <><Loader2 size={11} className="animate-spin" /> {mailAllProgress ? `${mailAllProgress.sent}/${mailAllProgress.total}` : '…'}</>
@@ -883,30 +908,20 @@ function RetainedCandidatesSection({
                 <><MailCheck size={11} /> Mail à tous</>
               )}
             </button>
-            <button
-              onClick={onUnmatchAll}
-              disabled={isUnmatching}
-              className="flex items-center gap-1 rounded-lg border border-danger/20 px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger-bg transition-colors disabled:opacity-50"
-              title="Retirer tous les candidats"
-            >
-              {isUnmatching ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-              Tout supprimer
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {candidates.length === 0 ? (
         <div className="text-center py-4 px-3 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-400">Aucun candidat retenu pour l'instant.</p>
+          <p className="text-xs text-gray-400">Aucun candidat pré-sélectionné.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
           {candidates.map((c) => (
-            <RetainedCandidateRow
+            <CandidateRow
               key={c.id}
               candidate={c}
-              hasMissingCv={missingCvCandidateIds.has(c.id)}
               onInfo={() => onInfo(c)}
               onSendMail={() => onSendMail(c)}
               onRemove={() => onRemove(c)}
@@ -918,36 +933,194 @@ function RetainedCandidatesSection({
   )
 }
 
-// ─── Matching Section ─────────────────────────────────────────────────────────
+// ─── To-Send Candidates Section (ACCEPTED, SEND) ─────────────────────────────
 
-function formatOfferDetails(sector: string | null, localisation: string[] | null, desiredTP: string | null): string {
-  const parts: string[] = []
-  if (desiredTP && TP_TYPE_LABELS[desiredTP as keyof typeof TP_TYPE_LABELS]) {
-    parts.push(TP_TYPE_LABELS[desiredTP as keyof typeof TP_TYPE_LABELS])
-  }
-  if (sector) {
-    parts.push(formatEnumLabel(sector))
-  }
-  if (localisation && localisation.length > 0) {
-    const locations = localisation
-      .map((loc) => LOCALISATION_LABELS[loc as keyof typeof LOCALISATION_LABELS])
-      .filter(Boolean)
-      .join(', ')
-    if (locations) parts.push(locations)
-  }
-  return parts.join(' • ')
+function ToSendCandidatesSection({
+  candidates,
+  onInfo,
+  onSendMail,
+  onRemove,
+  onAddCandidate,
+}: {
+  candidates: MatchedCandidate[]
+  onInfo: (c: MatchedCandidate) => void
+  onSendMail: (c: MatchedCandidate) => void
+  onRemove: (c: MatchedCandidate) => void
+  onAddCandidate?: () => void
+}) {
+  const currentUser = useCurrentUser()
+  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <Send size={15} className="text-purple" />
+        <h3 className="text-sm font-semibold text-gray-800">Candidats à envoyer</h3>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">
+          {candidates.length}
+        </span>
+        <div className="ml-auto flex items-center gap-1">
+          {canAdd && (
+            <button
+              onClick={onAddCandidate}
+              className="flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
+              title="Ajouter manuellement un candidat accepté"
+            >
+              <Plus size={11} /> Ajouter un candidat
+            </button>
+          )}
+        </div>
+      </div>
+
+      {candidates.length === 0 ? (
+        <div className="text-center py-4 px-3 bg-gray-50 rounded-lg">
+          <p className="text-xs text-gray-400">Aucun candidat à envoyer.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {candidates.map((c) => (
+            <CandidateRow
+              key={c.id}
+              candidate={c}
+              onInfo={() => onInfo(c)}
+              onSendMail={() => onSendMail(c)}
+              onRemove={() => onRemove(c)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
+
+// ─── Already-Sent Candidates Section (REFUSED, INTERVIEW, IMMERSING) ─────────
+
+function AlreadySentCandidatesSection({
+  candidates,
+  onInfo,
+  onSendDates,
+  onConcludeInterview,
+  onConcludeImmersion,
+  onAddCandidate,
+}: {
+  candidates: MatchedCandidate[]
+  onInfo: (c: MatchedCandidate) => void
+  onSendDates: (c: MatchedCandidate) => void
+  onConcludeInterview: (c: MatchedCandidate) => void
+  onConcludeImmersion: (c: MatchedCandidate) => void
+  onAddCandidate: () => void
+}) {
+  const currentUser = useCurrentUser()
+  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <Heart size={15} className="text-gray-400" />
+        <h3 className="text-sm font-semibold text-gray-800">Candidats déjà envoyés</h3>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+          {candidates.length}
+        </span>
+        {canProposeOffers && (
+          <button
+            onClick={onAddCandidate}
+            className="ml-auto flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
+            title="Ajouter manuellement un candidat pour entretien ou immersion"
+          >
+            <Plus size={11} /> Ajouter un candidat
+          </button>
+        )}
+      </div>
+
+      {candidates.length === 0 ? (
+        <div className="text-center py-4 px-3 bg-gray-50 rounded-lg">
+          <p className="text-xs text-gray-400">Aucun candidat déjà envoyé.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {candidates.map((c) => {
+            const needsInterviewConclusion = c.status === MatchedCandidateStatus.INTERVIEW && isInterviewDatePast(c.bookedInterviewSlot) && !c.interviewConclusion
+            const needsImmersionConclusion = c.status === MatchedCandidateStatus.IMMERSING && !c.immersionConclusion
+            const canSendDates = c.status === MatchedCandidateStatus.INTERVIEW && c.bookedInterviewSlot && c.interviewLocation
+
+            return (
+              <CandidateRow
+                key={c.id}
+                candidate={c}
+                onInfo={() => onInfo(c)}
+                actions={
+                  <div className="flex items-center gap-1">
+                    {canSendDates && (
+                      <button
+                        onClick={() => onSendDates(c)}
+                        className="flex h-7 items-center gap-1 rounded-lg border border-purple/20 px-2 text-[11px] font-medium text-purple hover:bg-purple/5 transition-colors"
+                        title="Envoyer les dates au candidat"
+                      >
+                        <Mail size={11} /> Dates
+                      </button>
+                    )}
+                    {needsInterviewConclusion && (
+                      <button
+                        onClick={() => onConcludeInterview(c)}
+                        className="flex h-7 items-center gap-1 rounded-lg border border-blue/20 px-2 text-[11px] font-medium text-blue hover:bg-blue/5 transition-colors"
+                      >
+                        <CalendarClock size={11} /> Conclure entretien
+                      </button>
+                    )}
+                    {needsImmersionConclusion && (
+                      <button
+                        onClick={() => onConcludeImmersion(c)}
+                        className="flex h-7 items-center gap-1 rounded-lg border border-blue/20 px-2 text-[11px] font-medium text-blue hover:bg-blue/5 transition-colors"
+                      >
+                        <CalendarClock size={11} /> Conclure immersion
+                      </button>
+                    )}
+                  </div>
+                }
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Matching Section ─────────────────────────────────────────────────────────
 
 function buildOfferMailBody(
   candidateName: string,
-  sector: string | null,
-  localisation: string[] | null,
-  desiredTP: string | null,
+  job: MatchJobResult,
   ouiUrl: string,
   nonUrl: string,
 ): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const offerDetails = formatOfferDetails(sector, localisation, desiredTP)
+  const segments: string[] = []
+
+  if (job.sector && job.sector !== 'NONE') {
+    segments.push(`<div class="field"><div class="field-label">Secteur</div><div class="field-value">${formatEnumLabel(job.sector)}</div></div>`)
+  }
+  if (job.localisation && job.localisation.length > 0) {
+    const locs = job.localisation
+      .map((l) => LOCALISATION_LABELS[l as keyof typeof LOCALISATION_LABELS] ?? l)
+      .filter(Boolean)
+      .join(', ')
+    if (locs) {
+      segments.push(`<div class="field"><div class="field-label">Localisation</div><div class="field-value">${locs}</div></div>`)
+    }
+  }
+  if (job.missions && job.missions.length > 0) {
+    const items = job.missions.map((m) => `<li>${m}</li>`).join('')
+    segments.push(`<div class="field"><div class="field-label">Missions</div><ul class="mission-list">${items}</ul></div>`)
+  }
+  if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
+    const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
+    segments.push(`<div class="field"><div class="field-label">Activités de l'entreprise</div><div>${tags}</div></div>`)
+  }
+  const offerCard = segments.length > 0
+    ? `<div class="offer-card">${segments.join('')}</div>`
+    : ''
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -955,54 +1128,119 @@ function buildOfferMailBody(
   body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
   .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
   p { line-height: 1.6; margin: 0 0 16px; }
-  .offer-details { background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0; font-weight: 500; color: #374151; }
+  .offer-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 16px 0; }
+  .field { margin-bottom: 10px; }
+  .field-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: #9ca3af; letter-spacing: 0.5px; }
+  .field-value { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 2px; }
+  .mission-list { list-style: none; padding: 0; margin: 4px 0 0; }
+  .mission-list li { padding: 3px 0; font-size: 13px; color: #374151; position: relative; padding-left: 16px; }
+  .mission-list li::before { content: "•"; position: absolute; left: 0; color: #60207E; }
+  .activity-tag { display: inline-block; background: #f3e8ff; color: #60207E; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 2px; }
   .question { font-size: 17px; font-weight: 700; margin: 28px 0 24px; }
   .buttons { display: flex; gap: 12px; margin: 28px 0; }
   .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
   .btn-oui { background: #60207E; color: #ffffff; }
   .btn-non { background: #f3f4f6; color: #374151; }
+  .benefits { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 16px; margin: 20px 0; }
+  .benefits h4 { color: #60207E; font-size: 14px; margin: 0 0 8px; }
+  .benefits ul { margin: 0; padding-left: 20px; }
+  .benefits li { font-size: 13px; color: #374151; margin-bottom: 4px; }
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
 </style>
 </head>
 <body>
   <div class="logo">DISCIPLINA</div>
   <p>Bonjour ${name},</p>
-  <p>Nous avons une offre en alternance qui pourrait vous correspondre.</p>
-  <div class="offer-details">${offerDetails}</div>
-  <p class="question">Êtes-vous intéressé(e) par cette opportunité ?</p>
+  <p>Nous avons sélectionné pour vous une offre en alternance qui correspond à votre profil :</p>
+  ${offerCard}
+  <div class="benefits">
+    <h4>Pourquoi postuler ?</h4>
+    <ul>
+      <li>Une formation en alternance rémunérée</li>
+      <li>Une expérience professionnelle enrichissante</li>
+      <li>Un accompagnement personnalisé tout au long de votre parcours</li>
+      <li>Un diplôme reconnu à la clé</li>
+    </ul>
+  </div>
+  <p class="question">Souhaitez-vous postuler à cette offre ?</p>
   <div class="buttons">
     <a href="${ouiUrl}" class="btn btn-oui">✓ &nbsp;Oui, je suis intéressé(e)</a>
     <a href="${nonUrl}" class="btn btn-non">✗ &nbsp;Non, merci</a>
   </div>
-  <p>Un simple clic suffit — nous prendrons contact avec vous rapidement.</p>
-  <div class="footer">Cordialement,<br>L'équipe DISCIPLINA</div>
+  <p>Un simple clic suffit. Notre équipe vous recontactera rapidement pour la suite du processus.</p>
+  <div class="footer">
+    Cordialement,<br>
+    L'équipe DISCIPLINA<br>
+    <small style="color:#9ca3af;">Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</small>
+  </div>
 </body>
 </html>`
 }
 
-async function resolveCompanyEmail(companyName: string): Promise<string> {
-  const result = await graphqlClient.query(GET_COMPANIES, { search: companyName, first: 1 }).toPromise()
-  return result.data?.companies?.edges?.[0]?.node?.company?.email ?? ''
-}
-
-async function hasCandidateCv(candidateId: string): Promise<boolean> {
-  const result = await candidateGraphqlClient.query(GET_CANDIDATE_CV_STATUS, { id: candidateId }).toPromise()
-  return Boolean(result.data?.candidate?.cvLink)
-}
-
-function buildManualInterviewMailBody(companyName: string, candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
+function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
   const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937;">
-  <div style="color:#60207E;font-weight:800;font-size:20px;margin-bottom:28px;">DISCIPLINA</div>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
+  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; }
+  p { line-height: 1.6; margin: 0 0 16px; }
+  .details { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 16px 0; }
+  .details strong { color: #374151; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="logo">DISCIPLINA</div>
   <p>Bonjour ${name},</p>
-  <p>L'entreprise <strong>${companyName}</strong> vous propose un entretien aux coordonnées suivantes :</p>
-  <p style="margin-left:20px;"><strong>Date :</strong> ${dateFormatted}<br><strong>Localisation :</strong> ${interviewLocation}</p>
-  <p>Nous attendons votre confirmation.</p>
-  <p style="margin-top:40px;color:#9ca3af;font-size:12px;">Cordialement,<br>L'équipe DISCIPLINA</p>
+  <p>Nous avons le plaisir de vous convier à un entretien dans le cadre de votre candidature.</p>
+  <div class="details">
+    <p><strong>Date :</strong> ${dateFormatted}</p>
+    <p><strong>Lieu :</strong> ${interviewLocation}</p>
+  </div>
+  <p>Merci de confirmer votre présence par retour de mail. Nous vous souhaitons bonne chance pour cet entretien !</p>
+  <div class="footer">
+    Cordialement,<br>
+    L'équipe DISCIPLINA<br>
+    <small style="color:#9ca3af;">Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</small>
+  </div>
+</body>
+</html>`
+}
+
+function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string): string {
+  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
+  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; }
+  p { line-height: 1.6; margin: 0 0 16px; }
+  .details { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 16px 0; }
+  .details strong { color: #374151; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="logo">DISCIPLINA</div>
+  <p>Bonjour ${name},</p>
+  <p>Nous avons le plaisir de vous proposer une immersion dans le cadre de votre candidature.</p>
+  <div class="details">
+    <p><strong>Date de début :</strong> ${startFormatted}</p>
+    <p><strong>Date de fin :</strong> ${endFormatted}</p>
+    <p><strong>Lieu :</strong> ${location}</p>
+  </div>
+  <p>Merci de confirmer votre disponibilité par retour de mail. Nous vous souhaitons une excellente immersion !</p>
+  <div class="footer">
+    Cordialement,<br>
+    L'équipe DISCIPLINA<br>
+    <small style="color:#9ca3af;">Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</small>
+  </div>
 </body>
 </html>`
 }
@@ -1145,208 +1383,7 @@ function formatSlot(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
-function ProposedCandidatesSection({
-  candidates,
-  interviewSlots,
-  interviewLocation,
-  onSendDates,
-  onAddCandidate,
-  onConclude,
-  onConcludeImmersion,
-}: {
-  candidates: ProposedCandidate[]
-  interviewSlots: string[] | null
-  interviewLocation: string | null
-  onSendDates: (candidate: ProposedCandidate) => void
-  onAddCandidate: () => void
-  onConclude: (candidate: ProposedCandidate) => void
-  onConcludeImmersion: (candidate: ProposedCandidate) => void
-}) {
-  const slots = interviewSlots ?? []
-  const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN;
-  return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <Heart size={15} className="text-purple" />
-        <h3 className="text-sm font-semibold text-gray-800">Candidats proposés</h3>
-        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">{candidates.length}</span>
-        {canProposeOffers && (
-          <button
-            onClick={onAddCandidate}
-            className="ml-auto flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
-            title="Ajouter manuellement un candidat"
-          >
-            <Plus size={11} /> Ajouter un candidat
-          </button>
-        )}
-      </div>
-      {slots.length > 0 && (
-        <div className="mb-3 rounded-md bg-gray-50 px-3 py-2">
-          <p className="text-[11px] font-medium text-gray-600 mb-1">Créneaux proposés à l'entreprise :</p>
-          <div className="flex flex-wrap gap-1.5">
-            {slots.map((s) => (
-              <span key={s} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
-                <CalendarClock size={11} /> {formatSlot(s)}
-              </span>
-            ))}
-          </div>
-          {interviewLocation && <p className="mt-1.5 text-[11px] text-gray-600">📍 {interviewLocation}</p>}
-        </div>
-      )}
-      <div className="flex flex-col gap-2">
-        {candidates.map((c) => {
-          return (
-            <div key={c.id} className="rounded-lg border border-gray-100 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-gray-900">{c.fullName}</p>
-                {c.status && c.status !== MatchedCandidateStatus.SEND ? (
-                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[c.status]}`}>
-                    {MATCHED_CANDIDATE_STATUS_LABELS[c.status]}
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-medium text-gray-500">En attente</span>
-                )}
-              </div>
-              {c.status === MatchedCandidateStatus.REFUSED && c.comment && (
-                <p className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
-                  Motif du refus : {c.comment}
-                </p>
-              )}
-              {c.bookedInterviewSlot && c.interviewLocation && (
-                <div className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
-                  <p>
-                    <CalendarClock size={11} className="inline mr-1" />
-                    {formatSlot(c.bookedInterviewSlot)}
-                  </p>
-                  <p>📍 {c.interviewLocation}</p>
-                </div>
-              )}
-              {c.status === MatchedCandidateStatus.INTERVIEW && c.bookedInterviewSlot && c.interviewLocation && (
-                <button
-                  onClick={() => onSendDates(c)}
-                  className="mt-2 flex items-center gap-1.5 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
-                >
-                  <Mail size={12} /> Envoyer les dates au candidat
-                </button>
-              )}
-              {c.interviewConclusion ? (
-                <>
-                  <span className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${INTERVIEW_CONCLUSION_BADGE_CLASS[c.interviewConclusion]}`}>
-                    {INTERVIEW_CONCLUSION_LABELS[c.interviewConclusion]}
-                  </span>
-                  {c.interviewConclusion === InterviewConclusion.IMMERSING && (
-                    <>
-                      {c.immersionStartDate && c.immersionEndDate && (
-                        <p className="mt-1 text-[10px] text-gray-500">Du {c.immersionStartDate} au {c.immersionEndDate}</p>
-                      )}
-                      {c.immersionConclusion ? (
-                        <span className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium ${IMMERSION_CONCLUSION_BADGE_CLASS[c.immersionConclusion]}`}>
-                          {IMMERSION_CONCLUSION_LABELS[c.immersionConclusion]}
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => onConcludeImmersion(c)}
-                          className="mt-1 flex items-center gap-1.5 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue/5 transition-colors"
-                        >
-                          <CalendarClock size={12} /> Conclure l'immersion
-                        </button>
-                      )}
-                    </>
-                  )}
-                </>
-              ) : (
-                isInterviewDatePast(c.bookedInterviewSlot) && (
-                  <button
-                    onClick={() => onConclude(c)}
-                    className="mt-2 flex items-center gap-1.5 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue/5 transition-colors"
-                  >
-                    <CalendarClock size={12} /> Conclure l'entretien
-                  </button>
-                )
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
-function ProposeCandidatesModal({
-  candidates,
-  isSubmitting,
-  onSubmit,
-  onClose,
-}: {
-  candidates: MatchedCandidate[]
-  isSubmitting: boolean
-  onSubmit: (descriptions: Record<string, string>) => void
-  onClose: () => void
-}) {
-  const [descriptions, setDescriptions] = useState<Record<string, string>>({})
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
-          <h2 className="text-base font-bold text-gray-900">Proposer les candidats à l'entreprise</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50"><X size={18} /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5">
-          <p className="mb-4 text-[13px] text-gray-500">
-            Ajoutez une note pour chaque candidat. Un lien sécurisé sera envoyé à l'entreprise pour qu'elle réponde.
-          </p>
-          <div className="flex flex-col gap-4">
-            {candidates.map((c) => (
-              <div key={c.id}>
-                <p className="mb-1 text-[13px] font-semibold text-gray-800">{c.fullName}</p>
-                <textarea
-                  value={descriptions[c.id] ?? ''}
-                  onChange={(e) => setDescriptions((p) => ({ ...p, [c.id]: e.target.value }))}
-                  placeholder="Note / point fort du candidat (optionnel)"
-                  rows={2}
-                  className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-gray-100 p-4">
-          <button onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] font-semibold text-gray-600 hover:bg-gray-50">
-            Annuler
-          </button>
-          <button
-            onClick={() => onSubmit(descriptions)}
-            disabled={isSubmitting || candidates.length === 0}
-            className="flex items-center gap-2 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white hover:bg-purple-dark disabled:opacity-60"
-          >
-            {isSubmitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Envoyer le lien
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ProposeResultModal({ companyName, onClose }: { companyName: string; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-600">
-          <Check size={30} />
-        </div>
-        <p className="mt-3 text-[16px] font-extrabold text-gray-900">Lien envoyé</p>
-        <p className="mt-1 text-[13px] text-gray-500">
-          Un lien sécurisé a été envoyé à {companyName}. Vous serez notifié dès sa réponse.
-        </p>
-        <button onClick={onClose} className="mt-4 w-full rounded-lg bg-purple px-4 py-2.5 text-[14px] font-bold text-white hover:bg-purple-dark">
-          Fermer
-        </button>
-      </div>
-    </div>
-  )
-}
 
 function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null }) {
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
@@ -1356,7 +1393,6 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [decisions, setDecisions] = useState<Record<string, CandidateDecision>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isMatching, setIsMatching] = useState(false)
-  const [isUnmatching, setIsUnmatching] = useState(false)
   const [isMailingAll, setIsMailingAll] = useState(false)
   const [mailAllProgress, setMailAllProgress] = useState<{ sent: number; total: number } | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -1365,20 +1401,35 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
   const [drawerCandidate, setDrawerCandidate] = useState<MatchedCandidate | null>(null)
   const [mailState, setMailState] = useState<{ candidate: MatchedCandidate; ouiUrl: string; nonUrl: string } | null>(null)
-  const [proposeState, setProposeState] = useState<{ candidates: MatchedCandidate[]; descriptions: Record<string, string> } | null>(null)
-  const [proposeResult, setProposeResult] = useState<{ signature: string } | null>(null)
-  const [isCreatingSession, setIsCreatingSession] = useState(false)
-  const [datesMailState, setDatesMailState] = useState<ProposedCandidate | null>(null)
+  const [datesMailState, setDatesMailState] = useState<MatchedCandidate | null>(null)
+  const [notifyMailState, setNotifyMailState] = useState<{
+    email: string
+    candidateName: string
+    type: 'interview' | 'immersion'
+    interviewLocation?: string
+    bookedInterviewSlot?: string
+    immersionStartDate?: string
+    immersionEndDate?: string
+  } | null>(null)
   const [interviewModalOpen, setInterviewModalOpen] = useState(false)
-  const [conclusionCandidate, setConclusionCandidate] = useState<ProposedCandidate | null>(null)
-  const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<ProposedCandidate | null>(null)
-  const [missingCvCandidateIds, setMissingCvCandidateIds] = useState<Set<string>>(new Set())
+  const [addPreselectedOpen, setAddPreselectedOpen] = useState(false)
+  const [addAcceptedOpen, setAddAcceptedOpen] = useState(false)
+  const [conclusionCandidate, setConclusionCandidate] = useState<MatchedCandidate | null>(null)
+  const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [abEditOpen, setAbEditOpen] = useState(false)
   const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
   const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
   const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
   const abCompany = abCompanyResult.data?.companyBySiret
+
+  const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
+  const interviewDefaultLocation =
+    interviewLocationNeedsAnalysis.data?.needsAnalysis?.companyInfos?.commune ||
+    (interviewLocationNeedsAnalysis.data?.needsAnalysis?.companyInfos?.postalCode
+      ? `Commune ${interviewLocationNeedsAnalysis.data.needsAnalysis.companyInfos.postalCode}`
+      : '')
+
   const token = useAuthStore((s) => s.token)
 
   useEffect(() => {
@@ -1387,6 +1438,25 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abEditOpen, needsAnalysisData?.companyInfos?.siret])
+
+  const preselectedStatuses: MatchedCandidateStatus[] = [
+    MatchedCandidateStatus.PRE_SELECTED,
+    MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+    MatchedCandidateStatus.DECLINED,
+  ]
+  const toSendStatuses: MatchedCandidateStatus[] = [
+    MatchedCandidateStatus.ACCEPTED,
+    MatchedCandidateStatus.SEND,
+  ]
+  const alreadySentStatuses: MatchedCandidateStatus[] = [
+    MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.INTERVIEW,
+    MatchedCandidateStatus.IMMERSING,
+  ]
+
+  function filterByStatus(candidates: MatchedCandidate[], statuses: MatchedCandidateStatus[]) {
+    return (candidates ?? []).filter((c) => c.status && statuses.includes(c.status as MatchedCandidateStatus))
+  }
 
   const loadJobData = useCallback(async (job: Job) => {
     setIsLoading(true)
@@ -1470,46 +1540,24 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     }
   }
 
-  const handleUnmatchAll = async () => {
-    if (!selectedJob) return
-    setIsUnmatching(true)
-    try {
-      const result = await offerGraphqlClient.mutation(UNMATCH_OFFER, { id: selectedJob.id }).toPromise()
-      if (!result.error && jobData) {
-        setJobData({ ...jobData, matchedCandidate: [], status: 'NOT_MATCHED' })
-        setSavedCandidateIds(new Set())
-      }
-    } finally {
-      setIsUnmatching(false)
-    }
-  }
-
   const handleMailAll = async () => {
     if (!selectedJob || !jobData) return
-    const retained = jobData.matchedCandidate ?? []
-    if (retained.length === 0) return
+    const preselected = filterByStatus(jobData.matchedCandidate, preselectedStatuses)
+    if (preselected.length === 0) return
 
     setIsMailingAll(true)
-    setMailAllProgress({ sent: 0, total: retained.length })
+    setMailAllProgress({ sent: 0, total: preselected.length })
 
-    const missingCvIds = new Set<string>()
     const sentIds = new Set<string>()
 
-    for (let i = 0; i < retained.length; i++) {
-      const candidate = retained[i]
+    for (let i = 0; i < preselected.length; i++) {
+      const candidate = preselected[i]
       try {
-        const hasCv = await hasCandidateCv(candidate.id)
-        if (!hasCv) {
-          missingCvIds.add(candidate.id)
-          setMailAllProgress({ sent: i + 1, total: retained.length })
-          continue
-        }
-
         const linksResult = await offerGraphqlClient.query(OFFER_RESPONSE_LINKS, { offerId: selectedJob.id, candidateId: candidate.id }).toPromise()
         if (linksResult.data?.offerResponseLinks) {
           const { ouiUrl, nonUrl } = linksResult.data.offerResponseLinks
           const subject = `DISCIPLINA – Offre en alternance`
-          const body = buildOfferMailBody(candidate.fullName, jobData.sector, jobData.localisation, jobData.desiredTP, ouiUrl, nonUrl)
+          const body = buildOfferMailBody(candidate.fullName, jobData, ouiUrl, nonUrl)
           await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1521,10 +1569,8 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       } catch {
         // continue with next candidate on error
       }
-      setMailAllProgress({ sent: i + 1, total: retained.length })
+      setMailAllProgress({ sent: i + 1, total: preselected.length })
     }
-
-    setMissingCvCandidateIds(missingCvIds)
 
     if (jobData) {
       setJobData({
@@ -1541,13 +1587,6 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const handleOpenMail = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
 
-    const hasCv = await hasCandidateCv(candidate.id)
-    if (!hasCv) {
-      setMissingCvCandidateIds((p) => new Set(p).add(candidate.id))
-      return
-    }
-    setMissingCvCandidateIds((p) => { const n = new Set(p); n.delete(candidate.id); return n })
-
     const result = await offerGraphqlClient.query(OFFER_RESPONSE_LINKS, { offerId: selectedJob.id, candidateId: candidate.id }).toPromise()
     if (result.data?.offerResponseLinks) {
       const { ouiUrl, nonUrl } = result.data.offerResponseLinks
@@ -1557,7 +1596,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
 
   const handleMailSent = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
-    await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.SEND }).toPromise()
+    await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }).toPromise()
     if (jobData) {
       setJobData({
         ...jobData,
@@ -1568,56 +1607,55 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     }
   }
 
-  const handleOpenProposeCandidates = () => {
-    if (!jobData) return
-    const accepted = (jobData.matchedCandidate ?? []).filter((c) => c.status === MatchedCandidateStatus.ACCEPTED)
-    setProposeState({ candidates: accepted, descriptions: {} })
-  }
-
-  const handleCreateMatchSession = async (descriptions: Record<string, string>) => {
-    if (!jobData || !proposeState) return
-    setIsCreatingSession(true)
-    try {
-      const companyEmail = await resolveCompanyEmail(jobData.companyName)
-      const candidates = proposeState.candidates.map((c) => ({ id: c.id, description: descriptions[c.id] ?? '' }))
-      const result = await offerGraphqlClient
-        .mutation(CREATE_MATCH_SESSION, { offerId: jobData.id, companyEmail, candidates })
-        .toPromise()
-      if (result.error) throw new Error(result.error.message)
-      setProposeState(null)
-      setProposeResult({ signature: result.data?.createMatchSession ?? '' })
-    } finally {
-      setIsCreatingSession(false)
-    }
-  }
-
-  const handleSendInterviewDates = (candidate: ProposedCandidate) => {
+  const handleSendInterviewDates = (candidate: MatchedCandidate) => {
     setDatesMailState(candidate)
   }
 
-  const handleAddManualProposedCandidate = async (candidateId: string, location: string, date: string, hour: string) => {
+  const handleAddManualProposedCandidate = async (candidateId: string, location: string, dateOrStartDate: string, hourOrEndDate: string, type: 'interview' | 'immersion', email: string, candidateName: string) => {
     if (!selectedJob || !jobData) return
     try {
-      const result = await offerGraphqlClient
-        .mutation(ADD_MANUAL_PROPOSED_CANDIDATE, {
-          offerId: selectedJob.id,
-          candidateId,
-          interviewDate: date,
-          interviewHour: hour,
+      if (type === 'interview') {
+        const result = await offerGraphqlClient
+          .mutation(ADD_MANUAL_PROPOSED_CANDIDATE, {
+            offerId: selectedJob.id,
+            candidateId,
+            interviewDate: dateOrStartDate,
+            interviewHour: hourOrEndDate,
+            interviewLocation: location,
+          })
+          .toPromise()
+        if (result.error) throw new Error(result.error.message)
+
+        setNotifyMailState({
+          email,
+          candidateName,
+          type: 'interview',
+          interviewLocation: location,
+          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}`).toISOString(),
+        })
+      } else {
+        const result = await offerGraphqlClient
+          .mutation(ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, {
+            offerId: selectedJob.id,
+            candidateId,
+            immersionStartDate: dateOrStartDate,
+            immersionEndDate: hourOrEndDate,
+            immersionLocation: location,
+          })
+          .toPromise()
+        if (result.error) throw new Error(result.error.message)
+
+        setNotifyMailState({
+          email,
+          candidateName,
+          type: 'immersion',
+          immersionStartDate: dateOrStartDate,
+          immersionEndDate: hourOrEndDate,
           interviewLocation: location,
         })
-        .toPromise()
-      if (result.error) throw new Error(result.error.message)
-
-      const proposedCandidate = result.data?.addManualProposedCandidate?.proposedCandidate?.[0]
-      if (proposedCandidate) {
-        setInterviewModalOpen(false)
-        setDatesMailState(proposedCandidate)
-        setJobData({
-          ...jobData,
-          proposedCandidate: [...(jobData.proposedCandidate ?? []), proposedCandidate],
-        })
       }
+
+      setInterviewModalOpen(false)
     } catch (error) {
       console.error('Erreur lors de l\'ajout du candidat proposé:', error)
     }
@@ -1641,18 +1679,8 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         .toPromise()
       if (result.error) throw new Error(result.error.message)
 
-      const updatedCandidate = result.data?.setInterviewConclusion?.proposedCandidate?.find(
-        (c: ProposedCandidate) => c.id === conclusionCandidate.id,
-      )
-      if (updatedCandidate) {
-        setConclusionCandidate(null)
-        setJobData({
-          ...jobData,
-          proposedCandidate: (jobData.proposedCandidate ?? []).map((c) =>
-            c.id === updatedCandidate.id ? updatedCandidate : c,
-          ),
-        })
-      }
+      setConclusionCandidate(null)
+      if (selectedJob) loadJobData(selectedJob)
     } catch (error) {
       console.error('Erreur lors de la conclusion de l\'entretien:', error)
     }
@@ -1670,21 +1698,59 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         .toPromise()
       if (result.error) throw new Error(result.error.message)
 
-      const updatedCandidate = result.data?.setImmersionConclusion?.proposedCandidate?.find(
-        (c: ProposedCandidate) => c.id === immersionConclusionCandidate.id,
-      )
-      if (updatedCandidate) {
-        setImmersionConclusionCandidate(null)
-        setJobData({
-          ...jobData,
-          proposedCandidate: (jobData.proposedCandidate ?? []).map((c) =>
-            c.id === updatedCandidate.id ? updatedCandidate : c,
-          ),
-        })
-      }
+      setImmersionConclusionCandidate(null)
+      if (selectedJob) loadJobData(selectedJob)
     } catch (error) {
       console.error("Erreur lors de la conclusion de l'immersion:", error)
     }
+  }
+
+  const handleAddPreselectedCandidate = async (candidateId: string, _candidateName: string, hasAccepted: boolean) => {
+    if (!selectedJob) return
+    try {
+      const result = await offerGraphqlClient
+        .mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+
+      if (hasAccepted) {
+        await offerGraphqlClient
+          .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, {
+            offerId: selectedJob.id,
+            candidateId,
+            status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+          })
+          .toPromise()
+      }
+
+      if (selectedJob) loadJobData(selectedJob)
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du candidat pré-sélectionné:", error)
+    }
+    setAddPreselectedOpen(false)
+  }
+
+  const handleAddAcceptedCandidate = async (candidateId: string, _candidateName: string) => {
+    if (!selectedJob) return
+    try {
+      const result = await offerGraphqlClient
+        .mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId })
+        .toPromise()
+      if (result.error) throw new Error(result.error.message)
+
+      await offerGraphqlClient
+        .mutation(UPDATE_MATCHED_CANDIDATE_STATUS, {
+          offerId: selectedJob.id,
+          candidateId,
+          status: MatchedCandidateStatus.ACCEPTED,
+        })
+        .toPromise()
+
+      if (selectedJob) loadJobData(selectedJob)
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du candidat accepté:", error)
+    }
+    setAddAcceptedOpen(false)
   }
 
   const handleSetManualStatus = async (status: OfferStatus) => {
@@ -1740,14 +1806,18 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
 
   if (!jobData) return null
 
+  const preselectedCandidates = filterByStatus(jobData.matchedCandidate, preselectedStatuses)
+  const toSendCandidates = filterByStatus(jobData.matchedCandidate, toSendStatuses)
+  const alreadySentCandidates = filterByStatus(jobData.matchedCandidate, alreadySentStatuses)
+
   return (
     <div className="flex flex-col gap-4 pb-6">
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
-        hasAcceptedCandidates={(jobData.matchedCandidate ?? []).some((c) => c.status === MatchedCandidateStatus.ACCEPTED)}
-        isCreatingSession={isCreatingSession}
-        onProposeCandidates={handleOpenProposeCandidates}
+        hasAcceptedCandidates={false}
+        isCreatingSession={false}
+        onProposeCandidates={() => {}}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
         onEditAb={
           selectedJob?.needsAnalysisId && (currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN)
@@ -1760,27 +1830,32 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         <CompanyInfoModal offerId={selectedJob.id} needsAnalysisId={selectedJob.needsAnalysisId} onClose={() => setShowCompanyInfo(false)} />
       )}
 
-      <RetainedCandidatesSection
-        candidates={jobData.matchedCandidate ?? []}
-        isUnmatching={isUnmatching}
+      <PreselectedCandidatesSection
+        candidates={preselectedCandidates}
         isMailingAll={isMailingAll}
         mailAllProgress={mailAllProgress}
-        missingCvCandidateIds={missingCvCandidateIds}
         onInfo={setDrawerCandidate}
         onSendMail={handleOpenMail}
         onRemove={handleRemoveCandidate}
-        onUnmatchAll={handleUnmatchAll}
         onMailAll={handleMailAll}
+        onAddCandidate={() => setAddPreselectedOpen(true)}
       />
 
-      <ProposedCandidatesSection
-        candidates={jobData.proposedCandidate ?? []}
-        interviewSlots={jobData.interviewSlots}
-        interviewLocation={jobData.interviewLocation}
+      <ToSendCandidatesSection
+        candidates={toSendCandidates}
+        onInfo={setDrawerCandidate}
+        onSendMail={handleOpenMail}
+        onRemove={handleRemoveCandidate}
+        onAddCandidate={() => setAddAcceptedOpen(true)}
+      />
+
+      <AlreadySentCandidatesSection
+        candidates={alreadySentCandidates}
+        onInfo={setDrawerCandidate}
         onSendDates={handleSendInterviewDates}
-        onAddCandidate={() => setInterviewModalOpen(true)}
-        onConclude={setConclusionCandidate}
+        onConcludeInterview={setConclusionCandidate}
         onConcludeImmersion={setImmersionConclusionCandidate}
+        onAddCandidate={() => setInterviewModalOpen(true)}
       />
 
       <MatchingSection
@@ -1815,42 +1890,21 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
           defaultTo={mailState.candidate.email}
           candidateName={mailState.candidate.fullName}
           defaultSubject={`DISCIPLINA – Offre en alternance`}
-          defaultBody={buildOfferMailBody(
-            mailState.candidate.fullName,
-            jobData.sector,
-            jobData.localisation,
-            jobData.desiredTP,
-            mailState.ouiUrl,
-            mailState.nonUrl,
-          )}
+          defaultBody={buildOfferMailBody(mailState.candidate.fullName, jobData, mailState.ouiUrl, mailState.nonUrl)}
           scope="rh"
           onClose={() => setMailState(null)}
           onSent={() => handleMailSent(mailState.candidate)}
         />
       )}
 
-      {proposeState && (
-        <ProposeCandidatesModal
-          candidates={proposeState.candidates}
-          isSubmitting={isCreatingSession}
-          onSubmit={handleCreateMatchSession}
-          onClose={() => setProposeState(null)}
-        />
-      )}
-
-      {proposeResult && (
-        <ProposeResultModal companyName={jobData.companyName} onClose={() => setProposeResult(null)} />
-      )}
-
       {datesMailState && (
         <MailModal
           defaultTo={datesMailState.email}
           candidateName={datesMailState.fullName}
-          defaultSubject={`DISCIPLINA – Proposition d'entretien chez ${jobData.companyName}`}
+          defaultSubject="DISCIPLINA – Convocation à un entretien"
           defaultBody={
             datesMailState.bookedInterviewSlot && datesMailState.interviewLocation
-              ? buildManualInterviewMailBody(
-                jobData.companyName,
+              ? buildInterviewMailBody(
                 datesMailState.fullName,
                 datesMailState.bookedInterviewSlot,
                 datesMailState.interviewLocation,
@@ -1862,9 +1916,61 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         />
       )}
 
+      {notifyMailState && (
+        <MailModal
+          defaultTo={notifyMailState.email}
+          candidateName={notifyMailState.candidateName}
+          defaultSubject={
+            notifyMailState.type === 'interview'
+              ? 'DISCIPLINA – Convocation à un entretien'
+              : 'DISCIPLINA – Proposition d\'immersion'
+          }
+          defaultBody={
+            notifyMailState.type === 'interview'
+              ? buildInterviewMailBody(
+                  notifyMailState.candidateName,
+                  notifyMailState.bookedInterviewSlot ?? '',
+                  notifyMailState.interviewLocation ?? '',
+                )
+              : buildImmersionMailBody(
+                  notifyMailState.candidateName,
+                  notifyMailState.immersionStartDate ?? '',
+                  notifyMailState.immersionEndDate ?? '',
+                  notifyMailState.interviewLocation ?? '',
+                )
+          }
+          scope="rh"
+          onClose={() => {
+            setNotifyMailState(null)
+            if (selectedJob) loadJobData(selectedJob)
+          }}
+          onSent={() => {
+            setNotifyMailState(null)
+            if (selectedJob) loadJobData(selectedJob)
+          }}
+        />
+      )}
+
+      {addPreselectedOpen && (
+        <AddPreselectedCandidateModal
+          job={jobData}
+          onSubmit={handleAddPreselectedCandidate}
+          onClose={() => setAddPreselectedOpen(false)}
+        />
+      )}
+
+      {addAcceptedOpen && (
+        <AddAcceptedCandidateModal
+          job={jobData}
+          onSubmit={handleAddAcceptedCandidate}
+          onClose={() => setAddAcceptedOpen(false)}
+        />
+      )}
+
       {interviewModalOpen && (
         <InterviewModal
           job={jobData}
+          defaultLocation={interviewDefaultLocation}
           onSubmit={handleAddManualProposedCandidate}
           onClose={() => setInterviewModalOpen(false)}
         />

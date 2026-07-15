@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
+import { SECTOR_LABELS } from '@/data/sectors';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 import SignaturePad from '@/components/ui/SignaturePad';
 
@@ -926,7 +927,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {template.availableSectors.map(s => (
                 <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                  <input type="checkbox" checked={form.desiredSectors.includes(s)} onChange={() => toggleSector(s)} className="accent-blue-600 h-4 w-4" />{s}
+                  <input type="checkbox" checked={form.desiredSectors.includes(s)} onChange={() => toggleSector(s)} className="accent-blue-600 h-4 w-4" />{SECTOR_LABELS[s] ?? s}
                 </label>
               ))}
             </div>

@@ -14,6 +14,7 @@ import { useCreateNeedsAnalysis, useUpdateNeedsAnalysis, useUpdateCompany } from
 import { Localisation } from '@/types/candidate'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
+import { ALL_SECTORS, SECTOR_LABELS } from '@/data/sectors'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -103,26 +104,7 @@ const FONCTIONS = [
   'Autre',
 ]
 
-const SECTEURS = [
-  'Commerce / Vente',
-  'Services aux entreprises',
-  'Services aux particuliers',
-  'Industrie / Production',
-  'BTP / Construction',
-  'Santé / Social',
-  'Restauration / Hôtellerie',
-  'Transport / Logistique',
-  'Informatique / Numérique',
-  'Finance / Assurance',
-  'Immobilier',
-  'Éducation / Formation',
-  'Agriculture / Agroalimentaire',
-  'Restauration rapide',
-  'Station service',
-  'Boulangerie / Pâtisserie',
-  'Libre Service',
-  'Enseignement de la conduite',
-]
+const SECTEURS = ALL_SECTORS
 
 const OPCO_OPTIONS: { value: Opco; label: string }[] = [
   { value: 'AKTO', label: 'AKTO' },
@@ -916,6 +898,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   selected={companySectors}
                   onChange={(v) => setValue('companySectors', v)}
                   columns={2}
+                  renderLabel={(s) => SECTOR_LABELS[s] ?? s}
                 />
 
                 <InputField id="companySectorOther" label="Autre secteur d'activité (optionnel)"

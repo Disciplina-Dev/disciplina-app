@@ -104,6 +104,15 @@ export const typeDefs = gql`
         email: String
         phone: String
         status: MatchedCandidateStatus
+        description: String
+        comment: String
+        interviewLocation: String
+        bookedInterviewSlot: String
+        interviewConclusion: InterviewConclusion
+        immersionStartDate: String
+        immersionEndDate: String
+        immersionLocation: String
+        immersionConclusion: ImmersionConclusion
     }
 
     type ProposedCandidate {
