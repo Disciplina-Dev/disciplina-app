@@ -1080,6 +1080,15 @@ export const MATCH_OFFER = gql`
         email
         phone
         status
+        description
+        comment
+        interviewLocation
+        bookedInterviewSlot
+        interviewConclusion
+        immersionStartDate
+        immersionEndDate
+        immersionLocation
+        immersionConclusion
       }
       suggestedCandidates {
         id
@@ -1090,24 +1099,6 @@ export const MATCH_OFFER = gql`
         email
         phone
       }
-      proposedCandidate {
-        id
-        fullName
-        age
-        sex
-        city
-        email
-        phone
-        description
-        comment
-        interviewLocation
-        bookedInterviewSlot
-        interviewConclusion
-        immersionStartDate
-        immersionEndDate
-      }
-      interviewSlots
-      interviewLocation
       title
       missions
       salerInfo {
