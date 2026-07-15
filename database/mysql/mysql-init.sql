@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `booking_settings` (
   `proposition_body` text DEFAULT NULL,
   PRIMARY KEY (`user_id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `slug` (`slug`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `fk_booking_settings_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `commercial_kpi` (
@@ -70,9 +70,9 @@ CREATE TABLE IF NOT EXISTS `commercial_kpi` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
---   KEY `fk_1` (`user_id`),
+--   KEY `idx_commercial_kpi_user_id` (`user_id`),
   UNIQUE KEY `unique_kpi` (`user_id`,`year`,`month`,`week`,`site`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `fk_commercial_kpi_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `companies` (
@@ -98,8 +98,8 @@ CREATE TABLE IF NOT EXISTS `companies` (
   `relance_channel` enum('PHONE','MAIL') DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `siret` (`siret`),
-  KEY `fk_1` (`user_id`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
+  KEY `idx_companies_user_id` (`user_id`),
+  CONSTRAINT `fk_companies_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `companies_blacklist` (
@@ -125,8 +125,8 @@ CREATE TABLE IF NOT EXISTS `companies_blacklist` (
   `all_blacklist` tinyint DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `siret` (`siret`),
-  KEY `fk_1` (`user_id`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
+  KEY `idx_companies_blacklist_user_id` (`user_id`),
+  CONSTRAINT `fk_companies_blacklist_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `company_history` (
@@ -138,8 +138,8 @@ CREATE TABLE IF NOT EXISTS `company_history` (
   `previous_status` varchar(50) DEFAULT NULL,
   `modified_by` int DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  KEY `fk_1` (`company_id`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  KEY `idx_company_history_company_id` (`company_id`),
+  CONSTRAINT `fk_company_history_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `contact_logs` (
@@ -151,8 +151,8 @@ CREATE TABLE IF NOT EXISTS `contact_logs` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_contact_company` (`company_id`),
   KEY `idx_contact_user` (`user_id`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `fk_contact_logs_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_contact_logs_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `filiz` (
@@ -234,10 +234,10 @@ CREATE TABLE IF NOT EXISTS `needs_analysis` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  KEY `fk_1` (`company_id`),
-  KEY `fk_2` (`user_id`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+  KEY `idx_needs_analysis_company_id` (`company_id`),
+  KEY `idx_needs_analysis_user_id` (`user_id`),
+  CONSTRAINT `fk_needs_analysis_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_needs_analysis_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `peda_config` (
@@ -246,7 +246,7 @@ CREATE TABLE IF NOT EXISTS `peda_config` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`) /*T![clustered_index] CLUSTERED */,
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `fk_peda_config_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `peda_draft_history` (
@@ -258,8 +258,8 @@ CREATE TABLE IF NOT EXISTS `peda_draft_history` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `dedup_key` (`dedup_key`),
-  KEY `fk_1` (`user_id`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  KEY `idx_peda_draft_history_user_id` (`user_id`),
+  CONSTRAINT `fk_peda_draft_history_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `relance_history` (
@@ -273,9 +273,9 @@ CREATE TABLE IF NOT EXISTS `relance_history` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_relance_history_company` (`company_id`),
-  KEY `fk_2` (`user_id`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  KEY `idx_relance_history_user_id` (`user_id`),
+  CONSTRAINT `fk_relance_history_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_relance_history_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `rh_kpi` (
@@ -295,7 +295,7 @@ CREATE TABLE IF NOT EXISTS `rh_kpi` (
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `unique_rh_kpi_sector` (`user_id`,`sector`,`year`,`month`,`week`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `fk_rh_kpi_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `sector_settings` (
@@ -321,7 +321,7 @@ CREATE TABLE IF NOT EXISTS `todos` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_user_deadline` (`user_id`,`deadline`),
   KEY `idx_user_position` (`user_id`,`position`),
-  CONSTRAINT `fk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_todos_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 INSERT IGNORE INTO sector_settings (sector, location) VALUES
