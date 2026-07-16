@@ -8,9 +8,6 @@ export interface UserRow {
     sectors: string | string[] | null; // mysql2 v3 returns JSON columns as parsed objects
     oauth_token: string | null;
     refresh_token: string | null;
-    two_factor_code_hash?: string | null;
-    two_factor_expires_at?: string | Date | null;
-    two_factor_attempts?: number | null;
 }
 
 export interface MatchLinkRow {

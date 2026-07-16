@@ -1,18 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from '../../../config/env';
 import { UserRepository } from '../../../repositories/mysql/UserRepository';
 import { truncateMysql } from '../../../../test/helpers/db';
 import bcrypt from 'bcrypt';
 
-// SMTP mocké : le login envoie un code 2FA par email, sans envoi réel en test.
-vi.mock('../../../external/mailer/smtp.service', () => ({
-    smtpMailer: { sendMail: vi.fn().mockResolvedValue(undefined) },
-    SmtpMailerService: class {},
-}));
-
 const API_PORT = env.API_PORT;
 const LOGIN_URL = `http://localhost:${API_PORT}/api/auth/login`;
-const VERIFY_URL = `http://localhost:${API_PORT}/api/auth/2fa/verify`;
 const REGISTER_URL = `http://localhost:${API_PORT}/api/auth/register`;
 
 describe('Auth sensitive fields sanitization', () => {
@@ -20,11 +13,11 @@ describe('Auth sensitive fields sanitization', () => {
         await truncateMysql();
     });
 
-    it('2FA verify response does not expose password, oauthToken, or refreshToken', async () => {
+    it('login response does not expose password, oauthToken, or refreshToken', async () => {
         const repo = new UserRepository();
         const hashedPassword = await bcrypt.hash('testpass123', 10);
 
-        const userId = await repo.create({
+        await repo.create({
             email: 'test@local.test',
             first_name: 'Test',
             last_name: 'User',
@@ -35,27 +28,13 @@ describe('Auth sensitive fields sanitization', () => {
             refresh_token: 'encrypted_refresh_token_here',
         });
 
-        // Étape 1 : identifiants valides → pas de session, un pendingToken 2FA.
-        const loginRes = await fetch(LOGIN_URL, {
+        const res = await fetch(LOGIN_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: 'test@local.test', passwordPlain: 'testpass123' }),
-        });
-        const loginData = await loginRes.json();
-        expect(loginRes.status).toBe(200);
-        expect(loginData.requires2fa).toBe(true);
-        expect(loginData.pendingToken).toBeDefined();
-        expect(loginData.token).toBeUndefined();
-
-        // Le code est envoyé par email (mocké) ; on injecte un code connu pour la vérif.
-        const knownCodeHash = await bcrypt.hash('123456', 10);
-        await repo.setTwoFactorCode(userId, knownCodeHash, new Date(Date.now() + 10 * 60 * 1000));
-
-        // Étape 2 : code correct → vraie session, user assaini.
-        const res = await fetch(VERIFY_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pendingToken: loginData.pendingToken, code: '123456' }),
+            body: JSON.stringify({
+                email: 'test@local.test',
+                passwordPlain: 'testpass123',
+            }),
         });
 
         const data = await res.json();
