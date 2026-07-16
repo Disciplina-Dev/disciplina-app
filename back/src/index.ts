@@ -32,6 +32,7 @@ import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
+import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -152,6 +153,7 @@ export async function startServer(): Promise<http.Server> {
         .catch((err) => logger.error({ err }, 'peda-templates: seed des modèles par défaut échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
+    startUnavailableExpiryScheduler();
     return server;
 }
 
