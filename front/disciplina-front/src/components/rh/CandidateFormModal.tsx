@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, X, AlertCircle, Plus, Trash2, Check, Loader2, CloudOff } from 'lucide-react';
+import { User, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
 import Button from '@/components/ui/Button';
@@ -407,31 +407,34 @@ interface CandidateFormModalProps {
   onCreated?: (id: string) => void;
 }
 
-// ─── Brouillon localStorage (création uniquement) ─────────────────────────────
-// Sauvegarde auto du formulaire de création : la saisie n'est pas perdue si le
-// modal est fermé ou en cas de bug. Effacé à la création réussie ou sur reset.
-const DRAFT_KEY = 'rh-candidate-form-draft';
+// ─── Brouillon localStorage (création + édition) ──────────────────────────────
+// Sauvegarde auto du formulaire : la saisie n'est pas perdue si le modal est fermé
+// ou en cas de bug. En création une clé unique ; en édition une clé par candidat
+// (les modifications non enregistrées d'une fiche donnée sont reprises à sa
+// réouverture). Effacé à l'enregistrement réussi ou sur reset.
+const CREATE_DRAFT_KEY = 'rh-candidate-form-draft';
+const editDraftKey = (id: string) => `rh-candidate-form-draft-edit-${id}`;
 
-function loadDraft(): Partial<ABForm> | null {
+function loadDraft(key: string): Partial<ABForm> | null {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as Partial<ABForm>) : null;
   } catch {
     return null;
   }
 }
 
-function saveDraft(form: ABForm): void {
+function saveDraft(key: string, form: ABForm): void {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+    localStorage.setItem(key, JSON.stringify(form));
   } catch {
     /* quota dépassé / mode privé : autosave best-effort, on ignore */
   }
 }
 
-function clearDraft(): void {
+function clearDraft(key: string): void {
   try {
-    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(key);
   } catch {
     /* ignore */
   }
@@ -444,13 +447,22 @@ function isDraftMeaningful(d: Partial<ABForm> | null): d is Partial<ABForm> {
 
 export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated }: CandidateFormModalProps) {
   const isEdit = !!candidate;
+  // Clé de brouillon : par candidat en édition, unique en création.
+  const draftKey = candidate ? editDraftKey(candidate._id) : CREATE_DRAFT_KEY;
   const [form, setForm] = useState<ABForm>(() => {
-    if (candidate) return candidateToForm(candidate);
-    const draft = loadDraft();
+    const draft = loadDraft(draftKey);
+    if (candidate) {
+      // En édition, on repart des modifications non enregistrées si un brouillon existe,
+      // fusionnées par-dessus la fiche enregistrée.
+      return draft ? { ...candidateToForm(candidate), ...draft } : candidateToForm(candidate);
+    }
     // En création, on repart d'un brouillon sauvegardé s'il est exploitable.
     return isDraftMeaningful(draft) ? { ...emptyABForm(), ...draft } : { ...emptyABForm(), ...prefill };
   });
-  const [draftRestored, setDraftRestored] = useState(() => !candidate && isDraftMeaningful(loadDraft()));
+  const [draftRestored, setDraftRestored] = useState(() => {
+    const draft = loadDraft(draftKey);
+    return candidate ? !!draft : isDraftMeaningful(draft);
+  });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const token = useAuthStore((s) => s.token);
@@ -471,49 +483,31 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       .catch(() => setRhUsers([]));
   }, []);
 
-  // Autosave du brouillon (création uniquement), débounce pour éviter d'écrire
-  // à chaque frappe. Non effacé à la fermeture du modal → la reprise est possible.
+  // Autosave du brouillon (création + édition), débounce pour éviter d'écrire à
+  // chaque frappe. Non effacé à la fermeture du modal → la reprise est possible.
+  // En édition, si le formulaire redevient identique à la fiche enregistrée
+  // (aucune modification en attente), on efface le brouillon plutôt que d'en garder
+  // un « fantôme » qui déclencherait une fausse bannière de reprise à la réouverture.
   useEffect(() => {
-    if (isEdit) return;
-    const t = setTimeout(() => saveDraft(form), 400);
-    return () => clearTimeout(t);
-  }, [form, isEdit]);
-
-  // Autosave en édition : chaque modification est persistée directement en BDD
-  // (débounce réseau 800 ms). La fiche existe déjà → pas de brouillon localStorage,
-  // on écrit l'état complet via la même mutation que la sauvegarde manuelle.
-  const autoSaveMounted = useRef(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  useEffect(() => {
-    if (!isEdit) return;
-    // Ne pas sauvegarder au montage : le form vient d'être initialisé depuis la fiche.
-    if (!autoSaveMounted.current) {
-      autoSaveMounted.current = true;
-      return;
-    }
-    const t = setTimeout(async () => {
-      setAutoSaveStatus('saving');
-      try {
-        const result = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, {
-          id: candidate!._id,
-          input: toServerInput(form),
-        });
-        if (result.error) throw new Error(result.error.message);
-        setAutoSaveStatus('saved');
-        onSaved();
-      } catch {
-        // Best-effort : on signale l'échec sans bloquer la saisie. La prochaine
-        // frappe relancera une tentative ; la sauvegarde manuelle reste possible.
-        setAutoSaveStatus('error');
+    const t = setTimeout(() => {
+      if (candidate) {
+        const pristine = JSON.stringify(form) === JSON.stringify(candidateToForm(candidate));
+        if (pristine) {
+          clearDraft(draftKey);
+          setDraftRestored(false);
+          return;
+        }
       }
-    }, 800);
+      saveDraft(draftKey, form);
+    }, 400);
     return () => clearTimeout(t);
-  }, [form, isEdit]);
+  }, [form, draftKey, candidate]);
 
-  // Repartir de zéro : efface le brouillon et réinitialise le formulaire.
+  // Repartir de la version de référence : efface le brouillon et réinitialise le
+  // formulaire (fiche enregistrée en édition, formulaire vierge en création).
   const resetDraft = () => {
-    clearDraft();
-    setForm({ ...emptyABForm(), ...prefill });
+    clearDraft(draftKey);
+    setForm(candidate ? candidateToForm(candidate) : { ...emptyABForm(), ...prefill });
     setDraftRestored(false);
   };
 
@@ -654,7 +648,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
         const newId = result.data?.createCandidate?.id;
         createdIdRef.current = newId ?? null;
         // Candidat créé → le brouillon n'a plus de raison d'être conservé.
-        clearDraft();
+        clearDraft(draftKey);
         // AB complet → génère le PDF et le dépose dans le Drive du candidat.
         // Best-effort : le candidat est créé quoi qu'il arrive ; en cas d'échec
         // Drive on garde le modal ouvert pour afficher l'avertissement.
@@ -668,6 +662,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
         finishCreate();
         return;
       }
+      // Édition enregistrée → le brouillon de cette fiche n'a plus lieu d'être.
+      clearDraft(draftKey);
       onClose();
     } catch (err: any) {
       setError(err.message ?? (isEdit ? 'Erreur lors de la modification' : 'Erreur lors de la création'));
@@ -691,24 +687,9 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <h2 className="text-lg font-bold text-gray-900">
                 {isEdit ? 'Modifier la fiche candidat' : 'Analyse du besoin – Nouveau candidat'}
               </h2>
-              {isEdit ? (
-                <p className="text-xs flex items-center gap-1.5">
-                  {autoSaveStatus === 'saving' && (
-                    <span className="flex items-center gap-1.5 text-gray-400"><Loader2 size={12} className="animate-spin" />Enregistrement…</span>
-                  )}
-                  {autoSaveStatus === 'saved' && (
-                    <span className="flex items-center gap-1.5 text-emerald-600"><Check size={12} />Enregistré</span>
-                  )}
-                  {autoSaveStatus === 'error' && (
-                    <span className="flex items-center gap-1.5 text-danger"><CloudOff size={12} />Échec de l'enregistrement</span>
-                  )}
-                  {autoSaveStatus === 'idle' && (
-                    <span className="text-gray-400">Les modifications sont enregistrées automatiquement</span>
-                  )}
-                </p>
-              ) : (
-                <p className="text-xs text-gray-400">Remplissez les champs correspondant au profil</p>
-              )}
+              <p className="text-xs text-gray-400">
+                {isEdit ? 'Vos modifications non enregistrées sont conservées automatiquement' : 'Remplissez les champs correspondant au profil'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
@@ -725,15 +706,19 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             </div>
           )}
 
-          {draftRestored && !isEdit && (
+          {draftRestored && (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-              <span>Brouillon récupéré — votre saisie en cours a été restaurée.</span>
+              <span>
+                {isEdit
+                  ? 'Modifications non enregistrées récupérées — votre saisie en cours a été restaurée.'
+                  : 'Brouillon récupéré — votre saisie en cours a été restaurée.'}
+              </span>
               <button
                 type="button"
                 onClick={resetDraft}
                 className="shrink-0 font-medium text-amber-700 underline hover:text-amber-900"
               >
-                Repartir de zéro
+                {isEdit ? 'Revenir à la version enregistrée' : 'Repartir de zéro'}
               </button>
             </div>
           )}
