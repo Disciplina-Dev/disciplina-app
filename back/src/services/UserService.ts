@@ -1,13 +1,18 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { User, Role } from '../types/user.types';
 import { UserRow } from '../types/db-rows.types';
 import { toUser } from './mappers/user.mapper';
 import { env } from '../config/env';
 import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto/token-cipher';
+import { smtpMailer } from '../external/mailer/smtp.service';
 import { logger } from '../external/logger';
 const SALT_ROUNDS = 10;
+// 2FA par email : durée de validité du code et plafond de tentatives.
+const TWO_FACTOR_TTL_MS = 10 * 60 * 1000;
+const TWO_FACTOR_MAX_ATTEMPTS = 5;
 
 export class UserService {
     private userRepository: UserRepository;
@@ -158,7 +163,13 @@ export class UserService {
         return toUser(created);
     }
 
-    async login(email: string, passwordPlain: string): Promise<{ token: string; user: User }> {
+    /**
+     * Étape 1 du login : vérifie les identifiants puis déclenche le 2FA par email.
+     * Ne renvoie PAS de session : un `pendingToken` court (scope `2fa`) est retourné,
+     * inutilisable comme JWT normal, à échanger contre une vraie session via
+     * `verifyTwoFactor` une fois le code saisi.
+     */
+    async login(email: string, passwordPlain: string): Promise<{ pendingToken: string }> {
         const userRow = await this.userRepository.findByEmail(email);
         if (!userRow || !userRow.password) {
             throw new Error('Invalid email or password');
@@ -169,13 +180,74 @@ export class UserService {
             throw new Error('Invalid email or password');
         }
 
-        const user = toUser(userRow);
+        await this.startTwoFactor(userRow);
 
+        const pendingToken = jwt.sign({ id: userRow.id, scope: '2fa' }, env.JWT_SECRET, { expiresIn: '10m' });
+        return { pendingToken };
+    }
+
+    /** Génère un code 6 chiffres, le stocke haché avec expiration, et l'envoie par email. */
+    private async startTwoFactor(userRow: UserRow): Promise<void> {
+        const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+        const codeHash = await bcrypt.hash(code, SALT_ROUNDS);
+        const expiresAt = new Date(Date.now() + TWO_FACTOR_TTL_MS);
+        await this.userRepository.setTwoFactorCode(userRow.id, codeHash, expiresAt);
+
+        await smtpMailer.sendMail({
+            to: userRow.email,
+            subject: 'Votre code de connexion Disciplina',
+            text: `Bonjour,\n\nVotre code de connexion est : ${code}\n\nIl expire dans 10 minutes. Si vous n'êtes pas à l'origine de cette connexion, ignorez ce message.\n\nL'équipe Disciplina`,
+            html: `<div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+  <p>Bonjour,</p>
+  <p>Votre code de connexion est :</p>
+  <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px;">${code}</p>
+  <p>Il expire dans 10 minutes. Si vous n'êtes pas à l'origine de cette connexion, ignorez ce message.</p>
+  <p>L'équipe Disciplina</p>
+</div>`,
+        });
+    }
+
+    /**
+     * Étape 2 du login : valide le code 2FA et délivre la vraie session (JWT 24h).
+     * Le code est à usage unique (effacé au succès), expire après 10 min et est
+     * bloqué au bout de {@link TWO_FACTOR_MAX_ATTEMPTS} tentatives.
+     */
+    async verifyTwoFactor(userId: number, code: string): Promise<{ token: string; user: User }> {
+        const userRow = await this.userRepository.findById(userId);
+        if (!userRow || !userRow.two_factor_code_hash || !userRow.two_factor_expires_at) {
+            throw new Error('Aucun code en attente. Veuillez vous reconnecter.');
+        }
+
+        if (new Date(userRow.two_factor_expires_at) < new Date()) {
+            await this.userRepository.clearTwoFactorCode(userId);
+            throw new Error('Code expiré. Veuillez vous reconnecter.');
+        }
+
+        if ((userRow.two_factor_attempts ?? 0) >= TWO_FACTOR_MAX_ATTEMPTS) {
+            await this.userRepository.clearTwoFactorCode(userId);
+            throw new Error('Trop de tentatives. Veuillez vous reconnecter.');
+        }
+
+        const isMatch = await bcrypt.compare(code, userRow.two_factor_code_hash);
+        if (!isMatch) {
+            await this.userRepository.incrementTwoFactorAttempts(userId);
+            throw new Error('Code incorrect');
+        }
+
+        await this.userRepository.clearTwoFactorCode(userId);
+
+        const user = toUser(userRow);
         const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, env.JWT_SECRET, {
             expiresIn: '24h',
         });
-
         return { token, user };
+    }
+
+    /** Renvoie un nouveau code 2FA (ex. bouton « Renvoyer le code »). */
+    async resendTwoFactor(userId: number): Promise<void> {
+        const userRow = await this.userRepository.findById(userId);
+        if (!userRow) throw new Error('Utilisateur introuvable');
+        await this.startTwoFactor(userRow);
     }
 
     async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {

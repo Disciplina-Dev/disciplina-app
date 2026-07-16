@@ -1,8 +1,10 @@
 import { Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { UserService } from '../../services/UserService';
 import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
+import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 import { toUserResponse } from '../../services/mappers/user.mapper';
 import { sanitizeSectors } from '../../utils/sector';
@@ -60,11 +62,59 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
             res.status(400).json({ error: 'Email and password are required' });
             return;
         }
-        const result = await userService.login(email, passwordPlain);
-        res.json({ token: result.token, user: toUserResponse(result.user) });
+        // Étape 1 : identifiants OK → un code 2FA est envoyé par email, aucune session délivrée.
+        const { pendingToken } = await userService.login(email, passwordPlain);
+        res.json({ requires2fa: true, pendingToken });
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: login failed');
         res.status(401).json({ error: error.message || 'Invalid credentials' });
+    }
+}
+
+/** Vérifie qu'un `pendingToken` est valide et de scope `2fa`, et renvoie l'id utilisateur. */
+function parsePendingToken(pendingToken: unknown): number | null {
+    if (typeof pendingToken !== 'string') return null;
+    try {
+        const payload = jwt.verify(pendingToken, env.JWT_SECRET) as { id?: number; scope?: string };
+        if (payload.scope !== '2fa' || typeof payload.id !== 'number') return null;
+        return payload.id;
+    } catch {
+        return null;
+    }
+}
+
+export async function verifyTwoFactor(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const { pendingToken, code } = req.body;
+        if (!pendingToken || !code) {
+            res.status(400).json({ error: 'Code requis' });
+            return;
+        }
+        const userId = parsePendingToken(pendingToken);
+        if (userId === null) {
+            res.status(401).json({ error: 'Session expirée. Veuillez vous reconnecter.' });
+            return;
+        }
+        const result = await userService.verifyTwoFactor(userId, String(code).trim());
+        res.json({ token: result.token, user: toUserResponse(result.user) });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: 2FA verify failed');
+        res.status(401).json({ error: error.message || 'Code incorrect' });
+    }
+}
+
+export async function resendTwoFactor(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const userId = parsePendingToken(req.body?.pendingToken);
+        if (userId === null) {
+            res.status(401).json({ error: 'Session expirée. Veuillez vous reconnecter.' });
+            return;
+        }
+        await userService.resendTwoFactor(userId);
+        res.json({ success: true });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: 2FA resend failed');
+        res.status(500).json({ error: 'Échec de l\'envoi du code' });
     }
 }
 
