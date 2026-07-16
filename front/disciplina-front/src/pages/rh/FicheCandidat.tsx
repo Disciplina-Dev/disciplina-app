@@ -256,6 +256,8 @@ export default function FicheCandidat() {
   const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([])
   const [companyQuery, setCompanyQuery] = useState('')
   const [companyListOpen, setCompanyListOpen] = useState(false)
+  const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
+  const [availabilityDate, setAvailabilityDate] = useState('')
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -470,7 +472,24 @@ export default function FicheCandidat() {
       setImmersionModalOpen(true)
       return
     }
+    // Passage en indisponible : demander la date de disponibilité (fin d'indispo).
+    // Une fois cette date atteinte, le candidat repasse automatiquement en recherche.
+    if (newStatus === CandidateStatus.UNAVAILABLE) {
+      setAvailabilityDate(formData.job_info?.availability_date?.slice(0, 10) ?? '')
+      setUnavailableModalOpen(true)
+      return
+    }
     await persistStatus({ ...formData, status: newStatus })
+  }
+
+  const confirmUnavailable = async () => {
+    if (!formData) return
+    await persistStatus({
+      ...formData,
+      status: CandidateStatus.UNAVAILABLE,
+      job_info: { ...formData.job_info, availability_date: availabilityDate || undefined },
+    })
+    setUnavailableModalOpen(false)
   }
 
   const confirmImmersion = async () => {
@@ -1454,6 +1473,23 @@ export default function FicheCandidat() {
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setImmersionModalOpen(false)}>Annuler</Button>
               <Button variant="primary" size="sm" disabled={!immersionStart || !immersionEnd} onClick={confirmImmersion}>Confirmer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unavailableModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setUnavailableModalOpen(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Passage en indisponible</h3>
+            <p className="mt-1 text-sm text-gray-500">Renseigne la date de disponibilité. Une fois cette date atteinte, le candidat repassera automatiquement en recherche.</p>
+            <div className="mt-4">
+              <label className={labelCls} htmlFor="unavail-date">Date de disponibilité</label>
+              <input id="unavail-date" type="date" className={inputCls} value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setUnavailableModalOpen(false)}>Annuler</Button>
+              <Button variant="primary" size="sm" disabled={!availabilityDate} onClick={confirmUnavailable}>Confirmer</Button>
             </div>
           </div>
         </div>
