@@ -9,6 +9,7 @@ import { SkillLevel, TitleProfessionalType, TrainingSite, Localisation } from '@
 import type { Candidate } from '@/types/candidate'
 import { useCandidateFull } from '@/graphql/hooks'
 import { CANDIDATE_TEMPLATES, TP_TYPE_LABELS, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates'
+import { SECTOR_LABELS } from '@/data/sectors'
 import { candidateGraphqlClient } from '@/graphql/client'
 import SignaturePad from '@/components/ui/SignaturePad'
 import { useAuthStore } from '@/store/authStore'
@@ -300,8 +301,8 @@ function Textarea({ label, value, onChange, rows = 3 }: { label: string; value: 
   )
 }
 
-function CheckGroup({ label, options, selected, onToggle }: {
-  label: string; options: string[]; selected: string[]; onToggle: (v: string) => void
+function CheckGroup({ label, options, selected, onToggle, renderLabel }: {
+  label: string; options: string[]; selected: string[]; onToggle: (v: string) => void; renderLabel?: (v: string) => string
 }) {
   return (
     <div>
@@ -315,7 +316,7 @@ function CheckGroup({ label, options, selected, onToggle }: {
               onChange={() => onToggle(opt)}
               className="accent-blue-600 h-4 w-4 rounded"
             />
-            <span className="text-sm text-gray-700">{opt}</span>
+            <span className="text-sm text-gray-700">{renderLabel ? renderLabel(opt) : opt}</span>
           </label>
         ))}
       </div>
@@ -724,6 +725,7 @@ export default function QuestionnaireAB() {
             options={template.availableSectors}
             selected={form.desired_sectors}
             onToggle={toggleSector}
+            renderLabel={(s) => SECTOR_LABELS[s] ?? s}
           />
           <CheckGroup
             label="Compétences professionnelles attendues en entreprise"

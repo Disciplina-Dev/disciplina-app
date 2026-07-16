@@ -51,6 +51,15 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         email: mc.email,
         phone: mc.phone,
         status: mc.status,
+        description: mc.description,
+        comment: mc.comment,
+        interviewLocation: mc.interview_location,
+        bookedInterviewSlot: mc.booked_interview_slot,
+        interviewConclusion: mc.interview_conclusion,
+        immersionStartDate: mc.immersion_start_date,
+        immersionEndDate: mc.immersion_end_date,
+        immersionLocation: mc.immersion_location,
+        immersionConclusion: mc.immersion_conclusion,
     };
 }
 
@@ -88,9 +97,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
         localisation: offer.localisation,
         sector: null,
         matched: false,
-        matchedCandidate: candidates
-            .filter((c) => !c.status || !PROPOSED_STATUSES.includes(c.status))
-            .map(matchingCandidateToGql),
+        matchedCandidate: candidates.map(matchingCandidateToGql),
         suggestedCandidates: suggestedCandidates?.map(matchingCandidateToGql),
         proposedCandidate: candidates
             .filter((c) => c.status && PROPOSED_STATUSES.includes(c.status))

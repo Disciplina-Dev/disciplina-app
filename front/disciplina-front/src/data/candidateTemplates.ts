@@ -1,4 +1,5 @@
 import { TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate'
+import { ALL_SECTORS } from './sectors'
 
 export interface SchoolLevelOption {
   value: SchoolLevel
@@ -18,33 +19,9 @@ export interface CandidateTemplate {
   defaultSkillsAssessment: SkillOption[]
 }
 
-const COMMERCIAL_SECTORS = [
-  'Boulangerie',
-  'Station de service',
-  'Mode/Textile (Bijoux/Cosmétique)',
-  'Téléphonie/Audio/Vidéo',
-  'Libre service/Alimentation',
-  'Restauration',
-  'Automobile',
-  'Immobilier',
-  'Assurance',
-  'Animaux',
-  'Sport',
-  'Enfant',
-  'Bazar',
-]
+const COMMERCIAL_SECTORS = ALL_SECTORS
 
-const ADMIN_SECTORS = [
-  'BTP',
-  'Association',
-  'Médical',
-  'Téléphonie/Audio/Vidéo',
-  'Energie',
-  'Commerce',
-  'Automobile',
-  'Import/Export',
-  'Social',
-]
+const ADMIN_SECTORS = ALL_SECTORS
 
 const COMMERCIAL_SKILLS = [
   'Accueil physique',

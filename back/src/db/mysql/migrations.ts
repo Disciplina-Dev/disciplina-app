@@ -29,6 +29,8 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },
     // Todos : soft delete des todos SYSTEM pour ne pas recréer une relance supprimée par l'utilisateur.
     { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+    { table: 'companies', column: 'ab_id', definition: 'VARCHAR(36) DEFAULT NULL' },
+    { table: 'companies_blacklist', column: 'relance_channel', definition: "ENUM('PHONE', 'MAIL') DEFAULT NULL" },
 ];
 
 /**
@@ -141,6 +143,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             relance_date DATE DEFAULT NULL,
             relance_type TINYINT DEFAULT NULL,
             relance_template_id VARCHAR(64) DEFAULT NULL,
+            relance_channel ENUM('PHONE', 'MAIL') DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             all_blacklist TINYINT DEFAULT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE

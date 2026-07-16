@@ -14,10 +14,18 @@ from pymongo import MongoClient
 def get_mongo_connection():
     node_env = os.getenv("NODE_ENV", "development")
     if node_env == "production":
-        mongo_uri = os.getenv("MONGO_URI")
-        if not mongo_uri:
-            raise ValueError("MONGO_URI must be set in production mode")
-        return MongoClient(mongo_uri)
+        return connect_source_mongo()
+    return connect_target_mongo()
+
+
+def connect_source_mongo():
+    mongo_uri = os.getenv("MONGO_URI")
+    if not mongo_uri:
+        raise ValueError("MONGO_URI must be set in production mode")
+    return MongoClient(mongo_uri)
+
+
+def connect_target_mongo():
     # development: use individual vars, retry until local container is ready
     username = os.getenv("MONGO_ROOT_USERNAME")
     password = os.getenv("MONGO_ROOT_PASSWORD")
