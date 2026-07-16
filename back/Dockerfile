@@ -1,22 +1,15 @@
 FROM node:22
 
-# Chromium provided by @sparticuz/chromium (npm) via puppeteer-core.
-# No system Chromium needed — the npm package ships a binary for both
-# amd64 and arm64, avoiding the SIGTRAP crash on Apple Silicon.
-# The binary still needs a few shared libraries at runtime.
+# Chromium natif du système, piloté par puppeteer-core. apt installe le binaire
+# à la bonne architecture (amd64 ou arm64), ce qui évite l'erreur Rosetta sous
+# Apple Silicon. On expose son chemin à l'app via PUPPETEER_EXECUTABLE_PATH.
 
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    libnspr4 libnss3 \
-    libatk1.0-0 libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libxcomposite1 libxdamage1 libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 libcairo2 \
-    libasound2 \
+    chromium \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 

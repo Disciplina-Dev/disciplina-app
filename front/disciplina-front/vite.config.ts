@@ -21,5 +21,6 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'unsafe-none',
       'Cross-Origin-Embedder-Policy': 'unsafe-none',
     },
+    allowedHosts: ['app-reunion.disciplina.re']
   },
 })

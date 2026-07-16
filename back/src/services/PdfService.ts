@@ -7,27 +7,21 @@ import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
-// On utilise @sparticuz/chromium + puppeteer-core partout (Docker, dev local,
-// Vercel/Lambda). Plus de Chromium système ni de paquet `puppeteer` full.
-// @sparticuz/chromium embarque un binaire Chromium qui fonctionne sur amd64
-// comme sur arm64 (pas de SIGTRAP sous Apple Silicon).
+// On utilise le Chromium natif du système (installé dans l'image Docker via apt)
+// piloté par `puppeteer-core`. Le binaire est donc toujours à la bonne
+// architecture (amd64 ou arm64), ce qui évite l'erreur Rosetta
+// « failed to open elf at /lib64/ld-linux-x86-64.so.2 » sous Apple Silicon.
 //
-// Import dynamique natif : `@sparticuz/chromium` et `puppeteer-core` sont des
-// modules ESM-only. Avec TypeScript en CommonJS, un `import()` classique est
-// transpilé en `require()` (→ ERR_REQUIRE_ESM). Passer par `Function` empêche
-// cette transpilation et conserve un vrai `import()` ESM à l'exécution.
+// Le chemin de l'exécutable est configurable via PUPPETEER_EXECUTABLE_PATH
+// (défini dans le Dockerfile), avec un fallback sur les emplacements standards.
+//
+// Import dynamique natif : `puppeteer-core` est un module ESM-only. Avec
+// TypeScript en CommonJS, un `import()` classique est transpilé en `require()`
+// (→ ERR_REQUIRE_ESM). Passer par `Function` empêche cette transpilation et
+// conserve un vrai `import()` ESM à l'exécution.
 const nativeImport: (specifier: string) => Promise<any> = new Function('specifier', 'return import(specifier)') as (
     specifier: string,
 ) => Promise<any>;
-
-// Branche morte (jamais exécutée) : le traceur de dépendances de Vercel (nft)
-// ne voit pas l'import dynamique via `Function`, donc on garde ici des `import()`
-// statiques pour qu'il embarque bien ces paquets ESM dans la fonction.
-/* istanbul ignore next */
-if ((globalThis as { __nftTraceOnly__?: boolean }).__nftTraceOnly__) {
-    void import('@sparticuz/chromium');
-    void import('puppeteer-core');
-}
 
 async function importEsm(specifier: string): Promise<any> {
     try {
@@ -39,15 +33,20 @@ async function importEsm(specifier: string): Promise<any> {
     }
 }
 
+function resolveChromiumPath(): string | undefined {
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+    const candidates = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
+    return candidates.find((p) => fs.existsSync(p));
+}
+
 async function launchBrowser(): Promise<Browser> {
-    const mod = await importEsm('@sparticuz/chromium');
-    const chromium = mod.default;
     const puppeteerCoreMod = await importEsm('puppeteer-core');
     const puppeteerCore = puppeteerCoreMod.default;
     return puppeteerCore.launch({
-        args: chromium.args,
-        executablePath: await chromium.executablePath(),
+        executablePath: resolveChromiumPath(),
         headless: true,
+        // --no-sandbox est requis pour tourner en conteneur (pas de namespaces user).
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     }) as unknown as Promise<Browser>;
 }
 
