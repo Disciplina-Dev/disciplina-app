@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Veille réglementaire / légale — Qualiopi indicateur 23 -->
+<opml version="2.0">
+  <head>
+    <title>DISCIPLINA - Veille Réglementaire</title>
+  </head>
+  <body>
+    <outline text="Reglementaire" title="Reglementaire">
+      <outline type="rss" text="Centre Inffo - Le Quotidien de la formation"
+        title="Centre Inffo - Le Quotidien de la formation"
+        xmlUrl="https://www.centre-inffo.fr/category/site-centre-inffo/actualites-centre-inffo/le-quotidien-de-la-formation-actualite-formation-professionnelle-apprentissage/feed"
+        htmlUrl="https://www.centre-inffo.fr/" />
+      <outline type="rss" text="Centre Inffo - Reforme"
+        title="Centre Inffo - Reforme"
+        xmlUrl="https://www.centre-inffo.fr/category/site-reforme/feed"
+        htmlUrl="https://www.centre-inffo.fr/" />
+      <outline type="rss" text="Centre Inffo - Droit de la formation"
+        title="Centre Inffo - Droit de la formation"
+        xmlUrl="https://www.centre-inffo.fr/category/site-droit-formation/actualites-droit/feed"
+        htmlUrl="https://www.centre-inffo.fr/" />
+      <outline type="rss" text="Centre Inffo - Europe et international"
+        title="Centre Inffo - Europe et international"
+        xmlUrl="https://www.centre-inffo.fr/category/actualites-europe/feed"
+        htmlUrl="https://www.centre-inffo.fr/" />
+    </outline>
+  </body>
+</opml>

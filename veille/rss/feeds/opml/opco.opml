@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Veille OPCO.
+     Les 11 OPCO n'exposent PAS de flux RSS natif sur leurs sites (constat juin 2026).
+     Seul agregateur exploitable : opco.fr/news (regroupe les actus OPCO/branches).
+     Le flux ci-dessous est a confirmer manuellement ; les sites OPCO individuels
+     sont a brancher en XPath -> voir docs/XPATH.md. -->
+<opml version="2.0">
+  <head>
+    <title>DISCIPLINA - Veille OPCO</title>
+  </head>
+  <body>
+    <outline text="OPCO" title="OPCO">
+      <outline type="rss" text="OPCO.fr - Actualites (agregateur, a verifier)"
+        title="OPCO.fr - Actualites (agregateur, a verifier)"
+        xmlUrl="https://www.opco.fr/feed"
+        htmlUrl="https://www.opco.fr/news" />
+    </outline>
+  </body>
+</opml>
