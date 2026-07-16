@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { User, X, AlertCircle, Plus, Trash2, Check, Loader2, CloudOff } from 'lucide-react';
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
 import Button from '@/components/ui/Button';
@@ -479,6 +479,37 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     return () => clearTimeout(t);
   }, [form, isEdit]);
 
+  // Autosave en édition : chaque modification est persistée directement en BDD
+  // (débounce réseau 800 ms). La fiche existe déjà → pas de brouillon localStorage,
+  // on écrit l'état complet via la même mutation que la sauvegarde manuelle.
+  const autoSaveMounted = useRef(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  useEffect(() => {
+    if (!isEdit) return;
+    // Ne pas sauvegarder au montage : le form vient d'être initialisé depuis la fiche.
+    if (!autoSaveMounted.current) {
+      autoSaveMounted.current = true;
+      return;
+    }
+    const t = setTimeout(async () => {
+      setAutoSaveStatus('saving');
+      try {
+        const result = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, {
+          id: candidate!._id,
+          input: toServerInput(form),
+        });
+        if (result.error) throw new Error(result.error.message);
+        setAutoSaveStatus('saved');
+        onSaved();
+      } catch {
+        // Best-effort : on signale l'échec sans bloquer la saisie. La prochaine
+        // frappe relancera une tentative ; la sauvegarde manuelle reste possible.
+        setAutoSaveStatus('error');
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [form, isEdit]);
+
   // Repartir de zéro : efface le brouillon et réinitialise le formulaire.
   const resetDraft = () => {
     clearDraft();
@@ -660,7 +691,24 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <h2 className="text-lg font-bold text-gray-900">
                 {isEdit ? 'Modifier la fiche candidat' : 'Analyse du besoin – Nouveau candidat'}
               </h2>
-              <p className="text-xs text-gray-400">Remplissez les champs correspondant au profil</p>
+              {isEdit ? (
+                <p className="text-xs flex items-center gap-1.5">
+                  {autoSaveStatus === 'saving' && (
+                    <span className="flex items-center gap-1.5 text-gray-400"><Loader2 size={12} className="animate-spin" />Enregistrement…</span>
+                  )}
+                  {autoSaveStatus === 'saved' && (
+                    <span className="flex items-center gap-1.5 text-emerald-600"><Check size={12} />Enregistré</span>
+                  )}
+                  {autoSaveStatus === 'error' && (
+                    <span className="flex items-center gap-1.5 text-danger"><CloudOff size={12} />Échec de l'enregistrement</span>
+                  )}
+                  {autoSaveStatus === 'idle' && (
+                    <span className="text-gray-400">Les modifications sont enregistrées automatiquement</span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400">Remplissez les champs correspondant au profil</p>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
