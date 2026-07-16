@@ -1,0 +1,114 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "410645e0-2487-473b-97f6-ecdc96a4fadb",
+      "name": "Le 1er du mois à 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        288,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8080/i/?a=rss&get=c_1",
+        "options": {}
+      },
+      "id": "0c725ad2-7cfd-4679-aa3c-44d5b2264953",
+      "name": "Lire le flux FreshRSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        512,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst now = new Date();\nconst debutMoisActuel = new Date(now.getFullYear(), now.getMonth(), 1);\nconst debutMoisPrecedent = new Date(now.getFullYear(), now.getMonth() - 1, 1);\n\nconst moisFr = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];\nconst nomMois = moisFr[debutMoisPrecedent.getMonth()];\nconst annee = debutMoisPrecedent.getFullYear();\n\nconst articles = items\n  .map(i => i.json)\n  .filter(a => {\n    const d = new Date(a.isoDate || a.pubDate);\n    return d >= debutMoisPrecedent && d < debutMoisActuel;\n  })\n  .sort((a, b) => new Date(b.isoDate || b.pubDate) - new Date(a.isoDate || a.pubDate));\n\nlet html = `<h1>📰 Récapitulatif ${nomMois} ${annee}</h1>`;\nhtml += `<p>${articles.length} article(s) publié(s) le mois dernier :</p><hr>`;\n\nif (articles.length === 0) {\n  html += `<p>Aucun article publié en ${nomMois}.</p>`;\n} else {\n  for (const a of articles) {\n    const resume = (a.contentSnippet || a.content || '').replace(/<[^>]+>/g, '').trim().slice(0, 300);\n    const date = new Date(a.isoDate || a.pubDate).toLocaleDateString('fr-FR');\n    html += `<div style=\"margin-bottom:20px;\">`;\n    html += `<h3><a href=\"${a.link}\">${a.title}</a></h3>`;\n    html += `<p style=\"color:#555;\">${resume}</p>`;\n    html += `<p style=\"color:#999;font-size:12px;\">${date}</p>`;\n    html += `</div>`;\n  }\n}\n\nreturn [{ json: {\n  subject: `📰 Récapitulatif ${nomMois} ${annee} — ${articles.length} article(s)`,\n  html: html,\n  count: articles.length\n} }];"
+      },
+      "id": "258da110-c922-480f-a8d9-d90373f602bc",
+      "name": "Filtrer mois précédent + digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "epitechdisciplina.dev@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "e3741281-f070-4aed-8675-8a56b502fc8c",
+      "name": "Envoyer via Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        960,
+        80
+      ],
+      "webhookId": "173cd68b-040c-495a-8336-29c3249c1e86",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AjEEI1PzgtNME6E8",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Le 1er du mois à 8h": {
+      "main": [
+        [
+          {
+            "node": "Lire le flux FreshRSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire le flux FreshRSS": {
+      "main": [
+        [
+          {
+            "node": "Filtrer mois précédent + digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer mois précédent + digest": {
+      "main": [
+        [
+          {
+            "node": "Envoyer via Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2f53c3ff52e2cf0099714a6b8da1db756bd923d04882579757b21d21d8dce845"
+  }
+}

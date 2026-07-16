@@ -1,0 +1,1846 @@
+﻿<!DOCTYPE html>
+<html dir="ltr" lang="fr-FR">
+<head><base href="https://www.afdas.com/actualites.html">
+
+<meta charset="utf-8">
+<!-- 
+	This website is powered by TYPO3 - inspiring people to share!
+	TYPO3 is a free open source Content Management Framework initially created by Kasper Skaarhoj and licensed under GNU/GPL.
+	TYPO3 is copyright 1998-2026 of Kasper Skaarhoj. Extensions are copyright of their respective owners.
+	Information and contribution at https://typo3.org/
+-->
+
+
+
+<title>Toutes nos actualit&eacute;s | Afdas</title>
+<meta http-equiv="x-ua-compatible" content="IE=edge">
+<meta name="generator" content="TYPO3 CMS">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Retrouvez toutes les actualit&eacute;s de l'Afdas">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://www.afdas.com/actualites.html">
+<meta property="og:site_name" content="Afdas">
+<meta property="og:image" content="https://www.afdas.com/fileadmin/_processed_/7/d/csm__dinfo_2cb91760a3.jpg">
+<meta property="og:description" content="Retrouvez toutes les actualit&eacute;s de l'Afdas">
+<meta property="og:title" content="Toutes nos actualit&eacute;s">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.afdas.com/fileadmin/_processed_/7/d/csm__dinfo_664e4a9b6c.jpg">
+<meta name="twitter:description" content="Retrouvez toutes les actualit&eacute;s de l'Afdas">
+
+
+<link rel="stylesheet" type="text/css" href="https://unpkg.com/orejime@2.2.1/dist/orejime.css" media="all">
+<link rel="stylesheet" type="text/css" href="/typo3temp/assets/compressed/merged-42bed1bb3d510972c4ebd9e43da624af.css?1772634499" media="all">
+
+
+
+
+<script>
+/*<![CDATA[*/
+/*_scriptCode*/
+
+			/* decrypt helper function */
+		function decryptCharcode(n,start,end,offset) {
+			n = n + offset;
+			if (offset > 0 && n > end) {
+				n = start + (n - end - 1);
+			} else if (offset < 0 && n < start) {
+				n = end - (start - n - 1);
+			}
+			return String.fromCharCode(n);
+		}
+			/* decrypt string */
+		function decryptString(enc,offset) {
+			var dec = "";
+			var len = enc.length;
+			for(var i=0; i < len; i++) {
+				var n = enc.charCodeAt(i);
+				if (n >= 0x2B && n <= 0x3A) {
+					dec += decryptCharcode(n,0x2B,0x3A,offset);	/* 0-9 . , - + / : */
+				} else if (n >= 0x40 && n <= 0x5A) {
+					dec += decryptCharcode(n,0x40,0x5A,offset);	/* A-Z @ */
+				} else if (n >= 0x61 && n <= 0x7A) {
+					dec += decryptCharcode(n,0x61,0x7A,offset);	/* a-z */
+				} else {
+					dec += enc.charAt(i);
+				}
+			}
+			return dec;
+		}
+			/* decrypt spam-protected emails */
+		function linkTo_UnCryptMailto(s) {
+			location.href = decryptString(s,3);
+		}
+		
+
+/*TS_inlineJS*/
+
+var orejimeConfig = {"appElement":"body","privacyPolicy":"\/protection-des-donnees-personnelles.html","lang":"fr","mustNotice":true,"apps":[{"name":"site","title":"Fonctionalit\u00e9s du site","description":"Sans ces cookies, nous ne pouvons pas faire fonctionner certains services essentiels, comme la connexion \u00e0 votre compte utilisateur.","cookies":[],"required":true,"purposes":["site"]},{"name":"analytics","title":"Analyse des audiences","description":"Ces cookies sont utilis\u00e9s pour nous aider \u00e0 analyser le trafic et l'audience du site.","cookies":["_ga","_gat","_gid","__utma","__utmb","__utmc","__utmt","__utmz","_gat_gtag_GTM-KB84HVT","_gat_GTM-KB84HVT"],"purposes":["analytics"]}],"translations":{"fr":{"consentModal":{"title":"Les informations que nous collectons","description":"Ici, vous pouvez voir et personnaliser les informations que nous collectons.","privacyPolicy":{"name":"politique de confidentialit\u00e9","text":"Pour en savoir plus, merci de lire notre {privacyPolicy}."}},"consentNotice":{"changeDescription":"Des modifications ont eu lieu depuis votre derni\u00e8re visite, merci de mettre \u00e0 jour votre consentement.","description":"Nous collectons et traitons vos informations dans les buts suivants : {purposes}.","learnMore":"En savoir plus"},"accept":"Accepter","acceptAll":"Tout accepter","save":"Sauvegarder","saveData":"Sauvegarder ma configuration sur les informations collect\u00e9es","decline":"Continuer sans accepter","declineAll":"Continuer sans accepter","close":"Fermer","enabled":"Activ\u00e9","disabled":"D\u00e9sactiv\u00e9","app":{"purposes":"Utilisations","purpose":"Utilisation"},"poweredBy":"Propuls\u00e9 par Orejime","newWindow":"nouvelle fen\u00eatre","purposes":{"site":"fonctionnalit\u00e9s du site","analytics":"mesure de trafic et audience"}}}};
+            window.addEventListener("load", (event) => {
+                // "update to denied"
+                const manager = orejime.internals.manager
+                const originalSaveAndApplyConsents = manager.saveAndApplyConsents.bind(manager)
+                manager.saveAndApplyConsents = function() {
+                    originalSaveAndApplyConsents()
+                    consentAnalytics = manager.getConsent('analytics') ? 'granted' : 'denied'
+                    gtagSetConsent('update', consentAnalytics)
+                }
+
+                if (orejime.internals.manager.confirmed === true) {
+                    // If user consent has been made, init Google Consent Mode v2 from user consent
+                    if (orejime.internals.manager.getConsent('analytics')) {
+                        consentAnalytics = 'granted'
+                    } else {
+                        consentAnalytics = 'denied'
+                    }
+
+                    gtagSetConsent('update', consentAnalytics)
+                }
+            });
+
+
+/*]]>*/
+</script>
+
+<link rel="icon" type="image/png" sizes="114x114" href="/typo3conf/ext/site/Resources/Public/Frontend/assets/images/favicons/favicon.png">
+        <link rel="shortcut icon" type="image/x-icon" href="/typo3conf/ext/site/Resources/Public/Frontend/assets/images/favicons/favicon.ico">        <script>
+        function gtagSetConsent(method, analytics) {
+            console.debug(method, analytics)
+            gtag('consent', method, {
+                'ad_storage': 'denied',
+                'ad_user_data': 'denied',
+                'ad_personalization': 'denied',
+                'analytics_storage': analytics,
+                'personalization_storage': 'denied',
+                'functionality_storage': 'granted',
+                'security_storage': 'denied',
+            })
+        }
+
+        // Define dataLayer and the gtag function.
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {dataLayer.push(arguments);}
+        // Set default consent to 'denied' as a placeholder
+        // Determine actual values based on your own requirements
+        gtagSetConsent('default', 'denied')
+        </script>
+
+        <!-- GA4 -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-EH123ZMJ7M"></script>
+        <script>
+            gtag('js', new Date());
+            gtag('config', 'G-EH123ZMJ7M');
+        </script>
+        <!-- Google Tag Manager -->
+        <script type="opt-in" data-type="application/javascript" data-name="analytics">
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-KB84HVT');</script>
+        <!-- End Google Tag Manager -->
+<link rel="canonical" href="https://www.afdas.com/actualites.html">
+</head>
+<body class="page ">
+            <!-- GA4 (noscript) -->
+            <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=G-EH123ZMJ7M" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+            <!-- End GA4 (noscript) -->
+            <!-- Google Tag Manager (noscript) -->
+            <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KB84HVT" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+            <!-- End Google Tag Manager (noscript) -->
+
+
+    
+
+    <header class="navbar" role="banner">
+        <nav aria-label="Navigation principale" role="navigation">
+            <div class="container">
+                
+                        <a class="navbar-brand" href="/">
+                            <img src="/typo3conf/ext/site/Resources/Public/Frontend/assets/images/logo.svg" alt="AFDAS">
+                        </a>
+                    
+
+                
+                    <div class="nav-main d-none d-lg-block">
+                        <ul class="navbar-nav">
+                            
+                                <li class="nav-item">
+                                    <a href="/entreprise.html" target="" class="nav-link">Entreprise</a>
+                                </li>
+                            
+                                <li class="nav-item">
+                                    <a href="/particulier.html" target="" class="nav-link">Particulier</a>
+                                </li>
+                            
+                                <li class="nav-item">
+                                    <a href="/prestataire.html" target="" class="nav-link">Prestataire</a>
+                                </li>
+                            
+                        </ul>
+                    </div>
+                
+
+                <div class="nav-right">
+                    <ul class="navbar-nav">
+                        
+                            
+                                <li class="nav-item d-none d-md-block"><a href="/en-region.html" target="" class="nav-link">Vos contacts</a></li>
+                            
+                                <li class="nav-item d-none d-md-block"><a href="/entreprise/adherer-a-lafdas.html" target="" class="nav-link">Adh&eacute;rer</a></li>
+                            
+                        
+                        <li class="nav-item"><button type="button" class="btn btn-search" data-toggle="quick-search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">Rechercher</span></button></li>
+                        
+                            <li class="nav-item"><a class="btn btn-primary" href="/se-connecter-a-mya.html"><i class="far fa-user" aria-hidden="true"></i> <span class="d-none d-xl-inline">Se connecter</span></a></li>
+                        
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <nav class="nav-secondary" aria-label="Navigation secondaire" role="navigation">
+            <button id="menu" class="btn btn-menu" data-toggle="modal" aria-haspopup="dialog" type="button">
+                <i class="fal fa-bars" aria-hidden="true"></i>
+
+                <strong>
+                    Menu
+                </strong>
+            </button>
+
+            <div class="navbar-inner navbar-inner-1" role="dialog" aria-modal="true" aria-label="Menu" aria-hidden="true">
+                <span class="menuStart" tabindex="0"></span>
+
+                <div class="text-right">
+                    <button type="button" class="btn btn-menu-close">
+                        <span class="fal fa-times" aria-hidden="true"></span>
+
+                        <strong>Fermer <span class="sr-only">le menu</span></strong>
+                    </button>
+                </div>
+
+                <div class="nav-wrap">
+                    
+                    
+                        <nav aria-label="Navigation principale" role="navigation" tabindex="1">
+                            <ul class="navbar-nav">
+                                
+                                    <li class="nav-item">
+                                        <a href="/lafdas.html" target="" class="nav-link">L'Afdas</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu0" aria-expanded="false" aria-controls="collapseMenu0">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : L'Afdas</span>
+                                                </button>
+
+                                                <div id="collapseMenu0" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/lafdas/notre-histoire-dates-cles.html" target="">Notre histoire : Dates cl&eacute;s</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-missions.html" target="">Nos missions</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-branches-professionnelles.html" target="">Nos branches professionnelles</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-gouvernance.html" target="">Notre gouvernance</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-organisation.html" target="">Notre organisation</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-engagement-de-proximite.html" target="">Notre engagement de proximit&eacute;</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-index-degalite-femmes-hommes.html" target="">Notre index &eacute;galit&eacute; femmes-hommes</a></li>
+                                                        
+                                                            <li><a href="/lafdas/lafdas-recrute.html" target="">L'Afdas recrute !</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-appels-doffres.html" target="">Nos appels d'offres</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-rapports-dactivite-annuels.html" target="">Nos rapports d'activit&eacute; annuels</a></li>
+                                                        
+                                                            <li><a href="https://observatoires.afdas.com/" target="_blank">Les observatoires des m&eacute;tiers</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/entreprise.html" target="" class="nav-link">Entreprise</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu1" aria-expanded="false" aria-controls="collapseMenu1">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Entreprise</span>
+                                                </button>
+
+                                                <div id="collapseMenu1" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/entreprise/etre-contacte.html" target="">&Ecirc;tre contact&eacute;</a></li>
+                                                        
+                                                            <li><a href="/entreprise/adherer-a-lafdas.html" target="">Adh&eacute;rer &agrave; l&rsquo;Afdas</a></li>
+                                                        
+                                                            <li><a href="/entreprise/recruter-vos-futurs-salaries-et-alternants.html" target="">Recruter vos futurs salari&eacute;s et alternants</a></li>
+                                                        
+                                                            <li><a href="/entreprise/developper-les-competences-de-vos-collaborateurs.html" target="">D&eacute;velopper les comp&eacute;tences de vos collaborateurs</a></li>
+                                                        
+                                                            <li><a href="/entreprise/financer-vos-actions-de-formation.html" target="">Financer vos actions de formation</a></li>
+                                                        
+                                                            <li><a href="/entreprise/realiser-des-projets-rh-et-rse.html" target="">R&eacute;aliser des projets RH et RSE</a></li>
+                                                        
+                                                            <li><a href="/entreprise/impulser-une-demarche-responsable-dans-votre-entreprise.html" target="">Impulser une d&eacute;marche responsable dans votre entreprise</a></li>
+                                                        
+                                                            <li><a href="/parcours-de-formation-vhss-cinema.html" target="">Parcours de formation VHSS cin&eacute;ma</a></li>
+                                                        
+                                                            <li><a href="/entreprise/formation-vhss-tournage-audiovisuel.html" target="">Formation VHSS tournage audiovisuel</a></li>
+                                                        
+                                                            <li><a href="/entreprise/vous-informer-sur-vos-contributions.html" target="">Comprendre vos contributions</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/particulier.html" target="" class="nav-link">Particulier</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu2" aria-expanded="false" aria-controls="collapseMenu2">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Particulier</span>
+                                                </button>
+
+                                                <div id="collapseMenu2" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/particulier/formation-vhss-cinema.html" target="">Formation VHSS cin&eacute;ma</a></li>
+                                                        
+                                                            <li><a href="/particulier/etre-accompagne-dans-votre-projet.html" target="">&Ecirc;tre accompagn&eacute; dans votre projet</a></li>
+                                                        
+                                                            <li><a href="/particulier/connaitre-les-dispositifs-et-les-modalites-dacces-a-la-formation.html" target="">Connaitre les dispositifs et les modalit&eacute;s d'acc&egrave;s &agrave; la formation</a></li>
+                                                        
+                                                            <li><a href="/particulier/deposer-votre-dossier-de-formation-et-assurer-son-suivi.html" target="">D&eacute;poser votre dossier de formation et assurer son suivi</a></li>
+                                                        
+                                                            <li><a href="/particulier/decouvrir-nos-offres-de-formation-responsables-et-engagees.html" target="">D&eacute;couvrir nos offres de formation responsables et engag&eacute;es</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/prestataire.html" target="" class="nav-link">Prestataire</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu3" aria-expanded="false" aria-controls="collapseMenu3">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Prestataire</span>
+                                                </button>
+
+                                                <div id="collapseMenu3" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/lafdas/nos-appels-doffres.html" target="">Nos appels d'offres</a></li>
+                                                        
+                                                            <li><a href="/prestataire/etre-finance-par-lafdas.html" target="">Etre financ&eacute; par l'Afdas</a></li>
+                                                        
+                                                            <li><a href="/prestataire/certifier-votre-offre-de-formation.html" target="">Certifier votre offre de formation</a></li>
+                                                        
+                                                            <li><a href="/prestataire/creer-votre-cfa-ou-votre-organisme-de-formation.html" target="">Cr&eacute;er votre CFA ou votre organisme de formation</a></li>
+                                                        
+                                                            <li><a href="/prestataire/vous-informer-sur-la-formation-a-distance.html" target="">Vous informer sur la formation &agrave; distance</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/centre-de-ressources.html" target="" class="nav-link">Ressources</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu4" aria-expanded="false" aria-controls="collapseMenu4">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Ressources</span>
+                                                </button>
+
+                                                <div id="collapseMenu4" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/centre-de-ressources/outils-entreprise.html" target="">Entreprise</a></li>
+                                                        
+                                                            <li><a href="/centre-de-ressources/outils-particulier.html" target="">Particulier</a></li>
+                                                        
+                                                            <li><a href="/centre-de-ressources/outils-prestataire.html" target="">Prestataire</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/faq.html" target="" class="nav-link">FAQ</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu5" aria-expanded="false" aria-controls="collapseMenu5">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : FAQ</span>
+                                                </button>
+
+                                                <div id="collapseMenu5" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/faq/entreprise.html" target="">Entreprise</a></li>
+                                                        
+                                                            <li><a href="/faq/particulier.html" target="">Particulier</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="https://services.afdas.com/login_form" target="" class="nav-link">D&eacute;claration</a>
+
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/actualites/entreprise/la-boite-a-outils-alternance.html" target="" class="nav-link">La bo&icirc;te &agrave; outils Alternance</a>
+
+                                        
+                                    </li>
+                                
+                            </ul>
+                        </nav>
+                    
+
+                    <hr class="d-md-none">
+                    
+
+                    
+                    <div class="nav-quick d-md-none">
+                        
+        <nav aria-label="Navigation secondaire d&eacute;pli&eacute;e" role="navigation" tabindex="1">
+            
+                <ul class="list-unstyled share">
+                    
+                        <li>
+                            <a class="linkedin" href="https://www.linkedin.com/company/afdas/?originalSubdomain=fr" target="_blank">
+                                <i class="fab fa-linkedin-in" aria-hidden="true"></i>
+                                Linkedin <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+
+                    
+                        <li>
+                            <a class="facebook" href="https://www.facebook.com/afdasopco/" target="_blank">
+                                <i class="fab fa-facebook" aria-hidden="true"></i>
+                                Facebook <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="instagram" href="https://www.instagram.com/afdas_opco/" target="_blank">
+                                <i class="fab fa-instagram" aria-hidden="true"></i>
+                                Instagram <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="youtube" href="https://www.youtube.com/afdasformation" target="_blank">
+                                <i class="fab fa-youtube" aria-hidden="true"></i>
+                                Youtube <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+                </ul>
+
+                <hr>
+            
+
+            
+                <ul class="list-unstyled">
+                    
+                        <li><a href="/actualites/entreprise/la-boite-a-outils-alternance.html" target="">La bo&icirc;te &agrave; outils Alternance</a></li>
+                    
+                        <li><a href="/centre-de-ressources.html" target="">Centre de ressources</a></li>
+                    
+                        <li><a href="https://formations.afdas.com/employeur/@@training_search" target="_blank">Rechercher une formation</a></li>
+                    
+                        <li><a href="https://observatoires.afdas.com/" target="_blank">Les observatoires</a></li>
+                    
+                        <li><a href="/espace-presse-2.html" target="">Espace Presse</a></li>
+                    
+                </ul>
+            
+        </nav>
+    
+                    </div>
+                    
+                </div>
+
+
+                <span class="menuEnd" tabindex="0"></span>
+            </div>
+
+            
+            <div class="nav-quick d-none d-md-block">
+                
+                    <ul class="list-unstyled share text-center">
+                        
+                            <li>
+                                <a class="linkedin" href="https://www.linkedin.com/company/afdas/?originalSubdomain=fr" target="_blank">
+                                    <i class="fab fa-linkedin-in" aria-hidden="true"></i>
+                                    <span class="sr-only">Linkedin : Afdas</span>
+                                </a>
+                            </li>
+                        
+
+                        
+
+                        
+                            <li>
+                                <a class="facebook" href="https://www.facebook.com/afdasopco/" target="_blank">
+                                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                                    <span class="sr-only">Facebook : Afdas</span>
+                                </a>
+                            </li>
+                        
+
+                        
+                            <li>
+                                <a class="instagram" href="https://www.instagram.com/afdas_opco/" target="_blank">
+                                    <i class="fab fa-instagram" aria-hidden="true"></i>
+                                    <span class="sr-only">Instagram : Afdas</span>
+                                </a>
+                            </li>
+                        
+
+                        
+                            <li>
+                                <a class="youtube" href="https://www.youtube.com/afdasformation" target="_blank">
+                                    <i class="fab fa-youtube" aria-hidden="true"></i>
+                                    <span class="sr-only">Youtube : Afdas</span>
+                                </a>
+                            </li>
+                        
+                    </ul>
+                
+
+                <button class="btn btn-menu-more" type="button"><span class="sr-only">D&eacute;plier le menu rapide</span> <i class="far fa-ellipsis-h" aria-hidden="true"></i> </button>
+
+                <div class="navbar-inner navbar-inner-2" role="dialog" aria-modal="true" aria-label="Menu" aria-hidden="true">
+                    <span class="menuStart" tabindex="0"></span>
+
+                    <div class="text-right">
+                        <button type="button" class="btn btn-menu-close">
+                            <span class="fal fa-times" aria-hidden="true"></span>
+
+                            <strong>Fermer <span class="sr-only">le menu</span></strong>
+                        </button>
+                    </div>
+
+                    
+        <nav aria-label="Navigation secondaire d&eacute;pli&eacute;e" role="navigation" tabindex="1">
+            
+                <ul class="list-unstyled share">
+                    
+                        <li>
+                            <a class="linkedin" href="https://www.linkedin.com/company/afdas/?originalSubdomain=fr" target="_blank">
+                                <i class="fab fa-linkedin-in" aria-hidden="true"></i>
+                                Linkedin <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+
+                    
+                        <li>
+                            <a class="facebook" href="https://www.facebook.com/afdasopco/" target="_blank">
+                                <i class="fab fa-facebook" aria-hidden="true"></i>
+                                Facebook <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="instagram" href="https://www.instagram.com/afdas_opco/" target="_blank">
+                                <i class="fab fa-instagram" aria-hidden="true"></i>
+                                Instagram <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="youtube" href="https://www.youtube.com/afdasformation" target="_blank">
+                                <i class="fab fa-youtube" aria-hidden="true"></i>
+                                Youtube <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+                </ul>
+
+                <hr>
+            
+
+            
+                <ul class="list-unstyled">
+                    
+                        <li><a href="/actualites/entreprise/la-boite-a-outils-alternance.html" target="">La bo&icirc;te &agrave; outils Alternance</a></li>
+                    
+                        <li><a href="/centre-de-ressources.html" target="">Centre de ressources</a></li>
+                    
+                        <li><a href="https://formations.afdas.com/employeur/@@training_search" target="_blank">Rechercher une formation</a></li>
+                    
+                        <li><a href="https://observatoires.afdas.com/" target="_blank">Les observatoires</a></li>
+                    
+                        <li><a href="/espace-presse-2.html" target="">Espace Presse</a></li>
+                    
+                </ul>
+            
+        </nav>
+    
+
+                    <span class="menuEnd" tabindex="0"></span>
+                </div>
+            </div>
+            
+
+            <div class="mask"></div>
+        </nav>
+    </header>
+
+    
+
+
+
+    
+
+<div id="quick-search" class="search">
+    <div class="container">
+        <form action="/recherche.html" class="search-form">
+            <button type="button" class="btn btn-close">
+                <i class="far fa-times" aria-hidden="true"></i>
+                <span class="sr-only">Fermer</span>
+            </button>
+
+            <div class="form-group">
+                <div class="input-group input-group-lg">
+                    <input type="text" placeholder="Rechercher un service, un dispositif, un document..." class="form-control" name="tx_solr[q]" value="">
+
+                    <div class="input-group-append">
+                        <span class="input-group-text">
+                            <i class="far fa-search" aria-hidden="true"></i>
+                            <span class="sr-only">Rechercher</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </form>
+        <div class="search-suggestions">
+            <p class="heading">Suggestions</p>
+            <ul class="list-unstyled mb-0">
+                
+                    
+                        <li><a href="https://formations.afdas.com/employeur/@@training_search"><i class="far fa-search" aria-hidden="true"></i> <span>Rechercher une formation</span></a></li>
+                    
+                        <li><a href="/entreprise/recruter-vos-futurs-salaries-et-alternants/les-contrats-en-alternance/le-contrat-dapprentissage.html"><i class="far fa-search" aria-hidden="true"></i> <span>Contrat d'apprentissage</span></a></li>
+                    
+                        <li><a href="/entreprise/adherer-a-lafdas.html"><i class="far fa-search" aria-hidden="true"></i> <span>Adh&eacute;rer &agrave; l&rsquo;Afdas</span></a></li>
+                    
+                        <li><a href="/centre-de-ressources.html"><i class="far fa-search" aria-hidden="true"></i> <span>Acc&eacute;der au centre de ressources</span></a></li>
+                    
+                
+            </ul>
+        </div>
+    </div>
+</div>
+<!-- END SEARCH -->
+
+<div class="quick-search-mask"></div>
+
+
+
+
+    <div id="main" class="main">
+        
+    
+            
+                
+
+<nav aria-label="Fil d&rsquo;ariane" class="nav-breadcrumb" role="navigation">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12 m-auto">
+                
+                    <ol class="breadcrumb">
+                        <li>
+                            <a href="/">Accueil</a>
+                        </li>
+                        
+                            <li class=" active sub  ">
+                                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                <a href="/actualites.html" target="" aria-current="page">
+                                Actualit&eacute;s
+                                </a>
+                            </li>
+                        
+                    </ol>
+                
+            </div>
+        </div>
+    </div>
+</nav>
+
+
+
+            
+            <div class="article-header">
+                <div class="container">
+                    <div class="row">
+                        
+                                <div class="col-lg-8 m-auto">
+                                    <!--TYPO3SEARCH_begin-->
+                                    <h1>Toutes nos actualit&eacute;s</h1>
+                                    <!--TYPO3SEARCH_end-->
+                                </div>
+                            
+                    </div>
+                </div>
+            </div>
+        
+
+
+        
+    
+
+    
+    <div class="container">
+        <div class="row">
+            
+                <div class="article">
+            
+
+                <!--TYPO3SEARCH_begin-->
+                
+	<a id="c7746"></a>
+	
+	
+		
+
+
+
+	
+	
+	
+
+    
+ 
+
+
+	
+		
+
+
+
+	
+	
+		
+
+
+
+	
+
+
+
+
+
+    
+
+    <section class="section section-news section-news-white">
+        <div class="container">
+            <div class="row">
+                <div class="col-10 m-auto">
+                    <div class="row">
+                        <div class="col-sm-6">
+                            
+        
+            <div class="like-select">
+                <button type="button" class="btn btn-filter dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                    Filtrer par profil
+                </button>
+
+                <ul class="dropdown-menu">
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/2.html?cHash=09b7f6c1b1c08cc69e17bac6b4fe175e">G&eacute;n&eacute;ral</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/3.html?cHash=117a1a7d8b7b44f7d7a03879a54ddf6d">Entreprise</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/4.html?cHash=fe9f31f3f274b3b5d366cc2bc4fe9b86">Particulier</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/5.html?cHash=442a5a459ee030dfa4724e67eb1657ab">Prestataire</a></li>
+                    
+                </ul>
+            </div>
+        
+    
+                        </div>
+                        <div class="col-sm-6">
+                            
+        
+            <div class="like-select">
+                <button type="button" class="btn btn-filter dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                    Filtrer par r&eacute;gion
+                </button>
+
+                <ul class="dropdown-menu">
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/12.html?cHash=e264ed763d5b936464d47a7f2ca991c2">&Icirc;le-de-France</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/13.html?cHash=6d140350965b003e9dee4d6c2f074201">Auvergne-Rh&ocirc;ne-Alpes</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/14.html?cHash=2a42eed9b0f46946fdc6711f37bf2e8c">Provence-Alpes-C&ocirc;te d'Azur, Corse</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/16.html?cHash=8258cee6e90e081c9e3ec7d762491e1b">Nouvelle-Aquitaine</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/17.html?cHash=73a13c92dca156044d2ad12d60d3133b">Hauts-de-France</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/18.html?cHash=26b734078770dd2a9d22cd2bfcdc0d4b">Grand Est - Bourgogne-Franche-Comt&eacute;</a></li>
+                    
+                        <li><a class="dropdown-item " href="/actualites/cat/24.html?cHash=c7cd262274ddf09abdc293405caeab28">Pays de la Loire</a></li>
+                    
+                </ul>
+            </div>
+        
+    
+                        </div>
+                    </div>
+
+                    
+                        
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            
+    <p class="item-category">
+        Particulier
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/particulier/lafdas-au-festival-davignon-2026.html">L'Afdas au festival d'Avignon 2026</a></h2>
+
+    
+
+    <p class="item-meta">05 juin 2026</p>
+
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Communiqu&eacute; de presse
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/communique-de-presse/enquete-de-satisfaction-2026-une-utilite-reconnue-une-qualite-de-service-confirmee.html">Enqu&ecirc;te de satisfaction 2026 : une utilit&eacute; reconnue, une qualit&eacute; de service confirm&eacute;e</a></h2>
+
+    
+
+    <p class="item-meta">17 avril 2026</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/f/7/csm_YT_Cover_ES2026_c61345f6ec.jpg" srcset="/fileadmin/_processed_/f/7/csm_YT_Cover_ES2026_c61345f6ec.jpg 1200w,/fileadmin/_processed_/f/7/csm_YT_Cover_ES2026_c61345f6ec.jpg 992w,/fileadmin/_processed_/f/7/csm_YT_Cover_ES2026_c61345f6ec.jpg 768w,/fileadmin/_processed_/f/7/csm_YT_Cover_ES2026_c28d435146.jpg 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Prestataire
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/prestataire/cycle-de-webinaires.html">Cycle de webinaires</a></h2>
+
+    
+
+    <p class="item-meta">11 mars 2026</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/8/6/csm_Webinaires_NL_OF_03-26__1__fec2d3e996.png" srcset="/fileadmin/_processed_/8/6/csm_Webinaires_NL_OF_03-26__1__fec2d3e996.png 1200w,/fileadmin/_processed_/8/6/csm_Webinaires_NL_OF_03-26__1__fec2d3e996.png 992w,/fileadmin/_processed_/8/6/csm_Webinaires_NL_OF_03-26__1__fec2d3e996.png 768w,/fileadmin/_processed_/8/6/csm_Webinaires_NL_OF_03-26__1__a548a18a63.png 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Prestataire
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/prestataire/cfa-lafdas-soutient-vos-investissements.html">CFA : l&rsquo;Afdas soutient vos investissements</a></h2>
+
+    
+
+    <p class="item-meta">10 mars 2026</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/c/b/csm_Header_CFA_Appel2026_060192d526.jpg" srcset="/fileadmin/_processed_/c/b/csm_Header_CFA_Appel2026_060192d526.jpg 1200w,/fileadmin/_processed_/c/b/csm_Header_CFA_Appel2026_060192d526.jpg 992w,/fileadmin/_processed_/c/b/csm_Header_CFA_Appel2026_060192d526.jpg 768w,/fileadmin/_processed_/c/b/csm_Header_CFA_Appel2026_a5d340c044.jpg 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Entreprise
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/entreprise/semaine-du-tourisme-2.html">Semaine des m&eacute;tiers du tourisme 2026</a></h2>
+
+    
+
+    <p class="item-meta">02 f&eacute;vrier 2026</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/f/b/csm_smt-2026_3d0dc5f50a.png" srcset="/fileadmin/_processed_/f/b/csm_smt-2026_3d0dc5f50a.png 1200w,/fileadmin/_processed_/f/b/csm_smt-2026_3d0dc5f50a.png 992w,/fileadmin/_processed_/f/b/csm_smt-2026_3d0dc5f50a.png 768w,/fileadmin/_processed_/f/b/csm_smt-2026_8384d6e296.png 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Entreprise
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/entreprise/criteres-de-financements-2026-ce-qui-change-pour-les-entreprises.html">Crit&egrave;res de financements 2026 : ce qui change pour les entreprises</a></h2>
+
+    
+
+    <p class="item-meta">13 janvier 2026</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg" srcset="/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg 1200w,/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg 992w,/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg 768w,/fileadmin/_processed_/e/f/csm_aides_2026_e6a512692b.jpg 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Entreprise &amp; Particulier
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/particulier/lafdas-aux-bis-de-nantes-2026-1.html">L'Afdas aux BIS de Nantes 2026</a></h2>
+
+    
+
+    <p class="item-meta">05 janvier 2026</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/7/5/csm_LOGO_BIS_2026_Largeur2_3fe3d25b9d.jpg" srcset="/fileadmin/_processed_/7/5/csm_LOGO_BIS_2026_Largeur2_3fe3d25b9d.jpg 1200w,/fileadmin/_processed_/7/5/csm_LOGO_BIS_2026_Largeur2_3fe3d25b9d.jpg 992w,/fileadmin/_processed_/7/5/csm_LOGO_BIS_2026_Largeur2_3fe3d25b9d.jpg 768w,/fileadmin/_processed_/7/5/csm_LOGO_BIS_2026_Largeur2_9dc91b9ef2.jpg 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Entreprise
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/entreprise/aides-a-lapprentissage-2026.html">Aides &agrave; l&rsquo;apprentissage 2026</a></h2>
+
+    
+
+    <p class="item-meta">01 janvier 2026</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg" srcset="/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg 1200w,/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg 992w,/fileadmin/_processed_/e/f/csm_aides_2026_2ae7391966.jpg 768w,/fileadmin/_processed_/e/f/csm_aides_2026_e6a512692b.jpg 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Communiqu&eacute; de presse
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/communique-de-presse/formation-de-croupier-au-casino-du-sud-a-saint-pierre-pour-un-emploi.html">Formation de croupier au Casino du Sud &agrave; Saint Pierre pour un emploi</a></h2>
+
+    
+
+    <p class="item-meta">03 d&eacute;cembre 2025</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/5/1/csm_croupier_reunion_e3125615d6.jpeg" srcset="/fileadmin/_processed_/5/1/csm_croupier_reunion_e3125615d6.jpeg 1200w,/fileadmin/_processed_/5/1/csm_croupier_reunion_e3125615d6.jpeg 992w,/fileadmin/_processed_/5/1/csm_croupier_reunion_e3125615d6.jpeg 768w,/fileadmin/_processed_/5/1/csm_croupier_reunion_c688e94bf9.jpeg 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                                
+                                    
+
+<div class="item news-item">
+
+    
+            <div class="row">
+                <div class="col-md-7">
+                    
+    <p class="item-category">
+        Entreprise
+    </p>
+
+    <h2 class="item-title"><a href="/actualites/entreprise/la-semaine-de-la-communication-2025.html">La semaine de la communication 2025</a></h2>
+
+    
+
+    <p class="item-meta">28 novembre 2025</p>
+
+                </div>
+
+                <div class="col-md-5">
+                    <div class="figure">
+                        
+
+
+
+
+    
+        
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+                
+            
+        
+            
+            
+            
+            
+        
+        <img src="/fileadmin/_processed_/f/5/csm_semaine_metier_com_60a0b1cbdd.jpg" srcset="/fileadmin/_processed_/f/5/csm_semaine_metier_com_60a0b1cbdd.jpg 1200w,/fileadmin/_processed_/f/5/csm_semaine_metier_com_60a0b1cbdd.jpg 992w,/fileadmin/_processed_/f/5/csm_semaine_metier_com_60a0b1cbdd.jpg 768w,/fileadmin/_processed_/f/5/csm_semaine_metier_com_0dc5bc2e78.jpg 576w" sizes="100vw" title="" alt="" class="">
+    
+
+
+
+
+                    </div>
+                </div>
+            </div>
+        
+</div>
+<hr>
+
+
+
+
+
+                                
+                            
+                            
+
+
+    <ul class="pagination">
+        
+
+        
+
+        
+
+        
+            
+                    <li class="active">
+                        
+    <a aria-current="page" href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=1&amp;cHash=eec485b869d83c7c518b5298ff8dce02#c162">1</a>
+
+                    </li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=2&amp;cHash=71dfa5143bca3e00b796435e97a6c483#c162">2</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=3&amp;cHash=00738b6fa977d71e99e0b41517eb6d01#c162">3</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=4&amp;cHash=de44f83e992b13a374d7ed79d3d4a800#c162">4</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=5&amp;cHash=9f96f07728cfd92234f1aa51d7e16109#c162">5</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=6&amp;cHash=747f0ea856e7ebdaef1bad33f0c27df4#c162">6</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=7&amp;cHash=7ee7b2be110bcf69526c3ddf3a1777a7#c162">7</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=8&amp;cHash=ccb4edaaad253d0b34966d7859b1cd5d#c162">8</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=9&amp;cHash=96fc74e1890c9f2e229efd40f964fbf0#c162">9</a>
+</li>
+                
+        
+            
+                    <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=10&amp;cHash=8796086c4979e8998e1bb809c0aabefb#c162">10</a>
+</li>
+                
+        
+
+        
+            <li class="disabled"><span>&hellip;</span></li>
+        
+
+        
+            <li>
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=13&amp;cHash=9655221dee21c02dbd9514bd5a63ebed#c162">13</a>
+</li>
+        
+
+        
+                <li class="next">
+                    
+    <a href="/actualites.html?tx_site_news%5Bcontroller%5D=News&amp;tx_site_news%5Bpagination%5D%5BcurrentPage%5D=2&amp;cHash=71dfa5143bca3e00b796435e97a6c483#c162">
+                        <span class="d-none d-sm-inline-block">Suivant</span>
+                        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    </a>
+
+                </li>
+            
+    </ul>
+
+
+
+
+
+                        
+                    
+                </div>
+            </div>
+        </div>
+    </section>
+
+    
+
+
+
+
+
+
+
+                
+
+	
+        
+	
+
+
+
+                <!--TYPO3SEARCH_end-->
+
+            
+                </div>
+            
+        </div>
+    </div>
+
+    <section class="section">
+        <!--TYPO3SEARCH_begin-->
+        
+        <!--TYPO3SEARCH_end-->
+    </section>
+
+    </div>
+
+    
+
+    <footer class="footer">
+        <div class="footer-top">
+            <div class="container">
+                
+                    <ul class="list-unstyled list-inline text-center">
+                        
+                            <li>
+                                <a href="https://formations.afdas.com/employeur/@@training_search" target="_blank">
+                                    <span>Rechercher une formation</span>
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://observatoires.afdas.com/" target="_blank">
+                                    <span>Observatoires des m&eacute;tiers</span>
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="/lafdas/nos-appels-doffres.html" target="">
+                                    <span>Appels d'offres</span>
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="/espace-presse-2.html" target="">
+                                    <span>Espace Presse</span>
+                                </a>
+                            </li>
+                        
+                    </ul>
+                
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <div class="container">
+                <ul>
+                    
+                        
+                            <li>
+                                <a href="/protection-des-donnees-personnelles.html" target="">Protection donn&eacute;es personnelles</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/conditions-generales-de-lafdas.html" target="">Conditions g&eacute;n&eacute;rales Afdas</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/alerte-professionnelle-et-ethique.html" target="">Alerte professionnelle &amp; &eacute;thique</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/homologation-anssi.html" target="">Homologation</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/mentions-legales.html" target="">Mentions l&eacute;gales</a>
+                            </li>
+                        
+                    
+                    <li><a href="#" onclick="orejime.show(); return false;" title="Pr&eacute;f&eacute;rences cookies">Pr&eacute;f&eacute;rences cookies</a></li>
+                </ul>
+            </div>
+        </div>
+    </footer>
+
+
+
+
+    <button type="button" class="btn-scroll-up">
+    <i class="far fa-arrow-up" aria-hidden="true"></i>
+    <span class="sr-only">Retour en haut de la page</span>
+</button>
+<script src="/typo3temp/assets/compressed/merged-512cf9b6e5f7f8bc4e5e67dda45e53c8.js?1772634499"></script>
+<script src="https://www.google.com/recaptcha/api.js?hl="></script>
+<script src="https://unpkg.com/orejime@2.2.1/dist/orejime.js"></script>
+<script src="/typo3temp/assets/compressed/merged-aae30b256ecb9be89817aa854f32cbf4.js?1772634499"></script>
+
+<script type="application/ld+json">{"@context":"http://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"item":{"@id":"https://www.afdas.com/","name":"Accueil"}}]}</script>
+</body>
+</html>

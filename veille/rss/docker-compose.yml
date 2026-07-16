@@ -1,0 +1,28 @@
+# Veille réglementaire DISCIPLINA — FreshRSS auto-hébergé (SQLite)
+# Démarrage : cp .env.example .env && docker compose up -d
+# Interface : http://localhost:${FRESHRSS_PORT}
+
+services:
+  freshrss:
+    image: freshrss/freshrss:latest
+    container_name: freshrss
+    restart: unless-stopped
+    ports:
+      - "${FRESHRSS_PORT:-8080}:80"
+    environment:
+      # Fuseau horaire (La Réunion)
+      TZ: ${TZ:-Indian/Reunion}
+      # Rafraîchissement automatique des flux (syntaxe cron, minutes)
+      CRON_MIN: ${CRON_MIN:-*/30}
+    volumes:
+      # Données persistantes : base SQLite, config, utilisateurs (NE PAS commiter)
+      - ./data:/var/www/FreshRSS/data
+      # Extensions FreshRSS (XPath scraping, etc.)
+      - ./extensions:/var/www/FreshRSS/extensions
+    healthcheck:
+      # Vérifie que le serveur web interne répond sur le port 80
+      test: ["CMD", "curl", "-f", "http://localhost:80/i/"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s

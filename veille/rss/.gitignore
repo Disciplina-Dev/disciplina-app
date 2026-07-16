@@ -1,0 +1,8 @@
+# Données FreshRSS : base SQLite, config, comptes, secrets — NE JAMAIS commiter
+/data/
+
+# Fichier d'env local (issu de .env.example)
+.env
+
+# Divers
+.DS_Store

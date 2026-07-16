@@ -1,0 +1,308 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "79e8a170-3415-4a14-8abd-94452938d908",
+      "name": "Tous les 1ers du mois",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -240,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "base",
+              "value": "http://host.docker.internal:8080",
+              "type": "string"
+            },
+            {
+              "id": "c2",
+              "name": "user",
+              "value": "root",
+              "type": "string"
+            },
+            {
+              "id": "c3",
+              "name": "apiPassword",
+              "value": "Discip2026!api",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "482b81e4-96f2-4271-b471-ad6c2c587f95",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -16,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calcule la plage du MOIS PRECEDENT (du 1er 00h00 au 1er du mois courant 00h00)\nconst now = new Date();\nconst startPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);\nconst startCurrent = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);\n\nconst otStart = Math.floor(startPrev.getTime() / 1000);   // borne basse (incluse)\nconst otEnd = Math.floor(startCurrent.getTime() / 1000);  // borne haute (exclue)\n\nconst moisFr = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];\nconst libelle = moisFr[startPrev.getMonth()] + ' ' + startPrev.getFullYear();\n\nreturn [{ json: { otStart, otEnd, libelle } }];"
+      },
+      "id": "4d0f72a6-af12-4fe8-a6f9-d9412cd0ade1",
+      "name": "Calcul periode",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.base }}/api/greader.php/accounts/ClientLogin",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Email",
+              "value": "={{ $('Config').first().json.user }}"
+            },
+            {
+              "name": "Passwd",
+              "value": "={{ $('Config').first().json.apiPassword }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "43154350-3b61-487e-8e53-5c5c018a031d",
+      "name": "Login FreshRSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        432,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrait le token Auth= de la reponse ClientLogin\nconst raw = $input.first().json.data ?? $input.first().json.body ?? '';\nconst m = String(raw).match(/Auth=(.+)/);\nif (!m) { throw new Error('Token Auth introuvable. Verifie l API password et que l acces API est active dans FreshRSS.'); }\nreturn [{ json: { token: m[1].trim() } }];"
+      },
+      "id": "cbe3bec0-4784-41db-932f-667f3f27d5ba",
+      "name": "Extract token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.base }}/api/greader.php/reader/api/0/stream/contents/user/-/state/com.google/reading-list",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "output",
+              "value": "json"
+            },
+            {
+              "name": "n",
+              "value": "1000"
+            },
+            {
+              "name": "r",
+              "value": "o"
+            },
+            {
+              "name": "ot",
+              "value": "={{ $('Calcul periode').first().json.otStart }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=GoogleLogin auth={{ $json.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "623d784e-9935-4708-8bda-00ff05a36734",
+      "name": "Recuperer les articles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        864,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Garde uniquement les articles dont la date est DANS le mois precedent\nconst otStart = $('Calcul periode').first().json.otStart;\nconst otEnd = $('Calcul periode').first().json.otEnd;\nconst resp = $input.first().json;\nconst items = resp.items || [];\n\nconst out = [];\nfor (const it of items) {\n  const ts = Number(it.published) || (it.timestampUsec ? Math.floor(Number(it.timestampUsec) / 1000000) : 0);\n  if (ts >= otStart && ts < otEnd) {\n    out.push({ json: {\n      titre: it.title || '(sans titre)',\n      lien: (it.canonical && it.canonical[0] && it.canonical[0].href) || (it.alternate && it.alternate[0] && it.alternate[0].href) || '',\n      date: new Date(ts * 1000).toISOString().slice(0, 10),\n      source: (it.origin && it.origin.title) || ''\n    }});\n  }\n}\nreturn out;"
+      },
+      "id": "8658ea66-64be-4e55-b955-a2393eed8539",
+      "name": "Filtrer mois precedent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Regroupe tous les articles en un seul mail HTML, tries par source\nconst arts = $input.all().map(i => i.json);\nconst libelle = $('Calcul periode').first().json.libelle;\narts.sort((a, b) => (a.source || '').localeCompare(b.source || ''));\n\nlet html = '<h2>Veille OPCO - ' + libelle + '</h2>';\nhtml += '<p>' + arts.length + ' article(s) publie(s) le mois dernier.</p><ul>';\nfor (const a of arts) {\n  html += '<li><strong>' + a.source + '</strong> - <a href=\"' + a.lien + '\">' + a.titre + '</a> <em>(' + a.date + ')</em></li>';\n}\nhtml += '</ul>';\n\nreturn [{ json: { libelle, count: arts.length, html } }];"
+      },
+      "id": "d4db42f0-8626-45dd-9138-8495c52cd0b6",
+      "name": "Agreger en HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "epitechdisciplina.dev@gmail.com",
+        "subject": "=Veille OPCO - {{ $json.libelle }} ({{ $json.count }} articles)",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "a1b29f42-aabc-45bb-ada0-88b9ff5231d0",
+      "name": "Envoyer le mail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1520,
+        -96
+      ],
+      "webhookId": "a4d4e14a-4f13-4985-9931-55b1bea672df",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AjEEI1PzgtNME6E8",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Tous les 1ers du mois": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Calcul periode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcul periode": {
+      "main": [
+        [
+          {
+            "node": "Login FreshRSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login FreshRSS": {
+      "main": [
+        [
+          {
+            "node": "Extract token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract token": {
+      "main": [
+        [
+          {
+            "node": "Recuperer les articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperer les articles": {
+      "main": [
+        [
+          {
+            "node": "Filtrer mois precedent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer mois precedent": {
+      "main": [
+        [
+          {
+            "node": "Agreger en HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agreger en HTML": {
+      "main": [
+        [
+          {
+            "node": "Envoyer le mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "2f53c3ff52e2cf0099714a6b8da1db756bd923d04882579757b21d21d8dce845"
+  }
+}

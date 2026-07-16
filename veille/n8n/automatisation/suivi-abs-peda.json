@@ -1,0 +1,402 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "6e240388-68c8-42e4-ae15-52ead18b2f05",
+      "name": "⏰ Toutes les heures",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1888,
+        1968
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "includeGridData",
+              "value": "true"
+            },
+            {
+              "name": "ranges",
+              "value": "Abs NTC!A6:AR300"
+            },
+            {
+              "name": "fields",
+              "value": "sheets(data(rowData(values(formattedValue,hyperlink,effectiveValue))))"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b00cd3b7-8ba1-4d7d-b93b-987a24c74de6",
+      "name": "📋 API NTC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        1728
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dsNWVOp44zOAP4LO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "includeGridData",
+              "value": "true"
+            },
+            {
+              "name": "ranges",
+              "value": "Abs AD!A6:AR300"
+            },
+            {
+              "name": "fields",
+              "value": "sheets(data(rowData(values(formattedValue,hyperlink,effectiveValue))))"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "252fbe64-1e4a-496d-9379-6cbef2bf658f",
+      "name": "📋 API AD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        1888
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dsNWVOp44zOAP4LO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "includeGridData",
+              "value": "true"
+            },
+            {
+              "name": "ranges",
+              "value": "Abs CC!A6:AR300"
+            },
+            {
+              "name": "fields",
+              "value": "sheets(data(rowData(values(formattedValue,hyperlink,effectiveValue))))"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4e84b2ed-2f28-4770-a31c-11dc9c81c79a",
+      "name": "📋 API CC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        2048
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dsNWVOp44zOAP4LO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1buuyd4vazxn0asSdBF_z-H4OgIv28YtB6x3tM21KZio",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "includeGridData",
+              "value": "true"
+            },
+            {
+              "name": "ranges",
+              "value": "Abs REM!A6:AR300"
+            },
+            {
+              "name": "fields",
+              "value": "sheets(data(rowData(values(formattedValue,hyperlink,effectiveValue))))"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d69e30fa-360b-45bb-aeff-b0abc003bdd0",
+      "name": "📋 API REM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        2208
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dsNWVOp44zOAP4LO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === PARSER l'API Google Sheets (rowData) + EXTRAIRE les cases TRUE ===\n// Indices BRUTS (colonne A = 0) car la plage commence en A6 :\n//   0=Session  1=NOM  2=Prénom  3=Mail(lien mailto)  ...\nconst MAIL_COLS = [\n  { check: 12, date: 10, motif: 11, niveau: '1' },\n  { check: 15, date: 13, motif: 14, niveau: '1' },\n  { check: 18, date: 16, motif: 17, niveau: '2' },\n  { check: 21, date: 19, motif: 20, niveau: '2' },\n  { check: 24, date: 22, motif: 23, niveau: '3' },\n  { check: 27, date: 25, motif: 26, niveau: '3' },\n  { check: 30, date: 28, motif: 29, niveau: '3' },\n  { check: 33, date: 31, motif: 32, niveau: '+' },\n  { check: 36, date: 34, motif: 35, niveau: '+' },\n  { check: 39, date: 37, motif: 38, niveau: '+' },\n];\n\nconst sources = [\n  { node: '📋 API NTC', name: 'NTC' },\n  { node: '📋 API AD',  name: 'AD'  },\n  { node: '📋 API CC',  name: 'CC'  },\n  { node: '📋 API REM', name: 'REM' },\n];\n\nconst val = (v) => (v && v.formattedValue != null) ? String(v.formattedValue).trim() : '';\nconst isChecked = (v) => {\n  if (!v) return false;\n  if (v.effectiveValue && v.effectiveValue.boolValue === true) return true;\n  const f = (v.formattedValue || '').toString().toUpperCase();\n  return f === 'TRUE' || f === 'VRAI';\n};\nconst getMail = (v) => {\n  if (!v) return '';\n  let h = v.hyperlink || '';\n  return h.replace(/^mailto:/i, '').trim();\n};\n\nconst results = [];\n\nfor (const src of sources) {\n  let resp;\n  try { resp = $(src.node).first().json; } catch (e) { continue; }\n  const data = resp && resp.sheets && resp.sheets[0] && resp.sheets[0].data && resp.sheets[0].data[0];\n  const rows = (data && data.rowData) ? data.rowData : [];\n\n  for (let r = 1; r < rows.length; r++) {\n    const cells = (rows[r] && rows[r].values) ? rows[r].values : [];\n    const nom    = val(cells[1]);\n    const prenom = val(cells[2]);\n    if (!nom || nom === 'NOM' || nom === '0') continue;\n\n    const mail    = getMail(cells[3]);\n    const session = val(cells[0]);\n    const feuille = src.name;\n\n    for (let idx = 0; idx < MAIL_COLS.length; idx++) {\n      const { check, date, motif, niveau } = MAIL_COLS[idx];\n      if (!isChecked(cells[check])) continue;\n\n      const dateVal  = val(cells[date]);\n      const motifVal = val(cells[motif]);\n      const nomPrenom = `${nom} ${prenom}`.trim();\n      const sujet = `Mail niv${niveau} - apprenant ${nomPrenom}`;\n      const corps = `Bonjour,\\n\\nSuivi d'absence - Niveau ${niveau}\\n\\nApprenant(e) : ${nomPrenom}\\nSession      : ${session} (${feuille})\\nDate absence : ${dateVal}\\nMotif        : ${motifVal}\\n\\nCordialement`;\n      const uniqueKey = `${feuille}_${session}_${nom}_${prenom}_abs${idx}`;\n\n      results.push({ json: { destinataire: mail, sujet, corps, nom, prenom, mail, session, feuille, niveau, dateAbs: dateVal, motif: motifVal, uniqueKey, mailManquant: mail === '' } });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "id": "8251b0c2-9a85-4c99-b41f-e81d68ebdff2",
+      "name": "🔍 Parser + extraire TRUE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        1968
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "6dc6bdd2-2628-4e6a-afaf-92bfdff94a7a",
+      "name": "📥 Brouillons existants",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        1872
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "webhookId": "15a6befb-02ee-4176-9096-39d847b4801a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AjEEI1PzgtNME6E8",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {
+          "q": "in:sent subject:(Mail niv apprenant)"
+        }
+      },
+      "id": "6ea4ea8f-aeee-4c22-b3ad-9f130aafdac5",
+      "name": "📤 Envoyés existants",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        2064
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "webhookId": "932a463e-be9a-4465-87f1-0d92fcc2a015",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AjEEI1PzgtNME6E8",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === SKIP si un brouillon OU un envoyé avec le même SUJET existe déjà ===\n// Brouillons : listés directement (resource draft) -> fiables même non indexés.\n// Envoyés    : recherche subject: dans in:sent (indexée, donc OK).\n\nfunction subjOf(j) {\n  if (!j) return '';\n  if (j.subject) return String(j.subject);\n  if (j.Subject) return String(j.Subject);\n  if (j.headers && j.headers.subject) return String(j.headers.subject);\n  // brouillons (resource draft, simple=false) -> message.payload.headers\n  const paths = [\n    j.payload && j.payload.headers,\n    j.message && j.message.payload && j.message.payload.headers,\n  ];\n  for (const h of paths) {\n    if (Array.isArray(h)) {\n      const f = h.find(x => x.name && x.name.toLowerCase() === 'subject');\n      if (f) return String(f.value || '');\n    }\n  }\n  return '';\n}\n\nconst existingSubjects = new Set();\nconst addFrom = (nodeName) => {\n  let items = [];\n  try { items = $(nodeName).all(); } catch (e) { items = []; }\n  for (const it of items) {\n    const s = subjOf(it.json).trim().toLowerCase();\n    if (s) existingSubjects.add(s);\n  }\n};\naddFrom('📥 Brouillons existants');\naddFrom('📤 Envoyés existants');\n\nlet candidates = [];\ntry { candidates = $('🔍 Parser + extraire TRUE').all(); } catch (e) { candidates = []; }\n\nconst seen = new Set();\nconst out = [];\nfor (const c of candidates) {\n  const subj = (c.json.sujet || '').trim();\n  if (!subj) continue;\n  const key = subj.toLowerCase();\n  if (existingSubjects.has(key)) continue; // déjà créé (brouillon) ou déjà envoyé -> skip\n  if (seen.has(key)) continue;             // doublon dans ce run -> skip\n  seen.add(key);\n  out.push({ json: c.json });\n}\n\nreturn out;"
+      },
+      "id": "57dd4d92-1741-464e-842e-0e4ddfc28e36",
+      "name": "🔒 Skip si déjà créé",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3168,
+        1968
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.sujet }}",
+        "message": "={{ $json.corps }}",
+        "options": {
+          "sendTo": "={{ $json.destinataire }}"
+        }
+      },
+      "id": "30c5e2e2-633f-4162-92af-72804fe95e13",
+      "name": "✉️ Créer brouillon Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3408,
+        1968
+      ],
+      "webhookId": "18107bf8-4447-439b-b25a-a9eb869165d8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AjEEI1PzgtNME6E8",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "⏰ Toutes les heures": {
+      "main": [
+        [
+          {
+            "node": "📋 API NTC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 API AD",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 API CC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 API REM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 API NTC": {
+      "main": [
+        [
+          {
+            "node": "🔍 Parser + extraire TRUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 API AD": {
+      "main": [
+        [
+          {
+            "node": "🔍 Parser + extraire TRUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 API CC": {
+      "main": [
+        [
+          {
+            "node": "🔍 Parser + extraire TRUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 API REM": {
+      "main": [
+        [
+          {
+            "node": "🔍 Parser + extraire TRUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Parser + extraire TRUE": {
+      "main": [
+        [
+          {
+            "node": "📥 Brouillons existants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 Brouillons existants": {
+      "main": [
+        [
+          {
+            "node": "📤 Envoyés existants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Envoyés existants": {
+      "main": [
+        [
+          {
+            "node": "🔒 Skip si déjà créé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔒 Skip si déjà créé": {
+      "main": [
+        [
+          {
+            "node": "✉️ Créer brouillon Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2f53c3ff52e2cf0099714a6b8da1db756bd923d04882579757b21d21d8dce845"
+  }
+}

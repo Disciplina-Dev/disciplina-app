@@ -1,0 +1,22 @@
+[Mon, 29 Jun 2026 09:30:25 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Mon, 29 Jun 2026 10:00:01 +0400] [warning] --- Error fetching content: HTTP code 0: Could not resolve host: www.constructys.fr https://www.constructys.fr/vos-actualites/actualites-nationales/
+[Mon, 29 Jun 2026 10:00:01 +0400] [warning] --- HTML+XPath Web scraping failed for [https://www.constructys.fr/vos-actualites/actualites-nationales/]
+[Mon, 29 Jun 2026 10:00:01 +0400] [warning] --- Error fetching content: HTTP code 0: Could not resolve host: www.afdas.com https://www.afdas.com/actualites.html
+[Mon, 29 Jun 2026 10:00:01 +0400] [warning] --- HTML+XPath Web scraping failed for [https://www.afdas.com/actualites.html]
+[Mon, 29 Jun 2026 11:00:04 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Mon, 29 Jun 2026 12:30:04 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Mon, 29 Jun 2026 14:00:03 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Mon, 29 Jun 2026 15:30:03 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 30 Jun 2026 08:00:11 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 30 Jun 2026 09:30:04 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 30 Jun 2026 11:00:04 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 30 Jun 2026 12:30:04 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 30 Jun 2026 14:00:03 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 30 Jun 2026 15:30:03 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 07 Jul 2026 09:00:04 +0400] [warning] --- Feed has 2 invalid GUIDs: https://www.lopcommerce.com/lopcommerce/actualites/
+[Tue, 07 Jul 2026 09:00:25 +0400] [warning] --- Error fetching content: HTTP code 0: Operation timed out after 20007 milliseconds with 0 bytes received https://www.ocapiat.fr/actualites-nationales-regionales/
+[Tue, 07 Jul 2026 09:00:25 +0400] [warning] --- HTML+XPath Web scraping failed for [https://www.ocapiat.fr/actualites-nationales-regionales/]
+[Tue, 07 Jul 2026 09:30:21 +0400] [warning] --- Error fetching content: HTTP code 0: Operation timed out after 20002 milliseconds with 0 bytes received https://www.ocapiat.fr/actualites-nationales-regionales/
+[Tue, 07 Jul 2026 09:30:21 +0400] [warning] --- HTML+XPath Web scraping failed for [https://www.ocapiat.fr/actualites-nationales-regionales/]
+[Tue, 07 Jul 2026 10:00:21 +0400] [warning] --- Error fetching content: HTTP code 0: Operation timed out after 20002 milliseconds with 0 bytes received https://www.ocapiat.fr/actualites-nationales-regionales/
+[Tue, 07 Jul 2026 10:00:21 +0400] [warning] --- HTML+XPath Web scraping failed for [https://www.ocapiat.fr/actualites-nationales-regionales/]
