@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@sparticuz/chromium": "^149.0.0",
     "@types/cors": "^2.8.19",
     "@types/express-session": "^1.19.0",
     "apollo-server-express": "^3.13.0",
