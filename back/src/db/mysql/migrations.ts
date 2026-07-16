@@ -29,6 +29,10 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },
     // Todos : soft delete des todos SYSTEM pour ne pas recréer une relance supprimée par l'utilisateur.
     { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+    // 2FA par email : code à usage unique (haché), expiration et compteur de tentatives.
+    { table: 'users', column: 'two_factor_code_hash', definition: 'VARCHAR(255) DEFAULT NULL' },
+    { table: 'users', column: 'two_factor_expires_at', definition: 'DATETIME DEFAULT NULL' },
+    { table: 'users', column: 'two_factor_attempts', definition: 'INT NOT NULL DEFAULT 0' },
 ];
 
 /**

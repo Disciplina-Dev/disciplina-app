@@ -75,4 +75,24 @@ export class UserRepository {
     async updateTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
         await query('UPDATE users SET oauth_token = ?, refresh_token = ? WHERE id = ?', [oauthToken, refreshToken, id]);
     }
+
+    /** Enregistre un nouveau code 2FA (haché) avec sa date d'expiration et remet le compteur à zéro. */
+    async setTwoFactorCode(id: number, codeHash: string, expiresAt: Date): Promise<void> {
+        await query(
+            'UPDATE users SET two_factor_code_hash = ?, two_factor_expires_at = ?, two_factor_attempts = 0 WHERE id = ?',
+            [codeHash, expiresAt, id],
+        );
+    }
+
+    async incrementTwoFactorAttempts(id: number): Promise<void> {
+        await query('UPDATE users SET two_factor_attempts = two_factor_attempts + 1 WHERE id = ?', [id]);
+    }
+
+    /** Efface le code 2FA une fois validé (ou lors d'un reset). */
+    async clearTwoFactorCode(id: number): Promise<void> {
+        await query(
+            'UPDATE users SET two_factor_code_hash = NULL, two_factor_expires_at = NULL, two_factor_attempts = 0 WHERE id = ?',
+            [id],
+        );
+    }
 }

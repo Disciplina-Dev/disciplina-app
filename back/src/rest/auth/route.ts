@@ -1,6 +1,8 @@
 import express, { Router } from 'express';
 import {
     login,
+    verifyTwoFactor,
+    resendTwoFactor,
     register,
     generateGoogleUri,
     handleGoogleToken,
@@ -15,6 +17,8 @@ import { loginRateLimiter } from '../middleware/rateLimiter';
 export const router: Router = express.Router();
 
 router.post('/login', loginRateLimiter, express.json(), login);
+router.post('/2fa/verify', loginRateLimiter, express.json(), verifyTwoFactor);
+router.post('/2fa/resend', loginRateLimiter, express.json(), resendTwoFactor);
 router.post('/register', loginRateLimiter, express.json(), authenticate, register);
 router.get('/users', authenticate, listUsers);
 router.patch('/users/:id/sectors', express.json(), authenticate, updateUserSectors);
