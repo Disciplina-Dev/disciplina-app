@@ -1,0 +1,2239 @@
+﻿<!DOCTYPE html>
+<html dir="ltr" lang="fr-FR">
+<head><base href="https://www.afdas.com/">
+
+<meta charset="utf-8">
+<!-- 
+	This website is powered by TYPO3 - inspiring people to share!
+	TYPO3 is a free open source Content Management Framework initially created by Kasper Skaarhoj and licensed under GNU/GPL.
+	TYPO3 is copyright 1998-2026 of Kasper Skaarhoj. Extensions are copyright of their respective owners.
+	Information and contribution at https://typo3.org/
+-->
+
+
+
+<title>Accueil | Afdas</title>
+<meta http-equiv="x-ua-compatible" content="IE=edge">
+<meta name="generator" content="TYPO3 CMS">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="L&rsquo;Afdas est l'op&eacute;rateur de comp&eacute;tences (OPCO) des secteurs de la culture, des industries cr&eacute;atives, des m&eacute;dias, de la communication, des t&eacute;l&eacute;communications, du sport, du tourisme, des loisirs et du divertissement.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://www.afdas.com/">
+<meta property="og:site_name" content="Afdas">
+<meta property="og:image" content="https://www.afdas.com/fileadmin/_processed_/7/d/csm__dinfo_2cb91760a3.jpg">
+<meta property="og:description" content="L&rsquo;Afdas est l'op&eacute;rateur de comp&eacute;tences (OPCO) des secteurs de la culture, des industries cr&eacute;atives, des m&eacute;dias, de la communication, des t&eacute;l&eacute;communications, du sport, du tourisme, des loisirs et du divertissement.">
+<meta property="og:title" content="Accueil">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.afdas.com/fileadmin/_processed_/7/d/csm__dinfo_664e4a9b6c.jpg">
+<meta name="twitter:description" content="L&rsquo;Afdas est l'op&eacute;rateur de comp&eacute;tences (OPCO) des secteurs de la culture, des industries cr&eacute;atives, des m&eacute;dias, de la communication, des t&eacute;l&eacute;communications, du sport, du tourisme, des loisirs et du divertissement.">
+
+
+<link rel="stylesheet" type="text/css" href="https://unpkg.com/orejime@2.2.1/dist/orejime.css" media="all">
+<link rel="stylesheet" type="text/css" href="/typo3temp/assets/compressed/merged-42bed1bb3d510972c4ebd9e43da624af.css?1772634499" media="all">
+
+
+
+
+<script>
+/*<![CDATA[*/
+/*_scriptCode*/
+
+			/* decrypt helper function */
+		function decryptCharcode(n,start,end,offset) {
+			n = n + offset;
+			if (offset > 0 && n > end) {
+				n = start + (n - end - 1);
+			} else if (offset < 0 && n < start) {
+				n = end - (start - n - 1);
+			}
+			return String.fromCharCode(n);
+		}
+			/* decrypt string */
+		function decryptString(enc,offset) {
+			var dec = "";
+			var len = enc.length;
+			for(var i=0; i < len; i++) {
+				var n = enc.charCodeAt(i);
+				if (n >= 0x2B && n <= 0x3A) {
+					dec += decryptCharcode(n,0x2B,0x3A,offset);	/* 0-9 . , - + / : */
+				} else if (n >= 0x40 && n <= 0x5A) {
+					dec += decryptCharcode(n,0x40,0x5A,offset);	/* A-Z @ */
+				} else if (n >= 0x61 && n <= 0x7A) {
+					dec += decryptCharcode(n,0x61,0x7A,offset);	/* a-z */
+				} else {
+					dec += enc.charAt(i);
+				}
+			}
+			return dec;
+		}
+			/* decrypt spam-protected emails */
+		function linkTo_UnCryptMailto(s) {
+			location.href = decryptString(s,3);
+		}
+		
+
+/*TS_inlineJS*/
+
+var orejimeConfig = {"appElement":"body","privacyPolicy":"\/protection-des-donnees-personnelles.html","lang":"fr","mustNotice":true,"apps":[{"name":"site","title":"Fonctionalit\u00e9s du site","description":"Sans ces cookies, nous ne pouvons pas faire fonctionner certains services essentiels, comme la connexion \u00e0 votre compte utilisateur.","cookies":[],"required":true,"purposes":["site"]},{"name":"analytics","title":"Analyse des audiences","description":"Ces cookies sont utilis\u00e9s pour nous aider \u00e0 analyser le trafic et l'audience du site.","cookies":["_ga","_gat","_gid","__utma","__utmb","__utmc","__utmt","__utmz","_gat_gtag_GTM-KB84HVT","_gat_GTM-KB84HVT"],"purposes":["analytics"]}],"translations":{"fr":{"consentModal":{"title":"Les informations que nous collectons","description":"Ici, vous pouvez voir et personnaliser les informations que nous collectons.","privacyPolicy":{"name":"politique de confidentialit\u00e9","text":"Pour en savoir plus, merci de lire notre {privacyPolicy}."}},"consentNotice":{"changeDescription":"Des modifications ont eu lieu depuis votre derni\u00e8re visite, merci de mettre \u00e0 jour votre consentement.","description":"Nous collectons et traitons vos informations dans les buts suivants : {purposes}.","learnMore":"En savoir plus"},"accept":"Accepter","acceptAll":"Tout accepter","save":"Sauvegarder","saveData":"Sauvegarder ma configuration sur les informations collect\u00e9es","decline":"Continuer sans accepter","declineAll":"Continuer sans accepter","close":"Fermer","enabled":"Activ\u00e9","disabled":"D\u00e9sactiv\u00e9","app":{"purposes":"Utilisations","purpose":"Utilisation"},"poweredBy":"Propuls\u00e9 par Orejime","newWindow":"nouvelle fen\u00eatre","purposes":{"site":"fonctionnalit\u00e9s du site","analytics":"mesure de trafic et audience"}}}};
+            window.addEventListener("load", (event) => {
+                // "update to denied"
+                const manager = orejime.internals.manager
+                const originalSaveAndApplyConsents = manager.saveAndApplyConsents.bind(manager)
+                manager.saveAndApplyConsents = function() {
+                    originalSaveAndApplyConsents()
+                    consentAnalytics = manager.getConsent('analytics') ? 'granted' : 'denied'
+                    gtagSetConsent('update', consentAnalytics)
+                }
+
+                if (orejime.internals.manager.confirmed === true) {
+                    // If user consent has been made, init Google Consent Mode v2 from user consent
+                    if (orejime.internals.manager.getConsent('analytics')) {
+                        consentAnalytics = 'granted'
+                    } else {
+                        consentAnalytics = 'denied'
+                    }
+
+                    gtagSetConsent('update', consentAnalytics)
+                }
+            });
+
+
+/*]]>*/
+</script>
+
+<link rel="icon" type="image/png" sizes="114x114" href="/typo3conf/ext/site/Resources/Public/Frontend/assets/images/favicons/favicon.png">
+        <link rel="shortcut icon" type="image/x-icon" href="/typo3conf/ext/site/Resources/Public/Frontend/assets/images/favicons/favicon.ico">        <script>
+        function gtagSetConsent(method, analytics) {
+            console.debug(method, analytics)
+            gtag('consent', method, {
+                'ad_storage': 'denied',
+                'ad_user_data': 'denied',
+                'ad_personalization': 'denied',
+                'analytics_storage': analytics,
+                'personalization_storage': 'denied',
+                'functionality_storage': 'granted',
+                'security_storage': 'denied',
+            })
+        }
+
+        // Define dataLayer and the gtag function.
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {dataLayer.push(arguments);}
+        // Set default consent to 'denied' as a placeholder
+        // Determine actual values based on your own requirements
+        gtagSetConsent('default', 'denied')
+        </script>
+
+        <!-- GA4 -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-EH123ZMJ7M"></script>
+        <script>
+            gtag('js', new Date());
+            gtag('config', 'G-EH123ZMJ7M');
+        </script>
+        <!-- Google Tag Manager -->
+        <script type="opt-in" data-type="application/javascript" data-name="analytics">
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-KB84HVT');</script>
+        <!-- End Google Tag Manager -->
+<link rel="canonical" href="https://www.afdas.com/">
+</head>
+<body class="home ">
+            <!-- GA4 (noscript) -->
+            <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=G-EH123ZMJ7M" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+            <!-- End GA4 (noscript) -->
+            <!-- Google Tag Manager (noscript) -->
+            <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KB84HVT" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+            <!-- End Google Tag Manager (noscript) -->
+
+
+    
+
+    <header class="navbar" role="banner">
+        <nav aria-label="Navigation principale" role="navigation">
+            <div class="container">
+                
+                        <h1 class="navbar-brand">
+                            <img src="/typo3conf/ext/site/Resources/Public/Frontend/assets/images/logo.svg" alt="AFDAS">
+                        </h1>
+                    
+
+                
+                    <div class="nav-main d-none d-lg-block">
+                        <ul class="navbar-nav">
+                            
+                                <li class="nav-item">
+                                    <a href="/entreprise.html" target="" class="nav-link">Entreprise</a>
+                                </li>
+                            
+                                <li class="nav-item">
+                                    <a href="/particulier.html" target="" class="nav-link">Particulier</a>
+                                </li>
+                            
+                                <li class="nav-item">
+                                    <a href="/prestataire.html" target="" class="nav-link">Prestataire</a>
+                                </li>
+                            
+                        </ul>
+                    </div>
+                
+
+                <div class="nav-right">
+                    <ul class="navbar-nav">
+                        
+                            
+                                <li class="nav-item d-none d-md-block"><a href="/en-region.html" target="" class="nav-link">Vos contacts</a></li>
+                            
+                                <li class="nav-item d-none d-md-block"><a href="/entreprise/adherer-a-lafdas.html" target="" class="nav-link">Adh&eacute;rer</a></li>
+                            
+                        
+                        <li class="nav-item"><button type="button" class="btn btn-search" data-toggle="quick-search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">Rechercher</span></button></li>
+                        
+                            <li class="nav-item"><a class="btn btn-primary" href="/se-connecter-a-mya.html"><i class="far fa-user" aria-hidden="true"></i> <span class="d-none d-xl-inline">Se connecter</span></a></li>
+                        
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <nav class="nav-secondary" aria-label="Navigation secondaire" role="navigation">
+            <button id="menu" class="btn btn-menu" data-toggle="modal" aria-haspopup="dialog" type="button">
+                <i class="fal fa-bars" aria-hidden="true"></i>
+
+                <strong>
+                    Menu
+                </strong>
+            </button>
+
+            <div class="navbar-inner navbar-inner-1" role="dialog" aria-modal="true" aria-label="Menu" aria-hidden="true">
+                <span class="menuStart" tabindex="0"></span>
+
+                <div class="text-right">
+                    <button type="button" class="btn btn-menu-close">
+                        <span class="fal fa-times" aria-hidden="true"></span>
+
+                        <strong>Fermer <span class="sr-only">le menu</span></strong>
+                    </button>
+                </div>
+
+                <div class="nav-wrap">
+                    
+                    
+                        <nav aria-label="Navigation principale" role="navigation" tabindex="1">
+                            <ul class="navbar-nav">
+                                
+                                    <li class="nav-item">
+                                        <a href="/lafdas.html" target="" class="nav-link">L'Afdas</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu0" aria-expanded="false" aria-controls="collapseMenu0">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : L'Afdas</span>
+                                                </button>
+
+                                                <div id="collapseMenu0" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/lafdas/notre-histoire-dates-cles.html" target="">Notre histoire : Dates cl&eacute;s</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-missions.html" target="">Nos missions</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-branches-professionnelles.html" target="">Nos branches professionnelles</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-gouvernance.html" target="">Notre gouvernance</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-organisation.html" target="">Notre organisation</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-engagement-de-proximite.html" target="">Notre engagement de proximit&eacute;</a></li>
+                                                        
+                                                            <li><a href="/lafdas/notre-index-degalite-femmes-hommes.html" target="">Notre index &eacute;galit&eacute; femmes-hommes</a></li>
+                                                        
+                                                            <li><a href="/lafdas/lafdas-recrute.html" target="">L'Afdas recrute !</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-appels-doffres.html" target="">Nos appels d'offres</a></li>
+                                                        
+                                                            <li><a href="/lafdas/nos-rapports-dactivite-annuels.html" target="">Nos rapports d'activit&eacute; annuels</a></li>
+                                                        
+                                                            <li><a href="https://observatoires.afdas.com/" target="_blank">Les observatoires des m&eacute;tiers</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/entreprise.html" target="" class="nav-link">Entreprise</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu1" aria-expanded="false" aria-controls="collapseMenu1">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Entreprise</span>
+                                                </button>
+
+                                                <div id="collapseMenu1" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/entreprise/etre-contacte.html" target="">&Ecirc;tre contact&eacute;</a></li>
+                                                        
+                                                            <li><a href="/entreprise/adherer-a-lafdas.html" target="">Adh&eacute;rer &agrave; l&rsquo;Afdas</a></li>
+                                                        
+                                                            <li><a href="/entreprise/recruter-vos-futurs-salaries-et-alternants.html" target="">Recruter vos futurs salari&eacute;s et alternants</a></li>
+                                                        
+                                                            <li><a href="/entreprise/developper-les-competences-de-vos-collaborateurs.html" target="">D&eacute;velopper les comp&eacute;tences de vos collaborateurs</a></li>
+                                                        
+                                                            <li><a href="/entreprise/financer-vos-actions-de-formation.html" target="">Financer vos actions de formation</a></li>
+                                                        
+                                                            <li><a href="/entreprise/realiser-des-projets-rh-et-rse.html" target="">R&eacute;aliser des projets RH et RSE</a></li>
+                                                        
+                                                            <li><a href="/entreprise/impulser-une-demarche-responsable-dans-votre-entreprise.html" target="">Impulser une d&eacute;marche responsable dans votre entreprise</a></li>
+                                                        
+                                                            <li><a href="/parcours-de-formation-vhss-cinema.html" target="">Parcours de formation VHSS cin&eacute;ma</a></li>
+                                                        
+                                                            <li><a href="/entreprise/formation-vhss-tournage-audiovisuel.html" target="">Formation VHSS tournage audiovisuel</a></li>
+                                                        
+                                                            <li><a href="/entreprise/vous-informer-sur-vos-contributions.html" target="">Comprendre vos contributions</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/particulier.html" target="" class="nav-link">Particulier</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu2" aria-expanded="false" aria-controls="collapseMenu2">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Particulier</span>
+                                                </button>
+
+                                                <div id="collapseMenu2" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/particulier/formation-vhss-cinema.html" target="">Formation VHSS cin&eacute;ma</a></li>
+                                                        
+                                                            <li><a href="/particulier/etre-accompagne-dans-votre-projet.html" target="">&Ecirc;tre accompagn&eacute; dans votre projet</a></li>
+                                                        
+                                                            <li><a href="/particulier/connaitre-les-dispositifs-et-les-modalites-dacces-a-la-formation.html" target="">Connaitre les dispositifs et les modalit&eacute;s d'acc&egrave;s &agrave; la formation</a></li>
+                                                        
+                                                            <li><a href="/particulier/deposer-votre-dossier-de-formation-et-assurer-son-suivi.html" target="">D&eacute;poser votre dossier de formation et assurer son suivi</a></li>
+                                                        
+                                                            <li><a href="/particulier/decouvrir-nos-offres-de-formation-responsables-et-engagees.html" target="">D&eacute;couvrir nos offres de formation responsables et engag&eacute;es</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/prestataire.html" target="" class="nav-link">Prestataire</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu3" aria-expanded="false" aria-controls="collapseMenu3">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Prestataire</span>
+                                                </button>
+
+                                                <div id="collapseMenu3" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/lafdas/nos-appels-doffres.html" target="">Nos appels d'offres</a></li>
+                                                        
+                                                            <li><a href="/prestataire/etre-finance-par-lafdas.html" target="">Etre financ&eacute; par l'Afdas</a></li>
+                                                        
+                                                            <li><a href="/prestataire/certifier-votre-offre-de-formation.html" target="">Certifier votre offre de formation</a></li>
+                                                        
+                                                            <li><a href="/prestataire/creer-votre-cfa-ou-votre-organisme-de-formation.html" target="">Cr&eacute;er votre CFA ou votre organisme de formation</a></li>
+                                                        
+                                                            <li><a href="/prestataire/vous-informer-sur-la-formation-a-distance.html" target="">Vous informer sur la formation &agrave; distance</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/centre-de-ressources.html" target="" class="nav-link">Ressources</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu4" aria-expanded="false" aria-controls="collapseMenu4">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : Ressources</span>
+                                                </button>
+
+                                                <div id="collapseMenu4" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/centre-de-ressources/outils-entreprise.html" target="">Entreprise</a></li>
+                                                        
+                                                            <li><a href="/centre-de-ressources/outils-particulier.html" target="">Particulier</a></li>
+                                                        
+                                                            <li><a href="/centre-de-ressources/outils-prestataire.html" target="">Prestataire</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/faq.html" target="" class="nav-link">FAQ</a>
+
+                                        
+                                            
+                                                <button class="btn btn-collapse" type="button" data-toggle="collapse" data-target="#collapseMenu5" aria-expanded="false" aria-controls="collapseMenu5">
+                                                    <i class="far fa-plus" aria-hidden="true"></i>
+                                                    <i class="far fa-minus" aria-hidden="true"></i>
+                                                    <span class="sr-only">Sous menu : FAQ</span>
+                                                </button>
+
+                                                <div id="collapseMenu5" class="collapse">
+                                                    <ul>
+                                                        
+                                                            <li><a href="/faq/entreprise.html" target="">Entreprise</a></li>
+                                                        
+                                                            <li><a href="/faq/particulier.html" target="">Particulier</a></li>
+                                                        
+                                                    </ul>
+                                                </div>
+                                            
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="https://services.afdas.com/login_form" target="" class="nav-link">D&eacute;claration</a>
+
+                                        
+                                    </li>
+                                
+                                    <li class="nav-item">
+                                        <a href="/actualites/entreprise/la-boite-a-outils-alternance.html" target="" class="nav-link">La bo&icirc;te &agrave; outils Alternance</a>
+
+                                        
+                                    </li>
+                                
+                            </ul>
+                        </nav>
+                    
+
+                    <hr class="d-md-none">
+                    
+
+                    
+                    <div class="nav-quick d-md-none">
+                        
+        <nav aria-label="Navigation secondaire d&eacute;pli&eacute;e" role="navigation" tabindex="1">
+            
+                <ul class="list-unstyled share">
+                    
+                        <li>
+                            <a class="linkedin" href="https://www.linkedin.com/company/afdas/?originalSubdomain=fr" target="_blank">
+                                <i class="fab fa-linkedin-in" aria-hidden="true"></i>
+                                Linkedin <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+
+                    
+                        <li>
+                            <a class="facebook" href="https://www.facebook.com/afdasopco/" target="_blank">
+                                <i class="fab fa-facebook" aria-hidden="true"></i>
+                                Facebook <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="instagram" href="https://www.instagram.com/afdas_opco/" target="_blank">
+                                <i class="fab fa-instagram" aria-hidden="true"></i>
+                                Instagram <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="youtube" href="https://www.youtube.com/afdasformation" target="_blank">
+                                <i class="fab fa-youtube" aria-hidden="true"></i>
+                                Youtube <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+                </ul>
+
+                <hr>
+            
+
+            
+                <ul class="list-unstyled">
+                    
+                        <li><a href="/actualites/entreprise/la-boite-a-outils-alternance.html" target="">La bo&icirc;te &agrave; outils Alternance</a></li>
+                    
+                        <li><a href="/centre-de-ressources.html" target="">Centre de ressources</a></li>
+                    
+                        <li><a href="https://formations.afdas.com/employeur/@@training_search" target="_blank">Rechercher une formation</a></li>
+                    
+                        <li><a href="https://observatoires.afdas.com/" target="_blank">Les observatoires</a></li>
+                    
+                        <li><a href="/espace-presse-2.html" target="">Espace Presse</a></li>
+                    
+                </ul>
+            
+        </nav>
+    
+                    </div>
+                    
+                </div>
+
+
+                <span class="menuEnd" tabindex="0"></span>
+            </div>
+
+            
+            <div class="nav-quick d-none d-md-block">
+                
+                    <ul class="list-unstyled share text-center">
+                        
+                            <li>
+                                <a class="linkedin" href="https://www.linkedin.com/company/afdas/?originalSubdomain=fr" target="_blank">
+                                    <i class="fab fa-linkedin-in" aria-hidden="true"></i>
+                                    <span class="sr-only">Linkedin : Afdas</span>
+                                </a>
+                            </li>
+                        
+
+                        
+
+                        
+                            <li>
+                                <a class="facebook" href="https://www.facebook.com/afdasopco/" target="_blank">
+                                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                                    <span class="sr-only">Facebook : Afdas</span>
+                                </a>
+                            </li>
+                        
+
+                        
+                            <li>
+                                <a class="instagram" href="https://www.instagram.com/afdas_opco/" target="_blank">
+                                    <i class="fab fa-instagram" aria-hidden="true"></i>
+                                    <span class="sr-only">Instagram : Afdas</span>
+                                </a>
+                            </li>
+                        
+
+                        
+                            <li>
+                                <a class="youtube" href="https://www.youtube.com/afdasformation" target="_blank">
+                                    <i class="fab fa-youtube" aria-hidden="true"></i>
+                                    <span class="sr-only">Youtube : Afdas</span>
+                                </a>
+                            </li>
+                        
+                    </ul>
+                
+
+                <button class="btn btn-menu-more" type="button"><span class="sr-only">D&eacute;plier le menu rapide</span> <i class="far fa-ellipsis-h" aria-hidden="true"></i> </button>
+
+                <div class="navbar-inner navbar-inner-2" role="dialog" aria-modal="true" aria-label="Menu" aria-hidden="true">
+                    <span class="menuStart" tabindex="0"></span>
+
+                    <div class="text-right">
+                        <button type="button" class="btn btn-menu-close">
+                            <span class="fal fa-times" aria-hidden="true"></span>
+
+                            <strong>Fermer <span class="sr-only">le menu</span></strong>
+                        </button>
+                    </div>
+
+                    
+        <nav aria-label="Navigation secondaire d&eacute;pli&eacute;e" role="navigation" tabindex="1">
+            
+                <ul class="list-unstyled share">
+                    
+                        <li>
+                            <a class="linkedin" href="https://www.linkedin.com/company/afdas/?originalSubdomain=fr" target="_blank">
+                                <i class="fab fa-linkedin-in" aria-hidden="true"></i>
+                                Linkedin <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+
+                    
+                        <li>
+                            <a class="facebook" href="https://www.facebook.com/afdasopco/" target="_blank">
+                                <i class="fab fa-facebook" aria-hidden="true"></i>
+                                Facebook <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="instagram" href="https://www.instagram.com/afdas_opco/" target="_blank">
+                                <i class="fab fa-instagram" aria-hidden="true"></i>
+                                Instagram <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+
+                    
+                        <li>
+                            <a class="youtube" href="https://www.youtube.com/afdasformation" target="_blank">
+                                <i class="fab fa-youtube" aria-hidden="true"></i>
+                                Youtube <span class="sr-only">: Afdas</span>
+                            </a>
+                        </li>
+                    
+                </ul>
+
+                <hr>
+            
+
+            
+                <ul class="list-unstyled">
+                    
+                        <li><a href="/actualites/entreprise/la-boite-a-outils-alternance.html" target="">La bo&icirc;te &agrave; outils Alternance</a></li>
+                    
+                        <li><a href="/centre-de-ressources.html" target="">Centre de ressources</a></li>
+                    
+                        <li><a href="https://formations.afdas.com/employeur/@@training_search" target="_blank">Rechercher une formation</a></li>
+                    
+                        <li><a href="https://observatoires.afdas.com/" target="_blank">Les observatoires</a></li>
+                    
+                        <li><a href="/espace-presse-2.html" target="">Espace Presse</a></li>
+                    
+                </ul>
+            
+        </nav>
+    
+
+                    <span class="menuEnd" tabindex="0"></span>
+                </div>
+            </div>
+            
+
+            <div class="mask"></div>
+        </nav>
+    </header>
+
+    
+
+
+
+    
+
+<div id="quick-search" class="search">
+    <div class="container">
+        <form action="/recherche.html" class="search-form">
+            <button type="button" class="btn btn-close">
+                <i class="far fa-times" aria-hidden="true"></i>
+                <span class="sr-only">Fermer</span>
+            </button>
+
+            <div class="form-group">
+                <div class="input-group input-group-lg">
+                    <input type="text" placeholder="Rechercher un service, un dispositif, un document..." class="form-control" name="tx_solr[q]" value="">
+
+                    <div class="input-group-append">
+                        <span class="input-group-text">
+                            <i class="far fa-search" aria-hidden="true"></i>
+                            <span class="sr-only">Rechercher</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </form>
+        <div class="search-suggestions">
+            <p class="heading">Suggestions</p>
+            <ul class="list-unstyled mb-0">
+                
+                    
+                        <li><a href="https://formations.afdas.com/employeur/@@training_search"><i class="far fa-search" aria-hidden="true"></i> <span>Rechercher une formation</span></a></li>
+                    
+                        <li><a href="/entreprise/recruter-vos-futurs-salaries-et-alternants/les-contrats-en-alternance/le-contrat-dapprentissage.html"><i class="far fa-search" aria-hidden="true"></i> <span>Contrat d'apprentissage</span></a></li>
+                    
+                        <li><a href="/entreprise/adherer-a-lafdas.html"><i class="far fa-search" aria-hidden="true"></i> <span>Adh&eacute;rer &agrave; l&rsquo;Afdas</span></a></li>
+                    
+                        <li><a href="/centre-de-ressources.html"><i class="far fa-search" aria-hidden="true"></i> <span>Acc&eacute;der au centre de ressources</span></a></li>
+                    
+                
+            </ul>
+        </div>
+    </div>
+</div>
+<!-- END SEARCH -->
+
+<div class="quick-search-mask"></div>
+
+
+
+
+    <div id="main" class="main">
+        
+    
+
+    
+    
+    
+            
+    <a id="c8052"></a>
+    
+    
+    
+        <div class="article-header-wrap">
+            <div class="carousel">
+                <div class="carousel-content-full" data-title="">
+                    
+                        
+                            <div class="slick-item">
+                                <div class="jumbotron-bg">
+                                    <img src="/fileadmin/user_upload/01_Slider_Home/ES2026GIF.gif" width="1013" height="570" alt="">
+                                </div>
+
+                                <div class="article-header">
+                                    <div class="container">
+                                        <div class="row">
+                                            <div class="col-lg-6 v-align-middle text-left">
+                                                
+                                                    <h2>Enqu&ecirc;te de satisfaction 2026</h2>
+                                                
+
+                                                
+                                                    <div class="lead"><p>Une utilit&eacute; reconnue, une qualit&eacute; de service confirm&eacute;e !</p></div>
+                                                
+
+                                                
+                                                    <p class="btns">
+                                                        
+                                                            <a href="https://bit.ly/afdas_satisfaction2026" target="_blank" class="btn btn-primary" rel="noreferrer" title="Ouverture dans une nouvelle fen&ecirc;tre">En savoir +</a>
+                                                        
+                                                        
+                                                    </p>
+                                                
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                    
+                </div>
+            </div>
+        </div>
+    
+
+    
+
+
+    
+
+
+
+        
+
+
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <!--TYPO3SEARCH_begin-->
+                
+
+    
+        <section id="c1662" class="section section-une">
+            
+                <h2 class="section-title">&Agrave; la une</h2>
+            
+
+            <div class="carousel">
+                <div class="carousel-content-full" data-title="&Agrave; la une">
+                    
+                        <div class="slick-item">
+                            <div class="item news-item item-focus">
+                                
+                                    <img src="/fileadmin/_processed_/6/e/csm_Aides26_UNE_Home_d69d06722c.jpg" width="840" height="525" alt="">
+                                
+
+                                <div class="item-body">
+                                    <h3 class="item-title">Aides 2026</h3>
+
+                                    
+                                        <p>Nouvelle aide exceptionnelle<br>
+depuis le 8 mars 2026.</p>
+                                    
+
+                                    
+                                        <p>
+                                            <a href="/actualites/entreprise/aides-a-lapprentissage-2026.html" class="item-link"><span>En savoir +</span></a>
+                                        </p>
+                                    
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <div class="slick-item">
+                            <div class="item news-item item-focus">
+                                
+                                    <img src="/fileadmin/_processed_/9/d/csm_Cart_Home_797a049e17.jpg" width="840" height="525" alt="">
+                                
+
+                                <div class="item-body">
+                                    <h3 class="item-title">La boite &agrave; outils Alternance</h3>
+
+                                    
+                                        <p>Calcul'Alternance, Cart'Apprentissage, la Collection Afdas... Un v&eacute;ritable gain de temps dans votre processus recrutement !</p>
+                                    
+
+                                    
+                                        <p>
+                                            <a href="/actualites/entreprise/la-boite-a-outils-alternance.html" class="item-link"><span>En savoir plus</span></a>
+                                        </p>
+                                    
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <div class="slick-item">
+                            <div class="item news-item item-focus">
+                                
+                                    <img src="/fileadmin/_processed_/d/b/csm_Akor_une_e561134b50.jpg" width="840" height="525" alt="">
+                                
+
+                                <div class="item-body">
+                                    <h3 class="item-title">#Manager op&eacute;rationnel</h3>
+
+                                    
+                                        <p>Une formation pour les branches : Casinos, Exploitation Cin&eacute;matographique, H&ocirc;tellerie de Plein Air, Loisirs, Organisme de Tourisme et Spectacle Vivant<br>
+<br>
+Un parcours 100% digital - 100% financ&eacute;</p>
+                                    
+
+                                    
+                                        <p>
+                                            <a href="/entreprise/developper-les-competences-de-vos-collaborateurs/identifier-la-bonne-formation/manager-operationnel.html" class="item-link"><span>Inscrivez-vous !</span></a>
+                                        </p>
+                                    
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <div class="slick-item">
+                            <div class="item news-item item-focus">
+                                
+                                    <img src="/fileadmin/_processed_/c/0/csm_Recruter_Slider_b81a987980.png" width="840" height="525" alt="">
+                                
+
+                                <div class="item-body">
+                                    <h3 class="item-title">Recruter Autrement mais Comment&hellip; ?</h3>
+
+                                    
+                                        <p>Vous avez besoin d&rsquo;int&eacute;grer de nouveaux salari&eacute;s, d&rsquo;&eacute;largir votre vivier de comp&eacute;tences et/ou de faire &eacute;voluer votre processus de recrutement mais vous ne savez pas par o&ugrave; commencer ?</p>
+                                    
+
+                                    
+                                        <p>
+                                            <a href="/actualites/entreprise/recruter-autrement-mais-comment.html" class="item-link"><span>D&eacute;couvrez notre nouveau service</span></a>
+                                        </p>
+                                    
+                                </div>
+                            </div>
+                        </div>
+                    
+                </div>
+            </div>
+        </section>
+    
+
+
+
+
+
+
+    
+
+    <section id="c8422" class="section section-agenda">
+        <div class="row">
+            <div class="col-md-8">
+                <h2 class="section-title">Vos prochains webinaires</h2>
+            </div>
+
+            <div class="col-md-4">
+                <div class="like-select">
+                    
+
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+
+                    <button type="button" class="btn btn-filter dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                        
+                        Filtrer par r&eacute;gion
+                    
+                    </button>
+                    <ul class="dropdown-menu">
+                        
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=4&amp;cHash=ed46207972a99f77803d3b9f5aadd849#c8422">Centre-Val de Loire</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=13&amp;cHash=2f1e51c639d6465d23b5eb2c5230c435#c8422">PACA - Corse</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=11&amp;cHash=f8243df8c4a78ee98829289ee7cb7b18#c8422">Occitanie</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=2&amp;cHash=6757537c0a063c8a239aea0386de4517#c8422">Bourgogne-Franche-Comt&eacute;-Grand-Est</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=12&amp;cHash=6b7131bdbdd809998f67c55236548619#c8422">Pays de la Loire</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=1&amp;cHash=c026dbac8ff315e71a46b973157a70c2#c8422">Auvergne-Rh&ocirc;ne-Alpes</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=7&amp;cHash=0c1d26d835e9e0fdc2246b73d948fdee#c8422">Hauts-de-France</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=3&amp;cHash=dec096e0d3eba54b14a27ee4b92d2607#c8422">Bretagne</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=17&amp;cHash=a02f06be4480acb3dd72777af1b37aac#c8422">Guyane</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=16&amp;cHash=49072a0804dce356616af17267afeeef#c8422">Guadeloupe</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=15&amp;cHash=f92034e9c8b91827c8838075c9215f4c#c8422">Martinique</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=8&amp;cHash=d5c6f84d894cf7f716d6480dfababe22#c8422">&Icirc;le-de-France</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=9&amp;cHash=52595d3e13750e11cc580dcdc5729e94#c8422">Normandie</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=10&amp;cHash=59f0e877f6ecdcf199de07e76df2d150#c8422">Nouvelle-Aquitaine</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=14&amp;cHash=898d4a6716e1280250c8ade3e677fc9f#c8422">La R&eacute;union</a></li>
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="carousel">
+            <hr>
+            
+                    <div class="row carousel-content carousel-agenda" data-title="Titre du carousel">
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-07-02" class="card-agenda-date">
+                                                    <strong>juillet</strong> <span>02</span>
+                                                </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/webinaires/afdas-zoom-alternance-on-repond-vos-question.html">Afdas zoom | Alternance : on r&eacute;pond &agrave; vos questions</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Zoom</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-07-09" class="card-agenda-date">
+                                                    <strong>juillet</strong> <span>09</span>
+                                                </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/webinaires/contrat-dapprentissage-reussir-sa-demande-de-prise-en-charge.html">Contrat d&rsquo;apprentissage : r&eacute;ussir sa demande de prise en charge</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Zoom</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                    </div>
+                
+
+            <p class="text-right"><a href="https://www.afdas.com/vos-rendez-vous-en-region.html?tx_solr%5Bfilter%5D%5B0%5D=mode%3A1&amp;tx_solr%5Bfilter%5D%5B1%5D=type%3AAfdas+D%C3%A9crypt&amp;tx_solr%5Bfilter%5D%5B2%5D=type%3AAfdas+Zoom#searchResults" target="_blank" class="link-more" title="Ouverture dans une nouvelle fen&ecirc;tre">Tous vos webinaires <i class="far fa-arrow-right" aria-hidden="true"></i></a> </p>
+        </div>
+    </section>
+
+
+
+
+
+
+
+
+
+
+    
+
+    <section id="c58" class="section section-news">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-3">
+                    <h2 class="section-title">L'Actu </h2>
+
+                    
+                        <p><a href="https://www.afdas.com/actualites/cat/2.html?cHash=09b7f6c1b1c08cc69e17bac6b4fe175e" target="_blank" class="link-more" title="Ouverture dans une nouvelle fen&ecirc;tre">Toutes les actualit&eacute;s <i class="far fa-arrow-right" aria-hidden="true"></i></a> </p>
+                    
+                </div>
+
+                <div class="col-md-6">
+                    <div class="item news-item">
+                        
+                            
+                                <a href="/actualites/entreprise/criteres-de-financements-2026-ce-qui-change-pour-les-entreprises.html" class="item-img ">
+                                    <img src="/fileadmin/user_upload/aides_2026.jpg" width="800" height="450" alt="">
+                                </a>
+                            
+                        
+
+                        <p class="item-category">
+                            Entreprise
+                        </p>
+
+                        <h3 class="item-title"><a href="/actualites/entreprise/criteres-de-financements-2026-ce-qui-change-pour-les-entreprises.html">Crit&egrave;res de financements 2026 : ce qui change pour les entreprises</a></h3>
+
+                        <p class="item-meta"></p>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-3 ">
+                    
+                        <div class="item news-item">
+                            <p class="item-category">
+                                Communiqu&eacute; de presse
+                            </p>
+
+                            <h3 class="item-title"><a href="/actualites/communique-de-presse/enquete-de-satisfaction-2026-une-utilite-reconnue-une-qualite-de-service-confirmee.html">Enqu&ecirc;te de satisfaction 2026 : une utilit&eacute; reconnue, une qualit&eacute; de service confirm&eacute;e</a></h3>
+
+                            <p class="item-meta">17 avril 2026</p>
+                        </div>
+                    
+                        <div class="item news-item">
+                            <p class="item-category">
+                                Prestataire
+                            </p>
+
+                            <h3 class="item-title"><a href="/actualites/prestataire/cycle-de-webinaires.html">Cycle de webinaires</a></h3>
+
+                            <p class="item-meta">11 mars 2026</p>
+                        </div>
+                    
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+
+
+
+
+
+
+
+    
+
+    <section id="c64" class="section section-agenda">
+        <div class="row">
+            <div class="col-md-8">
+                <h2 class="section-title">Vos rendez-vous en r&eacute;gion </h2>
+            </div>
+
+            <div class="col-md-4">
+                <div class="like-select">
+                    
+
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+
+                    <button type="button" class="btn btn-filter dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                        
+                        Filtrer par r&eacute;gion
+                    
+                    </button>
+                    <ul class="dropdown-menu">
+                        
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=4&amp;cHash=ed46207972a99f77803d3b9f5aadd849#c64">Centre-Val de Loire</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=13&amp;cHash=2f1e51c639d6465d23b5eb2c5230c435#c64">PACA - Corse</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=11&amp;cHash=f8243df8c4a78ee98829289ee7cb7b18#c64">Occitanie</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=2&amp;cHash=6757537c0a063c8a239aea0386de4517#c64">Bourgogne-Franche-Comt&eacute;-Grand-Est</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=12&amp;cHash=6b7131bdbdd809998f67c55236548619#c64">Pays de la Loire</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=1&amp;cHash=c026dbac8ff315e71a46b973157a70c2#c64">Auvergne-Rh&ocirc;ne-Alpes</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=7&amp;cHash=0c1d26d835e9e0fdc2246b73d948fdee#c64">Hauts-de-France</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=3&amp;cHash=dec096e0d3eba54b14a27ee4b92d2607#c64">Bretagne</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=17&amp;cHash=a02f06be4480acb3dd72777af1b37aac#c64">Guyane</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=16&amp;cHash=49072a0804dce356616af17267afeeef#c64">Guadeloupe</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=15&amp;cHash=f92034e9c8b91827c8838075c9215f4c#c64">Martinique</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=8&amp;cHash=d5c6f84d894cf7f716d6480dfababe22#c64">&Icirc;le-de-France</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=9&amp;cHash=52595d3e13750e11cc580dcdc5729e94#c64">Normandie</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=10&amp;cHash=59f0e877f6ecdcf199de07e76df2d150#c64">Nouvelle-Aquitaine</a></li>
+                        
+                            <li><a class="dropdown-item" href="/?tx_site_event%5Bregion%5D=14&amp;cHash=898d4a6716e1280250c8ade3e677fc9f#c64">La R&eacute;union</a></li>
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="carousel">
+            <hr>
+            
+                    <div class="row carousel-content carousel-agenda" data-title="Titre du carousel">
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-01-01" class="card-agenda-date">
+                                                    <strong>janvier</strong> <span>01</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/centre-val-de-loire-rencontrez-une-conseillere.html">Centre-Val de Loire : Rencontrez une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                                - Centre-Val de Loire
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-01-01" class="card-agenda-date">
+                                                    <strong>janvier</strong> <span>01</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/entreprise/marseille-rendez-vous-entreprises-connect.html">Marseille &gt; Entreprises : Rencontrez un conseiller</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;Afdas  40 boulevard de Dunkerque  13002 Marseille
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-01-01" class="card-agenda-date">
+                                                    <strong>janvier</strong> <span>01</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/entreprise/occitanie-est-entreprises-rencontrez-une-conseillere.html">Occitanie Est &gt; Entreprises : Rencontrez une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                                - Occitanie
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-01-12" class="card-agenda-date">
+                                                    <strong>janvier</strong> <span>12</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/strasbourg-particuliers-rendez-vous-avec-une-conseillere.html">Grand-Est Bourgogne-Franche-Comt&eacute; - Particuliers : Rendez-vous avec une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;Afdas 8 rue Gustave Adolph Hirn 67000 Strasbourg 
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-02-06" class="card-agenda-date">
+                                                    <strong>f&eacute;vrier</strong> <span>06</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/entreprise/occitanie-est-entreprises-rencontrez-un-conseiller.html">Occitanie Est - Entreprises : Rencontrez un conseiller</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;A distance - Par t&eacute;l&eacute;phone - En pr&eacute;sentiel &agrave; la d&eacute;l&eacute;gation 
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-02-25" class="card-agenda-date">
+                                                    <strong>f&eacute;vrier</strong> <span>25</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/nantes-particuliers-rencontrez-une-conseillere.html">Nantes &gt; Particuliers : Rencontrez une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;Au sein du Centre d&rsquo;affaires BURO CLUB &ndash; (L'Afdas est au 3&egrave;me &eacute;tage) &ndash; 2, rue Crucy 44000 NANTES
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-03-01" class="card-agenda-date">
+                                                    <strong>mars</strong> <span>01</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/lyon-particuliers-rencontrez-une-conseillere-1.html">Lyon &gt; Particuliers : Rencontrez une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;56 RUE SMITH 69002 LYON 
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-04-07" class="card-agenda-date">
+                                                    <strong>avril</strong> <span>07</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/hauts-de-france-les-cafes-pro-afdas-totem-france-travail-spectacles.html">Hauts-de-France &gt; Les caf&eacute;s Pro : Afdas - Totem France Travail spectacles</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;Immeuble Le Crystal - 38 all&eacute;e Vauban - 59110 La Madeleine
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-06-05" class="card-agenda-date">
+                                                    <strong>juin</strong> <span>05</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/entreprise/connect-rdv-entreprise-distanciel.html">Connect : RDV entreprise distanciel</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-06-16" class="card-agenda-date">
+                                                    <strong>juin</strong> <span>16</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/occitanie-rendez-vous-en-presentiel-avec-une-conseillere.html">Occitanie &gt; Rendez-vous en pr&eacute;sentiel avec une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;Bureau Afdas : "Immeuble &laquo; Le Mondial &raquo; - 1227 Avenue du Mondial 98 &agrave; Montpellier (&agrave; c&ocirc;t&eacute; du lyc&eacute;e Georges Fr&ecirc;che)
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-06-17" class="card-agenda-date">
+                                                    <strong>juin</strong> <span>17</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/occitanie-rendez-vous-en-distanciel-avec-une-conseillere.html">Occitanie &gt; Rendez-vous en distanciel avec une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                                - Occitanie
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-06-25" class="card-agenda-date">
+                                                    <strong>juin</strong> <span>25</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-12-31" class="card-agenda-date">
+                                                        <strong>d&eacute;cembre</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/entreprise/connect-rdv-presentiel-saint-avertin.html">Connect : RDV pr&eacute;sentiel Saint-Avertin</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-map-marker-alt" aria-hidden="true"></i>
+                                                            &nbsp;39 rue des Granges Galand - 37550 Saint-Avertin
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-06-01" class="card-agenda-date">
+                                                    <strong>juin</strong> <span>01</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-07-31" class="card-agenda-date">
+                                                        <strong>juillet</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/bretagne-rencontrez-une-conseillere.html">Bretagne : rencontrez une conseill&egrave;re</a>
+                                                </h3>
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-06-01" class="card-agenda-date">
+                                                    <strong>juin</strong> <span>01</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-07-31" class="card-agenda-date">
+                                                        <strong>juillet</strong> <span>31</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/particulier/centre-val-de-loire-rencontrez-une-conseillere-1.html">Centre Val de Loire : rencontrez une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                                - Centre-Val de Loire
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                            
+                                <div class="col-4 slick-item">
+                                    <div class="card-agenda equalHeight">
+                                        <div class="row">
+                                            <div class="col-sm-4">
+                                                <time datetime="2026-06-01" class="card-agenda-date">
+                                                    <strong>juin</strong> <span>01</span>
+                                                </time>
+                                                
+                                                    <time datetime="2026-07-30" class="card-agenda-date">
+                                                        <strong>juillet</strong> <span>30</span>
+                                                    </time>
+                                                
+                                            </div>
+
+                                            <div class="col-sm-8">
+                                                <h3 class="card-agenda-title">
+                                                    <a href="/vos-rendez-vous-en-region/entreprise/antilles-guyane-entreprises-rencontrez-une-conseillere-3.html">Antilles - Guyane &gt; entreprises : Rencontrez une conseill&egrave;re</a>
+                                                </h3>
+                                                
+                                                    
+                                                        <p class="card-agenda-meta">
+                                                            <span>Afdas Connect</span>
+                                                        </p>
+                                                    
+                                                
+
+                                                <p class="orange">
+                                                    
+                                                            <i class="far fa-video" aria-hidden="true"></i>
+                                                            &nbsp;En ligne
+                                                            
+                                                        
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                    </div>
+                
+
+            <p class="text-right"><a href="/vos-rendez-vous-en-region.html" class="link-more">Tous vos rendez-vous en r&eacute;gion <i class="far fa-arrow-right" aria-hidden="true"></i></a> </p>
+        </div>
+    </section>
+
+
+
+
+
+
+
+
+    <a id="c54"></a>
+    
+    
+    <section class="section section-full">
+        <div class="jumbotron-bg jumbotron-green"></div>
+
+        <div class="row">
+            <div class="col-lg-6">
+                <h2 class="section-title">Vos contacts en r&eacute;gion </h2>
+                <p><strong><u><a href="/lafdas/notre-engagement-de-proximite.html">Notre engagement de proximit&eacute;</a></u></strong></p>
+
+                
+                    <p>
+                        
+                                <a href="/en-region.html" class="link-more">Acc&eacute;der &agrave; toutes nos d&eacute;l&eacute;gations <i class="far fa-arrow-right" aria-hidden="true"></i></a>
+                            
+                    </p>
+                
+
+                
+                    <img class="img-content d-none d-lg-block" src="/fileadmin/user_upload/jumbotron-green.png" width="590" height="471" alt="">
+                
+            </div>
+            <div class="col-lg-6">
+                <div class="map d-none d-md-block">
+                    
+                        <img usemap="#mapMap" id="map" src="/fileadmin/user_upload/map.png" width="510" height="499" alt="">
+                    
+
+                    <map name="mapMap">
+                        <area data-toggle="tooltip" data-placement="top" shape="poly" coords="15,147,18,136,35,131,54,129,64,124,76,122,93,138,103,130,124,130,139,133,141,143,146,139,156,140,155,148,156,158,158,166,153,171,148,179,142,179,134,181,127,182,120,186,116,193,106,197,101,201,75,195,55,182,39,176,34,179,27,172,20,164" href="" class="bretagne" data-title="Bretagne">
+                        <area shape="poly" coords="99,203,114,229,137,258,155,262,163,256,172,256,171,243,165,228,171,221,195,214,204,193,223,175,228,160,212,149,205,141,193,148,185,137,169,143,156,138,159,167,156,171,152,178,142,179,128,181,120,185,117,194" href="/en-region/delegation-pays-de-la-loire.html" class="pays-loire" data-title="Pays de la Loire">
+                        <area shape="poly" coords="183,450,184,441,194,423,194,411,187,407,188,390,219,383,224,377,232,365,239,350,247,331,254,329,259,335,269,332,271,332,279,320,283,311,287,309,287,298,284,288,293,279,288,266,281,254,273,255,267,255,257,254,245,257,237,249,230,239,225,231,218,223,208,225,204,220,198,214,188,216,180,217,172,222,167,227,169,236,171,246,171,252,171,257,162,256,157,261,154,264,151,267,143,273,147,289,153,301,146,360,144,380,139,409,129,420,131,424,141,435" href="/en-region/delegation-nouvelle-aquitaine.html" class="nouvelle-aquitaine" data-title="Nouvelle Aquitaine">
+                        <area shape="poly" coords="184,451,184,441,195,425,195,413,187,407,189,392,222,383,246,332,254,329,257,333,269,331,276,350,285,350,296,336,307,348,317,336,329,340,337,348,343,357,348,370,368,370,373,380,377,390,371,398,360,409,354,414,348,408,338,416,328,422,321,430,313,440,311,457,312,468,315,471,304,472,293,476,282,475,271,475,263,467,254,461,244,456,236,452,227,450,222,450,220,454,211,456,201,457,194,458" href="/en-region/delegation-occitanie.html" class="occitanie" data-title="Occitanie">
+                        <area shape="poly" coords="354,414,377,392,369,371,383,367,404,377,407,374,406,368,399,363,414,349,422,343,432,339,432,334,430,327,439,327,444,328,447,333,454,340,458,347,457,355,457,365,462,372,471,378,483,378,479,390,478,400,464,406,459,411,450,422,447,429,436,435,419,437,404,432,395,428,390,423,367,420" href="/en-region/delegation-provence-alpes-cote-dazur-corse.html" class="paca" data-title="Provence-Alpes-C&ocirc;te d&rsquo;Azur">
+                        <area shape="poly" coords="140,133,134,109,127,96,122,74,142,74,146,87,161,92,180,94,198,94,206,90,198,89,201,78,221,65,236,62,248,56,260,71,260,86,260,99,257,109,252,118,241,126,228,130,230,139,229,147,228,157,218,153,207,142,196,147,187,137,172,143,158,138,151,140,143,142,137,132,134,122" href="/en-region/delegation-normandie.html" class="normandie" data-title="Normandie">
+                        <area shape="poly" coords="248,57,254,15,265,8,281,4,293,10,302,20,311,15,324,31,334,37,341,41,352,46,352,68,350,80,346,93,337,98,332,107,332,116,331,119,324,124,318,118,313,109,304,111,291,112,282,108,273,107,267,106,261,104,261,88,262,70" href="/en-region/delegation-hauts-de-france.html" class="haut-france" data-title="Hauts de France">
+                        <area shape="poly" coords="260,103,252,111,251,126,257,137,266,147,271,153,282,150,288,156,287,161,304,160,308,159,311,152,321,146,323,142,326,134,325,126,320,120,318,115,313,109,302,110,291,111" href="/en-region/delegation-ile-de-france.html" class="idf" data-title="Ile de France">
+                        <area shape="poly" coords="252,118,229,131,228,157,224,172,217,182,209,190,201,203,196,213,202,219,207,225,219,221,230,238,238,250,247,257,257,255,272,254,282,254,288,248,294,241,304,236,310,232,310,225,308,218,306,210,305,208,304,205,304,196,303,190,303,184,307,179,311,171,311,169,310,165,307,161,302,163,294,162,288,162,290,155,289,156,286,155,285,151,278,151,272,153,262,142,259,136,253,127" href="/en-region/delegation-bretagne-centre-val-de-loire.html" class="centre" data-title="Centre-Val de loire">
+                        <area shape="poly" coords="284,254,290,245,299,238,308,234,314,236,321,239,328,239,335,242,338,249,345,252,346,259,350,265,356,266,362,265,363,264,366,264,375,264,379,256,386,249,397,255,403,262,414,260,425,258,436,257,443,255,451,256,453,270,458,278,457,285,455,289,458,300,465,310,464,315,458,321,457,322,448,325,440,326,432,326,433,336,426,342,410,353,402,362,406,366,408,375,401,377,392,371,385,368,378,368,372,370,362,370,352,371,346,357,333,341,325,339,321,335,310,346,298,336,288,349,279,348,272,333,278,324,285,310,291,308,286,298,286,289,295,279" href="/en-region/delegation-auvergne-rhone-alpes.html" class="auvergne" data-title="Auvergne-Rh&ocirc;ne-Alpes">
+                        <area shape="poly" coords="476,426,490,416,502,403,506,412,508,428,509,448,507,462,505,478,502,488,497,490,486,487,476,477,470,458,471,441" href="/en-region/delegation-provence-alpes-cote-dazur-corse.html" class="corse" data-title="Corse">
+                        <area shape="rect" coords="4,444,48,489" href="/en-region/delegation-ile-de-la-reunion.html" class="reunion" data-title="R&eacute;union">
+                        <area shape="rect" coords="2,367,46,429" href="/en-region/delegation-guadeloupe-martinique-guyane.html" class="cayenne" data-title="Guyane">
+                        <area shape="rect" coords="3,297,47,358" href="/en-region/delegation-guadeloupe-martinique-guyane.html" class="martinique" data-title="Martinique">
+                        <area shape="rect" coords="1,231,51,282" href="/en-region/delegation-guadeloupe-martinique-guyane.html" class="guadeloupe" data-title="Guadeloupe">
+
+                        <area shape="poly" coords="324,156,328,159,343,180,361,179,369,181,381,189,390,200,401,199,416,188,434,183,449,191,459,209,473,211,479,206,480,197,480,177,484,157,497,137,504,126,483,118,470,116,454,113,440,103,432,96,419,97,404,91,394,83,378,75,377,62,377,56,366,69,352,68,351,82,349,90,347,101,332,103,330,119,327,129,321,134" href="/en-region/delegation-grand-est-bourgogne-franche-comte.html" class="grand-est" data-title="Grand Est">
+                        <area shape="poly" coords="326,159,334,171,343,182,357,182,369,179,377,183,390,200,403,200,413,189,424,182,440,185,450,190,457,202,461,211,456,217,451,233,438,242,429,257,421,268,415,276,400,273,386,265,377,268,374,281,367,275,354,277,343,278,343,266,337,259,329,250,325,255,309,247,309,239,309,230,305,220,304,213,303,202,304,191,310,183,309,178,305,173,309,163,317,159" href="/en-region/delegation-grand-est-bourgogne-franche-comte.html" class="franche-comte" data-title="Bourgogne - Franche-Comt&eacute;">
+                    </map>
+                </div>
+
+                <div class="like-select d-md-none">
+                    <button type="button" class="btn btn-filter dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                        S&eacute;lectionnez votre r&eacute;gion
+                    </button>
+
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="/en-region/delegation-auvergne-rhone-alpes.html">Auvergne-Rh&ocirc;ne-Alpes</a></li>
+                        <li><a class="dropdown-item" href="">Bretagne</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-bretagne-centre-val-de-loire.html">Centre-Val de loire</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-provence-alpes-cote-dazur-corse.html">Corse</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-grand-est-bourgogne-franche-comte.html">Grand Est</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-grand-est-bourgogne-franche-comte.html">Bourgogne - Franche-Comt&eacute;</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-guadeloupe-martinique-guyane.html">Guadeloupe</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-guadeloupe-martinique-guyane.html">Guyane</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-hauts-de-france.html">Hauts de France</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-ile-de-france.html">Ile de France</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-guadeloupe-martinique-guyane.html">Martinique</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-normandie.html">Normandie</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-nouvelle-aquitaine.html">Nouvelle Aquitaine</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-occitanie.html">Occitanie</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-pays-de-la-loire.html">Pays de la Loire</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-provence-alpes-cote-dazur-corse.html">Provence-Alpes-C&ocirc;te d&rsquo;Azur</a></li>
+                        <li><a class="dropdown-item" href="/en-region/delegation-ile-de-la-reunion.html">R&eacute;union</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+
+    <a id="c55"></a>
+    
+    
+        <section class="section section-ressources">
+            
+                <h2 class="section-title">Le Live</h2>
+            
+
+            <div class="row">
+                <div class="col-lg-4">
+                    
+                            <div>
+                                <blockquote class="linkedin-tweet">
+                                    <iframe src="https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7457697191151874048" frameborder="0" allowfullscreen="" title="Post int&eacute;gr&eacute;"></iframe>
+                                </blockquote>
+                            </div>
+
+                            
+                                <p class="text-right">
+                                    <a href="https://www.linkedin.com/company/afdas" target="_blank" class="link-more" rel="noreferrer" title="Ouverture dans une nouvelle fen&ecirc;tre">Nos publications <i class="far fa-arrow-right" aria-hidden="true"></i></a>
+                                </p>
+                            
+                        
+                </div>
+
+                
+                    <div class="col-lg-8">
+                        <div class="equalHeight">
+                            <div class="row">
+                                
+                                    <div class="col-sm-6">
+                                        <div class="item news-item">
+
+                                            <a href="https://www.youtube.com/watch?v=uLchtlcVCbg" class="item-img item-video">
+                                                <img src="https://img.youtube.com/vi/uLchtlcVCbg/0.jpg" alt="Clubs sportifs &amp; golfs : exploitez tout le potentiel de l&rsquo;alternance | Afdas Zoom |">
+                                            </a>
+
+                                            <p class="item-category">
+                                                
+                                            </p>
+
+                                            <h3 class="item-title"><a href="https://www.youtube.com/watch?v=uLchtlcVCbg">Clubs sportifs &amp; golfs : exploitez tout le potentiel de l&rsquo;alternance | Afdas Zoom |</a></h3>
+
+                                            <p class="item-meta">07 avril 2026</p>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="col-sm-6">
+                                        <div class="item news-item">
+
+                                            <a href="https://www.youtube.com/watch?v=ADEorREqzN0" class="item-img item-video">
+                                                <img src="https://img.youtube.com/vi/ADEorREqzN0/0.jpg" alt="Transition &eacute;cologique et num&eacute;rique responsable : Quels enjeux ? Quels impacts ? | Afdas D&eacute;crypt |">
+                                            </a>
+
+                                            <p class="item-category">
+                                                
+                                            </p>
+
+                                            <h3 class="item-title"><a href="https://www.youtube.com/watch?v=ADEorREqzN0">Transition &eacute;cologique et num&eacute;rique responsable : Quels enjeux ? Quels impacts ? | Afdas D&eacute;crypt |</a></h3>
+
+                                            <p class="item-meta">07 avril 2026</p>
+                                        </div>
+                                    </div>
+                                
+                            </div>
+                        </div>
+
+                        
+                            <p class="text-right">
+                                <a href="https://www.youtube.com/@AfdasFormation" target="_blank" class="link-more" rel="noreferrer" title="Ouverture dans une nouvelle fen&ecirc;tre">Toutes nos vid&eacute;os <i class="far fa-arrow-right" aria-hidden="true"></i></a>
+                            </p>
+                        
+                    </div>
+                
+            </div>
+        </section>
+
+        
+    
+
+
+
+
+
+    
+
+    
+        <section id="c2711" class="section section-full">
+            <div class="jumbotron-bg jumbotron-orange"></div>
+
+            
+                <h2 class="section-title">Votre centre de ressources</h2>
+            
+
+            <div class="row">
+                <div class="col-sm-4 pb-5">
+                    
+                        <div class="download">
+                            
+                                
+                                    <p>
+                                        <a href="/fileadmin/user_upload/qualiopi_essentiels_200522.pdf" class="link-download">
+                                            <strong>
+                                                Essentiels Certification Qualiopi
+                                                <span>
+                                                    751 Ko
+                                                    -
+                                                    PDF
+                                                </span>
+                                            </strong>
+                                        </a>
+                                    </p>
+                                
+                            
+                                
+                                    <p>
+                                        <a href="/fileadmin/user_upload/qualiopi_mode_emploi_180522.pdf" class="link-download">
+                                            <strong>
+                                                Mode d'emploi Certification Qualiopi
+                                                <span>
+                                                    523 Ko
+                                                    -
+                                                    PDF
+                                                </span>
+                                            </strong>
+                                        </a>
+                                    </p>
+                                
+                            
+                        </div>
+                    
+                </div>
+
+                <div class="col-sm-8">
+                    <div class="row">
+                        
+                            
+                                <div class="col-lg-6">
+                                    <div class="exergue exergue-2">
+                                        <div class="row">
+                                            <div class="col-5 col-sm-6">
+                                                
+                                                    <div class="jumbotron-bg">
+                                                        <img additionalparameters="-colorspace RGB -quality 80 -bordercolor white -border 310 -gravity center -crop 180x240+0+0 -page 180x240+0+0" src="/fileadmin/_processed_/7/f/csm_contrat_apprentissage_essentiels_180522_Page_1_3d027c390a.jpg" width="180" height="240" alt="">
+                                                    </div>
+                                                
+                                            </div>
+                                            <div class="col-7 col-sm-6">
+                                                <div class="v-align-middle">
+                                                    <div class="text-left">
+                                                        
+                                                            
+                                                            
+                                                                
+                                                                    
+                                                                
+                                                            
+                                                                
+                                                                    
+                                                                
+                                                            
+                                                                
+                                                                    
+                                                                        
+                                                                        <p class="item-category">Alternance</p>
+                                                                    
+                                                                
+                                                            
+                                                                
+                                                            
+                                                        
+
+                                                        <h3 class="item-title">
+                                                            Essentiels Contrat Apprentissage
+                                                        </h3>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                                <div class="col-lg-6">
+                                    <div class="exergue exergue-2">
+                                        <div class="row">
+                                            <div class="col-5 col-sm-6">
+                                                
+                                                    <div class="jumbotron-bg">
+                                                        <img additionalparameters="-colorspace RGB -quality 80 -bordercolor white -border 310 -gravity center -crop 180x240+0+0 -page 180x240+0+0" src="/fileadmin/_processed_/2/e/csm_contrat_pro_integrales_Page_01_a4f9162bac.jpg" width="180" height="240" alt="">
+                                                    </div>
+                                                
+                                            </div>
+                                            <div class="col-7 col-sm-6">
+                                                <div class="v-align-middle">
+                                                    <div class="text-left">
+                                                        
+                                                            
+                                                            
+                                                                
+                                                                    
+                                                                
+                                                            
+                                                                
+                                                                    
+                                                                
+                                                            
+                                                                
+                                                                    
+                                                                        
+                                                                        <p class="item-category">Alternance</p>
+                                                                    
+                                                                
+                                                            
+                                                                
+                                                            
+                                                        
+
+                                                        <h3 class="item-title">
+                                                            Integrales Contrat Professionnalisation
+                                                        </h3>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                        
+                    </div>
+                </div>
+            </div>
+
+            
+                <p class="margin-up"><a href="/centre-de-ressources.html" class="link-more">Voir toutes les ressources <i class="far fa-arrow-right" aria-hidden="true"></i></a> </p>
+            
+        </section>
+    
+
+
+
+
+
+
+                <!--TYPO3SEARCH_end-->
+            </div>
+        </div>
+    </div>
+
+    </div>
+
+    
+
+    <footer class="footer">
+        <div class="footer-top">
+            <div class="container">
+                
+                    <ul class="list-unstyled list-inline text-center">
+                        
+                            <li>
+                                <a href="https://formations.afdas.com/employeur/@@training_search" target="_blank">
+                                    <span>Rechercher une formation</span>
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://observatoires.afdas.com/" target="_blank">
+                                    <span>Observatoires des m&eacute;tiers</span>
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="/lafdas/nos-appels-doffres.html" target="">
+                                    <span>Appels d'offres</span>
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="/espace-presse-2.html" target="">
+                                    <span>Espace Presse</span>
+                                </a>
+                            </li>
+                        
+                    </ul>
+                
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <div class="container">
+                <ul>
+                    
+                        
+                            <li>
+                                <a href="/protection-des-donnees-personnelles.html" target="">Protection donn&eacute;es personnelles</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/conditions-generales-de-lafdas.html" target="">Conditions g&eacute;n&eacute;rales Afdas</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/alerte-professionnelle-et-ethique.html" target="">Alerte professionnelle &amp; &eacute;thique</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/homologation-anssi.html" target="">Homologation</a>
+                            </li>
+                        
+                            <li>
+                                <a href="/mentions-legales.html" target="">Mentions l&eacute;gales</a>
+                            </li>
+                        
+                    
+                    <li><a href="#" onclick="orejime.show(); return false;" title="Pr&eacute;f&eacute;rences cookies">Pr&eacute;f&eacute;rences cookies</a></li>
+                </ul>
+            </div>
+        </div>
+    </footer>
+
+
+
+
+    <button type="button" class="btn-scroll-up">
+    <i class="far fa-arrow-up" aria-hidden="true"></i>
+    <span class="sr-only">Retour en haut de la page</span>
+</button>
+<script src="/typo3temp/assets/compressed/merged-512cf9b6e5f7f8bc4e5e67dda45e53c8.js?1772634499"></script>
+<script src="https://www.google.com/recaptcha/api.js?hl="></script>
+<script src="https://unpkg.com/orejime@2.2.1/dist/orejime.js"></script>
+<script src="/typo3temp/assets/compressed/merged-aae30b256ecb9be89817aa854f32cbf4.js?1772634499"></script>
+
+
+</body>
+</html>
