@@ -146,7 +146,10 @@ const CONVERTIBLE_OFFICE_MIMES = new Set([
 ])
 
 // PDF, images, Google Docs natifs et fichiers Office (tous rendus en PDF/blob côté backend).
+// SVG exclu : chargé comme document dans une iframe, il exécute ses scripts — et un blob:
+// hérite de l'origine du front, donc du localStorage où vit le JWT.
 function isProxyablePreview(mimeType: string): boolean {
+  if (mimeType === 'image/svg+xml') return false
   return (
     mimeType === 'application/pdf' ||
     mimeType.startsWith('image/') ||
@@ -1260,8 +1263,11 @@ export default function FicheCandidat() {
                         )}
                       </div>
                     ) : previewUrl ? (
+                      // sandbox="" : origine opaque et scripts coupés — un blob: hériterait
+                      // sinon de l'origine du front.
                       <iframe
                         key={selectedFile.id}
+                        sandbox=""
                         src={previewUrl}
                         title={selectedFile.name}
                         className="w-full h-full rounded-lg border border-gray-100"
