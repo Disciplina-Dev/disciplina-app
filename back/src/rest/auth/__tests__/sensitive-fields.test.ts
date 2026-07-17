@@ -84,7 +84,7 @@ describe('Auth sensitive fields sanitization', () => {
                 email: 'newuser@local.test',
                 firstName: 'New',
                 lastName: 'User',
-                passwordPlain: 'newpass123',
+                passwordPlain: 'Newpass123456',
                 role: 'COMMERCIAL',
             }),
         });

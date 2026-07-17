@@ -8,6 +8,17 @@ import { env } from '../config/env';
 import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto/token-cipher';
 import { logger } from '../external/logger';
 const SALT_ROUNDS = 10;
+const MIN_PASSWORD_LENGTH = 12;
+
+// Comptes internes créés par un admin : le seuil privilégie la robustesse sur l'ergonomie.
+function passwordViolations(password: string): string[] {
+    const violations: string[] = [];
+    if (password.length < MIN_PASSWORD_LENGTH) violations.push(`au moins ${MIN_PASSWORD_LENGTH} caractères`);
+    if (!/[a-z]/.test(password)) violations.push('une minuscule');
+    if (!/[A-Z]/.test(password)) violations.push('une majuscule');
+    if (!/[0-9]/.test(password)) violations.push('un chiffre');
+    return violations;
+}
 
 export class UserService {
     private userRepository: UserRepository;
@@ -130,6 +141,11 @@ export class UserService {
         role: Role,
         sectors?: string[],
     ): Promise<User> {
+        const violations = passwordViolations(passwordPlain);
+        if (violations.length > 0) {
+            throw new Error(`Mot de passe trop faible : il faut ${violations.join(', ')}.`);
+        }
+
         const existing = await this.userRepository.findByEmail(email);
         if (existing) {
             throw new Error('User already exists');
