@@ -8,6 +8,16 @@ import { handleSessionExpired } from '@/store/authStore'
  * N'affecte que les appels vers VITE_API_URL pour éviter les faux positifs
  * (ressources tierces, Google, etc.).
  */
+// Comparer les origines, pas les préfixes : « https://app.disciplina.re.evil.com »
+// commence par « https://app.disciplina.re ».
+function isSameOrigin(url: string, base: string): boolean {
+  try {
+    return new URL(url, window.location.href).origin === new URL(base).origin
+  } catch {
+    return false
+  }
+}
+
 export function installSessionGuard(): void {
   const apiBase = import.meta.env.VITE_API_URL as string | undefined
   const originalFetch = window.fetch.bind(window)
@@ -23,7 +33,7 @@ export function installSessionGuard(): void {
             ? args[0].toString()
             : args[0]?.url ?? ''
       // On ne réagit qu'aux 401 de l'API applicative, pas des appels de login eux-mêmes.
-      if (url.startsWith(apiBase) && !url.includes('/api/auth/login')) {
+      if (isSameOrigin(url, apiBase) && !url.includes('/api/auth/login')) {
         handleSessionExpired()
       }
     }

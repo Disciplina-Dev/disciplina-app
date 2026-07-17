@@ -4,6 +4,15 @@ skills-lock.json
 .agents
 ressources
 client_secret.json
+
+# Clés et identifiants — jamais versionnés
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+
 CLAUDE.md
 AGENTS.md
 TASK.md

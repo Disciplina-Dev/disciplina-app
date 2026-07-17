@@ -10,6 +10,10 @@ import { logger } from '../external/logger';
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 12;
 
+// Hash bcrypt d'une valeur arbitraire, au même coût que les vrais : sert de leurre
+// au login pour que le temps de réponse ne dépende pas de l'existence du compte.
+const DUMMY_PASSWORD_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
+
 // Comptes internes créés par un admin : le seuil privilégie la robustesse sur l'ergonomie.
 function passwordViolations(password: string): string[] {
     const violations: string[] = [];
@@ -176,12 +180,11 @@ export class UserService {
 
     async login(email: string, passwordPlain: string): Promise<{ token: string; user: User }> {
         const userRow = await this.userRepository.findByEmail(email);
-        if (!userRow || !userRow.password) {
-            throw new Error('Invalid email or password');
-        }
 
-        const isMatch = await bcrypt.compare(passwordPlain, userRow.password);
-        if (!isMatch) {
+        // Sur e-mail inconnu, comparer quand même contre un faux hash : sans ce
+        // travail, la réponse revient ~100 ms plus tôt et révèle que le compte n'existe pas.
+        const isMatch = await bcrypt.compare(passwordPlain, userRow?.password || DUMMY_PASSWORD_HASH);
+        if (!userRow || !userRow.password || !isMatch) {
             throw new Error('Invalid email or password');
         }
 
