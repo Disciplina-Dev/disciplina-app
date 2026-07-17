@@ -1,20 +1,17 @@
-# Use an official Node runtime as a parent image
-FROM node:alpine
+# Version alignée sur back/Dockerfile (node:22).
+FROM node:22-alpine
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+RUN npm ci
 
-# Copy the rest of the application code
-COPY . .
+COPY --chown=node:node . .
 
-# Expose the port the app runs on
+# L'image node fournit déjà l'utilisateur `node` : pas de root inutile.
+USER node
+
 EXPOSE 5173
 
-# Command to run the app
 CMD ["npm", "run", "dev", "--", "--host"]

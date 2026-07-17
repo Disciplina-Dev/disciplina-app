@@ -18,7 +18,7 @@ services:
       retries: 5
       start_period: 30s
   nosql-db:
-    image: mongo:latest
+    image: mongo:8.2.6
     restart: always
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?MONGO_ROOT_USERNAME}
