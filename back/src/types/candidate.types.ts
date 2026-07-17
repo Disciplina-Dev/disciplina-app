@@ -77,6 +77,7 @@ export interface Identity {
     apprenticeship_contract_details?: string;
     description?: string;
     avatar_updated_at?: Date;
+    drive_avatar_file_id?: string;
 }
 
 export interface Education {

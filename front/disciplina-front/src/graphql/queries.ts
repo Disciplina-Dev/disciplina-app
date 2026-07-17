@@ -281,6 +281,7 @@ const CANDIDATE_FIELDS = gql`
     identity {
       fullName
       avatarUpdatedAt
+      driveAvatarFileId
       email
       phone
       drivingLicenseB
@@ -309,6 +310,7 @@ const CANDIDATE_FIELDS = gql`
       lastDiplomaPrepared
     }
     pdfLink
+    photoLink
     createdAt
     lastRelanceAt
     relanceResponseAt
@@ -449,6 +451,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth
@@ -543,6 +546,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       pdfLink
       cvLink
       driveFolderId
+      photoLink
       filizFolderId
       createdAt
     }
@@ -580,6 +584,7 @@ export const UPDATE_CANDIDATE = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth
@@ -689,6 +694,7 @@ export const CREATE_CANDIDATE = gql`
       identity {
         fullName
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         drivingLicenseB
@@ -746,6 +752,7 @@ export const GET_CANDIDATE_FULL = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth
@@ -868,6 +875,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth

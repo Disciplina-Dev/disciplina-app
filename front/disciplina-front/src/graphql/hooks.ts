@@ -316,8 +316,9 @@ function fromGql(c: any): Candidate {
       apprenticeship_contract_details: c.identity.apprenticeshipContractDetails,
       description: c.identity.description,
       avatar_updated_at: c.identity.avatarUpdatedAt,
-      avatar_url: c.identity.avatarUpdatedAt
-        ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent(c.identity.avatarUpdatedAt)}`
+      drive_avatar_file_id: c.identity.driveAvatarFileId,
+      avatar_url: (c.identity.avatarUpdatedAt || c.identity.driveAvatarFileId)
+        ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent(c.identity.avatarUpdatedAt ?? c.identity.driveAvatarFileId)}`
         : undefined,
     },
     education: c.education
@@ -408,6 +409,7 @@ function fromGql(c: any): Candidate {
     pdf_link: c.pdfLink,
     cv_link: c.cvLink,
     drive_folder_id: c.driveFolderId,
+    photo_link: c.photoLink,
     filiz_folder_id: c.filizFolderId,
     created_at: c.createdAt,
     last_relance_at: c.lastRelanceAt ?? undefined,

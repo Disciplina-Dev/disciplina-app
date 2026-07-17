@@ -107,6 +107,7 @@ export const typeDefs = gql`
         apprenticeshipContractDetails: String
         description: String
         avatarUpdatedAt: String
+        driveAvatarFileId: String
     }
 
     type CandidateEducation {

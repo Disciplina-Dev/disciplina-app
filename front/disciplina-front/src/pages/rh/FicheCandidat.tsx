@@ -6,6 +6,7 @@ import {
   File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera, HardDriveUpload,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
+import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -586,20 +587,18 @@ export default function FicheCandidat() {
 
             <div className="flex items-center gap-3">
               <div className="relative h-12 w-12 shrink-0">
-                {formData.identity.avatar_url ? (
-                  <img
-                    src={formData.identity.avatar_url}
-                    alt={formData.identity.full_name}
-                    className="h-12 w-12 rounded-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className="h-12 w-12 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'var(--color-purple-light)' }}
-                  >
-                    <User size={22} style={{ color: 'var(--color-purple)' }} />
-                  </div>
-                )}
+                <CandidateAvatar
+                  candidateId={id!}
+                  fullName={formData.identity.full_name}
+                  hasPhoto={Boolean(
+                    formData.identity.avatar_updated_at ||
+                      formData.identity.drive_avatar_file_id ||
+                      formData.photo_link,
+                  )}
+                  version={formData.identity.avatar_updated_at ?? formData.identity.drive_avatar_file_id}
+                  className="h-12 w-12 rounded-full"
+                  iconSize={22}
+                />
                 <button
                   title="Prendre une photo"
                   onClick={() => setCapturingPhoto(true)}
@@ -1263,15 +1262,26 @@ export default function FicheCandidat() {
                         )}
                       </div>
                     ) : previewUrl ? (
-                      // sandbox="" : origine opaque et scripts coupés — un blob: hériterait
-                      // sinon de l'origine du front.
-                      <iframe
-                        key={selectedFile.id}
-                        sandbox=""
-                        src={previewUrl}
-                        title={selectedFile.name}
-                        className="w-full h-full rounded-lg border border-gray-100"
-                      />
+                      selectedFile.mimeType.startsWith('image/') ? (
+                        <div className="flex h-full w-full items-center justify-center rounded-lg border border-gray-100 bg-gray-50">
+                          <img
+                            key={selectedFile.id}
+                            src={previewUrl}
+                            alt={selectedFile.name}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        // sandbox="" : origine opaque et scripts coupés — un blob: hériterait
+                        // sinon de l'origine du front.
+                        <iframe
+                          key={selectedFile.id}
+                          sandbox=""
+                          src={previewUrl}
+                          title={selectedFile.name}
+                          className="w-full h-full rounded-lg border border-gray-100"
+                        />
+                      )
                     ) : null
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">

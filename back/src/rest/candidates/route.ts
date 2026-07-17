@@ -289,6 +289,33 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
 
         const files = await driveService.listFolderFiles(candidate.drive_folder_id);
         res.json({ files });
+
+        // Best-effort, hors chemin de réponse : si aucune photo n'est réellement
+        // stockée (avatar_updated_at peut mentir sur des fiches legacy sans bytes
+        // en base), on cherche un fichier "Photo_*" dans le dossier Drive et on
+        // le met en cache comme avatar.
+        const hasStoredAvatar = await CandidateAvatarModel.exists({ candidate_id: id });
+        if (!hasStoredAvatar && !candidate.identity.drive_avatar_file_id) {
+            const photoFile = files.find(
+                (f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name),
+            );
+            if (photoFile) {
+                try {
+                    const { buffer, mimeType } = await driveService.downloadFile(photoFile.id);
+                    await CandidateAvatarModel.findOneAndUpdate(
+                        { candidate_id: id },
+                        { candidate_id: id, data: buffer, content_type: mimeType, updated_at: new Date() },
+                        { upsert: true, new: true },
+                    );
+                    await candidateService.update(
+                        id,
+                        { identity: { drive_avatar_file_id: photoFile.id } } as never,
+                    );
+                } catch (syncErr) {
+                    logger.warn(syncErr, 'drive avatar sync failed (non-blocking)');
+                }
+            }
+        }
     } catch (err) {
         logger.error(err, 'list drive folder files failed');
         res.status(500).json({ error: 'Internal error' });
@@ -521,6 +548,90 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
     } catch (err) {
         logger.error(err, 'upload avatar failed');
         res.status(500).json({ error: 'Internal error' });
+    }
+});
+
+// Authed: serve candidate avatar with a Google Drive fallback. On a Mongo cache
+// miss it locates the candidate's photo in their Drive folder (imported "Photo_*"
+// files never pass through the webcam upload path), downloads it via the caller's
+// OAuth token, caches it in Mongo, then serves. RH-only because it needs a token.
+router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Response) => {
+    const role = req.user?.role;
+    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const { id } = req.params;
+    try {
+        const cached = await CandidateAvatarModel.findOne({ candidate_id: id }).lean();
+        if (cached) {
+            const raw = cached.data as unknown as { buffer?: Buffer };
+            const buf = Buffer.isBuffer(cached.data) ? cached.data : Buffer.from(raw.buffer ?? (cached.data as never));
+            res.setHeader('Content-Type', cached.content_type);
+            res.setHeader('Content-Length', buf.length);
+            res.setHeader('Cache-Control', 'private, max-age=3600');
+            res.end(buf);
+            return;
+        }
+
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).end();
+            return;
+        }
+
+        const user = await userService.findById(req.user!.id);
+        if (!user?.oauthToken) {
+            res.status(404).end();
+            return;
+        }
+
+        const driveService = GoogleDriveService.fromTokens(
+            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+            persistRefreshedTokens(user.id),
+        );
+
+        // Locate the photo: explicit avatar file id first, else a "Photo_*" image in
+        // the folder, else any image in the folder.
+        let fileId = candidate.identity.drive_avatar_file_id;
+        if (!fileId && candidate.drive_folder_id) {
+            const files = await driveService.listFolderFiles(candidate.drive_folder_id);
+            const photoFile =
+                files.find((f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name)) ??
+                files.find((f) => f.mimeType.startsWith('image/'));
+            fileId = photoFile?.id;
+        }
+        if (!fileId) {
+            res.status(404).end();
+            return;
+        }
+
+        const { buffer, mimeType } = await driveService.downloadFile(fileId);
+
+        // Cache for future requests (incl. the public route) — best-effort.
+        try {
+            const now = new Date();
+            await CandidateAvatarModel.findOneAndUpdate(
+                { candidate_id: id },
+                { candidate_id: id, data: buffer, content_type: mimeType, updated_at: now },
+                { upsert: true },
+            );
+            await candidateService.update(
+                id,
+                { identity: { avatar_updated_at: now, drive_avatar_file_id: fileId } } as never,
+            );
+        } catch (cacheErr) {
+            logger.warn(cacheErr, 'avatar cache write failed (non-blocking)');
+        }
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Length', buffer.length);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        res.end(buffer);
+    } catch (err) {
+        logger.error(err, 'serve avatar-file failed');
+        res.status(500).end();
     }
 });
 

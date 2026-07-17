@@ -6,6 +6,7 @@ import {
   Phone, GraduationCap, Mail, Copy, Check, Camera
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
+import CandidateAvatar from '@/components/rh/CandidateAvatar';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
@@ -424,17 +425,18 @@ export default function ListeCandidats() {
             {/* Card Header: Avatar */}
             <div className="mb-4 mt-2">
               <div className="relative w-14 h-14">
-                {candidate.identity.avatar_url ? (
-                  <img
-                    src={candidate.identity.avatar_url}
-                    alt={candidate.identity.full_name}
-                    className="w-14 h-14 rounded-full object-cover ring-2 ring-gray-50 group-hover:ring-purple-light transition-all"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-full bg-purple-light flex items-center justify-center text-purple ring-2 ring-gray-50 group-hover:ring-purple-light transition-all">
-                    <User size={24} />
-                  </div>
-                )}
+                <CandidateAvatar
+                  candidateId={candidate._id}
+                  fullName={candidate.identity.full_name}
+                  hasPhoto={Boolean(
+                    candidate.identity.avatar_updated_at ||
+                      candidate.identity.drive_avatar_file_id ||
+                      candidate.photo_link,
+                  )}
+                  version={candidate.identity.avatar_updated_at ?? candidate.identity.drive_avatar_file_id}
+                  className="w-14 h-14 rounded-full ring-2 ring-gray-50 group-hover:ring-purple-light transition-all"
+                  iconSize={24}
+                />
                 <button
                   title="Prendre une photo"
                   onClick={(e) => {
