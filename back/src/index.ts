@@ -84,6 +84,12 @@ export async function createApp(): Promise<express.Express> {
             secret: env.SESSION_SECRET,
             resave: false,
             saveUninitialized: false,
+            cookie: {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: 'lax',
+                maxAge: 24 * 60 * 60 * 1000,
+            },
         }),
     );
 
