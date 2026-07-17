@@ -25,12 +25,16 @@ def connect_source_mongo():
     return MongoClient(mongo_uri)
 
 
+def local_mongo_target():
+    """Cible MongoDB locale, source unique de vérité pour la connexion et le garde-fou."""
+    return (os.getenv("MONGO_HOST", "localhost"), os.getenv("MONGO_PORT", "27017"))
+
+
 def connect_target_mongo():
     # development: use individual vars, retry until local container is ready
     username = os.getenv("MONGO_ROOT_USERNAME")
     password = os.getenv("MONGO_ROOT_PASSWORD")
-    port = os.getenv("MONGO_PORT", "27017")
-    host = os.getenv("MONGO_HOST", "localhost")
+    host, port = local_mongo_target()
     if not username or not password:
         raise ValueError("MONGO_ROOT_USERNAME and MONGO_ROOT_PASSWORD must be set")
     uri = f"mongodb://{username}:{password}@{host}:{port}/?authSource=admin"

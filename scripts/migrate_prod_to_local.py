@@ -15,19 +15,31 @@ import sys
 
 from dotenv import load_dotenv
 
-from db.mongo import connect_source_mongo, connect_target_mongo
-from db.mysql import connect_source_mysql, connect_target_mysql
+from db.mongo import connect_source_mongo, connect_target_mongo, local_mongo_target
+from db.mysql import connect_source_mysql, connect_target_mysql, local_mysql_target
 from lib import data_copy, schema_sync
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "sql-db", "nosql-db"}
 
 
-def _guard_local_target():
-    host = os.getenv("MYSQL_HOST", "localhost")
-    if host not in LOCAL_HOSTS:
-        sys.exit(f"Refus: MYSQL_HOST='{host}' n'est pas local. Import annulé.")
+def _local_target_violations():
+    """Contrôle les hôtes que les connexions utilisent réellement, pas des variables voisines."""
+    violations = []
+    mysql_host, _ = local_mysql_target()
+    if mysql_host not in LOCAL_HOSTS:
+        violations.append(f"cible MySQL '{mysql_host}'")
+    mongo_host, _ = local_mongo_target()
+    if mongo_host not in LOCAL_HOSTS:
+        violations.append(f"cible MongoDB '{mongo_host}'")
     if os.getenv("NODE_ENV") == "production":
-        sys.exit("Refus: NODE_ENV=production. La cible doit être locale.")
+        violations.append("NODE_ENV=production")
+    return violations
+
+
+def _guard_local_target():
+    violations = _local_target_violations()
+    if violations:
+        sys.exit("Refus: " + ", ".join(violations) + " — la cible doit être locale. Import annulé.")
 
 
 def _parse_args():
