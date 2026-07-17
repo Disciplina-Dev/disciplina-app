@@ -13,9 +13,10 @@ export const httpLogger = pinoHttp({
     },
 
     serializers: {
+        // La query porte le token des flux SSE : seul le chemin est journalisé.
         req: (req) => ({
             'http.method': req.method,
-            'http.url': req.url,
+            'http.url': req.url?.split('?')[0],
             'http.request_id': req.id,
         }),
         res: (res) => ({

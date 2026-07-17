@@ -85,7 +85,7 @@ export default function ClassMarkerLinksModal({
         if (cancelled) return;
         const built = links.map(link => ({
           link,
-          url: buildCandidateTestUrl(link.link_url_id, firstName.trim(), lastName.trim(), id!),
+          url: buildCandidateTestUrl(link.link_url_id, id!),
         }));
         setEntries(built);
         setSelectedId(null);

@@ -17,7 +17,7 @@ services:
       start_period: 30s
 
   test-nosql-db:
-    image: mongo:latest
+    image: mongo:8.2.6
     environment:
       MONGO_INITDB_ROOT_USERNAME: test-root
       MONGO_INITDB_ROOT_PASSWORD: test-root-password

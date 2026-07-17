@@ -565,11 +565,12 @@ export class OfferService {
     }
 
     offerResponseLinks(offerId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {
-        const sigOui = signMatchUrl(offerId, candidateId, 'oui');
-        const sigNon = signMatchUrl(offerId, candidateId, 'non');
+        const oui = signMatchUrl(offerId, candidateId, 'oui');
+        const non = signMatchUrl(offerId, candidateId, 'non');
+        const base = `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}`;
         return {
-            ouiUrl: `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}&answer=oui&sig=${sigOui}`,
-            nonUrl: `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}&answer=non&sig=${sigNon}`,
+            ouiUrl: `${base}&answer=oui&sig=${oui.sig}&ts=${oui.ts}`,
+            nonUrl: `${base}&answer=non&sig=${non.sig}&ts=${non.ts}`,
         };
     }
 }

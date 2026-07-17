@@ -32,3 +32,10 @@ export interface UserResponse {
     sectors: string[] | null;
     googleConnected: boolean;
 }
+
+export interface DirectoryEntry {
+    id: number;
+    firstName: string;
+    lastName: string;
+    role: Role;
+}

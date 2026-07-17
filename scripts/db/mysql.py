@@ -45,14 +45,27 @@ def _connect_from_uri():
     )
 
 
+def local_mysql_target():
+    """Cible MySQL locale, source unique de vérité pour la connexion et le garde-fou.
+
+    Volontairement distincte de MYSQL_HOST/MYSQL_PORT : ces dernières décrivent la
+    perspective de Docker (sql-db:3306), alors que les scripts lancés depuis l'hôte
+    passent par le port mappé (localhost:5001).
+    """
+    return (
+        os.getenv("LOCAL_MYSQL_HOST", "localhost"),
+        int(os.getenv("LOCAL_MYSQL_PORT", "5001")),
+    )
+
+
 def _connect_local():
     password = os.getenv("MYSQL_ROOT_PASSWORD")
     if not password:
         raise ValueError("MYSQL_ROOT_PASSWORD must be set")
+    host, port = local_mysql_target()
     config = {
-        # "host": os.getenv("MYSQL_HOST", "localhost"),
-        "host": "localhost",
-        "port": 5001,
+        "host": host,
+        "port": port,
         "user": os.getenv("MYSQL_USER", "root"),
         "password": password,
         "database": os.getenv("MYSQL_DATABASE", "disciplina"),

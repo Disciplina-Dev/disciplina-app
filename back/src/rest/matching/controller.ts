@@ -8,18 +8,19 @@ import { confirmationPage } from '../shared/confirmationPage';
 const jobService = new OfferService();
 
 export async function handleMatchResponse(req: Request, res: Response) {
-    const { offerId, candidateId, answer, sig } = req.query as {
+    const { offerId, candidateId, answer, sig, ts } = req.query as {
         offerId?: string;
         candidateId?: string;
         answer?: string;
         sig?: string;
+        ts?: string;
     };
 
-    if (!offerId || !candidateId || !answer || !sig || !['oui', 'non'].includes(answer)) {
+    if (!offerId || !candidateId || !answer || !sig || !ts || !['oui', 'non'].includes(answer)) {
         return res.status(400).send(confirmationPage('Lien invalide.', false));
     }
 
-    if (!verifyMatchUrl(offerId, candidateId, answer, sig)) {
+    if (!verifyMatchUrl(offerId, candidateId, answer, sig, Number(ts))) {
         return res.status(400).send(confirmationPage('Lien invalide ou expiré.', false));
     }
 

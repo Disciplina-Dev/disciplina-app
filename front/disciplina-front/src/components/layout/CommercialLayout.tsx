@@ -30,7 +30,7 @@ export default function CommercialLayout() {
   const currentUser = useCurrentUser()
   const logout = useAuthStore(s => s.logout)
   const navigate = useNavigate()
-  const { notifications, dismiss } = useAbSignedNotification(currentUser?.id)
+  const { notifications, dismiss } = useAbSignedNotification()
 
   const handleLogout = () => {
     logout()

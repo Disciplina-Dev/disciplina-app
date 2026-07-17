@@ -4,6 +4,7 @@ import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
 import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel } from '@/api/mailTemplates'
+import { cleanHtml } from '@/services/sanitizeHtml'
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
@@ -345,7 +346,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                 </div>
                 <p
                   className="text-xs text-gray-400 line-clamp-2"
-                  dangerouslySetInnerHTML={{ __html: t.body }}
+                  dangerouslySetInnerHTML={{ __html: cleanHtml(t.body) }}
                 />
                 {t.attachment && (
                   <span className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -361,4 +362,3 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
     </div>
   )
 }
-

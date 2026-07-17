@@ -1,13 +1,12 @@
 import { UserRow } from '../../types/db-rows.types';
-import { User, Role, UserResponse } from '../../types/user.types';
+import { User, Role, UserResponse, DirectoryEntry } from '../../types/user.types';
 
 export function toUser(row: UserRow): User {
     let parsedSectors: string[] | null = null;
     if (row.sectors) {
         try {
-            parsedSectors = typeof row.sectors === 'string'
-                ? JSON.parse(row.sectors)
-                : (row.sectors as unknown as string[]);
+            parsedSectors =
+                typeof row.sectors === 'string' ? JSON.parse(row.sectors) : (row.sectors as unknown as string[]);
         } catch {
             parsedSectors = [];
         }
@@ -34,5 +33,16 @@ export function toUserResponse(user: User): UserResponse {
         role: user.role,
         sectors: user.sectors,
         googleConnected: Boolean(user.oauthToken),
+    };
+}
+
+// Annuaire d'affichage : le strict nécessaire pour résoudre un id en nom + rôle.
+// Volontairement sans email ni secteurs — tout le staff y a accès.
+export function toDirectoryEntry(user: User): DirectoryEntry {
+    return {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
     };
 }

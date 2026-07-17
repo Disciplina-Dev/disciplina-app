@@ -22,7 +22,8 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { USERS, fullName } from '@/store/authStore'
+import { fullName } from '@/store/authStore'
+import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis } from '@/graphql/hooks'
@@ -111,8 +112,9 @@ const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> 
 }
 
 export default function DetailModal({ entreprise, currentUser, onClose, onEdit, onCreateAB }: Props) {
+  const { directory } = useStaffDirectory()
   const status = STATUS_CONFIG[entreprise.status] ?? STATUS_CONFIG['Non']
-  const owner = entreprise.proprietaire_id ? USERS[entreprise.proprietaire_id] : null
+  const owner = entreprise.proprietaire_id ? directory[String(entreprise.proprietaire_id)] : null
   const abResult = useNeedsAnalysesByCompany(entreprise.id ? Number(entreprise.id) : null)
   const abList = abResult.data?.needsAnalysesByCompany ?? []
   const [selectedAbId, setSelectedAbId] = useState<string | null>(null)

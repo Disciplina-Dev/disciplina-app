@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, History, PhoneCall, ArrowRight } from 'lucide-react'
 import { useCompanyHistory, useContactLogs } from '@/graphql/hooks'
-import { USERS, fullName } from '@/store/authStore'
+import { fullName } from '@/store/authStore'
+import { useStaffDirectory, type StaffMember } from '@/hooks/useStaffDirectory'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -10,9 +11,9 @@ function formatDate(iso: string | null | undefined) {
   try { return format(new Date(iso), "d MMM yyyy 'à' HH:mm", { locale: fr }) } catch { return iso }
 }
 
-function authorName(userID: number | null) {
+function authorName(directory: Record<string, StaffMember>, userID: number | null) {
   if (userID == null) return 'Inconnu'
-  const user = USERS[String(userID)]
+  const user = directory[String(userID)]
   return user ? fullName(user) : `Utilisateur #${userID}`
 }
 
@@ -90,6 +91,7 @@ interface RawModification {
 
 export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTimelineProps) {
   const [expanded, setExpanded] = useState(false)
+  const { directory } = useStaffDirectory()
   const contacts = useContactLogs(expanded ? companyID : null)
   const modifications = useCompanyHistory(expanded ? companyID : null)
 
@@ -169,7 +171,7 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
                   <div key={`c-${e.id}`} className="bg-blue-light/30 border border-blue-light rounded-lg px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
                       <PhoneCall className="w-4 h-4 text-blue shrink-0" />
-                      <span className="text-sm font-semibold text-gray-900">{authorName(e.userID)}</span>
+                      <span className="text-sm font-semibold text-gray-900">{authorName(directory, e.userID)}</span>
                       <span className="text-xs text-gray-400">a pris contact</span>
                       <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{formatDate(e.date)}</span>
                     </div>
@@ -196,6 +198,7 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
 }
 
 function ModificationCard({ event }: { event: ModificationEvent }) {
+  const { directory } = useStaffDirectory()
   const statusChanged = event.previousStatus != null && event.previousStatus !== event.status
   const fields = formatColumns(event.updatedColumn)
   return (
@@ -203,7 +206,7 @@ function ModificationCard({ event }: { event: ModificationEvent }) {
       <div className="flex items-center gap-2 mb-1">
         <History className="w-4 h-4 text-gray-400 shrink-0" />
         <span className="text-sm text-gray-900">
-          <span className="font-semibold">{authorName(event.modifiedBy)}</span>
+          <span className="font-semibold">{authorName(directory, event.modifiedBy)}</span>
           {fields ? <> a modifié <span className="font-medium text-gray-700">{fields}</span></> : ' a modifié la fiche'}
         </span>
         <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{formatDate(event.date)}</span>

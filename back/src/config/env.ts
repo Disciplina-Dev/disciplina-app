@@ -10,6 +10,8 @@ const INSECURE_DEFAULTS = new Set([
     'changeme',
     'change-this-relance-secret',
     'change-this-google-state-secret',
+    'ci-jwt-secret',
+    'ci-session-secret',
     '7325fd3fc113dc0034d98ee93eb9a50fc4c71d2798c819bc4e3f7e7e2fb7a940',
 ]);
 
@@ -23,7 +25,8 @@ function requireString(key: string): string {
     }
     return raw;
 }
-const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
+// Jamais en production : CI=true sur un serveur ne doit pas ouvrir les secrets de repli.
+const IS_CI = (process.env.CI === 'true' || process.env.CI === '1') && process.env.NODE_ENV !== 'production';
 
 function requireStringWithCIFallback(key: string, fallback: string): string {
     const raw = process.env[key];

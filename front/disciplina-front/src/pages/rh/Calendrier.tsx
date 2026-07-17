@@ -10,6 +10,7 @@ import {
   type BookingSettings, type WorkingHours,
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
+import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
 import { SECTEUR_VALUES } from '@/types/entreprise'
@@ -110,21 +111,6 @@ function toDateInput(d: Date): string {
 
 function toTimeInput(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-// Liens description Google → nouvel onglet sans fuite de referrer.
-DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-  if (node.tagName === 'A') {
-    node.setAttribute('target', '_blank')
-    node.setAttribute('rel', 'noopener noreferrer')
-  }
-})
-
-function cleanHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['a', 'b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li', 'span'],
-    ALLOWED_ATTR: ['href', 'target', 'rel'],
-  })
 }
 
 /** Layout des events d'un jour en colonnes pour gérer les chevauchements. */

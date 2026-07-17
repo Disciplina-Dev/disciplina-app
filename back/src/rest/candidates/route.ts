@@ -17,6 +17,25 @@ import { file } from 'pdfkit';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+// Le mimetype multipart vient du client : le type réel se déduit des nombres magiques.
+// SVG est exclu volontairement — seul format « image » capable d'exécuter du script.
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+const IMAGE_SIGNATURES: { mime: string; matches: (bytes: Buffer) => boolean }[] = [
+    { mime: 'image/jpeg', matches: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+    { mime: 'image/png', matches: (b) => b.subarray(0, 8).equals(PNG_SIGNATURE) },
+    {
+        mime: 'image/webp',
+        matches: (b) => b.subarray(0, 4).toString('ascii') === 'RIFF' && b.subarray(8, 12).toString('ascii') === 'WEBP',
+    },
+];
+
+const SERVABLE_IMAGE_MIMES = new Set(IMAGE_SIGNATURES.map((signature) => signature.mime));
+
+function detectImageMime(bytes: Buffer): string | null {
+    return IMAGE_SIGNATURES.find((signature) => signature.matches(bytes))?.mime ?? null;
+}
+
 export const router: Router = express.Router();
 
 const candidateService = new CandidateService();
@@ -437,8 +456,9 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
         res.status(400).json({ error: 'No photo provided' });
         return;
     }
-    if (!file.mimetype.startsWith('image/')) {
-        res.status(400).json({ error: 'File must be an image' });
+    const detectedMime = detectImageMime(file.buffer);
+    if (!detectedMime) {
+        res.status(400).json({ error: 'File must be a JPEG, PNG or WebP image' });
         return;
     }
 
@@ -453,7 +473,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
 
         await CandidateAvatarModel.findOneAndUpdate(
             { candidate_id: id },
-            { candidate_id: id, data: file.buffer, content_type: file.mimetype, updated_at: now },
+            { candidate_id: id, data: file.buffer, content_type: detectedMime, updated_at: now },
             { upsert: true, new: true },
         );
 
@@ -515,7 +535,11 @@ router.get('/:id/avatar', async (req, res: Response) => {
         // .lean() yields a BSON Binary, not a Node Buffer — coerce so Express sends raw bytes.
         const raw = avatar.data as unknown as { buffer?: Buffer };
         const buf = Buffer.isBuffer(avatar.data) ? avatar.data : Buffer.from(raw.buffer ?? (avatar.data as never));
-        res.setHeader('Content-Type', avatar.content_type);
+        // Les avatars stockés avant la validation par signature portent un type client.
+        res.setHeader(
+            'Content-Type',
+            SERVABLE_IMAGE_MIMES.has(avatar.content_type) ? avatar.content_type : 'application/octet-stream',
+        );
         res.setHeader('Content-Length', buf.length);
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.end(buf);

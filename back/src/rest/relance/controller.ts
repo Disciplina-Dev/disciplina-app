@@ -173,10 +173,10 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 
     for (const candidate of seeking) {
         const name = candidate.identity.full_name?.split(' ')[0] ?? 'Candidat';
-        const sig_oui = signRelanceUrl(candidate._id, 'oui');
-        const sig_non = signRelanceUrl(candidate._id, 'non');
-        const ouiUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=oui&sig=${sig_oui}`;
-        const nonUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=non&sig=${sig_non}`;
+        const oui = signRelanceUrl(candidate._id, 'oui');
+        const non = signRelanceUrl(candidate._id, 'non');
+        const ouiUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=oui&sig=${oui.sig}&ts=${oui.ts}`;
+        const nonUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=non&sig=${non.sig}&ts=${non.ts}`;
 
         const html = `<!DOCTYPE html>
 <html>
@@ -307,13 +307,13 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
 }
 
 export async function handleResponse(req: Request, res: Response) {
-    const { id, answer, sig } = req.query as { id?: string; answer?: string; sig?: string };
+    const { id, answer, sig, ts } = req.query as { id?: string; answer?: string; sig?: string; ts?: string };
 
-    if (!id || !answer || !sig || !['oui', 'non'].includes(answer)) {
+    if (!id || !answer || !sig || !ts || !['oui', 'non'].includes(answer)) {
         return res.status(400).send(confirmationPage('Lien invalide.', false));
     }
 
-    if (!verifyRelanceUrl(id, answer, sig)) {
+    if (!verifyRelanceUrl(id, answer, sig, Number(ts))) {
         return res.status(400).send(confirmationPage('Lien invalide ou expiré.', false));
     }
 
