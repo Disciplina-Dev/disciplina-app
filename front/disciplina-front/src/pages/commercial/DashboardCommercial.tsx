@@ -3,7 +3,8 @@ import { BarChart3, Plus, AlertTriangle, CheckCircle2, PhoneCall, Users } from '
 
 import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
-import { useAuthStore, useCurrentUser, UserRole, USERS } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
+import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { useContactLogStats } from '@/graphql/hooks'
 import {
   fetchKpiUsers,
@@ -50,6 +51,7 @@ export default function DashboardCommercial() {
 // ─── Prises de contact (appels) — total + par commercial ────────────────────
 function ContactStatsSection() {
   const { data, fetching } = useContactLogStats()
+  const { directory } = useStaffDirectory()
   const stats = data?.contactLogStats as { total: number; byUser: { userID: number; count: number }[] } | undefined
 
   if (fetching && !stats) return null
@@ -69,7 +71,7 @@ function ContactStatsSection() {
           <p className="mt-1 text-[28px] font-extrabold leading-none text-gray-900">{stats.total}</p>
         </div>
         {byUser.map((u) => {
-          const user = USERS[String(u.userID)]
+          const user = directory[String(u.userID)]
           return (
             <div key={u.userID} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
               <div className="flex items-center gap-1.5">

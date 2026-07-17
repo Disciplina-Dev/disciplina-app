@@ -27,3 +27,7 @@ dist-ssr
 
 node-modules/
 dist/
+
+# Données clients réelles — ne jamais versionner
+src/data/entreprises.json
+*.xlsx

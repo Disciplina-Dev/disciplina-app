@@ -43,8 +43,10 @@ services:
       - ./ollama-data:/root/.ollama
     networks:
       - backend-net
+    # Ollama n'a aucune authentification : le port reste sur la boucle locale.
+    # Le backend l'atteint par backend-net (OLLAMA_BASE_URL=http://ollama:11434).
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     healthcheck:
       test: ["CMD", "sh", "-c", "ollama list | grep -q qwen2.5"]
       interval: 30s

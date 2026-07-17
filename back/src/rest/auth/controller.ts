@@ -4,7 +4,7 @@ import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
-import { toUserResponse } from '../../services/mappers/user.mapper';
+import { toUserResponse, toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { sanitizeSectors } from '../../utils/sector';
 
 const userService = new UserService();
@@ -26,6 +26,18 @@ export async function listUsers(req: AuthRequest, res: Response): Promise<void> 
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: listUsers failed');
         res.status(500).json({ error: error.message });
+    }
+}
+
+// Annuaire d'affichage, ouvert à tout le staff : résoudre un id en nom + rôle est
+// nécessaire dans le portefeuille et les dashboards, que listUsers ne sert pas.
+export async function listDirectory(_req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const users = await userService.findAll();
+        res.json(users.map(toDirectoryEntry));
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: listDirectory failed');
+        res.status(500).json({ error: 'Internal error' });
     }
 }
 
