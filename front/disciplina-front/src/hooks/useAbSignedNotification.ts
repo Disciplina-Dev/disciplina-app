@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAuthStore } from '@/store/authStore'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -9,13 +10,14 @@ export interface AbSignedEvent {
   companyId: number
 }
 
-export function useAbSignedNotification(userID: string | null | undefined) {
+export function useAbSignedNotification() {
+  const token = useAuthStore((s) => s.token)
   const [notifications, setNotifications] = useState<AbSignedEvent[]>([])
 
   useEffect(() => {
-    if (!userID) return
+    if (!token) return
 
-    const url = `${API_BASE}/api/webhooks/yousign/stream?userID=${userID}`
+    const url = `${API_BASE}/api/webhooks/yousign/stream?token=${encodeURIComponent(token)}`
     const es = new EventSource(url)
 
     es.onmessage = (e) => {
@@ -30,7 +32,7 @@ export function useAbSignedNotification(userID: string | null | undefined) {
     es.onerror = () => { /* auto-reconnect by browser */ }
 
     return () => { es.close() }
-  }, [userID])
+  }, [token])
 
   const dismiss = (abId: number) =>
     setNotifications((prev) => prev.filter((n) => n.abId !== abId))

@@ -48,8 +48,9 @@ export async function fetchClassMarkerResult(candidateId: string): Promise<Class
   return { result: data.result ?? null, history: data.history ?? [] };
 }
 
-export function classMarkerStreamUrl(candidateId: string): string {
-  return `${API_BASE}/api/webhooks/classmarker/stream?candidateId=${encodeURIComponent(candidateId)}`;
+export function classMarkerStreamUrl(candidateId: string, token: string): string {
+  const query = `candidateId=${encodeURIComponent(candidateId)}&token=${encodeURIComponent(token)}`;
+  return `${API_BASE}/api/webhooks/classmarker/stream?${query}`;
 }
 
 export async function quickCreateCandidate(
