@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# Le job ne fait que lire le code et lancer les tests.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
