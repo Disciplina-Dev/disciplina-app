@@ -17,7 +17,7 @@ export function useClassMarkerResult(candidateId: string | undefined) {
     let cancelled = false;
     setLoading(true);
 
-    fetchClassMarkerResult(candidateId)
+    fetchClassMarkerResult(token, candidateId)
       .then(bundle => {
         console.log('[ClassMarker] résultat initial depuis DB:', bundle);
         if (!cancelled && bundle) {

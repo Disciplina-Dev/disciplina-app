@@ -2,7 +2,8 @@ import express, { Router, Request, Response } from 'express';
 import { logger } from '../../external/logger/logger';
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { authenticateStaffStream } from '../middleware/sseAuth';
-import { AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireRoles } from '../middleware/roleGuard';
 import { addClient, removeClient, notifyCandidate } from './sse';
 import { PdfService } from '../../services/PdfService';
 import { UserService } from '../../services/UserService';
@@ -218,17 +219,22 @@ router.get('/classmarker/stream', (req: AuthRequest, res: Response) => {
     });
 });
 
-router.get('/classmarker/result/:candidateId', async (req: Request, res: Response) => {
-    const { candidateId } = req.params;
-    try {
-        const doc = await CandidateModel.findById(candidateId).select('classmarker classmarker_history').lean();
-        if (!doc) {
-            res.status(404).json({ error: 'Not found' });
-            return;
+router.get(
+    '/classmarker/result/:candidateId',
+    authenticate,
+    requireRoles('ADMIN', 'RESPONSABLE', 'RH', 'PEDA', 'COMMERCIAL'),
+    async (req: AuthRequest, res: Response) => {
+        const { candidateId } = req.params;
+        try {
+            const doc = await CandidateModel.findById(candidateId).select('classmarker classmarker_history').lean();
+            if (!doc) {
+                res.status(404).json({ error: 'Not found' });
+                return;
+            }
+            res.json({ result: doc.classmarker ?? null, history: doc.classmarker_history ?? [] });
+        } catch (err) {
+            logger.error(err, 'ClassMarker result fetch failed');
+            res.status(500).json({ error: 'Internal error' });
         }
-        res.json({ result: doc.classmarker ?? null, history: doc.classmarker_history ?? [] });
-    } catch (err) {
-        logger.error(err, 'ClassMarker result fetch failed');
-        res.status(500).json({ error: 'Internal error' });
-    }
-});
+    },
+);

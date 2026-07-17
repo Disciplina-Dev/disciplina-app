@@ -40,8 +40,11 @@ export interface ClassMarkerResultBundle {
   history: ClassMarkerResult[];
 }
 
-export async function fetchClassMarkerResult(candidateId: string): Promise<ClassMarkerResultBundle | null> {
-  const res = await fetch(`${API_BASE}/api/webhooks/classmarker/result/${encodeURIComponent(candidateId)}`);
+export async function fetchClassMarkerResult(
+  token: string,
+  candidateId: string
+): Promise<ClassMarkerResultBundle | null> {
+  const res = await authedFetch(token, `/api/webhooks/classmarker/result/${encodeURIComponent(candidateId)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Result fetch failed (${res.status})`);
   const data = (await res.json()) as { result: ClassMarkerResult | null; history?: ClassMarkerResult[] };

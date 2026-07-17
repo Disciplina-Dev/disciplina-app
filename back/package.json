@@ -28,6 +28,7 @@
     "googleapis": "^171.4.0",
     "graphql": "^16.8.1",
     "graphql-tag": "^2.12.6",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.5.0",
     "multer": "^2.1.1",

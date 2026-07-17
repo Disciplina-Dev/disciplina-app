@@ -7,6 +7,7 @@ import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
+import helmet from 'helmet';
 
 import { router as authRouter } from './rest/auth/route';
 import { router as emailRouter } from './rest/email/route';
@@ -48,6 +49,21 @@ declare module 'express-session' {
 
 export async function createApp(): Promise<express.Express> {
     const app: any = express();
+
+    const isProduction = env.NODE_ENV === 'production';
+
+    // Hors production il n'y a pas de proxy : faire confiance à X-Forwarded-For
+    // laisserait n'importe qui forger son IP et contourner les rate limits.
+    if (isProduction) app.set('trust proxy', 1);
+
+    // CSP coupée hors production (elle casse la sandbox Apollo), HSTS aussi
+    // (le navigateur mémorise l'en-tête et force ensuite https://localhost).
+    app.use(
+        helmet({
+            contentSecurityPolicy: isProduction ? undefined : false,
+            hsts: isProduction ? undefined : false,
+        }),
+    );
 
     app.use(httpLogger);
 
