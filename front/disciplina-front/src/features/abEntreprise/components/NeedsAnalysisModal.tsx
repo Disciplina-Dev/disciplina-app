@@ -455,11 +455,14 @@ interface Props {
   onClose: () => void
   onSuccess: () => void
   initialData?: NeedsAnalysis | null
+  // Duplication : `initialData` sert uniquement à préremplir le formulaire, mais on
+  // crée une NOUVELLE AB (pas de mise à jour de l'existante).
+  isDuplicate?: boolean
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, onSuccess, initialData }: Props) {
+export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, onSuccess, initialData, isDuplicate }: Props) {
   const parseSoftSkills = (raw: string | null | undefined): string[] => {
     if (!raw) return []
     return raw.split(',').map((s) => s.trim()).filter(Boolean)
@@ -515,10 +518,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
-  // Quelle action a déclenché la soumission : télécharger le PDF ou l'envoyer en signature.
-  const intentRef = useRef<'download' | 'sign'>('download')
+  // Quelle action a déclenché la soumission : enregistrer seul, télécharger le PDF
+  // ou envoyer en signature.
+  const intentRef = useRef<'download' | 'sign' | 'save'>('download')
 
-  const isEditing = !!initialData
+  // En duplication, on préremplit avec `initialData` mais on reste en mode création.
+  const isEditing = !!initialData && !isDuplicate
   const { createNeedsAnalysis, result: createResult } = useCreateNeedsAnalysis()
   const { updateNeedsAnalysis: updateMutation, result: updateResult } = useUpdateNeedsAnalysis()
   const result = isEditing ? updateResult : createResult
@@ -720,18 +725,22 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
     if (response.error) { setSubmitError(response.error.message); return }
 
-    const createdId = isEditing ? initialData?.id : response.data?.createNeedsAnalysis?.id
-    if (createdId && !isEditing) {
+    // En édition l'id ne change pas ; en création/duplication on récupère le nouvel id.
+    const savedId = isEditing ? initialData?.id : response.data?.createNeedsAnalysis?.id
+    if (savedId) {
       if (intentRef.current === 'sign') {
-        setPreviewId(createdId)
+        setPreviewId(savedId)
         return
       }
-      try {
-        await downloadPdf(createdId)
-      } catch {
-        setSubmitError('AB enregistrée, mais le téléchargement du PDF a échoué. Réessayez depuis la liste.')
-        return
+      if (intentRef.current === 'download') {
+        try {
+          await downloadPdf(savedId)
+        } catch {
+          setSubmitError('AB enregistrée, mais le téléchargement du PDF a échoué. Réessayez depuis la liste.')
+          return
+        }
       }
+      // intent 'save' : rien de plus, on ferme.
     }
 
     onSuccess()
@@ -804,7 +813,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-black">{isEditing ? "Modifier l'Analyse du Besoin" : "Analyse du Besoin"}</h2>
+            <h2 className="text-lg font-bold text-black">{isEditing ? "Modifier l'Analyse du Besoin" : isDuplicate ? "Dupliquer l'Analyse du Besoin" : "Analyse du Besoin"}</h2>
             <p className="text-sm text-gray-500">{entreprise.nom_commercial}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900">
@@ -1126,9 +1135,25 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
             <Button variant="secondary" onClick={onClose}>Annuler</Button>
             <div className="flex items-center gap-2">
               {isEditing ? (
-                <Button type="submit" isLoading={result.fetching} leftIcon={<Check size={16} />}>
-                  Enregistrer les modifications
-                </Button>
+                <>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    isLoading={result.fetching}
+                    leftIcon={<Check size={16} />}
+                    onClick={() => { intentRef.current = 'save' }}
+                  >
+                    Enregistrer
+                  </Button>
+                  <Button
+                    type="submit"
+                    isLoading={result.fetching}
+                    leftIcon={<PenLine size={16} />}
+                    onClick={() => { intentRef.current = 'sign' }}
+                  >
+                    Enregistrer & envoyer en signature
+                  </Button>
+                </>
               ) : (
                 <>
                   <Button

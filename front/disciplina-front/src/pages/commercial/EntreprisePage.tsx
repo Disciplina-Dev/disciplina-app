@@ -25,6 +25,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
@@ -151,6 +152,7 @@ export default function EntreprisePage() {
   useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   const [abOpen, setAbOpen] = useState(false)
+  const [abEditTarget, setAbEditTarget] = useState<{ data: NeedsAnalysis; duplicate: boolean } | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
   const [selectedAbId, setSelectedAbId] = useState<string | null>(null)
   const [selectedAbIds, setSelectedAbIds] = useState<Set<string>>(new Set())
@@ -599,7 +601,13 @@ export default function EntreprisePage() {
               </ul>
             )}
             {selectedAbId && (
-              <ABDetailModal id={selectedAbId} onClose={() => setSelectedAbId(null)} onDelete={() => { setSelectedAbId(null); abResult.refetch() }} />
+              <ABDetailModal
+                id={selectedAbId}
+                onClose={() => setSelectedAbId(null)}
+                onDelete={() => { setSelectedAbId(null); abResult.refetch() }}
+                onEdit={(ab) => { setSelectedAbId(null); setAbEditTarget({ data: ab, duplicate: false }) }}
+                onDuplicate={(ab) => { setSelectedAbId(null); setAbEditTarget({ data: ab, duplicate: true }) }}
+              />
             )}
           </div>
 
@@ -622,6 +630,17 @@ export default function EntreprisePage() {
 
       {abOpen && currentUser && (
         <NeedsAnalysisModal entreprise={baseEntreprise} currentUser={currentUser} onClose={() => setAbOpen(false)} onSuccess={() => setAbOpen(false)} />
+      )}
+
+      {abEditTarget && currentUser && (
+        <NeedsAnalysisModal
+          entreprise={baseEntreprise}
+          currentUser={currentUser}
+          initialData={abEditTarget.data}
+          isDuplicate={abEditTarget.duplicate}
+          onClose={() => setAbEditTarget(null)}
+          onSuccess={() => { setAbEditTarget(null); abResult.refetch() }}
+        />
       )}
 
       {mailOpen && (
