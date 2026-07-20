@@ -81,7 +81,7 @@ export function getCataloguePdf(req: AuthRequest, res: Response): void {
 }
 
 /** Renvoie le sujet/corps de l'email de signature pour l'aperçu (lecture seule). */
-export function getSignatureEmail(req: AuthRequest, res: Response): void {
+export async function getSignatureEmail(req: AuthRequest, res: Response): Promise<void> {
     const perm = req.user?.permission;
     const jobRole = req.user?.role;
     const hasPermission = perm === Permission.RESPONSABLE || perm === Permission.ADMIN;
@@ -135,7 +135,9 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         return;
     }
     const override =
-        rawBody != null ? { subject: typeof rawSubject === 'string' ? rawSubject : undefined, body: rawBody } : undefined;
+        rawBody != null
+            ? { subject: typeof rawSubject === 'string' ? rawSubject : undefined, body: rawBody }
+            : undefined;
 
     try {
         const analysis = await needsAnalysisService.sendForSignature(id, req.user!.id, override);
