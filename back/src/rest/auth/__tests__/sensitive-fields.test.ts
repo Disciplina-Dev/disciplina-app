@@ -22,7 +22,8 @@ describe('Auth sensitive fields sanitization', () => {
             first_name: 'Test',
             last_name: 'User',
             password: hashedPassword,
-            role: 'ADMIN',
+            role_id: 1,
+            permission_id: 3,
             sectors: null,
             oauth_token: 'encrypted_token_here',
             refresh_token: 'encrypted_refresh_token_here',
@@ -62,14 +63,15 @@ describe('Auth sensitive fields sanitization', () => {
             first_name: 'Admin',
             last_name: '',
             password: hashedPassword,
-            role: 'ADMIN',
+            role_id: 1,
+            permission_id: 3,
             sectors: null,
             oauth_token: null,
             refresh_token: null,
         });
 
         const adminToken = require('jsonwebtoken').sign(
-            { id: adminId, email: 'admin@local.test', role: 'ADMIN' },
+            { id: adminId, email: 'admin@local.test', role: 'COMMERCIAL', permission: 'ADMIN' },
             env.JWT_SECRET,
             { expiresIn: '24h' },
         );
@@ -86,6 +88,7 @@ describe('Auth sensitive fields sanitization', () => {
                 lastName: 'User',
                 passwordPlain: 'Newpass123456',
                 role: 'COMMERCIAL',
+                permission: 'EMPLOYEE',
             }),
         });
 

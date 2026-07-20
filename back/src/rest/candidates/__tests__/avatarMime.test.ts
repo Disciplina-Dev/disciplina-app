@@ -20,7 +20,9 @@ function upload(bytes: Buffer, filename: string, declaredType: string) {
     form.append('photo', new Blob([bytes], { type: declaredType }), filename);
     return fetch(URL, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${mintToken({ id: 1, email: 'rh@test.com', role: 'RH' })}` },
+        headers: {
+            Authorization: `Bearer ${mintToken({ id: 1, email: 'rh@test.com', role: 'RH', permission: 'EMPLOYEE' })}`,
+        },
         body: form,
     });
 }

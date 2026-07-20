@@ -10,7 +10,7 @@ const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 describe('GraphQL job queries', () => {
     it('returns an empty list when no jobs exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -28,7 +28,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('returns all seeded jobs with camelCase fields', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const j1 = await seedOffer({
@@ -92,7 +92,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('returns a job by id', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const seeded = await seedOffer({
@@ -124,7 +124,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('returns a job with matched candidates', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const candidateRepo = new CandidateRepository();
 
@@ -180,7 +180,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('errors when job not found', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -214,7 +214,7 @@ describe('GraphQL job queries', () => {
 
     describe('candidateMatchedOfferIds', () => {
         it('returns job ids where the candidate is in matched_candidate', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const offerId = `job-mids-${suffix}`;
@@ -244,7 +244,7 @@ describe('GraphQL job queries', () => {
         });
 
         it('returns an empty array when candidate has no matched jobs', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',

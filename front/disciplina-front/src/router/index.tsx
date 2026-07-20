@@ -71,7 +71,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin",
     element: (
-      <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+      <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
         <AdminLayout />
       </ProtectedRoute>
     ),
@@ -113,9 +113,9 @@ export const router = createBrowserRouter([
       {
         path: "config-drive",
         element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
-            <AbDriveConfig />
-          </ProtectedRoute>
+            <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
+              <AbDriveConfig />
+            </ProtectedRoute>
         ),
         handle: { crumb: "Dossiers Drive" },
       },
@@ -144,18 +144,18 @@ export const router = createBrowserRouter([
       {
         path: "config-drive",
         element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
-            <DriveConfig />
-          </ProtectedRoute>
+            <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
+              <DriveConfig />
+            </ProtectedRoute>
         ),
         handle: { crumb: "Dossiers Drive" },
       },
       {
         path: "config-secteurs",
         element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
-            <SectorSettings />
-          </ProtectedRoute>
+            <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
+              <SectorSettings />
+            </ProtectedRoute>
         ),
         handle: { crumb: "Lieux par secteur" },
       },
@@ -164,7 +164,7 @@ export const router = createBrowserRouter([
   {
     path: "/peda",
     element: (
-      <ProtectedRoute allowedRoles={[UserRole.PEDA, UserRole.ADMIN]}>
+      <ProtectedRoute allowedRoles={[UserRole.PEDA, UserRole.AD, UserRole.GESTION]}>
         <PedaLayout />
       </ProtectedRoute>
     ),

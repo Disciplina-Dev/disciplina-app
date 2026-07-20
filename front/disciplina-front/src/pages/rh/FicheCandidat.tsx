@@ -11,8 +11,8 @@ import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
-import { offerGraphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT } from '@/graphql/queries'
+import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
@@ -256,6 +256,10 @@ export default function FicheCandidat() {
   const [immersionModalOpen, setImmersionModalOpen] = useState(false)
   const [immersionStart, setImmersionStart] = useState('')
   const [immersionEnd, setImmersionEnd] = useState('')
+  const [immersionCompanyId, setImmersionCompanyId] = useState('')
+  const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([])
+  const [companyQuery, setCompanyQuery] = useState('')
+  const [companyListOpen, setCompanyListOpen] = useState(false)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -458,6 +462,15 @@ export default function FicheCandidat() {
     if (newStatus === CandidateStatus.IMMERSING) {
       setImmersionStart(formData.immersion_start_date?.slice(0, 10) ?? '')
       setImmersionEnd(formData.immersion_end_date?.slice(0, 10) ?? '')
+      setImmersionCompanyId(formData.immersion_company_id != null ? String(formData.immersion_company_id) : '')
+      setCompanyQuery(formData.immersion_company_name ?? '')
+      setCompanyListOpen(false)
+      // Charge la liste des entreprises (MySQL) une seule fois pour le sélecteur.
+      if (companyOptions.length === 0) {
+        graphqlClient.query(GET_COMPANY_OPTIONS, {}).toPromise().then((res) => {
+          if (res.data?.companyOptions) setCompanyOptions(res.data.companyOptions as { id: number; name: string }[])
+        })
+      }
       setImmersionModalOpen(true)
       return
     }
@@ -466,11 +479,15 @@ export default function FicheCandidat() {
 
   const confirmImmersion = async () => {
     if (!formData) return
+    const companyIdNum = immersionCompanyId ? Number(immersionCompanyId) : undefined
+    const companyName = companyOptions.find(c => c.id === companyIdNum)?.name
     await persistStatus({
       ...formData,
       status: CandidateStatus.IMMERSING,
       immersion_start_date: immersionStart || undefined,
       immersion_end_date: immersionEnd || undefined,
+      immersion_company_id: companyIdNum,
+      immersion_company_name: companyName,
     })
     setImmersionModalOpen(false)
   }
@@ -656,9 +673,9 @@ export default function FicheCandidat() {
                         </>
                       )}
                     </span>
-                  ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_start_date || formData.immersion_end_date) && (
+                  ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_company_name || formData.immersion_start_date || formData.immersion_end_date) && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
-                      Immersion : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
+                      Immersion{formData.immersion_company_name ? ` chez ${formData.immersion_company_name}` : ''} : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
                     </span>
                   )}
                   {(() => {
@@ -1405,8 +1422,42 @@ export default function FicheCandidat() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModalOpen(false)}>
           <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
-            <p className="mt-1 text-sm text-gray-500">Renseigne les dates de début et de fin de l'immersion.</p>
+            <p className="mt-1 text-sm text-gray-500">Renseigne l'entreprise et les dates de début et de fin de l'immersion.</p>
             <div className="mt-4 space-y-3">
+              <div className="relative">
+                <label className={labelCls} htmlFor="imm-company">Entreprise</label>
+                <input
+                  id="imm-company"
+                  type="text"
+                  autoComplete="off"
+                  className={inputCls}
+                  placeholder="Rechercher une entreprise…"
+                  value={companyQuery}
+                  onChange={e => { setCompanyQuery(e.target.value); setImmersionCompanyId(''); setCompanyListOpen(true) }}
+                  onFocus={() => setCompanyListOpen(true)}
+                />
+                {companyListOpen && (() => {
+                  const filtered = companyOptions.filter(c => c.name?.toLowerCase().includes(companyQuery.toLowerCase()))
+                  return (
+                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                      {filtered.slice(0, 50).map(c => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100"
+                            onClick={() => { setImmersionCompanyId(String(c.id)); setCompanyQuery(c.name); setCompanyListOpen(false) }}
+                          >
+                            {c.name}
+                          </button>
+                        </li>
+                      ))}
+                      {filtered.length === 0 && (
+                        <li className="px-3 py-1.5 text-sm text-gray-400">Aucune entreprise</li>
+                      )}
+                    </ul>
+                  )
+                })()}
+              </div>
               <div>
                 <label className={labelCls} htmlFor="imm-start">Date de début</label>
                 <input id="imm-start" type="date" className={inputCls} value={immersionStart} onChange={e => setImmersionStart(e.target.value)} />

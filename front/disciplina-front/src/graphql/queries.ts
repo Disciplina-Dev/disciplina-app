@@ -33,6 +33,15 @@ export const GET_SALE_PERSON = gql`
   }
 `
 
+export const GET_COMPANY_OPTIONS = gql`
+  query GetCompanyOptions {
+    companyOptions {
+      id
+      name
+    }
+  }
+`
+
 export const GET_COMPANIES = gql`
   query GetCompanies($first: Int, $after: String, $search: String, $filters: CompanyFiltersInput) {
     companies(first: $first, after: $after, search: $search, filters: $filters) {
@@ -445,6 +454,8 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionAgreement
       immersionStartDate
       immersionEndDate
+      immersionCompanyId
+      immersionCompanyName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -574,6 +585,8 @@ export const UPDATE_CANDIDATE = gql`
       immersionAgreement
       immersionStartDate
       immersionEndDate
+      immersionCompanyId
+      immersionCompanyName
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -746,6 +759,8 @@ export const GET_CANDIDATE_FULL = gql`
       immersionAgreement
       immersionStartDate
       immersionEndDate
+      immersionCompanyId
+      immersionCompanyName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -869,6 +884,8 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionAgreement
       immersionStartDate
       immersionEndDate
+      immersionCompanyId
+      immersionCompanyName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -997,7 +1014,7 @@ export const REGISTER_USER = gql`
     $firstName: String!
     $lastName: String!
     $passwordPlain: String!
-    $role: Role!
+    $role: UserRole!
     $sectors: [String!]
   ) {
     register(

@@ -2,16 +2,29 @@ import express, { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
-import { getYears, getAnnualSummary, getMonthlyDetail, getWeeklyDetail, getOverview, getUserDetail, getLiveSnapshot, getActivity, getCombined, upsertKpi, importExcel, getSelectableUsers } from './controller';
+import {
+    getYears,
+    getAnnualSummary,
+    getMonthlyDetail,
+    getWeeklyDetail,
+    getOverview,
+    getUserDetail,
+    getLiveSnapshot,
+    getActivity,
+    getCombined,
+    upsertKpi,
+    importExcel,
+    getSelectableUsers,
+} from './controller';
 
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-const kpiAccess = [authenticate, requireRoles('ADMIN', 'RESPONSABLE')];
+const kpiAccess = [authenticate, requireRoles('AD', 'GESTION')];
 // Lecture scopée : un COMMERCIAL n'obtient que ses propres chiffres (contrôle dans le controller).
-const kpiReadAccess = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'COMMERCIAL')];
+const kpiReadAccess = [authenticate, requireRoles('AD', 'GESTION', 'COMMERCIAL')];
 
 export const router: Router = Router();
 

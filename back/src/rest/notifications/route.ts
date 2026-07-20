@@ -15,7 +15,7 @@ router.post('/read-all', authenticate, markAllNotificationsRead);
 router.post('/:id/read', authenticate, markNotificationRead);
 
 // Création manuelle (ADMIN) — test du système générique.
-router.post('/', express.json(), authenticate, requireRoles('ADMIN'), createNotification);
+router.post('/', express.json(), authenticate, requireRoles('AD', 'GESTION'), createNotification);
 
 // Flux SSE temps réel — l'identité vient du token, jamais de la query.
 router.get('/stream', (req: AuthRequest, res: Response) => {

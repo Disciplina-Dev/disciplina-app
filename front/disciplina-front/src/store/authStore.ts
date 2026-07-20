@@ -2,12 +2,18 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export enum UserRole {
-  ADMIN = 'ADMIN',
-  RESPONSABLE = 'RESPONSABLE',
   COMMERCIAL = 'COMMERCIAL',
   RH = 'RH',
   PEDA = 'PEDA',
+  AD = 'AD',
+  GESTION = 'GESTION',
   ENTREPRISE = 'ENTREPRISE',
+}
+
+export enum Permission {
+  EMPLOYEE = 'EMPLOYEE',
+  RESPONSABLE = 'RESPONSABLE',
+  ADMIN = 'ADMIN',
 }
 
 export interface AppUser {
@@ -16,6 +22,7 @@ export interface AppUser {
   firstName: string
   lastName: string
   role: UserRole
+  permission: Permission
   sectors?: string[]
   oauthToken?: string
   googleConnected?: boolean

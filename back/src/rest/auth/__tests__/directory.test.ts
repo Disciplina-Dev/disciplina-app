@@ -19,31 +19,32 @@ describe('staff directory', () => {
             first_name: 'Brandon',
             last_name: 'Galmar',
             password: await bcrypt.hash('Irrelevant123456', 10),
-            role: 'COMMERCIAL',
+            role_id: 1,
+            permission_id: 1,
             sectors: null,
             oauth_token: 'a-secret-oauth-token',
             refresh_token: 'a-secret-refresh-token',
         });
     });
 
-    // listUsers est réservé à ADMIN/RESPONSABLE : l'annuaire existe parce que les
-    // pages commerciales doivent résoudre un id en nom sans ce privilège.
+    // listUsers est réservé aux permissions RESPONSABLE/ADMIN : l'annuaire existe
+    // parce que les pages commerciales doivent résoudre un id en nom sans ce privilège.
     it('serves a COMMERCIAL token', async () => {
         const res = await get(mintToken({ id: 1, email: 'c@test.com', role: 'COMMERCIAL' }));
         expect(res.status).toBe(200);
         expect(await res.json()).toHaveLength(1);
     });
 
-    it('exposes only id, firstName, lastName and role', async () => {
-        const res = await get(mintToken({ id: 1, email: 'c@test.com', role: 'COMMERCIAL' }));
+    it('exposes only id, firstName, lastName, role and permission', async () => {
+        const res = await get(mintToken({ id: 1, email: 'c@test.com', role: 'COMMERCIAL', permission: 'EMPLOYEE' }));
         const body = await res.json();
         for (const entry of body) {
-            expect(Object.keys(entry).sort()).toEqual(['firstName', 'id', 'lastName', 'role']);
+            expect(Object.keys(entry).sort()).toEqual(['firstName', 'id', 'lastName', 'permission', 'role']);
         }
     });
 
     it('never leaks emails or tokens', async () => {
-        const res = await get(mintToken({ id: 1, email: 'c@test.com', role: 'COMMERCIAL' }));
+        const res = await get(mintToken({ id: 1, email: 'c@test.com', role: 'COMMERCIAL', permission: 'EMPLOYEE' }));
         const raw = JSON.stringify(await res.json());
         expect(raw).not.toContain('@');
         expect(raw).not.toContain('oauth');

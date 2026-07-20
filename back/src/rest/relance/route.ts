@@ -13,13 +13,13 @@ import { requireRoles } from '../middleware/roleGuard';
 export const router: Router = Router();
 
 // Relance candidats : réservée aux profils RH (les routes company gardent leur guard interne).
-router.post('/api/relance/send', express.json(), authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH'), sendRelance);
+router.post('/api/relance/send', express.json(), authenticate, requireRoles('AD', 'GESTION', 'RH'), sendRelance);
 // Envoi groupé d'un modèle de mail RH (PJ possible → limite élargie).
 router.post(
     '/api/relance/bulk',
     express.json({ limit: '50mb' }),
     authenticate,
-    requireRoles('ADMIN', 'RESPONSABLE', 'RH'),
+    requireRoles('AD', 'GESTION', 'RH'),
     sendBulkRelance,
 );
 router.get('/api/relance/response', handleResponse);

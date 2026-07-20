@@ -2,14 +2,11 @@ import express, { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
 import { bookingRateLimiter } from '../middleware/rateLimiter';
-import {
-    getMySettings, updateMySettings,
-    getPublicBooking, getPublicSlots, postBooking,
-} from './controller';
+import { getMySettings, updateMySettings, getPublicBooking, getPublicSlots, postBooking } from './controller';
 
 export const router: Router = Router();
 
-const access = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH')];
+const access = [authenticate, requireRoles('AD', 'GESTION', 'RH')];
 
 // Réglages (espace RH authentifié).
 router.get('/settings', ...access, getMySettings);

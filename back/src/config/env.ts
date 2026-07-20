@@ -136,6 +136,9 @@ const data = {
     // or a self-hosted instance URL as needed.
     DOCUSEAL_API_KEY: optionalString('DOCUSEAL_API_KEY', 'docuseal_key_placeholder'),
     DOCUSEAL_BASE_URL: stringWithDefault('DOCUSEAL_BASE_URL', 'https://api.docuseal.com'),
+    // URL publique de signature (host qui sert les pages /s/<slug>). Différent de
+    // l'API host. https://docuseal.eu (EU) ou l'URL d'une instance auto-hébergée.
+    DOCUSEAL_SIGN_URL: stringWithDefault('DOCUSEAL_SIGN_URL', 'https://docuseal.com'),
     DOCUSEAL_WEBHOOK_SECRET: optionalString('DOCUSEAL_WEBHOOK_SECRET'),
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),

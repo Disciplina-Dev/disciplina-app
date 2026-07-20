@@ -240,6 +240,8 @@ export interface Candidate {
     immersion_agreement?: boolean;
     immersion_start_date?: string;
     immersion_end_date?: string;
+    immersion_company_id?: number;
+    immersion_company_name?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

@@ -5,7 +5,7 @@ import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../../../repositories/mysql/CompanyBlacklistRepository';
 import { SireneService } from '../../../external/insee/sirene.service';
-import { Role } from '../../../types/user.types';
+import { JobRole, Permission } from '../../../types/user.types';
 import pool from '../../../db/mysql/connection';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
@@ -56,13 +56,10 @@ describe('createCompany INSEE + blacklist validation', () => {
     beforeEach(async () => {
         await truncateMysql();
         const conn = await pool.getConnection();
-        await conn.execute('INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)', [
-            'admin@test.local',
-            'Admin',
-            'User',
-            'password',
-            Role.ADMIN,
-        ]);
+        await conn.execute(
+            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+            ['admin@test.local', 'Admin', 'User', 'password', 1, 3],
+        );
         conn.release();
         checkSiret = vi.spyOn(SireneService.prototype, 'checkSiret');
     });
@@ -72,7 +69,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when INSEE does not recognise the SIRET', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const siret = `${suffix}0000000010`.slice(0, 14);
         checkSiret.mockRejectedValue(new Error('SIRET not found'));
@@ -92,7 +89,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when the SIRET is already in the portfolio', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const siret = `${suffix}0000000011`.slice(0, 14);
         checkSiret.mockResolvedValue(validEtablissement(siret));
@@ -119,7 +116,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when the whole SIREN is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const blacklistedSiret = `${siren}00001`;
         const newSiret = `${siren}00099`;
@@ -148,7 +145,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when the exact SIRET is blacklisted, even without all_blacklist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const siret = `${siren}00001`;
         checkSiret.mockResolvedValue(validEtablissement(siret));
@@ -176,7 +173,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('creates the company when INSEE confirms the SIRET and nothing is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const siret = `${suffix}0000000012`.slice(0, 14);
         checkSiret.mockResolvedValue(validEtablissement(siret));

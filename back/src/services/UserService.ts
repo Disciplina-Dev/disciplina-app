@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { UserRepository } from '../repositories/mysql/UserRepository';
-import { User, Role } from '../types/user.types';
+import { User, JobRole, Permission } from '../types/user.types';
 import { UserRow } from '../types/db-rows.types';
 import { GoogleTokens } from '../external/google/types';
 import { toUser } from './mappers/user.mapper';
@@ -10,6 +10,21 @@ import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto
 import { logger } from '../external/logger';
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 12;
+
+// Mapping des énumérations vers leurs id en base.
+const ROLE_TO_ID: Record<JobRole, number> = {
+    [JobRole.COMMERCIAL]: 1,
+    [JobRole.RH]: 2,
+    [JobRole.PEDA]: 3,
+    [JobRole.AD]: 4,
+    [JobRole.GESTION]: 5,
+};
+
+const PERMISSION_TO_ID: Record<Permission, number> = {
+    [Permission.EMPLOYEE]: 1,
+    [Permission.RESPONSABLE]: 2,
+    [Permission.ADMIN]: 3,
+};
 
 // Hash bcrypt d'une valeur arbitraire, au même coût que les vrais : sert de leurre
 // au login pour que le temps de réponse ne dépende pas de l'existence du compte.
@@ -23,6 +38,16 @@ function passwordViolations(password: string): string[] {
     if (!/[A-Z]/.test(password)) violations.push('une majuscule');
     if (!/[0-9]/.test(password)) violations.push('un chiffre');
     return violations;
+}
+
+/** Convertit un JobRole enum en id base. */
+export function roleToId(role: JobRole): number {
+    return ROLE_TO_ID[role];
+}
+
+/** Convertit un Permission enum en id base. */
+export function permissionToId(permission: Permission): number {
+    return PERMISSION_TO_ID[permission];
 }
 
 export class UserService {
@@ -79,7 +104,8 @@ export class UserService {
             email?: string;
             firstName?: string;
             lastName?: string;
-            role?: Role;
+            role?: JobRole;
+            permission?: Permission;
             sectors?: string[];
             passwordPlain?: string;
         },
@@ -98,7 +124,8 @@ export class UserService {
         if (input.email !== undefined) fields.email = input.email;
         if (input.firstName !== undefined) fields.first_name = input.firstName;
         if (input.lastName !== undefined) fields.last_name = input.lastName;
-        if (input.role !== undefined) fields.role = input.role as UserRow['role'];
+        if (input.role !== undefined) fields.role_id = roleToId(input.role);
+        if (input.permission !== undefined) fields.permission_id = permissionToId(input.permission);
         if (input.sectors !== undefined) {
             fields.sectors = input.sectors.length > 0 ? JSON.stringify(input.sectors) : null;
         }
@@ -110,13 +137,33 @@ export class UserService {
         return this.findById(id);
     }
 
-    async findByRole(role: Role): Promise<User[] | null> {
-        const row = await this.userRepository.findByRole(role);
-        return row ? row.map((user: UserRow) => this.decryptUserTokens(toUser(user))) : null;
+    async findByRoleId(roleId: number): Promise<User[]> {
+        const rows = await this.userRepository.findByRoleId(roleId);
+        return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
     }
 
-    async findByRoles(roles: Role[]): Promise<User[]> {
-        const rows = await this.userRepository.findByRoles(roles);
+    async findByJobRole(role: JobRole): Promise<User[]> {
+        return this.findByRoleId(ROLE_TO_ID[role]);
+    }
+
+    async findByRoleIds(roleIds: number[]): Promise<User[]> {
+        const rows = await this.userRepository.findByRoleIds(roleIds);
+        return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
+    }
+
+    async findByJobRoles(roles: JobRole[]): Promise<User[]> {
+        const ids = roles.map((r) => ROLE_TO_ID[r]);
+        return this.findByRoleIds(ids);
+    }
+
+    async findByPermission(permission: Permission): Promise<User[]> {
+        const rows = await this.userRepository.findByPermissionId(PERMISSION_TO_ID[permission]);
+        return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
+    }
+
+    async findByPermissions(permissions: Permission[]): Promise<User[]> {
+        const ids = permissions.map((p) => PERMISSION_TO_ID[p]);
+        const rows = await this.userRepository.findByPermissionIds(ids);
         return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
     }
 
@@ -131,8 +178,8 @@ export class UserService {
      * disposant de jetons Google valides. Utilisé par les traitements sans
      * contexte utilisateur (webhooks) pour agir sur le Drive partagé.
      */
-    async findFirstGoogleConnectedUser(roles: Role[]): Promise<User | null> {
-        const users = await this.findByRoles(roles);
+    async findFirstGoogleConnectedUser(roles: JobRole[]): Promise<User | null> {
+        const users = await this.findByJobRoles(roles);
         // refreshToken peut être null (Google ne le renvoie qu'au 1er consentement) :
         // un access_token suffit, comme la route /drive-files.
         return users.find((u) => u.oauthToken) ?? null;
@@ -143,7 +190,8 @@ export class UserService {
         firstName: string,
         lastName: string,
         passwordPlain: string,
-        role: Role,
+        roleId: number,
+        permissionId: number,
         sectors?: string[],
     ): Promise<User> {
         const violations = passwordViolations(passwordPlain);
@@ -163,8 +211,8 @@ export class UserService {
             first_name: firstName,
             last_name: lastName,
             password: hashedPassword,
-            // ENTREPRISE_GUEST est un rôle de session JWT, jamais enregistré en base
-            role: role as UserRow['role'],
+            role_id: roleId,
+            permission_id: permissionId,
             sectors: sectors && sectors.length > 0 ? JSON.stringify(sectors) : null,
             oauth_token: null,
             refresh_token: null,
@@ -191,9 +239,13 @@ export class UserService {
 
         const user = toUser(userRow);
 
-        const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, env.JWT_SECRET, {
-            expiresIn: '24h',
-        });
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role, permission: user.permission },
+            env.JWT_SECRET,
+            {
+                expiresIn: '24h',
+            },
+        );
 
         return { token, user };
     }

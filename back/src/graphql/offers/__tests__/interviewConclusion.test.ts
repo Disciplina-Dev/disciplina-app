@@ -89,7 +89,7 @@ async function seedJobWithProposedCandidate(
 
 describe('GraphQL setInterviewConclusion', () => {
     it('rejects when the interview has not happened yet', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const futureSlot = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, futureSlot);
@@ -105,7 +105,7 @@ describe('GraphQL setInterviewConclusion', () => {
     });
 
     it('rejects IMMERSING without immersion dates', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + 1;
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
@@ -124,7 +124,7 @@ describe('GraphQL setInterviewConclusion', () => {
         ['REJECTED', CandidateStatus.SEEKING],
         ['CONTRACT', CandidateStatus.CONTRACT],
     ])('sets %s conclusion, candidate status, and a history entry', async (conclusion, expectedStatus) => {
-        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
@@ -152,7 +152,7 @@ describe('GraphQL setInterviewConclusion', () => {
     });
 
     it('sets IMMERSING conclusion with immersion dates', async () => {
-        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);

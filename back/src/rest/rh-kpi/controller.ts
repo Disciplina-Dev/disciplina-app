@@ -1,15 +1,15 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { RhKpiService } from '../../services/RhKpiService';
-import { Role } from '../../types/user.types';
+import { Permission } from '../../types/user.types';
 import { logger } from '../../external/logger';
 
 const rhKpiService = new RhKpiService();
 
 /** ADMIN/RESPONSABLE voient la somme de tous les RH ; un RH ne voit que ses propres chiffres. */
 function scopeFor(req: AuthRequest): number[] | undefined {
-    const role = req.user?.role as Role | undefined;
-    if (role === Role.ADMIN || role === Role.RESPONSABLE) return undefined; // tous
+    const permission = req.user?.permission as Permission | undefined;
+    if (permission === Permission.ADMIN || permission === Permission.RESPONSABLE) return undefined; // tous
     return [Number(req.user.id)];
 }
 

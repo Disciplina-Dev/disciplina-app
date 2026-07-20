@@ -3,7 +3,7 @@ import {
   CalendarPlus, CalendarClock, UserCheck, UserX, Briefcase, FileSignature, Unlink,
   Loader2, AlertCircle, RefreshCw,
 } from 'lucide-react'
-import { useAuthStore, UserRole } from '@/store/authStore'
+import { useAuthStore, Permission } from '@/store/authStore'
 import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
   type RhKpiColumn, type RhKpiMetrics, type RhKpiReport,
@@ -66,8 +66,8 @@ export default function RhKpiPanel({
   hideSelector = false,
 }: { sectors?: string[] | null; hideSelector?: boolean } = {}) {
   const token = useAuthStore((s) => s.token)
-  const role = useAuthStore((s) => s.user?.role)
-  const isAggregate = role === UserRole.ADMIN || role === UserRole.RESPONSABLE
+  const permission = useAuthStore((s) => s.user?.permission)
+  const isAggregate = permission === Permission.ADMIN || permission === Permission.RESPONSABLE
 
   const now = useMemo(() => new Date(), [])
   const [year, setYear] = useState(now.getFullYear())

@@ -32,6 +32,7 @@ import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
+import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -159,10 +160,15 @@ export async function startServer(): Promise<http.Server> {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
     // Modèles de relance d'absence par défaut (idempotent, une seule fois).
-    new MailTemplateService()
+    const mailTemplateService = new MailTemplateService();
+    mailTemplateService
         .seedPedaDefaults()
         .catch((err) => logger.error({ err }, 'peda-templates: seed des modèles par défaut échoué'));
+    mailTemplateService
+        .seedAbSignatureDefault()
+        .catch((err) => logger.error({ err }, 'ab-signature: seed du modèle système échoué'));
     startPedaDraftScheduler();
+    startImmersionEndScheduler();
     return server;
 }
 

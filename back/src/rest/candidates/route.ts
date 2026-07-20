@@ -2,7 +2,7 @@ import express, { Router, Response } from 'express';
 import { randomUUID } from 'crypto';
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
 import { PdfService } from '../../services/PdfService';
@@ -48,7 +48,8 @@ function normalizeName(name: string): string {
 // PDF de l'Analyse du Besoin (tous les éléments AB), en téléchargement
 router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -77,7 +78,8 @@ router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => 
 // validation de l'AB pour éviter le download + import manuel.
 router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -142,7 +144,8 @@ router.post(
     authenticate,
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        const permission = req.user?.permission;
+        if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -204,7 +207,8 @@ router.post(
 
 router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -254,7 +258,8 @@ router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response)
 
 router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -292,9 +297,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         // le met en cache comme avatar.
         const hasStoredAvatar = await CandidateAvatarModel.exists({ candidate_id: id });
         if (!hasStoredAvatar && !candidate.identity.drive_avatar_file_id) {
-            const photoFile = files.find(
-                (f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name),
-            );
+            const photoFile = files.find((f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name));
             if (photoFile) {
                 try {
                     const { buffer, mimeType } = await driveService.downloadFile(photoFile.id);
@@ -303,10 +306,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
                         { candidate_id: id, data: buffer, content_type: mimeType, updated_at: new Date() },
                         { upsert: true, new: true },
                     );
-                    await candidateService.update(
-                        id,
-                        { identity: { drive_avatar_file_id: photoFile.id } } as never,
-                    );
+                    await candidateService.update(id, { identity: { drive_avatar_file_id: photoFile.id } } as never);
                 } catch (syncErr) {
                     logger.warn(syncErr, 'drive avatar sync failed (non-blocking)');
                 }
@@ -323,7 +323,8 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
 // bloquée par le blocage des cookies tiers → "Connectez-vous à votre compte Google").
 router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -373,7 +374,8 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
 
 router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -417,7 +419,8 @@ router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest,
 
 router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -467,7 +470,8 @@ router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async 
 // and archives original to the candidate's Drive folder when available.
 router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -553,7 +557,8 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
 // OAuth token, caches it in Mongo, then serves. RH-only because it needs a token.
 router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -613,10 +618,9 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
                 { candidate_id: id, data: buffer, content_type: mimeType, updated_at: now },
                 { upsert: true },
             );
-            await candidateService.update(
-                id,
-                { identity: { avatar_updated_at: now, drive_avatar_file_id: fileId } } as never,
-            );
+            await candidateService.update(id, {
+                identity: { avatar_updated_at: now, drive_avatar_file_id: fileId },
+            } as never);
         } catch (cacheErr) {
             logger.warn(cacheErr, 'avatar cache write failed (non-blocking)');
         }
@@ -658,7 +662,8 @@ router.get('/:id/avatar', async (req, res: Response) => {
 
 router.post('/quick-create', express.json(), authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }

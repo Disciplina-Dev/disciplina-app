@@ -13,14 +13,20 @@ function register(passwordPlain: string) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${mintToken({ id: 1, email: 'admin@test.com', role: 'ADMIN' })}`,
+            Authorization: `Bearer ${mintToken({
+                id: 1,
+                email: 'admin@test.com',
+                role: 'COMMERCIAL',
+                permission: 'ADMIN',
+            })}`,
         },
         body: JSON.stringify({
             email: `policy-${counter}@test.local`,
             firstName: 'Test',
             lastName: 'User',
             passwordPlain,
-            role: 'RH',
+            role: 'COMMERCIAL',
+            permission: 'EMPLOYEE',
         }),
     });
 }

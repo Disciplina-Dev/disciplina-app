@@ -12,6 +12,14 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
     return typeof value === 'string' && (PEDA_LEVELS as readonly string[]).includes(value);
 }
 
+/**
+ * Modèles « système » : uniques, semés par défaut, non supprimables, partagés
+ * par tous les utilisateurs du scope. Repérés par ce champ (et non par leur nom).
+ * `ab_signature` = mail d'invitation à signer l'Analyse du Besoin (scope commercial).
+ */
+export const MAIL_TEMPLATE_KINDS = ['ab_signature'] as const;
+export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
+
 /** Libellés affichés (front + logs). */
 export const PEDA_LEVEL_LABELS: Record<PedaLevel, string> = {
     niv1: 'Niveau 1',
@@ -36,6 +44,8 @@ export interface MailTemplate {
     body: string;
     /** Renseigné uniquement pour le scope `peda` ; null partout ailleurs. */
     peda_level: PedaLevel | null;
+    /** Modèle système (ex. `ab_signature`) ; null pour les modèles créés par l'utilisateur. */
+    kind: MailTemplateKind | null;
     attachment: MailTemplateAttachment | null;
     created_at: Date;
     updated_at: Date;

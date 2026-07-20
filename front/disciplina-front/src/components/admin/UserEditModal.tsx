@@ -3,7 +3,7 @@ import { X, Shield, User as UserIcon, Mail, MapPin, Loader2 } from 'lucide-react
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
-import { useAuthStore } from '@/store/authStore'
+import { Permission, useAuthStore } from '@/store/authStore'
 import { SECTEUR_VALUES } from '@/types/entreprise'
 
 export interface ManagedUser {
@@ -12,14 +12,21 @@ export interface ManagedUser {
   firstName: string
   lastName: string
   role: string
+  permission: string
   sectors: string[] | null
 }
 
 const ROLES = [
-  { value: 'ADMIN', label: 'Administrateur' },
-  { value: 'RESPONSABLE', label: 'Responsable' },
+  { value: 'AD', label: 'Administrateur' },
+  { value: 'GESTION', label: 'Gestion' },
   { value: 'COMMERCIAL', label: 'Commercial' },
   { value: 'RH', label: 'Ressources Humaines' },
+]
+
+const PERMISSIONS = [
+  { value: Permission.EMPLOYEE, label: 'Employé' },
+  { value: Permission.RESPONSABLE, label: 'Responsable' },
+  { value: Permission.ADMIN, label: 'Administrateur' },
 ]
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -36,6 +43,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
   const [lastName, setLastName] = useState(user.lastName)
   const [email, setEmail] = useState(user.email)
   const [role, setRole] = useState(user.role)
+  const [permission, setPermission] = useState(user.permission)
   const [sectors, setSectors] = useState<string[]>(user.sectors ?? [])
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
@@ -75,6 +83,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
           lastName: lastName.trim(),
           email: email.trim(),
           role,
+          permission,
           sectors,
           ...(password ? { passwordPlain: password } : {}),
         }),
@@ -87,6 +96,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
+        permission: data.permission,
         sectors: data.sectors ?? [],
       })
     } catch (e) {
@@ -162,6 +172,29 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
                 {ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-permission" className="text-sm font-medium text-gray-700">
+              Niveau de permission
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                <Shield size={18} />
+              </span>
+              <select
+                id="edit-permission"
+                value={permission}
+                onChange={(e) => setPermission(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-[10px] text-sm text-gray-900 focus:border-blue outline-none transition-colors appearance-none"
+              >
+                {PERMISSIONS.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
                   </option>
                 ))}
               </select>
