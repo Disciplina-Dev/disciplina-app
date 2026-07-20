@@ -217,6 +217,11 @@ const candidateSchema = new Schema<Candidate & Document>(
         immersion_agreement: { type: Boolean },
         immersion_start_date: { type: Date },
         immersion_end_date: { type: Date },
+        immersion_company_id: { type: Number },
+        immersion_company_name: { type: String },
+        // Horodatage de l'envoi de la notification « immersion terminée » : évite
+        // de re-notifier chaque jour une fois la date de fin passée (dédup scheduler).
+        immersion_end_notified_at: { type: Date },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
         education: { type: educationSchema },

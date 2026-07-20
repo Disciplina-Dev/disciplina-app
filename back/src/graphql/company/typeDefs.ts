@@ -154,8 +154,14 @@ export const typeDefs = gql`
         byUser: [ContactLogUserCount!]!
     }
 
+    type CompanyOption {
+        id: Int!
+        name: String
+    }
+
     type Query {
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
+        companyOptions: [CompanyOption!]!
         companyStats(year: Int!): CompanyStats!
         salePersons: [User!]!
         rhUsers: [User!]!

@@ -225,6 +225,9 @@ export interface Candidate {
     immersion_agreement?: boolean;
     immersion_start_date?: Date;
     immersion_end_date?: Date;
+    immersion_company_id?: number; // entreprise d'immersion (réf MySQL companies)
+    immersion_company_name?: string; // snapshot du nom au moment du choix
+    immersion_end_notified_at?: Date; // date d'émission de la notif « immersion terminée » (dédup)
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

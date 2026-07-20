@@ -227,6 +227,21 @@ export class CandidateRepository {
         return CandidateModel.find(filter).lean();
     }
 
+    // Candidats dont l'immersion s'est terminée (date de fin passée) et pour
+    // lesquels la notification « immersion terminée » n'a pas encore été émise.
+    // Sert au scheduler de notification d'immersion.
+    async findImmersionEndedUnnotified(now: Date): Promise<Candidate[]> {
+        return CandidateModel.find({
+            immersion_end_date: { $ne: null, $lte: now },
+            immersion_end_notified_at: null,
+        }).lean();
+    }
+
+    // Marque la notification « immersion terminée » comme émise (dédup scheduler).
+    async markImmersionEndNotified(id: string, at: Date): Promise<void> {
+        await CandidateModel.updateOne({ _id: id }, { $set: { immersion_end_notified_at: at } });
+    }
+
     // Recherche par email (exact, insensible à la casse + espaces) pour la
     // détection de doublons à la création.
     async findByEmail(email: string): Promise<Candidate | null> {

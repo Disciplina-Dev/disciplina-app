@@ -32,6 +32,7 @@ import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
+import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -167,6 +168,7 @@ export async function startServer(): Promise<http.Server> {
         .seedAbSignatureDefault()
         .catch((err) => logger.error({ err }, 'ab-signature: seed du modèle système échoué'));
     startPedaDraftScheduler();
+    startImmersionEndScheduler();
     return server;
 }
 
