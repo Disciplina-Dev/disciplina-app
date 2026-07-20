@@ -35,7 +35,7 @@ import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { offerGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
-import { useAuthStore, useCurrentUser, UserRole, Permission } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'

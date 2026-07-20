@@ -3,7 +3,7 @@ import { BarChart3, Plus, AlertTriangle, CheckCircle2, PhoneCall, Users } from '
 
 import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
-import { useAuthStore, useCurrentUser, UserRole, Permission } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { useContactLogStats } from '@/graphql/hooks'
 import {

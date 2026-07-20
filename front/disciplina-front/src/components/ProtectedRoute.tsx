@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuthStore, UserRole, Permission } from '../store/authStore'
+import { useAuthStore, UserRole } from '../store/authStore'
 
 interface ProtectedRouteProps {
   children: ReactNode
@@ -27,7 +27,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role as UserRole)) {
-    if (user.role === 'RESPONSABLE') {
+    if (user.permission === 'RESPONSABLE') {
       return <Navigate to="/commercial" replace />
     }
     if (user.role === 'COMMERCIAL') {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAuthStore, type UserRole } from '@/store/authStore'
+import { useAuthStore, type UserRole, type Permission } from '@/store/authStore'
 import { fetchStaffDirectory, type DirectoryEntry } from '@/api/directory'
 
 export interface StaffMember {
@@ -7,6 +7,7 @@ export interface StaffMember {
   firstName: string
   lastName: string
   role: UserRole
+  permission: Permission
   color: string
   initials: string
 }
@@ -19,6 +20,7 @@ function toStaffMember(entry: DirectoryEntry): StaffMember {
     firstName: entry.firstName,
     lastName: entry.lastName,
     role: entry.role,
+    permission: entry.permission,
     color: PALETTE[entry.id % PALETTE.length],
     initials: entry.firstName.trim().charAt(0).toUpperCase() || '-',
   }

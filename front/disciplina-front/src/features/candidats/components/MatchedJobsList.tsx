@@ -5,7 +5,7 @@ import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
-import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
+import { useCurrentUser, Permission } from '@/store/authStore'
 import AddCandidateToJobModal from './AddCandidateToJobModal'
 import JobSearchModal from './JobSearchModal'
 

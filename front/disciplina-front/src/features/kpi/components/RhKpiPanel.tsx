@@ -3,7 +3,7 @@ import {
   CalendarPlus, CalendarClock, UserCheck, UserX, Briefcase, FileSignature, Unlink,
   Loader2, AlertCircle, RefreshCw,
 } from 'lucide-react'
-import { useAuthStore, UserRole, Permission } from '@/store/authStore'
+import { useAuthStore, Permission } from '@/store/authStore'
 import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
   type RhKpiColumn, type RhKpiMetrics, type RhKpiReport,

@@ -56,6 +56,16 @@ CREATE TABLE IF NOT EXISTS `users` (
   CONSTRAINT `fk_users_permission_id` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+INSERT IGNORE INTO `users` (`email`, `first_name`, `last_name`, `password`, `role_id`, `permission_id`)
+  VALUE (
+    'root@example.com',
+    'root',
+    'root',
+    '$2a$10$3cXr1oA.UaFA44D4OjddWupCC3c4vFBoPZhewTxohLKUvMrHJ52nq',
+    5,
+    3
+  );
+
 CREATE TABLE IF NOT EXISTS `booking_settings` (
   `user_id` int NOT NULL,
   `slug` varchar(32) NOT NULL,
