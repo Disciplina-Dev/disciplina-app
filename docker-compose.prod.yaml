@@ -8,5 +8,41 @@ services:
         VITE_API_URL: ${VITE_API_URL}
     environment: []
     develop: !reset null
-    ports:
-      - "8090:80"
+    # Remplace (pas fusionne) les ports du service de base : le port dev 5173 ne
+    # doit pas fuiter en prod. Caddy (hôte) proxy vers la boucle locale.
+    ports: !override
+      - "127.0.0.1:8090:80"
+
+  backend:
+    build:
+      target: prod
+    # NODE_ENV via environment écrase env_file (back/.env) : neutralise toute
+    # faute de frappe (`developpement`) et force les protections de production.
+    environment:
+      - NODE_ENV=production
+      - OLLAMA_BASE_URL=http://ollama:11434
+    develop: !reset null
+    # Caddy (hôte) proxy vers la boucle locale ; pas d'exposition publique directe.
+    ports: !override
+      - "127.0.0.1:4000:4000"
+
+  # Bases accessibles uniquement via backend-net : aucun port publié sur l'hôte.
+  sql-db:
+    ports: !reset []
+    # Le seed dev (root@example.com) n'est PAS monté en production.
+    volumes: !override
+      - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/mysql/mysql-data:/var/lib/mysql
+
+  nosql-db:
+    ports: !reset []
+
+  startup-script:
+    environment:
+      NODE_ENV: production
+
+  # Dozzle monte le socket Docker : jamais exposé publiquement, boucle locale seule
+  # (exposition via Caddy + auth = action Mac mini, cf. REMEDIATION.md).
+  dozzle:
+    ports: !override
+      - "127.0.0.1:9999:8080"

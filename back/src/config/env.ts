@@ -162,6 +162,11 @@ const data = {
     MCP_API_KEY: optionalString('MCP_API_KEY'),
 };
 
+const VALID_NODE_ENVS = ['development', 'production', 'test'] as const;
+if (!VALID_NODE_ENVS.includes(data.NODE_ENV)) {
+    errors.push(`NODE_ENV must be one of: ${VALID_NODE_ENVS.join(', ')} (got "${process.env.NODE_ENV}")`);
+}
+
 if (errors.length > 0) {
     console.error('Invalid environment variables:');
     for (const message of errors) {
