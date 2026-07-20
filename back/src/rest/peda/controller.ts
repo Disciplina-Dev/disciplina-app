@@ -77,7 +77,7 @@ export async function putDraftHour(req: AuthRequest, res: Response): Promise<voi
 export async function runNow(req: AuthRequest, res: Response): Promise<void> {
     try {
         const report =
-            req.user.role === 'ADMIN'
+            req.user.role === 'GESTION' || req.user.role === 'AD'
                 ? await draftService.runForAllPedas()
                 : await draftService.runForUser(Number(req.user.id));
         res.json({ report });

@@ -7,7 +7,7 @@ import { CompaniesService } from '../../services/CompaniesService';
 import { RelanceHistoryRepository } from '../../repositories/mysql/RelanceHistoryRepository';
 import { toRelanceHistory } from '../../services/mappers/company.mapper';
 import { CandidateStatus } from '../../types/candidate.types';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { signRelanceUrl, verifyRelanceUrl } from '../../external/crypto';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
@@ -21,14 +21,16 @@ const gmailService = new GoogleGmailService();
 const companiesService = new CompaniesService();
 const relanceHistoryRepo = new RelanceHistoryRepository();
 
-const RELANCE_ROLES = [Role.COMMERCIAL, Role.RESPONSABLE, Role.ADMIN];
+const RELANCE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
 
 /**
  * Vérifie l'accès à l'entreprise pour une action de relance. Renvoie l'entreprise
  * ou null (en ayant déjà répondu en erreur). Un COMMERCIAL n'agit que sur ses entreprises.
  */
 async function loadOwnedCompany(req: AuthRequest, res: Response, companyId: number) {
-    if (!RELANCE_ROLES.includes(req.user?.role as Role)) {
+    const hasPermission = req.user?.permission === Permission.RESPONSABLE || req.user?.permission === Permission.ADMIN;
+    const hasJobRole = req.user?.role === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return null;
     }
@@ -41,7 +43,7 @@ async function loadOwnedCompany(req: AuthRequest, res: Response, companyId: numb
         res.status(404).json({ error: 'Entreprise introuvable' });
         return null;
     }
-    if (req.user?.role === Role.COMMERCIAL && company.userID != null && company.userID !== req.user.id) {
+    if (req.user?.role === JobRole.COMMERCIAL && company.userID != null && company.userID !== req.user.id) {
         res.status(403).json({ error: 'Forbidden' });
         return null;
     }

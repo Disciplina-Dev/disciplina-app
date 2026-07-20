@@ -3,7 +3,7 @@ import { BarChart3, Plus, AlertTriangle, CheckCircle2, PhoneCall, Users } from '
 
 import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
-import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { useContactLogStats } from '@/graphql/hooks'
 import {
@@ -39,7 +39,7 @@ const KpiYearComparison = lazyWithRetry(() => import('@/features/kpi/components/
 export default function DashboardCommercial() {
   const currentUser = useCurrentUser()
   const isManager =
-    currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.RESPONSABLE
+    currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE
 
   if (!isManager) {
     return <KpiProfilView userId={Number(currentUser?.id)} canEdit={false} />

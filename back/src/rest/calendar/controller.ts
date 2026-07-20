@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
 import { GoogleCalendarService, CalendarEventInput, Attendance } from '../../external/google/calendar.service';
-import { Role, User } from '../../types/user.types';
+import { JobRole, Permission, User } from '../../types/user.types';
 import { logger } from '../../external/logger';
 import { env } from '../../config/env';
 import { BookingService } from '../booking/service';
@@ -35,7 +35,7 @@ function dayKey(iso: string): string {
 }
 
 /** Rôles dont on peut consulter l'agenda en lecture dans l'espace RH. */
-const VIEWABLE_ROLES: Role[] = [Role.RH, Role.RESPONSABLE];
+const VIEWABLE_ROLES: JobRole[] = [JobRole.RH];
 
 /**
  * Détecte une erreur d'authentification Google (token révoqué, expiré sans refresh,
@@ -121,7 +121,7 @@ async function resolveOwner(req: AuthRequest, res: Response): Promise<User | nul
 /** GET /api/calendar/users — liste RH + responsables avec état de connexion Google. */
 export async function listCalendarUsers(req: AuthRequest, res: Response): Promise<void> {
     const selfId = Number(req.user.id);
-    const users = await userService.findByRoles(VIEWABLE_ROLES);
+    const users = await userService.findByJobRoles([JobRole.RH]);
     // L'utilisateur courant doit toujours voir son propre agenda, même s'il n'est ni RH ni responsable (ex : ADMIN).
     if (!users.some((u) => u.id === selfId)) {
         const self = await userService.findById(selfId);

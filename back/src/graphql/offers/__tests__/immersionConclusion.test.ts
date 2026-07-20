@@ -86,7 +86,7 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ offerId:
 
 describe('GraphQL setImmersionConclusion', () => {
     it('rejects when the candidate is not in immersion', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const jobRepo = new OfferRepository();
         const candidateRepo = new CandidateRepository();
 
@@ -127,7 +127,7 @@ describe('GraphQL setImmersionConclusion', () => {
         ['REJECTED', CandidateStatus.SEEKING],
         ['CONTRACT', CandidateStatus.CONTRACT],
     ])('sets %s conclusion, candidate status, and a history entry', async (conclusion, expectedStatus) => {
-        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const { offerId, candidateId } = await seedJobWithImmersionCandidate(suffix);
 

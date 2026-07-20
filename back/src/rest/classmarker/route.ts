@@ -1,6 +1,6 @@
 import express, { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { getClassMarkerLinks, MissingCredentialsError, ClassMarkerApiError } from './service';
 import { logger } from '../../external/logger';
 
@@ -8,7 +8,8 @@ export const router: Router = express.Router();
 
 router.get('/links', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.ADMIN && role !== Role.RESPONSABLE) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.ADMIN && permission !== Permission.RESPONSABLE) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }

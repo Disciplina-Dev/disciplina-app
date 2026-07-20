@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { signatureAssets } from '../../external/docuseal/docuseal.service';
 import { logger } from '../../external/logger';
@@ -10,11 +10,15 @@ const MAX_EMAIL_FIELD = 50_000;
 
 const needsAnalysisService = new NeedsAnalysisService();
 
-const SIGNATURE_ROLES = [Role.COMMERCIAL, Role.RESPONSABLE, Role.ADMIN];
+const SIGNATURE_PERMISSIONS: Permission[] = [Permission.RESPONSABLE, Permission.ADMIN];
+const SIGNATURE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
 
 export async function downloadPdf(req: AuthRequest, res: Response): Promise<void> {
     const role = req.user?.role;
-    if (role !== Role.COMMERCIAL && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    const hasPermission = permission === Permission.RESPONSABLE || permission === Permission.ADMIN;
+    const hasJobRole = role === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -25,7 +29,7 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
         return;
     }
 
-    if (role === Role.COMMERCIAL) {
+    if (role === JobRole.COMMERCIAL) {
         const analysis = await needsAnalysisService.findById(id);
         if (analysis?.salerInfo?.id && analysis.salerInfo.id !== req.user?.id) {
             res.status(403).json({ error: 'Forbidden' });
@@ -50,7 +54,11 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
 
 /** Sert un PDF statique (mandat / catalogue) en inline pour l'aperçu avant envoi. */
 function serveSignatureAsset(req: AuthRequest, res: Response, kind: 'mandat' | 'catalogue'): void {
-    if (!SIGNATURE_ROLES.includes(req.user?.role as Role)) {
+    const perm = req.user?.permission;
+    const jobRole = req.user?.role;
+    const hasPermission = perm === Permission.RESPONSABLE || perm === Permission.ADMIN;
+    const hasJobRole = jobRole === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -72,9 +80,13 @@ export function getCataloguePdf(req: AuthRequest, res: Response): void {
     serveSignatureAsset(req, res, 'catalogue');
 }
 
-/** Renvoie le modèle de mail de signature (+ variables résolues) pour l'aperçu éditable. */
+/** Renvoie le sujet/corps de l'email de signature pour l'aperçu (lecture seule). */
 export async function getSignatureEmail(req: AuthRequest, res: Response): Promise<void> {
-    if (!SIGNATURE_ROLES.includes(req.user?.role as Role)) {
+    const perm = req.user?.permission;
+    const jobRole = req.user?.role;
+    const hasPermission = perm === Permission.RESPONSABLE || perm === Permission.ADMIN;
+    const hasJobRole = jobRole === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -90,7 +102,10 @@ export async function getSignatureEmail(req: AuthRequest, res: Response): Promis
 
 export async function sendSignature(req: AuthRequest, res: Response): Promise<void> {
     const role = req.user?.role;
-    if (role !== Role.COMMERCIAL && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    const hasPermission = permission === Permission.RESPONSABLE || permission === Permission.ADMIN;
+    const hasJobRole = role === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -101,7 +116,7 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         return;
     }
 
-    if (role === Role.COMMERCIAL) {
+    if (role === JobRole.COMMERCIAL) {
         const analysis = await needsAnalysisService.findById(id);
         if (analysis?.salerInfo?.id && analysis.salerInfo.id !== req.user?.id) {
             res.status(403).json({ error: 'Forbidden' });
@@ -120,7 +135,9 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         return;
     }
     const override =
-        rawBody != null ? { subject: typeof rawSubject === 'string' ? rawSubject : undefined, body: rawBody } : undefined;
+        rawBody != null
+            ? { subject: typeof rawSubject === 'string' ? rawSubject : undefined, body: rawBody }
+            : undefined;
 
     try {
         const analysis = await needsAnalysisService.sendForSignature(id, req.user!.id, override);

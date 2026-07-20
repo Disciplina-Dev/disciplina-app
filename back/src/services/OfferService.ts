@@ -18,7 +18,6 @@ import { env } from '../config/env';
 import { isInterviewDatePast } from '../utils/interview';
 import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
-import { Role } from '../types/user.types';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
 const PROPOSED_STATUSES = [
@@ -315,7 +314,7 @@ export class OfferService {
         candidateName?: string,
         companyName?: string,
     ): Promise<void> {
-        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const name = candidateName ?? 'Un candidat';
         const company = companyName ?? "l'entreprise";
         const accepted = status === MatchedCandidateStatus.ACCEPTED;

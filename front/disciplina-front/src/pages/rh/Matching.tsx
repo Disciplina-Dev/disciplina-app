@@ -35,7 +35,7 @@ import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { offerGraphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
-import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
@@ -876,7 +876,7 @@ function PreselectedCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -949,7 +949,7 @@ function ToSendCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -1011,7 +1011,7 @@ function AlreadySentCandidatesSection({
   onAddCandidate: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+  const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -1820,7 +1820,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         onProposeCandidates={() => {}}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
         onEditAb={
-          selectedJob?.needsAnalysisId && (currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN)
+          selectedJob?.needsAnalysisId && (currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN)
             ? handleEditAb
             : undefined
         }

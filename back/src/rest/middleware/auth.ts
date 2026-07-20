@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
-import { Role } from '../../types/user.types';
+import { JobRole } from '../../types/user.types';
 
 export interface AuthRequest extends Request {
     user?: any;
 }
 
-const STAFF_ROLES: string[] = [Role.ADMIN, Role.RESPONSABLE, Role.COMMERCIAL, Role.RH, Role.PEDA];
+const STAFF_ROLES: string[] = [JobRole.COMMERCIAL, JobRole.RH, JobRole.PEDA, JobRole.AD, JobRole.GESTION];
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
     const header = req.headers.authorization;

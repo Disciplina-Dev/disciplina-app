@@ -11,7 +11,7 @@ import { InterviewAccessService } from './InterviewAccessService';
 import { InterviewMailService } from './InterviewMailService';
 import { TodoService } from './TodoService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
-import { Role } from '../types/user.types';
+
 import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './signedAccess';
 
 export type { AuthResult };
@@ -234,7 +234,7 @@ export class MatchLinkService {
     // L'entreprise a fini son matching pour ce candidat : To-Do RH pour organiser
     // l'entretien / l'immersion puis en partager la conclusion.
     private async notifyRhCandidateKept(offerId: string, candidateId: string, companyName?: string): Promise<void> {
-        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE])) ?? [];
+        const rhUsers = (await this.userRepository.findByRoleIds([2])) ?? [];
         const company = companyName ?? "l'entreprise";
         await Promise.all(
             rhUsers.map((user) =>

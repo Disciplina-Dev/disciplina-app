@@ -5,7 +5,7 @@ import { getEvents, createEvent, updateEvent, deleteEvent, listCalendarUsers, se
 
 export const router: Router = Router();
 
-const access = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH')];
+const access = [authenticate, requireRoles('AD', 'GESTION', 'RH')];
 
 router.get('/users', ...access, listCalendarUsers);
 router.get('/events', ...access, getEvents);

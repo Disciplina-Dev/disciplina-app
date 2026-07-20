@@ -1,44 +1,97 @@
 import { query } from '../../db/mysql/connection';
-import { UserRow } from '../../types/db-rows.types';
-import { Role } from '../../types/user.types';
+import { UserRow, UserRowJoined } from '../../types/db-rows.types';
+import { JobRole } from '../../types/user.types';
+
+const USER_SELECT_COLUMNS = [
+    'u.id',
+    'u.email',
+    'u.first_name',
+    'u.last_name',
+    'u.password',
+    'u.role_id',
+    'u.permission_id',
+    'u.sectors',
+    'u.oauth_token',
+    'u.refresh_token',
+    'u.is_interviewer',
+];
+
+const USER_JOIN = `
+    r.name AS role_name,
+    p.name AS permission_name
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    LEFT JOIN permissions p ON p.id = u.permission_id
+`;
 
 export class UserRepository {
-    async findByEmail(email: string): Promise<UserRow | null> {
-        const result = await query<UserRow[]>('SELECT * FROM users WHERE email = ?', [email]);
+    async findByEmail(email: string): Promise<UserRowJoined | null> {
+        const result = await query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.email = ?`,
+            [email],
+        );
         return result.length > 0 ? result[0] : null;
     }
 
-    async findById(id: number): Promise<UserRow | null> {
-        const result = await query<UserRow[]>('SELECT * FROM users WHERE id = ?', [id]);
+    async findById(id: number): Promise<UserRowJoined | null> {
+        const result = await query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id = ?`,
+            [id],
+        );
         return result.length > 0 ? result[0] : null;
     }
 
-    async findByRole(role: Role): Promise<UserRow[] | null> {
-        const result = await query<UserRow[]>('SELECT * FROM users WHERE role = ?', [role]);
-        return result;
+    async findByRoleId(roleId: number): Promise<UserRowJoined[]> {
+        return query<UserRowJoined[]>(`SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ?`, [
+            roleId,
+        ]);
     }
 
-    async findByRoles(roles: Role[]): Promise<UserRow[]> {
-        if (roles.length === 0) return [];
-        const placeholders = roles.map(() => '?').join(', ');
-        return query<UserRow[]>(`SELECT * FROM users WHERE role IN (${placeholders})`, roles);
+    async findByRoleIds(roleIds: number[]): Promise<UserRowJoined[]> {
+        if (roleIds.length === 0) return [];
+        const placeholders = roleIds.map(() => '?').join(', ');
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id IN (${placeholders})`,
+            roleIds,
+        );
+    }
+
+    async findByPermissionId(permissionId: number): Promise<UserRowJoined[]> {
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id = ?`,
+            [permissionId],
+        );
+    }
+
+    async findByPermissionIds(permissionIds: number[]): Promise<UserRowJoined[]> {
+        if (permissionIds.length === 0) return [];
+        const placeholders = permissionIds.map(() => '?').join(', ');
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id IN (${placeholders})`,
+            permissionIds,
+        );
     }
 
     /** Users habilités à mener les entretiens AB (flag is_interviewer). */
-    async findInterviewers(): Promise<UserRow[]> {
-        return query<UserRow[]>('SELECT * FROM users WHERE is_interviewer = 1 ORDER BY first_name, last_name');
+    async findInterviewers(): Promise<UserRowJoined[]> {
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(
+                ', ',
+            )}, ${USER_JOIN} WHERE u.is_interviewer = 1 ORDER BY u.first_name, u.last_name`,
+        );
     }
 
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
         const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(
-            'INSERT INTO users (email, first_name, last_name, password, role, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 user.email,
                 user.first_name,
                 user.last_name,
                 user.password,
-                user.role,
+                user.role_id,
+                user.permission_id,
                 sectorsJson,
                 user.oauth_token,
                 user.refresh_token,
@@ -47,8 +100,10 @@ export class UserRepository {
         return result.insertId;
     }
 
-    async findAll(): Promise<UserRow[]> {
-        return query<UserRow[]>('SELECT * FROM users ORDER BY role, first_name, last_name');
+    async findAll(): Promise<UserRowJoined[]> {
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} ORDER BY u.role_id, u.first_name, u.last_name`,
+        );
     }
 
     async updateSectors(id: number, sectors: string[]): Promise<void> {
@@ -62,9 +117,19 @@ export class UserRepository {
      */
     async updateProfile(
         id: number,
-        fields: Partial<Pick<UserRow, 'email' | 'first_name' | 'last_name' | 'password' | 'role' | 'sectors'>>,
+        fields: Partial<
+            Pick<UserRow, 'email' | 'first_name' | 'last_name' | 'password' | 'role_id' | 'permission_id' | 'sectors'>
+        >,
     ): Promise<void> {
-        const allowed: (keyof UserRow)[] = ['email', 'first_name', 'last_name', 'password', 'role', 'sectors'];
+        const allowed: (keyof UserRow)[] = [
+            'email',
+            'first_name',
+            'last_name',
+            'password',
+            'role_id',
+            'permission_id',
+            'sectors',
+        ];
         const entries = Object.entries(fields).filter(([k]) => allowed.includes(k as keyof UserRow));
         if (entries.length === 0) return;
         const sets = entries.map(([k]) => `${k} = ?`).join(', ');

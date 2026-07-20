@@ -1,4 +1,4 @@
-import type { UserRole } from '@/store/authStore'
+import type { UserRole, Permission } from '@/store/authStore'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -7,6 +7,7 @@ export interface DirectoryEntry {
   firstName: string
   lastName: string
   role: UserRole
+  permission: Permission
 }
 
 export async function fetchStaffDirectory(token: string): Promise<DirectoryEntry[]> {

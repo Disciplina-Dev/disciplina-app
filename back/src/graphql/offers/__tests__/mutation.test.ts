@@ -25,7 +25,7 @@ async function gql(token: string, body: object) {
 describe('GraphQL job mutations', () => {
     describe('updateOffer', () => {
         it('updates status and returns the job', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const seeded = await seedOffer({
@@ -51,7 +51,7 @@ describe('GraphQL job mutations', () => {
         });
 
         it('returns null when updating a non-existent job', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
             const { res, json } = await gql(token, {
                 query: `mutation($id: String!, $offer: OfferInput!) { updateOffer(id: $id, offer: $offer) { id } }`,
@@ -65,7 +65,7 @@ describe('GraphQL job mutations', () => {
 
     describe('unmatchOffer', () => {
         it('clears matched candidates and sets NOT_MATCHED', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new OfferRepository();
 
@@ -100,7 +100,7 @@ describe('GraphQL job mutations', () => {
         });
 
         it('returns null when unmatching a non-existent job', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
             const { res, json } = await gql(token, {
                 query: `mutation($id: String!) { unmatchOffer(id: $id) { id } }`,
@@ -115,7 +115,7 @@ describe('GraphQL job mutations', () => {
 
     describe('addCandidateToOffer', () => {
         it('adds a matching candidate and sets status to MATCHED', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const candidateRepo = new CandidateRepository();
 
@@ -167,7 +167,7 @@ describe('GraphQL job mutations', () => {
         });
 
         it('errors when candidate does not exist', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const seeded = await seedOffer({
@@ -189,7 +189,7 @@ describe('GraphQL job mutations', () => {
 
     describe('removeCandidateFromOffer', () => {
         it('removes a candidate and sets NOT_MATCHED when list becomes empty', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new OfferRepository();
 
@@ -218,7 +218,7 @@ describe('GraphQL job mutations', () => {
         });
 
         it('removes one candidate and keeps MATCHED status when others remain', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new OfferRepository();
 

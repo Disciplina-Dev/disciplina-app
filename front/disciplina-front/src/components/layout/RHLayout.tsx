@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog, MapPin, ListTodo, Settings, GraduationCap } from 'lucide-react'
-import { useAuthStore, useCurrentUser } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
@@ -63,7 +63,7 @@ export default function RHLayout() {
         <div className="mx-3 my-4 border-t border-gray-100" />
         <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Configuration</div>
         <nav className="flex flex-col gap-1 px-3">
-          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
+          {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION' || currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
             <>
               <NavItem to="/rh/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
               <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Lieux par secteur" />
@@ -73,13 +73,13 @@ export default function RHLayout() {
         </nav>
 
         {/* Navigation inter-espaces (Responsable + Admin) */}
-        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'RESPONSABLE') && (
+        {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION' || currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
           <>
             <div className="mx-3 my-4 border-t border-gray-100" />
             <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
-              {currentUser?.role === 'ADMIN' && (
+              {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION') && (
                 <>
                   <NavItem to="/peda" icon={<GraduationCap size={18} />} label="Espace Péda" />
                   <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
@@ -104,7 +104,7 @@ export default function RHLayout() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{`${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim()}</p>
-                {currentUser?.role === 'RESPONSABLE' && (
+                {(currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
                   <span className="shrink-0 rounded-full bg-blue-light px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue">Resp.</span>
                 )}
               </div>
