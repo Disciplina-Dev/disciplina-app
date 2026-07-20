@@ -6,6 +6,7 @@ import {
     GoogleNotConnectedError,
     TemplateNotFoundError,
     DuplicatePedaLevelError,
+    SystemTemplateError,
 } from '../../services/MailTemplateService';
 import { MailTemplateScope, PedaLevel, isPedaLevel } from '../../types/mailTemplate.types';
 
@@ -30,6 +31,10 @@ function handleError(err: unknown, res: Response): void {
     }
     if (err instanceof DuplicatePedaLevelError) {
         res.status(409).json({ error: 'Un autre modèle porte déjà ce niveau de relance' });
+        return;
+    }
+    if (err instanceof SystemTemplateError) {
+        res.status(403).json({ error: 'Ce modèle système ne peut pas être supprimé' });
         return;
     }
     if (err instanceof GoogleNotConnectedError) {
