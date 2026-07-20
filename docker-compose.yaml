@@ -5,7 +5,8 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD}
     volumes:
-      - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/mysql/mysql-seed-dev.sql:/docker-entrypoint-initdb.d/99-seed-dev.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
       - backend-net
@@ -58,6 +59,7 @@ services:
     build:
       context: ./back/
       dockerfile: Dockerfile
+      target: dev
     depends_on:
       sql-db:
         condition: service_healthy

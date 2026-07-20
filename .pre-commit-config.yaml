@@ -15,6 +15,9 @@ repos:
         name: Ensure files end with newline
       - id: check-yaml
         name: Validate YAML files
+        # --unsafe : valide la syntaxe sans exécuter les constructeurs de tags,
+        # requis pour les tags de merge Docker Compose (!reset / !override).
+        args: [--unsafe]
       - id: check-json
         name: Validate JSON files
         exclude: tsconfig.*\.json$

@@ -590,7 +590,7 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         // Locate the photo: explicit avatar file id first, else a "Photo_*" image in

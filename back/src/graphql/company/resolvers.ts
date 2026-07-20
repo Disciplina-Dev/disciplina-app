@@ -112,7 +112,7 @@ export const resolvers = {
         // Liste légère (id + nom) pour les sélecteurs d'entreprise côté RH
         // (ex. choix de l'entreprise d'immersion sur la fiche candidat).
         companyOptions: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE, Role.ADMIN, Role.COMMERCIAL]);
+            authGuardRole(context.user, Permission.RESPONSABLE, [JobRole.RH, JobRole.COMMERCIAL]);
             const companies = await companiesService.findAll(100000);
             return companies.map((c) => ({ id: c.id, name: c.name }));
         },
