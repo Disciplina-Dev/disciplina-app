@@ -37,9 +37,9 @@ export default function LoginPage() {
       setAuth(token, user)
 
       if (user.role === 'RH') {
-        navigate('/rh')
+        navigate('/rh/candidats')
       } else if (user.role === 'COMMERCIAL') {
-        navigate('/commercial')
+        navigate('/commercial/portefeuille')
       } else if (user.role === 'PEDA') {
         navigate('/peda')
       } else if (user.role === 'AD' || user.role === 'GESTION') {
