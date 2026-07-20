@@ -1,15 +1,16 @@
 import { Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
-import { Role } from '../../types/user.types';
+import { JobRole } from '../../types/user.types';
 import { AuthRequest } from './auth';
 
-const STAFF_ROLES: string[] = [Role.ADMIN, Role.RESPONSABLE, Role.COMMERCIAL, Role.RH, Role.PEDA];
+const STAFF_ROLES: string[] = [JobRole.COMMERCIAL, JobRole.RH, JobRole.PEDA, JobRole.AD, JobRole.GESTION];
 
 export interface StaffStreamPayload {
     id: number;
     email: string;
     role: string;
+    permission: string;
 }
 
 // EventSource ne peut pas porter d'en-tête Authorization : le token transite en query.
