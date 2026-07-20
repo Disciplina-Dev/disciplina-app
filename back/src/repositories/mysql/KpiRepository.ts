@@ -101,6 +101,21 @@ export class KpiRepository {
         );
     }
 
+    /** État actuel du portefeuille : statut courant de chaque entreprise, groupé par
+     * secteur/commercial/statut. Contrairement à activityStatusChanges (compte les
+     * transitions chaque fois), celui-ci ne compte chaque entreprise qu'une fois
+     * avec son statut actuel. */
+    async portfolioStatusCounts(sector: string): Promise<LiveStatusRow[]> {
+        return query<LiveStatusRow[]>(
+            `SELECT c.sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
+             FROM companies c
+             LEFT JOIN users u ON u.id = c.user_id
+             WHERE c.sector = ?
+             GROUP BY c.sector, c.user_id, u.first_name, u.last_name, c.status`,
+            [sector],
+        );
+    }
+
     /** Snapshot portefeuille : appels loggés par secteur / commercial. */
     async liveCallCounts(): Promise<LiveCallsRow[]> {
         return query<LiveCallsRow[]>(
@@ -126,7 +141,7 @@ export class KpiRepository {
              LEFT JOIN users u ON u.id = c.user_id
              WHERE YEAR(h.updated_at) = ? AND c.sector = ?
                AND (h.previous_status IS NULL OR h.previous_status <> h.status)
-             GROUP BY c.user_id, u.first_name, u.last_name, month, week, h.status`,
+             GROUP BY c.user_id, u.first_name, u.last_name, MONTH(h.updated_at), WEEK(h.updated_at, 3), h.status`,
             [year, sector],
         );
     }
@@ -149,7 +164,7 @@ export class KpiRepository {
              LEFT JOIN first_hist f ON f.company_id = c.id AND f.rn = 1
              LEFT JOIN users u ON u.id = c.user_id
              WHERE YEAR(c.created_at) = ? AND c.sector = ?
-             GROUP BY c.user_id, u.first_name, u.last_name, month, week, status`,
+             GROUP BY c.user_id, u.first_name, u.last_name, MONTH(c.created_at), WEEK(c.created_at, 3), COALESCE(f.previous_status, c.status)`,
             [year, sector],
         );
     }
@@ -164,7 +179,7 @@ export class KpiRepository {
              JOIN companies c ON c.id = l.company_id
              LEFT JOIN users u ON u.id = c.user_id
              WHERE YEAR(l.created_at) = ? AND c.sector = ?
-             GROUP BY c.user_id, u.first_name, u.last_name, month, week`,
+             GROUP BY c.user_id, u.first_name, u.last_name, MONTH(l.created_at), WEEK(l.created_at, 3)`,
             [year, sector],
         );
     }

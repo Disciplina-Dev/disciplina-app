@@ -56,21 +56,28 @@ export function useKpiDashboard(year: number, site: KpiSite, source: KpiSource =
         ? Promise.all([
             fetchKpiYears(token),
             fetchActivityLike(token, year, site),
-            fetchActivityLike(token, year - 1, site),
+            fetchActivityLike(token, year - 1, site).catch(() => null),
           ]).then(
-            ([years, current, previous]: [number[], KpiActivity, KpiActivity]): [
+            ([years, current, previous]: [number[], KpiActivity, KpiActivity | null]): [
               number[],
               KpiAnnualSummary,
-              KpiAnnualSummary,
+              KpiAnnualSummary | null,
               KpiWeeklyDetail,
-            ] => [years, current.summary, previous.summary, current.weekly],
+            ] => [years, current.summary, previous?.summary ?? null, current.weekly],
           )
         : Promise.all([
             fetchKpiYears(token),
             fetchKpiSummary(token, year, site),
-            fetchKpiSummary(token, year - 1, site),
+            fetchKpiSummary(token, year - 1, site).catch(() => null),
             fetchKpiWeekly(token, year, site),
-          ]);
+          ]).then(
+            ([years, current, previous, weekly]): [
+              number[],
+              KpiAnnualSummary,
+              KpiAnnualSummary | null,
+              KpiWeeklyDetail,
+            ] => [years, current, previous, weekly],
+          );
 
     load
       .then(([years, summary, previousSummary, weekly]) => {
