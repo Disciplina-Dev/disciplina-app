@@ -50,6 +50,14 @@ const PEDA_TEMPLATE_VARS: typeof TEMPLATE_VARS = [
   { token: 'mail', label: 'Adresse mail de l’apprenant', example: 'marie.dupont@exemple.re' },
 ]
 
+// Variables du modèle système « Analyse du Besoin à signer » (kind ab_signature),
+// remplacées à l'envoi (cf. back NeedsAnalysisService.buildSignatureEmail).
+const AB_SIGNATURE_VARS: typeof TEMPLATE_VARS = [
+  { token: 'entreprise', label: 'Nom de l’entreprise', example: 'Ma Société SARL' },
+  { token: 'lien_signature', label: 'Bouton de signature (obligatoire)', example: '[ Signer les documents ]' },
+  { token: 'signature', label: 'Votre signature mail', example: 'votre image de signature' },
+]
+
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
   const { templates, loading, loaded, error: storeError, load, add, update, remove } =
     useMailTemplatesStore(scope)
@@ -58,7 +66,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
-  const templateVars = scope === 'peda' ? PEDA_TEMPLATE_VARS : TEMPLATE_VARS
+  // Le modèle système « AB à signer » a ses propres variables.
+  const editingKind = editing && editing !== 'new' ? editing.kind : null
+  const templateVars =
+    editingKind === 'ab_signature'
+      ? AB_SIGNATURE_VARS
+      : scope === 'peda'
+        ? PEDA_TEMPLATE_VARS
+        : TEMPLATE_VARS
 
   useEffect(() => { load() }, [load])
 
@@ -326,6 +341,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                           {PEDA_LEVEL_LABELS[t.pedaLevel]}
                         </span>
                       )}
+                      {t.kind === 'ab_signature' && (
+                        <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue">
+                          Signature AB
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-400 truncate">{t.subject}</p>
                   </div>
@@ -336,12 +356,15 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                     >
                       <Pencil size={15} />
                     </button>
-                    <button
-                      onClick={() => remove(t.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {/* Un modèle système (kind) ne se supprime pas, seulement s'édite. */}
+                    {!t.kind && (
+                      <button
+                        onClick={() => remove(t.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <p

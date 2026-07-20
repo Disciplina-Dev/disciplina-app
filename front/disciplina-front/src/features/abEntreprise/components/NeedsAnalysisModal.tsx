@@ -743,18 +743,22 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   }
 
   // Confirmation de l'aperçu → envoi en signature réel, puis fermeture.
-  const handleConfirmSignature = async () => {
+  const handleConfirmSignature = async (email: { subject: string; body: string }) => {
     if (previewId == null) return
-    await sendForSignature(previewId)
+    await sendForSignature(previewId, email)
     onSuccess()
     onClose()
   }
 
-  const sendForSignature = async (id: string) => {
+  const sendForSignature = async (id: string, email: { subject: string; body: string }) => {
     const token = useAuthStore.getState().token
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/needs-analysis/${id}/sign`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(email),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => null)

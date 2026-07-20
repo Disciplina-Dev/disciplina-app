@@ -2,12 +2,11 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { JobRole, Permission } from '../../types/user.types';
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
-import {
-    signatureAssets,
-    SIGNATURE_EMAIL_SUBJECT,
-    SIGNATURE_EMAIL_BODY,
-} from '../../external/docuseal/docuseal.service';
+import { signatureAssets } from '../../external/docuseal/docuseal.service';
 import { logger } from '../../external/logger';
+
+/** Corps de mail édité dans l'aperçu, borné pour éviter les envois abusifs. */
+const MAX_EMAIL_FIELD = 50_000;
 
 const needsAnalysisService = new NeedsAnalysisService();
 
@@ -91,7 +90,14 @@ export function getSignatureEmail(req: AuthRequest, res: Response): void {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
-    res.status(200).json({ subject: SIGNATURE_EMAIL_SUBJECT, body: SIGNATURE_EMAIL_BODY });
+    const abId = typeof req.query.abId === 'string' ? req.query.abId : undefined;
+    try {
+        const preview = await needsAnalysisService.getSignatureEmailPreview(abId);
+        res.status(200).json(preview);
+    } catch (error) {
+        logger.error({ err: error, abId }, '[NeedsAnalysis] Signature email preview failed');
+        res.status(500).json({ error: 'Failed to load signature email preview' });
+    }
 }
 
 export async function sendSignature(req: AuthRequest, res: Response): Promise<void> {
@@ -118,8 +124,21 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         }
     }
 
+    // Contenu édité dans l'aperçu (optionnel) : on borne la taille.
+    const rawSubject = req.body?.subject;
+    const rawBody = req.body?.body;
+    if (
+        (rawSubject != null && (typeof rawSubject !== 'string' || rawSubject.length > MAX_EMAIL_FIELD)) ||
+        (rawBody != null && (typeof rawBody !== 'string' || rawBody.length > MAX_EMAIL_FIELD))
+    ) {
+        res.status(400).json({ error: 'Sujet ou corps du mail invalide' });
+        return;
+    }
+    const override =
+        rawBody != null ? { subject: typeof rawSubject === 'string' ? rawSubject : undefined, body: rawBody } : undefined;
+
     try {
-        const analysis = await needsAnalysisService.sendForSignature(id);
+        const analysis = await needsAnalysisService.sendForSignature(id, req.user!.id, override);
         res.status(200).json(analysis);
     } catch (error: any) {
         logger.error({ err: error, id }, '[NeedsAnalysis] Send for signature failed');
@@ -127,8 +146,16 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
             res.status(404).json({ error: error.message });
             return;
         }
+        if (error.message?.includes('Google account not connected')) {
+            res.status(403).json({ error: 'Compte Google non connecté. Veuillez connecter votre compte Google.' });
+            return;
+        }
         if (error.message?.includes('recruitment responsible email')) {
             res.status(400).json({ error: 'Aucun email de responsable recrutement pour envoyer la signature' });
+            return;
+        }
+        if (error.message?.includes('signing link')) {
+            res.status(502).json({ error: 'Le prestataire de signature n’a pas renvoyé de lien. Réessayez.' });
             return;
         }
         res.status(500).json({ error: 'Failed to send for signature' });

@@ -14,6 +14,17 @@ export interface SignedDocument {
     buffer: Buffer;
 }
 
+/**
+ * Résultat de la création d'une procédure de signature.
+ * `signUrl` : lien public de signature du signataire (null si non disponible).
+ * DocuSeal n'envoie plus l'email lui-même ; c'est l'app qui envoie le mail
+ * (via Gmail) avec ce lien, pour tracer l'envoi et personnaliser le contenu.
+ */
+export interface SignatureProcedure {
+    submissionId: string;
+    signUrl: string | null;
+}
+
 // Mandat de publication d'offre d'emploi, joint à l'Analyse du Besoin comme
 // document distinct et signé par le même signataire (rôle Responsable). Le PDF
 // est conservé tel quel ; seule une zone de signature est ajoutée (bas-gauche).
@@ -215,10 +226,11 @@ export class DocuSealService {
         signerFirstName: string,
         signerLastName: string,
         lastPage: number = 1,
-    ): Promise<string | null> {
+    ): Promise<SignatureProcedure> {
         if (this.isMock()) {
             logger.warn('DOCUSEAL_API_KEY not configured. Simulating a successful DocuSeal submission.');
-            return `${MOCK_PREFIX}${Date.now()}`;
+            const submissionId = `${MOCK_PREFIX}${Date.now()}`;
+            return { submissionId, signUrl: `${env.DOCUSEAL_SIGN_URL}/s/mock-${submissionId}` };
         }
 
         const base = env.DOCUSEAL_BASE_URL;
@@ -315,13 +327,11 @@ export class DocuSealService {
             const submissionRes = await fetch(`${base}/submissions`, {
                 method: 'POST',
                 headers: this.headers({ 'Content-Type': 'application/json' }),
+                // send_email:false → l'app envoie elle-même le mail (Gmail) avec le
+                // lien de signature, pour tracer l'envoi et personnaliser le contenu.
                 body: JSON.stringify({
                     template_id: templateId,
-                    send_email: true,
-                    message: {
-                        subject: SIGNATURE_EMAIL_SUBJECT,
-                        body: SIGNATURE_EMAIL_BODY,
-                    },
+                    send_email: false,
                     submitters: [{ role: SIGNER_ROLE, email: signerEmail, name: signerName }],
                 }),
             });
@@ -333,17 +343,23 @@ export class DocuSealService {
 
             const submitters = await submissionRes.json();
             // L'endpoint renvoie la liste des submitters créés ; tous partagent le même submission_id.
-            const submissionId =
-                Array.isArray(submitters) && submitters.length > 0
-                    ? submitters[0].submission_id
-                    : (submitters?.submission_id ?? submitters?.id);
+            const submitter = Array.isArray(submitters) && submitters.length > 0 ? submitters[0] : submitters;
+            const submissionId = submitter?.submission_id ?? submitter?.id;
 
             if (!submissionId) {
                 throw new Error('DocuSeal submission created but no submission id was returned');
             }
 
+            // Lien public de signature : DocuSeal renvoie `embed_src` (URL complète)
+            // et/ou `slug`. On privilégie embed_src, sinon on reconstruit depuis le slug.
+            const signUrl: string | null =
+                submitter?.embed_src ?? (submitter?.slug ? `${env.DOCUSEAL_SIGN_URL}/s/${submitter.slug}` : null);
+            if (!signUrl) {
+                logger.warn({ submissionId }, '[DocuSeal] Aucun lien de signature (embed_src/slug) renvoyé');
+            }
+
             logger.info(`DocuSeal submission created with ID: ${submissionId}`);
-            return String(submissionId);
+            return { submissionId: String(submissionId), signUrl };
         } catch (error) {
             logger.error({ err: error }, 'DocuSeal integration failed');
             throw error;

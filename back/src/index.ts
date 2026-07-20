@@ -159,9 +159,13 @@ export async function startServer(): Promise<http.Server> {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
     // Modèles de relance d'absence par défaut (idempotent, une seule fois).
-    new MailTemplateService()
+    const mailTemplateService = new MailTemplateService();
+    mailTemplateService
         .seedPedaDefaults()
         .catch((err) => logger.error({ err }, 'peda-templates: seed des modèles par défaut échoué'));
+    mailTemplateService
+        .seedAbSignatureDefault()
+        .catch((err) => logger.error({ err }, 'ab-signature: seed du modèle système échoué'));
     startPedaDraftScheduler();
     return server;
 }
