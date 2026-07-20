@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { RELANCE_TYPES, computeRelanceDate } from '@/types/relance'
+import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 
 interface SireneResult {
   denomination: string | null
@@ -58,6 +59,10 @@ const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode, submitError }: Props) {
   const token = useAuthStore((s) => s.token)
   const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
+  const { directory } = useStaffDirectory()
+  const staffMembers = Object.values(directory).sort((a, b) =>
+    fullName(a).localeCompare(fullName(b)),
+  )
 
   const defaultOwner =
     mode === 'create'
@@ -147,8 +152,8 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       note: values.note || null,
       conclusion: values.conclusion || null,
       status: values.status,
-      proprietaire_id: currentUser.id ? Number(currentUser.id) : null,
-      commercial: fullName(currentUser),
+      proprietaire_id: values.proprietaire_id ? Number(values.proprietaire_id) : null,
+      commercial: fullName(directory[String(values.proprietaire_id)] ?? currentUser),
       date_relance: values.date_relance || null,
       type_relance: values.type_relance ? Number(values.type_relance) : null,
       relance_template_id: values.relance_channel === 'MAIL' ? values.relance_template_id || null : null,
@@ -402,12 +407,23 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                     {/* Propriétaire */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className="text-sm font-medium text-gray-700" htmlFor="proprietaire_id">
                         Propriétaire du contact
                       </label>
-                      <div className="w-full rounded-[10px] border border-gray-100 bg-gray-50 py-2.5 px-4 text-sm text-gray-500">
-                        {currentUser.email ?? 'Email non disponible'}
-                      </div>
+                      <select
+                        id="proprietaire_id"
+                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        {...register('proprietaire_id')}
+                      >
+                        {staffMembers.length === 0 && (
+                          <option value={String(currentUser.id ?? '')}>{fullName(currentUser)}</option>
+                        )}
+                        {staffMembers.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {fullName(m)} ({m.role})
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Canal de relance */}
