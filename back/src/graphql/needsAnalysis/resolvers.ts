@@ -12,10 +12,6 @@ const needsAnalysisService = new NeedsAnalysisService();
 
 export const resolvers = {
     Query: {
-        needsAnalyses: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            return needsAnalysisService.findAll();
-        },
         needsAnalysis: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
             return needsAnalysisService.findById(id);

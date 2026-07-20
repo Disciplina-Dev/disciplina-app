@@ -18,9 +18,7 @@ import { env } from '../config/env';
 import { isInterviewDatePast } from '../utils/interview';
 import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
-import { MatchMailService } from './MatchMailService';
 import { Role } from '../types/user.types';
-import { logger } from '../external/logger';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
 const PROPOSED_STATUSES = [
@@ -134,7 +132,7 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
     };
 }
 
-function deriveJobStatus(matchedCandidates: MatchingCandidate[], currentStatus?: OfferStatus): OfferStatus {
+function deriveOfferStatus(matchedCandidates: MatchingCandidate[], currentStatus?: OfferStatus): OfferStatus {
     if (matchedCandidates.length === 0) return OfferStatus.NOT_MATCHED;
 
     const manualStages = [OfferStatus.CV_SEND, OfferStatus.IMMERSING, OfferStatus.CONTRACT];
@@ -152,7 +150,6 @@ export class OfferService {
     private companiesService = new CompaniesService();
     private notificationService = new NotificationService();
     private userRepository = new UserRepository();
-    private matchMailService = new MatchMailService();
 
     async findAll(): Promise<object[]> {
         const offers = await this.offerRepository.listMatchingOffers();
@@ -334,39 +331,6 @@ export class OfferService {
                 }),
             ),
         );
-    }
-
-    // Envoie au candidat le mail de proposition (liens oui/non) et passe son statut
-    // à PRE_SELECTED_MAIL_SEND.
-    async sendInterestMailToCandidate(offerId: string, candidateId: string, rhEmail: string): Promise<object | null> {
-        const offer = await this.offerRepository.setMatchedCandidateStatus(
-            offerId,
-            candidateId,
-            MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
-        );
-        if (!offer) return null;
-
-        const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
-        if (candidate?.email) {
-            const { ouiUrl, nonUrl } = this.offerResponseLinks(offerId, candidateId);
-            await this.matchMailService.sendCandidateInterest(
-                rhEmail,
-                candidate.email,
-                offer.company_infos?.name,
-                ouiUrl,
-                nonUrl,
-            );
-        } else {
-            logger.warn({ offerId, candidateId }, '[matching] candidate has no email for interest mail');
-        }
-
-        const entry = this.candidateHistoryService.buildMatchedStatusHistoryEntry(
-            MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
-            offer.company_infos?.name,
-        );
-        if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
-
-        return toGql(offer);
     }
 
     async addManualProposedCandidate(
@@ -558,7 +522,7 @@ export class OfferService {
 
     private async syncDerivedStatus(offerId: string, offer: Offer): Promise<Offer> {
         const candidates = offer.matching?.candidates ?? [];
-        const derived = deriveJobStatus(candidates, offer.matching?.status);
+        const derived = deriveOfferStatus(candidates, offer.matching?.status);
         if (derived === offer.matching?.status) return offer;
         const updated = await this.offerRepository.setOfferStatus(offerId, derived);
         return updated ?? offer;

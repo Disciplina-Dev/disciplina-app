@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
 import { toUserResponse, toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { sanitizeSectors } from '../../utils/sector';
+import { isValidEmail } from '../../services/validation';
 
 const userService = new UserService();
 
@@ -13,7 +14,6 @@ const userService = new UserService();
 const SECTOR_MANAGER_ROLES = ['ADMIN', 'RESPONSABLE'];
 // Rôles persistables assignables via la gestion des users.
 const ASSIGNABLE_ROLES = ['ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH', 'PEDA'] as const;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function listUsers(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -112,7 +112,7 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
 
         const { email, firstName, lastName, role, sectors, passwordPlain } = req.body ?? {};
 
-        if (email !== undefined && !EMAIL_RE.test(String(email))) {
+        if (email !== undefined && !isValidEmail(email)) {
             res.status(400).json({ error: 'Invalid email' });
             return;
         }

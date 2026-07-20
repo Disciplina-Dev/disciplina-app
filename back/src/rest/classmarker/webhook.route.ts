@@ -1,5 +1,5 @@
 import express, { Router, Request, Response } from 'express';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { authenticateStaffStream } from '../middleware/sseAuth';
 import { authenticate, AuthRequest } from '../middleware/auth';
@@ -8,15 +8,11 @@ import { addClient, removeClient, notifyCandidate } from './sse';
 import { PdfService } from '../../services/PdfService';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
-import { GoogleTokens } from '../../external/google/types';
 import { Role } from '../../types/user.types';
 import { Candidate } from '../../types/candidate.types';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 
 const userService = new UserService();
-
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 /**
  * Génère le PDF des résultats et le dépose dans le dossier Drive du candidat.
@@ -33,7 +29,7 @@ async function uploadResultPdf(candidate: Candidate): Promise<void> {
 
     const driveService = GoogleDriveService.fromTokens(
         { access_token: driveUser.oauthToken!, refresh_token: driveUser.refreshToken ?? undefined },
-        persistRefreshedTokens(driveUser.id),
+        userService.googleTokenPersister(driveUser.id),
     );
 
     // Crée le dossier Drive du candidat s'il n'existe pas encore (même schéma de
@@ -86,13 +82,6 @@ async function uploadResultPdf(candidate: Candidate): Promise<void> {
 export const router: Router = express.Router();
 
 router.post('/classmarker', express.json({ limit: '256kb' }), async (req: Request, res: Response) => {
-    // eslint-disable-next-line no-console
-    console.log(
-        '[classmarker] handler entered, bodyType=',
-        typeof req.body,
-        'keys=',
-        req.body && Object.keys(req.body),
-    );
     // Serverless (Vercel): the lambda is frozen once the handler resolves.
     // Process fully — including the best-effort PDF upload — BEFORE sending
     // the response so the async work actually completes. Always answer 200
@@ -100,8 +89,6 @@ router.post('/classmarker', express.json({ limit: '256kb' }), async (req: Reques
     try {
         const body = req.body ?? {};
         const { payload_status, result, test, questions } = body;
-        // eslint-disable-next-line no-console
-        console.log('[classmarker] payload_status=', payload_status, 'cm_user_id=', result?.cm_user_id);
         logger.info(
             {
                 payload_status,
@@ -112,8 +99,7 @@ router.post('/classmarker', express.json({ limit: '256kb' }), async (req: Reques
         );
 
         if (payload_status !== 'live') {
-            // eslint-disable-next-line no-console
-            console.log('[classmarker] non-live payload, replying 200 (verify/test ping)');
+            logger.debug({ payload_status }, 'ClassMarker non-live payload, replying 200');
             res.status(200).json({ received: true });
             return;
         }
@@ -136,15 +122,11 @@ router.post('/classmarker', express.json({ limit: '256kb' }), async (req: Reques
             questions: Array.isArray(questions) ? questions : undefined,
         };
 
-        // eslint-disable-next-line no-console
-        console.log('[classmarker] updating candidate', candidateId);
         const updated = await CandidateModel.findByIdAndUpdate(
             candidateId,
             { $set: { classmarker: data }, $push: { classmarker_history: data } },
             { returnDocument: 'after' },
         );
-        // eslint-disable-next-line no-console
-        console.log('[classmarker] db update done, found=', !!updated);
         if (!updated) {
             logger.warn({ candidateId }, 'ClassMarker webhook: candidate not found');
             res.status(200).json({ received: true });
@@ -166,24 +148,14 @@ router.post('/classmarker', express.json({ limit: '256kb' }), async (req: Reques
         });
 
         try {
-            // eslint-disable-next-line no-console
-            console.log('[classmarker] starting PDF upload');
             await uploadResultPdf(updated.toObject() as Candidate);
-            // eslint-disable-next-line no-console
-            console.log('[classmarker] PDF upload done');
         } catch (pdfErr) {
-            // eslint-disable-next-line no-console
-            console.error('[classmarker] PDF upload FAILED', pdfErr);
-            logger.error(pdfErr, 'ClassMarker result PDF generation/upload failed');
+            logger.error({ err: pdfErr }, 'ClassMarker result PDF generation/upload failed');
         }
 
-        // eslint-disable-next-line no-console
-        console.log('[classmarker] replying 200 (success path)');
         res.status(200).json({ received: true });
     } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[classmarker] handler FAILED', err);
-        logger.error(err, 'ClassMarker webhook handling failed');
+        logger.error({ err }, 'ClassMarker webhook handling failed');
         if (!res.headersSent) res.status(200).json({ received: true });
     }
 });

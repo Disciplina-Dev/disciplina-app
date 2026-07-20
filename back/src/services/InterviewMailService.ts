@@ -3,7 +3,7 @@ import { GoogleTokens } from '../external/google/types';
 import { UserService } from './UserService';
 import { escapeHtml } from './html';
 import { env } from '../config/env';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 
 function interviewInvitationHtml(link: string, code: string, companyName: string): string {
     return `

@@ -93,12 +93,25 @@ services:
     build:
       context: ./scripts
       dockerfile: Dockerfile
+    depends_on:
+      sql-db:
+        condition: service_healthy
+      nosql-db:
+        condition: service_healthy
     env_file:
       - ./.env
     environment:
       MYSQL_USER: root
       MYSQL_DATABASE: disciplina
+      # Inside the compose network the databases answer on their service name and
+      # their container port. MYSQL_PORT/MONGO_PORT are the host-side published
+      # ports (left of the `ports:` mapping) and do not resolve here, so both are
+      # pinned to the container ports below. The LOCAL_MYSQL_* defaults
+      # (localhost:5001) stay right for the scripts run from the host.
+      LOCAL_MYSQL_HOST: sql-db
+      LOCAL_MYSQL_PORT: 3306
       MONGO_HOST: nosql-db
+      MONGO_PORT: 27017
       NODE_ENV: ${NODE_ENV:-development}
     restart: no
     networks:

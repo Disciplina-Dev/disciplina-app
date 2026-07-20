@@ -10,7 +10,7 @@ RUN npm ci
 COPY --chown=node:node . .
 
 # L'image node fournit déjà l'utilisateur `node` : pas de root inutile.
-USER node
+# USER node
 
 EXPOSE 5173
 

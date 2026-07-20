@@ -7,7 +7,7 @@ import {
     SIGNATURE_EMAIL_SUBJECT,
     SIGNATURE_EMAIL_BODY,
 } from '../../external/docuseal/docuseal.service';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 
 const needsAnalysisService = new NeedsAnalysisService();
 

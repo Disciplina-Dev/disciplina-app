@@ -37,9 +37,8 @@ import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
-import { logger } from './external/logger/logger';
+import { logger } from './external/logger';
 import { env } from './config/env';
-import { errorMonitor } from 'events';
 
 declare module 'express-session' {
     interface SessionData {

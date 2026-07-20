@@ -2,7 +2,6 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
 import { GoogleCalendarService, CalendarEventInput, Attendance } from '../../external/google/calendar.service';
-import { GoogleTokens } from '../../external/google/types';
 import { Role, User } from '../../types/user.types';
 import { logger } from '../../external/logger';
 import { env } from '../../config/env';
@@ -10,12 +9,11 @@ import { BookingService } from '../booking/service';
 import { sendRdvConfirmation, sendNoShowRebooking } from './notifications';
 import { RhKpiService } from '../../services/RhKpiService';
 import { primarySector } from '../../utils/sector';
+import { isValidEmail } from '../../services/validation';
 
 const userService = new UserService();
 const bookingService = new BookingService();
 const rhKpiService = new RhKpiService();
-
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**
  * Delta KPI « pas venu » pour une transition de présence old→next.
@@ -69,13 +67,10 @@ async function replyCalendarError(res: Response, error: unknown, ownerId: number
     res.status(502).json({ error: fallback });
 }
 
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
-
 function calendarForUser(user: User): GoogleCalendarService {
     return GoogleCalendarService.fromTokens(
         { access_token: user.oauthToken ?? undefined, refresh_token: user.refreshToken ?? undefined },
-        persistRefreshedTokens(user.id),
+        userService.googleTokenPersister(user.id),
     );
 }
 
@@ -162,7 +157,7 @@ function parseEventInput(body: unknown, res: Response): CalendarEventInput | nul
     let attendeeEmail: string | undefined;
     if (typeof b.attendeeEmail === 'string' && b.attendeeEmail.trim()) {
         const email = b.attendeeEmail.trim();
-        if (!EMAIL_RE.test(email)) {
+        if (!isValidEmail(email)) {
             res.status(400).json({ error: 'Email invité invalide' });
             return null;
         }
@@ -238,7 +233,9 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
         const event = await calendarForUser(owner).createEvent(input);
         // KPI : un entretien placé compte au bucket de sa date de début, dans le secteur de l'acteur.
         if (input.isInterview && actor) {
-            await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(input.start), { interviews_placed: 1 });
+            await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(input.start), {
+                interviews_placed: 1,
+            });
         }
         // Email de confirmation automatique si un email invité est fourni (settings du propriétaire).
         if (input.attendeeEmail) {
@@ -315,8 +312,10 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
         const movedOrToggled = before.isInterview !== input.isInterview || dayKey(before.start) !== dayKey(input.start);
         if (actor && (before.isInterview || input.isInterview) && movedOrToggled) {
             const sector = primarySector(actor.sectors);
-            if (before.isInterview) await rhKpiService.bump(actor.id, sector, new Date(before.start), { interviews_placed: -1 });
-            if (input.isInterview) await rhKpiService.bump(actor.id, sector, new Date(input.start), { interviews_placed: 1 });
+            if (before.isInterview)
+                await rhKpiService.bump(actor.id, sector, new Date(before.start), { interviews_placed: -1 });
+            if (input.isInterview)
+                await rhKpiService.bump(actor.id, sector, new Date(input.start), { interviews_placed: 1 });
         }
         res.json({ event });
     } catch (error) {

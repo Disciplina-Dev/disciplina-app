@@ -4,7 +4,7 @@ import { MailTemplateModel, MailSignatureModel } from '../db/mongo/schemas/mailT
 import { MailTemplate, MailTemplateScope, MailTemplateAttachment, PedaLevel } from '../types/mailTemplate.types';
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
@@ -98,7 +98,7 @@ export class MailTemplateService {
 
     /** Le niveau n'a de sens que pour le scope `peda` ; il est ignoré ailleurs. */
     private pedaLevelFor(scope: MailTemplateScope, level: PedaLevel | null | undefined): PedaLevel | null {
-        return scope === 'peda' ? (level ?? null) : null;
+        return scope === 'peda' ? level ?? null : null;
     }
 
     /** Refuse deux modèles Peda sur le même niveau : la résolution serait ambiguë. */

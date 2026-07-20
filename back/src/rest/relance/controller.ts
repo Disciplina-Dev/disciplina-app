@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { GoogleGmailService } from '../../external/google/gmail.service';
-import { GoogleTokens } from '../../external/google/types';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CompaniesService } from '../../services/CompaniesService';
@@ -78,7 +77,7 @@ export async function sendCompanyMailRelance(req: AuthRequest, res: Response): P
         await gmailService.sendEmail(
             { access_token: user.oauthToken, refresh_token: user.refreshToken },
             { to, subject, html: html ?? '', text: text ?? '', attachments },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
     } catch (err) {
         logger.error({ err, companyId }, '[relance] mail send failed');
@@ -144,9 +143,6 @@ function htmlToText(html: string): string {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
-
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 export async function sendRelance(req: AuthRequest, res: Response) {
     const user = await userService.findById(req.user.id);
@@ -219,7 +215,7 @@ export async function sendRelance(req: AuthRequest, res: Response) {
                     text,
                     listUnsubscribe,
                 },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
             // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;
             // l'affichage ne la considère « à jour » que si elle est postérieure à cette relance.
@@ -295,7 +291,7 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
                     listUnsubscribe,
                     attachments,
                 },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
             sent++;
         } catch {

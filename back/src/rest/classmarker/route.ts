@@ -1,12 +1,8 @@
 import express, { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { Role } from '../../types/user.types';
-import {
-    getClassMarkerLinks,
-    MissingCredentialsError,
-    ClassMarkerApiError,
-} from './service';
-import { logger } from '../../external/logger/logger';
+import { getClassMarkerLinks, MissingCredentialsError, ClassMarkerApiError } from './service';
+import { logger } from '../../external/logger';
 
 export const router: Router = express.Router();
 

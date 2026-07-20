@@ -73,14 +73,6 @@ export const resolvers = {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             return offerService.updateMatchedCandidateStatus(offerId, candidateId, status);
         },
-        sendCandidateInterestMail: async (
-            _: unknown,
-            { offerId, candidateId }: { offerId: string; candidateId: string },
-            context: any,
-        ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return offerService.sendInterestMailToCandidate(offerId, candidateId, context.user.email);
-        },
         addManualProposedCandidate: async (
             _: unknown,
             {

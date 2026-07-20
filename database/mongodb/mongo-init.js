@@ -22,10 +22,17 @@ db['candidates'].createIndex({
   "created_at": -1,
   "_id": 1
 });
+// Clé d'upsert du seed (scripts/startup.py) et lookup de doublon à la création.
+// Volontairement NON unique : la base porte des emails dupliqués et non normalisés
+// (espaces parasites). Un index unique exige de les nettoyer d'abord — voir docs/AUDIT.md §6.4.
+db['candidates'].createIndex({
+  "identity.email": 1
+});
+db['candidates'].createIndex({
+  "candidate_id": 1
+});
 
 db.createCollection('drive_folder_config');
-
-db.createCollection('jobs');
 
 db.createCollection('mail_signatures');
 db['mail_signatures'].createIndex({
@@ -46,6 +53,13 @@ db['mail_templates'].createIndex({
 });
 
 db.createCollection('needs_analysis');
+// NeedsAnalysisRepository.findByCompanyId / findBySignatureRequestId.
+db['needs_analysis'].createIndex({
+  "company_infos.id": 1
+});
+db['needs_analysis'].createIndex({
+  "signature_request_id": 1
+});
 
 db.createCollection('notifications');
 db['notifications'].createIndex({
@@ -58,4 +72,15 @@ db['notifications'].createIndex({
 db.createCollection('offers');
 db['offers'].createIndex({
   "needs_analysis_id": 1
+});
+// Utilisé par 8 méthodes d'OfferRepository, dont bookInterviewSlot (réservation de
+// créneau, chemin critique) : sans index, chaque appel scanne la collection.
+db['offers'].createIndex({
+  "matching.candidates.id": 1
+});
+// Clé d'upsert du seed (scripts/import_jobs.py).
+db['offers'].createIndex({
+  "company_infos.name": 1,
+  "tp_type": 1,
+  "localisation": 1
 });

@@ -6,7 +6,7 @@ import { CompaniesService } from './CompaniesService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { GoogleGmailService } from '../external/google/gmail.service';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 import { Role } from '../types/user.types';
 import { notifyUser } from '../rest/yousign/sse';
 
