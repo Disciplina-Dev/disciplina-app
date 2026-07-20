@@ -24,6 +24,7 @@ import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
 import FilizFolderModal from '@/components/rh/FilizFolderModal'
 import ConfirmDeleteModal from '@/components/rh/ConfirmDeleteModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
+import PdfViewer from '@/components/rh/PdfViewer'
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
@@ -1272,15 +1273,9 @@ export default function FicheCandidat() {
                           />
                         </div>
                       ) : (
-                        // sandbox="" : origine opaque et scripts coupés — un blob: hériterait
-                        // sinon de l'origine du front.
-                        <iframe
-                          key={selectedFile.id}
-                          sandbox=""
-                          src={previewUrl}
-                          title={selectedFile.name}
-                          className="w-full h-full rounded-lg border border-gray-100"
-                        />
+                        // PDF (et Office/Google Docs convertis en PDF côté backend) :
+                        // rendu par pdf.js en canvas. Cf. PdfViewer pour le pourquoi.
+                        <PdfViewer key={selectedFile.id} fileUrl={previewUrl} />
                       )
                     ) : null
                   ) : (
