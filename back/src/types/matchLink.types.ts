@@ -3,17 +3,6 @@ export enum MatchLinkStatus {
     AUTHENTICATED = 'AUTHENTICATED',
     COMPLETED = 'COMPLETED',
     LOCKED = 'LOCKED',
+    // Jamais écrit : l'expiration se déduit de expires_at (MatchLinkService.isExpired).
     EXPIRED = 'EXPIRED',
-}
-
-export interface MatchLink {
-    signature: string;
-    code: string;
-    identifier: string;
-    rhEmail: string;
-    companyEmail: string;
-    offerUuid: string;
-    status: MatchLinkStatus;
-    attempts: number;
-    expiresAt: Date;
 }

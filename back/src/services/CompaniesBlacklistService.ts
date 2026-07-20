@@ -1,4 +1,5 @@
 import { getConnection } from '../db/mysql/connection';
+import { buildInsert } from '../db/mysql/queryBuilder';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
 import { CompaniesBlacklistRow, CompaniesRow } from '../types/db-rows.types';
@@ -96,12 +97,14 @@ export class CompaniesBlacklistService {
             delete (data as Partial<CompaniesBlacklistRow>).ab_id;
             delete data.created_at;
 
-            const fields = Object.keys(data).join(', ');
-            const placeholders = Object.keys(data)
-                .map(() => '?')
-                .join(', ');
-            const values = Object.values(data);
-            await conn.execute(`INSERT INTO companies (${fields}) VALUES (${placeholders})`, values);
+            // SQL brut assumé : ces deux écritures doivent partager la transaction
+            // ouverte ci-dessus, ce que les méthodes de repository (connexion propre)
+            // ne permettent pas. Seul le builder d'INSERT est mutualisé.
+            const { sql, values } = buildInsert(
+                'companies',
+                data as Record<string, string | number | boolean | Date | null>,
+            );
+            await conn.execute(sql, values);
             await conn.execute('DELETE FROM companies_blacklist WHERE id = ?', [id]);
 
             await conn.commit();

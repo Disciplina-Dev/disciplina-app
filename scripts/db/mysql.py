@@ -48,9 +48,14 @@ def _connect_from_uri():
 def local_mysql_target():
     """Cible MySQL locale, source unique de vérité pour la connexion et le garde-fou.
 
-    Volontairement distincte de MYSQL_HOST/MYSQL_PORT : ces dernières décrivent la
-    perspective de Docker (sql-db:3306), alors que les scripts lancés depuis l'hôte
-    passent par le port mappé (localhost:5001).
+    Volontairement distincte de MYSQL_HOST/MYSQL_PORT, dont la sémantique est
+    asymétrique : MYSQL_HOST est le nom du service vu depuis le réseau compose
+    (sql-db), alors que MYSQL_PORT est le port publié côté hôte (5001, à gauche du
+    mapping `ports:`) — le conteneur, lui, écoute sur 3306.
+
+    Les défauts ci-dessous visent l'hôte (localhost:5001, port mappé). Dans le
+    réseau compose, docker-compose.yaml passe LOCAL_MYSQL_HOST=sql-db et
+    LOCAL_MYSQL_PORT=3306 au service startup-script.
     """
     return (
         os.getenv("LOCAL_MYSQL_HOST", "localhost"),

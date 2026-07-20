@@ -54,7 +54,6 @@ describe('GraphQL job queries', () => {
             localisation: [Localisation.SAINT_PAUL, Localisation.LE_PORT],
         });
 
-        console.log('j2: ', j2);
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: {
@@ -72,7 +71,6 @@ describe('GraphQL job queries', () => {
         expect(json.data.offers).toHaveLength(2);
 
         const first = json.data.offers.find((j: any) => j.id === j1._id);
-        console.log('first: ', first);
         expect(first.companyName).toBe(`Alpha Corp ${suffix}`);
         expect(first.ageRange).toBe('25-35');
         expect(first.desiredTP).toBe('AD');
@@ -83,7 +81,6 @@ describe('GraphQL job queries', () => {
         expect(first.localisation).toEqual(['SAINT_DENIS']);
 
         const second = json.data.offers.find((j: any) => j.id === j2._id);
-        console.log('second: ', second);
         expect(second.companyName).toBe(`Beta Corp ${suffix}`);
         expect(second.ageRange).toBe('18-25');
         expect(second.desiredTP).toBe('CC');

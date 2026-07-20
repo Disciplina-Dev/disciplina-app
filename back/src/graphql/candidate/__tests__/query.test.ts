@@ -172,30 +172,6 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidate).toBeNull();
     });
 
-    it('returns a candidate template for a given tpType', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
-
-        const res = await fetch(ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                query: `query($tpType: TitleProfessionalType!) { candidateTemplate(tpType: $tpType) { tpType hasEnglishLevel availableSectors defaultSkillsAssessment { competence level } } }`,
-                variables: { tpType: 'AD' },
-            }),
-        });
-        const json = await res.json();
-
-        expect(res.status).toBe(200);
-        expect(json.errors).toBeUndefined();
-        expect(json.data.candidateTemplate.tpType).toBe('AD');
-        expect(json.data.candidateTemplate.hasEnglishLevel).toBeTypeOf('boolean');
-        expect(Array.isArray(json.data.candidateTemplate.availableSectors)).toBe(true);
-        expect(Array.isArray(json.data.candidateTemplate.defaultSkillsAssessment)).toBe(true);
-    });
-
     it('rejects unauthenticated requests', async () => {
         const res = await fetch(ENDPOINT, {
             method: 'POST',

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
+import { isValidEmail } from '../../services/validation';
 import { logger } from '../../external/logger';
 import { BookingService, BookingDisabledError, SlotUnavailableError } from './service';
 import { WorkingHours, WorkingWindow, BookingSettings } from './repository';
@@ -195,7 +196,7 @@ export async function postBooking(req: Request, res: Response): Promise<void> {
     const name = typeof b.name === 'string' ? b.name.trim() : '';
     const email = typeof b.email === 'string' ? b.email.trim() : '';
     const note = typeof b.note === 'string' ? b.note.trim().slice(0, 1000) : undefined;
-    if (!start || !name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (!start || !name || !isValidEmail(email)) {
         res.status(400).json({ error: 'start, name et email valides requis' });
         return;
     }

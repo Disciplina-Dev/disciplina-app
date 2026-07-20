@@ -87,7 +87,6 @@ const data = {
     RELANCE_HMAC_SECRET: stringWithDefault('RELANCE_HMAC_SECRET', 'change-this-relance-secret'),
     GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
 
-    CLASSMARKER_API_NAME: optionalString('CLASSMARKER_API_NAME'),
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
     CLASSMARKER_WEBHOOK_SECRET: optionalString('CLASSMARKER_WEBHOOK_SECRET'),
@@ -120,13 +119,6 @@ const data = {
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
     GOOGLE_REDIRECT_URI: stringWithDefault('GOOGLE_REDIRECT_URI', 'http://localhost:5173/auth/google'),
-
-    SMTP_HOST: optionalString('SMTP_HOST'),
-    SMTP_PORT: numberWithDefault('SMTP_PORT', 587),
-    SMTP_SECURE: optionalString('SMTP_SECURE'),
-    SMTP_USER: optionalString('SMTP_USER'),
-    SMTP_PASS: optionalString('SMTP_PASS'),
-    SMTP_FROM: optionalString('SMTP_FROM'),
 
     FILIZ_CLIENT_ID: requireStringWithCIFallback('FILIZ_CLIENT_ID', 'ci-filiz-client-id'),
     FILIZ_CLIENT_SECRET: requireStringWithCIFallback('FILIZ_CLIENT_SECRET', 'ci-filiz-secret'),

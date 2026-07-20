@@ -1,18 +1,15 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { InterviewAccessRepository } from '../repositories/mysql/InterviewAccessRepository';
-import { InterviewAccessRow } from '../types/db-rows.types';
 import { InterviewAccessStatus } from '../types/interviewAccess.types';
 import { generateSignature, generateNumericCode, timingSafeEqualString } from '../external/crypto';
 import { issueInterviewToken } from './interviewToken';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { CandidateHistoryType } from '../types/candidate.types';
+import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './signedAccess';
+
+export type { AuthResult };
 
 const LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000; // candidate gets longer than the company's 24h
-const MAX_ATTEMPTS = 3;
-
-export type AuthResult =
-    | { ok: true; token: string }
-    | { ok: false; reason: 'invalid' | 'locked' | 'expired'; remaining?: number };
 
 export interface SlotView {
     slot: string;
@@ -26,10 +23,6 @@ export interface SlotsView {
 }
 
 export class SlotUnavailableError extends Error {}
-
-function isExpired(row: InterviewAccessRow): boolean {
-    return new Date(row.expires_at).getTime() < Date.now();
-}
 
 function formatFr(iso: string): string {
     return new Date(iso).toLocaleString('fr-FR', {

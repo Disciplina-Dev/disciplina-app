@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { processSignedAb } from '../../services/SignedAbProcessor';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 
 /**
  * Receveur de webhook DocuSeal.

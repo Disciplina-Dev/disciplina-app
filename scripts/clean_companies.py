@@ -8,7 +8,6 @@ scripts/resources/cleaned/<saler>-company.cleaned.csv with canonical columns.
 
 import csv
 import glob
-import itertools
 import os
 import sys
 
@@ -34,12 +33,12 @@ def find_header_row(reader):
 
 
 def clean_file(source_path):
-    counter = itertools.count(1)
+    saler = saler_from_path(source_path)
     with open(source_path, encoding="utf-8") as f:
         reader = csv.reader(f)
         headers = find_header_row(reader)
         rows = [
-            build_clean_row(headers, values, counter)
+            build_clean_row(headers, values, saler)
             for values in reader
             if any(value.strip() for value in values)
         ]

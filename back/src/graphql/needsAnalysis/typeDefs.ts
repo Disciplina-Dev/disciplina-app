@@ -237,7 +237,6 @@ export const typeDefs = gql`
     }
 
     type Query {
-        needsAnalyses: [NeedsAnalysis!]!
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
         abDriveConfig: AbDriveConfig!

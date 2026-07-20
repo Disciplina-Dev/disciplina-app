@@ -24,6 +24,7 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 
+from db.guard import guard_local_target
 from db.mongo import get_mongo_connection
 from db.mysql import get_mysql_connection
 from lib.company_csv import remove_accents
@@ -154,12 +155,27 @@ def parse_availability(dispo: str, interview_date: datetime | None) -> tuple:
 # -- Upsert helper ----------------------------------------------------------------
 
 
+def candidate_filter(doc: dict) -> dict:
+    """Identify a candidate by email, or by name on their training site when unknown.
+
+    Both keys merge a candidate listed in several files into one document, which is
+    what the email key already does for the 140 candidates present in more than one
+    CSV. Without a fallback key the row could only be inserted, so every run added
+    the same person again under a fresh uuid.
+    """
+    identity = doc.get("identity", {})
+    email = identity.get("email")
+    if email:
+        return {"identity.email": email}
+    return {
+        "identity.full_name": identity.get("full_name"),
+        "training_site": doc.get("training_site"),
+    }
+
+
 def upsert_candidate(collection, doc: dict) -> None:
-    """Upsert a candidate by email. Falls back to insert_one if no email."""
-    email = doc.get("identity", {}).get("email")
-    if not email:
-        collection.insert_one(doc)
-        return
+    """Upsert a candidate, keyed on email when known and on name + site otherwise."""
+    filter_ = candidate_filter(doc)
 
     # Pull out fields that should only be set on first creation
     doc_id = doc.pop("_id", None)
@@ -175,10 +191,41 @@ def upsert_candidate(collection, doc: dict) -> None:
         set_on_insert["created_at"] = created_at
 
     collection.update_one(
-        {"identity.email": email},
+        filter_,
         {"$set": doc, "$setOnInsert": set_on_insert} if set_on_insert else {"$set": doc},
         upsert=True,
     )
+
+
+def import_candidates(filepath, build, has_name, label, positional=False):
+    """Squelette commun aux imports de candidats : ouvre la connexion, itère le CSV,
+    ignore les lignes sans nom, upsert, journalise les lignes en échec, ferme.
+
+    `build(row)` construit le document, `has_name(row)` filtre les lignes vides.
+    `positional=True` pour les CSV lus par index (`csv.reader` → liste) au lieu des
+    en-têtes (`csv.DictReader` → dict).
+    """
+    client = get_mongo_connection()
+    collection = client["human_ressources"]["candidates"]
+    count = 0
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            if positional:
+                reader = csv.reader(f)
+                next(reader, None)  # saute l'en-tête
+            else:
+                reader = csv.DictReader(f)
+            for row in reader:
+                if not has_name(row):
+                    continue
+                try:
+                    upsert_candidate(collection, build(row))
+                    count += 1
+                except Exception as e:
+                    print(f"  [WARN] Skipping {label} row: {e}")
+    finally:
+        client.close()
+    return count
 
 
 # -- 1. Companies -> MySQL: see clean_companies.py + import_company.py ------------
@@ -243,24 +290,13 @@ def build_sales_candidate(row: list) -> dict:
 
 
 def import_sales_candidates(filepath: str) -> int:
-    client = get_mongo_connection()
-    collection = client["human_ressources"]["candidates"]
-    count = 0
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        next(reader, None)
-        for row in reader:
-            if len(row) < 2 or not (row[1] or '').strip():
-                continue
-            try:
-                upsert_candidate(collection, build_sales_candidate(row))
-                count += 1
-            except Exception as e:
-                print(f"  [WARN] Skipping sales candidate row: {e}")
-
-    client.close()
-    return count
+    return import_candidates(
+        filepath,
+        build_sales_candidate,
+        lambda r: len(r) >= 2 and (r[1] or '').strip(),
+        "sales candidate",
+        positional=True,
+    )
 
 
 # -- 3. Secretariat candidates -> MongoDB ----------------------------------------
@@ -305,23 +341,14 @@ def build_secretariat_candidate(row: dict) -> dict:
     return doc
 
 
+def _has_nom_prenom(row: dict) -> bool:
+    return bool((row.get("NOM - PRENOM") or '').strip())
+
+
 def import_secretariat_candidates(filepath: str) -> int:
-    client = get_mongo_connection()
-    collection = client["human_ressources"]["candidates"]
-    count = 0
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if not (row.get("NOM - PRENOM") or '').strip():
-                continue
-            try:
-                upsert_candidate(collection, build_secretariat_candidate(row))
-                count += 1
-            except Exception as e:
-                print(f"  [WARN] Skipping secretariat candidate row: {e}")
-
-    client.close()
-    return count
+    return import_candidates(
+        filepath, build_secretariat_candidate, _has_nom_prenom, "secretariat candidate"
+    )
 
 
 # -- 4. Ouest sales candidates -> MongoDB --------------------------------------
@@ -386,23 +413,17 @@ def build_ouest_sales_candidate(row: dict, tp_type: str) -> dict:
     return doc
 
 
+def _has_nom_prenom_nospace(row: dict) -> bool:
+    return bool((row.get("NOM PRENOM") or '').strip())
+
+
 def import_ouest_sales_candidates(filepath: str, tp_type: str) -> int:
-    client = get_mongo_connection()
-    collection = client["human_ressources"]["candidates"]
-    count = 0
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if not (row.get("NOM PRENOM") or '').strip():
-                continue
-            try:
-                upsert_candidate(collection, build_ouest_sales_candidate(row, tp_type))
-                count += 1
-            except Exception as e:
-                print(f"  [WARN] Skipping ouest sales candidate row: {e}")
-
-    client.close()
-    return count
+    return import_candidates(
+        filepath,
+        lambda row: build_ouest_sales_candidate(row, tp_type),
+        _has_nom_prenom_nospace,
+        "ouest sales candidate",
+    )
 
 
 # -- 5. Sud sales candidates -> MongoDB -----------------------------------------
@@ -460,28 +481,20 @@ def build_sud_sales_candidate(row: dict, tp_type: str) -> dict:
 
 
 def import_sud_sales_candidates(filepath: str, tp_type: str) -> int:
-    client = get_mongo_connection()
-    collection = client["human_ressources"]["candidates"]
-    count = 0
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if not (row.get("NOM PRENOM") or '').strip():
-                continue
-            try:
-                upsert_candidate(collection, build_sud_sales_candidate(row, tp_type))
-                count += 1
-            except Exception as e:
-                print(f"  [WARN] Skipping sud sales candidate row: {e}")
-
-    client.close()
-    return count
+    return import_candidates(
+        filepath,
+        lambda row: build_sud_sales_candidate(row, tp_type),
+        _has_nom_prenom_nospace,
+        "sud sales candidate",
+    )
 
 
 # -- 6. Ouest secretariat candidates -> MongoDB ---------------------------------
 
 
-def build_ouest_secretariat_candidate(row: dict) -> dict:
+# Ouest et Sud partagent le même format de fichier secrétariat : seul le centre de
+# formation change. Un seul builder paramétré au lieu de deux copies à l'identique.
+def build_region_secretariat_candidate(row: dict, training_site: str) -> dict:
     city = normalize_city((row.get("Ville") or '').strip())
     age_raw = (row.get("Âge") or '').strip()
     age = int(age_raw) if age_raw.isdigit() else 0
@@ -507,7 +520,7 @@ def build_ouest_secretariat_candidate(row: dict) -> dict:
     doc = {
         "_id": candidate_id,
         "candidate_id": candidate_id,
-        "training_site": "OUEST_SAINT_PAUL",
+        "training_site": training_site,
         "formation_type": "SECRETARIAT",
         "tp_type": "AD",
         "status": "SEEKING",
@@ -521,83 +534,21 @@ def build_ouest_secretariat_candidate(row: dict) -> dict:
 
 
 def import_ouest_secretariat_candidates(filepath: str) -> int:
-    client = get_mongo_connection()
-    collection = client["human_ressources"]["candidates"]
-    count = 0
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if not (row.get("NOM - PRENOM") or '').strip():
-                continue
-            try:
-                upsert_candidate(collection, build_ouest_secretariat_candidate(row))
-                count += 1
-            except Exception as e:
-                print(f"  [WARN] Skipping ouest secretariat candidate row: {e}")
-
-    client.close()
-    return count
-
-
-# -- 7. Sud secretariat candidates -> MongoDB -----------------------------------
-
-
-def build_sud_secretariat_candidate(row: dict) -> dict:
-    city = normalize_city((row.get("Ville") or '').strip())
-    age_raw = (row.get("Âge") or '').strip()
-    age = int(age_raw) if age_raw.isdigit() else 0
-    candidate_id = str(uuid.uuid4())
-    interview_date = parse_fr_date(row.get("Date 1er entretien"))
-
-    identity = {
-        "sex": "GARCON" if normalize_token(_first_value(row)) == "GARCON" else "FILLE",
-        "full_name": (row.get("NOM - PRENOM") or '').strip(),
-        "city": city,
-        "age": age,
-        "postal_code": POSTAL_CODE_MAP.get(city, '974'),
-        "phone": (row.get("TELEPHONE") or '').replace(" ", ""),
-        "email": (row.get("ADRESSE MAIL") or '').strip(),
-        "driving_license_b": (row.get("PERMIS") or '').strip().upper() == "OUI",
-        "has_vehicle": False,
-        "description": (row.get("INFOS COMPLÉMENTAIRES") or '').strip(),
-    }
-    birth = birth_date_from_age(age)
-    if birth:
-        identity["date_of_birth"] = birth
-
-    doc = {
-        "_id": candidate_id,
-        "candidate_id": candidate_id,
-        "training_site": "SUD_SAINT_PIERRE",
-        "formation_type": "SECRETARIAT",
-        "tp_type": "AD",
-        "status": "SEEKING",
-        "identity": identity,
-        "job_info": {"geographic_mobility": parse_geographic_mobility(row.get("SECTEUR GÉOGRAPHIQUE"))},
-        "expected_company_skills": parse_expected_skills(row.get("SPÉCIALITÉ ")),
-    }
-    if interview_date and interview_date <= datetime.now():
-        doc["created_at"] = interview_date
-    return doc
+    return import_candidates(
+        filepath,
+        lambda row: build_region_secretariat_candidate(row, "OUEST_SAINT_PAUL"),
+        _has_nom_prenom,
+        "ouest secretariat candidate",
+    )
 
 
 def import_sud_secretariat_candidates(filepath: str) -> int:
-    client = get_mongo_connection()
-    collection = client["human_ressources"]["candidates"]
-    count = 0
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if not (row.get("NOM - PRENOM") or '').strip():
-                continue
-            try:
-                upsert_candidate(collection, build_sud_secretariat_candidate(row))
-                count += 1
-            except Exception as e:
-                print(f"  [WARN] Skipping sud secretariat candidate row: {e}")
-
-    client.close()
-    return count
+    return import_candidates(
+        filepath,
+        lambda row: build_region_secretariat_candidate(row, "SUD_SAINT_PIERRE"),
+        _has_nom_prenom,
+        "sud secretariat candidate",
+    )
 
 
 # -- 8. Jobs -> MongoDB: see import_jobs.py ------
@@ -619,6 +570,10 @@ def main() -> int:
     print("=" * 50)
     print("  Disciplina -- Database Seed Script")
     print("=" * 50)
+
+    # Le seed écrit des données de démo : NODE_ENV=production le brancherait sur
+    # MYSQL_URI/MONGO_URI, donc sur la prod.
+    guard_local_target(action="Seed")
 
     errors = []
 

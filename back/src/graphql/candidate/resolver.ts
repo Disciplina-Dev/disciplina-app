@@ -8,7 +8,6 @@ import { TitleProfessionalType, CandidateStatus, CandidateHistoryEntry } from '.
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
-import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql, offerToMatchedOfferGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
@@ -79,9 +78,6 @@ async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
         logger.error({ err: error, interviewedBy }, 'rh_kpi interview bump failed');
     }
 }
-
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 interface CreateCandidateInput {
     status: CandidateStatus;
@@ -207,20 +203,6 @@ export const resolvers = {
             const entries = await candidateHistoryService.findByCandidate(candidateId);
             return entries.map(candidateHistoryToGql);
         },
-        candidateTemplate: async (_: unknown, { tpType }: { tpType: TitleProfessionalType }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            const template = CANDIDATE_TEMPLATES[tpType];
-            return {
-                tpType: template.tp_type,
-                hasEnglishLevel: template.has_english_level,
-                availableSectors: template.available_sectors,
-                availableExpectedSkills: template.available_expected_skills,
-                defaultSkillsAssessment: template.default_skills_assessment.map((s) => ({
-                    competence: s.competence,
-                    level: s.level,
-                })),
-            };
-        },
         driveFolderConfig: async (_: unknown, __: unknown, context: any) => {
             authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
             const config = await driveFolderConfigService.getConfig();
@@ -289,7 +271,7 @@ export const resolvers = {
                 if (creator && creator.oauthToken) {
                     const driveService = GoogleDriveService.fromTokens(
                         { access_token: creator.oauthToken, refresh_token: creator.refreshToken ?? undefined },
-                        persistRefreshedTokens(creator.id),
+                        userService.googleTokenPersister(creator.id),
                     );
 
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
@@ -332,8 +314,7 @@ export const resolvers = {
             // État avant mise à jour : statut (transitions KPI) + interviewer (crédit
             // entretien une seule fois). On ne relit le dossier que si l'un des deux change.
             const newInterviewer = snakeInput.synthesis?.interviewed_by?.trim();
-            const previous =
-                snakeInput.status || newInterviewer ? await candidateService.findById(id) : undefined;
+            const previous = snakeInput.status || newInterviewer ? await candidateService.findById(id) : undefined;
             const previousStatus = previous?.status;
             const previousInterviewer = previous?.synthesis?.interviewed_by?.trim();
             const updated = await candidateService.update(id, snakeInput);
@@ -376,7 +357,7 @@ export const resolvers = {
 
             const driveService = GoogleDriveService.fromTokens(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
 
             // Secteur courant de l'utilisateur agissant (prioritaire), sinon snapshot owner, sinon site de formation.

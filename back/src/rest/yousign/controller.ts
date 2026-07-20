@@ -6,7 +6,7 @@ import { UserRepository } from '../../repositories/mysql/UserRepository';
 import { CompaniesService } from '../../services/CompaniesService';
 import { YousignService } from '../../external/yousign/yousign.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 import { Role } from '../../types/user.types';
 import { notifyUser } from './sse';
 

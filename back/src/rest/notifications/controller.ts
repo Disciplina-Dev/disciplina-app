@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { NotificationService } from '../../services/NotificationService';
 import { notificationToDto } from '../../services/mappers/notification.mapper';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 
 const notificationService = new NotificationService();
 

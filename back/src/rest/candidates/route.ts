@@ -7,10 +7,9 @@ import { CandidateService } from '../../services/CandidateService';
 import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
 import { PdfService } from '../../services/PdfService';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
-import { GoogleTokens } from '../../external/google/types';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { file } from 'pdfkit';
@@ -41,9 +40,6 @@ export const router: Router = express.Router();
 const candidateService = new CandidateService();
 const candidateRepository = new CandidateRepository();
 const userService = new UserService();
-
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -106,7 +102,7 @@ router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Resp
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const pdfBuffer = await PdfService.generateCandidatePdf(candidate);
@@ -185,7 +181,7 @@ router.post(
 
             const driveService = GoogleDriveService.fromTokens(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
 
             const fileName = `CV_${candidate.identity.full_name}.${ext}`;
@@ -240,7 +236,7 @@ router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response)
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const { buffer, mimeType } = await driveService.downloadFile(fileId);
@@ -284,7 +280,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const files = await driveService.listFolderFiles(candidate.drive_folder_id);
@@ -349,7 +345,7 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const meta = await driveService.getFileMeta(fileId);
@@ -399,7 +395,7 @@ router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest,
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const deletedFile = candidate.drive_folder_id
@@ -453,7 +449,7 @@ router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async 
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const uploaded = await Promise.all(
@@ -513,7 +509,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
             if (user?.oauthToken) {
                 const driveService = GoogleDriveService.fromTokens(
                     { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                    persistRefreshedTokens(user.id),
+                    userService.googleTokenPersister(user.id),
                 );
 
                 let folderId = candidate.drive_folder_id;

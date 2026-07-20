@@ -416,14 +416,6 @@ export const typeDefs = gql`
         synthesis: SynthesisInput
     }
 
-    type CandidateTemplate {
-        tpType: TitleProfessionalType!
-        hasEnglishLevel: Boolean!
-        availableSectors: [String!]!
-        availableExpectedSkills: [String!]!
-        defaultSkillsAssessment: [SkillAssessment!]!
-    }
-
     type PageInfo {
         hasNextPage: Boolean!
         hasPreviousPage: Boolean!
@@ -528,7 +520,6 @@ export const typeDefs = gql`
         candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate
         candidateByEmail(email: String!): CandidateEmailCheck!
-        candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
         driveFolderConfig: DriveFolderConfig!

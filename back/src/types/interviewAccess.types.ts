@@ -3,16 +3,6 @@ export enum InterviewAccessStatus {
     AUTHENTICATED = 'AUTHENTICATED',
     COMPLETED = 'COMPLETED',
     LOCKED = 'LOCKED',
+    // Jamais écrit : l'expiration se déduit de expires_at (InterviewAccessService.isExpired).
     EXPIRED = 'EXPIRED',
-}
-
-export interface InterviewAccess {
-    signature: string;
-    code: string;
-    offerUuid: string;
-    candidateId: string;
-    rhEmail: string;
-    status: InterviewAccessStatus;
-    attempts: number;
-    expiresAt: Date;
 }

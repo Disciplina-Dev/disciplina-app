@@ -5,7 +5,7 @@ import { MatchedCandidateStatus } from '../../types/matching.types';
 import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 
-const jobService = new OfferService();
+const offerService = new OfferService();
 
 export async function handleMatchResponse(req: Request, res: Response) {
     const { offerId, candidateId, answer, sig, ts } = req.query as {
@@ -26,7 +26,7 @@ export async function handleMatchResponse(req: Request, res: Response) {
 
     try {
         const status = answer === 'oui' ? MatchedCandidateStatus.ACCEPTED : MatchedCandidateStatus.DECLINED;
-        await jobService.updateMatchedCandidateStatus(offerId, candidateId, status);
+        await offerService.updateMatchedCandidateStatus(offerId, candidateId, status);
         logger.info({ offerId, candidateId, answer }, '[matching] response handled');
     } catch (err) {
         logger.error({ err }, '[matching] response error');

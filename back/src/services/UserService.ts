@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { User, Role } from '../types/user.types';
 import { UserRow } from '../types/db-rows.types';
+import { GoogleTokens } from '../external/google/types';
 import { toUser } from './mappers/user.mapper';
 import { env } from '../config/env';
 import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto/token-cipher';
@@ -216,5 +217,13 @@ export class UserService {
     async updateGoogleTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
         const enc = (t: string | null) => (t ? encryptToken(t) : null);
         await this.userRepository.updateTokens(id, enc(oauthToken), enc(refreshToken));
+    }
+
+    // Callback à passer aux clients Google (Drive/Gmail/Calendar) : ils l'appellent
+    // avec les jetons rafraîchis pour les repersister. Évite de redéfinir la même
+    // closure dans chaque contrôleur (elle l'était à l'identique 6 fois).
+    googleTokenPersister(userId: number): (refreshed: GoogleTokens) => Promise<void> {
+        return (refreshed) =>
+            this.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
     }
 }

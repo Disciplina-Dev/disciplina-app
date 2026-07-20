@@ -1,7 +1,6 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { Offer } from '../types/offer.types';
 import { MatchLinkRepository } from '../repositories/mysql/MatchLinkRepository';
-import { MatchLinkRow } from '../types/db-rows.types';
 import { MatchLinkStatus } from '../types/matchLink.types';
 import { MatchedCandidateStatus, MatchingCandidate } from '../types/matching.types';
 import { generateSignature, generateNumericCode, generateIdentifier, timingSafeEqualString } from '../external/crypto';
@@ -13,9 +12,11 @@ import { InterviewMailService } from './InterviewMailService';
 import { TodoService } from './TodoService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { Role } from '../types/user.types';
+import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './signedAccess';
+
+export type { AuthResult };
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
-const MAX_ATTEMPTS = 3;
 
 // Réponses possibles de l'entreprise sur le lien externe : refuser, garder pour
 // entretien, ou coup de cœur (fast-track immersion).
@@ -49,10 +50,6 @@ export interface AnswerInput {
     comment?: string;
 }
 
-export type AuthResult =
-    | { ok: true; token: string }
-    | { ok: false; reason: 'invalid' | 'locked' | 'expired'; remaining?: number };
-
 function buildProposedCandidates(offer: Offer, inputs: CreateSessionInput['candidates']): MatchingCandidate[] {
     const candidates = offer.matching?.candidates ?? [];
     const accepted = new Map(
@@ -65,10 +62,6 @@ function buildProposedCandidates(offer: Offer, inputs: CreateSessionInput['candi
         if (!candidate) throw new Error(`Candidate ${input.id} is not an accepted candidate of this job`);
         return { ...candidate, description: input.description ?? '' };
     });
-}
-
-function isExpired(row: MatchLinkRow): boolean {
-    return new Date(row.expires_at).getTime() < Date.now();
 }
 
 function validateAnswers(answers: AnswerInput[], proposedIds: Set<string>): void {
