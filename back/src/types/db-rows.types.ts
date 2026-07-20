@@ -4,10 +4,18 @@ export interface UserRow {
     first_name: string;
     last_name: string;
     password?: string;
-    role: 'ADMIN' | 'RESPONSABLE' | 'COMMERCIAL' | 'RH' | 'PEDA';
+    role_id: number;
+    permission_id: number;
     sectors: string | string[] | null; // mysql2 v3 returns JSON columns as parsed objects
     oauth_token: string | null;
     refresh_token: string | null;
+}
+
+// Jointure avec les tables roles/permissions : le repository enrichit le UserRow
+// pour porter les noms en toutes lettres sans modifier le type de base.
+export interface UserRowJoined extends UserRow {
+    role_name?: string;
+    permission_name?: string;
 }
 
 export interface MatchLinkRow {
