@@ -10,19 +10,50 @@ CREATE TABLE IF NOT EXISTS `app_settings` (
   PRIMARY KEY (`setting_key`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `permissions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT IGNORE INTO `permissions` (`id`, `name`) VALUES
+  (1, 'EMPLOYEE'),
+  (2, 'RESPONSABLE'),
+  (3, 'ADMIN');
+
+CREATE TABLE IF NOT EXISTS `roles` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT IGNORE INTO `roles` (`id`, `name`) VALUES
+  (1, 'COMMERCIAL'),
+  (2, 'RH'),
+  (3, 'PEDA'),
+  (4, 'AD'),
+  (5, 'GESTION');
+
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,
   `email` varchar(255) NOT NULL,
   `first_name` varchar(255) NOT NULL,
   `last_name` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('ADMIN','RESPONSABLE','COMMERCIAL','RH','PEDA') NOT NULL,
+  `role_id` int NOT NULL,
+  `permission_id` int NOT NULL,
   `sectors` json DEFAULT NULL,
   `oauth_token` text DEFAULT NULL,
   `refresh_token` text DEFAULT NULL,
   `is_interviewer` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  UNIQUE KEY `email` (`email`)
+  UNIQUE KEY `email` (`email`),
+  KEY `idx_users_role_id` (`role_id`),
+  KEY `idx_users_permission_id` (`permission_id`),
+  CONSTRAINT `fk_users_role_id` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON UPDATE CASCADE,
+  CONSTRAINT `fk_users_permission_id` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `booking_settings` (
