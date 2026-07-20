@@ -155,16 +155,22 @@ export default function KpiOverviewSection({ year }: { year: number }) {
   useEffect(() => {
     if (!token) return
     let cancelled = false
-    Promise.all(KPI_SITES.map((site) => fetchKpiCombined(token, year, site)))
+    Promise.allSettled(KPI_SITES.map((site) => fetchKpiCombined(token, year, site)))
       .then((results) => {
         if (cancelled) return
-        setSites(
-          results.map((r, i) => ({
-            site: KPI_SITES[i],
-            totals: r.summary.totals,
-            users: r.summary.users.map((u) => ({ userId: u.userId, userName: u.userName, totals: u.totals })),
-          })),
-        )
+        const sites: KpiSiteOverview[] = results
+          .map((r, i) => {
+            if (r.status === 'fulfilled') {
+              return {
+                site: KPI_SITES[i],
+                totals: r.value.summary.totals,
+                users: r.value.summary.users.map((u) => ({ userId: u.userId, userName: u.userName, totals: u.totals })),
+              }
+            }
+            return null
+          })
+          .filter((s): s is KpiSiteOverview => s != null)
+        setSites(sites)
         setError(null)
       })
       .catch((err: unknown) => {

@@ -36,6 +36,8 @@ services:
     build:
       context: ./back/
       dockerfile: Dockerfile
+      # Stage dev : dépendances complètes (vitest) + code source, requis pour `npm test`.
+      target: dev
     network_mode: host
     depends_on:
       test-sql-db:

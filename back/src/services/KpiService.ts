@@ -3,6 +3,16 @@ import { ActivityEventRow, KpiRepository, LiveCallsRow, LiveStatusRow } from '..
 import { UserRepository } from '../repositories/mysql/UserRepository';
 
 import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, KPI_SITES } from '../types/kpi.types';
+import { logger } from '../external/logger';
+
+/** Numéro de semaine ISO 8601 (1-53), cohérent avec WEEK(date, 3) de MySQL. */
+function isoWeek(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const day = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - day + 3);
+    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    return 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 86_400_000));
+}
 
 export interface KpiMonthEntry {
     month: number;
@@ -334,27 +344,63 @@ export class KpiService {
         const sector = SITE_TO_LIVE_SECTOR[site];
         if (!sector) throw new Error(`Invalid site '${site}', expected one of ${KPI_SITES.join(', ')}`);
 
-        const [changes, creations, calls] = await Promise.all([
+        // Current portfolio state : chaque entreprise compte une fois avec son
+        // statut actuel.  C'est ce qui alimente les totaux du résumé (contrairement
+        // aux events de company_history qui s'accumulent sans jamais décrémenter).
+        const [statusRows, changes, creations, calls] = await Promise.all([
+            this.kpiRepository.portfolioStatusCounts(sector),
             this.kpiRepository.activityStatusChanges(year, sector),
             this.kpiRepository.activityCreations(year, sector),
             this.kpiRepository.activityCalls(year, sector),
         ]);
 
-        const summaryUsers = new Map<string, KpiUserSummary>();
         const summaryTotals = emptyMetrics();
         const byWeek = new Map<number, KpiWeeklyDetail['weeks'][number]>();
 
-        const nameOf = (row: ActivityEventRow) =>
-            row.first_name || row.last_name ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim() : 'Non attribué';
+        const nameOf = (row: { first_name: string | null; last_name: string | null }) =>
+            row.first_name || row.last_name
+                ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
+                : 'Non attribué';
 
-        const add = (row: ActivityEventRow) => {
+        // -- Résumé : état actuel du portefeuille ---------------------------------
+        const summaryUsers = new Map<string, KpiUserSummary>();
+
+        for (const row of statusRows) {
+            if (onlyUserId !== undefined && row.user_id !== onlyUserId) continue;
+            const key = `${row.user_id ?? nameOf(row)}`;
+            let user = summaryUsers.get(key);
+            if (!user) {
+                user = { userId: row.user_id, userName: nameOf(row), totals: emptyMetrics(), months: [] };
+                summaryUsers.set(key, user);
+            }
+            const nb = Number(row.nb) || 0;
+            const column = LIVE_STATUS_TO_COLUMN[row.status];
+            if (column) {
+                user.totals[column] += nb;
+                summaryTotals[column] += nb;
+            }
+            // Portefeuille : chaque entreprise compte dans le total trié,
+            // et dans les ouvertes tant qu'elle n'est pas fermée.
+            user.totals.total_trie += nb;
+            summaryTotals.total_trie += nb;
+            if (row.status !== 'Fermé') {
+                user.totals.nbre_ent_ouvert += nb;
+                summaryTotals.nbre_ent_ouvert += nb;
+            }
+        }
+
+        // -- Mensuel + hebdomadaire : events datés (company_history + contact_logs) -
+        // Le détail mensuel/hébdo montre l'activité (transitions, créations, appels).
+        // Les totaux du résumé viennent de l'état actuel (portfolioStatusCounts) pour
+        // que les compteurs « Oui », « Non », etc. reflètent le portefeuille réel.
+        const addEvent = (row: ActivityEventRow) => {
             const column = row.status === 'APPEL' ? 'total_appels' : LIVE_STATUS_TO_COLUMN[row.status];
             if (!column) return;
             const nb = Number(row.nb) || 0;
             if (nb === 0) return;
             const key = `${row.user_id ?? nameOf(row)}`;
 
-            // Agrégat mensuel par commercial (forme KpiAnnualSummary).
+            // Détail mensuel par commercial (pour le tableau mensuel + le merge combiné).
             let user = summaryUsers.get(key);
             if (!user) {
                 user = { userId: row.user_id, userName: nameOf(row), totals: emptyMetrics(), months: [] };
@@ -366,8 +412,6 @@ export class KpiService {
                 user.months.push(monthEntry);
             }
             monthEntry.metrics[column] += nb;
-            user.totals[column] += nb;
-            summaryTotals[column] += nb;
 
             // Agrégat hebdomadaire (forme KpiWeeklyDetail).
             let week = byWeek.get(row.week);
@@ -384,12 +428,23 @@ export class KpiService {
             week.totals[column] += nb;
         };
 
-        for (const row of changes) if (onlyUserId === undefined || row.user_id === onlyUserId) add(row);
-        for (const row of creations) if (onlyUserId === undefined || row.user_id === onlyUserId) add(row);
-        for (const row of calls) if (onlyUserId === undefined || row.user_id === onlyUserId) add(row);
+        for (const row of changes) if (onlyUserId === undefined || row.user_id === onlyUserId) addEvent(row);
+        for (const row of creations) if (onlyUserId === undefined || row.user_id === onlyUserId) addEvent(row);
+        for (const row of calls) if (onlyUserId === undefined || row.user_id === onlyUserId) addEvent(row);
+
+        // -- Appels : on ajoute le total des appels au résumé ----------------------
+        for (const row of calls) {
+            if (onlyUserId !== undefined && row.user_id !== onlyUserId) continue;
+            const key = `${row.user_id ?? nameOf(row)}`;
+            const user = summaryUsers.get(key);
+            if (user) {
+                const nb = Number(row.nb) || 0;
+                user.totals.total_appels += nb;
+                summaryTotals.total_appels += nb;
+            }
+        }
 
         const users = [...summaryUsers.values()].sort((a, b) => a.userName.localeCompare(b.userName, 'fr'));
-        for (const user of users) user.months.sort((a, b) => a.month - b.month);
 
         return {
             summary: { year, site, totals: summaryTotals, users },
@@ -408,11 +463,21 @@ export class KpiService {
      * chiffres pour cette case, le portefeuille est ignoré — zéro doublon.
      */
     async getCombined(year: number, site: string, onlyUserId?: number): Promise<KpiActivity> {
-        const [monthlyRows, weeklyRows, activity] = await Promise.all([
+        const [monthlyRows, weeklyRows] = await Promise.all([
             this.kpiRepository.findByYearAndSite(year, site),
             this.kpiRepository.findWeeklyByYearAndSite(year, site),
-            this.getActivity(year, site, onlyUserId),
         ]);
+
+        let activity: KpiActivity;
+        try {
+            activity = await this.getActivity(year, site, onlyUserId);
+        } catch (err) {
+            logger.error({ err }, 'getCombined: getActivity failed, falling back to empty activity');
+            activity = {
+                summary: { year, site, totals: emptyMetrics(), users: [] },
+                weekly: { year, site, weeks: [] },
+            };
+        }
 
         const scoped = (rows: KpiRow[]) =>
             onlyUserId === undefined ? rows : rows.filter((r) => r.user_id === onlyUserId);
@@ -448,37 +513,39 @@ export class KpiService {
             });
         }
 
-        // Portefeuille : uniquement les cases que l'Excel ne couvre pas.
+        // Portefeuille : état actuel pour les commerciaux sans aucune donnée Excel.
+        // Les events de company_history ne sont PAS utilisés ici car ils
+        // s'accumulent sans décrémenter (changer un Oui en Non augmenterait les deux).
+        const portfolioOnly = new Set<string>();
         for (const user of activity.summary.users) {
-            for (const entry of user.months) {
-                const key = `${userKey(user.userId, user.userName)}|${entry.month}`;
-                if (!monthly.has(key)) {
-                    monthly.set(key, {
-                        userId: user.userId,
-                        userName: user.userName,
-                        month: entry.month,
-                        week: 0,
-                        metrics: entry.metrics,
-                    });
-                }
-            }
+            const prefix = userKey(user.userId, user.userName) + '|';
+            if ([...monthly.keys()].some((k) => k.startsWith(prefix))) continue;
+            portfolioOnly.add(userKey(user.userId, user.userName));
+            const currentMonth = new Date().getMonth() + 1;
+            monthly.set(`${prefix}${currentMonth}`, {
+                userId: user.userId,
+                userName: user.userName,
+                month: currentMonth,
+                week: 0,
+                metrics: { ...emptyMetrics(), ...user.totals },
+            });
         }
-        for (const weekEntry of activity.weekly.weeks) {
-            for (const user of weekEntry.users) {
-                const key = `${userKey(user.userId, user.userName)}|${weekEntry.week}`;
-                if (!weekly.has(key)) {
-                    weekly.set(key, {
-                        userId: user.userId,
-                        userName: user.userName,
-                        month: weekEntry.month,
-                        week: weekEntry.week,
-                        metrics: user.metrics,
-                    });
-                }
-            }
+        // Hebdo : état actuel pour les commerciaux sans aucune donnée Excel.
+        for (const user of activity.summary.users) {
+            const prefix = userKey(user.userId, user.userName) + '|';
+            if ([...weekly.keys()].some((k) => k.startsWith(prefix))) continue;
+            const currentWeek = isoWeek(new Date());
+            const currentMonth = new Date().getMonth() + 1;
+            weekly.set(`${prefix}${currentWeek}`, {
+                userId: user.userId,
+                userName: user.userName,
+                month: currentMonth,
+                week: currentWeek,
+                metrics: { ...emptyMetrics(), ...user.totals },
+            });
         }
 
-        // Reconstruction des agrégats.
+        // Reconstruction des agrégats mensuels.
         const totals = emptyMetrics();
         const byUser = new Map<string, KpiUserSummary>();
         for (const cell of monthly.values()) {
@@ -492,6 +559,19 @@ export class KpiService {
             addInto(user.totals, cell.metrics);
             addInto(totals, cell.metrics);
         }
+        // Pour les commerciaux qui ont des données Excel, on ajoute tout de même
+        // leurs appels portefeuille (contact_logs) au total, car l'Excel peut ne
+        // pas refléter tous les appels réels.
+        for (const user of activity.summary.users) {
+            const key = userKey(user.userId, user.userName);
+            if (portfolioOnly.has(key)) continue;
+            const entry = byUser.get(key);
+            if (entry && user.totals.total_appels > 0) {
+                entry.totals.total_appels += user.totals.total_appels;
+                totals.total_appels += user.totals.total_appels;
+            }
+        }
+
         const users = [...byUser.values()].sort((a, b) => a.userName.localeCompare(b.userName, 'fr'));
         for (const user of users) user.months.sort((a, b) => a.month - b.month);
 
