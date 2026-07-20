@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Bell, Mail, Building2, CalendarClock, Phone } from 'lucide-react'
+import { Bell, Mail, Building2, CalendarClock, Phone, PhoneCall } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
@@ -8,11 +8,11 @@ import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
 import { useAuthStore } from '@/store/authStore'
 import { getRelanceType, RELANCE_TYPES } from '@/types/relance'
-import { sendCompanyMailRelance, completePhoneRelance } from '@/api/relance'
+import { sendCompanyMailRelance } from '@/api/relance'
 import { toSlug } from '@/utils/slug'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
-import PhoneRelanceModal from '@/features/portefeuille/components/PhoneRelanceModal'
+import ContactLogModal from '@/features/portefeuille/components/ContactLogModal'
 
 /** Groupe les entreprises par type de relance, dans l'ordre de RELANCE_TYPES (sans type en dernier) */
 function groupByType(list: Entreprise[]) {
@@ -43,7 +43,7 @@ export default function RelanceCommercial() {
   const token = useAuthStore((s) => s.token) ?? ''
 
   const [mailFor, setMailFor] = useState<Entreprise | null>(null)
-  const [phoneFor, setPhoneFor] = useState<Entreprise | null>(null)
+  const [contactFor, setContactFor] = useState<Entreprise | null>(null)
 
   // Local date (not UTC) so a relance set for "today" is due all day in the user's timezone
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -61,10 +61,18 @@ export default function RelanceCommercial() {
     clearCompanyRelance(id, { date_relance: null, type_relance: null, relance_template_id: null, relance_channel: null })
   }
 
-  async function confirmPhoneRelance(ent: Entreprise, note: string) {
-    await completePhoneRelance(token, Number(ent.id), { note, typeRelance: ent.type_relance })
-    dropFromList(ent.id)
-    setPhoneFor(null)
+  // Prise de contact (comme la fiche entreprise) : le modal a déjà écrit en base.
+  // On synchronise le store local avec le nouvel état de relance ; la ligne sort
+  // de la liste si la date est vidée, ou passe dans « À venir » si elle est future.
+  function onContactSuccess(ent: Entreprise, applied?: { status: string; type_relance: number | null; date_relance: string | null }) {
+    if (applied) {
+      clearCompanyRelance(ent.id, {
+        status: applied.status as Entreprise['status'],
+        type_relance: applied.type_relance,
+        date_relance: applied.date_relance,
+      })
+    }
+    setContactFor(null)
   }
 
   async function sendMailRelance(ent: Entreprise, mail: { to: string; subject: string; body: string; attachments: { filename: string; contentType: string; content: string }[] }) {
@@ -136,7 +144,7 @@ export default function RelanceCommercial() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {channel === 'MAIL' ? (
+          {channel === 'MAIL' && (
             <Button
               size="sm"
               variant="primary"
@@ -147,17 +155,16 @@ export default function RelanceCommercial() {
             >
               Préparer le mail
             </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="primary"
-              leftIcon={<Phone className="h-3.5 w-3.5" />}
-              onClick={() => setPhoneFor(ent)}
-              title="Enregistrer la relance téléphonique"
-            >
-              Marquer faite
-            </Button>
           )}
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<PhoneCall className="h-3.5 w-3.5" />}
+            onClick={() => setContactFor(ent)}
+            title="Enregistrer une prise de contact"
+          >
+            Prise de contact
+          </Button>
         </div>
       </div>
     )
@@ -229,11 +236,11 @@ export default function RelanceCommercial() {
         />
       )}
 
-      {phoneFor && (
-        <PhoneRelanceModal
-          companyName={phoneFor.nom_commercial ?? 'Entreprise'}
-          onConfirm={(note) => confirmPhoneRelance(phoneFor, note)}
-          onClose={() => setPhoneFor(null)}
+      {contactFor && (
+        <ContactLogModal
+          entreprise={contactFor}
+          onSuccess={(applied) => onContactSuccess(contactFor, applied)}
+          onClose={() => setContactFor(null)}
         />
       )}
     </div>
