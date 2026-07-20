@@ -7,6 +7,7 @@ import type { Candidate } from '@/types/candidate'
 import { useAuthStore } from '@/store/authStore'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus'
+import { cleanHtml } from '@/services/sanitizeHtml'
 
 interface SendResult {
   sent: number
@@ -294,7 +295,7 @@ export default function Relance() {
               </span>
               <div
                 className="prose prose-sm max-w-none text-gray-700 line-clamp-4"
-                dangerouslySetInnerHTML={{ __html: selectedTemplate.body }}
+                dangerouslySetInnerHTML={{ __html: cleanHtml(selectedTemplate.body) }}
               />
             </div>
           ) : (

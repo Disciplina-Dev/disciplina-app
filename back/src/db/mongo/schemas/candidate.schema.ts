@@ -66,6 +66,7 @@ const identitySchema = new Schema<Identity>(
         apprenticeship_contract_details: { type: String },
         description: { type: String },
         avatar_updated_at: { type: Date },
+        drive_avatar_file_id: { type: String },
     },
     { _id: false },
 );

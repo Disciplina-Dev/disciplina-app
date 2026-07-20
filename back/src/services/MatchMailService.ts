@@ -4,7 +4,7 @@ import { UserService } from './UserService';
 import { SessionCredentials } from './MatchLinkService';
 import { escapeHtml } from './html';
 import { env } from '../config/env';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 
 function invitationHtml(link: string, code: string, identifier: string): string {
     return `
@@ -16,20 +16,6 @@ function invitationHtml(link: string, code: string, identifier: string): string 
             <p><strong>Identifiant :</strong> ${escapeHtml(identifier)}<br/>
                <strong>Code :</strong> ${escapeHtml(code)}</p>
             <p>Ce lien expire dans 24 heures.</p>
-        </div>`;
-}
-
-function candidateInterestHtml(company: string, ouiUrl: string, nonUrl: string): string {
-    return `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #60207E;">Une offre pour vous</h2>
-            <p>Bonjour,</p>
-            <p>Une offre chez ${escapeHtml(company)} pourrait vous intéresser. Êtes-vous intéressé(e) ?</p>
-            <p>
-                <a href="${escapeHtml(ouiUrl)}" style="color: #60207E;"><strong>Oui, je suis intéressé(e)</strong></a>
-                &nbsp;·&nbsp;
-                <a href="${escapeHtml(nonUrl)}" style="color: #b00020;">Non merci</a>
-            </p>
         </div>`;
 }
 
@@ -55,22 +41,6 @@ export class MatchMailService {
             subject: '[Disciplina] Vos candidats proposés',
             text: `Consultez vos candidats : ${link}\nIdentifiant : ${credentials.identifier}\nCode : ${credentials.code}`,
             html: invitationHtml(link, credentials.code, credentials.identifier),
-        });
-    }
-
-    async sendCandidateInterest(
-        rhEmail: string,
-        candidateEmail: string,
-        companyName: string | undefined,
-        ouiUrl: string,
-        nonUrl: string,
-    ): Promise<void> {
-        const company = companyName ?? "l'entreprise";
-        await this.sendAs(rhEmail, {
-            to: candidateEmail,
-            subject: '[Disciplina] Une offre pour vous',
-            text: `Une offre chez ${company} pourrait vous intéresser.\nOui : ${ouiUrl}\nNon : ${nonUrl}`,
-            html: candidateInterestHtml(company, ouiUrl, nonUrl),
         });
     }
 

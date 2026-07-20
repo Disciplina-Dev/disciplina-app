@@ -144,12 +144,18 @@ def upsert_offer(collection, doc):
     doc_id = doc.pop("_id", None)
     created_at = doc.pop("created_at", None)
     updated_at = doc.pop("updated_at", None)
+    # The app owns `matching` once the offer exists: RH pick candidates and book
+    # interview slots there. Seeding it on every run would wipe that work, which is
+    # why OfferRepository.updateContent keeps it out of its own $set.
+    matching = doc.pop("matching", None)
 
     set_on_insert = {}
     if doc_id:
         set_on_insert["_id"] = doc_id
     if created_at:
         set_on_insert["created_at"] = created_at
+    if matching:
+        set_on_insert["matching"] = matching
 
     filter_ = {"company_infos.name": name, "tp_type": tp, "localisation.0": loc[0]}
     update = {"$set": doc}

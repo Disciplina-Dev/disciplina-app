@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { logger } from '../logger';
 import { ScrapedPage } from './types';
+import { isPublicUrl, MAX_REDIRECTS } from './urlGuard';
 
 export class ScraperService {
     private readonly headers = {
@@ -73,15 +74,8 @@ export class ScraperService {
 
     private async fetchPage(url: string): Promise<ScrapedPage | null> {
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 5000);
-
-            const response = await fetch(url, {
-                headers: this.headers,
-                signal: controller.signal,
-            });
-
-            clearTimeout(timeout);
+            const response = await this.fetchPublicFollowingRedirects(url);
+            if (!response) return null;
 
             if (!response.ok) {
                 logger.warn({ url, status: response.status }, 'Failed to fetch URL');
@@ -95,5 +89,42 @@ export class ScraperService {
             logger.warn({ url, error: errorMsg }, 'Scraper error for URL');
             return null;
         }
+    }
+
+    /**
+     * Suit les redirections à la main : chaque saut est revalidé, sinon une page
+     * publique peut rediriger vers l'infra interne (métadonnées cloud, Ollama…).
+     */
+    private async fetchPublicFollowingRedirects(url: string): Promise<Response | null> {
+        let current = url;
+
+        for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+            if (!(await isPublicUrl(current))) {
+                logger.warn({ url: current }, 'Scraper refused a non-public target');
+                return null;
+            }
+
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            let response: Response;
+            try {
+                response = await fetch(current, {
+                    headers: this.headers,
+                    signal: controller.signal,
+                    redirect: 'manual',
+                });
+            } finally {
+                clearTimeout(timeout);
+            }
+
+            if (response.status < 300 || response.status > 399) return response;
+
+            const location = response.headers.get('location');
+            if (!location) return response;
+            current = new URL(location, current).toString();
+        }
+
+        logger.warn({ url }, 'Scraper hit the redirect limit');
+        return null;
     }
 }

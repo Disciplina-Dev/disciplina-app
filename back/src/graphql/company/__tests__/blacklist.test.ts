@@ -31,7 +31,7 @@ describe('GraphQL blacklistCompany mutation', () => {
     });
 
     it('moves a single company to the blacklist with the given reason', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'RESPONSABLE' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
         const blacklistRepo = new CompanyBlacklistRepository();
@@ -63,7 +63,7 @@ describe('GraphQL blacklistCompany mutation', () => {
     });
 
     it('moves every company sharing the same SIREN when allBlacklist is true', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'RESPONSABLE' });
         const repo = new CompanyRepository();
         const blacklistRepo = new CompanyBlacklistRepository();
 
@@ -108,7 +108,7 @@ describe('GraphQL blacklistCompany mutation', () => {
     });
 
     it('rejects when reason is empty', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'RESPONSABLE' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -132,7 +132,7 @@ describe('GraphQL blacklistCompany mutation', () => {
     });
 
     it('rejects when the company does not exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'RESPONSABLE' });
 
         const { res, json } = await callBlacklist(token, { id: 999999, reason: 'Unknown', allBlacklist: false });
 
@@ -154,7 +154,7 @@ describe('GraphQL blacklistCompany mutation', () => {
         expect(json.errors[0].message).toMatch(/unauthorized/i);
     });
 
-    it('rejects users without COMMERCIAL, RESPONSABLE or ADMIN role', async () => {
+    it('rejects users without RESPONSABLE permission', async () => {
         const token = mintToken({ id: 1, email: 'rh@test.local', role: 'RH' });
 
         const { res, json } = await callBlacklist(token, { id: 1, reason: 'x', allBlacklist: false });
@@ -171,7 +171,7 @@ describe('GraphQL unblacklistCompany mutation', () => {
     });
 
     it('restores a blacklisted company to the portfolio', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'RESPONSABLE' });
         const suffix = Date.now();
         const blacklistRepo = new CompanyBlacklistRepository();
         const companyRepo = new CompanyRepository();
@@ -209,7 +209,7 @@ describe('GraphQL unblacklistCompany mutation', () => {
     });
 
     it('errors when the blacklisted company does not exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'RESPONSABLE' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',

@@ -3,7 +3,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { buildMcpServer } from './server';
 import { mcpAuth } from './auth';
 import { mcpRateLimiter } from '../rest/middleware/rateLimiter';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 
 export const router = express.Router();
 

@@ -27,7 +27,6 @@ interface ListResponse {
  */
 export function useNotifications() {
   const token = useAuthStore((s) => s.token)
-  const userId = useAuthStore((s) => s.user?.id)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [loading, setLoading] = useState(false)
   const esRef = useRef<EventSource | null>(null)
@@ -67,10 +66,10 @@ export function useNotifications() {
     return () => clearInterval(interval)
   }, [token, refresh])
 
-  // Flux temps réel
+  // Flux temps réel — le backend dérive l'identité du token.
   useEffect(() => {
-    if (!userId) return
-    const es = new EventSource(`${API_BASE}/api/notifications/stream?userID=${userId}`)
+    if (!token) return
+    const es = new EventSource(`${API_BASE}/api/notifications/stream?token=${encodeURIComponent(token)}`)
     esRef.current = es
     es.onmessage = (e) => {
       try {
@@ -91,7 +90,7 @@ export function useNotifications() {
       es.close()
       esRef.current = null
     }
-  }, [userId])
+  }, [token])
 
   const markRead = useCallback(
     async (id: string) => {

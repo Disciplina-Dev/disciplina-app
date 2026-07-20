@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMutation, gql } from 'urql'
 import { useLocation } from 'react-router-dom'
-import { useCurrentUser, useAuthStore, UserRole } from '@/store/authStore'
+import { useCurrentUser, useAuthStore, UserRole, Permission } from '@/store/authStore'
 import { useMailTemplatesStore } from '@/store/mailTemplatesStore'
 import type { MailTemplatesScope } from '@/store/mailTemplatesStore'
 import {
@@ -16,11 +16,11 @@ const CHANGE_PASSWORD_MUTATION = gql`
 `
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  [UserRole.ADMIN]: 'Administrateur',
-  [UserRole.RESPONSABLE]: 'Responsable',
   [UserRole.COMMERCIAL]: 'Commercial',
   [UserRole.RH]: 'Ressources Humaines',
   [UserRole.PEDA]: 'Pédagogique',
+  [UserRole.AD]: 'Administrateur',
+  [UserRole.GESTION]: 'Gestion',
   [UserRole.ENTREPRISE]: 'Entreprise',
 }
 
@@ -33,7 +33,7 @@ const SECTOR_LABELS: Record<string, string> = {
 function useAccentColor() {
   const role = useAuthStore((s) => s.user?.role)
   if (role === UserRole.PEDA) return '#0F766E'
-  return role === UserRole.RH || role === UserRole.RESPONSABLE ? '#60207E' : '#1130A7'
+  return role === UserRole.RH ? '#60207E' : '#1130A7'
 }
 
 function useMailScope(): MailTemplatesScope {
@@ -257,8 +257,9 @@ export default function ProfilePage() {
 
   const showSectors =
     user?.role === UserRole.RH ||
-    user?.role === UserRole.RESPONSABLE ||
-    user?.role === UserRole.ADMIN
+    user?.permission === Permission.RESPONSABLE ||
+    user?.role === UserRole.AD ||
+    user?.role === UserRole.GESTION
 
   if (!user) return null
 

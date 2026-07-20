@@ -6,10 +6,16 @@ import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES } from '@/types/entreprise'
 import { RELANCE_TYPES, computeRelanceDate } from '@/types/relance'
 
+interface ContactApplied {
+  status: EntrepriseStatus
+  type_relance: number | null
+  date_relance: string | null
+}
+
 interface Props {
   entreprise: Entreprise
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (applied?: ContactApplied) => void
 }
 
 const MAX_LENGTH = 2000
@@ -58,7 +64,7 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
     }
 
     setSaving(false)
-    onSuccess()
+    onSuccess({ status, type_relance: typeRelance, date_relance: dateRelance || null })
   }
 
   return (

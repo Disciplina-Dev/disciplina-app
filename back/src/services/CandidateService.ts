@@ -1,10 +1,9 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
-import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
+import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { computeAge } from '../utils/age';
 import { CandidateHistoryService } from './CandidateHistoryService';
-import { buildFieldChangeEntries } from './mappers/candidateFieldDiff';
 
 export class CandidateService {
     private repository = new CandidateRepository();

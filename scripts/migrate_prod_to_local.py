@@ -15,19 +15,10 @@ import sys
 
 from dotenv import load_dotenv
 
+from db.guard import guard_local_target
 from db.mongo import connect_source_mongo, connect_target_mongo
 from db.mysql import connect_source_mysql, connect_target_mysql
 from lib import data_copy, schema_sync
-
-LOCAL_HOSTS = {"localhost", "127.0.0.1", "sql-db", "nosql-db"}
-
-
-def _guard_local_target():
-    host = os.getenv("MYSQL_HOST", "localhost")
-    if host not in LOCAL_HOSTS:
-        sys.exit(f"Refus: MYSQL_HOST='{host}' n'est pas local. Import annulé.")
-    if os.getenv("NODE_ENV") == "production":
-        sys.exit("Refus: NODE_ENV=production. La cible doit être locale.")
 
 
 def _parse_args():
@@ -65,7 +56,7 @@ def _run_mongo(dry_run, skip_schema):
 def main():
     load_dotenv()
     args = _parse_args()
-    _guard_local_target()
+    guard_local_target()
     if args.only != "mongo":
         _run_mysql(args.dry_run, args.skip_schema)
     if args.only != "mysql":

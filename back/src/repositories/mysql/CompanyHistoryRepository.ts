@@ -1,19 +1,13 @@
 import { query, getConnection } from '../../db/mysql/connection';
+import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompanyHistoryRow } from '../../types/db-rows.types';
 
 export class CompanyHistoryRepository {
     async create(data: Partial<CompanyHistoryRow>): Promise<number> {
         const conn = await getConnection();
         try {
-            const fields = Object.keys(data).join(', ');
-            const placeholders = Object.keys(data)
-                .map(() => '?')
-                .join(', ');
-            const values = Object.values(data);
-            const result = await conn.execute(
-                `INSERT INTO company_history (${fields}) VALUES (${placeholders})`,
-                values,
-            );
+            const { sql, values } = buildInsert('company_history', data);
+            const result = await conn.execute(sql, values);
             return (result[0] as any).insertId;
         } finally {
             conn.release();

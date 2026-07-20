@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { X, Briefcase, Users, ClipboardList, Calendar, Hash, Trash2 } from 'lucide-react'
+import { X, Briefcase, Users, ClipboardList, Calendar, Hash } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -48,9 +49,11 @@ interface Props {
   id: string
   onClose: () => void
   onDelete?: () => void
+  onEdit?: (ab: NeedsAnalysis) => void
+  onDuplicate?: (ab: NeedsAnalysis) => void
 }
 
-export default function ABDetailModal({ id, onClose, onDelete }: Props) {
+export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplicate }: Props) {
   const result = useNeedsAnalysis(id)
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -96,18 +99,38 @@ export default function ABDetailModal({ id, onClose, onDelete }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {ab && !confirmDelete && onEdit && (
+              <button
+                type="button"
+                onClick={() => { onEdit(ab); onClose() }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-blue hover:text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
+              >
+                Modifier
+              </button>
+            )}
+            {ab && !confirmDelete && onDuplicate && (
+              <button
+                type="button"
+                onClick={() => { onDuplicate(ab); onClose() }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-blue hover:text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
+              >
+                Dupliquer
+              </button>
+            )}
             {ab && !confirmDelete && (
               <button
+                type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                title="Supprimer cette AB"
+                className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
               >
-                <Trash2 className="h-4 w-4" />
+                Supprimer
               </button>
             )}
             <button
+              type="button"
               onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50 shrink-0"
+              aria-label="Fermer"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
             >
               <X className="h-5 w-5" />
             </button>

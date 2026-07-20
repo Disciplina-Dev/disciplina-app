@@ -1,13 +1,20 @@
-export enum Role {
-    ADMIN = 'ADMIN',
-    RESPONSABLE = 'RESPONSABLE',
+export enum JobRole {
     COMMERCIAL = 'COMMERCIAL',
     RH = 'RH',
-    // Pôle pédagogique : suivi des absences apprenants + relances par brouillons Gmail.
     PEDA = 'PEDA',
-    // Rôle non persistant : vit uniquement dans le JWT d'une session de portail entreprise (match_link).
+    AD = 'AD',
+    GESTION = 'GESTION',
+}
+
+export enum Permission {
+    EMPLOYEE = 'EMPLOYEE',
+    RESPONSABLE = 'RESPONSABLE',
+    ADMIN = 'ADMIN',
+}
+
+// Rôles JWT-only : vivent uniquement dans le JWT, jamais persistés en base.
+export enum GuestRole {
     ENTREPRISE_GUEST = 'ENTREPRISE_GUEST',
-    // Rôle non persistant : vit uniquement dans le JWT d'une session de choix de créneau candidat (interview_access).
     CANDIDATE_GUEST = 'CANDIDATE_GUEST',
 }
 
@@ -16,7 +23,8 @@ export interface User {
     email: string;
     firstName: string;
     lastName: string;
-    role: Role;
+    role: JobRole;
+    permission: Permission;
     sectors: string[] | null;
     oauthToken?: string | null;
     refreshToken?: string | null;
@@ -28,7 +36,16 @@ export interface UserResponse {
     email: string;
     firstName: string;
     lastName: string;
-    role: Role;
+    role: JobRole;
+    permission: Permission;
     sectors: string[] | null;
     googleConnected: boolean;
+}
+
+export interface DirectoryEntry {
+    id: number;
+    firstName: string;
+    lastName: string;
+    role: JobRole;
+    permission: Permission;
 }

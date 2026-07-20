@@ -35,12 +35,16 @@ export interface MailTemplateAttachmentMeta {
   contentType: string
 }
 
+/** Modèle système (non supprimable, partagé) ; null pour un modèle utilisateur. */
+export type MailTemplateKind = 'ab_signature'
+
 export interface MailTemplate {
   id: string
   name: string
   subject: string
   body: string
   pedaLevel: PedaLevel | null
+  kind: MailTemplateKind | null
   attachment: MailTemplateAttachmentMeta | null
 }
 

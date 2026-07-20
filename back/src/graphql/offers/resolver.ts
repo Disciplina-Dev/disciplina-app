@@ -1,5 +1,5 @@
-import { authGuard } from '../authGuard';
-import { Role } from '../../types/user.types';
+import { authGuard, authGuardRole } from '../authGuard';
+import { JobRole, Permission } from '../../types/user.types';
 import { InterviewConclusion, ImmersionConclusion } from '../../types/matching.types';
 import { OfferService } from '../../services/OfferService';
 import { MatchLinkService } from '../../services/MatchLinkService';
@@ -12,15 +12,15 @@ const matchMailService = new MatchMailService();
 export const resolvers = {
     Query: {
         offers: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.findAll();
         },
         matchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.find(id);
         },
         offerCompanyInfo: async (_: unknown, { offerId }: { offerId: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.getCompanyInfo(offerId);
         },
         offerResponseLinks: (
@@ -28,25 +28,25 @@ export const resolvers = {
             { offerId, candidateId }: { offerId: string; candidateId: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.offerResponseLinks(offerId, candidateId);
         },
         candidateMatchedOfferIds: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getMatchedOfferIds(candidateId);
         },
         candidatePlacement: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getCandidatePlacement(candidateId);
         },
     },
     Mutation: {
         updateOffer: async (_: unknown, { id, offer }: { id: string; offer: any }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.update(id, offer);
         },
         unmatchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.unmatchAll(id);
         },
         addCandidateToOffer: async (
@@ -54,7 +54,7 @@ export const resolvers = {
             { offerId, candidateId }: { offerId: string; candidateId: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.addCandidate(offerId, candidateId);
         },
         removeCandidateFromOffer: async (
@@ -62,7 +62,7 @@ export const resolvers = {
             { offerId, candidateId }: { offerId: string; candidateId: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.removeCandidate(offerId, candidateId);
         },
         updateMatchedCandidateStatus: async (
@@ -70,16 +70,8 @@ export const resolvers = {
             { offerId, candidateId, status }: { offerId: string; candidateId: string; status: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.updateMatchedCandidateStatus(offerId, candidateId, status);
-        },
-        sendCandidateInterestMail: async (
-            _: unknown,
-            { offerId, candidateId }: { offerId: string; candidateId: string },
-            context: any,
-        ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            return offerService.sendInterestMailToCandidate(offerId, candidateId, context.user.email);
         },
         addManualProposedCandidate: async (
             _: unknown,
@@ -98,7 +90,7 @@ export const resolvers = {
             },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.addManualProposedCandidate(
                 offerId,
                 candidateId,
@@ -125,7 +117,7 @@ export const resolvers = {
             },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.addManualProposedCandidateForImmersion(
                 offerId,
                 candidateId,
@@ -152,7 +144,7 @@ export const resolvers = {
             },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.setInterviewConclusion(
                 offerId,
                 candidateId,
@@ -167,7 +159,7 @@ export const resolvers = {
             { offerId, candidateId, conclusion }: { offerId: string; candidateId: string; conclusion: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.setImmersionConclusion(
                 offerId,
                 candidateId,
@@ -184,7 +176,7 @@ export const resolvers = {
             }: { offerId: string; companyEmail: string; candidates: { id: string; description?: string }[] },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const credentials = await matchLinkService.createSession({
                 offerId,
                 rhEmail: context.user.email,

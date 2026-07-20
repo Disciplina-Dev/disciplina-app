@@ -1,23 +1,25 @@
 import { Response } from 'express';
-import { UserService } from '../../services/UserService';
+import { UserService, roleToId, permissionToId } from '../../services/UserService';
 import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
-import { toUserResponse } from '../../services/mappers/user.mapper';
+import { toUserResponse, toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { sanitizeSectors } from '../../utils/sector';
+import { isValidEmail } from '../../services/validation';
+import { JobRole, Permission } from '../../types/user.types';
 
 const userService = new UserService();
 
 // Gestion des secteurs : réservée à l'admin et au responsable.
-const SECTOR_MANAGER_ROLES = ['ADMIN', 'RESPONSABLE'];
+const SECTOR_MANAGER_PERMISSIONS: Permission[] = [Permission.ADMIN, Permission.RESPONSABLE];
 // Rôles persistables assignables via la gestion des users.
-const ASSIGNABLE_ROLES = ['ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH', 'PEDA'] as const;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ASSIGNABLE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL, JobRole.RH, JobRole.PEDA, JobRole.AD, JobRole.GESTION];
+const ASSIGNABLE_PERMISSIONS: Permission[] = [Permission.EMPLOYEE, Permission.RESPONSABLE, Permission.ADMIN];
 
 export async function listUsers(req: AuthRequest, res: Response): Promise<void> {
     try {
-        if (!SECTOR_MANAGER_ROLES.includes(req.user?.role)) {
+        if (!SECTOR_MANAGER_PERMISSIONS.includes(req.user?.permission)) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -29,9 +31,21 @@ export async function listUsers(req: AuthRequest, res: Response): Promise<void> 
     }
 }
 
+// Annuaire d'affichage, ouvert à tout le staff : résoudre un id en nom + rôle est
+// nécessaire dans le portefeuille et les dashboards, que listUsers ne sert pas.
+export async function listDirectory(_req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const users = await userService.findAll();
+        res.json(users.map(toDirectoryEntry));
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: listDirectory failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+}
+
 export async function updateUserSectors(req: AuthRequest, res: Response): Promise<void> {
     try {
-        if (!SECTOR_MANAGER_ROLES.includes(req.user?.role)) {
+        if (!SECTOR_MANAGER_PERMISSIONS.includes(req.user?.permission)) {
             res.status(403).json({ error: 'Only admins and managers can edit sectors' });
             return;
         }
@@ -70,16 +84,28 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
 
 export async function register(req: AuthRequest, res: Response): Promise<void> {
     try {
-        if (req.user?.role !== 'ADMIN') {
+        if (req.user?.permission !== Permission.ADMIN) {
             res.status(403).json({ error: 'Only admins can register new users' });
             return;
         }
-        const { email, firstName, lastName, passwordPlain, role, sectors } = req.body;
-        if (!email || !firstName || !lastName || !passwordPlain || !role) {
-            res.status(400).json({ error: 'Missing required fields: email, firstName, lastName, passwordPlain, role' });
+        const { email, firstName, lastName, passwordPlain, role, permission, sectors } = req.body;
+        if (!email || !firstName || !lastName || !passwordPlain || !role || !permission) {
+            res.status(400).json({
+                error: 'Missing required fields: email, firstName, lastName, passwordPlain, role, permission',
+            });
             return;
         }
-        const user = await userService.register(email, firstName, lastName, passwordPlain, role, sectors);
+        const roleId = roleToId(role as JobRole);
+        const permissionId = permissionToId(permission as Permission);
+        const user = await userService.register(
+            email,
+            firstName,
+            lastName,
+            passwordPlain,
+            roleId,
+            permissionId,
+            sectors,
+        );
         res.status(201).json(toUserResponse(user));
     } catch (error: any) {
         res.status(400).json({ error: error.message });
@@ -88,7 +114,7 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
 
 export async function updateUser(req: AuthRequest, res: Response): Promise<void> {
     try {
-        if (req.user?.role !== 'ADMIN') {
+        if (req.user?.permission !== Permission.ADMIN) {
             res.status(403).json({ error: 'Only admins can edit users' });
             return;
         }
@@ -98,14 +124,18 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        const { email, firstName, lastName, role, sectors, passwordPlain } = req.body ?? {};
+        const { email, firstName, lastName, role, permission, sectors, passwordPlain } = req.body ?? {};
 
-        if (email !== undefined && !EMAIL_RE.test(String(email))) {
+        if (email !== undefined && !isValidEmail(email)) {
             res.status(400).json({ error: 'Invalid email' });
             return;
         }
-        if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) {
+        if (role !== undefined && !ASSIGNABLE_JOB_ROLES.includes(role)) {
             res.status(400).json({ error: 'Invalid role' });
+            return;
+        }
+        if (permission !== undefined && !ASSIGNABLE_PERMISSIONS.includes(permission)) {
+            res.status(400).json({ error: 'Invalid permission' });
             return;
         }
         if (passwordPlain !== undefined && String(passwordPlain).length < 8) {
@@ -118,6 +148,7 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
             firstName,
             lastName,
             role,
+            permission,
             sectors: sectors !== undefined ? sanitizeSectors(sectors) : undefined,
             passwordPlain,
         });
@@ -134,7 +165,8 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
 
 export async function generateGoogleUri(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const targetUserId = req.body?.userId && req.user.role === 'ADMIN' ? req.body.userId : req.user.id;
+        const targetUserId =
+            req.body?.userId && req.user.permission === Permission.ADMIN ? req.body.userId : req.user.id;
         const state = signGoogleState(targetUserId);
         const url = googleOAuth.generateAuthUrl(state);
         res.json({ url });

@@ -114,6 +114,7 @@ export interface Identity {
     description?: string;                  // Descriptif libre du candidat (contexte matching)
     avatar_url?: string;
     avatar_updated_at?: string;
+    drive_avatar_file_id?: string;
 }
 
 export interface Education {
@@ -254,6 +255,7 @@ export interface Candidate {
     pdf_link?: string;
     cv_link?: string;
     drive_folder_id?: string;
+    photo_link?: string;
     filiz_folder_id?: string;
     created_at?: string;
     last_relance_at?: string;      // dernière relance de disponibilité envoyée

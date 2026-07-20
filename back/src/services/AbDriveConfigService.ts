@@ -3,8 +3,8 @@ import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
 import { SECTORS, Sector, primarySector } from '../utils/sector';
-import { Role, User } from '../types/user.types';
-import { logger } from '../external/logger/logger';
+import { JobRole, User } from '../types/user.types';
+import { logger } from '../external/logger';
 
 /** Type de dossier d'archivage d'une AB : signé ou non signé. */
 export type AbFolderKind = 'SIGNED' | 'UNSIGNED';
@@ -60,14 +60,17 @@ export class AbDriveConfigService {
 
             const folderId = await this.resolveFolder(sector, kind);
             if (!folderId) {
-                logger.warn({ sector, kind }, '[AbDrive] Aucun dossier Drive configuré pour ce secteur, archivage ignoré');
+                logger.warn(
+                    { sector, kind },
+                    '[AbDrive] Aucun dossier Drive configuré pour ce secteur, archivage ignoré',
+                );
                 return null;
             }
 
             // Jetons Google : ceux du créateur, sinon repli sur un commercial connecté.
             let driveUser: User | null = creator;
             if (!driveUser?.oauthToken) {
-                driveUser = await this.userService.findFirstGoogleConnectedUser([Role.COMMERCIAL, Role.RESPONSABLE, Role.ADMIN]);
+                driveUser = await this.userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
             }
             if (!driveUser?.oauthToken) {
                 logger.warn('[AbDrive] Aucun compte Google connecté pour uploader sur le Drive, archivage ignoré');

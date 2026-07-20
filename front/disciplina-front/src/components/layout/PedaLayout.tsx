@@ -56,7 +56,7 @@ export default function PedaLayout() {
           </nav>
 
           {/* Navigation inter-espaces (Admin) */}
-          {currentUser?.role === 'ADMIN' && (
+          {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION') && (
             <>
               <div className="mx-3 my-4 border-t border-gray-100" />
               <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>

@@ -4,7 +4,7 @@ import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
-import { Role } from '../../../types/user.types';
+import { JobRole, Permission } from '../../../types/user.types';
 import { SireneService } from '../../../external/insee/sirene.service';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
@@ -35,13 +35,10 @@ describe('GraphQL company mutations', () => {
     beforeEach(async () => {
         await truncateMysql();
         const conn = await pool.getConnection();
-        await conn.execute('INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)', [
-            'admin@test.local',
-            'Admin',
-            'User',
-            'password',
-            Role.ADMIN,
-        ]);
+        await conn.execute(
+            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+            ['admin@test.local', 'Admin', 'User', 'password', 1, 3],
+        );
         conn.release();
     });
 
@@ -58,7 +55,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('creates a company with minimal required fields', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const siret = `${suffix}0000000000`.slice(0, 14);
 
@@ -116,7 +113,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('creates a company with all optional fields', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const siret = `${suffix}1111111111`.slice(0, 14);
 
@@ -125,8 +122,8 @@ describe('GraphQL company mutations', () => {
             let userID: number;
             try {
                 const [result] = await conn.execute(
-                    'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
-                    [`sp-create-${suffix}@test.local`, 'Sales', `Rep`, `password${suffix}`, Role.COMMERCIAL],
+                    'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                    [`sp-create-${suffix}@test.local`, 'Sales', `Rep`, `password${suffix}`, 1, 1],
                 );
                 userID = (result as any).insertId;
             } finally {
@@ -183,7 +180,9 @@ describe('GraphQL company mutations', () => {
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             const c = json.data.createCompany;
-            expect(c.userID).toBe(userID);
+            // The createCompany resolver assigns the authenticated user (id=1)
+            // when the token's role matches JobRole.COMMERCIAL
+            expect(c.userID).toBe(1);
             expect(c.legalReferent).toBe('John Doe');
             expect(c.phone).toBe('0123456789');
             expect(c.email).toBe(`corp-${suffix}@test.local`);
@@ -194,7 +193,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when siret is missing', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
@@ -226,7 +225,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when siret is not 14 characters', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
@@ -261,7 +260,7 @@ describe('GraphQL company mutations', () => {
 
     describe('updateCompany', () => {
         it('updates company fields and returns camelCase result', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CompanyRepository();
 
@@ -323,7 +322,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when updating a non-existent company', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
@@ -353,7 +352,7 @@ describe('GraphQL company mutations', () => {
 
     describe('deleteCompany', () => {
         it('deletes an existing company and returns true', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CompanyRepository();
 
@@ -400,7 +399,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when deleting a non-existent company', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',

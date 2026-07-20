@@ -1,16 +1,15 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac } from 'crypto';
+import { timingSafeEqualString } from './compare';
+
+type HmacEncoding = 'hex' | 'base64';
 
 export class HmacService {
-    sign(secret: string, payload: string): string {
-        return createHmac('sha256', secret).update(payload).digest('hex');
+    sign(secret: string, payload: string, encoding: HmacEncoding = 'hex'): string {
+        return createHmac('sha256', secret).update(payload).digest(encoding);
     }
 
-    verify(secret: string, payload: string, sig: string): boolean {
-        const expected = this.sign(secret, payload);
-        const expectedBuf = Buffer.from(expected);
-        const sigBuf = Buffer.from(sig);
-        if (expectedBuf.length !== sigBuf.length) return false;
-        return timingSafeEqual(expectedBuf, sigBuf);
+    verify(secret: string, payload: string, sig: string, encoding: HmacEncoding = 'hex'): boolean {
+        return timingSafeEqualString(this.sign(secret, payload, encoding), sig);
     }
 }
 

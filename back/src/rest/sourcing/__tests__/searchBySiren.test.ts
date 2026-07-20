@@ -42,7 +42,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
     });
 
     it('short-circuits without calling INSEE when the whole SIREN is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const siret = `${siren}00001`;
 
@@ -72,7 +72,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
     });
 
     it('lists blacklisted establishments alongside normal results when all_blacklist is 0', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const blacklistedSiret = `${siren}00001`;
         const otherSiret = `${siren}00002`;
@@ -107,7 +107,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
     });
 
     it('returns no blacklist entries when nothing is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const siret = `${siren}00003`;
 

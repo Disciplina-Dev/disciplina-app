@@ -5,27 +5,28 @@ import { MatchedCandidateStatus } from '../../types/matching.types';
 import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 
-const jobService = new OfferService();
+const offerService = new OfferService();
 
 export async function handleMatchResponse(req: Request, res: Response) {
-    const { offerId, candidateId, answer, sig } = req.query as {
+    const { offerId, candidateId, answer, sig, ts } = req.query as {
         offerId?: string;
         candidateId?: string;
         answer?: string;
         sig?: string;
+        ts?: string;
     };
 
-    if (!offerId || !candidateId || !answer || !sig || !['oui', 'non'].includes(answer)) {
+    if (!offerId || !candidateId || !answer || !sig || !ts || !['oui', 'non'].includes(answer)) {
         return res.status(400).send(confirmationPage('Lien invalide.', false));
     }
 
-    if (!verifyMatchUrl(offerId, candidateId, answer, sig)) {
+    if (!verifyMatchUrl(offerId, candidateId, answer, sig, Number(ts))) {
         return res.status(400).send(confirmationPage('Lien invalide ou expiré.', false));
     }
 
     try {
         const status = answer === 'oui' ? MatchedCandidateStatus.ACCEPTED : MatchedCandidateStatus.DECLINED;
-        await jobService.updateMatchedCandidateStatus(offerId, candidateId, status);
+        await offerService.updateMatchedCandidateStatus(offerId, candidateId, status);
         logger.info({ offerId, candidateId, answer }, '[matching] response handled');
     } catch (err) {
         logger.error({ err }, '[matching] response error');

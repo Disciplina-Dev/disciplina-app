@@ -10,6 +10,8 @@ const INSECURE_DEFAULTS = new Set([
     'changeme',
     'change-this-relance-secret',
     'change-this-google-state-secret',
+    'ci-jwt-secret',
+    'ci-session-secret',
     '7325fd3fc113dc0034d98ee93eb9a50fc4c71d2798c819bc4e3f7e7e2fb7a940',
 ]);
 
@@ -23,7 +25,8 @@ function requireString(key: string): string {
     }
     return raw;
 }
-const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
+// Jamais en production : CI=true sur un serveur ne doit pas ouvrir les secrets de repli.
+const IS_CI = (process.env.CI === 'true' || process.env.CI === '1') && process.env.NODE_ENV !== 'production';
 
 function requireStringWithCIFallback(key: string, fallback: string): string {
     const raw = process.env[key];
@@ -84,7 +87,6 @@ const data = {
     RELANCE_HMAC_SECRET: stringWithDefault('RELANCE_HMAC_SECRET', 'change-this-relance-secret'),
     GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
 
-    CLASSMARKER_API_NAME: optionalString('CLASSMARKER_API_NAME'),
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
     CLASSMARKER_WEBHOOK_SECRET: optionalString('CLASSMARKER_WEBHOOK_SECRET'),
@@ -118,13 +120,6 @@ const data = {
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
     GOOGLE_REDIRECT_URI: stringWithDefault('GOOGLE_REDIRECT_URI', 'http://localhost:5173/auth/google'),
 
-    SMTP_HOST: optionalString('SMTP_HOST'),
-    SMTP_PORT: numberWithDefault('SMTP_PORT', 587),
-    SMTP_SECURE: optionalString('SMTP_SECURE'),
-    SMTP_USER: optionalString('SMTP_USER'),
-    SMTP_PASS: optionalString('SMTP_PASS'),
-    SMTP_FROM: optionalString('SMTP_FROM'),
-
     FILIZ_CLIENT_ID: requireStringWithCIFallback('FILIZ_CLIENT_ID', 'ci-filiz-client-id'),
     FILIZ_CLIENT_SECRET: requireStringWithCIFallback('FILIZ_CLIENT_SECRET', 'ci-filiz-secret'),
     FILIZ_AUDIENCE: requireStringWithCIFallback('FILIZ_AUDIENCE', 'ci-filiz-audience'),
@@ -141,6 +136,9 @@ const data = {
     // or a self-hosted instance URL as needed.
     DOCUSEAL_API_KEY: optionalString('DOCUSEAL_API_KEY', 'docuseal_key_placeholder'),
     DOCUSEAL_BASE_URL: stringWithDefault('DOCUSEAL_BASE_URL', 'https://api.docuseal.com'),
+    // URL publique de signature (host qui sert les pages /s/<slug>). Différent de
+    // l'API host. https://docuseal.eu (EU) ou l'URL d'une instance auto-hébergée.
+    DOCUSEAL_SIGN_URL: stringWithDefault('DOCUSEAL_SIGN_URL', 'https://docuseal.com'),
     DOCUSEAL_WEBHOOK_SECRET: optionalString('DOCUSEAL_WEBHOOK_SECRET'),
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),

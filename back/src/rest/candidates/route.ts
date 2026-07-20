@@ -2,29 +2,44 @@ import express, { Router, Response } from 'express';
 import { randomUUID } from 'crypto';
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
 import { PdfService } from '../../services/PdfService';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
-import { GoogleTokens } from '../../external/google/types';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { file } from 'pdfkit';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+// Le mimetype multipart vient du client : le type réel se déduit des nombres magiques.
+// SVG est exclu volontairement — seul format « image » capable d'exécuter du script.
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+const IMAGE_SIGNATURES: { mime: string; matches: (bytes: Buffer) => boolean }[] = [
+    { mime: 'image/jpeg', matches: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+    { mime: 'image/png', matches: (b) => b.subarray(0, 8).equals(PNG_SIGNATURE) },
+    {
+        mime: 'image/webp',
+        matches: (b) => b.subarray(0, 4).toString('ascii') === 'RIFF' && b.subarray(8, 12).toString('ascii') === 'WEBP',
+    },
+];
+
+const SERVABLE_IMAGE_MIMES = new Set(IMAGE_SIGNATURES.map((signature) => signature.mime));
+
+function detectImageMime(bytes: Buffer): string | null {
+    return IMAGE_SIGNATURES.find((signature) => signature.matches(bytes))?.mime ?? null;
+}
+
 export const router: Router = express.Router();
 
 const candidateService = new CandidateService();
 const candidateRepository = new CandidateRepository();
 const userService = new UserService();
-
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -33,7 +48,8 @@ function normalizeName(name: string): string {
 // PDF de l'Analyse du Besoin (tous les éléments AB), en téléchargement
 router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -62,7 +78,8 @@ router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => 
 // validation de l'AB pour éviter le download + import manuel.
 router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -87,7 +104,7 @@ router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Resp
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const pdfBuffer = await PdfService.generateCandidatePdf(candidate);
@@ -127,7 +144,8 @@ router.post(
     authenticate,
     async (req: AuthRequest, res: Response) => {
         const role = req.user?.role;
-        if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+        const permission = req.user?.permission;
+        if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
@@ -166,7 +184,7 @@ router.post(
 
             const driveService = GoogleDriveService.fromTokens(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
 
             const fileName = `CV_${candidate.identity.full_name}.${ext}`;
@@ -189,7 +207,8 @@ router.post(
 
 router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -221,7 +240,7 @@ router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response)
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const { buffer, mimeType } = await driveService.downloadFile(fileId);
@@ -239,7 +258,8 @@ router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response)
 
 router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -265,11 +285,33 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const files = await driveService.listFolderFiles(candidate.drive_folder_id);
         res.json({ files });
+
+        // Best-effort, hors chemin de réponse : si aucune photo n'est réellement
+        // stockée (avatar_updated_at peut mentir sur des fiches legacy sans bytes
+        // en base), on cherche un fichier "Photo_*" dans le dossier Drive et on
+        // le met en cache comme avatar.
+        const hasStoredAvatar = await CandidateAvatarModel.exists({ candidate_id: id });
+        if (!hasStoredAvatar && !candidate.identity.drive_avatar_file_id) {
+            const photoFile = files.find((f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name));
+            if (photoFile) {
+                try {
+                    const { buffer, mimeType } = await driveService.downloadFile(photoFile.id);
+                    await CandidateAvatarModel.findOneAndUpdate(
+                        { candidate_id: id },
+                        { candidate_id: id, data: buffer, content_type: mimeType, updated_at: new Date() },
+                        { upsert: true, new: true },
+                    );
+                    await candidateService.update(id, { identity: { drive_avatar_file_id: photoFile.id } } as never);
+                } catch (syncErr) {
+                    logger.warn(syncErr, 'drive avatar sync failed (non-blocking)');
+                }
+            }
+        }
     } catch (err) {
         logger.error(err, 'list drive folder files failed');
         res.status(500).json({ error: 'Internal error' });
@@ -281,7 +323,8 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
 // bloquée par le blocage des cookies tiers → "Connectez-vous à votre compte Google").
 router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -303,7 +346,7 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const meta = await driveService.getFileMeta(fileId);
@@ -331,7 +374,8 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
 
 router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -353,7 +397,7 @@ router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest,
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const deletedFile = candidate.drive_folder_id
@@ -375,7 +419,8 @@ router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest,
 
 router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -407,7 +452,7 @@ router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async 
 
         const driveService = GoogleDriveService.fromTokens(
             { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
 
         const uploaded = await Promise.all(
@@ -425,7 +470,8 @@ router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async 
 // and archives original to the candidate's Drive folder when available.
 router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -437,8 +483,9 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
         res.status(400).json({ error: 'No photo provided' });
         return;
     }
-    if (!file.mimetype.startsWith('image/')) {
-        res.status(400).json({ error: 'File must be an image' });
+    const detectedMime = detectImageMime(file.buffer);
+    if (!detectedMime) {
+        res.status(400).json({ error: 'File must be a JPEG, PNG or WebP image' });
         return;
     }
 
@@ -453,7 +500,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
 
         await CandidateAvatarModel.findOneAndUpdate(
             { candidate_id: id },
-            { candidate_id: id, data: file.buffer, content_type: file.mimetype, updated_at: now },
+            { candidate_id: id, data: file.buffer, content_type: detectedMime, updated_at: now },
             { upsert: true, new: true },
         );
 
@@ -466,7 +513,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
             if (user?.oauthToken) {
                 const driveService = GoogleDriveService.fromTokens(
                     { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                    persistRefreshedTokens(user.id),
+                    userService.googleTokenPersister(user.id),
                 );
 
                 let folderId = candidate.drive_folder_id;
@@ -504,6 +551,90 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
     }
 });
 
+// Authed: serve candidate avatar with a Google Drive fallback. On a Mongo cache
+// miss it locates the candidate's photo in their Drive folder (imported "Photo_*"
+// files never pass through the webcam upload path), downloads it via the caller's
+// OAuth token, caches it in Mongo, then serves. RH-only because it needs a token.
+router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Response) => {
+    const role = req.user?.role;
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const { id } = req.params;
+    try {
+        const cached = await CandidateAvatarModel.findOne({ candidate_id: id }).lean();
+        if (cached) {
+            const raw = cached.data as unknown as { buffer?: Buffer };
+            const buf = Buffer.isBuffer(cached.data) ? cached.data : Buffer.from(raw.buffer ?? (cached.data as never));
+            res.setHeader('Content-Type', cached.content_type);
+            res.setHeader('Content-Length', buf.length);
+            res.setHeader('Cache-Control', 'private, max-age=3600');
+            res.end(buf);
+            return;
+        }
+
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).end();
+            return;
+        }
+
+        const user = await userService.findById(req.user!.id);
+        if (!user?.oauthToken) {
+            res.status(404).end();
+            return;
+        }
+
+        const driveService = GoogleDriveService.fromTokens(
+            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+            persistRefreshedTokens(user.id),
+        );
+
+        // Locate the photo: explicit avatar file id first, else a "Photo_*" image in
+        // the folder, else any image in the folder.
+        let fileId = candidate.identity.drive_avatar_file_id;
+        if (!fileId && candidate.drive_folder_id) {
+            const files = await driveService.listFolderFiles(candidate.drive_folder_id);
+            const photoFile =
+                files.find((f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name)) ??
+                files.find((f) => f.mimeType.startsWith('image/'));
+            fileId = photoFile?.id;
+        }
+        if (!fileId) {
+            res.status(404).end();
+            return;
+        }
+
+        const { buffer, mimeType } = await driveService.downloadFile(fileId);
+
+        // Cache for future requests (incl. the public route) — best-effort.
+        try {
+            const now = new Date();
+            await CandidateAvatarModel.findOneAndUpdate(
+                { candidate_id: id },
+                { candidate_id: id, data: buffer, content_type: mimeType, updated_at: now },
+                { upsert: true },
+            );
+            await candidateService.update(id, {
+                identity: { avatar_updated_at: now, drive_avatar_file_id: fileId },
+            } as never);
+        } catch (cacheErr) {
+            logger.warn(cacheErr, 'avatar cache write failed (non-blocking)');
+        }
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Length', buffer.length);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        res.end(buffer);
+    } catch (err) {
+        logger.error(err, 'serve avatar-file failed');
+        res.status(500).end();
+    }
+});
+
 // Public: serve candidate avatar as an <img> source (no auth so it can be hot-linked).
 router.get('/:id/avatar', async (req, res: Response) => {
     try {
@@ -515,7 +646,11 @@ router.get('/:id/avatar', async (req, res: Response) => {
         // .lean() yields a BSON Binary, not a Node Buffer — coerce so Express sends raw bytes.
         const raw = avatar.data as unknown as { buffer?: Buffer };
         const buf = Buffer.isBuffer(avatar.data) ? avatar.data : Buffer.from(raw.buffer ?? (avatar.data as never));
-        res.setHeader('Content-Type', avatar.content_type);
+        // Les avatars stockés avant la validation par signature portent un type client.
+        res.setHeader(
+            'Content-Type',
+            SERVABLE_IMAGE_MIMES.has(avatar.content_type) ? avatar.content_type : 'application/octet-stream',
+        );
         res.setHeader('Content-Length', buf.length);
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.end(buf);
@@ -527,7 +662,8 @@ router.get('/:id/avatar', async (req, res: Response) => {
 
 router.post('/quick-create', express.json(), authenticate, async (req: AuthRequest, res: Response) => {
     const role = req.user?.role;
-    if (role !== Role.RH && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }

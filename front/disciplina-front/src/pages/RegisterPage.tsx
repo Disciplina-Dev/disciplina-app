@@ -4,7 +4,7 @@ import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
-import { UserRole, useAuthStore } from '@/store/authStore'
+import { UserRole, Permission, useAuthStore } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { SECTEUR_VALUES } from '@/types/entreprise'
 
@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const [lastname, setLastname] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<UserRole>(UserRole.COMMERCIAL)
+  const [permission, setPermission] = useState<Permission>(Permission.EMPLOYEE)
   const [sectors, setSectors] = useState<string[]>([])
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -51,6 +52,7 @@ export default function RegisterPage() {
           lastName: lastname,
           passwordPlain: password,
           role,
+          permission,
           sectors,
         }),
       })
@@ -67,6 +69,7 @@ export default function RegisterPage() {
       setPassword('')
       setConfirmPassword('')
       setRole(UserRole.COMMERCIAL)
+      setPermission(Permission.EMPLOYEE)
       setSectors([])
 
       if (linkGoogle) {
@@ -133,11 +136,33 @@ export default function RegisterPage() {
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-[10px] text-sm text-gray-900 focus:ring-2 focus:ring-blue focus:border-blue transition-colors appearance-none"
               required
             >
-              <option value={UserRole.ADMIN}>Administrateur</option>
-              <option value={UserRole.RESPONSABLE}>Responsable</option>
-              <option value={UserRole.RH}>Ressources Humaines</option>
+              <option value={UserRole.AD}>Administrateur</option>
+              <option value={UserRole.GESTION}>Gestion</option>
               <option value={UserRole.COMMERCIAL}>Commercial</option>
+              <option value={UserRole.RH}>Ressources Humaines</option>
               <option value={UserRole.PEDA}>Pédagogique</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="permission" className="text-sm font-medium text-gray-700">
+            Niveau de permission
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <Shield size={18} />
+            </div>
+            <select
+              id="permission"
+              value={permission}
+              onChange={(e) => setPermission(e.target.value as Permission)}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-[10px] text-sm text-gray-900 focus:ring-2 focus:ring-blue focus:border-blue transition-colors appearance-none"
+              required
+            >
+              <option value={Permission.EMPLOYEE}>Employé</option>
+              <option value={Permission.RESPONSABLE}>Responsable</option>
+              <option value={Permission.ADMIN}>Administrateur</option>
             </select>
           </div>
         </div>

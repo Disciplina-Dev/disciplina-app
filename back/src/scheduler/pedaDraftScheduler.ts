@@ -1,7 +1,7 @@
 import { PedaDraftService } from '../services/PedaDraftService';
 import { PedaService, PEDA_DRAFT_LAST_RUN_KEY } from '../services/PedaService';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 
 const TIMEZONE = 'Indian/Reunion';
 const TICK_MS = 60_000;

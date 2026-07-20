@@ -4,7 +4,7 @@ import { truncateMysql, dropMongo } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
-import { Role } from '../../../types/user.types';
+import { JobRole, Permission } from '../../../types/user.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/needs-analysis`;
 
@@ -22,8 +22,8 @@ describe('GraphQL Needs Analysis integration', () => {
         const conn = await pool.getConnection();
         try {
             const [result] = await conn.execute(
-                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
-                [`sp-${suffix}@test.local`, 'Commercial', `${suffix}`, `pwd-${suffix}`, Role.COMMERCIAL],
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [`sp-${suffix}@test.local`, 'Commercial', `${suffix}`, `pwd-${suffix}`, 1, 1],
             );
             userId = (result as any).insertId;
         } finally {
@@ -42,7 +42,7 @@ describe('GraphQL Needs Analysis integration', () => {
         });
 
         // 3. Mint JWT token
-        token = mintToken({ id: userId, email: `sp-${suffix}@test.local`, role: Role.COMMERCIAL });
+        token = mintToken({ id: userId, email: `sp-${suffix}@test.local`, role: 'COMMERCIAL', permission: 'EMPLOYEE' });
     });
 
     async function graphql(query: string, variables: Record<string, unknown>) {

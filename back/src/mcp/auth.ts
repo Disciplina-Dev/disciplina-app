@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { timingSafeEqual } from 'crypto';
 import { env } from '../config/env';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 
 // Longueur minimale exigée pour la clé MCP. En dessous, la clé est jugée trop
 // faible (brute-forçable) et l'endpoint est désactivé plutôt que d'exposer le

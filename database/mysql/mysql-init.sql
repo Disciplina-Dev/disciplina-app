@@ -10,20 +10,61 @@ CREATE TABLE IF NOT EXISTS `app_settings` (
   PRIMARY KEY (`setting_key`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `permissions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT IGNORE INTO `permissions` (`id`, `name`) VALUES
+  (1, 'EMPLOYEE'),
+  (2, 'RESPONSABLE'),
+  (3, 'ADMIN');
+
+CREATE TABLE IF NOT EXISTS `roles` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT IGNORE INTO `roles` (`id`, `name`) VALUES
+  (1, 'COMMERCIAL'),
+  (2, 'RH'),
+  (3, 'PEDA'),
+  (4, 'AD'),
+  (5, 'GESTION');
+
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,
   `email` varchar(255) NOT NULL,
   `first_name` varchar(255) NOT NULL,
   `last_name` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('ADMIN','RESPONSABLE','COMMERCIAL','RH','PEDA') NOT NULL,
+  `role_id` int NOT NULL,
+  `permission_id` int NOT NULL,
   `sectors` json DEFAULT NULL,
   `oauth_token` text DEFAULT NULL,
   `refresh_token` text DEFAULT NULL,
   `is_interviewer` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  UNIQUE KEY `email` (`email`)
+  UNIQUE KEY `email` (`email`),
+  KEY `idx_users_role_id` (`role_id`),
+  KEY `idx_users_permission_id` (`permission_id`),
+  CONSTRAINT `fk_users_role_id` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON UPDATE CASCADE,
+  CONSTRAINT `fk_users_permission_id` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT IGNORE INTO `users` (`email`, `first_name`, `last_name`, `password`, `role_id`, `permission_id`)
+  VALUE (
+    'root@example.com',
+    'root',
+    'root',
+    '$2a$10$3cXr1oA.UaFA44D4OjddWupCC3c4vFBoPZhewTxohLKUvMrHJ52nq',
+    5,
+    3
+  );
 
 CREATE TABLE IF NOT EXISTS `booking_settings` (
   `user_id` int NOT NULL,
@@ -196,51 +237,9 @@ CREATE TABLE IF NOT EXISTS `match_link` (
   PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE IF NOT EXISTS `needs_analysis` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `company_id` int NOT NULL,
-  `user_id` int NOT NULL,
-  `legal_rep_function` varchar(255) DEFAULT NULL,
-  `recruitment_responsible_name` varchar(255) DEFAULT NULL,
-  `recruitment_responsible_phone` varchar(50) DEFAULT NULL,
-  `recruitment_responsible_email` varchar(255) DEFAULT NULL,
-  `recruitment_responsible_function` varchar(255) DEFAULT NULL,
-  `company_sectors` json DEFAULT NULL,
-  `company_description` text DEFAULT NULL,
-  `opco` enum('AKTO','ATLAS','AFDAS','CONSTRUCTYS','OCAPIAT','OPCO_2I','OPCO_EP','OPCO_MOBILITES','OPCO_SANTE','OPCOMMERCE','UNIFORMATION') DEFAULT NULL,
-  `referral_source` enum('KOANN','E2CR','FRANCE_TRAVAIL','TELEVISION_PUB','BOUCHE_A_OREILLE','MISSION_LOCALE','SALON','RSMA','RESEAUX_SOCIAUX') DEFAULT NULL,
-  `positions_count` int NOT NULL DEFAULT '1',
-  `positions` json DEFAULT NULL,
-  `localisation` enum('NORD','OUEST','SUD') NOT NULL,
-  `training_domain` enum('SECRETARIAT','VENTE') NOT NULL,
-  `job_title` varchar(255) NOT NULL,
-  `selected_missions` json NOT NULL,
-  `other_missions` text DEFAULT NULL,
-  `job_description_missions` json DEFAULT NULL,
-  `job_description_other` text DEFAULT NULL,
-  `education_level` enum('BAC','BAC_PLUS_2','BAC_PLUS_3') DEFAULT NULL,
-  `driving_license` enum('OUI','OPTIONNEL') NOT NULL,
-  `experience_required` enum('DEBUTANT','OBLIGATOIRE') NOT NULL,
-  `age_requirements` json NOT NULL,
-  `age_min` int DEFAULT NULL,
-  `age_max` int DEFAULT NULL,
-  `soft_skills` text DEFAULT NULL,
-  `schedule_options` json DEFAULT NULL,
-  `conditions` text DEFAULT NULL,
-  `additional_comments` text DEFAULT NULL,
-  `recruitment_method` enum('ALL_CV','PRESELECTION','PRE_INTERVIEW') NOT NULL,
-  `immersion_period` enum('OUI','NON','A_DISCUTER') NOT NULL,
-  `training_days` json NOT NULL,
-  `yousign_signature_request_id` varchar(255) DEFAULT NULL,
-  `status` enum('BROUILLON','EN_ATTENTE_SIGNATURE','SIGNE','EXPIRE') NOT NULL DEFAULT 'BROUILLON',
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  KEY `idx_needs_analysis_company_id` (`company_id`),
-  KEY `idx_needs_analysis_user_id` (`user_id`),
-  CONSTRAINT `fk_needs_analysis_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_needs_analysis_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+-- La table `needs_analysis` a été retirée le 2026-07-17 : l'entité vit désormais dans
+-- MongoDB (collection `needs_analysis`, cf. database/mongodb/mongo-schema.md). Aucun code
+-- du backend ne la lisait, et elle était vide. Voir docs/AUDIT.md §6.3.
 
 CREATE TABLE IF NOT EXISTS `peda_config` (
   `user_id` int NOT NULL,

@@ -10,7 +10,7 @@ import {
     TrainingDomain,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
-import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, TITLE_TO_TP, Zone } from './abToJob';
+import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, TITLE_TO_TP, Zone } from './abToOffer';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
 

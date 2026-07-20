@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertTriangle, MapPin } from 'lucide-react'
 
-import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
+import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import {
   fetchKpiLive,
   fetchKpiUserDetail,
@@ -29,7 +29,7 @@ export default function CommercialKpiProfil() {
   const currentUser = useCurrentUser()
   const { userId } = useParams<{ userId: string }>()
   const isManager =
-    currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.RESPONSABLE
+    currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE
   const ownId = Number(currentUser?.id)
 
   if (!isManager && Number(userId) !== ownId) {

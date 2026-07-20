@@ -5,7 +5,7 @@ import { getDegrees, getClasses, createFolder } from './controller';
 
 export const router: Router = Router();
 
-const filizAccess = [authenticate, requireRoles('RH', 'RESPONSABLE', 'ADMIN')];
+const filizAccess = [authenticate, requireRoles('RH', 'AD', 'GESTION')];
 
 router.get('/degrees', ...filizAccess, getDegrees);
 router.get('/classes', ...filizAccess, getClasses);

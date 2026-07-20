@@ -1,6 +1,6 @@
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
-import { authGuard } from '../authGuard';
-import { Role } from '../../types/user.types';
+import { authGuard, authGuardRole } from '../authGuard';
+import { JobRole, Permission } from '../../types/user.types';
 import {
     abDriveConfigService,
     abDriveConfigToGql,
@@ -12,36 +12,32 @@ const needsAnalysisService = new NeedsAnalysisService();
 
 export const resolvers = {
     Query: {
-        needsAnalyses: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            return needsAnalysisService.findAll();
-        },
         needsAnalysis: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return needsAnalysisService.findById(id);
         },
         needsAnalysesByCompany: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return needsAnalysisService.findByCompanyId(companyID);
         },
         abDriveConfig: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const config = await abDriveConfigService.getConfig();
             return abDriveConfigToGql(config);
         },
     },
     Mutation: {
         createNeedsAnalysis: async (_: unknown, { input }: { input: any }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const ownedInput = {
                 ...input,
-                userID: context.user.role === Role.COMMERCIAL ? context.user.id : input.userID ?? context.user.id,
+                userID: context.user.role === JobRole.COMMERCIAL ? context.user.id : input.userID ?? context.user.id,
             };
             return needsAnalysisService.create(ownedInput);
         },
         updateNeedsAnalysis: async (_: unknown, { id, input }: { id: string; input: any }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            if (context.user.role === Role.COMMERCIAL) {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            if (context.user.role === JobRole.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
                 if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
                     throw new Error('Forbidden: You can only edit your own needs analyses');
@@ -50,8 +46,8 @@ export const resolvers = {
             return needsAnalysisService.update(id, input);
         },
         deleteNeedsAnalysis: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            if (context.user.role === Role.COMMERCIAL) {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            if (context.user.role === JobRole.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
                 if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
                     throw new Error('Forbidden: You can only delete your own needs analyses');
@@ -60,7 +56,7 @@ export const resolvers = {
             return needsAnalysisService.delete(id);
         },
         updateAbDriveConfig: async (_: unknown, { input }: { input: any }, context: any) => {
-            authGuard(context.user, [Role.RESPONSABLE]);
+            authGuard(context.user, Permission.RESPONSABLE);
             const sectorFolders: Record<string, string> = {};
             for (const f of input.sectorFolders ?? []) {
                 const folderId = (f.folderId ?? '').trim();

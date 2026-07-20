@@ -1,21 +1,24 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
-import {
-    signatureAssets,
-    SIGNATURE_EMAIL_SUBJECT,
-    SIGNATURE_EMAIL_BODY,
-} from '../../external/docuseal/docuseal.service';
-import { logger } from '../../external/logger/logger';
+import { signatureAssets } from '../../external/docuseal/docuseal.service';
+import { logger } from '../../external/logger';
+
+/** Corps de mail édité dans l'aperçu, borné pour éviter les envois abusifs. */
+const MAX_EMAIL_FIELD = 50_000;
 
 const needsAnalysisService = new NeedsAnalysisService();
 
-const SIGNATURE_ROLES = [Role.COMMERCIAL, Role.RESPONSABLE, Role.ADMIN];
+const SIGNATURE_PERMISSIONS: Permission[] = [Permission.RESPONSABLE, Permission.ADMIN];
+const SIGNATURE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
 
 export async function downloadPdf(req: AuthRequest, res: Response): Promise<void> {
     const role = req.user?.role;
-    if (role !== Role.COMMERCIAL && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    const hasPermission = permission === Permission.RESPONSABLE || permission === Permission.ADMIN;
+    const hasJobRole = role === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -26,7 +29,7 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
         return;
     }
 
-    if (role === Role.COMMERCIAL) {
+    if (role === JobRole.COMMERCIAL) {
         const analysis = await needsAnalysisService.findById(id);
         if (analysis?.salerInfo?.id && analysis.salerInfo.id !== req.user?.id) {
             res.status(403).json({ error: 'Forbidden' });
@@ -51,7 +54,11 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
 
 /** Sert un PDF statique (mandat / catalogue) en inline pour l'aperçu avant envoi. */
 function serveSignatureAsset(req: AuthRequest, res: Response, kind: 'mandat' | 'catalogue'): void {
-    if (!SIGNATURE_ROLES.includes(req.user?.role as Role)) {
+    const perm = req.user?.permission;
+    const jobRole = req.user?.role;
+    const hasPermission = perm === Permission.RESPONSABLE || perm === Permission.ADMIN;
+    const hasJobRole = jobRole === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -74,17 +81,31 @@ export function getCataloguePdf(req: AuthRequest, res: Response): void {
 }
 
 /** Renvoie le sujet/corps de l'email de signature pour l'aperçu (lecture seule). */
-export function getSignatureEmail(req: AuthRequest, res: Response): void {
-    if (!SIGNATURE_ROLES.includes(req.user?.role as Role)) {
+export async function getSignatureEmail(req: AuthRequest, res: Response): Promise<void> {
+    const perm = req.user?.permission;
+    const jobRole = req.user?.role;
+    const hasPermission = perm === Permission.RESPONSABLE || perm === Permission.ADMIN;
+    const hasJobRole = jobRole === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
-    res.status(200).json({ subject: SIGNATURE_EMAIL_SUBJECT, body: SIGNATURE_EMAIL_BODY });
+    const abId = typeof req.query.abId === 'string' ? req.query.abId : undefined;
+    try {
+        const preview = await needsAnalysisService.getSignatureEmailPreview(abId);
+        res.status(200).json(preview);
+    } catch (error) {
+        logger.error({ err: error, abId }, '[NeedsAnalysis] Signature email preview failed');
+        res.status(500).json({ error: 'Failed to load signature email preview' });
+    }
 }
 
 export async function sendSignature(req: AuthRequest, res: Response): Promise<void> {
     const role = req.user?.role;
-    if (role !== Role.COMMERCIAL && role !== Role.RESPONSABLE && role !== Role.ADMIN) {
+    const permission = req.user?.permission;
+    const hasPermission = permission === Permission.RESPONSABLE || permission === Permission.ADMIN;
+    const hasJobRole = role === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
@@ -95,7 +116,7 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         return;
     }
 
-    if (role === Role.COMMERCIAL) {
+    if (role === JobRole.COMMERCIAL) {
         const analysis = await needsAnalysisService.findById(id);
         if (analysis?.salerInfo?.id && analysis.salerInfo.id !== req.user?.id) {
             res.status(403).json({ error: 'Forbidden' });
@@ -103,8 +124,23 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         }
     }
 
+    // Contenu édité dans l'aperçu (optionnel) : on borne la taille.
+    const rawSubject = req.body?.subject;
+    const rawBody = req.body?.body;
+    if (
+        (rawSubject != null && (typeof rawSubject !== 'string' || rawSubject.length > MAX_EMAIL_FIELD)) ||
+        (rawBody != null && (typeof rawBody !== 'string' || rawBody.length > MAX_EMAIL_FIELD))
+    ) {
+        res.status(400).json({ error: 'Sujet ou corps du mail invalide' });
+        return;
+    }
+    const override =
+        rawBody != null
+            ? { subject: typeof rawSubject === 'string' ? rawSubject : undefined, body: rawBody }
+            : undefined;
+
     try {
-        const analysis = await needsAnalysisService.sendForSignature(id);
+        const analysis = await needsAnalysisService.sendForSignature(id, req.user!.id, override);
         res.status(200).json(analysis);
     } catch (error: any) {
         logger.error({ err: error, id }, '[NeedsAnalysis] Send for signature failed');
@@ -112,8 +148,16 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
             res.status(404).json({ error: error.message });
             return;
         }
+        if (error.message?.includes('Google account not connected')) {
+            res.status(403).json({ error: 'Compte Google non connecté. Veuillez connecter votre compte Google.' });
+            return;
+        }
         if (error.message?.includes('recruitment responsible email')) {
             res.status(400).json({ error: 'Aucun email de responsable recrutement pour envoyer la signature' });
+            return;
+        }
+        if (error.message?.includes('signing link')) {
+            res.status(502).json({ error: 'Le prestataire de signature n’a pas renvoyé de lien. Réessayez.' });
             return;
         }
         res.status(500).json({ error: 'Failed to send for signature' });

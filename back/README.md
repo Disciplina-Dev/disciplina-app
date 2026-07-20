@@ -20,32 +20,40 @@ src/
   config/env.ts         Hand-rolled environment validator (exits on invalid/missing vars)
   db/
     mongo/connection.ts Mongoose connection (DB: human_ressources)
-    mongo/schemas/      Mongoose schemas for candidates & jobs
+    mongo/schemas/      11 Mongoose schemas (candidates, offers, needs_analysis, notifications…)
     mysql/connection.ts MySQL2 connection pool (DB: disciplina)
     mysql/migrations.ts runMysqlMigrations() — auto-applies missing columns at boot
-  external/             Third-party integrations & cross-cutting infrastructure
+  external/             10 third-party integrations & cross-cutting infrastructure
     google/             OAuth2 client, GoogleDriveService, GoogleGmailService, MIME builder, types
-    crypto/             HmacService + domain signers (relance URL, Google OAuth state)
+    crypto/             HmacService, timing-safe compare + domain signers (relance URL, OAuth state)
     logger/             pino logger instance
     insee/              SireneService — INSEE Sirene API client (SIRET/SIREN lookup & search)
     filiz/              FilizAuthClient + FilizService — Filiz ERP OAuth + degree/class APIs
+    yousign/            Yousign e-signature client
+    docuseal/           DocuSeal e-signature client
+    ddg/                DuckDuckGo search
+    ollama/             Local AI (see the `ollama` compose service)
+    scraper/            Web scraping (puppeteer)
   graphql/
-    server.ts           3 separate ApolloServer instances on different paths
+    server.ts           4 separate ApolloServer instances on different paths
     context.ts          JWT extraction from Authorization header
     authGuard.ts        Role-based access guard
     company/            Companies GraphQL (MySQL)
-    needsAnalysis/      Needs-analysis GraphQL (MySQL) — merged into the companies server
+    todo/               Todos GraphQL — merged into the companies server (also holds changePassword)
+    needsAnalysis/      Needs-analysis GraphQL (MongoDB) — its own server
     candidate/          Candidates GraphQL (MongoDB)
-    jobs/               Jobs GraphQL + matching logic (MongoDB)
+    offers/             Offers GraphQL + matching logic (MongoDB)
+  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, tools per domain
+  scheduler/            pedaDraftScheduler — started from index.ts
   repositories/
-    mysql/              Data access: UserRepository, CompanyRepository, CompanyBlacklistRepository,
-                        NeedsAnalysisRepository, FilizRepository
-    mongo/              Data access: CandidateRepository, JobRepository
-  services/             Business logic: CompaniesService, CompaniesBlacklistService, UserService,
-                        CandidateService, JobService, NeedsAnalysisService, KpiService, PdfService,
+    mysql/              16 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,
+                        MatchLinkRepository, InterviewAccessRepository, FilizRepository…
+    mongo/              7 repositories: CandidateRepository, OfferRepository, NeedsAnalysisRepository…
+  services/             ~30 services: CompaniesService, CompaniesBlacklistService, UserService,
+                        CandidateService, OfferService, NeedsAnalysisService, KpiService, PdfService,
                         pagination (cursor pagination helpers)
-    mappers/            Snake-case ↔ camelCase mappers for user, company, candidate
-  rest/
+    mappers/            Snake-case ↔ camelCase mappers for user, company, candidate (MySQL side only)
+  rest/                 21 feature modules + middleware/ + shared/
     auth/               Login, register, Google OAuth
     email/              Gmail email sending + drafts (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
@@ -53,26 +61,42 @@ src/
     classmarker/        ClassMarker test links and webhooks
     sourcing/           SIREN/SIRET/multicriteria prospecting search via INSEE, blacklist-aware
     yousign/            Yousign signature webhook + SSE stream for needs-analysis signing
-    kpi/                Commercial KPI dashboard — manual entry + Excel import
-    middleware/         Auth (JWT), error handler, rate limiters & role guard
-  types/                Domain types: user, company, candidate, job, needs-analysis, db-rows
+    docuseal/           DocuSeal signature webhook
+    kpi/ rh-kpi/        Commercial and RH KPI dashboards — manual entry + Excel import
+    booking/ calendar/  Interview slots and calendar
+    interview/ match/   Guest magic-link access (signed token + 6-digit code)
+    matching/           Candidate ↔ offer matching endpoints
+    needsAnalysis/      Needs-analysis REST endpoints
+    notifications/      SSE notification stream
+    peda/               Pedagogical drafts (see scheduler/)
+    mailTemplates/      Mail templates CRUD
+    sectorSettings/     Sector reference settings
+    filiz/              Filiz ERP endpoints
+    middleware/         Auth (JWT), error handler, rate limiters, role guard, webhook signature
+    shared/             Cross-module REST helpers
+  types/                Domain types: user, company, candidate, offer, needs-analysis, db-rows
+  utils/                Misc helpers
 ```
 
 ## GraphQL endpoints
 
-| Path | Domain | Database |
-|------|--------|----------|
-| `/api/graphql/companies` | Companies + Users + Needs Analysis | MySQL |
-| `/api/graphql/candidates` | Candidates | MongoDB |
-| `/api/graphql/jobs` | Jobs + candidate matching | MongoDB |
+| Path | Server | Domain | Database |
+|------|--------|--------|----------|
+| `/api/graphql/companies` | `CompanyAPI` | Companies + Users + Todos | MySQL |
+| `/api/graphql/candidates` | `CandidateAPI` | Candidates | MongoDB |
+| `/api/graphql/offers` | `OfferAPI` | Offers + candidate matching | MongoDB |
+| `/api/graphql/needs-analysis` | `NeedsAnalysisAPI` | Needs analysis ("Analyse de Besoin") | MongoDB |
 
-All use the same JWT context (`back/src/graphql/context.ts`).
+All use the same JWT context (`back/src/graphql/context.ts`). Mounted in `index.ts:142-152`.
 
-The `/api/graphql/companies` server merges two domain modules into one Apollo instance
-(`graphql/server.ts`): `graphql/company/` (companies, users, `blacklistCompany`) and
-`graphql/needsAnalysis/` (the "Analyse de Besoin" form — `needsAnalyses`, `needsAnalysis(id)`,
+The `/api/graphql/companies` server merges `graphql/company/` (companies, users,
+`blacklistCompany`), `graphql/todo/` (todos, plus the `changePassword` user mutation) and the
+shared `User` typeDefs into one Apollo instance (`graphql/server.ts`).
+
+Needs-analysis is **its own server** on `/api/graphql/needs-analysis` (`needsAnalysis(id)`,
 `needsAnalysesByCompany(companyID)`, `createNeedsAnalysis`, `updateNeedsAnalysis`,
-`deleteNeedsAnalysis`).
+`deleteNeedsAnalysis`) and reads MongoDB — it was migrated out of MySQL and is no longer merged
+into the companies server.
 
 ## REST endpoints
 
@@ -225,7 +249,12 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 ## Databases
 
 ### MySQL (`disciplina`)
-- Tables: `companies`, `companies_blacklist`, `users`, `needs_analysis`, `filiz`, `commercial_kpi`
+- 18 tables: `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
+  `relance_history`, `commercial_kpi`, `rh_kpi`, `sector_settings`, `booking_settings`,
+  `interview_access`, `match_link`, `todos`, `peda_config`, `peda_draft_history`, `app_settings`,
+  `filiz`, `needs_analysis`
+- ⚠️ `needs_analysis` is **dead**: the entity moved to MongoDB and no code reads this table
+  anymore, but `mysql-init.sql` still creates it. See `docs/AUDIT.md` §6.3.
 - Init: `database/mysql/mysql-init.sql`
 - Connection pool via `mysql2/promise` (10 connections)
 - `db/mysql/migrations.ts` (`runMysqlMigrations()`) runs at boot after connecting and adds any
@@ -233,8 +262,13 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
   [`CONVENTION.md`](./CONVENTION.md#schema-migrations)
 
 ### MongoDB (`human_ressources`)
-- Collections: `candidates`, `jobs` (with `$jsonSchema` validation)
-- Init: `database/mongodb/mongo-init.js`
+- 11 collections: `candidates`, `candidate_history`, `candidate_avatars`, `offers`,
+  `needs_analysis`, `notifications`, `mail_templates`, `mail_signatures`, `ab_drive_config`,
+  `drive_folder_config`, `jobs`
+- ⚠️ `jobs` is **dead**: replaced by `offers` + `offers.matching`, no code reads it, yet
+  `mongo-init.js:28` still creates it. See `docs/AUDIT.md` §6.3.
+- Schema reference: [`database/mongodb/mongo-schema.md`](../database/mongodb/mongo-schema.md)
+- Init: `database/mongodb/mongo-init.js` (`$jsonSchema` validation)
 - Mongoose with `maxPoolSize: 10`, `serverSelectionTimeoutMS: 5000`
 
 ## Auth flow

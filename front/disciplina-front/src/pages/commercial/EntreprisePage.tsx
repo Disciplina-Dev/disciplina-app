@@ -25,8 +25,10 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
-import { useCurrentUser, USERS } from '@/store/authStore'
+import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
+import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
@@ -140,6 +142,7 @@ export default function EntreprisePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const currentUser = useCurrentUser()
+  const { directory } = useStaffDirectory()
   const companies = usePortefeuilleStore((s) => s.companies)
   const { update } = useUpdateCompany()
   const { createCompany } = useCreateCompany()
@@ -149,6 +152,7 @@ export default function EntreprisePage() {
   useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   const [abOpen, setAbOpen] = useState(false)
+  const [abEditTarget, setAbEditTarget] = useState<{ data: NeedsAnalysis; duplicate: boolean } | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
   const [selectedAbId, setSelectedAbId] = useState<string | null>(null)
   const [selectedAbIds, setSelectedAbIds] = useState<Set<string>>(new Set())
@@ -186,8 +190,8 @@ export default function EntreprisePage() {
   }
 
   const canEdit =
-    currentUser?.role?.toUpperCase() === 'ADMIN' ||
-    currentUser?.role?.toUpperCase() === 'RESPONSABLE' ||
+    currentUser?.permission === Permission.ADMIN ||
+    currentUser?.permission === Permission.RESPONSABLE ||
     String(baseEntreprise.proprietaire_id) === String(currentUser?.id)
 
   // Check if draft differs from baseEntreprise
@@ -252,8 +256,8 @@ export default function EntreprisePage() {
   }
 
   const statusCfg = STATUS_CONFIG[draft.status] ?? STATUS_CONFIG['Non']
-  const owner = draft.proprietaire_id ? USERS[String(draft.proprietaire_id)] : null
-  const commercialUsers = Object.values(USERS).filter((u) => u.role === 'COMMERCIAL' || u.role === 'RESPONSABLE')
+  const owner = draft.proprietaire_id ? directory[String(draft.proprietaire_id)] : null
+  const commercialUsers = Object.values(directory).filter((u) => u.role === UserRole.COMMERCIAL || u.permission === Permission.RESPONSABLE)
   const siren = draft.siret ? normalizeSiret(draft.siret).slice(0, 9) : null
 
   return (
@@ -418,7 +422,7 @@ export default function EntreprisePage() {
                         <select
                           value={String(draft.proprietaire_id ?? '')}
                           onChange={(e) => {
-                            const u = USERS[e.target.value]
+                            const u = directory[e.target.value]
                             set('proprietaire_id', u ? Number(e.target.value) : null)
                             set('commercial', u ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || null : null)
                           }}
@@ -597,7 +601,13 @@ export default function EntreprisePage() {
               </ul>
             )}
             {selectedAbId && (
-              <ABDetailModal id={selectedAbId} onClose={() => setSelectedAbId(null)} onDelete={() => { setSelectedAbId(null); abResult.refetch() }} />
+              <ABDetailModal
+                id={selectedAbId}
+                onClose={() => setSelectedAbId(null)}
+                onDelete={() => { setSelectedAbId(null); abResult.refetch() }}
+                onEdit={(ab) => { setSelectedAbId(null); setAbEditTarget({ data: ab, duplicate: false }) }}
+                onDuplicate={(ab) => { setSelectedAbId(null); setAbEditTarget({ data: ab, duplicate: true }) }}
+              />
             )}
           </div>
 
@@ -620,6 +630,17 @@ export default function EntreprisePage() {
 
       {abOpen && currentUser && (
         <NeedsAnalysisModal entreprise={baseEntreprise} currentUser={currentUser} onClose={() => setAbOpen(false)} onSuccess={() => setAbOpen(false)} />
+      )}
+
+      {abEditTarget && currentUser && (
+        <NeedsAnalysisModal
+          entreprise={baseEntreprise}
+          currentUser={currentUser}
+          initialData={abEditTarget.data}
+          isDuplicate={abEditTarget.duplicate}
+          onClose={() => setAbEditTarget(null)}
+          onSuccess={() => { setAbEditTarget(null); abResult.refetch() }}
+        />
       )}
 
       {mailOpen && (

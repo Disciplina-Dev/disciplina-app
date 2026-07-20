@@ -9,11 +9,12 @@ from pymongo import ReplaceOne
 
 BATCH_SIZE = 500
 
-# users first (FK root), then parents, then child tables.
+# FK parents first, then child tables.
 MYSQL_TABLE_ORDER = [
-    "users", "filiz", "companies", "companies_blacklist", "relance_history",
-    "company_history", "contact_logs", "commercial_kpi", "rh_kpi",
-    "booking_settings", "match_link", "interview_access", "sector_settings",
+    "permissions", "roles", "users", "filiz", "companies",
+    "companies_blacklist", "relance_history", "company_history",
+    "contact_logs", "commercial_kpi", "rh_kpi", "booking_settings",
+    "match_link", "interview_access", "sector_settings",
 ]
 
 

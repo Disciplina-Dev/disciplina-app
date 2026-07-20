@@ -21,7 +21,7 @@ import {
   Plus, GripVertical, Trash2, Pencil, X, Calendar, Bot,
   ChevronDown, ChevronUp, Circle, Clock, CheckCircle2,
 } from 'lucide-react'
-import { useAuthStore, UserRole } from '@/store/authStore'
+import { useAuthStore, UserRole, Permission } from '@/store/authStore'
 import type { Todo, TodoStatus } from './types'
 import {
   MY_TODOS_QUERY,
@@ -51,7 +51,8 @@ function getDeadlineInfo(deadline: string | null): { label: string; cls: string 
 
 function useAccentColor() {
   const role = useAuthStore((s) => s.user?.role)
-  return role === UserRole.RH || role === UserRole.RESPONSABLE ? '#60207E' : '#1130A7'
+  const permission = useAuthStore((s) => s.user?.permission)
+  return role === UserRole.RH || permission === Permission.RESPONSABLE || permission === Permission.ADMIN ? '#60207E' : '#1130A7'
 }
 
 const COLUMNS: { status: TodoStatus; label: string; icon: React.ReactNode; bg: string }[] = [

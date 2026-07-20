@@ -1,7 +1,7 @@
 import { Phone, Mail, MapPin, MessageSquare, Hash, ShieldOff, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import type { EntrepriseBlacklistee } from '@/types/entreprise'
-import type { AppUser } from '@/store/authStore'
+import { Permission, type AppUser } from '@/store/authStore'
 import { useUnblacklistCompany } from '@/graphql/hooks'
 
 interface Props {
@@ -14,7 +14,7 @@ export default function BlacklistedCompanyCard({ entreprise, currentUser }: Prop
   const [error, setError] = useState<string | null>(null)
 
   const canUnblacklist =
-    currentUser.role?.toUpperCase() === 'RESPONSABLE' || currentUser.role?.toUpperCase() === 'ADMIN'
+    currentUser.permission === Permission.RESPONSABLE || currentUser.permission === Permission.ADMIN
 
   const handleUnblacklist = async () => {
     setError(null)

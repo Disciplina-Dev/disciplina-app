@@ -40,16 +40,20 @@ export interface ClassMarkerResultBundle {
   history: ClassMarkerResult[];
 }
 
-export async function fetchClassMarkerResult(candidateId: string): Promise<ClassMarkerResultBundle | null> {
-  const res = await fetch(`${API_BASE}/api/webhooks/classmarker/result/${encodeURIComponent(candidateId)}`);
+export async function fetchClassMarkerResult(
+  token: string,
+  candidateId: string
+): Promise<ClassMarkerResultBundle | null> {
+  const res = await authedFetch(token, `/api/webhooks/classmarker/result/${encodeURIComponent(candidateId)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Result fetch failed (${res.status})`);
   const data = (await res.json()) as { result: ClassMarkerResult | null; history?: ClassMarkerResult[] };
   return { result: data.result ?? null, history: data.history ?? [] };
 }
 
-export function classMarkerStreamUrl(candidateId: string): string {
-  return `${API_BASE}/api/webhooks/classmarker/stream?candidateId=${encodeURIComponent(candidateId)}`;
+export function classMarkerStreamUrl(candidateId: string, token: string): string {
+  const query = `candidateId=${encodeURIComponent(candidateId)}&token=${encodeURIComponent(token)}`;
+  return `${API_BASE}/api/webhooks/classmarker/stream?${query}`;
 }
 
 export async function quickCreateCandidate(

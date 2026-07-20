@@ -5,7 +5,7 @@ import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../../../repositories/mysql/CompanyBlacklistRepository';
 import pool from '../../../db/mysql/connection';
-import { Role } from '../../../types/user.types';
+import { JobRole, Permission } from '../../../types/user.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
 
@@ -15,7 +15,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns an empty list when no companies exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -35,7 +35,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns all seeded companies with camelCase fields', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -82,7 +82,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns companies with associated salePerson', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -90,8 +90,8 @@ describe('GraphQL company queries', () => {
         let userID: number;
         try {
             const [result] = await conn.execute(
-                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
-                [`sp-${suffix}@test.local`, 'Sale', 'Person', `password${suffix}`, Role.COMMERCIAL],
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [`sp-${suffix}@test.local`, 'Sale', 'Person', `password${suffix}`, 1, 1],
             );
             userID = (result as any).insertId;
         } finally {
@@ -130,7 +130,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('paginates companies with first and after', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -179,24 +179,26 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns all sale persons', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const conn = await pool.getConnection();
         try {
             await conn.execute(
-                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)',
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?)',
                 [
                     `sp1-${suffix}@test.local`,
                     'Alice',
                     `${suffix}`,
                     `Alice${suffix}`,
-                    Role.COMMERCIAL,
+                    1,
+                    1,
                     `sp2-${suffix}@test.local`,
                     'Bob',
                     `${suffix}`,
                     `Bob${suffix}`,
-                    Role.COMMERCIAL,
+                    1,
+                    1,
                 ],
             );
         } finally {
@@ -221,15 +223,15 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns a sale person by id', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const conn = await pool.getConnection();
         let userID: number;
         try {
             const [result] = await conn.execute(
-                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
-                [`sp-find-${suffix}@test.local`, 'Target', `${suffix}`, `password${suffix}`, Role.COMMERCIAL],
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [`sp-find-${suffix}@test.local`, 'Target', `${suffix}`, `password${suffix}`, 1, 1],
             );
             userID = (result as any).insertId;
         } finally {
@@ -258,7 +260,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns null for a non-existent sale person id', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -279,7 +281,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns companies filtered by commercial', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -288,13 +290,13 @@ describe('GraphQL company queries', () => {
         let sp2Id: number;
         try {
             const [r1] = await conn.execute(
-                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
-                [`sp-a-${suffix}@test.local`, 'SP A', `${suffix}`, `SPA${suffix}`, Role.COMMERCIAL],
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [`sp-a-${suffix}@test.local`, 'SP A', `${suffix}`, `SPA${suffix}`, 1, 1],
             );
             sp1Id = (r1 as any).insertId;
             const [r2] = await conn.execute(
-                'INSERT INTO users (email, first_name, last_name, password, role) VALUES (?, ?, ?, ?, ?)',
-                [`sp-b-${suffix}@test.local`, 'SP B', `${suffix}`, `SPB${suffix}`, Role.COMMERCIAL],
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [`sp-b-${suffix}@test.local`, 'SP B', `${suffix}`, `SPB${suffix}`, 1, 1],
             );
             sp2Id = (r2 as any).insertId;
         } finally {
@@ -340,7 +342,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns a company by siret', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -375,7 +377,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns null for a non-existent siret', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -415,7 +417,7 @@ describe('companyStats', () => {
     });
 
     it('returns counts by status and year', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -467,7 +469,7 @@ describe('companyStats', () => {
     });
 
     it('errors on an invalid year', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -491,7 +493,7 @@ describe('companyHistory', () => {
     });
 
     it('returns history entries created on each update', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -532,7 +534,7 @@ describe('companyHistory', () => {
     });
 
     it('returns an empty array when no updates were made', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -561,7 +563,7 @@ describe('companyHistory', () => {
     });
 
     it('errors when the company does not exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -585,7 +587,7 @@ describe('blacklistedCompanies', () => {
     });
 
     it('returns blacklisted companies paginated', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const blacklistRepo = new CompanyBlacklistRepository();
 
@@ -627,7 +629,7 @@ describe('blacklistedCompanies', () => {
     });
 
     it('filters by search term', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const blacklistRepo = new CompanyBlacklistRepository();
 

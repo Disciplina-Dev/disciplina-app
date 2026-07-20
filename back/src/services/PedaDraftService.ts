@@ -6,7 +6,7 @@ import { GoogleSheetsService } from '../external/google/sheets.service';
 import { GoogleGmailService } from '../external/google/gmail.service';
 import { GoogleTokens, GoogleTokenRefreshHandler } from '../external/google/types';
 import { PedaLevel, PEDA_LEVEL_LABELS } from '../types/mailTemplate.types';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 
 /** Feuilles du Sheet de suivi à parcourir (une par groupe d'apprenants). */
 const SHEET_TABS = ['Abs NTC', 'Abs AD', 'Abs CC', 'Abs REM'];
@@ -41,7 +41,9 @@ const LAST_COLUMN_LETTER = 'AN'; // colonne 40
 
 function isChecked(value: unknown): boolean {
     if (value === true || value === 1) return true;
-    const s = String(value ?? '').trim().toLowerCase();
+    const s = String(value ?? '')
+        .trim()
+        .toLowerCase();
     return s === 'true' || s === 'vrai' || s === '1' || s === 'x' || s === 'oui';
 }
 
@@ -228,7 +230,11 @@ export class PedaDraftService {
         }
         const creds: GoogleTokens = { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined };
         const onRefresh = (refreshed: GoogleTokens) =>
-            this.userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+            this.userService.updateGoogleTokens(
+                userId,
+                refreshed.access_token ?? null,
+                refreshed.refresh_token ?? null,
+            );
 
         // Modèles résolus une fois par niveau (et non par ligne du Sheet).
         const templatesByLevel = new Map<PedaLevel, MailTemplateDTO | null>();
@@ -243,13 +249,19 @@ export class PedaDraftService {
         for (const tab of SHEET_TABS) {
             let rows: unknown[][];
             try {
-                rows = await this.sheets.readRange(creds, sheetId, `'${tab}'!A${FIRST_DATA_ROW}:${LAST_COLUMN_LETTER}`, onRefresh);
+                rows = await this.sheets.readRange(
+                    creds,
+                    sheetId,
+                    `'${tab}'!A${FIRST_DATA_ROW}:${LAST_COLUMN_LETTER}`,
+                    onRefresh,
+                );
                 report.tabsRead++;
             } catch (err) {
                 report.tabsFailed++;
-                const reason = (err as { code?: number }).code === 403
-                    ? "accès refusé (autorisation Google Sheets manquante — reconnectez votre compte Google)"
-                    : 'onglet introuvable ou Sheet inaccessible';
+                const reason =
+                    (err as { code?: number }).code === 403
+                        ? 'accès refusé (autorisation Google Sheets manquante — reconnectez votre compte Google)'
+                        : 'onglet introuvable ou Sheet inaccessible';
                 addDetail(report, `Feuille « ${tab} » : ${reason}.`);
                 logger.error({ err, userId, tab }, 'peda-draft: lecture de la feuille impossible');
                 continue;
@@ -286,13 +298,19 @@ export class PedaDraftService {
                                 ? `${prenom} ${nom} (${tab}) : aucune adresse trouvée dans la cellule « ${rawMail} » (ni texte, ni formule, ni lien).`
                                 : `${prenom} ${nom} (${tab}) : adresse mail absente du Sheet.`,
                         );
-                        logger.warn({ userId, tab, nom, prenom, rawMail }, 'peda-draft: case cochée, mail inexploitable');
+                        logger.warn(
+                            { userId, tab, nom, prenom, rawMail },
+                            'peda-draft: case cochée, mail inexploitable',
+                        );
                         continue;
                     }
                     const template = await templateFor(level);
                     if (!template) {
                         report.skippedNoTemplate++;
-                        addDetail(report, `Aucun modèle rattaché au ${PEDA_LEVEL_LABELS[level]} : créez-le dans « Modèles de mail ».`);
+                        addDetail(
+                            report,
+                            `Aucun modèle rattaché au ${PEDA_LEVEL_LABELS[level]} : créez-le dans « Modèles de mail ».`,
+                        );
                         logger.warn({ userId, level }, 'peda-draft: aucun modèle pour ce niveau, brouillon non créé');
                         continue;
                     }
@@ -301,7 +319,11 @@ export class PedaDraftService {
                     const subject = fillVariables(template.subject, vars);
                     const html = fillVariables(template.body, vars) + signatureHtml;
                     try {
-                        await this.gmail.createDraft(creds, { to: mail, subject, html, text: htmlToText(html) }, onRefresh);
+                        await this.gmail.createDraft(
+                            creds,
+                            { to: mail, subject, html, text: htmlToText(html) },
+                            onRefresh,
+                        );
                         // Marqué traité seulement après création réussie du brouillon.
                         await this.historyRepo.create({ dedupKey, userId, level, recipient: mail });
                         report.created++;
@@ -309,14 +331,20 @@ export class PedaDraftService {
                         report.errors++;
                         const reason = (err as Error).message || 'erreur inconnue';
                         addDetail(report, `${prenom} ${nom} (${tab}) : brouillon Gmail refusé — ${reason}.`);
-                        logger.error({ err, userId, tab, nom, prenom, col, mail }, 'peda-draft: création du brouillon échouée');
+                        logger.error(
+                            { err, userId, tab, nom, prenom, col, mail },
+                            'peda-draft: création du brouillon échouée',
+                        );
                     }
                 }
             }
         }
 
         if (report.rowsScanned === 0 && report.tabsRead > 0) {
-            addDetail(report, 'Aucun apprenant lu : vérifiez que les données commencent bien ligne 7 (colonnes B/C/D).');
+            addDetail(
+                report,
+                'Aucun apprenant lu : vérifiez que les données commencent bien ligne 7 (colonnes B/C/D).',
+            );
         }
     }
 }

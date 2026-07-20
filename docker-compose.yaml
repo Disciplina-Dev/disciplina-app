@@ -18,7 +18,7 @@ services:
       retries: 5
       start_period: 30s
   nosql-db:
-    image: mongo:latest
+    image: mongo:8.2.6
     restart: always
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?MONGO_ROOT_USERNAME}
@@ -43,8 +43,10 @@ services:
       - ./ollama-data:/root/.ollama
     networks:
       - backend-net
+    # Ollama n'a aucune authentification : le port reste sur la boucle locale.
+    # Le backend l'atteint par backend-net (OLLAMA_BASE_URL=http://ollama:11434).
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     healthcheck:
       test: ["CMD", "sh", "-c", "ollama list | grep -q qwen2.5"]
       interval: 30s
@@ -91,12 +93,25 @@ services:
     build:
       context: ./scripts
       dockerfile: Dockerfile
+    depends_on:
+      sql-db:
+        condition: service_healthy
+      nosql-db:
+        condition: service_healthy
     env_file:
       - ./.env
     environment:
       MYSQL_USER: root
       MYSQL_DATABASE: disciplina
+      # Inside the compose network the databases answer on their service name and
+      # their container port. MYSQL_PORT/MONGO_PORT are the host-side published
+      # ports (left of the `ports:` mapping) and do not resolve here, so both are
+      # pinned to the container ports below. The LOCAL_MYSQL_* defaults
+      # (localhost:5001) stay right for the scripts run from the host.
+      LOCAL_MYSQL_HOST: sql-db
+      LOCAL_MYSQL_PORT: 3306
       MONGO_HOST: nosql-db
+      MONGO_PORT: 27017
       NODE_ENV: ${NODE_ENV:-development}
     restart: no
     networks:

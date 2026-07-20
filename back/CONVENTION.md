@@ -108,11 +108,27 @@ export const resolvers = {
 - Auth guard: call `authGuard(context.user, [Role.XXX])` at the top of protected resolvers
 
 **Combining modules onto one Apollo server:** a single Apollo server can serve more than one
-domain module. `graphql/server.ts` merges `graphql/company/` and `graphql/needsAnalysis/` (both
-`typeDefs` arrays and `Query`/`Mutation` resolver maps) onto `/api/graphql/companies`, because
-needs-analysis is tightly coupled to companies (one analysis belongs to one company). Prefer this
-over adding a fourth Apollo server when the new module's data lives in the same database and is
+domain module. `graphql/server.ts` merges `graphql/company/`, `graphql/todo/` and the shared `User`
+typeDefs onto `/api/graphql/companies` (both `typeDefs` arrays and `Query`/`Mutation` resolver maps).
+Prefer merging over a new Apollo server when the module's data lives in the same database and is
 naturally scoped to an existing domain.
+
+> This section used to argue against ever adding a fourth server, and described `needsAnalysis` as
+> merged into companies. Both are outdated: needs-analysis moved to MongoDB and now runs as its own
+> `NeedsAnalysisAPI` on `/api/graphql/needs-analysis` — the merge rule above applies per-database,
+> and needs-analysis no longer shares MySQL with companies.
+
+**The four servers** (`index.ts:142-152`):
+
+| Path | Server | Modules merged | DB |
+|------|--------|----------------|-----|
+| `/api/graphql/companies` | `CompanyAPI` | `company` + `todo` + `User` | MySQL |
+| `/api/graphql/candidates` | `CandidateAPI` | `candidate` | MongoDB |
+| `/api/graphql/offers` | `OfferAPI` | `offers` | MongoDB |
+| `/api/graphql/needs-analysis` | `NeedsAnalysisAPI` | `needsAnalysis` + `User` | MongoDB |
+
+Note: `changePassword` (a user mutation) currently lives in the `todo` module — a historical quirk,
+not a pattern to copy.
 
 ### 3. Services (`src/services/`)
 
@@ -202,7 +218,7 @@ external/
   `${FILIZ_BASE_URI}/api/degree` and `${FILIZ_BASE_URI}/api/class`.
 - Env: `FILIZ_CLIENT_ID`, `FILIZ_CLIENT_SECRET`, `FILIZ_AUDIENCE`, `FILIZ_BASE_URI`,
   `FILIZ_AUTH_URI` (all required; CI has fallback values in `config/env.ts`).
-- Not yet wired into a route/resolver — the service exists for upcoming features.
+- Wired: `FilizService` is exposed through `rest/filiz/controller.ts` and the router is mounted on `/api/filiz` (`index.ts:31,124`).
 
 **Rules:**
 - Callers import from the specific module file (`external/google/oauth-client`, `external/google/gmail.service`, etc.). No barrels under `external/google/` — they hide where the code lives. (`crypto/` and `logger/` keep their barrels because the public surface is genuinely one bag of small helpers.)
@@ -222,7 +238,7 @@ external/
 | Controller files | `controller.ts` | Always named `controller.ts` |
 | GraphQL types | `typeDefs.ts` | Always named `typeDefs.ts` |
 | GraphQL resolvers | `resolver.ts` (or `resolvers.ts`) | Candidate: `resolver.ts`, Company: `resolvers.ts` |
-| Mongoose schemas | `kebab-case.schema.ts` | `candidate.schema.ts`, `job.schema.ts` |
+| Mongoose schemas | `kebab-case.schema.ts` | `candidate.schema.ts`, `offer.schema.ts` |
 | Repository files | `PascalCase.ts` | `UserRepository.ts`, `CompanyRepository.ts` |
 | Service files | `PascalCase.ts` | `CompaniesService.ts`, `CandidateService.ts` |
 | Type files | `kebab-case.types.ts` | `user.types.ts`, `candidate.types.ts` |
@@ -265,11 +281,31 @@ export default function ...  // ❌
 
 ### Database fields
 
-| Context | Convention | Example |
-|---------|-----------|---------|
-| DB rows (raw) | snake_case | `user_id`, `oauth_token`, `refresh_token` |
-| Domain types | camelCase | `userID`, `oauthToken`, `refreshToken` |
-| MongoDB fields | snake_case | `full_name`, `tp_type`, `training_site` |
+**The API is always camelCase. Where the conversion happens differs per database.**
+
+| Context | Convention | Example | File |
+|---------|-----------|---------|------|
+| MySQL rows (raw) | snake_case | `user_id`, `oauth_token` | `types/db-rows.types.ts` |
+| MySQL domain types | camelCase — converted **at the repository** | `userID`, `oauthToken` | `types/company.types.ts`, `user.types.ts` |
+| MongoDB documents | snake_case | `full_name`, `tp_type` | `db/mongo/schemas/` |
+| MongoDB domain types | snake_case — **mirror the document**, no conversion here | `full_name`, `tp_type`, `training_site` | `types/candidate.types.ts`, `needsAnalysisNoSql.types.ts` |
+| GraphQL schema & responses (both DBs) | camelCase — converted **at the resolver** | `fullName`, `tpType` | `graphql/*/typeDefs.ts` |
+
+The two paths differ by **where** snake_case turns into camelCase:
+
+- **MySQL:** the mapper runs early — `UserRepository` returns a `camelCase` domain type, and the
+  resolver passes it through.
+- **MongoDB:** the mapper runs late — the domain type mirrors the document
+  (`candidate.types.ts` has 98 snake_case fields, deliberately), and `candidateToGql()`
+  (`services/mappers/candidate.mapper.ts:32`) converts to camelCase at the resolver boundary
+  (`graphql/candidate/resolver.ts:116`). Generic `snakeToCamelCase` / `camelToSnakeCase` helpers
+  live in the same file.
+
+So: do **not** "fix" `candidate.types.ts` to camelCase — it mirrors the document by design, and the
+conversion is the resolver's job. Conversely, a MySQL domain type must never surface `snake_case`.
+
+> These rows previously read "Domain types | camelCase" and "MongoDB fields | snake_case" as two
+> unqualified rules, which contradicted each other for Mongo domain types. Clarified 2026-07-17.
 
 ## Error handling patterns
 
@@ -532,7 +568,7 @@ Pre-commit hooks run Prettier and basic hygiene checks on staged files at `git c
 ## Environment & configuration
 
 - Two `.env` files loaded at startup (root `../.env` + `back/.env`) — see [`README.md`](./README.md#environment) for complete setup
-- All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons)
+- All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons). The ban holds for application code; `src/mcp/` is the sole exception, because the MCP SDK's `registerTool` only accepts a Zod raw shape. See `docs/AUDIT.md` §4.1 — the exception is currently inconsistent (three zod versions coexist).
 - Exported as `export const env = data` (typed object)
 
 ## Testing
@@ -550,21 +586,23 @@ The following violations of this CONVENTION.md have been identified in the codeb
 | 3 | `rest/classmarker/service.ts` | Custom `MissingCredentialsError` and `ClassMarkerApiError` — custom Error classes banned | Error handling |
 | 4 | `rest/classmarker/service.ts:67` | `.catch()` chain instead of async/await | Code style |
 | 5 | `rest/classmarker/service.ts:1` | Direct `import crypto from 'crypto'` for hashing — use `external/crypto/` | External boundary |
-| 6 | `repositories/mysql/CompanyRepository.ts:1` | Stray unused `import { set } from 'mongoose'` — wrong layer | Boundary violation |
 | 7 | `rest/email/controller.ts` | `userService.findById()` called outside try/catch block | Error handling |
 | 8 | `rest/relance/controller.ts` | `sendRelance` and `handleResponse` missing `Promise<void>` return type | Type annotation |
 | 9 | `types/candidate-templates.ts` | Filename does not follow `kebab-case.types.ts` pattern | Naming |
 | 10 | `services/mappers/candidate.mapper.ts` | Mapper function names don't follow `toX()` pattern; generic utilities mixed in | Naming / Design |
 | 11 | `services/CandidateService.ts` | Repository initialized as field, not in constructor | Minor deviation |
-| 12 | `repositories/mongo/CandidateRepository.ts`, `JobRepository.ts` | `flattenObject()` helper duplicated in both files (already documented as known quirk) | Code duplication |
-| 13 | `rest/candidates/route.ts` (`/:id/cv`, `/quick-create`), `external/filiz/auth-client.ts` | `logger.error(err, 'message')` / `logger.error(error)` — bare error as first arg instead of `{ err: error }` | Logging |
+| 13 | `rest/candidates/route.ts` (×9), `rest/classmarker/webhook.route.ts` (×2), `external/yousign/yousign.service.ts` (×2), `rest/yousign/controller.ts` (×2), `rest/classmarker/route.ts`, `rest/peda/controller.ts`, `rest/mailTemplates/controller.ts`, `external/filiz/auth-client.ts` | `logger.error(err, 'message')` / `logger.error(error)` — bare error as first arg instead of `{ err: error }` | Logging |
+| 14 | `services/PedaService.ts`, `MailTemplateService.ts`, `InterviewAccessService.ts`, `rest/booking/service.ts` | 8 more custom Error classes beyond #3 — `SlotUnavailableError` is even declared twice | Error handling |
+| 15 | `rest/classmarker/webhook.route.ts`, `rest/candidates/route.ts` | Routes import Mongoose models directly (`CandidateModel`, `CandidateAvatarModel`), skipping both service and repository | Layering |
+| 16 | `rest/booking/repository.ts`, `rest/booking/service.ts`, `rest/classmarker/service.ts` | A repository and two services live under `rest/` instead of `repositories/` and `services/` | Structural |
+| 17 | `rest/mailTemplates/`, `rest/sectorSettings/`, `rest/needsAnalysis/`, `graphql/needsAnalysis/` | Directory names are camelCase, convention says kebab-case (`rest/rh-kpi/` complies) | Naming |
+| 18 | `rest/middleware/webhookSignature.ts:25-34`, `mcp/auth.ts:2` | `timingSafeStringEqual` / `hmacDigest` re-implement `external/crypto/compare.ts` and `HmacService`; direct `timingSafeEqual` import | External boundary |
 
-**Recently fixed (June 8, 2026):**
+**Fixed and removed from this table (2026-07-17 audit):**
 
-✅ Logger and console violations — all `console.error`, `console.warn`, `console.log` calls in `src/` replaced with `logger` calls
+- ~~#6 stray `import { set } from 'mongoose'` in `CompanyRepository.ts`~~ — verified gone.
+- ~~#12 `flattenObject()` duplicated in `CandidateRepository` and `JobRepository`~~ — `JobRepository` no longer exists (jobs → offers); the helper now lives only in `repositories/mongo/CandidateRepository.ts:82`. No duplication left.
 
-**Recently fixed (June 12, 2026):**
-
-✅ `console.log("id est:", req.user)` in `rest/email/controller.ts` removed
+> ⚠️ **Do not add "Recently fixed ✅" claims without re-verifying them.** This section previously certified that *all* `console.*` calls in `src/` had been replaced with `logger` (dated June 8, 2026). That was false: **10 remain in production code** (`rest/classmarker/webhook.route.ts`, lines 90-185 — where `logger` is already imported on line 2) plus 3 debug leftovers in `graphql/offers/__tests__/query.test.ts`. A doc that certifies a fix that never happened is worse than no doc: it stops the next person from looking. Entry #13 had the same problem — it listed 3 sites when there were 19.
 
 ---

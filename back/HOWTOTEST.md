@@ -2,7 +2,9 @@
 
 This guide is for contributors writing the first tests in `back/`. It is **opinionated** and **project-specific**. The goal is for any backend dev to be able to drop a new test file into the right place without rediscovering conventions every time.
 
-14 component tests for GraphQL candidates (`src/graphql/candidate/__tests__/`) are already in place as a reference. Drop new test files next to the feature they cover. CI runs on every push via `.github/workflows/ci.yml` — requires Dockerised MySQL + MongoDB.
+31 component tests for GraphQL candidates (`src/graphql/candidate/__tests__/` — `query.test.ts` ×17, `mutation.test.ts` ×9, `history.test.ts` ×5) are already in place as a reference; the repo holds 26 test files in total. Drop new test files next to the feature they cover. CI runs on every push via `.github/workflows/ci.yml` — requires Dockerised MySQL + MongoDB.
+
+> **Running the tests locally.** They expect MySQL on `localhost:3307` (`docker-compose.test.yml` publishes `3307:3306`) while `.env` sets `MYSQL_PORT=5001` for the dev stack. `env.ts` forces `MYSQL_HOST=localhost` when `NODE_ENV=test` but still reads `MYSQL_PORT`, so the port has to match the test stack — start it with `docker compose -f docker-compose.test.yml up -d` and make sure `MYSQL_PORT=3307` is what the test process sees. See `docs/AUDIT.md` §1.4 ter: one variable serves three incompatible targets (3306 inside compose, 3307 for tests, 5001 from the host), which is the usual cause of a failing `npm test`.
 
 ---
 
@@ -25,11 +27,12 @@ The original AAAC pattern lists 5 exit doors (message queues, metrics). This rep
 
 The component under test is the Express app booted by `back/src/index.ts`. It exposes:
 
-- REST routes: `/api/auth`, `/api/email/*`, `/api/relance/*`, `/api/classmarker`, `/api/webhooks`, `/api/candidates`
-- Three Apollo GraphQL endpoints, all on the same Express app:
+- REST routes — 21 feature modules mounted in `index.ts:107-127`, among them `/api/auth`, `/api/email/*`, `/api/relance/*`, `/api/classmarker`, `/api/webhooks`, `/api/candidates`, `/api/booking`, `/api/calendar`, `/api/match`, `/api/interview`, `/api/notifications`, `/api/kpi`, `/api/rh-kpi`, `/api/needs-analysis`, `/api/peda`, `/api/mail-templates`, `/api/sector-settings`, `/api/filiz`, `/api/sourcing`, `/api/mcp`
+- Four Apollo GraphQL endpoints, all on the same Express app:
   - `POST /api/graphql/companies` — `CompanyAPI`
   - `POST /api/graphql/candidates` — `CandidateAPI`
-  - `POST /api/graphql/jobs` — `JobAPI`
+  - `POST /api/graphql/offers` — `OfferAPI`
+  - `POST /api/graphql/needs-analysis` — `NeedsAnalysisAPI`
 
 There are no cross-entity GraphQL queries. A test posts to the endpoint that owns the entity it cares about.
 
@@ -122,7 +125,7 @@ AAAC's "Clear" runs in `beforeEach`, globally. Per-test cleanup is fragile — g
 ```ts
 import pool from '../../src/db/mysql/connection';
 import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
-import { JobModel } from '../../src/db/mongo/schemas/job.schema';
+import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 
 export async function truncateMysql(): Promise<void> {
     const conn = await pool.getConnection();
@@ -138,7 +141,7 @@ export async function truncateMysql(): Promise<void> {
 
 export async function dropMongo(): Promise<void> {
     await CandidateModel.deleteMany({});
-    await JobModel.deleteMany({});
+    await OfferModel.deleteMany({});
 }
 ```
 
@@ -254,15 +257,16 @@ describe('GraphQL candidate query', () => {
 });
 ```
 
-Three Apollo servers, three endpoints — pick the one that owns the entity:
+Four Apollo servers, four endpoints — pick the one that owns the entity:
 
 | Entity | Endpoint |
 |---|---|
-| Company / User | `POST /api/graphql/companies` |
+| Company / User / Todo | `POST /api/graphql/companies` |
 | Candidate | `POST /api/graphql/candidates` |
-| Job | `POST /api/graphql/jobs` |
+| Offer / matching | `POST /api/graphql/offers` |
+| Needs analysis (AB) | `POST /api/graphql/needs-analysis` |
 
-Field names in responses are **camelCase** (domain types). Mongo stores them **snake_case** (`full_name`). The mappers in `src/services/mappers/` translate at the resolver boundary — assertions go against the camelCase form because that's what the API returns.
+Field names in responses are **camelCase** (`fullName`). Mongo stores them **snake_case** (`full_name`). The mappers in `src/services/mappers/` translate at the resolver boundary (`candidateToGql`) — assertions go against the camelCase form because that's what the API returns. Careful: some **inputs** still take snake_case (`identity: { full_name: ... }` in the candidate seed helpers), so input and output casing are not symmetric.
 
 ---
 
@@ -343,7 +347,7 @@ the prototype instead of a module factory.
 - **The `sectors` column on `users` is stringified JSON.** Parse before comparing: `JSON.parse(row.sectors)`.
 - **camelCase in API assertions, snake_case in raw DB rows.** Don't mix.
 - **No fixtures shared across files.** Seed inside `beforeEach` or the test itself. Shared fixtures are the "domino" AAAC warns against.
-- **Mongoose model re-registration.** When multiple test files import the same Mongoose model, vitest module isolation can trigger `OverwriteModelError`. Guard new schemas with `mongoose.models.Name || model(...)` — see `candidate.schema.ts` and `job.schema.ts`.
+- **Mongoose model re-registration.** When multiple test files import the same Mongoose model, vitest module isolation can trigger `OverwriteModelError`. Guard new schemas with `mongoose.models.Name || model(...)` — see `candidate.schema.ts` and `offer.schema.ts`.
 
 ---
 

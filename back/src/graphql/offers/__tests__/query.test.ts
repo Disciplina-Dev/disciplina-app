@@ -10,7 +10,7 @@ const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 describe('GraphQL job queries', () => {
     it('returns an empty list when no jobs exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -28,7 +28,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('returns all seeded jobs with camelCase fields', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const j1 = await seedOffer({
@@ -54,7 +54,6 @@ describe('GraphQL job queries', () => {
             localisation: [Localisation.SAINT_PAUL, Localisation.LE_PORT],
         });
 
-        console.log('j2: ', j2);
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: {
@@ -72,7 +71,6 @@ describe('GraphQL job queries', () => {
         expect(json.data.offers).toHaveLength(2);
 
         const first = json.data.offers.find((j: any) => j.id === j1._id);
-        console.log('first: ', first);
         expect(first.companyName).toBe(`Alpha Corp ${suffix}`);
         expect(first.ageRange).toBe('25-35');
         expect(first.desiredTP).toBe('AD');
@@ -83,7 +81,6 @@ describe('GraphQL job queries', () => {
         expect(first.localisation).toEqual(['SAINT_DENIS']);
 
         const second = json.data.offers.find((j: any) => j.id === j2._id);
-        console.log('second: ', second);
         expect(second.companyName).toBe(`Beta Corp ${suffix}`);
         expect(second.ageRange).toBe('18-25');
         expect(second.desiredTP).toBe('CC');
@@ -95,7 +92,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('returns a job by id', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const seeded = await seedOffer({
@@ -127,7 +124,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('returns a job with matched candidates', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const candidateRepo = new CandidateRepository();
 
@@ -183,7 +180,7 @@ describe('GraphQL job queries', () => {
     });
 
     it('errors when job not found', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -217,7 +214,7 @@ describe('GraphQL job queries', () => {
 
     describe('candidateMatchedOfferIds', () => {
         it('returns job ids where the candidate is in matched_candidate', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const offerId = `job-mids-${suffix}`;
@@ -247,7 +244,7 @@ describe('GraphQL job queries', () => {
         });
 
         it('returns an empty array when candidate has no matched jobs', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
