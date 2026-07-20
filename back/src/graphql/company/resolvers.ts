@@ -109,6 +109,14 @@ export const resolvers = {
             return { ...conn, edges: enrichedEdges };
         },
 
+        // Liste légère (id + nom) pour les sélecteurs d'entreprise côté RH
+        // (ex. choix de l'entreprise d'immersion sur la fiche candidat).
+        companyOptions: async (_: unknown, __: unknown, context: any) => {
+            authGuard(context.user, [Role.RH, Role.RESPONSABLE, Role.ADMIN, Role.COMMERCIAL]);
+            const companies = await companiesService.findAll(100000);
+            return companies.map((c) => ({ id: c.id, name: c.name }));
+        },
+
         companyStats: async (_: unknown, { year }: { year: number }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             // Plain COMMERCIAL users only get their own numbers; RESPONSABLE/ADMIN see the whole team

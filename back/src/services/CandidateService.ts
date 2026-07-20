@@ -25,12 +25,34 @@ export class CandidateService {
         return candidate ? this.refreshAvailability(candidate) : null;
     }
 
-    // Un candidat indisponible redevient automatiquement en recherche une fois sa date passée.
+    // Repasse automatiquement un candidat en recherche une fois une échéance passée :
+    // - indisponible : dès que sa date de disponibilité est atteinte ;
+    // - immersion : dès que sa date de fin d'immersion est dépassée (jour de fin inclus).
     private async refreshAvailability(candidate: Candidate): Promise<Candidate> {
-        if (candidate.status !== CandidateStatus.UNAVAILABLE) return candidate;
-        const availabilityDate = candidate.job_info?.availability_date;
-        if (!availabilityDate || new Date(availabilityDate) > new Date()) return candidate;
+        if (candidate.status === CandidateStatus.UNAVAILABLE) {
+            const availabilityDate = candidate.job_info?.availability_date;
+            if (!availabilityDate || new Date(availabilityDate) > new Date()) return candidate;
+            return this.revertToSeeking(candidate);
+        }
 
+        if (candidate.status === CandidateStatus.IMMERSING) {
+            const endDate = candidate.immersion_end_date;
+            if (!endDate || !this.immersionEnded(endDate)) return candidate;
+            return this.revertToSeeking(candidate);
+        }
+
+        return candidate;
+    }
+
+    // L'immersion couvre toute la journée de fin : on ne repasse en recherche qu'une
+    // fois cette journée écoulée.
+    private immersionEnded(endDate: Date | string): boolean {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        return end.getTime() < Date.now();
+    }
+
+    private async revertToSeeking(candidate: Candidate): Promise<Candidate> {
         const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
         return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
     }
