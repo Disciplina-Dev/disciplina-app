@@ -8,6 +8,7 @@ export const positionSchemaDefinition = {
     localisation: { type: [String], enum: Object.values(Localisation), default: [] },
     tp_type: { type: String, enum: Object.values(TitleProfessionalType), default: null },
     training_domain: { type: String, enum: Object.values(TrainingDomain), default: null },
+    job_role: { type: String, default: null },
     title: { type: String },
     missions: { type: [String], default: [] },
     description_missions: { type: [String], default: [] },

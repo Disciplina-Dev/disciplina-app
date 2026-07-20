@@ -50,6 +50,7 @@ export interface Position {
   localisation?: string[] | null
   tpType?: string | null
   trainingDomain?: string | null
+  jobRole?: string | null
   title?: string | null
   missions?: string[] | null
   descriptionMissions?: string[] | null

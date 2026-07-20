@@ -218,6 +218,7 @@ function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
             const descriptifMissions = p.otherDescriptionMissions ?? '';
             return `
 ${sh(title)}
+${p.jobRole ? fr('Intitulé de métier :', p.jobRole) : ''}
 ${fr('Intitulé de la formation :', p.title)}
 <div class="inline-row">
     <span class="field-label">Domaine de formation :</span>

@@ -56,6 +56,7 @@ interface PosteCriteria {
 }
 
 interface Poste {
+  jobRole: string
   trainingDomain: TrainingDomain | undefined
   jobTitle: string
   selectedMissions: string[]
@@ -235,6 +236,7 @@ const DAYS: { key: keyof TrainingDaysState; label: string }[] = [
 ]
 
 const EMPTY_POSTE: Poste = {
+  jobRole: '',
   trainingDomain: undefined,
   jobTitle: '',
   selectedMissions: [],
@@ -496,6 +498,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const [postes, setPostes] = useState<Poste[]>(() => {
     if (initialData?.positions && initialData.positions.length > 0) {
       return initialData.positions.map((p) => ({
+        jobRole: p.jobRole ?? '',
         trainingDomain: p.trainingDomain as TrainingDomain | undefined,
         jobTitle: p.title ?? '',
         selectedMissions: p.missions ?? [],
@@ -607,6 +610,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
   const validatePostes = (): boolean => {
     const errs = postes.map((p) => {
+      if (!p.jobRole.trim()) return 'Renseignez l\'intitulé de métier.'
       if (!p.trainingDomain) return 'Sélectionnez le domaine de formation.'
       if (!p.jobTitle) return 'Sélectionnez l\'intitulé de la formation.'
       if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
@@ -693,6 +697,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       commune:            data.companyCommune || null,
       positions:          postes.map((p) => ({
         trainingDomain:   p.trainingDomain,
+        jobRole:          p.jobRole.trim(),
         title:            p.jobTitle,
         missions:         p.selectedMissions,
         localisation:     p.localisation,
@@ -958,6 +963,15 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                         Poste {index + 1}
                       </p>
                     )}
+
+                    <InputField
+                      id={`jobRole-${index}`}
+                      label="Intitulé de métier *"
+                      placeholder="Ex. Assistant commercial…"
+                      required
+                      value={poste.jobRole}
+                      onChange={(e) => updatePoste(index, { jobRole: e.target.value })}
+                    />
 
                     <RadioGroup label="Domaine de formation *"
                       options={[

@@ -1547,6 +1547,7 @@ export const GET_NEEDS_ANALYSIS = gql`
         localisation
         tpType
         trainingDomain
+        jobRole
         title
         missions
         descriptionMissions
