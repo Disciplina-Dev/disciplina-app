@@ -17,4 +17,4 @@ router.get('/signature/catalogue-pdf', authenticate, getCataloguePdf);
 router.get('/signature/email', authenticate, getSignatureEmail);
 
 router.get('/:id/pdf', authenticate, downloadPdf);
-router.post('/:id/sign', authenticate, sendSignature);
+router.post('/:id/sign', authenticate, express.json({ limit: '2mb' }), sendSignature);
