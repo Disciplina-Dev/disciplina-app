@@ -10,7 +10,6 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 COPY package*.json ./
-# On laisse Puppeteer télécharger SON Chromium → on retire le SKIP
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 RUN useradd -ms /bin/sh -u 1001 app

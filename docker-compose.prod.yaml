@@ -1,0 +1,12 @@
+services:
+  frontend:
+    build:
+      context: ./front/disciplina-front
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    environment: []
+    develop: !reset null
+    ports:
+      - "8090:80"

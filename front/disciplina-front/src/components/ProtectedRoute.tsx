@@ -28,13 +28,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (allowedRoles && !allowedRoles.includes(user.role as UserRole)) {
     if (user.permission === 'RESPONSABLE') {
-      return <Navigate to="/commercial" replace />
+      return <Navigate to="/commercial/portefeuille" replace />
     }
     if (user.role === 'COMMERCIAL') {
-      return <Navigate to="/commercial" replace />
+      return <Navigate to="/commercial/portefeuille" replace />
     }
     if (user.role === 'RH') {
-      return <Navigate to="/rh" replace />
+      return <Navigate to="/rh/candidats" replace />
     }
     if (user.role === 'PEDA') {
       return <Navigate to="/peda" replace />
