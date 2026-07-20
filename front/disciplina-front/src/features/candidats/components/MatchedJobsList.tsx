@@ -5,7 +5,7 @@ import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
-import { useCurrentUser, UserRole } from '@/store/authStore'
+import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
 import AddCandidateToJobModal from './AddCandidateToJobModal'
 import JobSearchModal from './JobSearchModal'
 
@@ -22,7 +22,7 @@ function formatSector(raw?: string): string {
 
 export default function MatchedJobsList({ candidateId, confirmedJobIds, candidateTpTypes }: MatchedJobsListProps) {
   const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN;
+  const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN;
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

@@ -3,16 +3,23 @@ import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
 import {
-    listTemplates, createTemplate, updateTemplate, deleteTemplate,
-    uploadAttachment, deleteAttachment, resolveAttachment,
-    getSignature, putSignature, deleteSignature,
+    listTemplates,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    uploadAttachment,
+    deleteAttachment,
+    resolveAttachment,
+    getSignature,
+    putSignature,
+    deleteSignature,
 } from './controller';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 export const router: Router = Router();
 
-const access = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH', 'COMMERCIAL', 'PEDA')];
+const access = [authenticate, requireRoles('AD', 'GESTION', 'RH', 'COMMERCIAL', 'PEDA')];
 const json = express.json({ limit: '2mb' });
 
 // Signature (une par user + scope) — déclarée avant '/:id' pour ne pas être captée comme un id.

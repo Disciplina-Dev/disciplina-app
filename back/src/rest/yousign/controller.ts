@@ -7,7 +7,7 @@ import { CompaniesService } from '../../services/CompaniesService';
 import { YousignService } from '../../external/yousign/yousign.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
 import { logger } from '../../external/logger';
-import { Role } from '../../types/user.types';
+import { JobRole } from '../../types/user.types';
 import { notifyUser } from './sse';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();
@@ -86,7 +86,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
             logger.warn(
                 `Commercial owner ID ${analysis.salerInfo?.id} has no Google OAuth tokens. Searching for any administrative/commercial fallback account with tokens...`,
             );
-            const allUsers = (await userRepo.findByRole(Role.COMMERCIAL)) || [];
+            const allUsers = (await userRepo.findByRoleId(1)) || [];
             const fallback = allUsers.find((u: any) => u.oauth_token && u.refresh_token);
             if (fallback) {
                 senderUser = fallback;

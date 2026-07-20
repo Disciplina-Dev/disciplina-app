@@ -5,17 +5,29 @@ import { useAuthStore } from '@/store/authStore'
 import UserEditModal, { type ManagedUser } from '@/components/admin/UserEditModal'
 
 const ROLE_LABELS: Record<string, string> = {
-  ADMIN: 'Admin',
-  RESPONSABLE: 'Responsable',
+  AD: 'Admin',
+  GESTION: 'Gestion',
   COMMERCIAL: 'Commercial',
   RH: 'RH',
 }
 
 const ROLE_BADGE: Record<string, string> = {
-  ADMIN: 'bg-purple-100 text-purple-700',
-  RESPONSABLE: 'bg-blue-100 text-blue-700',
+  AD: 'bg-purple-100 text-purple-700',
+  GESTION: 'bg-blue-100 text-blue-700',
   COMMERCIAL: 'bg-emerald-100 text-emerald-700',
   RH: 'bg-amber-100 text-amber-700',
+}
+
+const PERMISSION_LABELS: Record<string, string> = {
+  EMPLOYEE: 'Employé',
+  RESPONSABLE: 'Responsable',
+  ADMIN: 'Admin',
+}
+
+const PERMISSION_BADGE: Record<string, string> = {
+  EMPLOYEE: 'bg-gray-100 text-gray-600',
+  RESPONSABLE: 'bg-blue-100 text-blue-700',
+  ADMIN: 'bg-purple-100 text-purple-700',
 }
 
 function initials(user: ManagedUser): string {
@@ -128,6 +140,13 @@ export default function AdminUsers() {
                   >
                     {ROLE_LABELS[user.role] ?? user.role}
                   </span>
+                  {user.permission && (
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-semibold ${PERMISSION_BADGE[user.permission] ?? 'bg-gray-100 text-gray-600'}`}
+                    >
+                      {PERMISSION_LABELS[user.permission] ?? user.permission}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 truncate">{user.email}</p>
                 {(user.sectors?.length ?? 0) > 0 && (

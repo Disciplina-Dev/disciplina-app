@@ -8,7 +8,7 @@ import { addClient, removeClient, notifyCandidate } from './sse';
 import { PdfService } from '../../services/PdfService';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { Candidate } from '../../types/candidate.types';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 
@@ -21,7 +21,7 @@ const userService = new UserService();
  * d'un utilisateur RH/Responsable/Admin connecté (Drive partagé).
  */
 async function uploadResultPdf(candidate: Candidate): Promise<void> {
-    const driveUser = await userService.findFirstGoogleConnectedUser([Role.RH, Role.RESPONSABLE, Role.ADMIN]);
+    const driveUser = await userService.findFirstGoogleConnectedUser([JobRole.RH]);
     if (!driveUser) {
         logger.warn('ClassMarker PDF: no Google-connected user available, skipping upload');
         return;
@@ -194,7 +194,7 @@ router.get('/classmarker/stream', (req: AuthRequest, res: Response) => {
 router.get(
     '/classmarker/result/:candidateId',
     authenticate,
-    requireRoles('ADMIN', 'RESPONSABLE', 'RH', 'PEDA', 'COMMERCIAL'),
+    requireRoles('AD', 'GESTION', 'RH', 'PEDA', 'COMMERCIAL'),
     async (req: AuthRequest, res: Response) => {
         const { candidateId } = req.params;
         try {

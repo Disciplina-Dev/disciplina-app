@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { ActivityEventRow, KpiRepository, LiveCallsRow, LiveStatusRow } from '../repositories/mysql/KpiRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
-import { Role } from '../types/user.types';
+
 import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, KPI_SITES } from '../types/kpi.types';
 
 export interface KpiMonthEntry {
@@ -234,9 +234,9 @@ export class KpiService {
 
     /** Commerciaux sélectionnables pour la saisie manuelle (rattachés à un vrai user). */
     async getSelectableUsers(): Promise<KpiSelectableUser[]> {
-        const users = await this.userRepository.findByRoles([Role.ADMIN, Role.RESPONSABLE, Role.COMMERCIAL]);
+        const users = await this.userRepository.findByRoleIds([1, 2, 3, 4, 5]);
         return users
-            .map((u) => ({ id: u.id, firstName: u.first_name, lastName: u.last_name, role: u.role }))
+            .map((u) => ({ id: u.id, firstName: u.first_name, lastName: u.last_name, role: u.role_name ?? '' }))
             .sort((a, b) => a.firstName.localeCompare(b.firstName, 'fr'));
     }
 
@@ -290,12 +290,7 @@ export class KpiService {
             return user;
         };
 
-        const bump = (
-            site: KpiSite | null,
-            row: LiveStatusRow | LiveCallsRow,
-            column: KpiMetricColumn,
-            nb: number,
-        ) => {
+        const bump = (site: KpiSite | null, row: LiveStatusRow | LiveCallsRow, column: KpiMetricColumn, nb: number) => {
             if (!site || nb === 0) return;
             const siteEntry = bySite.get(site);
             if (!siteEntry) return;
@@ -350,9 +345,7 @@ export class KpiService {
         const byWeek = new Map<number, KpiWeeklyDetail['weeks'][number]>();
 
         const nameOf = (row: ActivityEventRow) =>
-            row.first_name || row.last_name
-                ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
-                : 'Non attribué';
+            row.first_name || row.last_name ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim() : 'Non attribué';
 
         const add = (row: ActivityEventRow) => {
             const column = row.status === 'APPEL' ? 'total_appels' : LIVE_STATUS_TO_COLUMN[row.status];
@@ -904,7 +897,7 @@ export class KpiService {
      * shared by several users are left unresolved to avoid mis-attribution.
      */
     private async userIdsByName(names: string[]): Promise<Map<string, number>> {
-        const users = await this.userRepository.findByRoles([Role.ADMIN, Role.RESPONSABLE, Role.COMMERCIAL, Role.RH]);
+        const users = await this.userRepository.findByRoleIds([1, 2, 3, 4, 5]);
         const wanted = new Set(names.map(normalize));
 
         // Count first-name occurrences to detect ambiguity.

@@ -997,7 +997,7 @@ export const REGISTER_USER = gql`
     $firstName: String!
     $lastName: String!
     $passwordPlain: String!
-    $role: Role!
+    $role: UserRole!
     $sectors: [String!]
   ) {
     register(

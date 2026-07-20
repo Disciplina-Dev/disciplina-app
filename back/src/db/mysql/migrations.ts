@@ -437,4 +437,96 @@ export async function runMysqlMigrations(): Promise<void> {
         await query(`UPDATE users SET is_interviewer = 1 WHERE email IN (${placeholders})`, INTERVIEWER_EMAILS);
         logger.info('MySQL migration: added users.is_interviewer and seeded the AB interviewer list');
     }
+
+    // RBAC : séparation rôles métier / permissions (2026-07-20). On crée les tables
+    // de référence, on ajoute les FK à users, on migre les données existantes et
+    // on supprime l'ancienne colonne role.
+    const permissionsTable = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'permissions'",
+    );
+    if (Number(permissionsTable[0]?.count) === 0) {
+        await query(`CREATE TABLE IF NOT EXISTS permissions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(50) NOT NULL UNIQUE
+        )`);
+        await query(
+            "INSERT IGNORE INTO permissions (id, name) VALUES (1, 'EMPLOYEE'), (2, 'RESPONSABLE'), (3, 'ADMIN')",
+        );
+        logger.info('MySQL migration: created permissions table');
+    }
+
+    const rolesTable = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'roles'",
+    );
+    if (Number(rolesTable[0]?.count) === 0) {
+        await query(`CREATE TABLE IF NOT EXISTS roles (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(50) NOT NULL UNIQUE
+        )`);
+        await query(
+            "INSERT IGNORE INTO roles (id, name) VALUES (1, 'COMMERCIAL'), (2, 'RH'), (3, 'PEDA'), (4, 'AD'), (5, 'GESTION')",
+        );
+        logger.info('MySQL migration: created roles table');
+    }
+
+    // Ajout des colonnes role_id / permission_id si absentes.
+    const roleIdCol = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role_id'",
+    );
+    if (Number(roleIdCol[0]?.count) === 0) {
+        // Ajouter les colonnes (d'abord NULL pour la migration)
+        await query('ALTER TABLE users ADD COLUMN role_id INT DEFAULT NULL AFTER password');
+        await query('ALTER TABLE users ADD COLUMN permission_id INT DEFAULT NULL AFTER role_id');
+
+        // Migration des anciennes valeurs role → role_id / permission_id
+        // ADMIN → GESTION (5) + ADMIN (3)
+        await query("UPDATE users SET role_id = 5, permission_id = 3 WHERE role = 'ADMIN'");
+        // COMMERCIAL → COMMERCIAL (1) + EMPLOYEE (1)
+        await query("UPDATE users SET role_id = 1, permission_id = 1 WHERE role = 'COMMERCIAL'");
+        // RH → RH (2) + EMPLOYEE (1)
+        await query("UPDATE users SET role_id = 2, permission_id = 1 WHERE role = 'RH'");
+        // PEDA → PEDA (3) + EMPLOYEE (1)
+        await query("UPDATE users SET role_id = 3, permission_id = 1 WHERE role = 'PEDA'");
+        // RESPONSABLE → COMMERCIAL (1) par défaut + RESPONSABLE (2)
+        // Ces utilisateurs doivent être revus manuellement pour leur rôle métier.
+        await query("UPDATE users SET role_id = 1, permission_id = 2 WHERE role = 'RESPONSABLE'");
+        const responsibleUsers = await query<{ id: number; email: string }[]>(
+            "SELECT id, email FROM users WHERE role = 'RESPONSABLE'",
+        );
+        if (responsibleUsers.length > 0) {
+            logger.warn(
+                { users: responsibleUsers.map((u) => u.email) },
+                `RBAC migration: ${responsibleUsers.length} former RESPONSABLE users defaulted to COMMERCIAL role + RESPONSABLE permission. Assign their real job role manually.`,
+            );
+        }
+
+        // Passage en NOT NULL
+        await query('ALTER TABLE users MODIFY COLUMN role_id INT NOT NULL');
+        await query('ALTER TABLE users MODIFY COLUMN permission_id INT NOT NULL');
+
+        // Ajout des FK
+        await query(
+            'ALTER TABLE users ADD CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id) ON UPDATE CASCADE',
+        );
+        await query(
+            'ALTER TABLE users ADD CONSTRAINT fk_users_permission_id FOREIGN KEY (permission_id) REFERENCES permissions(id) ON UPDATE CASCADE',
+        );
+
+        // Création des index
+        await query('CREATE INDEX idx_users_role_id ON users (role_id)');
+        await query('CREATE INDEX idx_users_permission_id ON users (permission_id)');
+
+        // Suppression de l'ancienne colonne role
+        const oldRoleCol = await query<{ count: number }[]>(
+            "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'",
+        );
+        if (Number(oldRoleCol[0]?.count) > 0) {
+            // En production (TiDB) on ne peut pas DROP COLUMN avec des FK qui
+            // référencent la table ; on cascade d'abord les FK existantes.
+            await query('ALTER TABLE users DROP COLUMN role');
+            logger.info('MySQL migration: dropped users.role, replaced by role_id + permission_id FK');
+        }
+
+        logger.info('MySQL migration: RBAC migration complete (roles + permissions tables created, users migrated)');
+    }
 }

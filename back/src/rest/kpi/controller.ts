@@ -16,10 +16,10 @@ function parseSite(value: unknown): KpiSite | null {
     return KPI_SITES.includes(site as KpiSite) ? (site as KpiSite) : null;
 }
 
-/** ADMIN/RESPONSABLE voient tout ; un COMMERCIAL ne voit que ses propres chiffres. */
+/** ADMIN/RESPONSABLE permission voient tout ; les autres ne voient que leurs propres chiffres. */
 function scopeFor(req: AuthRequest): number | undefined {
-    const role = req.user?.role as string | undefined;
-    if (role === 'ADMIN' || role === 'RESPONSABLE') return undefined;
+    const permission = req.user?.permission as string | undefined;
+    if (permission === 'ADMIN' || permission === 'RESPONSABLE') return undefined;
     return Number(req.user?.id);
 }
 

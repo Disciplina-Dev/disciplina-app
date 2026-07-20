@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore, UserRole } from '@/store/authStore'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
@@ -40,10 +40,10 @@ export default function LoginPage() {
         navigate('/rh')
       } else if (user.role === 'COMMERCIAL') {
         navigate('/commercial')
-      } else if (user.role === 'ADMIN' || user.role === 'RESPONSABLE') {
-        navigate('/commercial')
       } else if (user.role === 'PEDA') {
         navigate('/peda')
+      } else if (user.role === 'AD' || user.role === 'GESTION') {
+        navigate('/admin')
       } else if (user.role === 'ENTREPRISE') {
         navigate('/entreprise')
       } else {

@@ -1,5 +1,5 @@
-import { authGuard } from '../authGuard';
-import { Role } from '../../types/user.types';
+import { authGuard, authGuardRole } from '../authGuard';
+import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
 import { CandidateHistoryService } from '../../services/CandidateHistoryService';
@@ -107,7 +107,7 @@ function driveFolderConfigToGql(config: { rootFolderId: string | null; tpFolders
 export const resolvers = {
     Query: {
         candidates: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidates = await candidateService.findAll();
             return candidates.map(candidateToGql);
         },
@@ -121,7 +121,7 @@ export const resolvers = {
             }: PaginationArgs & { search?: string; filters?: CandidateFiltersInput },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
             const filters: CandidateFilters | undefined = filtersInput
                 ? {
@@ -160,11 +160,11 @@ export const resolvers = {
             };
         },
         candidateStats: async (_: unknown, { sectors }: { sectors?: string[] }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return candidateService.stats(sectors);
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) return null;
             // Backfill unique de la date de création pour les fiches antérieures au champ.
@@ -185,33 +185,33 @@ export const resolvers = {
         },
         // Vérification de doublon en direct : existe-t-il déjà une fiche pour cet email ?
         candidateByEmail: async (_: unknown, { email }: { email: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const existing = await candidateService.findByEmail(email);
             return existing
                 ? { exists: true, id: existing._id, fullName: existing.identity.full_name }
                 : { exists: false, id: null, fullName: null };
         },
         matchCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
             const matchedOffers = await candidateService.matchOffers(id);
             return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map(offerToMatchedOfferGql) };
         },
         candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const entries = await candidateHistoryService.findByCandidate(candidateId);
             return entries.map(candidateHistoryToGql);
         },
         driveFolderConfig: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const config = await driveFolderConfigService.getConfig();
             return driveFolderConfigToGql(config);
         },
     },
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
 
             // Doublon : une fiche existe déjà pour cette adresse mail.
             const email = input.identity?.email?.trim();
@@ -301,7 +301,7 @@ export const resolvers = {
             { id, input }: { id: string; input: UpdateCandidateInput },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const snakeInput = camelToSnakeCase(input);
             // Multi-sites : garde le single legacy training_site = 1er site choisi.
             if (Array.isArray(snakeInput.training_sites)) {
@@ -341,12 +341,12 @@ export const resolvers = {
         },
 
         deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return candidateService.delete(id);
         },
 
         createCandidateDriveFolder: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
 
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
@@ -389,13 +389,13 @@ export const resolvers = {
             { candidateId, description }: { candidateId: string; description: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const entry = await candidateHistoryService.recordManual(candidateId, description, context.user.email);
             return candidateHistoryToGql(entry);
         },
 
         deleteCandidateHistoryEntry: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return candidateHistoryService.deleteOwnedEntry(id, context.user.email);
         },
 
@@ -411,7 +411,7 @@ export const resolvers = {
             },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const tpFolders: Record<string, string> = {};
             for (const { tp, region, folderId } of input.tpFolders ?? []) {
                 if (folderId) tpFolders[driveFolderKey(tp, region)] = folderId;

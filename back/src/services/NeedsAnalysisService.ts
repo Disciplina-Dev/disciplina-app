@@ -14,7 +14,7 @@ import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
-import { Role } from '../types/user.types';
+import { JobRole, Permission } from '../types/user.types';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { logger } from '../external/logger';
 import { PDFDocument } from 'pdf-lib';
@@ -186,7 +186,7 @@ export class NeedsAnalysisService {
         logger.info({ id: analysisId, count: offerCount }, '[NeedsAnalysis] Offers created for AB');
 
         // RH + Responsables + Admin : tous ont accès à l'espace de matching.
-        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const positionsLabel = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
         await Promise.all(
             rhUsers.map((user) =>
@@ -203,7 +203,9 @@ export class NeedsAnalysisService {
         logger.info({ id: analysisId, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
 
         // Responsables + RH: create an actionable todo
-        const todoRecipients = rhUsers.filter((u) => u.role === Role.RESPONSABLE || u.role === Role.RH);
+        const todoRecipients = rhUsers.filter(
+            (u) => u.permission_name === Permission.RESPONSABLE || u.role_name === JobRole.RH,
+        );
         await Promise.all(
             todoRecipients.map((user) =>
                 this.todoService.createSystemTodo(

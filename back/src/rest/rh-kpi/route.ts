@@ -5,7 +5,7 @@ import { getYears, getReport } from './controller';
 
 export const router: Router = Router();
 
-const access = [authenticate, requireRoles('ADMIN', 'RESPONSABLE', 'RH')];
+const access = [authenticate, requireRoles('AD', 'GESTION', 'RH')];
 
 router.get('/years', ...access, getYears);
 router.get('/report', ...access, getReport);
