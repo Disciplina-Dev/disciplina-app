@@ -134,6 +134,13 @@ export const typeDefs = gql`
         status: String!
         previousStatus: String
         modifiedBy: Int
+        changes: [FieldChange!]!
+    }
+
+    type FieldChange {
+        column: String!
+        from: String
+        to: String
     }
 
     type ContactLog {

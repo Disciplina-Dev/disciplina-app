@@ -198,7 +198,10 @@ export class CompanyRepository {
     async update(id: number, data: Partial<CompaniesRow>): Promise<boolean> {
         const conn = await getConnection();
         try {
-            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v != null));
+            // `null` est une valeur significative (ex. « aucune relance » vide relance_date) :
+            // seuls les champs absents (undefined) sont ignorés.
+            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+            if (Object.keys(cleaned).length === 0) return false;
             const sets = Object.keys(cleaned)
                 .map((key) => `${key} = ?`)
                 .join(', ');

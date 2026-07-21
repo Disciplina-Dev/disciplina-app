@@ -453,7 +453,8 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                         {...register('type_relance', {
                           onChange: (e) => {
                             const typeId = e.target.value ? Number(e.target.value) : null
-                            if (typeId) setValue('date_relance', computeRelanceDate(typeId))
+                            // « Aucun » vide aussi la date : pas de type = pas de relance.
+                            setValue('date_relance', typeId ? computeRelanceDate(typeId) : '')
                           },
                         })}
                       >

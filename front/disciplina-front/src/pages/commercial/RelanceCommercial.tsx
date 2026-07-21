@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import { Bell, Mail, Building2, CalendarClock, Phone, PhoneCall } from 'lucide-react'
-import { format } from 'date-fns'
+import { addDays, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
 import type { Entreprise } from '@/types/entreprise'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { getRelanceType, RELANCE_TYPES } from '@/types/relance'
 import { sendCompanyMailRelance } from '@/api/relance'
 import { toSlug } from '@/utils/slug'
@@ -26,6 +26,10 @@ function groupByType(list: Entreprise[]) {
   return groups
 }
 
+type DateMode = 'all' | 'days' | 'exact' | 'range'
+
+const FIELD = 'rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700'
+
 function formatDate(iso: string | null | undefined) {
   if (!iso) return null
   try {
@@ -38,16 +42,49 @@ function formatDate(iso: string | null | undefined) {
 export default function RelanceCommercial() {
   const navigate = useNavigate()
   const companies = usePortefeuilleStore((s) => s.companies)
+  const salePersons = usePortefeuilleStore((s) => s.salePersons)
   const clearCompanyRelance = usePortefeuilleStore((s) => s.updateCompany)
   const { loading } = useInitializePortfolio(200)
   const token = useAuthStore((s) => s.token) ?? ''
+  const currentUser = useCurrentUser()
+
+  // Par défaut on ne voit que ses propres relances ; null = tous les commerciaux.
+  const [ownerId, setOwnerId] = useState<number | null>(currentUser ? Number(currentUser.id) : null)
+
+  // Filtre date : aucun / N prochains jours / date précise / période [du, au]
+  const [dateMode, setDateMode] = useState<DateMode>('all')
+  const [days, setDays] = useState(7)
+  const [exactDate, setExactDate] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
 
   const [mailFor, setMailFor] = useState<Entreprise | null>(null)
   const [contactFor, setContactFor] = useState<Entreprise | null>(null)
 
   // Local date (not UTC) so a relance set for "today" is due all day in the user's timezone
   const today = format(new Date(), 'yyyy-MM-dd')
-  const withRelance = companies.filter((c) => c.date_relance)
+  // Borne haute du mode « N prochains jours » (bornes incluses, aujourd'hui compris).
+  const daysLimit = format(addDays(new Date(), Math.max(0, days - 1)), 'yyyy-MM-dd')
+
+  function matchesDate(d: string) {
+    switch (dateMode) {
+      case 'days':
+        return d <= daysLimit
+      case 'exact':
+        return !exactDate || d === exactDate
+      case 'range':
+        return (!from || d >= from) && (!to || d <= to)
+      default:
+        return true
+    }
+  }
+
+  const withRelance = companies.filter(
+    (c) =>
+      c.date_relance &&
+      (ownerId === null || c.proprietaire_id === ownerId) &&
+      matchesDate(c.date_relance),
+  )
   const due = withRelance
     .filter((c) => c.date_relance! <= today)
     .sort((a, b) => a.date_relance!.localeCompare(b.date_relance!))
@@ -172,11 +209,65 @@ export default function RelanceCommercial() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 flex flex-col gap-8">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Relances entreprises</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          Prépare les brouillons de relance — le mail part dans tes brouillons Gmail, à toi de l'envoyer
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Relances entreprises</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Prépare les brouillons de relance — le mail part dans tes brouillons Gmail, à toi de l'envoyer
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={ownerId ?? ''}
+            onChange={(e) => setOwnerId(e.target.value === '' ? null : Number(e.target.value))}
+            className={`${FIELD} cursor-pointer`}
+            title="Filtrer par commercial"
+          >
+            <option value="">Tous les commerciaux</option>
+            {salePersons.map((sp) => (
+              <option key={sp.id} value={sp.id}>
+                {sp.firstName} {sp.lastName}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={dateMode}
+            onChange={(e) => setDateMode(e.target.value as DateMode)}
+            className={`${FIELD} cursor-pointer`}
+            title="Filtrer par date de relance"
+          >
+            <option value="all">Toutes les dates</option>
+            <option value="days">Prochains jours</option>
+            <option value="exact">Date précise</option>
+            <option value="range">Période</option>
+          </select>
+
+          {dateMode === 'days' && (
+            <label className="flex items-center gap-2 text-sm text-gray-500">
+              <input
+                type="number"
+                min={1}
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value) || 1)}
+                className={`${FIELD} w-20`}
+              />
+              jours
+            </label>
+          )}
+
+          {dateMode === 'exact' && (
+            <input type="date" value={exactDate} onChange={(e) => setExactDate(e.target.value)} className={FIELD} />
+          )}
+
+          {dateMode === 'range' && (
+            <>
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={FIELD} title="Du" />
+              <span className="text-sm text-gray-400">→</span>
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={FIELD} title="Au" />
+            </>
+          )}
+        </div>
       </div>
 
       {loading && companies.length === 0 ? (

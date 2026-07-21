@@ -120,11 +120,17 @@ export class CompaniesService {
             throw new Error('Company not found');
         }
 
-        const changedColumns = Object.keys(data).filter((key) => {
-            const existingValue = existing[key as keyof CompaniesRow];
-            const incomingValue = data[key as keyof CompaniesRow];
-            return existingValue !== incomingValue;
-        });
+        const toText = (v: unknown): string | null =>
+            v === null || v === undefined || v === '' ? null : String(v);
+
+        // Champs réellement modifiés, avec valeur avant/après pour l'historique.
+        const changes = Object.keys(data)
+            .map((column) => ({
+                column,
+                from: toText(existing[column as keyof CompaniesRow]),
+                to: toText(data[column as keyof CompaniesRow]),
+            }))
+            .filter((c) => c.from !== c.to);
 
         // Statut avant modification, conservé pour tracer les transitions de statut.
         const previousStatus = existing.status ?? null;
@@ -135,13 +141,14 @@ export class CompaniesService {
             throw new Error('Company not found after update');
         }
 
-        if (changedColumns.length > 0) {
+        if (changes.length > 0) {
             await this.historyRepository.create({
                 company_id: id,
-                updated_column: changedColumns.join(', '),
+                updated_column: changes.map((c) => c.column).join(', '),
                 status: updated.status ?? existing.status ?? '',
                 previous_status: previousStatus,
                 modified_by: modifiedBy ?? null,
+                changes: JSON.stringify(changes),
             });
         }
 

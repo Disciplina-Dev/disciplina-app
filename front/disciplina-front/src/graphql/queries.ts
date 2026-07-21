@@ -1464,6 +1464,11 @@ export const GET_COMPANY_HISTORY = gql`
       status
       previousStatus
       modifiedBy
+      changes {
+        column
+        from
+        to
+      }
     }
   }
 `

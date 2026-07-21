@@ -53,7 +53,7 @@ const formatTrainingSite = (site?: TrainingSite) => {
 
 // --- Main Page Component ---
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 20;
 
 type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
 

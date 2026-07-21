@@ -62,6 +62,13 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     if (input.relanceType !== undefined) row.relance_type = input.relanceType;
     if (input.relanceTemplateId !== undefined) row.relance_template_id = input.relanceTemplateId;
     if (input.relanceChannel !== undefined) row.relance_channel = input.relanceChannel;
+    // « Aucune relance » : vider la date purge aussi le type / modèle / canal, sinon
+    // la fiche garde une relance orpheline invisible dans la page Relances.
+    if (input.relanceDate !== undefined && row.relance_date === null) {
+        row.relance_type = null;
+        row.relance_template_id = null;
+        row.relance_channel = null;
+    }
     return row;
 }
 

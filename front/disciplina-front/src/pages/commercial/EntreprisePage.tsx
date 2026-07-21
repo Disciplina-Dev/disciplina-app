@@ -238,6 +238,8 @@ export default function EntreprisePage() {
       replace: true,
       state: { entreprise: draft },
     })
+    // Force le rafraîchissement de l'historique pour voir la modif immédiatement.
+    setContactRefresh((n) => n + 1)
     setTimeout(() => { bypassBlockRef.current = false }, 0)
   }
 
@@ -484,7 +486,7 @@ export default function EntreprisePage() {
                             setDraft((d) => d ? {
                               ...d,
                               type_relance: typeId,
-                              date_relance: typeId ? computeRelanceDate(typeId) : d.date_relance,
+                              date_relance: typeId ? computeRelanceDate(typeId) : null,
                             } : d)
                           }}
                           className={INLINE_INPUT}
