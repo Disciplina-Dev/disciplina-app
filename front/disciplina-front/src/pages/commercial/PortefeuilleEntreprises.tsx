@@ -23,7 +23,7 @@ import { formatErrorMessage } from '@/utils/companyErrors'
 import type { Entreprise } from '@/types/entreprise'
 import { SECTEUR_VALUES } from '@/types/entreprise'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 20
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function countActiveFilters(f: EntrepriseFilters): number {

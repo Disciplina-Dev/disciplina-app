@@ -9,6 +9,7 @@ import {
     Companies,
     BlacklistedCompany,
     CompanyHistory,
+    FieldChange,
     ContactLog,
     RelanceHistory,
     RelanceChannel,
@@ -82,7 +83,19 @@ export function toCompanyHistory(row: CompanyHistoryRow): CompanyHistory {
         status: row.status,
         previousStatus: row.previous_status ?? null,
         modifiedBy: row.modified_by ?? null,
+        changes: parseChanges(row.changes),
     };
+}
+
+/** mysql2 renvoie une colonne JSON déjà parsée, mais on gère aussi la chaîne. */
+function parseChanges(raw: unknown): FieldChange[] {
+    if (!raw) return [];
+    try {
+        const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return Array.isArray(arr) ? arr : [];
+    } catch {
+        return [];
+    }
 }
 
 export function toContactLog(row: ContactLogRow): ContactLog {

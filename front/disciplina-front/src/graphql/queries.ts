@@ -1107,6 +1107,7 @@ export const MATCH_OFFER = gql`
         status
         description
         comment
+        cvWebview
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1464,6 +1465,11 @@ export const GET_COMPANY_HISTORY = gql`
       status
       previousStatus
       modifiedBy
+      changes {
+        column
+        from
+        to
+      }
     }
   }
 `
@@ -1547,6 +1553,7 @@ export const GET_NEEDS_ANALYSIS = gql`
         localisation
         tpType
         trainingDomain
+        jobRole
         title
         missions
         descriptionMissions

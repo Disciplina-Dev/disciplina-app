@@ -47,6 +47,13 @@ export interface CompanyHistory {
     status: string;
     previousStatus: string | null;
     modifiedBy: number | null;
+    changes: FieldChange[];
+}
+
+export interface FieldChange {
+    column: string;
+    from: string | null;
+    to: string | null;
 }
 
 export interface ContactLog {

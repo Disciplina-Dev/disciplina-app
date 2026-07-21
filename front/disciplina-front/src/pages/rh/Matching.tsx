@@ -27,7 +27,7 @@ import {
   CalendarClock,
   FileEdit,
 } from 'lucide-react'
-import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
+import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
@@ -46,6 +46,7 @@ import AddAcceptedCandidateModal from '@/features/matching/components/AddAccepte
 import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
+import SendToCompanyModal from '@/features/matching/components/SendToCompanyModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import { useNeedsAnalysis, useCompanyBySiret } from '@/graphql/hooks'
@@ -66,6 +67,7 @@ interface MatchedCandidate {
   status?: string | null
   description?: string | null
   comment?: string | null
+  cvWebview?: string | null
   interviewLocation?: string
   bookedInterviewSlot?: string | null
   interviewConclusion?: InterviewConclusion | null
@@ -1417,6 +1419,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [conclusionCandidate, setConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [abEditOpen, setAbEditOpen] = useState(false)
+  const [sendToCompanyOpen, setSendToCompanyOpen] = useState(false)
   const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
   const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
@@ -1761,6 +1764,17 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     }
   }
 
+  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[]): Promise<string> => {
+    const result = await offerGraphqlClient
+      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates })
+      .toPromise()
+    if (result.error) throw new Error(result.error.message)
+    const signature = result.data?.createMatchSession
+    if (!signature) throw new Error('Aucune signature retournée')
+    if (selectedJob) loadJobData(selectedJob)
+    return signature
+  }
+
   const handleEditAb = () => {
     if (!selectedJob?.needsAnalysisId) return
     setAbNeedsAnalysisId(selectedJob.needsAnalysisId)
@@ -1815,9 +1829,9 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
-        hasAcceptedCandidates={false}
+        hasAcceptedCandidates={toSendCandidates.length > 0}
         isCreatingSession={false}
-        onProposeCandidates={() => {}}
+        onProposeCandidates={() => setSendToCompanyOpen(true)}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
         onEditAb={
           selectedJob?.needsAnalysisId && (currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN)
@@ -1877,6 +1891,15 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         onSaveMatch={handleSaveMatch}
         onSendMail={handleOpenMail}
       />
+
+      {sendToCompanyOpen && (
+        <SendToCompanyModal
+          job={jobData}
+          candidates={toSendCandidates}
+          onClose={() => setSendToCompanyOpen(false)}
+          onSubmit={handleCreateMatchSession}
+        />
+      )}
 
       {drawerCandidate && (
         <CandidateInfoDrawer

@@ -5,7 +5,7 @@ import { useBlacklistStore } from '@/store/blacklistStore'
 import { useInitializeBlacklist } from '@/graphql/useInitializeBlacklist'
 import BlacklistedCompanyCard from '@/features/blacklist/components/BlacklistedCompanyCard'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 20
 
 export default function ListeNoire() {
   const currentUser = useCurrentUser()

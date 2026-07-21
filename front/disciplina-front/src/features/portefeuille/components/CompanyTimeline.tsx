@@ -61,6 +61,12 @@ interface ContactEvent {
   comment: string
 }
 
+interface FieldChange {
+  column: string
+  from: string | null
+  to: string | null
+}
+
 interface ModificationEvent {
   kind: 'modification'
   id: number
@@ -69,6 +75,7 @@ interface ModificationEvent {
   updatedColumn: string
   status: string
   previousStatus: string | null
+  changes: FieldChange[]
 }
 
 type TimelineEvent = ContactEvent | ModificationEvent
@@ -87,6 +94,7 @@ interface RawModification {
   updatedColumn: string
   status: string
   previousStatus: string | null
+  changes: FieldChange[] | null
 }
 
 export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTimelineProps) {
@@ -126,6 +134,7 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
       updatedColumn: m.updatedColumn,
       status: m.status,
       previousStatus: m.previousStatus ?? null,
+      changes: m.changes ?? [],
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
@@ -197,9 +206,24 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
   )
 }
 
+function formatValue(directory: Record<string, StaffMember>, column: string, value: string | null) {
+  if (value == null || value === '') return null
+  // Le propriétaire est stocké en id → affiche le nom lisible.
+  if (column === 'user_id') return authorName(directory, Number(value))
+  return value
+}
+
+function ChangeValue({ value }: { value: string | null }) {
+  if (value == null) {
+    return <span className="italic text-gray-400">vide</span>
+  }
+  return <span className="break-words">{value}</span>
+}
+
 function ModificationCard({ event }: { event: ModificationEvent }) {
   const { directory } = useStaffDirectory()
-  const statusChanged = event.previousStatus != null && event.previousStatus !== event.status
+  // Fallback pour les anciennes entrées sans valeurs avant/après.
+  const hasDetail = event.changes.length > 0
   const fields = formatColumns(event.updatedColumn)
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
@@ -211,17 +235,22 @@ function ModificationCard({ event }: { event: ModificationEvent }) {
         </span>
         <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{formatDate(event.date)}</span>
       </div>
-      {statusChanged && (
-        <div className="flex items-center gap-1 mt-1.5 pl-6">
-          <span className="text-xs text-gray-500">Statut :</span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-            {event.previousStatus}
-          </span>
-          <ArrowRight className="w-3 h-3 text-gray-400" />
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-light text-blue">
-            {event.status}
-          </span>
-        </div>
+
+      {hasDetail && (
+        <ul className="mt-2 space-y-1.5 pl-6">
+          {event.changes.map((c, i) => (
+            <li key={`${c.column}-${i}`} className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="font-medium text-gray-600">{COLUMN_LABELS[c.column] ?? c.column} :</span>
+              <span className="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-gray-500 line-through decoration-gray-400">
+                <ChangeValue value={formatValue(directory, c.column, c.from)} />
+              </span>
+              <ArrowRight className="h-3 w-3 shrink-0 text-gray-400" />
+              <span className="inline-flex items-center rounded-md bg-blue-light px-1.5 py-0.5 font-medium text-blue">
+                <ChangeValue value={formatValue(directory, c.column, c.to)} />
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

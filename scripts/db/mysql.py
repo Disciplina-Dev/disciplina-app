@@ -59,7 +59,7 @@ def local_mysql_target():
     """
     return (
         os.getenv("LOCAL_MYSQL_HOST", "localhost"),
-        int(os.getenv("LOCAL_MYSQL_PORT", "5001")),
+        int(os.getenv("LOCAL_MYSQL_PORT", "3306")),
     )
 
 

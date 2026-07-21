@@ -27,6 +27,8 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     // Historique des modifications enrichi : auteur de la modif + statut avant changement.
     { table: 'company_history', column: 'modified_by', definition: 'INT DEFAULT NULL' },
     { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },
+    // Historique enrichi : valeurs avant/après de chaque champ modifié (JSON [{column, from, to}]).
+    { table: 'company_history', column: 'changes', definition: 'JSON DEFAULT NULL' },
     // Todos : soft delete des todos SYSTEM pour ne pas recréer une relance supprimée par l'utilisateur.
     { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
     { table: 'companies', column: 'ab_id', definition: 'VARCHAR(36) DEFAULT NULL' },

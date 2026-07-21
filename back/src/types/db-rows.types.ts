@@ -95,6 +95,8 @@ export interface CompanyHistoryRow {
     status: string;
     previous_status?: string | null;
     modified_by?: number | null;
+    /** JSON [{ column, from, to }] stocké en chaîne. mysql2 peut le renvoyer déjà parsé à la lecture. */
+    changes?: string | null;
 }
 
 export interface ContactLogRow {

@@ -130,7 +130,8 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
                 onChange={(e) => {
                   const id = e.target.value ? Number(e.target.value) : null
                   setTypeRelance(id)
-                  if (id) setDateRelance(computeRelanceDate(id))
+                  // « Aucun » = plus de relance du tout : la date est vidée aussi.
+                  setDateRelance(id ? computeRelanceDate(id) : '')
                 }}
                 className={`${FIELD} cursor-pointer`}
               >
