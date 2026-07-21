@@ -9,13 +9,10 @@ from pymongo import ReplaceOne
 
 BATCH_SIZE = 500
 
-# FK parents first, then child tables.
-MYSQL_TABLE_ORDER = [
-    "permissions", "roles", "users", "filiz", "companies",
-    "companies_blacklist", "relance_history", "company_history",
-    "contact_logs", "commercial_kpi", "rh_kpi", "booking_settings",
-    "match_link", "interview_access", "sector_settings",
-]
+
+def _discover_tables(cursor):
+    cursor.execute("SHOW TABLES")
+    return [row[0] for row in cursor.fetchall()]
 
 
 def _table_columns(cursor, table):
@@ -50,9 +47,10 @@ def _copy_table(source_cursor, target_cursor, table, dry_run):
 def copy_mysql(source, target, dry_run):
     source_cursor = source.cursor()
     target_cursor = target.cursor()
+    tables = _discover_tables(source_cursor)
     if not dry_run:
         target_cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
-    for table in MYSQL_TABLE_ORDER:
+    for table in tables:
         _copy_table(source_cursor, target_cursor, table, dry_run)
     if not dry_run:
         target_cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
@@ -60,10 +58,11 @@ def copy_mysql(source, target, dry_run):
 
 
 def _copy_collection(source_db, target_db, name, dry_run):
+    print(name)
     documents = list(source_db[name].find())
     if not dry_run and documents:
         operations = [ReplaceOne({"_id": doc["_id"]}, doc, upsert=True) for doc in documents]
-        target_db[name].bulk_write(operations, ordered=False)
+        target_db[name].bulk_write(operations, ordered=False, bypass_document_validation=True)
     print(f"  {name}: {len(documents)} documents" + (" (dry-run)" if dry_run else " upsertés"))
 
 
