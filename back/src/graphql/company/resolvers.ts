@@ -1,5 +1,6 @@
 import { CompaniesService } from '../../services/CompaniesService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { ContactLogService } from '../../services/ContactLogService';
 import { toBlacklistedCompany } from '../../services/mappers/company.mapper';
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
@@ -241,6 +242,19 @@ export const resolvers = {
         unblacklistCompany: async (_: unknown, { id }: { id: number }, context: any) => {
             authGuard(context.user, Permission.RESPONSABLE);
             return companiesBlacklistService.unblacklistCompany(id);
+        },
+        deleteAndBlacklistCompany: async (
+            _: unknown,
+            { companyId, reason, allBlacklist }: { companyId: number; reason: string; allBlacklist: boolean },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.RESPONSABLE, [JobRole.RH]);
+            const needsAnalysisService = new NeedsAnalysisService();
+            const nas = await needsAnalysisService.findByCompanyId(companyId);
+            for (const na of nas) {
+                await needsAnalysisService.delete(na.id);
+            }
+            return companiesBlacklistService.blacklistCompany(companyId, reason, allBlacklist);
         },
         createContactLog: async (
             _: unknown,
