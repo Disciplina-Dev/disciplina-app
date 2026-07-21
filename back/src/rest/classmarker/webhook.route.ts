@@ -18,10 +18,23 @@ const userService = new UserService();
  * Génère le PDF des résultats et le dépose dans le dossier Drive du candidat.
  * Best-effort : toute erreur est journalisée sans interrompre le webhook.
  * Le webhook n'ayant pas de contexte utilisateur, on agit via les jetons Google
- * d'un utilisateur RH/Responsable/Admin connecté (Drive partagé).
+ * du créateur (owner) du dossier candidat — c'est lui qui possède déjà le dossier
+ * Drive. Repli sur un RH connecté s'il n'a pas de compte Google lié.
  */
 async function uploadResultPdf(candidate: Candidate): Promise<void> {
-    const driveUser = await userService.findFirstGoogleConnectedUser([JobRole.RH]);
+    const ownerId = candidate.owner?.user_id;
+    const owner = ownerId ? await userService.findById(ownerId) : null;
+
+    let driveUser = owner?.oauthToken ? owner : null;
+    if (!driveUser) {
+        driveUser = await userService.findFirstGoogleConnectedUser([JobRole.RH]);
+        if (driveUser) {
+            logger.warn(
+                { candidateId: candidate._id, ownerId, fallbackUserId: driveUser.id },
+                'ClassMarker PDF: owner sans compte Google, repli sur un autre RH connecté',
+            );
+        }
+    }
     if (!driveUser) {
         logger.warn('ClassMarker PDF: no Google-connected user available, skipping upload');
         return;

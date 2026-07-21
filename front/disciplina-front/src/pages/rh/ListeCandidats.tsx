@@ -456,9 +456,11 @@ export default function ListeCandidats() {
                 {candidate.identity.full_name}
               </h3>
               <div className="mb-4 mt-1 flex gap-2 flex-wrap">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ring-1 inset-ring ${getTpTypeColors(candidate.tp_type)}`}>
-                  {candidate.tp_type}
-                </span>
+                {(candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).map(tp => (
+                  <span key={tp} className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ring-1 inset-ring ${getTpTypeColors(tp)}`}>
+                    {tp}
+                  </span>
+                ))}
                 {candidate.identity.psh_referral_request && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-purple-light text-purple ring-1 ring-purple-light/30">
                     RQTH

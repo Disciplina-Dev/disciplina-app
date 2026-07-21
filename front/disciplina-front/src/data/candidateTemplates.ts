@@ -1,5 +1,5 @@
 import { TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate'
-import { ALL_SECTORS } from './sectors'
+import { AD_SECTORS, COMMERCE_SECTORS } from './sectors'
 
 export interface SchoolLevelOption {
   value: SchoolLevel
@@ -19,9 +19,9 @@ export interface CandidateTemplate {
   defaultSkillsAssessment: SkillOption[]
 }
 
-const COMMERCIAL_SECTORS = ALL_SECTORS
+const COMMERCIAL_SECTORS = COMMERCE_SECTORS
 
-const ADMIN_SECTORS = ALL_SECTORS
+const ADMIN_SECTORS = COMMERCE_SECTORS
 
 const COMMERCIAL_SKILLS = [
   'Accueil physique',
@@ -111,7 +111,7 @@ export const CANDIDATE_TEMPLATES: Record<TitleProfessionalType, CandidateTemplat
       { value: SchoolLevel.BAC, label: 'BAC' },
       { value: SchoolLevel.BAC_PLUS_2_PLUS, label: 'BAC + 2 et plus' },
     ],
-    availableSectors: ADMIN_SECTORS,
+    availableSectors: AD_SECTORS,
     availableExpectedSkills: ADMIN_SKILLS,
     defaultSkillsAssessment: ne([
       "Organiser et suivre sur le plan opérationnel les activités de l'équipe de direction en français et en anglais",
