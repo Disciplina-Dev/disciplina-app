@@ -265,6 +265,7 @@ export const typeDefs = gql`
         offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!
         candidateMatchedOfferIds(candidateId: String!): [String!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
+        offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
     }
 
     type Mutation {
@@ -296,5 +297,7 @@ export const typeDefs = gql`
             immersionEndDate: String
         ): Offer
         setImmersionConclusion(offerId: String!, candidateId: String!, conclusion: ImmersionConclusion!): Offer
+        deleteOffer(id: String!): Boolean!
+        deleteOffersByNeedsAnalysis(needsAnalysisId: String!): Boolean!
     }
 `;
