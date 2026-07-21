@@ -180,6 +180,7 @@ export const typeDefs = gql`
         deleteCompany(id: Int!): Boolean!
         blacklistCompany(id: Int!, reason: String!, allBlacklist: Boolean!): Boolean!
         unblacklistCompany(id: Int!): Boolean!
+        deleteAndBlacklistCompany(companyId: Int!, reason: String!, allBlacklist: Boolean!): Boolean!
         createContactLog(companyID: Int!, comment: String!): ContactLog!
     }
 `;

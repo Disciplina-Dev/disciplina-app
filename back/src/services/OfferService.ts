@@ -203,6 +203,15 @@ export class OfferService {
         return this.offerRepository.deleteById(id);
     }
 
+    async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
+        return this.offerRepository.deleteByNeedsAnalysisId(needsAnalysisId);
+    }
+
+    async findByNeedsAnalysisId(needsAnalysisId: string): Promise<object[]> {
+        const offers = await this.offerRepository.findByNeedsAnalysisId(needsAnalysisId);
+        return offers.map((o) => toGql(o));
+    }
+
     async addCandidate(offerId: string, candidateId: string): Promise<object | null> {
         const candidate = await this.candidateRepository.findById(candidateId);
         if (!candidate) throw new Error('Candidat introuvable');

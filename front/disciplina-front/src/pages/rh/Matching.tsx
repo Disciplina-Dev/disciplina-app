@@ -26,14 +26,15 @@ import {
   Heart,
   CalendarClock,
   FileEdit,
+  Trash2,
 } from 'lucide-react'
-import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
+import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
-import { offerGraphqlClient } from '@/graphql/client'
+import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
@@ -1385,7 +1386,7 @@ function formatSlot(iso: string): string {
 
 
 
-function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null }) {
+function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void }) {
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
   const [showCompanyInfo, setShowCompanyInfo] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
@@ -1422,6 +1423,14 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
   const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
   const abCompany = abCompanyResult.data?.companyBySiret
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteStep, setDeleteStep] = useState<'reason' | 'confirmAll' | 'blacklist' | 'confirming'>('reason')
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleteAllFromNA, setDeleteAllFromNA] = useState(false)
+  const [shouldBlacklist, setShouldBlacklist] = useState(false)
+  const [offersInNA, setOffersInNA] = useState(0)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
   const interviewDefaultLocation =
@@ -1772,6 +1781,86 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     setAbNeedsAnalysisId(null)
   }
 
+  const handleDeleteClick = async () => {
+    setDeleteReason('')
+    setDeleteStep('reason')
+    setDeleteAllFromNA(false)
+    setShouldBlacklist(false)
+    setOffersInNA(0)
+    setDeleteError(null)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteReasonNext = async () => {
+    if (!deleteReason.trim()) return
+    setDeleteError(null)
+    if (selectedJob?.needsAnalysisId) {
+      try {
+        const result = await offerGraphqlClient.query(OFFERS_BY_NEEDS_ANALYSIS, { needsAnalysisId: selectedJob.needsAnalysisId }).toPromise()
+        const offers = (result.data?.offersByNeedsAnalysis ?? []) as { id: string }[]
+        setOffersInNA(offers.length)
+        if (offers.length > 1) {
+          setDeleteStep('confirmAll')
+          return
+        }
+      } catch {
+        // if query fails, just proceed without the "delete all" choice
+      }
+    }
+    setDeleteStep('blacklist')
+  }
+
+  const handleDeleteConfirmAll = (all: boolean) => {
+    setDeleteAllFromNA(all)
+    setDeleteStep('blacklist')
+  }
+
+  const handleDeleteBlacklistChoice = (blacklist: boolean) => {
+    setShouldBlacklist(blacklist)
+    setDeleteStep('confirming')
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedJob) return
+    setIsDeleting(true)
+    setDeleteError(null)
+    try {
+      if (shouldBlacklist) {
+        const companyId = selectedJob.companyInfos?.id
+        if (!companyId) throw new Error('Impossible de trouver l\'ID entreprise pour le blacklistage')
+        const result = await graphqlClient.mutation(BLACKLIST_AND_CLEANUP_COMPANY, {
+          companyId,
+          reason: deleteReason.trim(),
+          allBlacklist: true,
+        }).toPromise()
+        if (result.error) throw new Error(result.error.message)
+      } else if (deleteAllFromNA && selectedJob.needsAnalysisId) {
+        const result = await offerGraphqlClient.mutation(DELETE_OFFERS_BY_NEEDS_ANALYSIS, {
+          needsAnalysisId: selectedJob.needsAnalysisId,
+        }).toPromise()
+        if (result.error) throw new Error(result.error.message)
+      } else {
+        const result = await offerGraphqlClient.mutation(DELETE_OFFER, {
+          id: selectedJob.id,
+        }).toPromise()
+        if (result.error) throw new Error(result.error.message)
+      }
+      setDeleteModalOpen(false)
+      onJobDeleted?.()
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'Erreur lors de la suppression')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleDeleteClose = () => {
+    if (!isDeleting) {
+      setDeleteModalOpen(false)
+      setDeleteError(null)
+    }
+  }
+
   if (!selectedJob) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 py-24 text-center">
@@ -1825,6 +1914,18 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
             : undefined
         }
       />
+
+      <div className="flex justify-end gap-2">
+        {(currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
+          <button
+            onClick={handleDeleteClick}
+            className="flex items-center gap-1.5 rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-medium text-danger transition hover:bg-danger-bg"
+          >
+            <Trash2 size={14} />
+            Supprimer l'offre
+          </button>
+        )}
+      </div>
 
       {showCompanyInfo && selectedJob && (
         <CompanyInfoModal offerId={selectedJob.id} needsAnalysisId={selectedJob.needsAnalysisId} onClose={() => setShowCompanyInfo(false)} />
@@ -1996,8 +2097,6 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       {abEditOpen && needsAnalysisData && selectedJob && (
         <NeedsAnalysisModal
           entreprise={{
-            // Fusionne la fiche entreprise réelle (siret/adresse/légal, si trouvée) avec
-            // les infos de l'analyse du besoin — champ par champ, l'un comblant les trous de l'autre.
             id: String(abCompany?.id ?? selectedJob.companyInfos?.id ?? ''),
             nom_commercial: abCompany?.name ?? selectedJob.companyName ?? null,
             proprietaire_contact: null,
@@ -2029,6 +2128,120 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
           }}
         />
       )}
+
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            {deleteStep === 'reason' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Supprimer l'offre</h3>
+                <p className="text-xs text-gray-500">Veuillez indiquer la raison de la suppression.</p>
+                <textarea
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Raison de la suppression…"
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-gray-200 p-3 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={handleDeleteClose}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDeleteReasonNext}
+                    disabled={!deleteReason.trim()}
+                    className="rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90 disabled:opacity-40"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteStep === 'confirmAll' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Supprimer les offres liées ?</h3>
+                <p className="text-xs text-gray-500">
+                  Cette analyse de besoin contient {offersInNA} offre{offersInNA > 1 ? 's' : ''}. Voulez-vous supprimer toutes les offres de cette analyse de besoin ou uniquement celle-ci ?
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => handleDeleteConfirmAll(false)}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                  >
+                    Cette offre uniquement
+                  </button>
+                  <button
+                    onClick={() => handleDeleteConfirmAll(true)}
+                    className="rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90"
+                  >
+                    Toutes les supprimer
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteStep === 'blacklist' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Blacklister l'entreprise ?</h3>
+                <p className="text-xs text-gray-500">
+                  Voulez-vous blacklister cette entreprise ? Cela supprimera toutes ses analyses de besoin et offres associées, et l'entreprise ne pourra plus être prospectée.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => handleDeleteBlacklistChoice(false)}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                  >
+                    Non
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBlacklistChoice(true)}
+                    className="rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90"
+                  >
+                    Oui, blacklister
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteStep === 'confirming' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Confirmer la suppression</h3>
+                <div className="space-y-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+                  <p><strong>Raison :</strong> {deleteReason}</p>
+                  <p><strong>Action :</strong> {shouldBlacklist ? 'Blacklistage de l\'entreprise (supprime toutes ses AB et offres)' : deleteAllFromNA ? 'Suppression de toutes les offres de l\'AB' : 'Suppression de cette offre uniquement'}</p>
+                </div>
+                {deleteError && (
+                  <div className="flex items-start gap-2 rounded-lg bg-danger-bg p-3 text-xs text-danger">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <span>{deleteError}</span>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={handleDeleteClose}
+                    disabled={isDeleting}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100 disabled:opacity-40"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={isDeleting}
+                    className="flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90 disabled:opacity-40"
+                  >
+                    {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                    {isDeleting ? 'Suppression…' : 'Confirmer la suppression'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2042,7 +2255,7 @@ export default function Matching() {
   const [filters, setFilters] = useState<JobFiltersType>(EMPTY_JOB_FILTERS)
 
   const token = useAuthStore((s) => s.token)
-  const [jobsResult] = useQuery({
+  const [jobsResult, reexecuteJobsQuery] = useQuery({
     query: GET_OFFERS,
     context: {
       url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
@@ -2122,7 +2335,7 @@ export default function Matching() {
 
         {/* ─ Right: Detail panel ─ */}
         <div className="flex-1 overflow-y-auto px-5 pt-5">
-          <RightPanel selectedJob={selectedJob} currentUser={currentUser} />
+          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} />
         </div>
       </div>
     </div>
