@@ -4,6 +4,7 @@ import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 const ACCENT = '#0F766E'
 
@@ -112,6 +113,7 @@ export default function PedaLayout() {
           <RouteBreadcrumb accent={ACCENT} />
           <NotificationBell accent={ACCENT} />
         </header>
+        <GoogleReconnectBanner />
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>

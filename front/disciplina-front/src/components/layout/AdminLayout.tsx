@@ -3,6 +3,7 @@ import { Users, UserPlus, MapPin, LogOut, User, ArrowLeft, Briefcase, Graduation
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 function NavItem({
   to,
@@ -134,6 +135,7 @@ export default function AdminLayout() {
           <RouteBreadcrumb accent="#1130A7" />
           <NotificationBell accent="#1130A7" />
         </header>
+        <GoogleReconnectBanner />
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-8">
           <Outlet />
         </main>

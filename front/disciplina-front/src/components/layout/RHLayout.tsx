@@ -4,6 +4,7 @@ import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -136,6 +137,7 @@ export default function RHLayout() {
           <RouteBreadcrumb accent="#60207E" />
           <NotificationBell accent="#60207E" />
         </header>
+        <GoogleReconnectBanner />
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
