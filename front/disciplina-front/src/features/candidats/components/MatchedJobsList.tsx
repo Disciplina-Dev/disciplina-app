@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search } from 'lucide-react'
+import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search, ChevronDown } from 'lucide-react'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
@@ -24,6 +24,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
   const currentUser = useCurrentUser()
   const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN;
 
+  const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedOffer[]>([])
@@ -52,8 +53,8 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
   }, [candidateId])
 
   useEffect(() => {
-    fetchMatches()
-  }, [fetchMatches])
+    if (expanded) fetchMatches()
+  }, [expanded, fetchMatches])
 
   const modalJob = jobs.find((job) => job.id === modalJobId)
   const queuedJob = queuedJobs[queueIndex]
@@ -67,18 +68,18 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
 
   return (
     <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className={`flex items-center justify-between gap-3 ${expanded ? 'mb-4' : ''}`}>
         <div className="flex items-center gap-3">
           <Briefcase className="w-5 h-5 text-blue" />
           <h2 className="text-base font-semibold text-gray-800">Offres correspondantes</h2>
-          {!loading && !error && (
+          {expanded && !loading && !error && (
             <span className="inline-flex items-center text-xs font-semibold py-1 px-2.5 rounded-full bg-blue-light text-blue">
               {jobs.length} offre{jobs.length > 1 ? 's' : ''}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
-          {canProposeOffers && (
+          {expanded && canProposeOffers && (
             <button
               type="button"
               onClick={() => setShowJobSearch(true)}
@@ -88,39 +89,53 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
               Proposer des offres
             </button>
           )}
+          {expanded && (
+            <button
+              type="button"
+              onClick={fetchMatches}
+              disabled={loading}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Rafraîchir
+            </button>
+          )}
           <button
             type="button"
-            onClick={fetchMatches}
-            disabled={loading}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
+            onClick={() => setExpanded(v => !v)}
+            className={`flex items-center gap-2 text-blue font-semibold text-sm transition-colors cursor-pointer ${
+              expanded
+                ? 'py-2 px-3 hover:text-blue/80'
+                : 'py-2 px-3 rounded-lg border border-blue-light bg-blue-light/50 hover:bg-blue-light'
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Rafraîchir
+            {!expanded && <ChevronDown className="w-4 h-4" />}
+            {expanded ? 'Réduire' : 'Voir les offres'}
           </button>
         </div>
       </div>
 
-      {loading && (
+      {expanded && loading && (
         <div className="flex items-center justify-center py-8">
           <div className="w-5 h-5 border-2 border-blue border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
-      {!loading && error && (
+      {expanded && !loading && error && (
         <div className="text-center py-6 px-4 bg-danger-bg rounded-lg">
           <p className="text-sm text-danger">{error}</p>
         </div>
       )}
 
-      {!loading && !error && jobs.length === 0 && (
+      {expanded && !loading && !error && jobs.length === 0 && (
         <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
           <AlertTriangle className="w-6 h-6 text-gray-400 mx-auto mb-2" />
           <p className="text-sm text-gray-600">Aucune offre ne correspond à ce profil pour le moment.</p>
         </div>
       )}
 
-      {!loading && !error && jobs.length > 0 && (
-        <div className="flex flex-col gap-2">
+      {expanded && !loading && !error && jobs.length > 0 && (
+        <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
           {jobs.map(job => (
             <div
               key={job.id}

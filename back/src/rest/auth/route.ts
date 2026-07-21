@@ -5,6 +5,7 @@ import {
     generateGoogleUri,
     handleGoogleToken,
     disconnectGoogle,
+    googleStatus,
     listUsers,
     listDirectory,
     updateUserSectors,
@@ -23,4 +24,5 @@ router.patch('/users/:id/sectors', express.json(), authenticate, updateUserSecto
 router.patch('/users/:id', express.json(), authenticate, updateUser);
 router.post('/google/uri', express.json(), authenticate, generateGoogleUri);
 router.post('/google/token', express.json(), handleGoogleToken);
+router.get('/google/status', authenticate, googleStatus);
 router.post('/google/disconnect', express.json(), authenticate, disconnectGoogle);

@@ -175,6 +175,19 @@ export async function generateGoogleUri(req: AuthRequest, res: Response): Promis
     }
 }
 
+// État de la liaison Google du user courant. `connected: false` couvre les deux
+// cas : jamais connecté, ou refresh_token purgé après un `invalid_grant` détecté
+// lors d'un appel réel (cf. GoogleOAuthClient.forCredentials).
+export async function googleStatus(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const user = await userService.findById(req.user.id);
+        res.json({ connected: Boolean(user?.oauthToken && user?.refreshToken) });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: googleStatus failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+}
+
 export async function disconnectGoogle(req: AuthRequest, res: Response): Promise<void> {
     try {
         await userService.updateGoogleTokens(req.user.id, null, null);
