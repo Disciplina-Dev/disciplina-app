@@ -87,6 +87,12 @@ export enum Sector {
     ENFANT = 'ENFANT',
     PHARMACIE = 'PHARMACIE',
     BAZAR = 'BAZAR',
+    BTP = 'BTP',
+    ASSOCIATION = 'ASSOCIATION',
+    MEDICAL = 'MEDICAL',
+    ENERGIE = 'ENERGIE',
+    IMPORT_EXPORT = 'IMPORT_EXPORT',
+    SOCIAL = 'SOCIAL',
     NONE = 'NONE',
 }
 

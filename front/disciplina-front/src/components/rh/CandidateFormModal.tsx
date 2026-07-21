@@ -525,7 +525,12 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   const template = {
     hasEnglishLevel: selectedTps.some(tp => CANDIDATE_TEMPLATES[tp]?.hasEnglishLevel),
     schoolLevels: schoolLevelsMerged,
-    availableSectors: uniq(selectedTps.flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? [])),
+    // Les secteurs déjà cochés restent affichés même s'ils ne font plus partie
+    // de la liste du TP (candidats saisis avant un changement de référentiel).
+    availableSectors: uniq([
+      ...selectedTps.flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? []),
+      ...form.desiredSectors,
+    ]),
     availableExpectedSkills: uniq(selectedTps.flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableExpectedSkills ?? [])),
   };
   const boolOpts = [{ value: 'true', label: 'Oui' }, { value: 'false', label: 'Non' }];

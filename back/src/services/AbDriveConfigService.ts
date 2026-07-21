@@ -45,16 +45,20 @@ export class AbDriveConfigService {
      * Best-effort : ne jette jamais (hors chemin critique signature/envoi). Renvoie
      * le lien Drive en cas de succès, sinon null.
      *
-     * @param creatorId  id du commercial créateur de l'AB (source du secteur + des jetons Google).
+     * @param creatorId     id du commercial créateur de l'AB (source du secteur).
+     * @param actingUserId  id de l'utilisateur à l'origine de l'action (source prioritaire des jetons Google).
      */
     async archiveAbPdf(
         creatorId: number | undefined,
         kind: AbFolderKind,
         buffer: Buffer,
         filename: string,
+        actingUserId?: number,
     ): Promise<string | null> {
         try {
             const creator = creatorId ? await this.userService.findById(creatorId) : null;
+            const actingUser =
+                actingUserId && actingUserId !== creatorId ? await this.userService.findById(actingUserId) : null;
             // Créateur sans secteur : rattaché au Nord (Nord-Est) par défaut.
             const sector: Sector = primarySector(creator?.sectors) ?? 'Nord-Est';
 
@@ -67,10 +71,17 @@ export class AbDriveConfigService {
                 return null;
             }
 
-            // Jetons Google : ceux du créateur, sinon repli sur un commercial connecté.
-            let driveUser: User | null = creator;
+            // Jetons Google : ceux de l'utilisateur courant en priorité, puis du créateur
+            // de l'AB, sinon repli sur un commercial connecté.
+            let driveUser: User | null = actingUser?.oauthToken ? actingUser : creator;
             if (!driveUser?.oauthToken) {
                 driveUser = await this.userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
+                if (driveUser) {
+                    logger.warn(
+                        { creatorId, actingUserId, fallbackUserId: driveUser.id },
+                        '[AbDrive] Repli sur un autre commercial connecté pour uploader sur le Drive',
+                    );
+                }
             }
             if (!driveUser?.oauthToken) {
                 logger.warn('[AbDrive] Aucun compte Google connecté pour uploader sur le Drive, archivage ignoré');
