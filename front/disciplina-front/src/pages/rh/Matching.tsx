@@ -549,6 +549,7 @@ function JobDetailsSection({
   onProposeCandidates,
   onShowCompanyInfo,
   onEditAb,
+  onDeleteOffer,
 }: {
   job: MatchJobResult
   onSetStatus: (status: OfferStatus) => void
@@ -557,6 +558,7 @@ function JobDetailsSection({
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
   onEditAb?: () => void
+  onDeleteOffer?: () => void
 }) {
   const chip = statusChip(job.status)
 
@@ -590,6 +592,16 @@ function JobDetailsSection({
             >
               <FileEdit size={16} />
               <span className="hidden md:inline">Modifier l'AB</span>
+            </button>
+          )}
+          {onDeleteOffer && (
+            <button
+              onClick={onDeleteOffer}
+              className="flex items-center justify-center gap-2 rounded-xl border border-danger/30 bg-white px-3 py-2 text-sm font-semibold text-danger shadow-sm transition-all hover:bg-danger-bg md:px-4"
+              title="Supprimer l'offre"
+            >
+              <Trash2 size={16} />
+              <span className="hidden md:inline">Supprimer</span>
             </button>
           )}
           {hasAcceptedCandidates && (
@@ -1913,19 +1925,12 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
             ? handleEditAb
             : undefined
         }
+        onDeleteOffer={
+          currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+            ? handleDeleteClick
+            : undefined
+        }
       />
-
-      <div className="flex justify-end gap-2">
-        {(currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
-          <button
-            onClick={handleDeleteClick}
-            className="flex items-center gap-1.5 rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-medium text-danger transition hover:bg-danger-bg"
-          >
-            <Trash2 size={14} />
-            Supprimer l'offre
-          </button>
-        )}
-      </div>
 
       {showCompanyInfo && selectedJob && (
         <CompanyInfoModal offerId={selectedJob.id} needsAnalysisId={selectedJob.needsAnalysisId} onClose={() => setShowCompanyInfo(false)} />
