@@ -343,6 +343,16 @@ export default function QuestionnaireAB() {
 
   const template = form ? CANDIDATE_TEMPLATES[form.tp_type] : null
 
+  // Secteurs proposés : ceux de tous les TP du candidat, plus ceux déjà cochés
+  // même s'ils ne sont plus au référentiel (aucune perte sur les fiches saisies).
+  const sectorOptions: string[] = form
+    ? Array.from(new Set([
+        ...(form.tp_types.length ? form.tp_types : [form.tp_type])
+          .flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? []),
+        ...form.desired_sectors,
+      ]))
+    : []
+
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm(prev => prev ? { ...prev, [key]: value } : prev)
 
@@ -722,7 +732,7 @@ export default function QuestionnaireAB() {
         <Section title="Secteurs d'activité et compétences attendues">
           <CheckGroup
             label="Secteurs d'activité souhaités"
-            options={template.availableSectors}
+            options={sectorOptions}
             selected={form.desired_sectors}
             onToggle={toggleSector}
             renderLabel={(s) => SECTOR_LABELS[s] ?? s}

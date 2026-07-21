@@ -81,6 +81,12 @@ export const typeDefs = gql`
         ENFANT
         PHARMACIE
         BAZAR
+        BTP
+        ASSOCIATION
+        MEDICAL
+        ENERGIE
+        IMPORT_EXPORT
+        SOCIAL
         NONE
     }
 
