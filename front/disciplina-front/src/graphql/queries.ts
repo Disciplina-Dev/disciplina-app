@@ -1107,6 +1107,7 @@ export const MATCH_OFFER = gql`
         status
         description
         comment
+        cvWebview
         interviewLocation
         bookedInterviewSlot
         interviewConclusion

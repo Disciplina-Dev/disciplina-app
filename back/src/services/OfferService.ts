@@ -50,6 +50,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         status: mc.status,
         description: mc.description,
         comment: mc.comment,
+        cvWebview: mc.cv_webview,
         interviewLocation: mc.interview_location,
         bookedInterviewSlot: mc.booked_interview_slot,
         interviewConclusion: mc.interview_conclusion,
