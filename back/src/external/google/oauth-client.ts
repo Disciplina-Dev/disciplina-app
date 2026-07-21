@@ -13,6 +13,13 @@ const SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets.readonly',
 ] as const;
 
+/** `invalid_grant` = refresh_token mort. Google le remonte selon les cas dans
+ *  `error`, `response.data.error` ou le message. */
+export function isInvalidGrant(error: any): boolean {
+    const codes = [error?.response?.data?.error, error?.error, error?.code, error?.message];
+    return codes.some((c) => typeof c === 'string' && c.includes('invalid_grant'));
+}
+
 export class GoogleOAuthClient {
     static readonly SCOPES = SCOPES;
 
@@ -23,6 +30,9 @@ export class GoogleOAuthClient {
     generateAuthUrl(state: string): string {
         return this.build().generateAuthUrl({
             access_type: 'offline',
+            // Force Google à réémettre un refresh_token à chaque reconnexion.
+            // Sans ça, seul le 1er consentement en renvoie un → tokens expirés en ~1h.
+            prompt: 'consent',
             scope: [...SCOPES],
             state,
         });
@@ -51,6 +61,23 @@ export class GoogleOAuthClient {
                     refresh_token: refreshed.refresh_token ?? creds.refresh_token,
                 });
             });
+
+            // Le refresh_token peut être révoqué côté Google (mot de passe changé,
+            // accès retiré, jeton absent car consentement précédent sans `prompt`).
+            // Toutes les requêtes googleapis passent par `client.request` : on
+            // intercepte l'`invalid_grant` pour purger les jetons en base. Le compte
+            // repasse alors "non connecté" et le front affiche l'invite de reconnexion.
+            const request = client.request.bind(client);
+            client.request = (async (opts: any) => {
+                try {
+                    return await request(opts);
+                } catch (error: any) {
+                    if (isInvalidGrant(error)) {
+                        await onRefresh({ access_token: null, refresh_token: null });
+                    }
+                    throw error;
+                }
+            }) as typeof client.request;
         }
         return client;
     }

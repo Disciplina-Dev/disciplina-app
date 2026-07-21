@@ -5,6 +5,7 @@ import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -126,6 +127,7 @@ export default function CommercialLayout() {
           <RouteBreadcrumb accent="#1130A7" />
           <NotificationBell accent="#1130A7" />
         </header>
+        <GoogleReconnectBanner />
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
