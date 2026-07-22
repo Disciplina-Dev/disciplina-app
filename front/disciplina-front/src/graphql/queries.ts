@@ -223,6 +223,12 @@ export const BLACKLIST_COMPANY = gql`
   }
 `
 
+export const BLACKLIST_AND_CLEANUP_COMPANY = gql`
+  mutation DeleteAndBlacklistCompany($companyId: Int!, $reason: String!, $allBlacklist: Boolean!) {
+    deleteAndBlacklistCompany(companyId: $companyId, reason: $reason, allBlacklist: $allBlacklist)
+  }
+`
+
 export const GET_BLACKLISTED_COMPANIES = gql`
   query GetBlacklistedCompanies($first: Int, $after: String, $search: String) {
     blacklistedCompanies(first: $first, after: $after, search: $search) {
@@ -1042,7 +1048,7 @@ export const GET_OFFERS = gql`
     offers {
       id
       needsAnalysisId
-      companyInfos { id name }
+      companyInfos { id name activities }
       companyName
       ageRange
       desiredTP
@@ -1374,6 +1380,28 @@ export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
         phone
         status
       }
+    }
+  }
+`
+
+export const DELETE_OFFER = gql`
+  mutation DeleteOffer($id: String!) {
+    deleteOffer(id: $id)
+  }
+`
+
+export const DELETE_OFFERS_BY_NEEDS_ANALYSIS = gql`
+  mutation DeleteOffersByNeedsAnalysis($needsAnalysisId: String!) {
+    deleteOffersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId)
+  }
+`
+
+export const OFFERS_BY_NEEDS_ANALYSIS = gql`
+  query OffersByNeedsAnalysis($needsAnalysisId: String!) {
+    offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) {
+      id
+      companyName
+      title
     }
   }
 `

@@ -18,7 +18,7 @@ interface Props {
  */
 export default function LeaveConfirmDialog({ open, saving, onCancel, onDiscard, onSave }: Props) {
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+    <Dialog.Root open={open} onOpenChange={(o: boolean) => { if (!o) onCancel() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
         <Dialog.Content

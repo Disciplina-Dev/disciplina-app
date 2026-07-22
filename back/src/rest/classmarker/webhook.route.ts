@@ -1,6 +1,8 @@
 import express, { Router, Request, Response } from 'express';
 import { logger } from '../../external/logger';
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
+import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
+import { env } from '../../config/env';
 import { authenticateStaffStream } from '../middleware/sseAuth';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
@@ -94,84 +96,89 @@ async function uploadResultPdf(candidate: Candidate): Promise<void> {
 
 export const router: Router = express.Router();
 
-router.post('/classmarker', express.json({ limit: '256kb' }), async (req: Request, res: Response) => {
-    // Serverless (Vercel): the lambda is frozen once the handler resolves.
-    // Process fully — including the best-effort PDF upload — BEFORE sending
-    // the response so the async work actually completes. Always answer 200
-    // to avoid ClassMarker retry-storms.
-    try {
-        const body = req.body ?? {};
-        const { payload_status, result, test, questions } = body;
-        logger.info(
-            {
-                payload_status,
-                cm_user_id: result?.cm_user_id,
-                percentage: result?.percentage,
-            },
-            'ClassMarker webhook received',
-        );
-
-        if (payload_status !== 'live') {
-            logger.debug({ payload_status }, 'ClassMarker non-live payload, replying 200');
-            res.status(200).json({ received: true });
-            return;
-        }
-        if (!result || typeof result.cm_user_id !== 'string' || typeof result.percentage !== 'number') {
-            res.status(200).json({ received: true });
-            return;
-        }
-
-        const candidateId = result.cm_user_id;
-        const data = {
-            percentage: result.percentage,
-            points_scored: typeof result.points_scored === 'number' ? result.points_scored : undefined,
-            points_available: typeof result.points_available === 'number' ? result.points_available : undefined,
-            // La moyenne du test = 50%. ClassMarker renvoie passed=true même à 35%
-            // (passmark configuré à 0), donc on dérive le verdict du pourcentage.
-            passed: typeof result.percentage === 'number' ? result.percentage >= 50 : undefined,
-            test_name: test?.test_name ?? undefined,
-            completed_at: typeof result.time_finished === 'number' ? new Date(result.time_finished * 1000) : new Date(),
-            duration: typeof result.duration === 'string' ? result.duration : undefined,
-            questions: Array.isArray(questions) ? questions : undefined,
-        };
-
-        const updated = await CandidateModel.findByIdAndUpdate(
-            candidateId,
-            { $set: { classmarker: data }, $push: { classmarker_history: data } },
-            { returnDocument: 'after' },
-        );
-        if (!updated) {
-            logger.warn({ candidateId }, 'ClassMarker webhook: candidate not found');
-            res.status(200).json({ received: true });
-            return;
-        }
-        logger.info(
-            { candidateId, percentage: data.percentage, passed: data.passed },
-            'ClassMarker result saved to DB',
-        );
-
-        notifyCandidate(candidateId, {
-            percentage: data.percentage,
-            passed: data.passed,
-            test_name: data.test_name ?? null,
-            completed_at: typeof result.time_finished === 'number' ? result.time_finished : null,
-            points_scored: data.points_scored,
-            points_available: data.points_available,
-            duration: data.duration ?? null,
-        });
-
+router.post(
+    '/classmarker',
+    ...classmarkerWebhookGuard(env.CLASSMARKER_WEBHOOK_SECRET),
+    async (req: Request, res: Response) => {
+        // Serverless (Vercel): the lambda is frozen once the handler resolves.
+        // Process fully — including the best-effort PDF upload — BEFORE sending
+        // the response so the async work actually completes. Always answer 200
+        // to avoid ClassMarker retry-storms.
         try {
-            await uploadResultPdf(updated.toObject() as Candidate);
-        } catch (pdfErr) {
-            logger.error({ err: pdfErr }, 'ClassMarker result PDF generation/upload failed');
-        }
+            const body = req.body ?? {};
+            const { payload_status, result, test, questions } = body;
+            logger.info(
+                {
+                    payload_status,
+                    cm_user_id: result?.cm_user_id,
+                    percentage: result?.percentage,
+                },
+                'ClassMarker webhook received',
+            );
 
-        res.status(200).json({ received: true });
-    } catch (err) {
-        logger.error({ err }, 'ClassMarker webhook handling failed');
-        if (!res.headersSent) res.status(200).json({ received: true });
-    }
-});
+            if (payload_status !== 'live') {
+                logger.debug({ payload_status }, 'ClassMarker non-live payload, replying 200');
+                res.status(200).json({ received: true });
+                return;
+            }
+            if (!result || typeof result.cm_user_id !== 'string' || typeof result.percentage !== 'number') {
+                res.status(200).json({ received: true });
+                return;
+            }
+
+            const candidateId = result.cm_user_id;
+            const data = {
+                percentage: result.percentage,
+                points_scored: typeof result.points_scored === 'number' ? result.points_scored : undefined,
+                points_available: typeof result.points_available === 'number' ? result.points_available : undefined,
+                // La moyenne du test = 50%. ClassMarker renvoie passed=true même à 35%
+                // (passmark configuré à 0), donc on dérive le verdict du pourcentage.
+                passed: typeof result.percentage === 'number' ? result.percentage >= 50 : undefined,
+                test_name: test?.test_name ?? undefined,
+                completed_at:
+                    typeof result.time_finished === 'number' ? new Date(result.time_finished * 1000) : new Date(),
+                duration: typeof result.duration === 'string' ? result.duration : undefined,
+                questions: Array.isArray(questions) ? questions : undefined,
+            };
+
+            const updated = await CandidateModel.findByIdAndUpdate(
+                candidateId,
+                { $set: { classmarker: data }, $push: { classmarker_history: data } },
+                { returnDocument: 'after' },
+            );
+            if (!updated) {
+                logger.warn({ candidateId }, 'ClassMarker webhook: candidate not found');
+                res.status(200).json({ received: true });
+                return;
+            }
+            logger.info(
+                { candidateId, percentage: data.percentage, passed: data.passed },
+                'ClassMarker result saved to DB',
+            );
+
+            notifyCandidate(candidateId, {
+                percentage: data.percentage,
+                passed: data.passed,
+                test_name: data.test_name ?? null,
+                completed_at: typeof result.time_finished === 'number' ? result.time_finished : null,
+                points_scored: data.points_scored,
+                points_available: data.points_available,
+                duration: data.duration ?? null,
+            });
+
+            try {
+                await uploadResultPdf(updated.toObject() as Candidate);
+            } catch (pdfErr) {
+                logger.error({ err: pdfErr }, 'ClassMarker result PDF generation/upload failed');
+            }
+
+            res.status(200).json({ received: true });
+        } catch (err) {
+            logger.error({ err }, 'ClassMarker webhook handling failed');
+            if (!res.headersSent) res.status(200).json({ received: true });
+        }
+    },
+);
 
 // Un staff observe le flux d'un candidat : candidateId reste un paramètre, le token est exigé.
 router.get('/classmarker/stream', (req: AuthRequest, res: Response) => {
