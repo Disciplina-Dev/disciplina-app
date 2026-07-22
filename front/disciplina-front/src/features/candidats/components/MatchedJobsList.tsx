@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search, ChevronDown } from 'lucide-react'
+import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search, ChevronDown, Info } from 'lucide-react'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
@@ -8,6 +8,7 @@ import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
 import { useCurrentUser, Permission } from '@/store/authStore'
 import AddCandidateToJobModal from './AddCandidateToJobModal'
 import JobSearchModal from './JobSearchModal'
+import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 
 interface MatchedJobsListProps {
   candidateId: string
@@ -34,6 +35,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
   const [showJobSearch, setShowJobSearch] = useState(false)
   const [queuedJobs, setQueuedJobs] = useState<MatchedOffer[]>([])
   const [queueIndex, setQueueIndex] = useState(0)
+  const [companyInfoOfferId, setCompanyInfoOfferId] = useState<string | null>(null)
 
   const fetchMatches = useCallback(async () => {
     setLoading(true)
@@ -146,6 +148,11 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{job.companyName || 'Entreprise'}</p>
+                {(job.title || job.jobRole) && (
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {[job.title, job.jobRole].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
                   {job.desiredTP && (
                     <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
@@ -167,24 +174,34 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                   ))}
                 </div>
               </div>
-              {confirmedJobIds?.has(job.id) ? (
-                <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success shrink-0">
-                  <UserCheck className="w-3.5 h-3.5" /> Matché
-                </span>
-              ) : addedJobIds.has(job.id) ? (
-                <span className="flex items-center gap-1 text-xs font-medium text-success shrink-0">
-                  <Check className="w-3.5 h-3.5" /> Ajouté
-                </span>
-              ) : (
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setModalJobId(job.id)}
-                  className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors disabled:opacity-50 shrink-0"
+                  onClick={() => setCompanyInfoOfferId(job.id)}
+                  className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue transition-colors"
+                  title="Voir toutes les infos de l'offre"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Ajouter
+                  <Info className="w-3.5 h-3.5" />
                 </button>
-              )}
+                {confirmedJobIds?.has(job.id) ? (
+                  <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success">
+                    <UserCheck className="w-3.5 h-3.5" /> Matché
+                  </span>
+                ) : addedJobIds.has(job.id) ? (
+                  <span className="flex items-center gap-1 text-xs font-medium text-success">
+                    <Check className="w-3.5 h-3.5" /> Ajouté
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setModalJobId(job.id)}
+                    className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Ajouter
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -222,6 +239,14 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
             advanceQueue()
           }}
           onClose={advanceQueue}
+        />
+      )}
+
+      {companyInfoOfferId && (
+        <CompanyInfoModal
+          offerId={companyInfoOfferId}
+          needsAnalysisId={jobs.find(j => j.id === companyInfoOfferId)?.needsAnalysisId ?? null}
+          onClose={() => setCompanyInfoOfferId(null)}
         />
       )}
     </section>
