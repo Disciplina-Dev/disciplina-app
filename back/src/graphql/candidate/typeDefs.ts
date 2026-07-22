@@ -457,6 +457,8 @@ export const typeDefs = gql`
         createdBefore: String
         "Ne renvoyer que les fiches sans date de création"
         createdMissing: Boolean
+        "Filtrer par le RH qui a mené l'entretien (nom complet)"
+        interviewedBy: String
     }
 
     type StatBucket {

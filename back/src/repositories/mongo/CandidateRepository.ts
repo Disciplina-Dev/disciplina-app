@@ -47,6 +47,8 @@ export interface CandidateFilters {
     createdBefore?: Date;
     /** Ne renvoyer que les fiches sans date de création (héritées). */
     createdMissing?: boolean;
+    /** Filtrer par le RH qui a mené l'entretien (nom complet). */
+    interviewedBy?: string;
 }
 
 /**
@@ -124,6 +126,7 @@ export class CandidateRepository {
         if (filters?.geographicMobility?.length)
             conditions.push({ 'job_info.geographic_mobility': { $in: filters.geographicMobility } });
         if (filters?.desiredSectors?.length) conditions.push({ desired_sectors: { $in: filters.desiredSectors } });
+        if (filters?.interviewedBy) conditions.push({ 'synthesis.interviewed_by': filters.interviewedBy });
         if (filters?.createdMissing) {
             // `null` matche aussi le champ absent en Mongo → couvre les fiches héritées.
             conditions.push({ created_at: null });
