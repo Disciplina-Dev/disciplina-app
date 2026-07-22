@@ -16,14 +16,17 @@ const bookingService = new BookingService();
 const rhKpiService = new RhKpiService();
 
 /**
- * Delta KPI « pas venu » pour une transition de présence old→next.
- * Le « venu » n'est plus compté ici : il provient désormais de la création
- * d'un dossier candidat (cf. resolver createCandidate). Seul le no-show est
- * suivi via le clic manuel sur l'entretien.
+ * Delta KPI pour une transition de présence old→next.
+ * Le « venu » crédite un entretien réalisé (interviews_attended) ; le
+ * « pas venu » crédite un no-show. Le venu peut aussi venir de la création
+ * d'un dossier candidat (cf. resolver createCandidate), les deux sont
+ * cumulatifs (l'un n'exclut pas l'autre).
  */
-function noshowDelta(old: Attendance | undefined, next: Attendance): Record<string, number> {
+function attendanceDelta(old: Attendance | undefined, next: Attendance): Record<string, number> {
     if (old === next) return {};
     const delta: Record<string, number> = {};
+    if (old === 'arrived') delta.interviews_attended = (delta.interviews_attended ?? 0) - 1;
+    if (next === 'arrived') delta.interviews_attended = (delta.interviews_attended ?? 0) + 1;
     if (old === 'noshow') delta.interviews_noshow = (delta.interviews_noshow ?? 0) - 1;
     if (next === 'noshow') delta.interviews_noshow = (delta.interviews_noshow ?? 0) + 1;
     return delta;
@@ -272,9 +275,9 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         const calendar = calendarForUser(owner);
         const before = await calendar.getEvent(req.params.id);
         const event = await calendar.setAttendance(req.params.id, status);
-        // KPI : « pas venu » (seulement pour les entretiens), attribué à l'acteur.
+        // KPI : venu / pas venu (seulement pour les entretiens), attribué à l'acteur.
         if (event.isInterview && actor) {
-            const delta = noshowDelta(before.attendance, status);
+            const delta = attendanceDelta(before.attendance, status);
             if (Object.keys(delta).length) {
                 await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(event.start), delta);
             }
@@ -332,9 +335,10 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
     try {
         const before = await calendar.getEvent(req.params.id);
         await calendar.deleteEvent(req.params.id);
-        // KPI : on retire les compteurs portés par cet entretien (placé + no-show éventuel), acteur.
+        // KPI : on retire les compteurs portés par cet entretien (placé + venu + no-show), acteur.
         if (actor && before.isInterview) {
             const delta: Record<string, number> = { interviews_placed: -1 };
+            if (before.attendance === 'arrived') delta.interviews_attended = -1;
             if (before.attendance === 'noshow') delta.interviews_noshow = -1;
             await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(before.start), delta);
         }

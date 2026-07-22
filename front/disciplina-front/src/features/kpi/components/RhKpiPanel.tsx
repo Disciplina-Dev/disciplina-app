@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   CalendarPlus, CalendarClock, UserCheck, UserX, Briefcase, FileSignature, Unlink,
-  Loader2, AlertCircle, RefreshCw,
+  Loader2, AlertCircle, RefreshCw, ExternalLink,
 } from 'lucide-react'
 import { useAuthStore, Permission } from '@/store/authStore'
 import {
@@ -68,6 +69,7 @@ export default function RhKpiPanel({
   const token = useAuthStore((s) => s.token)
   const permission = useAuthStore((s) => s.user?.permission)
   const isAggregate = permission === Permission.ADMIN || permission === Permission.RESPONSABLE
+  const navigate = useNavigate()
 
   const now = useMemo(() => new Date(), [])
   const [year, setYear] = useState(now.getFullYear())
@@ -77,6 +79,11 @@ export default function RhKpiPanel({
   const [week, setWeek] = useState(isoWeek(now))
   // Secteurs sélectionnés (multi). null = tous ; sinon affiche 1, 2 ou 3 secteurs cumulés.
   const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(null)
+  // RH individuel sélectionné. null = tous les RH.
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
+
+  // Réinitialise le filtre RH quand l'année change.
+  useEffect(() => { setSelectedUserId(null) }, [year])
 
   const [report, setReport] = useState<RhKpiReport | null>(null)
   const [loading, setLoading] = useState(true)
@@ -142,8 +149,6 @@ export default function RhKpiPanel({
     return flat.filter((u) => set.has(u.sector))
   }, [selectedWeeks, effectiveSectors])
 
-  const totals = useMemo(() => sumMetrics(entries.map((e) => e.metrics)), [entries])
-
   // Détail par RH / responsable (somme par utilisateur) — uniquement en vue agrégée.
   const perUser = useMemo(() => {
     if (!isAggregate) return []
@@ -158,10 +163,32 @@ export default function RhKpiPanel({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [entries, isAggregate])
 
+  // Nom du RH sélectionné (pour l'affichage).
+  const selectedUserName = useMemo(() => {
+    if (!selectedUserId) return undefined
+    return perUser.find((u) => u.userId === selectedUserId)?.name
+  }, [selectedUserId, perUser])
+
+  // Entrées et totaux filtrés par le RH sélectionné.
+  const filteredEntries = useMemo(() => {
+    if (!selectedUserId) return entries
+    return entries.filter((u) => u.userId === selectedUserId)
+  }, [entries, selectedUserId])
+
+  const displayTotals = useMemo(() => sumMetrics(filteredEntries.map((e) => e.metrics)), [filteredEntries])
+
+  // Détail filtré par le RH sélectionné (pour le tableau).
+  const filteredPerUser = useMemo(() => {
+    if (!selectedUserId) return perUser
+    return perUser.filter((u) => u.userId === selectedUserId)
+  }, [perUser, selectedUserId])
+
   const periodLabel = gran === 'year' ? `Année ${year}`
     : gran === 'month' ? `${MONTHS[month - 1]} ${year}`
     : `Semaine ${week} · ${year}`
-  const scopeLabel = isAggregate ? 'tous les RH' : 'mes chiffres'
+  const scopeLabel = !selectedUserId
+    ? (isAggregate ? 'tous les RH' : 'mes chiffres')
+    : (selectedUserName ?? 'RH sélectionné')
   const sectorLabel = !effectiveSectors ? 'tous secteurs' : effectiveSectors.join(' · ') || 'aucun secteur'
   const isSectorOn = (s: string) => !selectedSectors || selectedSectors.has(s)
 
@@ -241,7 +268,7 @@ export default function RhKpiPanel({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-gray-500">{m.label}</p>
-                  <p className="text-2xl font-extrabold text-black">{cardValue(m, totals)}</p>
+                  <p className="text-2xl font-extrabold text-black">{cardValue(m, displayTotals)}</p>
                 </div>
               </div>
             ))}
@@ -249,23 +276,47 @@ export default function RhKpiPanel({
 
           {isAggregate && perUser.length > 0 && (
             <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-              <div className="px-4 pt-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                Détail par RH / responsable
+              <div className="flex items-center justify-between px-4 pt-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                  Détail par RH / responsable
+                </span>
+                {perUser.length > 1 && (
+                  <select
+                    value={selectedUserId ?? ''}
+                    onChange={(e) => setSelectedUserId(e.target.value ? Number(e.target.value) : null)}
+                    className={selectCls}
+                  >
+                    <option value="">Tous les RH</option>
+                    {perUser.map((u) => (
+                      <option key={u.userId} value={u.userId}>{u.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 text-[11px] font-bold uppercase tracking-wider text-gray-400">
                     <th className="px-4 py-3">RH</th>
                     {CARDS.map((m) => <th key={m.key} className="px-3 py-3 text-right">{m.label}</th>)}
+                    <th className="px-3 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {perUser.map((u) => (
+                  {filteredPerUser.map((u) => (
                     <tr key={u.userId} className="border-b border-gray-50 last:border-0">
                       <td className="px-4 py-2.5 font-semibold text-gray-700">{u.name}</td>
                       {CARDS.map((m) => (
                         <td key={m.key} className="px-3 py-2.5 text-right tabular-nums text-gray-600">{cardValue(m, u.metrics)}</td>
                       ))}
+                      <td className="px-3 py-2.5 text-right">
+                        <button
+                          onClick={() => navigate(`/rh/candidats?interviewedBy=${encodeURIComponent(u.name)}`)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:text-purple-dark transition-colors"
+                          title="Voir les candidats de ce RH"
+                        >
+                          Voir <ExternalLink size={12} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

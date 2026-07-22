@@ -72,12 +72,12 @@ export class UserRepository {
         );
     }
 
-    /** Users habilités à mener les entretiens AB (flag is_interviewer). */
+    /** Users habilités à mener les entretiens AB (is_interviewer ou rôle RH). */
     async findInterviewers(): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(
                 ', ',
-            )}, ${USER_JOIN} WHERE u.is_interviewer = 1 ORDER BY u.first_name, u.last_name`,
+            )}, ${USER_JOIN} WHERE u.is_interviewer = 1 OR r.name = 'RH' ORDER BY u.first_name, u.last_name`,
         );
     }
 
