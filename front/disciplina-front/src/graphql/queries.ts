@@ -867,12 +867,15 @@ export const MATCH_CANDIDATE = gql`
       id
       matchedOffers {
         id
+        needsAnalysisId
         companyName
         sector
         localisation
         desiredTP
         ageRange
         status
+        title
+        jobRole
       }
     }
   }
@@ -1132,6 +1135,7 @@ export const MATCH_OFFER = gql`
         phone
       }
       title
+      jobRole
       missions
       salerInfo {
         id

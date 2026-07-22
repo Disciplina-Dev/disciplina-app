@@ -198,6 +198,7 @@ export const typeDefs = gql`
         referents: Referents
         companyInfos: CompanyInfos
         title: String
+        jobRole: String
         missions: [String]
         softSkills: String
     }

@@ -115,6 +115,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
             ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
             : null,
         title: offer.title,
+        jobRole: offer.job_role,
         missions: offer.missions,
     };
 }

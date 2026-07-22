@@ -125,11 +125,14 @@ export function offerToMatchedOfferGql(offer: Offer): object {
     const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
     return {
         id: offer._id,
+        needsAnalysisId: offer.needs_analysis_id,
         companyName: offer.company_infos?.name,
         sector: null,
         localisation: offer.localisation,
         desiredTP: offer.tp_type,
         ageRange,
         status: offer.matching?.status,
+        title: offer.title,
+        jobRole: offer.job_role,
     };
 }

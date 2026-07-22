@@ -198,12 +198,15 @@ export const typeDefs = gql`
 
     type MatchedOffer {
         id: String
+        needsAnalysisId: String
         companyName: String
         sector: String
         localisation: [Localisation]
         desiredTP: TitleProfessionalType
         ageRange: String
         status: String
+        title: String
+        jobRole: String
     }
 
     type CandidateOwner {

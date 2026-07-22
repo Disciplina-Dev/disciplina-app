@@ -205,12 +205,15 @@ export interface Synthesis {
 
 export interface MatchedOffer {
     id: string;
+    needsAnalysisId?: string;
     companyName?: string;
     sector?: string;
     localisation?: Localisation[];
     desiredTP?: TitleProfessionalType;
     ageRange?: string;
     status?: string;
+    title?: string;
+    jobRole?: string;
 }
 
 export interface CandidateOwner {
