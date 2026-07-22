@@ -37,7 +37,8 @@ export interface CandidateFilters {
     drivingLicenseB?: boolean;
     ageMin?: number;
     ageMax?: number;
-    tpType?: string;
+    /** Titres professionnels visés (OR). */
+    tpType?: string[];
     /** Villes de mobilité géographique souhaitées (OR). */
     geographicMobility?: string[];
     /** Secteurs d'activité souhaités (OR). */
@@ -120,7 +121,7 @@ export class CandidateRepository {
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
-        if (filters?.tpType) conditions.push({ tp_type: filters.tpType });
+        if (filters?.tpType?.length) conditions.push({ tp_type: { $in: filters.tpType } });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
         if (filters?.geographicMobility?.length)

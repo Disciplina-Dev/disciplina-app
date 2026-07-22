@@ -122,6 +122,7 @@ interface Job {
   salerInfo?: SalerInfo | null
   referents?: Referents | null
   title?: string | null
+  jobRole?: string | null
   missions?: string[] | null
 }
 
@@ -650,6 +651,15 @@ function JobDetailsSection({
               <div>
                 <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Intitulé du poste</p>
                 <p className="text-xs font-medium text-gray-800 mt-0.5">{job.title}</p>
+              </div>
+            </div>
+          )}
+          {job.jobRole && (
+            <div className="flex items-start gap-2">
+              <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Intitulé du métier</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{job.jobRole}</p>
               </div>
             </div>
           )}
