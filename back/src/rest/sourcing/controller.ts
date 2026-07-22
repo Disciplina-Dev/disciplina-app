@@ -73,9 +73,17 @@ export async function checkSiret(req: AuthRequest, res: Response): Promise<void>
     try {
         const { siret } = req.params;
         logger.info({ userId: req.user?.id, siret }, 'Sourcing: vérification SIRET');
+        const siren = siret.slice(0, 9);
         const result = await sireneService.checkSiret(siret);
         const existing = await companyRepository.findBySiret(siret);
-        res.json({ ...result, alreadyExists: existing !== null });
+        const { entries, allBlacklisted } = await companiesBlacklistService.findBySiren(siren);
+        const blacklistEntry = entries.find((e) => e.siret === siret) ?? entries.find((e) => e.all_blacklist === 1);
+        res.json({
+            ...result,
+            alreadyExists: existing !== null,
+            isBlacklisted: allBlacklisted || entries.some((e) => e.siret === siret),
+            blacklistReason: blacklistEntry?.conclusion?.trim() ?? null,
+        });
     } catch (error: any) {
         logger.error({ err: error }, 'Sourcing: échec vérification SIRET');
         if (error.message === 'SIRET not found') {

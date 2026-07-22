@@ -39,6 +39,10 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getCandidatePlacement(candidateId);
         },
+        offersByNeedsAnalysis: async (_: unknown, { needsAnalysisId }: { needsAnalysisId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.findByNeedsAnalysisId(needsAnalysisId);
+        },
     },
     Mutation: {
         updateOffer: async (_: unknown, { id, offer }: { id: string; offer: any }, context: any) => {
@@ -166,6 +170,18 @@ export const resolvers = {
                 conclusion as ImmersionConclusion,
                 context.user.email,
             );
+        },
+        deleteOffer: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.RESPONSABLE, [JobRole.RH]);
+            return offerService.delete(id);
+        },
+        deleteOffersByNeedsAnalysis: async (
+            _: unknown,
+            { needsAnalysisId }: { needsAnalysisId: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.RESPONSABLE, [JobRole.RH]);
+            return offerService.deleteByNeedsAnalysisId(needsAnalysisId);
         },
         createMatchSession: async (
             _: unknown,

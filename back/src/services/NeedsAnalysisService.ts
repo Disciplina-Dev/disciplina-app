@@ -320,6 +320,7 @@ export class NeedsAnalysisService {
         // RH + Responsables + Admin : tous ont accès à l'espace de matching.
         const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const positionsLabel = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
+        const firstOfferId = offers[0]?._id;
         await Promise.all(
             rhUsers.map((user) =>
                 this.notificationService.create({
@@ -328,7 +329,7 @@ export class NeedsAnalysisService {
                     level: 'info',
                     title: 'Nouvelle analyse du besoin à matcher',
                     message: `${companyName} — ${positionsLabel} à pourvoir`,
-                    link: '/rh/matching',
+                    link: firstOfferId ? `/rh/matching?offer=${firstOfferId}` : '/rh/matching',
                 }),
             ),
         );
