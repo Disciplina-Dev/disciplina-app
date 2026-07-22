@@ -54,6 +54,15 @@ export const interviewRateLimiter = rateLimit({
     message: RATE_LIMIT_MESSAGE,
 });
 
+// Lien externe unifié (entreprises/candidats) : vérification signature + code.
+export const externalRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: RATE_LIMIT_MESSAGE,
+});
+
 // Réservation publique : non authentifiée, donc plafonnée par IP.
 export const bookingRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
