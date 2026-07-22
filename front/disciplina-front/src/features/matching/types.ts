@@ -18,6 +18,9 @@ export interface Referents {
 
 export interface Job {
   id: string
+  needsAnalysisId?: string | null
+  companyInfos?: { id?: number; name?: string; activities?: string[] | null } | null
+  softSkills?: string | null
   companyName: string
   ageRange: string
   desiredTP: string | null
@@ -29,4 +32,6 @@ export interface Job {
   sector: string | null
   salerInfo?: SalerInfo | null
   referents?: Referents | null
+  title?: string | null
+  missions?: string[] | null
 }

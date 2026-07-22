@@ -1048,7 +1048,7 @@ export const GET_OFFERS = gql`
     offers {
       id
       needsAnalysisId
-      companyInfos { id name }
+      companyInfos { id name activities }
       companyName
       ageRange
       desiredTP
