@@ -169,6 +169,9 @@ export async function startServer(): Promise<http.Server> {
     mailTemplateService
         .seedAbSignatureDefault()
         .catch((err) => logger.error({ err }, 'ab-signature: seed du modèle système échoué'));
+    mailTemplateService
+        .seedCvImportDefault()
+        .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     return server;
