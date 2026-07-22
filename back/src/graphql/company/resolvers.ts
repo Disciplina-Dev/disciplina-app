@@ -139,7 +139,7 @@ export const resolvers = {
         // Liste « Entretien fait par » : users cochés is_interviewer, tous rôles
         // confondus (l'équipe qui mène les AB déborde le seul rôle RH).
         rhUsers: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, Permission.RESPONSABLE);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return userService.findInterviewers();
         },
 

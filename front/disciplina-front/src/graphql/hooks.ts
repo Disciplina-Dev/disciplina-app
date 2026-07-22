@@ -55,6 +55,8 @@ export interface CandidateServerFilters {
   createdBefore?: string
   /** Ne renvoyer que les fiches sans date de création. */
   createdMissing?: boolean
+  /** Filtrer par le RH qui a mené l'entretien (nom complet). */
+  interviewedBy?: string
 }
 import { candidateGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 

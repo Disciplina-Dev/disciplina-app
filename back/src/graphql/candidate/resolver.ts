@@ -146,6 +146,7 @@ export const resolvers = {
                       createdAfter: parseFilterDate(filtersInput.createdAfter, false),
                       createdBefore: parseFilterDate(filtersInput.createdBefore, true),
                       createdMissing: filtersInput.createdMissing || undefined,
+                      interviewedBy: filtersInput.interviewedBy?.trim() || undefined,
                   }
                 : undefined;
             const candidates = await candidateService.findPage(pageSize, after, search, filters);

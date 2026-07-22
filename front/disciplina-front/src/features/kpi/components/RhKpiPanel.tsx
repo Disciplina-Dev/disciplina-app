@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   CalendarPlus, CalendarClock, UserCheck, UserX, Briefcase, FileSignature, Unlink,
-  Loader2, AlertCircle, RefreshCw,
+  Loader2, AlertCircle, RefreshCw, ExternalLink,
 } from 'lucide-react'
 import { useAuthStore, Permission } from '@/store/authStore'
 import {
@@ -68,6 +69,7 @@ export default function RhKpiPanel({
   const token = useAuthStore((s) => s.token)
   const permission = useAuthStore((s) => s.user?.permission)
   const isAggregate = permission === Permission.ADMIN || permission === Permission.RESPONSABLE
+  const navigate = useNavigate()
 
   const now = useMemo(() => new Date(), [])
   const [year, setYear] = useState(now.getFullYear())
@@ -298,6 +300,7 @@ export default function RhKpiPanel({
                   <tr className="border-b border-gray-100 text-[11px] font-bold uppercase tracking-wider text-gray-400">
                     <th className="px-4 py-3">RH</th>
                     {CARDS.map((m) => <th key={m.key} className="px-3 py-3 text-right">{m.label}</th>)}
+                    <th className="px-3 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -307,6 +310,15 @@ export default function RhKpiPanel({
                       {CARDS.map((m) => (
                         <td key={m.key} className="px-3 py-2.5 text-right tabular-nums text-gray-600">{cardValue(m, u.metrics)}</td>
                       ))}
+                      <td className="px-3 py-2.5 text-right">
+                        <button
+                          onClick={() => navigate(`/rh/candidats?interviewedBy=${encodeURIComponent(u.name)}`)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:text-purple-dark transition-colors"
+                          title="Voir les candidats de ce RH"
+                        >
+                          Voir <ExternalLink size={12} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

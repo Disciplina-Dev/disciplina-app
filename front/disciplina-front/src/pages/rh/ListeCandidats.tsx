@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
   Plus, SlidersHorizontal, Trash2,
@@ -18,6 +18,8 @@ import MultiSelectField from '@/components/ui/MultiSelectField';
 import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
+import { graphqlClient } from '@/graphql/client';
+import { GET_RH_USERS } from '@/graphql/queries';
 
 // --- Helpers ---
 
@@ -70,6 +72,7 @@ interface CandidateFilterState {
   dateMode: DateMode;
   dateFrom: string;
   dateTo: string;
+  interviewedBy: string;
 }
 
 const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
@@ -85,6 +88,7 @@ const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   dateMode: 'any',
   dateFrom: '',
   dateTo: '',
+  interviewedBy: '',
 };
 
 function toServerFilters(filters: CandidateFilterState): CandidateServerFilters | undefined {
@@ -112,6 +116,7 @@ function toServerFilters(filters: CandidateFilterState): CandidateServerFilters 
     createdAfter,
     createdBefore,
     createdMissing,
+    interviewedBy: filters.interviewedBy || undefined,
   };
   const hasAny = Object.values(serverFilters).some(v => v !== undefined);
   return hasAny ? serverFilters : undefined;
@@ -138,6 +143,28 @@ export default function ListeCandidats() {
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Pré-remplir le filtre « Entretien fait par » depuis l'URL (lien depuis le tableau de bord RH).
+  const [searchParams] = useSearchParams();
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    const fromUrl = searchParams.get('interviewedBy');
+    if (fromUrl && !prefilledRef.current) {
+      prefilledRef.current = true;
+      setFilters({ ...filters, interviewedBy: fromUrl });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Liste des RH pour le filtre « Entretien fait par ».
+  const [rhUsers, setRhUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+  useEffect(() => {
+    graphqlClient
+      .query(GET_RH_USERS, {})
+      .toPromise()
+      .then(res => setRhUsers(res.data?.rhUsers ?? []))
+      .catch(() => setRhUsers([]));
+  }, []);
+
   const serverFilters = useMemo(() => toServerFilters(filters), [filters]);
 
   const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
@@ -156,7 +183,7 @@ export default function ListeCandidats() {
     (filters.dateMode === 'before' && !!filters.dateTo) ||
     (filters.dateMode === 'between' && (!!filters.dateFrom || !!filters.dateTo))
   );
-  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax, filters.tpType].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0);
+  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax, filters.tpType].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
@@ -380,6 +407,24 @@ export default function ListeCandidats() {
                 />
               </div>
             )}
+          </div>
+
+          {/* Filtre par entretien fait par */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex flex-col gap-1.5 sm:w-72">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Entretien fait par</label>
+              <select
+                value={filters.interviewedBy}
+                onChange={e => setFilters({ ...filters, interviewedBy: e.target.value })}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+              >
+                <option value="">Tous les RH</option>
+                {rhUsers.map(u => {
+                  const name = `${u.firstName} ${u.lastName}`.trim();
+                  return <option key={u.id} value={name}>{name}</option>;
+                })}
+              </select>
+            </div>
           </div>
 
           {activeFiltersCount > 0 && (
