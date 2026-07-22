@@ -45,7 +45,7 @@ export interface CandidateServerFilters {
   drivingLicenseB?: boolean
   ageMin?: number
   ageMax?: number
-  tpType?: TitleProfessionalType
+  tpType?: TitleProfessionalType[]
   /** Villes de mobilité géographique souhaitées (OR). */
   geographicMobility?: string[]
   /** Secteurs d'activité souhaités (OR). */
