@@ -27,9 +27,34 @@ export class ExternalMailService {
         });
     }
 
+    async sendMail(
+        rhEmail: string,
+        options: {
+            to: string;
+            subject: string;
+            html: string;
+            text?: string;
+            attachments?: { filename: string; content: string; contentType?: string }[];
+        },
+    ): Promise<void> {
+        await this.sendAs(rhEmail, {
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text ?? options.html.replace(/<[^>]*>/g, ''),
+            attachments: options.attachments,
+        });
+    }
+
     private async sendAs(
         rhEmail: string,
-        options: { to: string; subject: string; text: string; html: string },
+        options: {
+            to: string;
+            subject: string;
+            text: string;
+            html: string;
+            attachments?: { filename: string; content: string; contentType?: string }[];
+        },
     ): Promise<void> {
         const rh = await this.userService.findByEmail(rhEmail);
         if (!rh?.oauthToken || !rh?.refreshToken) {
