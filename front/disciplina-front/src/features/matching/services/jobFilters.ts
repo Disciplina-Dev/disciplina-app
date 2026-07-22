@@ -28,7 +28,7 @@ export function applyJobFilters(jobs: Job[], filters: JobFilters): Job[] {
       return false
     }
 
-    if (filters.sector && job.sector !== filters.sector) {
+    if (filters.sector && !job.companyInfos?.activities?.includes(filters.sector)) {
       return false
     }
 

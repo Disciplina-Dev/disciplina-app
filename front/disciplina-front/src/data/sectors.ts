@@ -29,7 +29,7 @@ export const SECTOR_LABELS: Record<string, string> = {
   [Sector.BOULANGERIE]: 'Boulangerie',
   [Sector.RESTAURATION]: 'Restauration',
   [Sector.STATION]: 'Station de service',
-  [Sector.PAP]: 'Papeterie / Presse / Librairie',
+  [Sector.PAP]: 'Prêt à porter',
   [Sector.LIBRE_SERVICE]: 'Libre service / Alimentation',
   [Sector.TELEPHONIE]: 'Téléphonie / Audio / Vidéo',
   [Sector.AUTO]: 'Automobile',
