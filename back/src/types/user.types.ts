@@ -16,6 +16,7 @@ export enum Permission {
 export enum GuestRole {
     ENTREPRISE_GUEST = 'ENTREPRISE_GUEST',
     CANDIDATE_GUEST = 'CANDIDATE_GUEST',
+    EXTERNAL_GUEST = 'EXTERNAL_GUEST',
 }
 
 export interface User {
