@@ -180,7 +180,7 @@ export class OfferService {
             filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
         }
 
-        if (offer.localisation?.length) filter['job_info.geographic_mobility'] = { $all: offer.localisation };
+        if (offer.localisation?.length) filter['job_info.geographic_mobility'] = { $in: offer.localisation };
 
         if (offer.company_infos?.activities?.length) {
             filter['desired_sectors'] = { $in: offer.company_infos.activities };
@@ -202,6 +202,15 @@ export class OfferService {
 
     async delete(id: string): Promise<boolean> {
         return this.offerRepository.deleteById(id);
+    }
+
+    async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
+        return this.offerRepository.deleteByNeedsAnalysisId(needsAnalysisId);
+    }
+
+    async findByNeedsAnalysisId(needsAnalysisId: string): Promise<object[]> {
+        const offers = await this.offerRepository.findByNeedsAnalysisId(needsAnalysisId);
+        return offers.map((o) => toGql(o));
     }
 
     async addCandidate(offerId: string, candidateId: string): Promise<object | null> {
@@ -300,6 +309,7 @@ export class OfferService {
             const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
             await this.notifyRhCandidateAnswer(
                 status as MatchedCandidateStatus,
+                offerId,
                 candidate?.full_name,
                 offer.company_infos?.name,
             );
@@ -312,6 +322,7 @@ export class OfferService {
     // Le candidat a répondu au mail de proposition : on prévient les RH.
     private async notifyRhCandidateAnswer(
         status: MatchedCandidateStatus,
+        offerId: string,
         candidateName?: string,
         companyName?: string,
     ): Promise<void> {
@@ -327,7 +338,7 @@ export class OfferService {
                     level: accepted ? 'success' : 'info',
                     title: accepted ? 'Offre acceptée' : 'Offre déclinée',
                     message: `${name} a ${accepted ? 'accepté' : 'refusé'} l'offre de ${company}`,
-                    link: '/rh/matching',
+                    link: `/rh/matching?offer=${offerId}`,
                 }),
             ),
         );
