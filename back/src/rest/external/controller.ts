@@ -1,8 +1,30 @@
 import { Request, Response } from 'express';
 import { ExternalGuestRequest } from './guard';
 import { ExternalLinkService } from '../../services/ExternalLinkService';
+import { ExternalMailService } from '../../services/ExternalMailService';
+import { NotificationService } from '../../services/NotificationService';
+import { UserService } from '../../services/UserService';
 
 const externalLinkService = new ExternalLinkService();
+const externalMailService = new ExternalMailService();
+const notificationService = new NotificationService();
+const userService = new UserService();
+
+async function notifyLock(signature: string): Promise<void> {
+    const context = await externalLinkService.getContext(signature);
+    if (!context) return;
+    await externalMailService.sendLockAlert(context.rhEmail, context.externalEmail);
+    const rh = await userService.findByEmail(context.rhEmail);
+    if (rh) {
+        await notificationService.create({
+            userId: rh.id,
+            type: 'external_locked',
+            level: 'warning',
+            title: 'Session externe bloquée',
+            message: `${context.externalEmail} a échoué 3 fois. Créez une nouvelle session.`,
+        });
+    }
+}
 
 export async function inspect(req: Request, res: Response): Promise<void> {
     const result = await externalLinkService.inspect(req.params.signature);
@@ -20,6 +42,7 @@ export async function authenticate(req: Request, res: Response): Promise<void> {
         res.json({ token: result.token });
         return;
     }
+    if (result.reason === 'locked') await notifyLock(req.params.signature);
     res.status(401).json({ reason: result.reason, remaining: result.remaining });
 }
 
@@ -33,6 +56,5 @@ export async function getProfile(req: ExternalGuestRequest, res: Response): Prom
         externalEmail: context.externalEmail,
         guestType: context.guestType,
         externalUuid: context.externalUuid,
-        status: context.status,
     });
 }

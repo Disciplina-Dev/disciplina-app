@@ -1,5 +1,5 @@
 import { ExternalLinkRepository } from '../repositories/mysql/ExternalLinkRepository';
-import { ExternalLinkStatus, GuestType } from '../types/externalLink.types';
+import { ExternalLinkStatus } from '../types/externalLink.types';
 import { generateExternalSignature, generateNumericCode, timingSafeEqualString } from '../external/crypto';
 import { issueExternalToken } from './externalToken';
 import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './signedAccess';
@@ -28,8 +28,21 @@ export interface ExternalLinkContext {
     status: ExternalLinkStatus;
 }
 
+export interface LinkValidation {
+    valid: boolean;
+    reason?: 'not_found' | 'locked' | 'expired';
+}
+
 export class ExternalLinkService {
     constructor(private readonly repository = new ExternalLinkRepository()) {}
+
+    async validateLink(signature: string): Promise<LinkValidation> {
+        const row = await this.repository.findBySignature(signature);
+        if (!row) return { valid: false, reason: 'not_found' };
+        if (row.status === ExternalLinkStatus.LOCKED) return { valid: false, reason: 'locked' };
+        if (isExpired(row)) return { valid: false, reason: 'expired' };
+        return { valid: true };
+    }
 
     async createLink(input: CreateExternalLinkInput): Promise<ExternalLinkCredentials> {
         const signature = generateExternalSignature();
