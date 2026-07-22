@@ -149,8 +149,6 @@ export default function RhKpiPanel({
     return flat.filter((u) => set.has(u.sector))
   }, [selectedWeeks, effectiveSectors])
 
-  const totals = useMemo(() => sumMetrics(entries.map((e) => e.metrics)), [entries])
-
   // Détail par RH / responsable (somme par utilisateur) — uniquement en vue agrégée.
   const perUser = useMemo(() => {
     if (!isAggregate) return []
