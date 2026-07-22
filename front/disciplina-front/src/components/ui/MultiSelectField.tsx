@@ -9,6 +9,7 @@ type MultiSelectFieldProps = {
   onChange: (value: string[]) => void
   placeholder?: string
   getOptionLabel?: (option: string) => string
+  variant?: 'form' | 'filter'
 }
 
 export default function MultiSelectField({
@@ -19,6 +20,7 @@ export default function MultiSelectField({
   onChange,
   placeholder = 'Sélectionner…',
   getOptionLabel = (option) => option,
+  variant = 'form',
 }: MultiSelectFieldProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -35,9 +37,18 @@ export default function MultiSelectField({
   const toggle = (opt: string) =>
     onChange(value.includes(opt) ? value.filter(v => v !== opt) : [...value, opt])
 
+  const isFilter = variant === 'filter'
+
   return (
     <div className="flex flex-col gap-1.5" ref={ref}>
-      <label htmlFor={id} className="text-sm font-medium text-gray-700">
+      <label
+        htmlFor={id}
+        className={
+          isFilter
+            ? 'text-[11px] font-bold uppercase tracking-wider text-gray-500'
+            : 'text-sm font-medium text-gray-700'
+        }
+      >
         {label}
       </label>
       <div className="relative">
@@ -46,19 +57,21 @@ export default function MultiSelectField({
           type="button"
           onClick={() => setOpen(o => !o)}
           className={[
-            'flex w-full items-center justify-between gap-2 rounded-[10px] border bg-white py-2.5 pl-4 pr-3 text-left text-sm',
-            'outline-none transition-colors',
-            open ? 'border-blue' : 'border-gray-100',
+            'flex w-full items-center justify-between gap-2 text-left text-sm outline-none transition-colors',
+            isFilter
+              ? 'rounded-lg border bg-gray-50 px-3 py-2 focus:border-purple focus:ring-purple/20'
+              : 'rounded-[10px] border bg-white py-2.5 pl-4 pr-3',
+            open ? 'border-purple' : 'border-gray-200',
           ].join(' ')}
         >
-          <span className={value.length ? 'text-gray-900' : 'text-gray-300'}>
+          <span className={value.length ? 'text-gray-900' : 'text-gray-400'}>
             {value.length ? `${value.length} sélectionnée${value.length > 1 ? 's' : ''}` : placeholder}
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
 
         {open && (
-          <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-[10px] border border-gray-100 bg-white py-1 shadow-lg">
+          <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
             {options.map(opt => {
               const selected = value.includes(opt)
               return (
@@ -66,10 +79,12 @@ export default function MultiSelectField({
                   key={opt}
                   type="button"
                   onClick={() => toggle(opt)}
-                  className="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm text-gray-900 hover:bg-gray-50"
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50"
                 >
                   <span>{getOptionLabel(opt)}</span>
-                  {selected && <Check className="h-4 w-4 shrink-0 text-blue" />}
+                  {selected && (
+                    <Check className={`h-4 w-4 shrink-0 ${isFilter ? 'text-purple' : 'text-blue'}`} />
+                  )}
                 </button>
               )
             })}
@@ -82,7 +97,7 @@ export default function MultiSelectField({
           {value.map(v => (
             <span
               key={v}
-              className="inline-flex items-center gap-1 rounded-full bg-blue/10 px-2.5 py-0.5 text-xs font-medium text-blue"
+              className="inline-flex items-center gap-1 rounded-full bg-purple/10 px-2.5 py-0.5 text-xs font-medium text-purple"
             >
               {getOptionLabel(v)}
               <button type="button" onClick={() => toggle(v)} className="hover:text-danger">
