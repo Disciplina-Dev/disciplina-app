@@ -2594,7 +2594,14 @@ export default function Matching() {
 
   const jobs: Job[] = jobsResult.data?.offers ?? []
   const filteredJobs = applyJobFilters(jobs, filters)
-  // ?offer= (lien de notification) sert d'offre présélectionnée tant qu'aucune sélection manuelle
+
+  // ?offer= (lien de notification) : se synchronise dans selectedJobId à chaque
+  // changement (notamment quand on clique sur une notification déjà sur la page).
+  const offerFromUrl = searchParams.get('offer')
+  useEffect(() => {
+    if (offerFromUrl) setSelectedJobId(offerFromUrl)
+  }, [offerFromUrl])
+
   const effectiveJobId = selectedJobId ?? searchParams.get('offer')
   const selectedJob = filteredJobs.find((j) => j.id === effectiveJobId) ?? null
 

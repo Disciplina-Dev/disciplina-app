@@ -309,6 +309,7 @@ export class OfferService {
             const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
             await this.notifyRhCandidateAnswer(
                 status as MatchedCandidateStatus,
+                offerId,
                 candidate?.full_name,
                 offer.company_infos?.name,
             );
@@ -321,6 +322,7 @@ export class OfferService {
     // Le candidat a répondu au mail de proposition : on prévient les RH.
     private async notifyRhCandidateAnswer(
         status: MatchedCandidateStatus,
+        offerId: string,
         candidateName?: string,
         companyName?: string,
     ): Promise<void> {
@@ -336,7 +338,7 @@ export class OfferService {
                     level: accepted ? 'success' : 'info',
                     title: accepted ? 'Offre acceptée' : 'Offre déclinée',
                     message: `${name} a ${accepted ? 'accepté' : 'refusé'} l'offre de ${company}`,
-                    link: '/rh/matching',
+                    link: `/rh/matching?offer=${offerId}`,
                 }),
             ),
         );
