@@ -230,6 +230,25 @@ CREATE TABLE IF NOT EXISTS `match_link` (
   PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `external_link` (
+  `id`             int           NOT NULL AUTO_INCREMENT,
+  `signature`      char(128)    NOT NULL,
+  `code`           char(6)      NOT NULL,
+  `external_email` varchar(255) NOT NULL,
+  `rh_email`       varchar(255) NOT NULL,
+  `guest_type`     enum('COMPANY','CANDIDATE') NOT NULL,
+  `external_uuid`  varchar(64)  NOT NULL,
+  `status`         enum('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
+  `attempts`       tinyint      NOT NULL DEFAULT '0',
+  `expires_at`     timestamp    NOT NULL,
+  `created_at`     timestamp    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `uk_signature` (`signature`),
+  KEY `idx_external_uuid` (`external_uuid`),
+  KEY `idx_guest_type` (`guest_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 -- La table `needs_analysis` a été retirée le 2026-07-17 : l'entité vit désormais dans
 -- MongoDB (collection `needs_analysis`, cf. database/mongodb/mongo-schema.md). Aucun code
 -- du backend ne la lisait, et elle était vide. Voir docs/AUDIT.md §6.3.

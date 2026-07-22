@@ -66,7 +66,7 @@ interface CandidateFilterState {
   permis: 'all' | 'yes' | 'no';
   ageMin: number | '';
   ageMax: number | '';
-  tpType: TitleProfessionalType | '';
+  tpType: TitleProfessionalType[];
   geographicMobility: Localisation[];
   desiredSectors: string[];
   dateMode: DateMode;
@@ -82,7 +82,7 @@ const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   permis: 'all',
   ageMin: '',
   ageMax: '',
-  tpType: '',
+  tpType: [],
   geographicMobility: [],
   desiredSectors: [],
   dateMode: 'any',
@@ -110,7 +110,7 @@ function toServerFilters(filters: CandidateFilterState): CandidateServerFilters 
     drivingLicenseB: filters.permis === 'all' ? undefined : filters.permis === 'yes',
     ageMin: filters.ageMin || undefined,
     ageMax: filters.ageMax || undefined,
-    tpType: filters.tpType || undefined,
+    tpType: filters.tpType?.length ? filters.tpType : undefined,
     geographicMobility: filters.geographicMobility?.length ? filters.geographicMobility : undefined,
     desiredSectors: filters.desiredSectors?.length ? filters.desiredSectors : undefined,
     createdAfter,
@@ -183,7 +183,7 @@ export default function ListeCandidats() {
     (filters.dateMode === 'before' && !!filters.dateTo) ||
     (filters.dateMode === 'between' && (!!filters.dateFrom || !!filters.dateTo))
   );
-  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax, filters.tpType].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
+  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.tpType?.length ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
@@ -305,13 +305,15 @@ export default function ListeCandidats() {
             </div>
 
             {/* Type TP */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Type TP</label>
-              <select value={filters.tpType} onChange={e => setFilters({ ...filters, tpType: e.target.value as TitleProfessionalType })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
-                <option value="">Tous les types</option>
-                {Object.values(TitleProfessionalType).map(type => <option key={type} value={type}>{type}</option>)}
-              </select>
-            </div>
+            <MultiSelectField
+              variant="filter"
+              id="filter-tp-type"
+              label="Type TP"
+              options={Object.values(TitleProfessionalType)}
+              value={filters.tpType}
+              onChange={vals => setFilters({ ...filters, tpType: vals as TitleProfessionalType[] })}
+              placeholder="Tous les types"
+            />
 
             {/* Age Min */}
             <div className="flex flex-col gap-1.5">
@@ -342,6 +344,7 @@ export default function ListeCandidats() {
           {/* Mobilité géographique + secteurs souhaités (multi-sélection, OR) */}
           <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <MultiSelectField
+              variant="filter"
               id="filter-geographic-mobility"
               label="Ville demandée (mobilité)"
               options={Object.values(Localisation)}
@@ -351,6 +354,7 @@ export default function ListeCandidats() {
               placeholder="Toutes les villes"
             />
             <MultiSelectField
+              variant="filter"
               id="filter-desired-sectors"
               label="Secteurs d'activité souhaités"
               options={ALL_DESIRED_SECTORS}

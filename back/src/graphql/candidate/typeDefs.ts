@@ -198,12 +198,15 @@ export const typeDefs = gql`
 
     type MatchedOffer {
         id: String
+        needsAnalysisId: String
         companyName: String
         sector: String
         localisation: [Localisation]
         desiredTP: TitleProfessionalType
         ageRange: String
         status: String
+        title: String
+        jobRole: String
     }
 
     type CandidateOwner {
@@ -446,7 +449,7 @@ export const typeDefs = gql`
         drivingLicenseB: Boolean
         ageMin: Int
         ageMax: Int
-        tpType: TitleProfessionalType
+        tpType: [TitleProfessionalType!]
         "Villes de mobilité géographique souhaitées (OR : au moins une)"
         geographicMobility: [Localisation!]
         "Secteurs d'activité souhaités (OR : au moins un)"

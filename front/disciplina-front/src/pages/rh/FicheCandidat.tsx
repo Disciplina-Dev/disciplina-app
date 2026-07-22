@@ -14,6 +14,7 @@ import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, us
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS } from '@/graphql/queries'
 import { useAuthStore } from '@/store/authStore'
+import type { MailAttachment } from '@/store/mailTemplatesStore'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate'
@@ -235,7 +236,8 @@ export default function FicheCandidat() {
   const [isEditing] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [mailOpen, setMailOpen] = useState(false)
+  const [mailMode, setMailMode] = useState<'regular' | 'cv-import' | null>(null)
+  const [cvChoiceOpen, setCvChoiceOpen] = useState<'top' | 'bottom' | null>(null)
   const [showClassMarker, setShowClassMarker] = useState(false)
   const [showFilizModal, setShowFilizModal] = useState(false)
   const [capturingPhoto, setCapturingPhoto] = useState(false)
@@ -520,6 +522,21 @@ export default function FicheCandidat() {
     }
   }
 
+  async function handleSendCvImportMail(mail: { to: string; subject: string; body: string; attachments: MailAttachment[] }) {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/external/cv-import/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        candidateUuid: formData?._id,
+        subject: mail.subject,
+        body: mail.body,
+        attachments: mail.attachments.length ? mail.attachments : undefined,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? "L'envoi du mail a échoué")
+  }
+
   const handleDownloadPdf = async () => {
     if (!formData) return
     setDownloadingPdf(true)
@@ -751,11 +768,20 @@ export default function FicheCandidat() {
           {formData.drive_folder_id && (
             <>
               <input id="cv-upload" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
-              <Button variant="secondary" size="sm" isLoading={uploadingCV}
-                leftIcon={<Upload size={15} style={{ color: 'var(--color-purple)' }} />}
-                onClick={() => document.getElementById('cv-upload')?.click()}>
-                Importer CV
-              </Button>
+              <div className="relative">
+                <Button variant="secondary" size="sm" isLoading={uploadingCV}
+                  leftIcon={<Upload size={15} style={{ color: 'var(--color-purple)' }} />}
+                  onClick={() => setCvChoiceOpen(cvChoiceOpen === 'top' ? null : 'top')}>
+                  Importer CV
+                </Button>
+                {cvChoiceOpen === 'top' && (
+                  <CvChoiceDropdown
+                    onUpload={() => { setCvChoiceOpen(null); document.getElementById('cv-upload')?.click() }}
+                    onSendMail={() => { setCvChoiceOpen(null); setMailMode('cv-import') }}
+                    onClose={() => setCvChoiceOpen(null)}
+                  />
+                )}
+              </div>
             </>
           )}
           {formData.filiz_folder_id ? (
@@ -788,7 +814,7 @@ export default function FicheCandidat() {
             Enregistrer l'AB dans le Drive
           </Button>
           <Button variant="secondary" size="sm" leftIcon={<Mail size={15} style={{ color: 'var(--color-purple)' }} />}
-            onClick={() => setMailOpen(true)}>
+            onClick={() => setMailMode('regular')}>
             Envoyer un mail
           </Button>
           <Button variant="secondary" size="sm" leftIcon={<QrCode size={15} style={{ color: 'var(--color-purple)' }} />}
@@ -1235,11 +1261,20 @@ export default function FicheCandidat() {
                 <SectionTitle>Dossier Drive</SectionTitle>
                 <div className="flex items-center gap-2">
                   <input id="cv-upload-bottom" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
-                  <Button variant="secondary" size="sm" isLoading={uploadingCV}
-                    leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
-                    onClick={() => document.getElementById('cv-upload-bottom')?.click()}>
-                    {formData.cv_link ? 'Remplacer CV' : 'Importer CV'}
-                  </Button>
+                  <div className="relative">
+                    <Button variant="secondary" size="sm" isLoading={uploadingCV}
+                      leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
+                      onClick={() => setCvChoiceOpen(cvChoiceOpen === 'bottom' ? null : 'bottom')}>
+                      {formData.cv_link ? 'Remplacer CV' : 'Importer CV'}
+                    </Button>
+                    {cvChoiceOpen === 'bottom' && (
+                      <CvChoiceDropdown
+                        onUpload={() => { setCvChoiceOpen(null); document.getElementById('cv-upload-bottom')?.click() }}
+                        onSendMail={() => { setCvChoiceOpen(null); setMailMode('cv-import') }}
+                        onClose={() => setCvChoiceOpen(null)}
+                      />
+                    )}
+                  </div>
                   <input id="drive-upload" type="file" multiple className="hidden" onChange={handleDriveUpload} />
                   <Button variant="secondary" size="sm" isLoading={uploadingFiles}
                     leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
@@ -1365,11 +1400,12 @@ export default function FicheCandidat() {
         />
       )}
 
-      {mailOpen && (
+      {mailMode && (
         <MailModal
           defaultTo={formData.identity.email}
           candidateName={formData.identity.full_name}
-          onClose={() => setMailOpen(false)}
+          onCustomSend={mailMode === 'cv-import' ? handleSendCvImportMail : undefined}
+          onClose={() => setMailMode(null)}
         />
       )}
 
@@ -1469,6 +1505,26 @@ export default function FicheCandidat() {
           </div>
         </div>
       )}
+    </>
+  )
+}
+
+function CvChoiceDropdown({ onUpload, onSendMail, onClose }: {
+  onUpload: () => void; onSendMail: () => void; onClose: () => void
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+        <button onClick={onUpload} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          <Upload size={16} className="text-gray-400" />
+          <span>Uploader un fichier</span>
+        </button>
+        <button onClick={onSendMail} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100">
+          <Mail size={16} className="text-gray-400" />
+          <span>Envoyer un mail au candidat</span>
+        </button>
+      </div>
     </>
   )
 }

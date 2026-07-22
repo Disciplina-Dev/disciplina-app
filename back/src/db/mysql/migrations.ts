@@ -170,6 +170,27 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Lien d'accès externe unifié (entreprises et candidats). Remplace progressivement
+        // match_link et interview_access. Signature 128 chars (512 bits) + code 6 chiffres.
+        table: 'external_link',
+        ddl: `CREATE TABLE IF NOT EXISTS external_link (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            signature CHAR(128) NOT NULL UNIQUE KEY,
+            code CHAR(6) NOT NULL,
+            external_email VARCHAR(255) NOT NULL,
+            rh_email VARCHAR(255) NOT NULL,
+            guest_type ENUM('COMPANY','CANDIDATE') NOT NULL,
+            external_uuid VARCHAR(64) NOT NULL,
+            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
+            attempts TINYINT NOT NULL DEFAULT 0,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_external_uuid (external_uuid),
+            INDEX idx_guest_type (guest_type)
+        )`,
+    },
+    {
         // Choix de créneau d'entretien par le candidat (portail public, code d'accès simple).
         // Une ligne = un lien envoyé à un candidat proposé pour choisir un créneau parmi le pool du job.
         table: 'interview_access',

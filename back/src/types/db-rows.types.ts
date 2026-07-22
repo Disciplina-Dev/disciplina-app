@@ -47,6 +47,21 @@ export interface InterviewAccessRow {
     updated_at?: string | Date;
 }
 
+export interface ExternalLinkRow {
+    id: number;
+    signature: string;
+    code: string;
+    external_email: string;
+    rh_email: string;
+    guest_type: 'COMPANY' | 'CANDIDATE';
+    external_uuid: string;
+    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
+    expires_at: string | Date;
+    created_at?: string | Date;
+    updated_at?: string | Date;
+}
+
 export interface CompaniesRow {
     id: number;
     ab_id: string | null;

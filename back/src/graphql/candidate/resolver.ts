@@ -131,7 +131,7 @@ export const resolvers = {
                       drivingLicenseB: filtersInput.drivingLicenseB,
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,
-                      tpType: filtersInput.tpType,
+                      tpType: filtersInput.tpType?.length ? filtersInput.tpType : undefined,
                       // Bornage défensif : on ignore les tableaux vides et on plafonne
                       // la taille pour éviter un `$in` démesuré. Les secteurs sont des
                       // chaînes libres → on écarte les valeurs non-string/vides.

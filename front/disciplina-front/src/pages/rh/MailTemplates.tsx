@@ -40,6 +40,10 @@ const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boo
   { token: 'duree', label: 'Durée', example: '30 minutes' },
   { token: 'hote', label: 'Nom de l’hôte', example: 'Jean Martin' },
   { token: 'lien', label: 'Lien de réservation (proposition d’entretien)', example: 'https://app.disciplina.re/booking/xxxx' },
+  { token: 'prenom', label: 'Prénom du candidat', example: 'Marie' },
+  { token: 'nom', label: 'Nom du candidat', example: 'Dupont' },
+  { token: 'code', label: 'Code à 6 chiffres pour l\'import CV', example: '483291' },
+  { token: 'lien_import', label: 'Lien d\'import du CV', example: 'https://app.disciplina.re/public/cv-import?sig=xxx' },
 ]
 
 // Variables du scope peda, remplacées à la génération des brouillons de relance

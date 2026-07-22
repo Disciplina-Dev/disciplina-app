@@ -1,9 +1,16 @@
 import { randomUUID } from 'crypto';
 import { gzipSync, gunzipSync } from 'zlib';
 import { MailTemplateModel, MailSignatureModel } from '../db/mongo/schemas/mailTemplate.schema';
-import { MailTemplate, MailTemplateScope, MailTemplateAttachment, PedaLevel, MailTemplateKind } from '../types/mailTemplate.types';
+import {
+    MailTemplate,
+    MailTemplateScope,
+    MailTemplateAttachment,
+    PedaLevel,
+    MailTemplateKind,
+} from '../types/mailTemplate.types';
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
+import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
 import { UserService } from './UserService';
@@ -40,6 +47,9 @@ export const PEDA_TEMPLATES_SEEDED_KEY = 'peda_templates_seeded';
 
 /** Clé app_settings : le modèle système « AB à signer » a déjà été semé une fois. */
 export const AB_SIGNATURE_SEEDED_KEY = 'ab_signature_template_seeded';
+
+/** Clé app_settings : le modèle « Import CV » par défaut a déjà été semé une fois. */
+export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
 
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
@@ -101,7 +111,10 @@ export class MailTemplateService {
 
     // Accès à un modèle : les modèles RH/Peda et les modèles système (kind) sont
     // communs à tous ; les modèles commerciaux ordinaires restent privés.
-    private canAccess(doc: { scope: string; user_id: number; kind?: MailTemplateKind | null }, userId: number): boolean {
+    private canAccess(
+        doc: { scope: string; user_id: number; kind?: MailTemplateKind | null },
+        userId: number,
+    ): boolean {
         return doc.scope === 'rh' || doc.scope === 'peda' || !!doc.kind || doc.user_id === userId;
     }
 
@@ -243,6 +256,33 @@ export class MailTemplateService {
             logger.info('ab-signature: modèle système semé');
         }
         await settings.set(AB_SIGNATURE_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle « Import CV » par défaut (scope rh) au premier démarrage.
+     * Idempotent via flag app_settings.
+     */
+    async seedCvImportDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(CV_IMPORT_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', name: 'Import CV' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Import CV',
+                subject: CV_IMPORT_SUBJECT,
+                body: CV_IMPORT_BODY,
+                peda_level: null,
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('cv-import: modèle par défaut semé');
+        }
+        await settings.set(CV_IMPORT_SEEDED_KEY, '1');
     }
 
     async remove(userId: number, id: string): Promise<void> {
