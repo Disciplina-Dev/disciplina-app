@@ -28,6 +28,7 @@ import { router as bookingRouter } from './rest/booking/route';
 import { router as mailTemplatesRouter } from './rest/mailTemplates/route';
 import { router as matchRouter } from './rest/match/route';
 import { router as interviewRouter } from './rest/interview/route';
+import { router as externalRouter } from './rest/external/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
@@ -121,6 +122,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/mail-templates', mailTemplatesRouter);
     app.use('/api/match', matchRouter);
     app.use('/api/interview', interviewRouter);
+    app.use('/api/external', externalRouter);
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
