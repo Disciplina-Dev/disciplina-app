@@ -221,6 +221,10 @@ export class OfferRepository {
         return offers.map((offer) => String(offer._id)).filter(Boolean);
     }
 
+    async findWithCandidate(candidateId: string): Promise<Offer[]> {
+        return OfferModel.find({ 'matching.candidates.id': candidateId }).lean();
+    }
+
     async deleteById(offerId: string): Promise<boolean> {
         return (await OfferModel.deleteOne({ _id: offerId })).deletedCount > 0;
     }

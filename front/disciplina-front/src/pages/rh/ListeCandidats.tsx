@@ -15,7 +15,7 @@ import { SECTOR_LABELS } from '@/data/sectors';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
-import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
+import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
 import { graphqlClient } from '@/graphql/client';
@@ -173,8 +173,79 @@ export default function ListeCandidats() {
   // Sync server candidates into local state (enables optimistic edits)
   useMemo(() => { setLocalCandidates(candidates); }, [candidates]);
 
-  const handleUpdateStatus = (id: string, newStatus: CandidateStatus) => {
+  const { update: persistCandidate } = useUpdateCandidate();
+
+  // Modal state for IMMERSING
+  const [immersionModal, setImmersionModal] = useState<{ id: string; candidate: Candidate } | null>(null);
+  const [immersionStart, setImmersionStart] = useState('');
+  const [immersionEnd, setImmersionEnd] = useState('');
+
+  // Modal state for UNAVAILABLE
+  const [unavailableModal, setUnavailableModal] = useState<{ id: string; candidate: Candidate } | null>(null);
+  const [availabilityDate, setAvailabilityDate] = useState('');
+
+  const handleUpdateStatus = async (id: string, newStatus: CandidateStatus) => {
+    const candidate = localCandidates.find(c => c._id === id);
+    if (!candidate) return;
+
+    if (newStatus === CandidateStatus.IMMERSING) {
+      setImmersionStart(candidate.immersion_start_date?.slice(0, 10) ?? '');
+      setImmersionEnd(candidate.immersion_end_date?.slice(0, 10) ?? '');
+      setImmersionModal({ id, candidate });
+      return;
+    }
+
+    if (newStatus === CandidateStatus.UNAVAILABLE) {
+      setAvailabilityDate(candidate.job_info?.availability_date?.slice(0, 10) ?? '');
+      setUnavailableModal({ id, candidate });
+      return;
+    }
+
+    // Optimistic update
     setLocalCandidates(prev => prev.map(c => c._id === id ? { ...c, status: newStatus } : c));
+    try {
+      await persistCandidate(id, { ...candidate, status: newStatus });
+    } catch {
+      refetch();
+    }
+  };
+
+  const confirmImmersion = async () => {
+    if (!immersionModal) return;
+    const { id, candidate } = immersionModal;
+    const updated = {
+      ...candidate,
+      status: CandidateStatus.IMMERSING,
+      immersion_start_date: immersionStart || undefined,
+      immersion_end_date: immersionEnd || undefined,
+    };
+    setLocalCandidates(prev => prev.map(c => c._id === id ? updated : c));
+    setImmersionModal(null);
+    try {
+      await persistCandidate(id, updated);
+    } catch {
+      refetch();
+    }
+  };
+
+  const confirmUnavailable = async () => {
+    if (!unavailableModal) return;
+    const { id, candidate } = unavailableModal;
+    const updated = {
+      ...candidate,
+      status: CandidateStatus.UNAVAILABLE,
+      job_info: {
+        ...candidate.job_info,
+        availability_date: availabilityDate || undefined,
+      },
+    };
+    setLocalCandidates(prev => prev.map(c => c._id === id ? updated : c));
+    setUnavailableModal(null);
+    try {
+      await persistCandidate(id, updated);
+    } catch {
+      refetch();
+    }
   };
 
   const dateFilterActive = filters.dateMode !== 'any' && (
@@ -661,6 +732,48 @@ export default function ListeCandidats() {
             );
           }}
         />
+      )}
+
+      {/* Immersion date modal */}
+      {immersionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModal(null)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
+            <p className="mt-1 text-sm text-gray-500">Renseigne les dates de début et de fin de l'immersion.</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700" htmlFor="imm-start-list">Date de début</label>
+                <input id="imm-start-list" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={immersionStart} onChange={e => setImmersionStart(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700" htmlFor="imm-end-list">Date de fin</label>
+                <input id="imm-end-list" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={immersionEnd} min={immersionStart || undefined} onChange={e => setImmersionEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setImmersionModal(null)} className="rounded-xl border border-gray-100 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-200">Annuler</button>
+              <button onClick={confirmImmersion} disabled={!immersionStart || !immersionEnd} className="rounded-xl bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unavailable date modal */}
+      {unavailableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setUnavailableModal(null)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Indisponible jusqu'au</h3>
+            <p className="mt-1 text-sm text-gray-500">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
+            <div className="mt-4">
+              <label className="text-sm font-medium text-gray-700" htmlFor="avail-date">Date de disponibilité</label>
+              <input id="avail-date" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setUnavailableModal(null)} className="rounded-xl border border-gray-100 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-200">Annuler</button>
+              <button onClick={confirmUnavailable} disabled={!availabilityDate} className="rounded-xl bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirmer</button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

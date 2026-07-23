@@ -643,6 +643,9 @@ export const UPDATE_CANDIDATE = gql`
         readyForChallenges
         hobbies
       }
+      jobInfo {
+        availabilityDate
+      }
       synthesis {
         feasibilityConclusion
         pathwayRelevance

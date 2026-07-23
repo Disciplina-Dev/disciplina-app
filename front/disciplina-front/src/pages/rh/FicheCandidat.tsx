@@ -262,6 +262,8 @@ export default function FicheCandidat() {
   const [immersionCompanyId, setImmersionCompanyId] = useState('')
   const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([])
   const [companyQuery, setCompanyQuery] = useState('')
+  const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
+  const [availabilityDate, setAvailabilityDate] = useState('')
   const [companyListOpen, setCompanyListOpen] = useState(false)
 
   useEffect(() => {
@@ -477,7 +479,26 @@ export default function FicheCandidat() {
       setImmersionModalOpen(true)
       return
     }
+    // Passage en indisponible : demander une date de disponibilité avant d'enregistrer.
+    if (newStatus === CandidateStatus.UNAVAILABLE) {
+      setAvailabilityDate(formData.job_info?.availability_date?.slice(0, 10) ?? '')
+      setUnavailableModalOpen(true)
+      return
+    }
     await persistStatus({ ...formData, status: newStatus })
+  }
+
+  const confirmUnavailable = async () => {
+    if (!formData) return
+    await persistStatus({
+      ...formData,
+      status: CandidateStatus.UNAVAILABLE,
+      job_info: {
+        ...formData.job_info,
+        availability_date: availabilityDate || undefined,
+      },
+    })
+    setUnavailableModalOpen(false)
   }
 
   const confirmImmersion = async () => {
@@ -1505,6 +1526,43 @@ export default function FicheCandidat() {
           </div>
         </div>
       )}
+
+      {unavailableModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setUnavailableModalOpen(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Indisponible jusqu'au</h3>
+            <p className="mt-1 text-sm text-gray-500">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
+            <div className="mt-4">
+              <label className={labelCls} htmlFor="fiche-avail-date">Date de disponibilité</label>
+              <input id="fiche-avail-date" type="date" className={inputCls} value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setUnavailableModalOpen(false)}>Annuler</Button>
+              <Button variant="primary" size="sm" disabled={!availabilityDate} onClick={confirmUnavailable}>Confirmer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function CvChoiceDropdown({ onUpload, onSendMail, onClose }: {
+  onUpload: () => void; onSendMail: () => void; onClose: () => void
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+        <button onClick={onUpload} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          <Upload size={16} className="text-gray-400" />
+          <span>Uploader un fichier</span>
+        </button>
+        <button onClick={onSendMail} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100">
+          <Mail size={16} className="text-gray-400" />
+          <span>Envoyer un mail au candidat</span>
+        </button>
+      </div>
     </>
   )
 }

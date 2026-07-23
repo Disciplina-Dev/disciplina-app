@@ -197,7 +197,7 @@ export const resolvers = {
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map(offerToMatchedOfferGql) };
+            return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
         },
         candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -294,7 +294,7 @@ export const resolvers = {
             }
 
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(newCandidate), matchedOffers: matchedOffers.map(offerToMatchedOfferGql) };
+            return { ...candidateToGql(newCandidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
         },
 
         updateCandidate: async (
