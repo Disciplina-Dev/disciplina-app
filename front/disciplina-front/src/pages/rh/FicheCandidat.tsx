@@ -1566,3 +1566,23 @@ function CvChoiceDropdown({ onUpload, onSendMail, onClose }: {
     </>
   )
 }
+
+function CvChoiceDropdown({ onUpload, onSendMail, onClose }: {
+  onUpload: () => void; onSendMail: () => void; onClose: () => void
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+        <button onClick={onUpload} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          <Upload size={16} className="text-gray-400" />
+          <span>Uploader un fichier</span>
+        </button>
+        <button onClick={onSendMail} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100">
+          <Mail size={16} className="text-gray-400" />
+          <span>Envoyer un mail au candidat</span>
+        </button>
+      </div>
+    </>
+  )
+}
