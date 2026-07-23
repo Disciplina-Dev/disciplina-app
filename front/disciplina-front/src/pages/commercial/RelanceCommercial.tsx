@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from 'react'
-import { Bell, Mail, Building2, CalendarClock, Phone, PhoneCall, Send, CheckCircle, XCircle, Search } from 'lucide-react'
+import { Bell, Mail, Building2, CalendarClock, Phone, PhoneCall, Send, CheckCircle, XCircle } from 'lucide-react'
 import { addDays, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
