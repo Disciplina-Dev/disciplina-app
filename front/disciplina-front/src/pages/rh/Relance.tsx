@@ -96,6 +96,7 @@ export default function Relance() {
   const [sendType, setSendType] = useState<string>(AVAILABILITY)
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | 'ALL'>(CandidateStatus.SEEKING)
   const [tpFilter, setTpFilter] = useState<Set<TitleProfessionalType>>(new Set())
+  const [zoneFilter, setZoneFilter] = useState<Set<ZoneKey>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
@@ -114,9 +115,10 @@ export default function Relance() {
         if (!c.identity.email) return false
         if (statusFilter !== 'ALL' && c.status !== statusFilter) return false
         if (tpFilter.size > 0 && !tpsOf(c).some((tp) => tpFilter.has(tp))) return false
+        if (zoneFilter.size > 0 && !zoneFilter.has(zoneOf(c))) return false
         return true
       }),
-    [candidates, statusFilter, tpFilter],
+    [candidates, statusFilter, tpFilter, zoneFilter],
   )
 
   // Nettoie la sélection quand le filtre change (des candidats disparaissent de la liste).
@@ -133,6 +135,14 @@ export default function Relance() {
     setTpFilter((prev) => {
       const next = new Set(prev)
       next.has(tp) ? next.delete(tp) : next.add(tp)
+      return next
+    })
+  }
+
+  function toggleZone(zone: ZoneKey) {
+    setZoneFilter((prev) => {
+      const next = new Set(prev)
+      next.has(zone) ? next.delete(zone) : next.add(zone)
       return next
     })
   }
@@ -272,6 +282,40 @@ export default function Relance() {
               <button
                 type="button"
                 onClick={() => setTpFilter(new Set())}
+                className="rounded-full px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filtre par zone géographique */}
+        <div className="sm:col-span-2 flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Zone géographique</span>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(ZONE_LABEL).map(([key, label]) => {
+              const k = key as ZoneKey
+              const active = zoneFilter.has(k)
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => toggleZone(k)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-all ${
+                    active
+                      ? 'bg-[#E0E7FF] text-[#4338CA] ring-[#4338CA]/20'
+                      : 'bg-white text-gray-400 ring-gray-200 hover:ring-gray-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+            {zoneFilter.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setZoneFilter(new Set())}
                 className="rounded-full px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600"
               >
                 Réinitialiser
