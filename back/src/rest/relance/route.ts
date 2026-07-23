@@ -4,6 +4,7 @@ import {
     sendBulkRelance,
     handleResponse,
     sendCompanyMailRelance,
+    sendCompanyBulkRelance,
     completePhoneRelance,
     getCompanyRelanceHistory,
 } from './controller';
@@ -24,7 +25,8 @@ router.post(
 );
 router.get('/api/relance/response', handleResponse);
 
-// Relances entreprise (commercial) : mail / téléphone + historique.
+// Relances entreprise (commercial) : mail / téléphone + historique + groupée asynchrone.
+router.post('/api/relance/company/bulk', express.json({ limit: '50mb' }), authenticate, sendCompanyBulkRelance);
 router.post('/api/relance/company/:id/mail', express.json({ limit: '50mb' }), authenticate, sendCompanyMailRelance);
 router.post('/api/relance/company/:id/phone', express.json(), authenticate, completePhoneRelance);
 router.get('/api/relance/company/:id/history', authenticate, getCompanyRelanceHistory);
