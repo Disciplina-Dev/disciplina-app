@@ -109,6 +109,7 @@ export interface MatchingCandidate {
     phone?: string;
     status?: MatchedCandidateStatus;
     description?: string;
+    identity_description?: string;
     cv_webview?: string;
     interview_location?: string;
     booked_interview_slot?: string;
