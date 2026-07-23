@@ -11,6 +11,7 @@ interface MatchedCandidate {
   phone: string
   status?: string | null
   description?: string | null
+  identityDescription?: string | null
   cvWebview?: string | null
 }
 
@@ -27,8 +28,15 @@ interface SendToCompanyModalProps {
 }
 
 export default function SendToCompanyModal({ job, candidates, onClose, onSubmit }: SendToCompanyModalProps) {
+  console.log(candidates);
   const [companyEmail, setCompanyEmail] = useState('')
-  const [descriptions, setDescriptions] = useState<Record<string, string>>({})
+  const [descriptions, setDescriptions] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    for (const c of candidates) {
+      initial[c.id] = c.description || c.identityDescription || ''
+    }
+    return initial
+  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ signature: string } | null>(null)

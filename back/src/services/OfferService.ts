@@ -49,6 +49,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         phone: mc.phone,
         status: mc.status,
         description: mc.description,
+        identityDescription: mc.identity_description,
         comment: mc.comment,
         cvWebview: mc.cv_webview,
         interviewLocation: mc.interview_location,
@@ -130,6 +131,7 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
         phone: c.identity.phone,
         sex: c.identity.sex as Sex,
         status: MatchedCandidateStatus.PRE_SELECTED,
+        identity_description: c.identity.description,
     };
 }
 
