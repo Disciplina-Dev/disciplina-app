@@ -4,11 +4,13 @@ import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { computeAge } from '../utils/age';
 import { CandidateHistoryService } from './CandidateHistoryService';
+import { NotificationService } from './NotificationService';
 
 export class CandidateService {
     private repository = new CandidateRepository();
     private offerRepository = new OfferRepository();
     private candidateHistoryService = new CandidateHistoryService();
+    private notificationService = new NotificationService();
 
     async findAll(): Promise<Candidate[]> {
         const candidates = await this.repository.findAll();
@@ -32,7 +34,22 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.UNAVAILABLE) {
             const availabilityDate = candidate.job_info?.availability_date;
             if (!availabilityDate || new Date(availabilityDate) > new Date()) return candidate;
-            return this.revertToSeeking(candidate);
+            const reverted = await this.revertToSeeking(candidate);
+            if (reverted) {
+                const name = candidate.identity?.full_name ?? 'Un candidat';
+                const ownerId = candidate.owner?.user_id;
+                if (ownerId) {
+                    this.notificationService.create({
+                        userId: ownerId,
+                        type: 'availability_ended',
+                        level: 'info',
+                        title: 'Disponible',
+                        message: `${name} est de nouveau disponible.`,
+                        link: `/rh/candidats/${candidate._id}`,
+                    }).catch(() => {});
+                }
+            }
+            return reverted;
         }
 
         if (candidate.status === CandidateStatus.IMMERSING) {

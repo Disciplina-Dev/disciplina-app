@@ -457,6 +457,9 @@ function toGqlUpdateInput(c: Candidate): any {
         hadApprenticeshipContract: c.identity.had_apprenticeship_contract,
       }),
     },
+    ...(c.job_info?.availability_date !== undefined && {
+      jobInfo: { availabilityDate: c.job_info.availability_date },
+    }),
     ...(c.education && {
       education: {
         ...(c.education.school_level !== undefined && { schoolLevel: c.education.school_level }),
