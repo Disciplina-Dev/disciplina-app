@@ -6,6 +6,7 @@ import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
 import { useCurrentUser, Permission } from '@/store/authStore'
+import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import AddCandidateToJobModal from './AddCandidateToJobModal'
 import JobSearchModal from './JobSearchModal'
 import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
@@ -184,8 +185,8 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                   <Info className="w-3.5 h-3.5" />
                 </button>
                 {confirmedJobIds?.has(job.id) ? (
-                  <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success">
-                    <UserCheck className="w-3.5 h-3.5" /> Matché
+                  <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${(job.status && MATCHED_CANDIDATE_STATUS_BADGE_CLASS[job.status as MatchedCandidateStatus]) ?? 'bg-success-bg text-success'}`}>
+                    <UserCheck className="w-3.5 h-3.5" /> {(job.status && MATCHED_CANDIDATE_STATUS_LABELS[job.status as MatchedCandidateStatus]) ?? 'Matché'}
                   </span>
                 ) : addedJobIds.has(job.id) ? (
                   <span className="flex items-center gap-1 text-xs font-medium text-success">

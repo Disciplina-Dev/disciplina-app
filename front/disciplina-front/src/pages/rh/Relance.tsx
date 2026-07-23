@@ -97,6 +97,7 @@ export default function Relance() {
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | 'ALL'>(CandidateStatus.SEEKING)
   const [tpFilter, setTpFilter] = useState<Set<TitleProfessionalType>>(new Set())
   const [zoneFilter, setZoneFilter] = useState<Set<ZoneKey>>(new Set())
+  const [showRelanced, setShowRelanced] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
@@ -116,9 +117,10 @@ export default function Relance() {
         if (statusFilter !== 'ALL' && c.status !== statusFilter) return false
         if (tpFilter.size > 0 && !tpsOf(c).some((tp) => tpFilter.has(tp))) return false
         if (zoneFilter.size > 0 && !zoneFilter.has(zoneOf(c))) return false
+        if (!showRelanced && (c.last_relance_at || hasFreshResponse(c))) return false
         return true
       }),
-    [candidates, statusFilter, tpFilter, zoneFilter],
+    [candidates, statusFilter, tpFilter, zoneFilter, showRelanced],
   )
 
   // Nettoie la sélection quand le filtre change (des candidats disparaissent de la liste).
@@ -322,6 +324,20 @@ export default function Relance() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Exclure les déjà relancés */}
+        <div className="sm:col-span-2 flex items-center gap-2">
+          <input
+            id="show-relanced"
+            type="checkbox"
+            checked={showRelanced}
+            onChange={() => setShowRelanced((v) => !v)}
+            className="h-4 w-4 rounded accent-purple cursor-pointer"
+          />
+          <label htmlFor="show-relanced" className="text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer">
+            Inclure les déjà relancés
+          </label>
         </div>
 
         {/* Aperçu du type d'envoi */}
