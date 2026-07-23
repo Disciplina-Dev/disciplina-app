@@ -114,8 +114,21 @@ export class CandidateService {
         const candidate = await this.repository.findById(id);
         if (!candidate) return [];
 
-        const offers = await this.offerRepository.listMatchingOffers();
-        return offers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
+        const [allOffers, assignedOffers] = await Promise.all([
+            this.offerRepository.listMatchingOffers(),
+            this.offerRepository.findWithCandidate(id),
+        ]);
+
+        const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
+        const matchedIds = new Set(matched.map((o) => String(o._id)));
+
+        for (const o of assignedOffers) {
+            if (!matchedIds.has(String(o._id))) {
+                matched.push(o);
+            }
+        }
+
+        return matched;
     }
 
     private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {
