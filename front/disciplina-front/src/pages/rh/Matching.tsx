@@ -1494,6 +1494,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   ]
   const alreadySentStatuses: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
   ]

@@ -445,6 +445,7 @@ export class OfferService {
         const status =
             conclusion === InterviewConclusion.IMMERSING ? MatchedCandidateStatus.IMMERSING :
             conclusion === InterviewConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
+            conclusion === InterviewConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
             undefined;
         const updated = await this.offerRepository.setProposedCandidateConclusion(
             offerId,
