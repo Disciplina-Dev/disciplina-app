@@ -8,6 +8,7 @@ import { CandidateHistoryService } from './CandidateHistoryService';
 import {
     InterviewConclusion,
     ImmersionConclusion,
+    Localisation,
     OfferStatus,
     MatchedCandidateStatus,
     MatchingCandidate,
@@ -18,6 +19,9 @@ import { env } from '../config/env';
 import { isInterviewDatePast } from '../utils/interview';
 import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
+import { regionFromSector } from '../utils/sector';
+import { ZONE_TO_COMMUNES } from './mappers/abToOffer';
+import type { DriveRegion } from './DriveFolderConfigService';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
 const PROPOSED_STATUSES = [
@@ -171,7 +175,7 @@ export class OfferService {
         return { companyName: companyName ?? company?.name ?? null, company };
     }
 
-    async find(id: string): Promise<object | null> {
+    async find(id: string, userId?: number): Promise<object | null> {
         const offer = await this.offerRepository.findById(id);
         if (!offer) return null;
 
@@ -185,10 +189,32 @@ export class OfferService {
             filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
         }
 
-        if (offer.localisation?.length) filter['job_info.geographic_mobility'] = { $in: offer.localisation };
-
         if (offer.company_infos?.activities?.length) {
             filter['desired_sectors'] = { $in: offer.company_infos.activities };
+        }
+
+        let geoFilter: Localisation[] = [];
+        if (offer.localisation?.length) geoFilter = [...offer.localisation];
+
+        if (userId) {
+            const user = await this.userRepository.findById(userId);
+            const userSectors = user?.sectors ?? null;
+            const sectors = typeof userSectors === 'string' ? (() => { try { return JSON.parse(userSectors); } catch { return []; } })() : userSectors;
+            if (sectors?.length) {
+                const userCommunes = (sectors as string[])
+                    .map((s) => regionFromSector(s))
+                    .filter((r): r is DriveRegion => r !== undefined)
+                    .flatMap((r: DriveRegion) => ZONE_TO_COMMUNES[r]);
+                if (userCommunes.length) {
+                    geoFilter = geoFilter.length
+                        ? geoFilter.filter((c) => userCommunes.includes(c))
+                        : userCommunes;
+                }
+            }
+        }
+
+        if (geoFilter.length) {
+            filter['job_info.geographic_mobility'] = { $in: geoFilter };
         }
 
         const candidates = await this.candidateRepository.findByfilter(filter);
