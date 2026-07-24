@@ -13,7 +13,7 @@ import {
   Mail,
   Phone,
 } from "lucide-react";
-import { useAuthStore } from "@/store/authStore";
+import { apiFetch } from "@/api/httpClient";
 import NAF_CODES from "@socialgouv/codes-naf";
 import {
   normalizeSiret,
@@ -27,7 +27,6 @@ import {
   type BlacklistedCompanyInfo,
 } from "@/types/sourcing";
 
-const API_BASE = import.meta.env.VITE_API_URL;
 const LS_KEY = "siren_recents_v1";
 const EXAMPLES = ["803396719", "912345678", "392824714"];
 const MAX_RECENTS = 4;
@@ -115,17 +114,13 @@ function legalFormShort(code: string | null): string {
 
 async function fetchCompaniesByCriteria(
   criteria: SireneCriterion[],
-  token: string | null,
   offset = 0,
 ): Promise<SireneListResult> {
-  const res = await fetch(
-    `${API_BASE}/api/sourcing/multicriteria?offset=${offset}`,
+  const res = await apiFetch(
+    `/api/sourcing/multicriteria?offset=${offset}`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ criteria }),
     },
   );
@@ -956,8 +951,6 @@ function ExistingCompanyList({ items }: { items: CompanyWithSalePerson[] }) {
 }
 
 export default function Sourcing() {
-  const token = useAuthStore((s) => s.token);
-
   // SIREN mode state
   const [mode, setMode] = useState<"siren" | "commune">("siren");
   const [query, setQuery] = useState("");
@@ -1027,9 +1020,7 @@ export default function Sourcing() {
       setSelectedEtablissement(null);
       setContacts(null);
       try {
-        const res = await fetch(`${API_BASE}/api/sourcing/${digits}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
+        const res = await apiFetch(`/api/sourcing/${digits}`);
         if (res.status === 404) {
           setErrKind("missing");
           setView("notfound");
@@ -1049,7 +1040,7 @@ export default function Sourcing() {
         setView("notfound");
       }
     },
-    [token, pushRecent],
+    [pushRecent],
   );
 
   const runCommune = useCallback(
@@ -1060,7 +1051,7 @@ export default function Sourcing() {
       setOffsetHistory([]);
       setSelectedCommune(null);
       try {
-        const data = await fetchCompaniesByCriteria(criteria, token, 0);
+        const data = await fetchCompaniesByCriteria(criteria, 0);
         setCommuneResult(data);
         setCommuneView(data.etablissements.length > 0 ? "results" : "notfound");
       } catch (e: unknown) {
@@ -1068,7 +1059,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly, token],
+    [communeQuery, nafCode, isReunionOnly],
   );
 
   const loadNextPage = useCallback(
@@ -1082,7 +1073,7 @@ export default function Sourcing() {
       setCommuneView("loading");
       setSelectedCommune(null);
       try {
-        const data = await fetchCompaniesByCriteria(criteria, token, nextOffset);
+        const data = await fetchCompaniesByCriteria(criteria, nextOffset);
         setCommuneResult(data);
         setCommuneView("results");
       } catch (e: unknown) {
@@ -1090,7 +1081,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly, communeResult, token],
+    [communeQuery, nafCode, isReunionOnly, communeResult],
   );
 
   const loadPrevPage = useCallback(
@@ -1103,7 +1094,7 @@ export default function Sourcing() {
       setCommuneView("loading");
       setSelectedCommune(null);
       try {
-        const data = await fetchCompaniesByCriteria(criteria, token, prevOffset);
+        const data = await fetchCompaniesByCriteria(criteria, prevOffset);
         setCommuneResult(data);
         setCommuneView("results");
       } catch (e: unknown) {
@@ -1111,7 +1102,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly, communeResult, offsetHistory, token],
+    [communeQuery, nafCode, isReunionOnly, communeResult, offsetHistory],
   );
 
   const submit = () => run(query);
@@ -1137,12 +1128,9 @@ export default function Sourcing() {
     setAdditionalSearchLoading(true);
     setContacts(null);
     try {
-      const res = await fetch(`${API_BASE}/api/sourcing/search`, {
+      const res = await apiFetch("/api/sourcing/search", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           siret: targetResult.siret,
           name: displayName(targetResult),
@@ -1159,7 +1147,7 @@ export default function Sourcing() {
     } finally {
       setAdditionalSearchLoading(false);
     }
-  }, [result, selectedCommune, token]);
+  }, [result, selectedCommune]);
 
   return (
     <div className="min-h-full bg-background">

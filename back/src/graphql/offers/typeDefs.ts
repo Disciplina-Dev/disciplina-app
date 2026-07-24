@@ -18,6 +18,7 @@ export const typeDefs = gql`
         REFUSED
         INTERVIEW
         IMMERSING
+        CONTRACT
     }
 
     enum Localisation {

@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { useAuthStore } from './authStore'
 import * as api from '@/api/mailTemplates'
 
 // Pièce jointe prête à l'envoi (contenu base64) — utilisée par MailModal.
@@ -29,12 +28,6 @@ interface MailTemplatesStore {
   resolveAttachment: (id: string) => Promise<MailAttachment>
 }
 
-function token(): string {
-  const t = useAuthStore.getState().token
-  if (!t) throw new Error('Non authentifié')
-  return t
-}
-
 function createMailTemplatesStore(scope: MailTemplatesScope) {
   return create<MailTemplatesStore>()((set, get) => ({
     scope,
@@ -49,8 +42,8 @@ function createMailTemplatesStore(scope: MailTemplatesScope) {
       set({ loading: true, error: null })
       try {
         const [templates, signatureImage] = await Promise.all([
-          api.fetchTemplates(token(), scope),
-          api.fetchSignature(token(), scope).catch(() => ''), // signature optionnelle (Drive peut échouer)
+          api.fetchTemplates(scope),
+          api.fetchSignature(scope).catch(() => ''), // signature optionnelle (Drive peut échouer)
         ])
         set({ templates, signatureImage, loaded: true })
       } catch (e: any) {
@@ -61,34 +54,34 @@ function createMailTemplatesStore(scope: MailTemplatesScope) {
     },
 
     add: async (data, file) => {
-      let tpl = await api.createTemplate(token(), scope, data)
-      if (file) tpl = await api.uploadTemplateAttachment(token(), tpl.id, file)
+      let tpl = await api.createTemplate(scope, data)
+      if (file) tpl = await api.uploadTemplateAttachment(tpl.id, file)
       set((s) => ({ templates: [...s.templates, tpl] }))
     },
 
     update: async (id, data, file, removeAttachment) => {
-      let tpl = await api.updateTemplate(token(), id, data)
-      if (removeAttachment) tpl = await api.deleteTemplateAttachment(token(), id)
-      if (file) tpl = await api.uploadTemplateAttachment(token(), id, file)
+      let tpl = await api.updateTemplate(id, data)
+      if (removeAttachment) tpl = await api.deleteTemplateAttachment(id)
+      if (file) tpl = await api.uploadTemplateAttachment(id, file)
       set((s) => ({ templates: s.templates.map((t) => (t.id === id ? tpl : t)) }))
     },
 
     remove: async (id) => {
-      await api.deleteTemplate(token(), id)
+      await api.deleteTemplate(id)
       set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }))
     },
 
     setSignature: async (file) => {
-      const signatureImage = await api.uploadSignature(token(), scope, file)
+      const signatureImage = await api.uploadSignature(scope, file)
       set({ signatureImage })
     },
 
     removeSignature: async () => {
-      await api.deleteSignature(token(), scope)
+      await api.deleteSignature(scope)
       set({ signatureImage: '' })
     },
 
-    resolveAttachment: async (id) => api.resolveTemplateAttachment(token(), id),
+    resolveAttachment: async (id) => api.resolveTemplateAttachment(id),
   }))
 }
 

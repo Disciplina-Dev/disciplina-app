@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { X, Copy, Check, Download, Loader2, AlertCircle, ClipboardCheck, ArrowLeft } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { useAuthStore } from '@/store/authStore';
 import { TitleProfessionalType } from '@/types/candidate';
 import type { ClassMarkerLink } from '@/types/classmarker';
 import { buildCandidateTestUrl } from '@/utils/classmarker';
@@ -33,7 +32,6 @@ export default function ClassMarkerLinksModal({
   tpType,
   candidateId,
 }: ClassMarkerLinksModalProps) {
-  const token = useAuthStore(s => s.token);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolvedId, setResolvedId] = useState<string | null>(candidateId ?? null);
@@ -58,10 +56,6 @@ export default function ClassMarkerLinksModal({
     let cancelled = false;
 
     const run = async () => {
-      if (!token) {
-        setError('Session expirée');
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
@@ -70,7 +64,7 @@ export default function ClassMarkerLinksModal({
           if (!firstName.trim() || !lastName.trim()) {
             throw new Error('Prénom et nom requis');
           }
-          const created = await quickCreateCandidate(token, {
+          const created = await quickCreateCandidate({
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             tp_type: tpType,
@@ -81,7 +75,7 @@ export default function ClassMarkerLinksModal({
         }
         setResolvedId(id);
 
-        const links = await fetchClassMarkerLinks(token);
+        const links = await fetchClassMarkerLinks();
         if (cancelled) return;
         const built = links.map(link => ({
           link,
@@ -99,7 +93,7 @@ export default function ClassMarkerLinksModal({
 
     run();
     return () => { cancelled = true; };
-  }, [open, candidateId, firstName, lastName, tpType, token]);
+  }, [open, candidateId, firstName, lastName, tpType]);
 
   useEffect(() => {
     if (open) closeBtnRef.current?.focus();

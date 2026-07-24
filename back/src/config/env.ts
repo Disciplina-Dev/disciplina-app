@@ -11,6 +11,7 @@ const INSECURE_DEFAULTS = new Set([
     'change-this-relance-secret',
     'change-this-google-state-secret',
     'ci-jwt-secret',
+    'ci-jwt-refresh-secret',
     'ci-session-secret',
     '7325fd3fc113dc0034d98ee93eb9a50fc4c71d2798c819bc4e3f7e7e2fb7a940',
 ]);
@@ -114,7 +115,10 @@ const data = {
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
 
     JWT_SECRET: requireStringWithCIFallback('JWT_SECRET', 'ci-jwt-secret'),
+    JWT_REFRESH_SECRET: requireStringWithCIFallback('JWT_REFRESH_SECRET', 'ci-jwt-refresh-secret'),
     SESSION_SECRET: requireStringWithCIFallback('SESSION_SECRET', 'ci-session-secret'),
+    ACCESS_TOKEN_TTL_SECONDS: numberWithDefault('ACCESS_TOKEN_TTL_SECONDS', 15 * 60),
+    REFRESH_TOKEN_TTL_SECONDS: numberWithDefault('REFRESH_TOKEN_TTL_SECONDS', 30 * 24 * 60 * 60),
 
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
@@ -177,6 +181,11 @@ if (errors.length > 0) {
 
 if (INSECURE_DEFAULTS.has(data.JWT_SECRET)) {
     console.error('JWT_SECRET is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.JWT_REFRESH_SECRET)) {
+    console.error('JWT_REFRESH_SECRET is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
@@ -55,7 +55,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('creates a company with minimal required fields', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const siret = `${suffix}0000000000`.slice(0, 14);
 
@@ -63,7 +63,8 @@ describe('GraphQL company mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -101,7 +102,8 @@ describe('GraphQL company mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `query($siret: String!) { companyBySiret(siret: $siret) { id name } }`,
@@ -113,7 +115,7 @@ describe('GraphQL company mutations', () => {
         });
 
         it('creates a company with all optional fields', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const siret = `${suffix}1111111111`.slice(0, 14);
 
@@ -134,7 +136,8 @@ describe('GraphQL company mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -193,13 +196,14 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when siret is missing', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -225,13 +229,14 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when siret is not 14 characters', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -260,7 +265,7 @@ describe('GraphQL company mutations', () => {
 
     describe('updateCompany', () => {
         it('updates company fields and returns camelCase result', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CompanyRepository();
 
@@ -277,7 +282,8 @@ describe('GraphQL company mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -309,7 +315,8 @@ describe('GraphQL company mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `query($siret: String!) { companyBySiret(siret: $siret) { name sector conclusion } }`,
@@ -322,13 +329,14 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when updating a non-existent company', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -352,7 +360,7 @@ describe('GraphQL company mutations', () => {
 
     describe('deleteCompany', () => {
         it('deletes an existing company and returns true', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CompanyRepository();
 
@@ -369,7 +377,8 @@ describe('GraphQL company mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `mutation($id: Int!) { deleteCompany(id: $id) }`,
@@ -387,7 +396,8 @@ describe('GraphQL company mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `query($siret: String!) { companyBySiret(siret: $siret) { id } }`,
@@ -399,13 +409,14 @@ describe('GraphQL company mutations', () => {
         });
 
         it('returns an error when deleting a non-existent company', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `mutation($id: Int!) { deleteCompany(id: $id) }`,

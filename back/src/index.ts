@@ -8,6 +8,7 @@ import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 import { router as authRouter } from './rest/auth/route';
 import { router as emailRouter } from './rest/email/route';
@@ -80,6 +81,8 @@ export async function createApp(): Promise<express.Express> {
         }),
     );
 
+    app.use(cookieParser());
+
     app.use(
         session({
             secret: env.SESSION_SECRET,
@@ -141,17 +144,20 @@ export async function createApp(): Promise<express.Express> {
         next();
     });
 
+    // cors: false — Apollo sinon installe son propre middleware CORS par
+    // défaut (Access-Control-Allow-Origin: *), qui écrase la config globale
+    // ci-dessus et casse les requêtes avec cookies (credentials: 'include').
     await CompanyAPI.start();
-    CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies' });
+    CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies', cors: false });
 
     await CandidateAPI.start();
-    CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates' });
+    CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates', cors: false });
 
     await OfferAPI.start();
-    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers' });
+    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers', cors: false });
 
     await NeedsAnalysisAPI.start();
-    NeedsAnalysisAPI.applyMiddleware({ app, path: '/api/graphql/needs-analysis' });
+    NeedsAnalysisAPI.applyMiddleware({ app, path: '/api/graphql/needs-analysis', cors: false });
 
     return app;
 }

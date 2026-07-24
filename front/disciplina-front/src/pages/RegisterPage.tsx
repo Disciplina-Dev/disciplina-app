@@ -4,12 +4,12 @@ import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
-import { UserRole, Permission, useAuthStore } from '@/store/authStore'
+import { UserRole, Permission } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { SECTEUR_VALUES } from '@/types/entreprise'
+import { apiJson } from '@/api/httpClient'
 
 export default function RegisterPage() {
-  const token = useAuthStore((s) => s.token)
   const { connectGoogle, isLoading: googleLoading } = useGoogleOAuthPopup()
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,12 +40,9 @@ export default function RegisterPage() {
     setError(null)
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
+      const data = await apiJson<{ id: number }>('/api/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           firstName: firstname,
@@ -56,11 +53,6 @@ export default function RegisterPage() {
           sectors,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || "Erreur lors de l'inscription")
-        return
-      }
 
       setSuccess(true)
       setFirstname('')
@@ -83,8 +75,8 @@ export default function RegisterPage() {
       } else {
         setGoogleStatus('skipped')
       }
-    } catch {
-      setError('Erreur réseau')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur réseau')
     } finally {
       setFetching(false)
     }

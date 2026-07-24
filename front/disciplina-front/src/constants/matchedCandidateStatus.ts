@@ -7,6 +7,7 @@ export enum MatchedCandidateStatus {
     REFUSED = 'REFUSED',
     INTERVIEW = 'INTERVIEW',
     IMMERSING = 'IMMERSING',
+    CONTRACT = 'CONTRACT',
 }
 
 export const MATCHED_CANDIDATE_STATUS_LABELS: Record<MatchedCandidateStatus, string> = {
@@ -18,6 +19,7 @@ export const MATCHED_CANDIDATE_STATUS_LABELS: Record<MatchedCandidateStatus, str
     [MatchedCandidateStatus.REFUSED]: 'Refusé',
     [MatchedCandidateStatus.INTERVIEW]: 'Entretien',
     [MatchedCandidateStatus.IMMERSING]: 'Immersion',
+    [MatchedCandidateStatus.CONTRACT]: 'En contrat',
 };
 
 export const MATCHED_CANDIDATE_STATUS_BADGE_CLASS: Record<MatchedCandidateStatus, string> = {
@@ -29,6 +31,7 @@ export const MATCHED_CANDIDATE_STATUS_BADGE_CLASS: Record<MatchedCandidateStatus
     [MatchedCandidateStatus.REFUSED]: 'bg-danger text-white',
     [MatchedCandidateStatus.INTERVIEW]: 'bg-purple text-white',
     [MatchedCandidateStatus.IMMERSING]: 'bg-purple text-white',
+    [MatchedCandidateStatus.CONTRACT]: 'bg-success text-white',
 };
 
 export const MATCHED_CANDIDATE_STATUS_ORDER: MatchedCandidateStatus[] = [
@@ -40,4 +43,5 @@ export const MATCHED_CANDIDATE_STATUS_ORDER: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.REFUSED,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
+    MatchedCandidateStatus.CONTRACT,
 ];

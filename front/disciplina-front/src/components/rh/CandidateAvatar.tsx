@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { User } from 'lucide-react'
-import { useAuthStore } from '../../store/authStore'
+import { apiFetch } from '@/api/httpClient'
 
 interface CandidateAvatarProps {
   candidateId: string
@@ -26,19 +26,16 @@ export default function CandidateAvatar({
   className = '',
   iconSize = 24,
 }: CandidateAvatarProps) {
-  const token = useAuthStore((s) => s.token)
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!hasPhoto || !token) {
+    if (!hasPhoto) {
       setUrl(null)
       return
     }
     let objectUrl: string | null = null
     let cancelled = false
-    fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${candidateId}/avatar-file`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiFetch(`/api/candidates/${candidateId}/avatar-file`)
       .then(async (res) => {
         if (!res.ok) throw new Error(String(res.status))
         const blob = await res.blob()
@@ -53,7 +50,7 @@ export default function CandidateAvatar({
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [candidateId, hasPhoto, token, version])
+  }, [candidateId, hasPhoto, version])
 
   if (url) {
     return <img src={url} alt={fullName ?? ''} className={`object-cover ${className}`} />

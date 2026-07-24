@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, UserPlus, Pencil, Loader2, ShieldAlert, MapPin } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
+import { apiJson } from '@/api/httpClient'
 import UserEditModal, { type ManagedUser } from '@/components/admin/UserEditModal'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -35,7 +35,6 @@ function initials(user: ManagedUser): string {
 }
 
 export default function AdminUsers() {
-  const token = useAuthStore((s) => s.token)
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,11 +45,7 @@ export default function AdminUsers() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/users`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Erreur de chargement')
+      const data = await apiJson<ManagedUser[]>('/api/auth/users')
       setUsers(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur réseau')
@@ -61,8 +56,7 @@ export default function AdminUsers() {
 
   useEffect(() => {
     loadUsers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

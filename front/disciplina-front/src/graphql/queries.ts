@@ -1275,7 +1275,6 @@ export const SET_INTERVIEW_CONCLUSION = gql`
         fullName
         email
         description
-        answer
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1304,7 +1303,6 @@ export const SET_IMMERSION_CONCLUSION = gql`
         fullName
         email
         description
-        answer
         interviewLocation
         bookedInterviewSlot
         interviewConclusion

@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
 import { MapPin, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import { useAuthStore } from '@/store/authStore'
 import { fetchSectorSettings, updateSectorSettings, type SectorSetting } from '@/api/sectorSettings'
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
 
 export default function SectorSettings() {
-  const token = useAuthStore((s) => s.token)
   const [settings, setSettings] = useState<SectorSetting[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -16,18 +14,16 @@ export default function SectorSettings() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) return
-    fetchSectorSettings(token)
+    fetchSectorSettings()
       .then(setSettings)
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   const handleSave = async () => {
-    if (!token) return
     setSaving(true); setError(null); setSaved(false)
     try {
-      const updated = await updateSectorSettings(token, settings)
+      const updated = await updateSectorSettings(settings)
       setSettings(updated)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)

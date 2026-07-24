@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
@@ -9,14 +9,14 @@ import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
-function authHeaders(token: string) {
-    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+function authHeaders(auth: { cookieHeader: string; csrfHeader: string }) {
+    return { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader };
 }
 
-async function gql(token: string, body: object) {
+async function gql(auth: { cookieHeader: string; csrfHeader: string }, body: object) {
     const res = await fetch(ENDPOINT, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(auth),
         body: JSON.stringify(body),
     });
     return { res, json: await res.json() };
@@ -25,7 +25,7 @@ async function gql(token: string, body: object) {
 describe('GraphQL job mutations', () => {
     describe('updateOffer', () => {
         it('updates status and returns the job', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const seeded = await seedOffer({
@@ -35,7 +35,7 @@ describe('GraphQL job mutations', () => {
                 localisation: [Localisation.SAINT_DENIS],
             });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($id: String!, $offer: OfferInput!) {
                     updateOffer(id: $id, offer: $offer) { id companyName status }
                 }`,
@@ -51,9 +51,9 @@ describe('GraphQL job mutations', () => {
         });
 
         it('returns null when updating a non-existent job', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($id: String!, $offer: OfferInput!) { updateOffer(id: $id, offer: $offer) { id } }`,
                 variables: { id: 'non-existent-id', offer: { id: 'non-existent-id', companyName: 'Ghost' } },
             });
@@ -65,7 +65,7 @@ describe('GraphQL job mutations', () => {
 
     describe('unmatchOffer', () => {
         it('clears matched candidates and sets NOT_MATCHED', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new OfferRepository();
 
@@ -81,7 +81,7 @@ describe('GraphQL job mutations', () => {
                 email: `jane-${suffix}@test.local`,
             });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($id: String!) { unmatchOffer(id: $id) { id status matchedCandidate { id } } }`,
                 variables: { id: seeded._id },
             });
@@ -91,7 +91,7 @@ describe('GraphQL job mutations', () => {
             expect(json.data.unmatchOffer.status).toBe('NOT_MATCHED');
             expect(json.data.unmatchOffer.matchedCandidate).toEqual([]);
 
-            const { json: vJson } = await gql(token, {
+            const { json: vJson } = await gql(auth, {
                 query: `query($id: String!) { matchOffer(id: $id) { status matchedCandidate { id } } }`,
                 variables: { id: seeded._id },
             });
@@ -100,9 +100,9 @@ describe('GraphQL job mutations', () => {
         });
 
         it('returns null when unmatching a non-existent job', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($id: String!) { unmatchOffer(id: $id) { id } }`,
                 variables: { id: 'non-existent-id' },
             });
@@ -115,7 +115,7 @@ describe('GraphQL job mutations', () => {
 
     describe('addCandidateToOffer', () => {
         it('adds a matching candidate and sets status to MATCHED', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const candidateRepo = new CandidateRepository();
 
@@ -149,7 +149,7 @@ describe('GraphQL job mutations', () => {
                 job_info: { geographic_mobility: [Localisation.SAINT_DENIS] },
             });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($offerId: String!, $candidateId: String!) {
                     addCandidateToOffer(offerId: $offerId, candidateId: $candidateId) {
                         id status matchedCandidate { id fullName }
@@ -167,7 +167,7 @@ describe('GraphQL job mutations', () => {
         });
 
         it('errors when candidate does not exist', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const seeded = await seedOffer({
@@ -175,7 +175,7 @@ describe('GraphQL job mutations', () => {
                 status: OfferStatus.NOT_MATCHED,
             });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($offerId: String!, $candidateId: String!) {
                     addCandidateToOffer(offerId: $offerId, candidateId: $candidateId) { id }
                 }`,
@@ -189,7 +189,7 @@ describe('GraphQL job mutations', () => {
 
     describe('removeCandidateFromOffer', () => {
         it('removes a candidate and sets NOT_MATCHED when list becomes empty', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new OfferRepository();
 
@@ -202,7 +202,7 @@ describe('GraphQL job mutations', () => {
                 email: `bob-${suffix}@test.local`,
             });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($offerId: String!, $candidateId: String!) {
                     removeCandidateFromOffer(offerId: $offerId, candidateId: $candidateId) {
                         id status matchedCandidate { id }
@@ -218,7 +218,7 @@ describe('GraphQL job mutations', () => {
         });
 
         it('removes one candidate and keeps MATCHED status when others remain', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new OfferRepository();
 
@@ -237,7 +237,7 @@ describe('GraphQL job mutations', () => {
                 email: `dave-${suffix}@test.local`,
             });
 
-            const { res, json } = await gql(token, {
+            const { res, json } = await gql(auth, {
                 query: `mutation($offerId: String!, $candidateId: String!) {
                     removeCandidateFromOffer(offerId: $offerId, candidateId: $candidateId) {
                         id status matchedCandidate { id }

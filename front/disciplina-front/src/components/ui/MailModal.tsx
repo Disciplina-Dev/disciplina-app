@@ -3,7 +3,7 @@ import { X, Send, Paperclip, Trash2 } from 'lucide-react'
 import Button from './Button'
 import RichTextEditor from './RichTextEditor'
 import { useMailTemplatesStore, type MailTemplatesScope, type MailAttachment } from '@/store/mailTemplatesStore'
-import { useAuthStore } from '@/store/authStore'
+import { apiJson } from '@/api/httpClient'
 
 interface MailModalProps {
   defaultTo?: string
@@ -31,7 +31,6 @@ const inputClass =
 
 export default function MailModal({ defaultTo = '', candidateName, scope = 'rh', mode = 'send', defaultTemplateId, defaultSubject, defaultBody, defaultAttachments, onCustomSend, sendLabel, successLabel, onClose, onSent }: MailModalProps) {
   const { templates, signatureImage, load, resolveAttachment } = useMailTemplatesStore(scope)
-  const token = useAuthStore((s) => s.token)
 
   useEffect(() => { load() }, [load])
 
@@ -109,16 +108,11 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
         await onCustomSend({ to, subject, body, attachments })
       } else {
         const endpoint = mode === 'draft' ? '/api/email/draft' : '/api/email/send'
-        const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+        await apiJson(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to, subject, body, attachments: attachments.length ? attachments : undefined }),
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? 'Erreur envoi')
       }
       setSent(true)
       onSent?.()

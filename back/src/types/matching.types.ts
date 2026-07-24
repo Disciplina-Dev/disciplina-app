@@ -15,6 +15,7 @@ export enum MatchedCandidateStatus {
     REFUSED = 'REFUSED',
     INTERVIEW = 'INTERVIEW',
     IMMERSING = 'IMMERSING',
+    CONTRACT = 'CONTRACT',
 }
 
 export enum InterviewConclusion {

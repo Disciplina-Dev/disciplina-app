@@ -8,7 +8,7 @@ import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
 import { candidateGraphqlClient, graphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS } from '@/graphql/queries';
-import { useAuthStore } from '@/store/authStore';
+import { apiFetch } from '@/api/httpClient';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
@@ -465,7 +465,6 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const token = useAuthStore((s) => s.token);
   // Génération AB → Drive après création (best-effort, ne bloque pas la création).
   const [driveStatus, setDriveStatus] = useState<string | null>(null);
   const [driveWarning, setDriveWarning] = useState<string | null>(null);
@@ -615,9 +614,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       if (folder.error) throw new Error(folder.error.message.replace(/^\[GraphQL\]\s*/, ''));
 
       setDriveStatus('Enregistrement de l’AB dans le Drive…');
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/ab-to-drive`, {
+      const res = await apiFetch(`/api/candidates/${id}/ab-to-drive`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

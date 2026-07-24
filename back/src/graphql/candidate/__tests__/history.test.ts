@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
@@ -10,19 +10,35 @@ import { MatchedCandidateStatus } from '../../../types/matching.types';
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 const JOBS_ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
-async function graphqlRequest(token: string, query: string, variables?: Record<string, unknown>) {
+async function graphqlRequest(
+    token: ReturnType<typeof mintAuthCookies>,
+    query: string,
+    variables?: Record<string, unknown>,
+) {
     const res = await fetch(ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+            'Content-Type': 'application/json',
+            Cookie: token.cookieHeader,
+            'x-csrf-token': token.csrfHeader,
+        },
         body: JSON.stringify({ query, variables }),
     });
     return res.json();
 }
 
-async function jobsGraphqlRequest(token: string, query: string, variables?: Record<string, unknown>) {
+async function jobsGraphqlRequest(
+    token: ReturnType<typeof mintAuthCookies>,
+    query: string,
+    variables?: Record<string, unknown>,
+) {
     const res = await fetch(JOBS_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+            'Content-Type': 'application/json',
+            Cookie: token.cookieHeader,
+            'x-csrf-token': token.csrfHeader,
+        },
         body: JSON.stringify({ query, variables }),
     });
     return res.json();
@@ -42,7 +58,7 @@ async function seedCandidate(suffix: string) {
 
 describe('candidateHistory', () => {
     // it('records an automatic entry on status change and exposes it via the query', async () => {
-    //     const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+    //     const token = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
     //     const suffix = `auto-${Date.now()}`;
     //     const candidate = await seedCandidate(suffix);
 
@@ -66,7 +82,7 @@ describe('candidateHistory', () => {
     // });
 
     it('adds a manual entry owned by the requesting user and returns it in chronological order', async () => {
-        const token = mintToken({ id: 1, email: 'manual@test.local', role: 'RH', permission: 'ADMIN' });
+        const token = mintAuthCookies({ id: 1, email: 'manual@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `manual-${Date.now()}`;
         const candidate = await seedCandidate(suffix);
 
@@ -105,8 +121,8 @@ describe('candidateHistory', () => {
     });
 
     it('only allows the owner to delete their manual entry', async () => {
-        const ownerToken = mintToken({ id: 1, email: 'owner@test.local', role: 'RH', permission: 'ADMIN' });
-        const otherToken = mintToken({ id: 2, email: 'other@test.local', role: 'RH', permission: 'ADMIN' });
+        const ownerToken = mintAuthCookies({ id: 1, email: 'owner@test.local', role: 'RH', permission: 'ADMIN' });
+        const otherToken = mintAuthCookies({ id: 2, email: 'other@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `owner-${Date.now()}`;
         const candidate = await seedCandidate(suffix);
 
@@ -137,7 +153,7 @@ describe('candidateHistory', () => {
     });
 
     // it('rejects deleting an automatic entry', async () => {
-    //     const token = mintToken({ id: 1, email: 'auto-delete@test.local', role: 'ADMIN' });
+    //     const token = mintAuthCookies({ id: 1, email: 'auto-delete@test.local', role: 'ADMIN' });
     //     const suffix = `auto-delete-${Date.now()}`;
     //     const candidate = await seedCandidate(suffix);
 
@@ -164,7 +180,7 @@ describe('candidateHistory', () => {
     // });
 
     it('records a CANDIDATE-typed entry when the matched candidate status becomes ACCEPTED', async () => {
-        const token = mintToken({ id: 1, email: 'jobs@test.local', role: 'RH', permission: 'ADMIN' });
+        const token = mintAuthCookies({ id: 1, email: 'jobs@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `accept-${Date.now()}`;
         const candidateId = `hist-job-${suffix}`;
         const jobRepo = new OfferRepository();

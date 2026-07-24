@@ -3,7 +3,7 @@ import { BarChart3, Plus, AlertTriangle, CheckCircle2, PhoneCall, Users } from '
 
 import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
-import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
+import { useCurrentUser, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { useContactLogStats } from '@/graphql/hooks'
 import {
@@ -96,8 +96,6 @@ function ContactStatsSection() {
 function KpiDashboard() {
   const currentYear = new Date().getFullYear()
 
-  const token = useAuthStore((s) => s.token)
-
   const [year, setYear] = useState(currentYear)
   const [site, setSite] = useState<KpiSite>('NORD')
   // Source des chiffres : Combiné (défaut), portefeuille seul ou Excel/saisie seul
@@ -118,11 +116,10 @@ function KpiDashboard() {
 
   // Liste des commerciaux sélectionnables (saisie manuelle) — chargée une fois.
   useEffect(() => {
-    if (!token) return
-    fetchKpiUsers(token)
+    fetchKpiUsers()
       .then(setSelectableUsers)
       .catch(() => setSelectableUsers([]))
-  }, [token])
+  }, [])
 
   // Changer de secteur/année réinitialise la sélection d'un commercial.
   const selectSite = (s: KpiSite) => {

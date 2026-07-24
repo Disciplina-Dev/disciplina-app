@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiFetch } from '@/api/httpClient'
 
 export interface PedaDraftRunReport {
   pedas: number
@@ -15,11 +15,8 @@ export interface PedaDraftRunReport {
   details: string[]
 }
 
-async function pedaFetch(path: string, token: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${API_BASE}/api/peda${path}`, {
-    ...init,
-    headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
-  })
+async function pedaFetch(path: string, init?: RequestInit): Promise<Response> {
+  const res = await apiFetch(`/api/peda${path}`, init)
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error ?? `Requête Peda échouée (${res.status})`)
@@ -30,13 +27,13 @@ async function pedaFetch(path: string, token: string, init?: RequestInit): Promi
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
 // ── Sheet d'absences du Peda connecté ────────────────────────────────────────
-export async function fetchPedaConfig(token: string): Promise<{ sheetId: string | null }> {
-  const res = await pedaFetch('/config', token)
+export async function fetchPedaConfig(): Promise<{ sheetId: string | null }> {
+  const res = await pedaFetch('/config')
   return res.json()
 }
 
-export async function savePedaSheet(token: string, link: string): Promise<{ sheetId: string }> {
-  const res = await pedaFetch('/config/sheet', token, {
+export async function savePedaSheet(link: string): Promise<{ sheetId: string }> {
+  const res = await pedaFetch('/config/sheet', {
     method: 'PUT',
     headers: jsonHeaders,
     body: JSON.stringify({ link }),
@@ -44,22 +41,22 @@ export async function savePedaSheet(token: string, link: string): Promise<{ shee
   return res.json()
 }
 
-export async function deletePedaSheet(token: string): Promise<void> {
-  await pedaFetch('/config/sheet', token, { method: 'DELETE' })
+export async function deletePedaSheet(): Promise<void> {
+  await pedaFetch('/config/sheet', { method: 'DELETE' })
 }
 
 // ── Heure globale du job quotidien ───────────────────────────────────────────
-export async function fetchDraftHour(token: string): Promise<string> {
-  const res = await pedaFetch('/config/hour', token)
+export async function fetchDraftHour(): Promise<string> {
+  const res = await pedaFetch('/config/hour')
   return ((await res.json()) as { hour: string }).hour
 }
 
-export async function saveDraftHour(token: string, hour: string): Promise<void> {
-  await pedaFetch('/config/hour', token, { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ hour }) })
+export async function saveDraftHour(hour: string): Promise<void> {
+  await pedaFetch('/config/hour', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ hour }) })
 }
 
 // ── Déclenchement manuel ─────────────────────────────────────────────────────
-export async function runDraftJobNow(token: string): Promise<PedaDraftRunReport> {
-  const res = await pedaFetch('/run', token, { method: 'POST' })
+export async function runDraftJobNow(): Promise<PedaDraftRunReport> {
+  const res = await pedaFetch('/run', { method: 'POST' })
   return ((await res.json()) as { report: PedaDraftRunReport }).report
 }

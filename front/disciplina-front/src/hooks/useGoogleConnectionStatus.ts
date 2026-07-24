@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
-
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiFetch } from '@/api/httpClient'
 
 // Intervalle de revalidation : le refresh_token peut être purgé côté back à tout
 // moment (révocation Google détectée sur un appel réel), pas seulement au login.
@@ -18,12 +17,8 @@ export function useGoogleConnectionStatus() {
     let cancelled = false
 
     const check = async () => {
-      const token = useAuthStore.getState().token
-      if (!token) return
       try {
-        const res = await fetch(`${API_BASE}/api/auth/google/status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const res = await apiFetch('/api/auth/google/status')
         if (!res.ok) return
         const data = await res.json()
         if (cancelled) return

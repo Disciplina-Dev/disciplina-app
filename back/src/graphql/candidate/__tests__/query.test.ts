@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
@@ -11,13 +11,14 @@ const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
 describe('GraphQL candidate queries', () => {
     it('returns an empty list when no candidates exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({ query: '{ candidates { id status tpType } }' }),
         });
@@ -29,7 +30,7 @@ describe('GraphQL candidate queries', () => {
     });
 
     it('returns all seeded candidates with camelCase fields', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CandidateRepository();
 
@@ -52,7 +53,8 @@ describe('GraphQL candidate queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `{ candidates { id status tpType identity { fullName email } } }`,
@@ -72,7 +74,7 @@ describe('GraphQL candidate queries', () => {
     });
 
     it('paginates candidates with cursors via candidatesPage', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `page-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -98,7 +100,7 @@ describe('GraphQL candidate queries', () => {
 
         const firstPageRes = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({ query, variables: { first: 2 } }),
         });
         const firstPage = (await firstPageRes.json()).data.candidatesPage;
@@ -108,7 +110,7 @@ describe('GraphQL candidate queries', () => {
 
         const secondPageRes = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({ query, variables: { first: 2, after: firstPage.pageInfo.endCursor } }),
         });
         const secondPage = (await secondPageRes.json()).data.candidatesPage;
@@ -118,7 +120,7 @@ describe('GraphQL candidate queries', () => {
     });
 
     it('returns a candidate by id with camelCase fields', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CandidateRepository();
 
@@ -135,7 +137,8 @@ describe('GraphQL candidate queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($id: String!) { candidate(id: $id) { id status tpType identity { fullName email } desiredSectors } }`,
@@ -152,13 +155,14 @@ describe('GraphQL candidate queries', () => {
     });
 
     it('returns null for a non-existent candidate id', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($id: String!) { candidate(id: $id) { id } }`,
@@ -188,7 +192,7 @@ describe('GraphQL candidate queries', () => {
 
 describe('candidateStats', () => {
     it('returns total and breakdowns by status, tpType, and trainingSite', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `stats-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -211,7 +215,7 @@ describe('candidateStats', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `{ candidateStats { total byStatus { key count } byTpType { key count } byTrainingSite { key count } byTpAndStatus { tpType status count } } }`,
             }),
@@ -233,7 +237,7 @@ describe('candidateStats', () => {
 
 describe('matchCandidate', () => {
     it('returns matched jobs for a compatible candidate', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `mc-${Date.now()}`;
         const candidateRepo = new CandidateRepository();
 
@@ -270,7 +274,7 @@ describe('matchCandidate', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($id: String!) { matchCandidate(id: $id) { id matchedOffers { id companyName } } }`,
                 variables: { id: candidateId },
@@ -287,11 +291,11 @@ describe('matchCandidate', () => {
     });
 
     it('errors when candidate is not found', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($id: String!) { matchCandidate(id: $id) { id } }`,
                 variables: { id: 'ghost-candidate-id' },
@@ -307,7 +311,7 @@ describe('matchCandidate', () => {
 
 describe('UNAVAILABLE availability transition', () => {
     it('reverts an UNAVAILABLE candidate to SEEKING once the availability date has passed', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `unavail-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -323,7 +327,7 @@ describe('UNAVAILABLE availability transition', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($id: String!) { candidate(id: $id) { id status } }`,
                 variables: { id: candidateId },
@@ -340,7 +344,7 @@ describe('UNAVAILABLE availability transition', () => {
     });
 
     it('keeps an UNAVAILABLE candidate unavailable while the availability date is still in the future', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `stillunavail-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -357,7 +361,7 @@ describe('UNAVAILABLE availability transition', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($id: String!) { candidate(id: $id) { id status } }`,
                 variables: { id: candidateId },
@@ -372,7 +376,7 @@ describe('UNAVAILABLE availability transition', () => {
 
 describe('candidatesPage with filters', () => {
     it('filters by tpType', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `flt-tp-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -400,7 +404,7 @@ describe('candidatesPage with filters', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
@@ -422,7 +426,7 @@ describe('candidatesPage with filters', () => {
     });
 
     it('filters by status', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `flt-st-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -443,7 +447,7 @@ describe('candidatesPage with filters', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
@@ -464,7 +468,7 @@ describe('candidatesPage with filters', () => {
     });
 
     it('filters by drivingLicenseB', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `flt-dl-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -495,7 +499,7 @@ describe('candidatesPage with filters', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
@@ -516,7 +520,7 @@ describe('candidatesPage with filters', () => {
     });
 
     it('filters by geographicMobility (OR sur les villes souhaitées)', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `flt-gm-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -539,7 +543,7 @@ describe('candidatesPage with filters', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
@@ -559,7 +563,7 @@ describe('candidatesPage with filters', () => {
     });
 
     it('filters by desiredSectors (OR sur les secteurs souhaités)', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `flt-ds-${Date.now()}`;
         const repo = new CandidateRepository();
 
@@ -582,7 +586,7 @@ describe('candidatesPage with filters', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
