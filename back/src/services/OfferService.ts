@@ -442,12 +442,17 @@ export class OfferService {
             throw new Error("Les dates d'immersion sont requises pour cette conclusion");
         }
 
+        const status =
+            conclusion === InterviewConclusion.IMMERSING ? MatchedCandidateStatus.IMMERSING :
+            conclusion === InterviewConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
+            undefined;
         const updated = await this.offerRepository.setProposedCandidateConclusion(
             offerId,
             candidateId,
             conclusion,
             immersionStartDate,
             immersionEndDate,
+            status,
         );
         if (!updated) return null;
 
@@ -487,6 +492,7 @@ export class OfferService {
             offerId,
             candidateId,
             conclusion,
+            conclusion === ImmersionConclusion.REJECTED ? MatchedCandidateStatus.REFUSED : undefined,
         );
         if (!updated) return null;
 
