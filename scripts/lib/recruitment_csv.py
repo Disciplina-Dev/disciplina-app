@@ -90,6 +90,48 @@ FILE_CONFIG = {
                      "exp": 6, "loc": 7, "envoyer": [9, 10]},
         },
     },
+    "ouest": {
+        "AD": {
+            "sector": "NONE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "loc": 6, "envoyer": [8, 9]},
+        },
+        "commercial": {
+            "sector": "COMMERCIAL", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "boulangerie": {
+            "sector": "BOULANGERIE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "libre_service": {
+            "sector": "LIBRE_SERVICE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [11, 12]},
+        },
+        "REM": {
+            "sector": "FROM_ACTIVITE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "activite": 8, "envoyer": [9, 10]},
+        },
+        "resto": {
+            "sector": "RESTAURATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "station": {
+            "sector": "STATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "vente": {
+            "sector": "FROM_ACTIVITE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "activite": 8, "envoyer": [9, 10]},
+        },
+    },
 }
 
 SEX_MAP = {"mixte": "MIXTE", "garcon": "GARCON", "fille": "FILLE"}
