@@ -8,7 +8,8 @@ import { env } from '../../config/env';
 import { BookingService } from '../booking/service';
 import { sendRdvConfirmation, sendNoShowRebooking } from './notifications';
 import { RhKpiService } from '../../services/RhKpiService';
-import { primarySector } from '../../utils/sector';
+import { primarySector, shareSector } from '../../utils/sector';
+import { hasMinPermission } from '../../graphql/authGuard';
 import { isValidEmail } from '../../services/validation';
 
 const userService = new UserService();
@@ -124,11 +125,16 @@ async function resolveOwner(req: AuthRequest, res: Response): Promise<User | nul
 /** GET /api/calendar/users — liste RH + responsables avec état de connexion Google. */
 export async function listCalendarUsers(req: AuthRequest, res: Response): Promise<void> {
     const selfId = Number(req.user.id);
-    const users = await userService.findByJobRoles([JobRole.RH]);
+    let users = await userService.findByJobRoles([JobRole.RH]);
     // L'utilisateur courant doit toujours voir son propre agenda, même s'il n'est ni RH ni responsable (ex : ADMIN).
-    if (!users.some((u) => u.id === selfId)) {
-        const self = await userService.findById(selfId);
+    let self = users.find((u) => u.id === selfId);
+    if (!self) {
+        self = (await userService.findById(selfId)) ?? undefined;
         if (self) users.unshift(self);
+    }
+    // EMPLOYEE ne voit que les agendas de son propre secteur ; RESPONSABLE+ voit tout le monde.
+    if (self && !hasMinPermission(self, Permission.RESPONSABLE)) {
+        users = users.filter((u) => u.id === selfId || shareSector(self.sectors, u.sectors));
     }
     res.json({
         users: users.map((u) => ({

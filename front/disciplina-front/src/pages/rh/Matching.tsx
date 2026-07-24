@@ -1494,6 +1494,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   ]
   const alreadySentStatuses: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
   ]
@@ -1945,9 +1946,22 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const preselectedCandidates = filterByStatus(jobData.matchedCandidate, preselectedStatuses)
   const toSendCandidates = filterByStatus(jobData.matchedCandidate, toSendStatuses)
   const alreadySentCandidates = filterByStatus(jobData.matchedCandidate, alreadySentStatuses)
+  const contractCandidates = filterByStatus(jobData.matchedCandidate, [MatchedCandidateStatus.CONTRACT])
 
   return (
     <div className="flex flex-col gap-4 pb-6">
+
+      {contractCandidates.length > 0 && (
+        <div className="rounded-xl border border-success/20 bg-success-bg p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <UserCheck size={16} className="text-success" />
+            <p className="text-sm font-semibold text-success">
+              En contrat avec {contractCandidates.map((c) => c.fullName).join(', ')}
+            </p>
+          </div>
+        </div>
+      )}
+
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
