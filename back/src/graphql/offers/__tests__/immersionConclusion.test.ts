@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
@@ -11,14 +11,14 @@ import { unzipSync } from 'zlib';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
-function authHeaders(token: string) {
-    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+function authHeaders(auth: { cookieHeader: string; csrfHeader: string }) {
+    return { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader };
 }
 
-async function gql(token: string, body: object) {
+async function gql(auth: { cookieHeader: string; csrfHeader: string }, body: object) {
     const res = await fetch(ENDPOINT, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(auth),
         body: JSON.stringify(body),
     });
     return { res, json: await res.json() };
@@ -86,7 +86,7 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ offerId:
 
 describe('GraphQL setImmersionConclusion', () => {
     it('rejects when the candidate is not in immersion', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const jobRepo = new OfferRepository();
         const candidateRepo = new CandidateRepository();
 
@@ -113,7 +113,7 @@ describe('GraphQL setImmersionConclusion', () => {
             interview_location: 'Saint-Denis',
         });
 
-        const { res, json } = await gql(token, {
+        const { res, json } = await gql(auth, {
             query: MUTATION,
             variables: { offerId, candidateId, conclusion: 'REJECTED' },
         });
@@ -127,11 +127,11 @@ describe('GraphQL setImmersionConclusion', () => {
         ['REJECTED', CandidateStatus.SEEKING],
         ['CONTRACT', CandidateStatus.CONTRACT],
     ])('sets %s conclusion, candidate status, and a history entry', async (conclusion, expectedStatus) => {
-        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'rh@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const { offerId, candidateId } = await seedJobWithImmersionCandidate(suffix);
 
-        const { res, json } = await gql(token, {
+        const { res, json } = await gql(auth, {
             query: MUTATION,
             variables: { offerId, candidateId, conclusion },
         });

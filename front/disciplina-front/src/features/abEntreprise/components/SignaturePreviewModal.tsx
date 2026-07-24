@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, FileText, Mail, PenLine, Save, X } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { cleanHtml } from '@/services/sanitizeHtml'
@@ -46,7 +46,6 @@ function renderPreview(body: string, vars: Record<string, string>): string {
 }
 
 export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Props) {
-  const token = useAuthStore((s) => s.token)
   const [activeTab, setActiveTab] = useState<TabKey>('ab')
   const [pdfUrls, setPdfUrls] = useState<Record<TabKey, string | null>>({ ab: null, mandat: null, catalogue: null })
   const [email, setEmail] = useState<EmailData | null>(null)
@@ -63,10 +62,9 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
   useEffect(() => {
     let cancelled = false
     const created: string[] = []
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
 
     async function fetchPdf(path: string): Promise<string> {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${path}`, { headers })
+      const res = await apiFetch(path)
       if (!res.ok) throw new Error(`Chargement du document échoué (${res.status})`)
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -81,9 +79,8 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
           fetchPdf(`/api/needs-analysis/signature/mandat-pdf`),
           fetchPdf(`/api/needs-analysis/signature/catalogue-pdf`),
         ])
-        const mailRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/needs-analysis/signature/email?abId=${encodeURIComponent(abId)}`,
-          { headers },
+        const mailRes = await apiFetch(
+          `/api/needs-analysis/signature/email?abId=${encodeURIComponent(abId)}`,
         )
         const mail: EmailData = mailRes.ok
           ? await mailRes.json()
@@ -102,7 +99,7 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
       cancelled = true
       created.forEach((u) => URL.revokeObjectURL(u))
     }
-  }, [abId, token])
+  }, [abId])
 
   const handleConfirm = async () => {
     setSending(true)
@@ -119,12 +116,9 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
     setSavingTpl(true)
     setTplError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/mail-templates/${email.templateId}`, {
+      const res = await apiFetch(`/api/mail-templates/${email.templateId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: email.templateName ?? 'Analyse du Besoin à signer', subject, body }),
       })
       if (!res.ok) {

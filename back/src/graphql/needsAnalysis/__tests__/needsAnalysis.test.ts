@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql, dropMongo } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
@@ -11,7 +11,7 @@ const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/needs-analysis`;
 describe('GraphQL Needs Analysis integration', () => {
     let companyId: number;
     let userId: number;
-    let token: string;
+    let authCookies: { cookieHeader: string; csrfHeader: string };
     const suffix = Date.now();
 
     beforeEach(async () => {
@@ -41,8 +41,13 @@ describe('GraphQL Needs Analysis integration', () => {
             conclusion: 'À Réfléchir',
         });
 
-        // 3. Mint JWT token
-        token = mintToken({ id: userId, email: `sp-${suffix}@test.local`, role: 'COMMERCIAL', permission: 'EMPLOYEE' });
+        // 3. Mint auth cookies
+        authCookies = mintAuthCookies({
+            id: userId,
+            email: `sp-${suffix}@test.local`,
+            role: 'COMMERCIAL',
+            permission: 'EMPLOYEE',
+        });
     });
 
     async function graphql(query: string, variables: Record<string, unknown>) {
@@ -50,7 +55,8 @@ describe('GraphQL Needs Analysis integration', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: authCookies.cookieHeader,
+                'x-csrf-token': authCookies.csrfHeader,
             },
             body: JSON.stringify({ query, variables }),
         });
@@ -198,7 +204,7 @@ describe('GraphQL Needs Analysis integration', () => {
 
             // REST: download the generated PDF (exercises the per-position criteria PDF blocks)
             const pdfRes = await fetch(`http://localhost:${env.API_PORT}/api/needs-analysis/${needsAnalysisId}/pdf`, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { Cookie: authCookies.cookieHeader },
             });
             expect(pdfRes.status).toBe(200);
             expect(pdfRes.headers.get('content-type')).toContain('application/pdf');

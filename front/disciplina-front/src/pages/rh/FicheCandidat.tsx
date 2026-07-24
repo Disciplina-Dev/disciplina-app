@@ -13,8 +13,8 @@ import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS } from '@/graphql/queries'
-import { useAuthStore } from '@/store/authStore'
 import type { MailAttachment } from '@/store/mailTemplatesStore'
+import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate'
@@ -223,7 +223,6 @@ export default function FicheCandidat() {
   const { update } = useUpdateCandidate()
   const { createDriveFolder } = useCreateCandidateDriveFolder()
   const { deleteCandidate } = useDeleteCandidate()
-  const token = useAuthStore((s) => s.token)
   // Verdict du test : la moyenne est à 50%. L'AB n'est possible que si le candidat
   // a réussi au moins un test (>= 50%).
   const { result: testResult } = useClassMarkerResult(id)
@@ -273,9 +272,7 @@ export default function FicheCandidat() {
   const fetchDriveFiles = async (candidateId: string) => {
     setLoadingFiles(true)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${candidateId}/drive-files`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await apiFetch(`/api/candidates/${candidateId}/drive-files`)
       if (res.ok) {
         const data = await res.json()
         setDriveFiles(data.files ?? [])
@@ -307,9 +304,7 @@ export default function FicheCandidat() {
     let cancelled = false
     setPreviewLoading(true)
     setPreviewError(null)
-    fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/drive-files/${selectedFile.id}/content`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiFetch(`/api/candidates/${id}/drive-files/${selectedFile.id}/content`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`Aperçu indisponible (${res.status})`)
         const blob = await res.blob()
@@ -327,7 +322,7 @@ export default function FicheCandidat() {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [id, selectedFile, token])
+  }, [id, selectedFile])
 
   useEffect(() => {
     if (!id) return
@@ -358,9 +353,8 @@ export default function FicheCandidat() {
     try {
       const body = new FormData()
       files.forEach(f => body.append('files', f))
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/drive-upload`, {
+      const res = await apiFetch(`/api/candidates/${id}/drive-upload`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body,
       })
       if (!res.ok) {
@@ -379,9 +373,8 @@ export default function FicheCandidat() {
     if (!id) return
     if (!window.confirm(`Supprimer "${file.name}" du Drive ? Action irréversible.`)) return
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/drive-files/${file.id}`, {
+      const res = await apiFetch(`/api/candidates/${id}/drive-files/${file.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
         const err = await res.json()
@@ -522,11 +515,10 @@ export default function FicheCandidat() {
     e.target.value = ''
     setUploadingCV(true)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/cv`, {
+      const res = await apiFetch(`/api/candidates/${formData._id}/cv`, {
         method: 'POST',
         headers: {
           'Content-Type': file.type || 'application/octet-stream',
-          Authorization: `Bearer ${token}`,
         },
         body: file,
       })
@@ -544,9 +536,9 @@ export default function FicheCandidat() {
   }
 
   async function handleSendCvImportMail(mail: { to: string; subject: string; body: string; attachments: MailAttachment[] }) {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/external/cv-import/send`, {
+    const res = await apiFetch('/api/external/cv-import/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         candidateUuid: formData?._id,
         subject: mail.subject,
@@ -563,9 +555,7 @@ export default function FicheCandidat() {
     setDownloadingPdf(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await apiFetch(`/api/candidates/${formData._id}/pdf`)
       if (!res.ok) throw new Error('Erreur lors de la génération du PDF')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -590,9 +580,8 @@ export default function FicheCandidat() {
     setSavingAbToDrive(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${formData._id}/ab-to-drive`, {
+      const res = await apiFetch(`/api/candidates/${formData._id}/ab-to-drive`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))

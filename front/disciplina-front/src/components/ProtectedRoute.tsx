@@ -8,10 +8,16 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const token = useAuthStore((state) => state.token)
+  const authReady = useAuthStore((state) => state.authReady)
   const user = useAuthStore((state) => state.user)
 
-  if (!token || !user) {
+  // Le cookie httpOnly n'est plus lisible en JS : tant que le /api/auth/me
+  // du montage n'a pas résolu, on ne sait pas encore si l'utilisateur est connecté.
+  if (!authReady) {
+    return null
+  }
+
+  if (!user) {
     return <Navigate to="/" replace />
   }
 

@@ -2,6 +2,9 @@ import express, { Router } from 'express';
 import {
     login,
     register,
+    me,
+    refresh,
+    logout,
     generateGoogleUri,
     handleGoogleToken,
     disconnectGoogle,
@@ -17,6 +20,9 @@ import { loginRateLimiter } from '../middleware/rateLimiter';
 export const router: Router = express.Router();
 
 router.post('/login', loginRateLimiter, express.json(), login);
+router.post('/refresh', loginRateLimiter, refresh);
+router.post('/logout', authenticate, logout);
+router.get('/me', authenticate, me);
 router.post('/register', loginRateLimiter, express.json(), authenticate, register);
 router.get('/users', authenticate, listUsers);
 router.get('/directory', authenticate, listDirectory);

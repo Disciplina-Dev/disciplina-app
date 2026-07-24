@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyBlacklistRepository } from '../../../repositories/mysql/CompanyBlacklistRepository';
@@ -42,7 +42,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
     });
 
     it('short-circuits without calling INSEE when the whole SIREN is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const siret = `${siren}00001`;
 
@@ -56,7 +56,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
         });
 
         const res = await fetch(`${BASE}/${siren}`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Cookie: auth.cookieHeader },
         });
         const json = await res.json();
 
@@ -72,7 +72,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
     });
 
     it('lists blacklisted establishments alongside normal results when all_blacklist is 0', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const blacklistedSiret = `${siren}00001`;
         const otherSiret = `${siren}00002`;
@@ -92,7 +92,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
         });
 
         const res = await fetch(`${BASE}/${siren}`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Cookie: auth.cookieHeader },
         });
         const json = await res.json();
 
@@ -107,7 +107,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
     });
 
     it('returns no blacklist entries when nothing is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const siret = `${siren}00003`;
 
@@ -117,7 +117,7 @@ describe('GET /api/sourcing/:siren blacklist branches', () => {
         });
 
         const res = await fetch(`${BASE}/${siren}`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Cookie: auth.cookieHeader },
         });
         const json = await res.json();
 

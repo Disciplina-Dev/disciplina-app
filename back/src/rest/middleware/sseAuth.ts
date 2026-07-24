@@ -1,8 +1,7 @@
 import { Response } from 'express';
-import jwt from 'jsonwebtoken';
-import { env } from '../../config/env';
 import { JobRole } from '../../types/user.types';
 import { AuthRequest } from './auth';
+import { ACCESS_TOKEN_COOKIE, verifyAccessToken } from './tokenAuth';
 
 const STAFF_ROLES: string[] = [JobRole.COMMERCIAL, JobRole.RH, JobRole.PEDA, JobRole.AD, JobRole.GESTION];
 
@@ -13,22 +12,22 @@ export interface StaffStreamPayload {
     permission: string;
 }
 
-// EventSource ne peut pas porter d'en-tête Authorization : le token transite en query.
+// EventSource envoie les cookies automatiquement (avec withCredentials côté client) :
+// plus besoin de faire transiter le token en query string.
 export function authenticateStaffStream(req: AuthRequest, res: Response): StaffStreamPayload | null {
-    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
     if (!token) {
         res.status(401).end();
         return null;
     }
-    try {
-        const payload = jwt.verify(token, env.JWT_SECRET) as StaffStreamPayload;
-        if (!payload.role || !STAFF_ROLES.includes(payload.role)) {
-            res.status(403).end();
-            return null;
-        }
-        return payload;
-    } catch {
+    const payload = verifyAccessToken(token) as StaffStreamPayload | null;
+    if (!payload) {
         res.status(401).end();
         return null;
     }
+    if (!payload.role || !STAFF_ROLES.includes(payload.role)) {
+        res.status(403).end();
+        return null;
+    }
+    return payload;
 }

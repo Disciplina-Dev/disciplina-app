@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import jwt from 'jsonwebtoken';
 import { env } from '../../../config/env';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintToken, ACCESS_TOKEN_COOKIE } from '../../../../test/helpers/auth';
 
 const BASE = `http://localhost:${env.API_PORT}`;
 
@@ -13,7 +13,7 @@ function guestToken(role: 'ENTREPRISE_GUEST' | 'CANDIDATE_GUEST'): string {
 }
 
 function get(path: string, token?: string) {
-    return fetch(`${BASE}${path}`, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+    return fetch(`${BASE}${path}`, token ? { headers: { Cookie: `${ACCESS_TOKEN_COOKIE}=${token}` } } : undefined);
 }
 
 const STAFF_ROUTES = ['/api/sourcing/completion', '/api/auth/directory', '/api/notifications'];
@@ -56,7 +56,7 @@ describe('SSE streams', () => {
     });
 
     it('rejects a stream with a guest token', async () => {
-        expect((await get(`/api/notifications/stream?token=${guestToken('ENTREPRISE_GUEST')}`)).status).toBe(403);
+        expect((await get('/api/notifications/stream', guestToken('ENTREPRISE_GUEST'))).status).toBe(403);
     });
 
     it('no longer trusts a client-supplied userID', async () => {

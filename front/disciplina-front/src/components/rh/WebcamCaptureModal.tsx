@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Camera, X, RefreshCw, Check, Loader2 } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
 import { uploadCandidateAvatar } from '@/api/candidates';
 
 interface WebcamCaptureModalProps {
@@ -23,7 +22,6 @@ export default function WebcamCaptureModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const token = useAuthStore((s) => s.token);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -90,11 +88,11 @@ export default function WebcamCaptureModal({
   };
 
   const save = async () => {
-    if (!captured || !token) return;
+    if (!captured) return;
     setSaving(true);
     setError(null);
     try {
-      const updatedAt = await uploadCandidateAvatar(token, candidateId, captured);
+      const updatedAt = await uploadCandidateAvatar(candidateId, captured);
       onUploaded(updatedAt);
       onClose();
     } catch (e) {

@@ -4,7 +4,8 @@ import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { useAuthStore, fullName } from '@/store/authStore'
+import { fullName } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
@@ -57,7 +58,6 @@ interface Props {
 const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 export default function CreateEditModal({ initial, prefillSiret, currentUser, onSave, onClose, mode, submitError }: Props) {
-  const token = useAuthStore((s) => s.token)
   const mailTemplates = useCommercialMailTemplatesStore((s) => s.templates)
   const { directory } = useStaffDirectory()
   const staffMembers = Object.values(directory).sort((a, b) =>
@@ -106,9 +106,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
     if (digits.length !== 14) return
     setLookupStatus('loading')
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/sourcing/${digits}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
+      const res = await apiFetch(`/api/sourcing/${digits}`)
       if (res.status === 404) { setLookupStatus('notfound'); return }
       if (!res.ok) { setLookupStatus('error'); return }
       const data = (await res.json()) as SireneResult
@@ -304,9 +302,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                           if (mode !== 'create') return true
                           if (!/^\d{14}$/.test(value)) return true
                           try {
-                            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/sourcing/${value}`, {
-                              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                            })
+                            const res = await apiFetch(`/api/sourcing/${value}`)
                             if (!res.ok) return true
                             const data = await res.json()
                             if (data.alreadyExists) return 'Ce SIRET est déjà dans le portefeuille'

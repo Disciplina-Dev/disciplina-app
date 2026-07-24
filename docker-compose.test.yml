@@ -53,6 +53,7 @@ services:
       API_PORT: 4000
       SESSION_SECRET: test-session-secret
       JWT_SECRET: test-jwt-secret
+      JWT_REFRESH_SECRET: test-jwt-refresh-secret
       MYSQL_USER: root
       MYSQL_DATABASE: disciplina
       GOOGLE_CLIENT_ID: test

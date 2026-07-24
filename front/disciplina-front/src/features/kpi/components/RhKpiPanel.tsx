@@ -66,7 +66,6 @@ export default function RhKpiPanel({
   sectors: extSectors,
   hideSelector = false,
 }: { sectors?: string[] | null; hideSelector?: boolean } = {}) {
-  const token = useAuthStore((s) => s.token)
   const permission = useAuthStore((s) => s.user?.permission)
   const isAggregate = permission === Permission.ADMIN || permission === Permission.RESPONSABLE
   const navigate = useNavigate()
@@ -90,22 +89,20 @@ export default function RhKpiPanel({
   const [error, setError] = useState<string | null>(null)
 
   const load = () => {
-    if (!token) return
     setLoading(true); setError(null)
-    fetchRhKpiReport(token, year)
+    fetchRhKpiReport(year)
       .then(setReport)
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    if (!token) return
-    fetchRhKpiYears(token)
+    fetchRhKpiYears()
       .then((ys) => setYears(ys.includes(now.getFullYear()) ? ys : [now.getFullYear(), ...ys]))
       .catch(() => { /* liste d'années best-effort */ })
-  }, [token, now])
+  }, [now])
 
-  useEffect(load, [token, year])
+  useEffect(load, [year])
 
   // Semaines retenues selon la granularité choisie.
   const selectedWeeks = useMemo(() => {
