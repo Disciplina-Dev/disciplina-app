@@ -37,9 +37,14 @@ export class OfferRepository {
         return OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
     }
 
-    /** Toutes les offres à matcher : une offre n'existe qu'une fois l'AB envoyée en signature. */
+    /** Toutes les offres à matcher (hors offres déjà contractualisées). */
     async listMatchingOffers(): Promise<Offer[]> {
-        return OfferModel.find().lean();
+        return OfferModel.find({
+            $nor: [
+                { 'matching.status': OfferStatus.CONTRACT },
+                { 'matching.candidates': { $elemMatch: { status: MatchedCandidateStatus.CONTRACT } } },
+            ],
+        }).lean();
     }
 
     /** Remplace le contenu (poste, entreprise, référents, saler) d'une offre sans toucher à `matching`. */
@@ -162,14 +167,16 @@ export class OfferRepository {
         conclusion: InterviewConclusion,
         immersionStartDate?: string,
         immersionEndDate?: string,
+        status?: MatchedCandidateStatus,
     ): Promise<Offer | null> {
         const update: Record<string, unknown> = { 'matching.candidates.$.interview_conclusion': conclusion };
         if (immersionStartDate) update['matching.candidates.$.immersion_start_date'] = immersionStartDate;
         if (immersionEndDate) update['matching.candidates.$.immersion_end_date'] = immersionEndDate;
+        if (status) update['matching.candidates.$.status'] = status;
         return OfferModel.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: update },
-            { new: true },
+            { returnDocument: 'after' },
         ).lean();
     }
 
@@ -177,11 +184,14 @@ export class OfferRepository {
         offerId: string,
         candidateId: string,
         conclusion: ImmersionConclusion,
+        status?: MatchedCandidateStatus,
     ): Promise<Offer | null> {
+        const update: Record<string, unknown> = { 'matching.candidates.$.immersion_conclusion': conclusion };
+        if (status) update['matching.candidates.$.status'] = status;
         return OfferModel.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
-            { $set: { 'matching.candidates.$.immersion_conclusion': conclusion } },
-            { new: true },
+            { $set: update },
+            { returnDocument: 'after' },
         ).lean();
     }
 
@@ -219,6 +229,10 @@ export class OfferRepository {
     async findOfferIdsWithCandidate(candidateId: string): Promise<string[]> {
         const offers = await OfferModel.find({ 'matching.candidates.id': candidateId }, { _id: 1 }).lean();
         return offers.map((offer) => String(offer._id)).filter(Boolean);
+    }
+
+    async findWithCandidate(candidateId: string): Promise<Offer[]> {
+        return OfferModel.find({ 'matching.candidates.id': candidateId }).lean();
     }
 
     async deleteById(offerId: string): Promise<boolean> {

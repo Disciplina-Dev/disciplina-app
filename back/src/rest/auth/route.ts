@@ -2,10 +2,15 @@ import express, { Router } from 'express';
 import {
     login,
     register,
+    me,
+    refresh,
+    logout,
     generateGoogleUri,
     handleGoogleToken,
     disconnectGoogle,
+    googleStatus,
     listUsers,
+    listDirectory,
     updateUserSectors,
     updateUser,
 } from './controller';
@@ -15,10 +20,15 @@ import { loginRateLimiter } from '../middleware/rateLimiter';
 export const router: Router = express.Router();
 
 router.post('/login', loginRateLimiter, express.json(), login);
+router.post('/refresh', loginRateLimiter, refresh);
+router.post('/logout', authenticate, logout);
+router.get('/me', authenticate, me);
 router.post('/register', loginRateLimiter, express.json(), authenticate, register);
 router.get('/users', authenticate, listUsers);
+router.get('/directory', authenticate, listDirectory);
 router.patch('/users/:id/sectors', express.json(), authenticate, updateUserSectors);
 router.patch('/users/:id', express.json(), authenticate, updateUser);
 router.post('/google/uri', express.json(), authenticate, generateGoogleUri);
 router.post('/google/token', express.json(), handleGoogleToken);
+router.get('/google/status', authenticate, googleStatus);
 router.post('/google/disconnect', express.json(), authenticate, disconnectGoogle);

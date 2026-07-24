@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, Loader2 } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
+import { apiJson } from '@/api/httpClient'
 
 interface LocationAutocompleteInputProps {
   label: string
@@ -9,8 +9,6 @@ interface LocationAutocompleteInputProps {
 }
 
 export default function LocationAutocompleteInput({ label, value, onChange }: LocationAutocompleteInputProps) {
-  const token = useAuthStore((s) => s.token)
-
   const [locationSearch, setLocationSearch] = useState('')
   const [locationResults, setLocationResults] = useState<string[]>([])
   const [locationError, setLocationError] = useState('')
@@ -31,11 +29,9 @@ export default function LocationAutocompleteInput({ label, value, onChange }: Lo
     setLocationLoading(true)
     debounceLocationRef.current = setTimeout(async () => {
       try {
-        const url = `${import.meta.env.VITE_API_URL}/api/sourcing/completion?input=${encodeURIComponent(locationSearch)}`;
-        const response = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const data = await response.json()
+        const data = await apiJson<{ status: string; results?: string[] }>(
+          `/api/sourcing/completion?input=${encodeURIComponent(locationSearch)}`,
+        )
 
         if (data.status === 'KO') {
           setLocationKO(true)
@@ -62,7 +58,7 @@ export default function LocationAutocompleteInput({ label, value, onChange }: Lo
     return () => {
       if (debounceLocationRef.current) clearTimeout(debounceLocationRef.current)
     }
-  }, [locationSearch, token])
+  }, [locationSearch])
 
   return (
     <div>

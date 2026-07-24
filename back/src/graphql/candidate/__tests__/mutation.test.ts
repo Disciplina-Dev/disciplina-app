@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
@@ -9,14 +9,15 @@ const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 describe('GraphQL candidate mutations', () => {
     describe('createCandidate', () => {
         it('creates a candidate with minimal required fields', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -51,14 +52,15 @@ describe('GraphQL candidate mutations', () => {
         });
 
         it('creates a candidate with all optional nested fields', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -113,14 +115,15 @@ describe('GraphQL candidate mutations', () => {
         });
 
         it('applies template defaults for skills_assessment when not provided', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -153,7 +156,7 @@ describe('GraphQL candidate mutations', () => {
 
     describe('updateCandidate', () => {
         it('updates the status field and returns camelCase result', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CandidateRepository();
 
@@ -169,7 +172,8 @@ describe('GraphQL candidate mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -196,7 +200,8 @@ describe('GraphQL candidate mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `query($id: String!) { candidate(id: $id) { status } }`,
@@ -208,7 +213,7 @@ describe('GraphQL candidate mutations', () => {
         });
 
         it('stores immersion start/end dates when moving to IMMERSING', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CandidateRepository();
 
@@ -222,14 +227,22 @@ describe('GraphQL candidate mutations', () => {
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
                 body: JSON.stringify({
                     query: `mutation($id: String!, $input: UpdateCandidateInput!) {
                         updateCandidate(id: $id, input: $input) { id status immersionStartDate immersionEndDate }
                     }`,
                     variables: {
                         id: seeded._id,
-                        input: { status: 'IMMERSING', immersionStartDate: '2026-09-01', immersionEndDate: '2026-09-15' },
+                        input: {
+                            status: 'IMMERSING',
+                            immersionStartDate: '2026-09-01',
+                            immersionEndDate: '2026-09-15',
+                        },
                     },
                 }),
             });
@@ -243,7 +256,7 @@ describe('GraphQL candidate mutations', () => {
         });
 
         it('updates nested identity fields', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CandidateRepository();
 
@@ -259,7 +272,8 @@ describe('GraphQL candidate mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -293,13 +307,14 @@ describe('GraphQL candidate mutations', () => {
         });
 
         it('returns an error when updating a non-existent candidate', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `
@@ -323,7 +338,7 @@ describe('GraphQL candidate mutations', () => {
 
     describe('deleteCandidate', () => {
         it('deletes an existing candidate and returns true', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
             const repo = new CandidateRepository();
 
@@ -339,7 +354,8 @@ describe('GraphQL candidate mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `mutation($id: String!) { deleteCandidate(id: $id) }`,
@@ -357,7 +373,8 @@ describe('GraphQL candidate mutations', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `query($id: String!) { candidate(id: $id) { id } }`,
@@ -369,13 +386,14 @@ describe('GraphQL candidate mutations', () => {
         });
 
         it('returns false when deleting a non-existent candidate', async () => {
-            const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
                     query: `mutation($id: String!) { deleteCandidate(id: $id) }`,

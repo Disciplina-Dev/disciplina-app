@@ -11,10 +11,14 @@ import { buildOffers, mergeOfferIdentity } from './mappers/offer.mapper';
 import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
+import { MailTemplateService } from './MailTemplateService';
+import { UserService } from './UserService';
+import { GoogleGmailService } from '../external/google/gmail.service';
+import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
-import { Role } from '../types/user.types';
+import { JobRole, Permission } from '../types/user.types';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { logger } from '../external/logger';
 import { PDFDocument } from 'pdf-lib';
@@ -35,11 +39,24 @@ async function countPdfPages(buffer: Buffer): Promise<number> {
     }
 }
 
+/** Échappe le texte injecté dans le HTML d'un mail (nom d'entreprise, etc.). */
+function escapeHtml(s: string): string {
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 export class NeedsAnalysisService {
     private repository: NeedsAnalysisRepository;
     private offerRepository: OfferRepository;
     private companiesService: CompaniesService;
     private docusealService: DocuSealService;
+    private mailTemplateService: MailTemplateService;
+    private userService: UserService;
+    private gmailService: GoogleGmailService;
     private userRepository: UserRepository;
     private notificationService: NotificationService;
     private todoService: TodoService;
@@ -49,6 +66,9 @@ export class NeedsAnalysisService {
         this.offerRepository = new OfferRepository();
         this.companiesService = new CompaniesService();
         this.docusealService = new DocuSealService();
+        this.mailTemplateService = new MailTemplateService();
+        this.userService = new UserService();
+        this.gmailService = new GoogleGmailService();
         this.userRepository = new UserRepository();
         this.notificationService = new NotificationService();
         this.todoService = new TodoService();
@@ -117,7 +137,11 @@ export class NeedsAnalysisService {
      * responsable recrutement. Passe le statut à EN_ATTENTE_SIGNATURE et stocke
      * l'identifiant de submission.
      */
-    async sendForSignature(id: string): Promise<NeedsAnalysisGql> {
+    async sendForSignature(
+        id: string,
+        actingUserId: number,
+        emailOverride?: { subject?: string; body?: string },
+    ): Promise<NeedsAnalysisGql> {
         const doc = await this.repository.findById(id);
         if (!doc) {
             throw new Error('Needs analysis not found');
@@ -127,6 +151,13 @@ export class NeedsAnalysisService {
         const signerEmail = analysis.referents?.recruitmentReferents?.email;
         if (!signerEmail) {
             throw new Error('No recruitment responsible email to send the signature request to');
+        }
+
+        // L'app envoie elle-même le mail via le Gmail du commercial : son compte
+        // Google doit être connecté (comme pour /api/email/send).
+        const actingUser = await this.userService.findById(actingUserId);
+        if (!actingUser?.oauthToken) {
+            throw new Error('Google account not connected');
         }
 
         const company = await this.companiesService.findById(analysis.companyInfos?.id!);
@@ -140,13 +171,31 @@ export class NeedsAnalysisService {
         const [firstName, ...rest] = (analysis.referents?.recruitmentReferents?.name ?? '').trim().split(/\s+/);
         const lastName = rest.join(' ');
 
-        const submissionId = await this.docusealService.initiateSignatureProcedure(
+        // 1. Créer la procédure DocuSeal SANS envoi d'email → on récupère le lien.
+        const { submissionId, signUrl } = await this.docusealService.initiateSignatureProcedure(
             buffer,
             filename,
             signerEmail,
             firstName || 'Responsable',
             lastName || 'Recrutement',
             await countPdfPages(buffer),
+        );
+
+        if (!signUrl) {
+            throw new Error('DocuSeal did not return a signing link; cannot send the signature email');
+        }
+
+        // 2. Envoyer notre mail (Gmail du commercial) avec le lien de signature.
+        const { subject, body } = await this.buildSignatureEmail(
+            actingUserId,
+            emailOverride,
+            company.name || 'votre entreprise',
+            signUrl,
+        );
+        await this.gmailService.sendEmail(
+            { access_token: actingUser.oauthToken, refresh_token: actingUser.refreshToken ?? undefined },
+            { to: signerEmail, subject, html: body, text: body.replace(/<[^>]*>/g, '') },
+            this.userService.googleTokenPersister(actingUser.id),
         );
 
         const wasDraft = doc.status === NeedsAnalysisStatus.BROUILLON;
@@ -158,7 +207,13 @@ export class NeedsAnalysisService {
 
         // Archivage Drive du PDF non signé, dans le dossier du secteur du commercial.
         // Best-effort : n'échoue pas l'envoi en signature.
-        await abDriveConfigService.archiveAbPdf(analysis.salerInfo?.id ?? undefined, 'UNSIGNED', buffer, filename);
+        await abDriveConfigService.archiveAbPdf(
+            analysis.salerInfo?.id ?? undefined,
+            'UNSIGNED',
+            buffer,
+            filename,
+            actingUserId,
+        );
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.
@@ -175,6 +230,83 @@ export class NeedsAnalysisService {
         return toNeedsAnalysis(updated);
     }
 
+    /**
+     * Construit le mail « AB à signer » à partir de l'override (édité dans l'aperçu),
+     * sinon du modèle système `ab_signature`, sinon du modèle par défaut. Remplace
+     * les variables : {{entreprise}}, {{lien_signature}} (bouton), {{signature}}.
+     */
+    private async buildSignatureEmail(
+        userId: number,
+        override: { subject?: string; body?: string } | undefined,
+        companyName: string,
+        signUrl: string,
+    ): Promise<{ subject: string; body: string }> {
+        let subject: string;
+        let body: string;
+        if (override?.body != null) {
+            subject = override.subject ?? AB_SIGNATURE_SUBJECT;
+            body = override.body;
+        } else {
+            const tpl = await this.mailTemplateService.findCommercialTemplateByKind('ab_signature');
+            subject = tpl?.subject ?? AB_SIGNATURE_SUBJECT;
+            body = tpl?.body ?? AB_SIGNATURE_BODY;
+        }
+
+        const signatureHtml = await this.mailTemplateService.getSignatureHtml(userId, 'commercial').catch(() => '');
+        const button =
+            `<a href="${signUrl}" style="display:inline-block;background:#2563eb;color:#fff;` +
+            `padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Signer les documents</a>`;
+
+        const fillVars = (text: string, allowLink: boolean): string => {
+            let out = text
+                .replaceAll('{{entreprise}}', escapeHtml(companyName))
+                .replaceAll('{{signature}}', allowLink ? signatureHtml : '');
+            out = allowLink ? out.replaceAll('{{lien_signature}}', button) : out.replaceAll('{{lien_signature}}', '');
+            return out;
+        };
+
+        body = fillVars(body, true);
+        // Sécurité : le signataire doit toujours avoir le lien, même si le modèle
+        // édité a supprimé {{lien_signature}}.
+        if (!body.includes(signUrl)) {
+            body += `<p>${button}</p>`;
+        }
+        subject = fillVars(subject, false);
+        return { subject, body };
+    }
+
+    /**
+     * Aperçu (avant envoi) du mail « AB à signer » : renvoie le modèle brut (avec
+     * variables) + les valeurs pour que le front affiche un rendu substitué.
+     */
+    async getSignatureEmailPreview(abId?: string): Promise<{
+        templateId: string | null;
+        templateName: string | null;
+        subject: string;
+        body: string;
+        variables: Record<string, string>;
+    }> {
+        const tpl = await this.mailTemplateService.findCommercialTemplateByKind('ab_signature');
+        let entreprise = '';
+        if (abId) {
+            const doc = await this.repository.findById(abId);
+            if (doc) {
+                const analysis = toNeedsAnalysis(doc);
+                const company = analysis.companyInfos?.id
+                    ? await this.companiesService.findById(analysis.companyInfos.id)
+                    : null;
+                entreprise = company?.name ?? '';
+            }
+        }
+        return {
+            templateId: tpl?.id ?? null,
+            templateName: tpl?.name ?? null,
+            subject: tpl?.subject ?? AB_SIGNATURE_SUBJECT,
+            body: tpl?.body ?? AB_SIGNATURE_BODY,
+            variables: { entreprise },
+        };
+    }
+
     /** Crée les offres de matching (collection `offers`) pour l'AB et notifie tous les RH (cloche CRM). */
     private async createOffersAndNotifyRh(
         doc: NeedsAnalysisNoSql,
@@ -186,8 +318,9 @@ export class NeedsAnalysisService {
         logger.info({ id: analysisId, count: offerCount }, '[NeedsAnalysis] Offers created for AB');
 
         // RH + Responsables + Admin : tous ont accès à l'espace de matching.
-        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const positionsLabel = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
+        const firstOfferId = offers[0]?._id;
         await Promise.all(
             rhUsers.map((user) =>
                 this.notificationService.create({
@@ -196,14 +329,16 @@ export class NeedsAnalysisService {
                     level: 'info',
                     title: 'Nouvelle analyse du besoin à matcher',
                     message: `${companyName} — ${positionsLabel} à pourvoir`,
-                    link: '/rh/matching',
+                    link: firstOfferId ? `/rh/matching?offer=${firstOfferId}` : '/rh/matching',
                 }),
             ),
         );
         logger.info({ id: analysisId, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
 
         // Responsables + RH: create an actionable todo
-        const todoRecipients = rhUsers.filter((u) => u.role === Role.RESPONSABLE || u.role === Role.RH);
+        const todoRecipients = rhUsers.filter(
+            (u) => u.permission_name === Permission.RESPONSABLE || u.role_name === JobRole.RH,
+        );
         await Promise.all(
             todoRecipients.map((user) =>
                 this.todoService.createSystemTodo(

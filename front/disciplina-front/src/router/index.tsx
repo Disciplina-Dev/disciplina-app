@@ -7,6 +7,8 @@ import MatchGate from "@/pages/publicMatch/MatchGate";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
 import InterviewGate from "@/pages/publicInterview/InterviewGate";
 import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
+import CvImportGate from "@/pages/publicCvImport/CvImportGate";
+import CvImportUpload from "@/pages/publicCvImport/CvImportUpload";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -71,7 +73,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin",
     element: (
-      <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+      <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
         <AdminLayout />
       </ProtectedRoute>
     ),
@@ -113,9 +115,9 @@ export const router = createBrowserRouter([
       {
         path: "config-drive",
         element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
-            <AbDriveConfig />
-          </ProtectedRoute>
+            <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
+              <AbDriveConfig />
+            </ProtectedRoute>
         ),
         handle: { crumb: "Dossiers Drive" },
       },
@@ -144,18 +146,18 @@ export const router = createBrowserRouter([
       {
         path: "config-drive",
         element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
-            <DriveConfig />
-          </ProtectedRoute>
+            <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
+              <DriveConfig />
+            </ProtectedRoute>
         ),
         handle: { crumb: "Dossiers Drive" },
       },
       {
         path: "config-secteurs",
         element: (
-          <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.RESPONSABLE]}>
-            <SectorSettings />
-          </ProtectedRoute>
+            <ProtectedRoute allowedRoles={[UserRole.AD, UserRole.GESTION]}>
+              <SectorSettings />
+            </ProtectedRoute>
         ),
         handle: { crumb: "Lieux par secteur" },
       },
@@ -164,7 +166,7 @@ export const router = createBrowserRouter([
   {
     path: "/peda",
     element: (
-      <ProtectedRoute allowedRoles={[UserRole.PEDA, UserRole.ADMIN]}>
+      <ProtectedRoute allowedRoles={[UserRole.PEDA, UserRole.AD, UserRole.GESTION]}>
         <PedaLayout />
       </ProtectedRoute>
     ),
@@ -210,6 +212,14 @@ export const router = createBrowserRouter([
   {
     path: "/public/interview/:signature",
     element: <InterviewSlotPicker />,
+  },
+  {
+    path: "/public/cv-import",
+    element: <CvImportGate />,
+  },
+  {
+    path: "/public/cv-import/:signature",
+    element: <CvImportUpload />,
   },
   {
     path: "*",

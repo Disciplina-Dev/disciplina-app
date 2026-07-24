@@ -1,13 +1,9 @@
-export function buildCandidateTestUrl(
-  linkUrlId: string,
-  firstName: string,
-  lastName: string,
-  candidateId: string
-): string {
+// Minimisation RGPD : seul cm_user_id part chez ClassMarker. C'est la seule valeur
+// que le webhook relit ; les noms n'alimentaient que les rapports de ClassMarker et
+// n'ont jamais été relus par l'application.
+export function buildCandidateTestUrl(linkUrlId: string, candidateId: string): string {
   const params = new URLSearchParams({
     quiz: linkUrlId,
-    cm_fn: firstName,
-    cm_ln: lastName,
     cm_user_id: candidateId,
   });
   return `https://www.classmarker.com/online-test/start?${params.toString()}`;

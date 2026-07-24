@@ -27,9 +27,7 @@ export function useClassMarkerResult(candidateId: string | undefined) {
       .catch((err) => { console.warn('[ClassMarker] fetch initial échoué:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
-    const url = classMarkerStreamUrl(candidateId);
-    console.log('[ClassMarker] SSE connect →', url);
-    const es = new EventSource(url);
+    const es = new EventSource(classMarkerStreamUrl(candidateId), { withCredentials: true });
 
     es.onopen = () => console.log('[ClassMarker] SSE connecté ✓');
     es.onmessage = (e) => {

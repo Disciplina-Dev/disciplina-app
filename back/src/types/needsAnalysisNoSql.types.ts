@@ -118,6 +118,7 @@ export interface Position {
     localisation?: Localisation[];
     tp_type?: TitleProfessionalType | null;
     training_domain?: TrainingDomain | null;
+    job_role?: string | null;
     title?: string;
     missions?: string[];
     description_missions?: string[];

@@ -1,9 +1,10 @@
-"""Pure helpers to map raw recrutment-nord-<theme>.csv rows into `jobs` documents.
+"""Pure helpers to map raw recrutment-<zone>-<theme>.csv rows into `jobs` documents.
 
-Headers across the seven files are inconsistent (empty/duplicate/mislabelled), so
-columns are addressed by position through a per-file FILE_CONFIG. One row can yield
-several jobs: the Formation cell holds the desired TP and a value like "NTC/REM"
-produces one job per TP (the collection stores a single `desired_tp` per document).
+Headers across the files are inconsistent (empty/duplicate/mislabelled), so
+columns are addressed by position through a per-zone, per-theme FILE_CONFIG. One row
+can yield several jobs: the Formation cell holds the desired TP and a value like
+"NTC/REM" produces one job per TP (the collection stores a single `desired_tp` per
+document).
 """
 
 import os
@@ -13,63 +14,192 @@ from lib.company_csv import clean_text, remove_accents
 
 VALID_TP = {"AD", "CC", "NTC", "REM", "SA"}
 
-# theme -> {field: column index}. `activite` and `exp` are optional per file.
+# zone -> theme -> {field: column index}. `activite` and `exp` are optional per file.
 FILE_CONFIG = {
-    "AD": {
-        "sector": "NONE", "data_start": 2,
-        "cols": {"tp": 0, "company": 1, "age": 2, "sex": 3, "permis": 4,
-                 "exp": 5, "loc": 7, "envoyer": [9, 10]},
+    "nord": {
+        "AD": {
+            "sector": "NONE", "data_start": 2,
+            "cols": {"tp": 0, "company": 1, "age": 2, "sex": 3, "permis": 4,
+                     "exp": 5, "loc": 7, "envoyer": [9, 10]},
+        },
+        "commercial": {
+            "sector": "COMMERCIAL", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "boulangerie": {
+            "sector": "BOULANGERIE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [8, 9]},
+        },
+        "libre_service": {
+            "sector": "LIBRE_SERVICE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "station": {
+            "sector": "STATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "loc": 6, "envoyer": [7, 8]},
+        },
+        "vente": {
+            "sector": "FROM_ACTIVITE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "activite": 8, "envoyer": [9, 10]},
+        },
+        "resto": {
+            "sector": "RESTAURATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
     },
-    "commercial": {
-        "sector": "COMMERCIAL", "data_start": 1,
-        "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
-                 "exp": 6, "loc": 7, "envoyer": [9, 10]},
+    "sud": {
+        "AD": {
+            "sector": "NONE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "loc": 6, "envoyer": [8, 9]},
+        },
+        "commercial": {
+            "sector": "COMMERCIAL", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "boulangerie": {
+            "sector": "BOULANGERIE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "libre_service": {
+            "sector": "LIBRE_SERVICE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [11, 12]},
+        },
+        "station": {
+            "sector": "STATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "vente": {
+            "sector": "FROM_ACTIVITE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "activite": 8, "envoyer": [9, 10]},
+        },
+        "resto": {
+            "sector": "RESTAURATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
     },
-    "boulangerie": {
-        "sector": "BOULANGERIE", "data_start": 1,
-        "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
-                 "exp": 6, "loc": 7, "envoyer": [8, 9]},
-    },
-    "libre_service": {
-        "sector": "LIBRE_SERVICE", "data_start": 1,
-        "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
-                 "exp": 6, "loc": 7, "envoyer": [9, 10]},
-    },
-    "station": {
-        "sector": "STATION", "data_start": 1,
-        "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
-                 "loc": 6, "envoyer": [7, 8]},
-    },
-    "vente": {
-        "sector": "FROM_ACTIVITE", "data_start": 1,
-        "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
-                 "exp": 6, "loc": 7, "activite": 8, "envoyer": [9, 10]},
-    },
-    "resto": {
-        "sector": "RESTAURATION", "data_start": 1,
-        "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
-                 "exp": 6, "loc": 7, "envoyer": [9, 10]},
+    "ouest": {
+        "AD": {
+            "sector": "NONE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "loc": 6, "envoyer": [8, 9]},
+        },
+        "commercial": {
+            "sector": "COMMERCIAL", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "boulangerie": {
+            "sector": "BOULANGERIE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "libre_service": {
+            "sector": "LIBRE_SERVICE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [11, 12]},
+        },
+        "REM": {
+            "sector": "FROM_ACTIVITE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "activite": 8, "envoyer": [9, 10]},
+        },
+        "resto": {
+            "sector": "RESTAURATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "station": {
+            "sector": "STATION", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "envoyer": [9, 10]},
+        },
+        "vente": {
+            "sector": "FROM_ACTIVITE", "data_start": 1,
+            "cols": {"tp": 3, "company": 1, "age": 2, "sex": 4, "permis": 5,
+                     "exp": 6, "loc": 7, "activite": 8, "envoyer": [9, 10]},
+        },
     },
 }
 
 SEX_MAP = {"mixte": "MIXTE", "garcon": "GARCON", "fille": "FILLE"}
 
-LOCALISATION_KEYWORDS = [
-    ("denis", "SAINT_DENIS"),
-    ("clotilde", "SAINT_DENIS"),
-    ("montagne", "SAINT_DENIS"),
-    ("bellepierre", "SAINT_DENIS"),
-    ("andre", "SAINT_ANDRE"),
-    ("marie", "SAINTE_MARIE"),
-    ("suzanne", "SAINTE_SUZANNE"),
-    ("benoit", "SAINT_BENOIT"),
-    ("paul", "SAINT_PAUL"),
-    ("possession", "LA_POSSESSION"),
-    ("port", "LE_PORT"),
-    ("pierre", "SAINT_PIERRE"),
-    ("tampon", "LE_TAMPON"),
-    ("louis", "SAINT_LOUIS"),
-    ("leu", "SAINT_LEU"),
+LOCALISATION_KEYWORDS = {
+    "NORD": {
+        "SAINT_DENIS": ["denis", "clotilde", "montagne", "bellepierre", "chaudron"],
+        "SAINTE_MARIE": ["marie"],
+        "SAINTE_SUZANNE": ["suzanne"],
+        "SAINTE_ROSE": ["rose"],
+        "SAINT_BENOIT": ["benoit"],
+        "BRAS_PANON": ["panon"],
+        "SAINT_ANDRE": ["andre"],
+        "LA_PLAINE_DES_PALMISTES": ["palmistes"],
+        "SALAZIE": ["salazie"],
+        "SAINTE_ANNE": ["anne"],
+    },
+    "OUEST": {
+        "SAINT_PAUL": ["paul", "cambaie", "bellemene", "eperon", "guillaume", "bac rouge",
+                       "nefles"],
+        "SAINT_GILLES": ["gilles", "hermitage", "saline"],
+        "LA_POSSESSION": ["possession"],
+        "LE_PORT": ["port", "rdg", "galets"],
+        "TROIS_BASSINS": ["trois bassin", "bassins"],
+        "SAINT_LEU": ["leu", "chaloupe"],
+    },
+    "SUD": {
+        "SAINT_PIERRE": ["pierre"],
+        "SAINT_LOUIS": ["louis"],
+        "ETANG_SALE": ["etang sale", "etang"],
+        "LE_TAMPON": ["tampon"],
+        "SAINT_JOSEPH": ["joseph"],
+        "SAINT_PHILLIPE": ["philippe"],
+        "PETIT_ILE": ["petite ile", "petit ile", "petite"],
+        "CILAOS": ["cilaos"],
+        "LES_AVIRONS": ["avirons"],
+        "ENTRE_DEUX": ["entre deux"],
+    },
+}
+
+FLAT_LOCALISATION_KEYWORDS = sorted(
+    (
+        (keyword, commune)
+        for communes in LOCALISATION_KEYWORDS.values()
+        for commune, keywords in communes.items()
+        for keyword in keywords
+    ),
+    key=lambda pair: len(pair[0]),
+    reverse=True,
+)
+
+# Miroir de ZONE_TO_COMMUNES (back/src/services/mappers/abToOffer.ts) : nécessaire pour
+# résoudre les valeurs "loc" qui désignent une zone entière (ex. "Ouest", "Zone SUD") en
+# l'ensemble de ses communes plutôt que de les laisser en unknown_loc.
+ZONE_TO_COMMUNES = {
+    "NORD": ["SAINT_DENIS", "SAINTE_MARIE", "SAINTE_SUZANNE", "SAINTE_ROSE", "SAINT_BENOIT",
+             "BRAS_PANON", "SAINT_ANDRE", "LA_PLAINE_DES_PALMISTES", "SALAZIE", "SAINTE_ANNE"],
+    "OUEST": ["SAINT_PAUL", "SAINT_GILLES", "LA_POSSESSION", "LE_PORT", "TROIS_BASSINS",
+              "SAINT_LEU", "LES_AVIRONS"],
+    "SUD": ["SAINT_PIERRE", "SAINT_LOUIS", "ETANG_SALE", "LE_TAMPON", "SAINT_JOSEPH",
+            "SAINT_PHILLIPE", "PETIT_ILE", "CILAOS", "ENTRE_DEUX"],
+}
+
+REGION_KEYWORDS = [
+    ("toute l'ile", ["NORD", "OUEST", "SUD"]),
+    ("nord", ["NORD"]),
+    ("sud", ["SUD"]),
+    ("ouest", ["OUEST"]),
 ]
 
 SECTOR_KEYWORDS = [
@@ -97,10 +227,15 @@ SECTOR_KEYWORDS = [
 ]
 
 
-def theme_from_path(path):
+def zone_theme_from_path(path):
     name = os.path.basename(path)
-    match = re.match(r"recrutment-nord-(.+)\.csv$", name)
-    return match.group(1) if match else None
+    match = re.match(r"recrutment-(\w+)-(.+)\.csv$", name)
+    if not match:
+        return None, None
+    zone, theme = match.group(1), match.group(2)
+    if zone not in FILE_CONFIG or theme not in FILE_CONFIG[zone]:
+        return None, None
+    return zone, theme
 
 
 def cell(values, index):
@@ -130,11 +265,22 @@ def map_experience(raw):
 
 def map_localisations(raw):
     known, unknown = [], []
-    for part in re.split(r"[-/]", raw or ""):
+    # Split on "/" and on a hyphen surrounded by spaces (real separators between
+    # distinct locations, e.g. "Saint André - Sainte Clotilde"). A bare hyphen with
+    # no surrounding space is part of a compound commune name ("Saint-Pierre",
+    # "Bois-de-Nèfles") and must stay in the fragment for the substring match below.
+    for part in re.split(r"/|\s+-\s+", raw or ""):
         normalized = remove_accents(clean_text(part)).lower()
         if not normalized:
             continue
-        match = next((enum for keyword, enum in LOCALISATION_KEYWORDS if keyword in normalized), None)
+        zones = next((zones for keyword, zones in REGION_KEYWORDS if keyword in normalized), None)
+        if zones:
+            for zone in zones:
+                for commune in ZONE_TO_COMMUNES[zone]:
+                    if commune not in known:
+                        known.append(commune)
+            continue
+        match = next((enum for keyword, enum in FLAT_LOCALISATION_KEYWORDS if keyword in normalized), None)
         if match is None:
             unknown.append(clean_text(part))
         elif match not in known:
@@ -142,8 +288,8 @@ def map_localisations(raw):
     return known, unknown
 
 
-def map_sector(theme, activite):
-    config = FILE_CONFIG[theme]["sector"]
+def map_sector(zone, theme, activite):
+    config = FILE_CONFIG[zone][theme]["sector"]
     if config != "FROM_ACTIVITE":
         return config
     normalized = remove_accents(clean_text(activite)).lower()
@@ -161,24 +307,25 @@ def extract_candidate_names(*cells):
     return fragments
 
 
-def build_jobs(theme, values):
+def build_jobs(zone, theme, values):
     """Return (jobs, candidate_names, unknown_localisations) for one CSV row.
 
     `jobs` is one dict per valid TP; candidate names and unknown localisations are
     shared across those jobs and surfaced for the import report.
     """
-    cols = FILE_CONFIG[theme]["cols"]
+    cols = FILE_CONFIG[zone][theme]["cols"]
     tps = split_tps(cell(values, cols["tp"]))
     localisations, unknown_loc = map_localisations(cell(values, cols["loc"]))
     names = extract_candidate_names(*(cell(values, i) for i in cols["envoyer"]))
     base = {
+        "zone": zone,
         "company_name": clean_text(cell(values, cols["company"])),
         "age_range": clean_text(cell(values, cols["age"])),
         "desired_sex": map_sex(cell(values, cols["sex"])),
         "driving_license_b": map_driving_license(cell(values, cols["permis"])),
         "professional_experience": map_experience(cell(values, cols.get("exp"))),
         "localisation": localisations,
-        "sector": map_sector(theme, cell(values, cols.get("activite"))),
+        "sector": map_sector(zone, theme, cell(values, cols.get("activite"))),
     }
     jobs = [dict(base, desired_tp=tp) for tp in tps]
     return jobs, names, unknown_loc

@@ -9,14 +9,12 @@ export interface AbSignedEvent {
   companyId: number
 }
 
-export function useAbSignedNotification(userID: string | null | undefined) {
+export function useAbSignedNotification() {
   const [notifications, setNotifications] = useState<AbSignedEvent[]>([])
 
   useEffect(() => {
-    if (!userID) return
-
-    const url = `${API_BASE}/api/webhooks/yousign/stream?userID=${userID}`
-    const es = new EventSource(url)
+    const url = `${API_BASE}/api/webhooks/yousign/stream`
+    const es = new EventSource(url, { withCredentials: true })
 
     es.onmessage = (e) => {
       try {
@@ -30,7 +28,7 @@ export function useAbSignedNotification(userID: string | null | undefined) {
     es.onerror = () => { /* auto-reconnect by browser */ }
 
     return () => { es.close() }
-  }, [userID])
+  }, [])
 
   const dismiss = (abId: number) =>
     setNotifications((prev) => prev.filter((n) => n.abId !== abId))

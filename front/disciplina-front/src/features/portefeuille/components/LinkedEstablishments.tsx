@@ -10,7 +10,8 @@ import {
   displayAddress,
 } from "@/types/sourcing";
 import type { CompanyWithSalePerson } from "@/types/entreprise";
-import { useAuthStore, fullName } from "@/store/authStore";
+import { fullName } from "@/store/authStore";
+import { apiFetch } from "@/api/httpClient";
 
 interface LinkedEstablishmentsProps {
   siren: string;
@@ -19,15 +20,12 @@ interface LinkedEstablishmentsProps {
   onOpenCompany: (item: CompanyWithSalePerson) => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL;
-
 export default function LinkedEstablishments({
   siren,
   currentSiret,
   onAdd,
   onOpenCompany,
 }: LinkedEstablishmentsProps) {
-  const token = useAuthStore((s) => s.token);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SirenSearchResult | null>(null);
@@ -38,9 +36,7 @@ export default function LinkedEstablishments({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/sourcing/${siren}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const res = await apiFetch(`/api/sourcing/${siren}`);
       if (res.status === 404) {
         setError("notfound");
         return;

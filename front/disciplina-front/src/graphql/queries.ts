@@ -223,6 +223,12 @@ export const BLACKLIST_COMPANY = gql`
   }
 `
 
+export const BLACKLIST_AND_CLEANUP_COMPANY = gql`
+  mutation DeleteAndBlacklistCompany($companyId: Int!, $reason: String!, $allBlacklist: Boolean!) {
+    deleteAndBlacklistCompany(companyId: $companyId, reason: $reason, allBlacklist: $allBlacklist)
+  }
+`
+
 export const GET_BLACKLISTED_COMPANIES = gql`
   query GetBlacklistedCompanies($first: Int, $after: String, $search: String) {
     blacklistedCompanies(first: $first, after: $after, search: $search) {
@@ -290,6 +296,7 @@ const CANDIDATE_FIELDS = gql`
     identity {
       fullName
       avatarUpdatedAt
+      driveAvatarFileId
       email
       phone
       drivingLicenseB
@@ -318,6 +325,7 @@ const CANDIDATE_FIELDS = gql`
       lastDiplomaPrepared
     }
     pdfLink
+    photoLink
     createdAt
     lastRelanceAt
     relanceResponseAt
@@ -460,6 +468,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth
@@ -554,6 +563,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       pdfLink
       cvLink
       driveFolderId
+      photoLink
       filizFolderId
       createdAt
     }
@@ -593,6 +603,7 @@ export const UPDATE_CANDIDATE = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth
@@ -631,6 +642,9 @@ export const UPDATE_CANDIDATE = gql`
         digitalSkills
         readyForChallenges
         hobbies
+      }
+      jobInfo {
+        availabilityDate
       }
       synthesis {
         feasibilityConclusion
@@ -702,6 +716,7 @@ export const CREATE_CANDIDATE = gql`
       identity {
         fullName
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         drivingLicenseB
@@ -761,6 +776,7 @@ export const GET_CANDIDATE_FULL = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth
@@ -854,12 +870,15 @@ export const MATCH_CANDIDATE = gql`
       id
       matchedOffers {
         id
+        needsAnalysisId
         companyName
         sector
         localisation
         desiredTP
         ageRange
         status
+        title
+        jobRole
       }
     }
   }
@@ -885,6 +904,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         fullName
         socialSecurityNumber
         avatarUpdatedAt
+        driveAvatarFileId
         email
         phone
         dateOfBirth
@@ -1006,7 +1026,7 @@ export const REGISTER_USER = gql`
     $firstName: String!
     $lastName: String!
     $passwordPlain: String!
-    $role: Role!
+    $role: UserRole!
     $sectors: [String!]
   ) {
     register(
@@ -1034,7 +1054,7 @@ export const GET_OFFERS = gql`
     offers {
       id
       needsAnalysisId
-      companyInfos { id name }
+      companyInfos { id name activities }
       companyName
       ageRange
       desiredTP
@@ -1098,7 +1118,9 @@ export const MATCH_OFFER = gql`
         phone
         status
         description
+        identityDescription
         comment
+        cvWebview
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1117,6 +1139,7 @@ export const MATCH_OFFER = gql`
         phone
       }
       title
+      jobRole
       missions
       salerInfo {
         id
@@ -1161,6 +1184,9 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         email
         phone
         status
+        description
+        identityDescription
+        cvWebview
       }
     }
   }
@@ -1187,6 +1213,7 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         fullName
         email
         description
+        identityDescription
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1218,6 +1245,7 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
         fullName
         email
         description
+        identityDescription
         immersionStartDate
         immersionEndDate
         immersionLocation
@@ -1247,7 +1275,6 @@ export const SET_INTERVIEW_CONCLUSION = gql`
         fullName
         email
         description
-        answer
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1276,7 +1303,6 @@ export const SET_IMMERSION_CONCLUSION = gql`
         fullName
         email
         description
-        answer
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1364,7 +1390,32 @@ export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
         email
         phone
         status
+        description
+        identityDescription
+        cvWebview
       }
+    }
+  }
+`
+
+export const DELETE_OFFER = gql`
+  mutation DeleteOffer($id: String!) {
+    deleteOffer(id: $id)
+  }
+`
+
+export const DELETE_OFFERS_BY_NEEDS_ANALYSIS = gql`
+  mutation DeleteOffersByNeedsAnalysis($needsAnalysisId: String!) {
+    deleteOffersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId)
+  }
+`
+
+export const OFFERS_BY_NEEDS_ANALYSIS = gql`
+  query OffersByNeedsAnalysis($needsAnalysisId: String!) {
+    offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) {
+      id
+      companyName
+      title
     }
   }
 `
@@ -1456,6 +1507,11 @@ export const GET_COMPANY_HISTORY = gql`
       status
       previousStatus
       modifiedBy
+      changes {
+        column
+        from
+        to
+      }
     }
   }
 `
@@ -1539,6 +1595,7 @@ export const GET_NEEDS_ANALYSIS = gql`
         localisation
         tpType
         trainingDomain
+        jobRole
         title
         missions
         descriptionMissions

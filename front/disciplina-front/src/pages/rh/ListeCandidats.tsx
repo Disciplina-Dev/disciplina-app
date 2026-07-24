@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
   Plus, SlidersHorizontal, Trash2,
   Phone, GraduationCap, Mail, Copy, Check, Camera
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
+import CandidateAvatar from '@/components/rh/CandidateAvatar';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
@@ -14,9 +15,11 @@ import { SECTOR_LABELS } from '@/data/sectors';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
-import { useCandidatesPage, type CandidateServerFilters } from '@/graphql/hooks';
+import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
+import { graphqlClient } from '@/graphql/client';
+import { GET_RH_USERS } from '@/graphql/queries';
 
 // --- Helpers ---
 
@@ -52,7 +55,7 @@ const formatTrainingSite = (site?: TrainingSite) => {
 
 // --- Main Page Component ---
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 20;
 
 type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
 
@@ -63,12 +66,13 @@ interface CandidateFilterState {
   permis: 'all' | 'yes' | 'no';
   ageMin: number | '';
   ageMax: number | '';
-  tpType: TitleProfessionalType | '';
+  tpType: TitleProfessionalType[];
   geographicMobility: Localisation[];
   desiredSectors: string[];
   dateMode: DateMode;
   dateFrom: string;
   dateTo: string;
+  interviewedBy: string;
 }
 
 const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
@@ -78,12 +82,13 @@ const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   permis: 'all',
   ageMin: '',
   ageMax: '',
-  tpType: '',
+  tpType: [],
   geographicMobility: [],
   desiredSectors: [],
   dateMode: 'any',
   dateFrom: '',
   dateTo: '',
+  interviewedBy: '',
 };
 
 function toServerFilters(filters: CandidateFilterState): CandidateServerFilters | undefined {
@@ -105,12 +110,13 @@ function toServerFilters(filters: CandidateFilterState): CandidateServerFilters 
     drivingLicenseB: filters.permis === 'all' ? undefined : filters.permis === 'yes',
     ageMin: filters.ageMin || undefined,
     ageMax: filters.ageMax || undefined,
-    tpType: filters.tpType || undefined,
+    tpType: filters.tpType?.length ? filters.tpType : undefined,
     geographicMobility: filters.geographicMobility?.length ? filters.geographicMobility : undefined,
     desiredSectors: filters.desiredSectors?.length ? filters.desiredSectors : undefined,
     createdAfter,
     createdBefore,
     createdMissing,
+    interviewedBy: filters.interviewedBy || undefined,
   };
   const hasAny = Object.values(serverFilters).some(v => v !== undefined);
   return hasAny ? serverFilters : undefined;
@@ -137,6 +143,28 @@ export default function ListeCandidats() {
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Pré-remplir le filtre « Entretien fait par » depuis l'URL (lien depuis le tableau de bord RH).
+  const [searchParams] = useSearchParams();
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    const fromUrl = searchParams.get('interviewedBy');
+    if (fromUrl && !prefilledRef.current) {
+      prefilledRef.current = true;
+      setFilters({ ...filters, interviewedBy: fromUrl });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Liste des RH pour le filtre « Entretien fait par ».
+  const [rhUsers, setRhUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+  useEffect(() => {
+    graphqlClient
+      .query(GET_RH_USERS, {})
+      .toPromise()
+      .then(res => setRhUsers(res.data?.rhUsers ?? []))
+      .catch(() => setRhUsers([]));
+  }, []);
+
   const serverFilters = useMemo(() => toServerFilters(filters), [filters]);
 
   const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
@@ -145,8 +173,79 @@ export default function ListeCandidats() {
   // Sync server candidates into local state (enables optimistic edits)
   useMemo(() => { setLocalCandidates(candidates); }, [candidates]);
 
-  const handleUpdateStatus = (id: string, newStatus: CandidateStatus) => {
+  const { update: persistCandidate } = useUpdateCandidate();
+
+  // Modal state for IMMERSING
+  const [immersionModal, setImmersionModal] = useState<{ id: string; candidate: Candidate } | null>(null);
+  const [immersionStart, setImmersionStart] = useState('');
+  const [immersionEnd, setImmersionEnd] = useState('');
+
+  // Modal state for UNAVAILABLE
+  const [unavailableModal, setUnavailableModal] = useState<{ id: string; candidate: Candidate } | null>(null);
+  const [availabilityDate, setAvailabilityDate] = useState('');
+
+  const handleUpdateStatus = async (id: string, newStatus: CandidateStatus) => {
+    const candidate = localCandidates.find(c => c._id === id);
+    if (!candidate) return;
+
+    if (newStatus === CandidateStatus.IMMERSING) {
+      setImmersionStart(candidate.immersion_start_date?.slice(0, 10) ?? '');
+      setImmersionEnd(candidate.immersion_end_date?.slice(0, 10) ?? '');
+      setImmersionModal({ id, candidate });
+      return;
+    }
+
+    if (newStatus === CandidateStatus.UNAVAILABLE) {
+      setAvailabilityDate(candidate.job_info?.availability_date?.slice(0, 10) ?? '');
+      setUnavailableModal({ id, candidate });
+      return;
+    }
+
+    // Optimistic update
     setLocalCandidates(prev => prev.map(c => c._id === id ? { ...c, status: newStatus } : c));
+    try {
+      await persistCandidate(id, { ...candidate, status: newStatus });
+    } catch {
+      refetch();
+    }
+  };
+
+  const confirmImmersion = async () => {
+    if (!immersionModal) return;
+    const { id, candidate } = immersionModal;
+    const updated = {
+      ...candidate,
+      status: CandidateStatus.IMMERSING,
+      immersion_start_date: immersionStart || undefined,
+      immersion_end_date: immersionEnd || undefined,
+    };
+    setLocalCandidates(prev => prev.map(c => c._id === id ? updated : c));
+    setImmersionModal(null);
+    try {
+      await persistCandidate(id, updated);
+    } catch {
+      refetch();
+    }
+  };
+
+  const confirmUnavailable = async () => {
+    if (!unavailableModal) return;
+    const { id, candidate } = unavailableModal;
+    const updated = {
+      ...candidate,
+      status: CandidateStatus.UNAVAILABLE,
+      job_info: {
+        ...candidate.job_info,
+        availability_date: availabilityDate || undefined,
+      },
+    };
+    setLocalCandidates(prev => prev.map(c => c._id === id ? updated : c));
+    setUnavailableModal(null);
+    try {
+      await persistCandidate(id, updated);
+    } catch {
+      refetch();
+    }
   };
 
   const dateFilterActive = filters.dateMode !== 'any' && (
@@ -155,7 +254,7 @@ export default function ListeCandidats() {
     (filters.dateMode === 'before' && !!filters.dateTo) ||
     (filters.dateMode === 'between' && (!!filters.dateFrom || !!filters.dateTo))
   );
-  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax, filters.tpType].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0);
+  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.tpType?.length ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
@@ -207,7 +306,7 @@ export default function ListeCandidats() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="Rechercher par nom..."
+              placeholder="Rechercher (nom, ville, métier visé...)"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"
@@ -277,13 +376,15 @@ export default function ListeCandidats() {
             </div>
 
             {/* Type TP */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Type TP</label>
-              <select value={filters.tpType} onChange={e => setFilters({ ...filters, tpType: e.target.value as TitleProfessionalType })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
-                <option value="">Tous les types</option>
-                {Object.values(TitleProfessionalType).map(type => <option key={type} value={type}>{type}</option>)}
-              </select>
-            </div>
+            <MultiSelectField
+              variant="filter"
+              id="filter-tp-type"
+              label="Type TP"
+              options={Object.values(TitleProfessionalType)}
+              value={filters.tpType}
+              onChange={vals => setFilters({ ...filters, tpType: vals as TitleProfessionalType[] })}
+              placeholder="Tous les types"
+            />
 
             {/* Age Min */}
             <div className="flex flex-col gap-1.5">
@@ -314,6 +415,7 @@ export default function ListeCandidats() {
           {/* Mobilité géographique + secteurs souhaités (multi-sélection, OR) */}
           <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <MultiSelectField
+              variant="filter"
               id="filter-geographic-mobility"
               label="Ville demandée (mobilité)"
               options={Object.values(Localisation)}
@@ -323,6 +425,7 @@ export default function ListeCandidats() {
               placeholder="Toutes les villes"
             />
             <MultiSelectField
+              variant="filter"
               id="filter-desired-sectors"
               label="Secteurs d'activité souhaités"
               options={ALL_DESIRED_SECTORS}
@@ -381,6 +484,24 @@ export default function ListeCandidats() {
             )}
           </div>
 
+          {/* Filtre par entretien fait par */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex flex-col gap-1.5 sm:w-72">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Entretien fait par</label>
+              <select
+                value={filters.interviewedBy}
+                onChange={e => setFilters({ ...filters, interviewedBy: e.target.value })}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+              >
+                <option value="">Tous les RH</option>
+                {rhUsers.map(u => {
+                  const name = `${u.firstName} ${u.lastName}`.trim();
+                  return <option key={u.id} value={name}>{name}</option>;
+                })}
+              </select>
+            </div>
+          </div>
+
           {activeFiltersCount > 0 && (
             <div className="mt-4 flex justify-end">
               <button
@@ -424,17 +545,18 @@ export default function ListeCandidats() {
             {/* Card Header: Avatar */}
             <div className="mb-4 mt-2">
               <div className="relative w-14 h-14">
-                {candidate.identity.avatar_url ? (
-                  <img
-                    src={candidate.identity.avatar_url}
-                    alt={candidate.identity.full_name}
-                    className="w-14 h-14 rounded-full object-cover ring-2 ring-gray-50 group-hover:ring-purple-light transition-all"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-full bg-purple-light flex items-center justify-center text-purple ring-2 ring-gray-50 group-hover:ring-purple-light transition-all">
-                    <User size={24} />
-                  </div>
-                )}
+                <CandidateAvatar
+                  candidateId={candidate._id}
+                  fullName={candidate.identity.full_name}
+                  hasPhoto={Boolean(
+                    candidate.identity.avatar_updated_at ||
+                      candidate.identity.drive_avatar_file_id ||
+                      candidate.photo_link,
+                  )}
+                  version={candidate.identity.avatar_updated_at ?? candidate.identity.drive_avatar_file_id}
+                  className="w-14 h-14 rounded-full ring-2 ring-gray-50 group-hover:ring-purple-light transition-all"
+                  iconSize={24}
+                />
                 <button
                   title="Prendre une photo"
                   onClick={(e) => {
@@ -454,9 +576,11 @@ export default function ListeCandidats() {
                 {candidate.identity.full_name}
               </h3>
               <div className="mb-4 mt-1 flex gap-2 flex-wrap">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ring-1 inset-ring ${getTpTypeColors(candidate.tp_type)}`}>
-                  {candidate.tp_type}
-                </span>
+                {(candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).map(tp => (
+                  <span key={tp} className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ring-1 inset-ring ${getTpTypeColors(tp)}`}>
+                    {tp}
+                  </span>
+                ))}
                 {candidate.identity.psh_referral_request && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-purple-light text-purple ring-1 ring-purple-light/30">
                     RQTH
@@ -608,6 +732,48 @@ export default function ListeCandidats() {
             );
           }}
         />
+      )}
+
+      {/* Immersion date modal */}
+      {immersionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModal(null)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
+            <p className="mt-1 text-sm text-gray-500">Renseigne les dates de début et de fin de l'immersion.</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700" htmlFor="imm-start-list">Date de début</label>
+                <input id="imm-start-list" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={immersionStart} onChange={e => setImmersionStart(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700" htmlFor="imm-end-list">Date de fin</label>
+                <input id="imm-end-list" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={immersionEnd} min={immersionStart || undefined} onChange={e => setImmersionEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setImmersionModal(null)} className="rounded-xl border border-gray-100 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-200">Annuler</button>
+              <button onClick={confirmImmersion} disabled={!immersionStart || !immersionEnd} className="rounded-xl bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unavailable date modal */}
+      {unavailableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setUnavailableModal(null)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Indisponible jusqu'au</h3>
+            <p className="mt-1 text-sm text-gray-500">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
+            <div className="mt-4">
+              <label className="text-sm font-medium text-gray-700" htmlFor="avail-date">Date de disponibilité</label>
+              <input id="avail-date" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setUnavailableModal(null)} className="rounded-xl border border-gray-100 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-200">Annuler</button>
+              <button onClick={confirmUnavailable} disabled={!availabilityDate} className="rounded-xl bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirmer</button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

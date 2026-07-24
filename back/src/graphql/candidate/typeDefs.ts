@@ -54,6 +54,7 @@ export const typeDefs = gql`
         SEEKING
         NOT_SEEKING
         UNAVAILABLE
+        TEST_FAILED
         CANCELLED
         CONTRACT
         IMMERSING
@@ -107,6 +108,7 @@ export const typeDefs = gql`
         apprenticeshipContractDetails: String
         description: String
         avatarUpdatedAt: String
+        driveAvatarFileId: String
     }
 
     type CandidateEducation {
@@ -197,12 +199,15 @@ export const typeDefs = gql`
 
     type MatchedOffer {
         id: String
+        needsAnalysisId: String
         companyName: String
         sector: String
         localisation: [Localisation]
         desiredTP: TitleProfessionalType
         ageRange: String
         status: String
+        title: String
+        jobRole: String
     }
 
     type CandidateOwner {
@@ -421,14 +426,6 @@ export const typeDefs = gql`
         synthesis: SynthesisInput
     }
 
-    type CandidateTemplate {
-        tpType: TitleProfessionalType!
-        hasEnglishLevel: Boolean!
-        availableSectors: [String!]!
-        availableExpectedSkills: [String!]!
-        defaultSkillsAssessment: [SkillAssessment!]!
-    }
-
     type PageInfo {
         hasNextPage: Boolean!
         hasPreviousPage: Boolean!
@@ -453,7 +450,7 @@ export const typeDefs = gql`
         drivingLicenseB: Boolean
         ageMin: Int
         ageMax: Int
-        tpType: TitleProfessionalType
+        tpType: [TitleProfessionalType!]
         "Villes de mobilité géographique souhaitées (OR : au moins une)"
         geographicMobility: [Localisation!]
         "Secteurs d'activité souhaités (OR : au moins un)"
@@ -464,6 +461,8 @@ export const typeDefs = gql`
         createdBefore: String
         "Ne renvoyer que les fiches sans date de création"
         createdMissing: Boolean
+        "Filtrer par le RH qui a mené l'entretien (nom complet)"
+        interviewedBy: String
     }
 
     type StatBucket {
@@ -533,7 +532,6 @@ export const typeDefs = gql`
         candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate
         candidateByEmail(email: String!): CandidateEmailCheck!
-        candidateTemplate(tpType: TitleProfessionalType!): CandidateTemplate
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
         driveFolderConfig: DriveFolderConfig!

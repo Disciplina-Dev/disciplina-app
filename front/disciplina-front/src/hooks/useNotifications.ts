@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -26,24 +27,18 @@ interface ListResponse {
  * jour temps réel via SSE, et actions lu / tout lu.
  */
 export function useNotifications() {
-  const token = useAuthStore((s) => s.token)
-  const userId = useAuthStore((s) => s.user?.id)
+  const user = useAuthStore((s) => s.user)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [loading, setLoading] = useState(false)
   const esRef = useRef<EventSource | null>(null)
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const authHeaders = useCallback(
-    (): HeadersInit => ({ Authorization: `Bearer ${token}` }),
-    [token],
-  )
-
   const refresh = useCallback(async () => {
-    if (!token) return
+    if (!user) return
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/notifications`, { headers: authHeaders() })
+      const res = await apiFetch('/api/notifications')
       if (!res.ok) return
       const data = (await res.json()) as ListResponse
       setNotifications(data.notifications)
@@ -52,7 +47,7 @@ export function useNotifications() {
     } finally {
       setLoading(false)
     }
-  }, [token, authHeaders])
+  }, [user])
 
   // Chargement initial
   useEffect(() => {
@@ -62,15 +57,15 @@ export function useNotifications() {
   // Polling de secours : sur un backend serverless (Vercel), le SSE ne traverse
   // pas les instances. On rafraîchit périodiquement pour garantir l'arrivée des notifs.
   useEffect(() => {
-    if (!token) return
+    if (!user) return
     const interval = setInterval(() => { void refresh() }, 45000)
     return () => clearInterval(interval)
-  }, [token, refresh])
+  }, [user, refresh])
 
-  // Flux temps réel
+  // Flux temps réel — le backend dérive l'identité depuis le cookie de session.
   useEffect(() => {
-    if (!userId) return
-    const es = new EventSource(`${API_BASE}/api/notifications/stream?userID=${userId}`)
+    if (!user) return
+    const es = new EventSource(`${API_BASE}/api/notifications/stream`, { withCredentials: true })
     esRef.current = es
     es.onmessage = (e) => {
       try {
@@ -91,30 +86,30 @@ export function useNotifications() {
       es.close()
       esRef.current = null
     }
-  }, [userId])
+  }, [user])
 
   const markRead = useCallback(
     async (id: string) => {
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-      if (!token) return
+      if (!user) return
       try {
-        await fetch(`${API_BASE}/api/notifications/${id}/read`, { method: 'POST', headers: authHeaders() })
+        await apiFetch(`/api/notifications/${id}/read`, { method: 'POST' })
       } catch {
         /* l'état optimiste sera resynchronisé au prochain refresh */
       }
     },
-    [token, authHeaders],
+    [user],
   )
 
   const markAllRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-    if (!token) return
+    if (!user) return
     try {
-      await fetch(`${API_BASE}/api/notifications/read-all`, { method: 'POST', headers: authHeaders() })
+      await apiFetch('/api/notifications/read-all', { method: 'POST' })
     } catch {
       /* idem */
     }
-  }, [token, authHeaders])
+  }, [user])
 
   return { notifications, unreadCount, loading, refresh, markRead, markAllRead }
 }

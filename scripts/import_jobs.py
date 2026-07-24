@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Seed the MongoDB `offers` collection from the recrutment-nord-<theme>.csv files.
+"""Seed the MongoDB `offers` collection from the recrutment-<zone>-<theme>.csv files.
 
 Each CSV row becomes one offer per desired TP (Formation split on '/'), and the
 'A envoyer' / 'Candidat ... à envoyer' columns are resolved against existing
 candidates to populate matching.candidates[]. Unmatched/ambiguous names and unknown
 localisations are collected into a JSON report under scripts/backups/.
 
-Offers are upserted by (company_infos.name, tp_type, localisation[0]) so the
-script is idempotent — re-runs update existing offers instead of duplicating them.
+Offers are always upserted by (company_infos.name, tp_type[, localisation[0]]) so the
+script is idempotent — re-runs update existing offers instead of duplicating them, even
+for rows whose localisation could not be resolved.
 """
 
 import argparse
@@ -23,7 +24,7 @@ from dotenv import load_dotenv
 
 from db.mongo import get_mongo_connection
 from lib.candidate_matcher import CandidateMatcher
-from lib.recruitment_csv import FILE_CONFIG, build_jobs, theme_from_path
+from lib.recruitment_csv import FILE_CONFIG, build_jobs, zone_theme_from_path
 
 DB_NAME = "human_ressources"
 RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resources")
@@ -110,7 +111,7 @@ def build_offer_document(job, matched_candidates):
     tp = job["desired_tp"]
     training_domain = "VENTE" if tp in ("CC", "NTC", "REM") else "SECRETARIAT"
 
-    company_infos = {"name": job["company_name"], "sector": "NORD"}
+    company_infos = {"name": job["company_name"], "sector": job["zone"].upper()}
     if job.get("sector") and job["sector"] != "NONE":
         company_infos["activities"] = [job["sector"]]
 
@@ -137,21 +138,26 @@ def upsert_offer(collection, doc):
     name = doc.get("company_infos", {}).get("name")
     tp = doc.get("tp_type")
     loc = doc.get("localisation", [])
-    if not name or not tp or not loc:
-        collection.insert_one(doc)
-        return
 
     doc_id = doc.pop("_id", None)
     created_at = doc.pop("created_at", None)
     updated_at = doc.pop("updated_at", None)
+    # The app owns `matching` once the offer exists: RH pick candidates and book
+    # interview slots there. Seeding it on every run would wipe that work, which is
+    # why OfferRepository.updateContent keeps it out of its own $set.
+    matching = doc.pop("matching", None)
 
     set_on_insert = {}
     if doc_id:
         set_on_insert["_id"] = doc_id
     if created_at:
         set_on_insert["created_at"] = created_at
+    if matching:
+        set_on_insert["matching"] = matching
 
-    filter_ = {"company_infos.name": name, "tp_type": tp, "localisation.0": loc[0]}
+    filter_ = {"company_infos.name": name, "tp_type": tp}
+    if loc:
+        filter_["localisation.0"] = loc[0]
     update = {"$set": doc}
     if updated_at:
         update["$set"]["updated_at"] = updated_at
@@ -161,15 +167,15 @@ def upsert_offer(collection, doc):
     collection.update_one(filter_, update, upsert=True)
 
 
-def process_row(theme, values, matcher, report):
-    jobs, names, unknown_loc = build_jobs(theme, values)
+def process_row(zone, theme, values, matcher, report):
+    jobs, names, unknown_loc = build_jobs(zone, theme, values)
     if not jobs:
         return []
     matched, unmatched, ambiguous = resolve_matched_candidates(names, matcher)
     documents = [build_offer_document(job, matched) for job in jobs]
     if unmatched or ambiguous or unknown_loc:
         report.append({
-            "file": f"recrutment-nord-{theme}.csv",
+            "file": f"recrutment-{zone}-{theme}.csv",
             "company": jobs[0]["company_name"],
             "tp": [job["desired_tp"] for job in jobs],
             "matched": [c["full_name"] for c in matched],
@@ -180,14 +186,14 @@ def process_row(theme, values, matcher, report):
     return documents
 
 
-def read_documents(path, theme, matcher, report):
-    data_start = FILE_CONFIG[theme]["data_start"]
+def read_documents(path, zone, theme, matcher, report):
+    data_start = FILE_CONFIG[zone][theme]["data_start"]
     with open(path, encoding="utf-8") as file:
         rows = list(csv.reader(file))[data_start:]
     documents = []
     for values in rows:
         if any(value.strip() for value in values):
-            documents.extend(process_row(theme, values, matcher, report))
+            documents.extend(process_row(zone, theme, values, matcher, report))
     return documents
 
 
@@ -208,11 +214,11 @@ def confirm(prompt):
 def collect_documents(db, report):
     matcher = CandidateMatcher(load_candidates(db))
     documents = []
-    for path in sorted(glob.glob(os.path.join(RESOURCE_DIR, "recrutment-nord-*.csv"))):
-        theme = theme_from_path(path)
-        if theme is None:
+    for path in sorted(glob.glob(os.path.join(RESOURCE_DIR, "recrutment-*-*.csv"))):
+        zone, theme = zone_theme_from_path(path)
+        if zone is None:
             continue
-        file_docs = read_documents(path, theme, matcher, report)
+        file_docs = read_documents(path, zone, theme, matcher, report)
         documents.extend(file_docs)
         print(f"  {os.path.basename(path)}: {len(file_docs)} offers built")
     return documents
@@ -236,7 +242,7 @@ def seed_offers(write_report_output=False):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Seed MongoDB jobs from recrutment-nord CSVs.")
+    parser = argparse.ArgumentParser(description="Seed MongoDB jobs from recrutment-<zone> CSVs.")
     parser.add_argument("--dry-run", action="store_true", help="Build and report, do not insert")
     parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt")
     return parser.parse_args()
@@ -245,8 +251,8 @@ def parse_args():
 def main():
     load_dotenv()
     args = parse_args()
-    if not glob.glob(os.path.join(RESOURCE_DIR, "recrutment-nord-*.csv")):
-        print("  SKIP -- no recrutment-nord-*.csv files found")
+    if not glob.glob(os.path.join(RESOURCE_DIR, "recrutment-*-*.csv")):
+        print("  SKIP -- no recrutment-<zone>-*.csv files found")
         return 1
 
     client = get_mongo_connection()

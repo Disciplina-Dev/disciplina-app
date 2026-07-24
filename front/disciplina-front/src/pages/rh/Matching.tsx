@@ -26,16 +26,22 @@ import {
   Heart,
   CalendarClock,
   FileEdit,
+  Trash2,
+  Search,
 } from 'lucide-react'
-import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS } from '@/graphql/queries'
+import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, GET_SALE_PERSONS, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
-import { offerGraphqlClient } from '@/graphql/client'
+import { SECTOR_TO_REGION, REGION_COMMUNES } from '@/features/matching/constants/regions'
+import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
-import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
+import { useCurrentUser, Permission } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
+import { CSRF_HEADER, getCsrfCookie } from '@/lib/csrf'
+import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
 import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
@@ -46,10 +52,18 @@ import AddAcceptedCandidateModal from '@/features/matching/components/AddAccepte
 import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
+import SendToCompanyModal from '@/features/matching/components/SendToCompanyModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
-import { useNeedsAnalysis, useCompanyBySiret } from '@/graphql/hooks'
+import { useNeedsAnalysis, useCompanyBySiret, useCompanies, useCreateCompany } from '@/graphql/hooks'
 import type { Entreprise } from '@/types/entreprise'
+import type { SireneEtablissement } from '@/types/sourcing'
+
+interface CheckSiretResult extends SireneEtablissement {
+  alreadyExists: boolean
+  isBlacklisted: boolean
+  blacklistReason: string | null
+}
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
 
@@ -65,7 +79,9 @@ interface MatchedCandidate {
   phone: string
   status?: string | null
   description?: string | null
+  identityDescription?: string | null
   comment?: string | null
+  cvWebview?: string | null
   interviewLocation?: string
   bookedInterviewSlot?: string | null
   interviewConclusion?: InterviewConclusion | null
@@ -110,6 +126,7 @@ interface Job {
   salerInfo?: SalerInfo | null
   referents?: Referents | null
   title?: string | null
+  jobRole?: string | null
   missions?: string[] | null
 }
 
@@ -548,6 +565,7 @@ function JobDetailsSection({
   onProposeCandidates,
   onShowCompanyInfo,
   onEditAb,
+  onDeleteOffer,
 }: {
   job: MatchJobResult
   onSetStatus: (status: OfferStatus) => void
@@ -556,6 +574,7 @@ function JobDetailsSection({
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
   onEditAb?: () => void
+  onDeleteOffer?: () => void
 }) {
   const chip = statusChip(job.status)
 
@@ -589,6 +608,16 @@ function JobDetailsSection({
             >
               <FileEdit size={16} />
               <span className="hidden md:inline">Modifier l'AB</span>
+            </button>
+          )}
+          {onDeleteOffer && (
+            <button
+              onClick={onDeleteOffer}
+              className="flex items-center justify-center gap-2 rounded-xl border border-danger/30 bg-white px-3 py-2 text-sm font-semibold text-danger shadow-sm transition-all hover:bg-danger-bg md:px-4"
+              title="Supprimer l'offre"
+            >
+              <Trash2 size={16} />
+              <span className="hidden md:inline">Supprimer</span>
             </button>
           )}
           {hasAcceptedCandidates && (
@@ -626,6 +655,15 @@ function JobDetailsSection({
               <div>
                 <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Intitulé du poste</p>
                 <p className="text-xs font-medium text-gray-800 mt-0.5">{job.title}</p>
+              </div>
+            </div>
+          )}
+          {job.jobRole && (
+            <div className="flex items-start gap-2">
+              <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Intitulé du métier</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{job.jobRole}</p>
               </div>
             </div>
           )}
@@ -876,7 +914,7 @@ function PreselectedCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -949,7 +987,7 @@ function ToSendCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -1011,7 +1049,7 @@ function AlreadySentCandidatesSection({
   onAddCandidate: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN
+  const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -1385,7 +1423,7 @@ function formatSlot(iso: string): string {
 
 
 
-function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null }) {
+function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void }) {
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
   const [showCompanyInfo, setShowCompanyInfo] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
@@ -1417,11 +1455,20 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const [conclusionCandidate, setConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [abEditOpen, setAbEditOpen] = useState(false)
+  const [sendToCompanyOpen, setSendToCompanyOpen] = useState(false)
   const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
   const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
   const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
   const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
   const abCompany = abCompanyResult.data?.companyBySiret
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteStep, setDeleteStep] = useState<'reason' | 'confirmAll' | 'blacklist' | 'confirming'>('reason')
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleteAllFromNA, setDeleteAllFromNA] = useState(false)
+  const [shouldBlacklist, setShouldBlacklist] = useState(false)
+  const [offersInNA, setOffersInNA] = useState(0)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
   const interviewDefaultLocation =
@@ -1429,8 +1476,6 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     (interviewLocationNeedsAnalysis.data?.needsAnalysis?.companyInfos?.postalCode
       ? `Commune ${interviewLocationNeedsAnalysis.data.needsAnalysis.companyInfos.postalCode}`
       : '')
-
-  const token = useAuthStore((s) => s.token)
 
   useEffect(() => {
     if (abEditOpen && needsAnalysisData?.companyInfos?.siret) {
@@ -1450,6 +1495,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   ]
   const alreadySentStatuses: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
   ]
@@ -1473,6 +1519,7 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       if (result.error) { setLoadError(result.error.message); return }
       if (result.data?.matchOffer) {
         const data = result.data.matchOffer as MatchJobResult
+        console.log(data);
         setJobData(data)
         const matchedIds = new Set((data.matchedCandidate ?? []).map((c) => c.id))
         setSavedCandidateIds(matchedIds)
@@ -1558,9 +1605,9 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
           const { ouiUrl, nonUrl } = linksResult.data.offerResponseLinks
           const subject = `DISCIPLINA – Offre en alternance`
           const body = buildOfferMailBody(candidate.fullName, jobData, ouiUrl, nonUrl)
-          await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
+          await apiFetch('/api/email/send', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ to: candidate.email, subject, body }),
           })
           await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }).toPromise()
@@ -1761,6 +1808,17 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
     }
   }
 
+  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[]): Promise<string> => {
+    const result = await offerGraphqlClient
+      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates })
+      .toPromise()
+    if (result.error) throw new Error(result.error.message)
+    const signature = result.data?.createMatchSession
+    if (!signature) throw new Error('Aucune signature retournée')
+    if (selectedJob) loadJobData(selectedJob)
+    return signature
+  }
+
   const handleEditAb = () => {
     if (!selectedJob?.needsAnalysisId) return
     setAbNeedsAnalysisId(selectedJob.needsAnalysisId)
@@ -1770,6 +1828,86 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const handleAbEditClose = () => {
     setAbEditOpen(false)
     setAbNeedsAnalysisId(null)
+  }
+
+  const handleDeleteClick = async () => {
+    setDeleteReason('')
+    setDeleteStep('reason')
+    setDeleteAllFromNA(false)
+    setShouldBlacklist(false)
+    setOffersInNA(0)
+    setDeleteError(null)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteReasonNext = async () => {
+    if (!deleteReason.trim()) return
+    setDeleteError(null)
+    if (selectedJob?.needsAnalysisId) {
+      try {
+        const result = await offerGraphqlClient.query(OFFERS_BY_NEEDS_ANALYSIS, { needsAnalysisId: selectedJob.needsAnalysisId }).toPromise()
+        const offers = (result.data?.offersByNeedsAnalysis ?? []) as { id: string }[]
+        setOffersInNA(offers.length)
+        if (offers.length > 1) {
+          setDeleteStep('confirmAll')
+          return
+        }
+      } catch {
+        // if query fails, just proceed without the "delete all" choice
+      }
+    }
+    setDeleteStep('blacklist')
+  }
+
+  const handleDeleteConfirmAll = (all: boolean) => {
+    setDeleteAllFromNA(all)
+    setDeleteStep('blacklist')
+  }
+
+  const handleDeleteBlacklistChoice = (blacklist: boolean) => {
+    setShouldBlacklist(blacklist)
+    setDeleteStep('confirming')
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedJob) return
+    setIsDeleting(true)
+    setDeleteError(null)
+    try {
+      if (shouldBlacklist) {
+        const companyId = selectedJob.companyInfos?.id
+        if (!companyId) throw new Error('Impossible de trouver l\'ID entreprise pour le blacklistage')
+        const result = await graphqlClient.mutation(BLACKLIST_AND_CLEANUP_COMPANY, {
+          companyId,
+          reason: deleteReason.trim(),
+          allBlacklist: true,
+        }).toPromise()
+        if (result.error) throw new Error(result.error.message)
+      } else if (deleteAllFromNA && selectedJob.needsAnalysisId) {
+        const result = await offerGraphqlClient.mutation(DELETE_OFFERS_BY_NEEDS_ANALYSIS, {
+          needsAnalysisId: selectedJob.needsAnalysisId,
+        }).toPromise()
+        if (result.error) throw new Error(result.error.message)
+      } else {
+        const result = await offerGraphqlClient.mutation(DELETE_OFFER, {
+          id: selectedJob.id,
+        }).toPromise()
+        if (result.error) throw new Error(result.error.message)
+      }
+      setDeleteModalOpen(false)
+      onJobDeleted?.()
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'Erreur lors de la suppression')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleDeleteClose = () => {
+    if (!isDeleting) {
+      setDeleteModalOpen(false)
+      setDeleteError(null)
+    }
   }
 
   if (!selectedJob) {
@@ -1809,19 +1947,37 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
   const preselectedCandidates = filterByStatus(jobData.matchedCandidate, preselectedStatuses)
   const toSendCandidates = filterByStatus(jobData.matchedCandidate, toSendStatuses)
   const alreadySentCandidates = filterByStatus(jobData.matchedCandidate, alreadySentStatuses)
+  const contractCandidates = filterByStatus(jobData.matchedCandidate, [MatchedCandidateStatus.CONTRACT])
 
   return (
     <div className="flex flex-col gap-4 pb-6">
+
+      {contractCandidates.length > 0 && (
+        <div className="rounded-xl border border-success/20 bg-success-bg p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <UserCheck size={16} className="text-success" />
+            <p className="text-sm font-semibold text-success">
+              En contrat avec {contractCandidates.map((c) => c.fullName).join(', ')}
+            </p>
+          </div>
+        </div>
+      )}
+
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
-        hasAcceptedCandidates={false}
+        hasAcceptedCandidates={toSendCandidates.length > 0}
         isCreatingSession={false}
-        onProposeCandidates={() => {}}
+        onProposeCandidates={() => setSendToCompanyOpen(true)}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
         onEditAb={
-          selectedJob?.needsAnalysisId && (currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN)
+          selectedJob?.needsAnalysisId && (currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN)
             ? handleEditAb
+            : undefined
+        }
+        onDeleteOffer={
+          currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+            ? handleDeleteClick
             : undefined
         }
       />
@@ -1877,6 +2033,15 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
         onSaveMatch={handleSaveMatch}
         onSendMail={handleOpenMail}
       />
+
+      {sendToCompanyOpen && (
+        <SendToCompanyModal
+          job={jobData}
+          candidates={toSendCandidates}
+          onClose={() => setSendToCompanyOpen(false)}
+          onSubmit={handleCreateMatchSession}
+        />
+      )}
 
       {drawerCandidate && (
         <CandidateInfoDrawer
@@ -1996,8 +2161,6 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
       {abEditOpen && needsAnalysisData && selectedJob && (
         <NeedsAnalysisModal
           entreprise={{
-            // Fusionne la fiche entreprise réelle (siret/adresse/légal, si trouvée) avec
-            // les infos de l'analyse du besoin — champ par champ, l'un comblant les trous de l'autre.
             id: String(abCompany?.id ?? selectedJob.companyInfos?.id ?? ''),
             nom_commercial: abCompany?.name ?? selectedJob.companyName ?? null,
             proprietaire_contact: null,
@@ -2029,6 +2192,406 @@ function RightPanel({ selectedJob, currentUser }: { selectedJob: Job | null; cur
           }}
         />
       )}
+
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            {deleteStep === 'reason' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Supprimer l'offre</h3>
+                <p className="text-xs text-gray-500">Veuillez indiquer la raison de la suppression.</p>
+                <textarea
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Raison de la suppression…"
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-gray-200 p-3 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={handleDeleteClose}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDeleteReasonNext}
+                    disabled={!deleteReason.trim()}
+                    className="rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90 disabled:opacity-40"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteStep === 'confirmAll' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Supprimer les offres liées ?</h3>
+                <p className="text-xs text-gray-500">
+                  Cette analyse de besoin contient {offersInNA} offre{offersInNA > 1 ? 's' : ''}. Voulez-vous supprimer toutes les offres de cette analyse de besoin ou uniquement celle-ci ?
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => handleDeleteConfirmAll(false)}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                  >
+                    Cette offre uniquement
+                  </button>
+                  <button
+                    onClick={() => handleDeleteConfirmAll(true)}
+                    className="rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90"
+                  >
+                    Toutes les supprimer
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteStep === 'blacklist' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Blacklister l'entreprise ?</h3>
+                <p className="text-xs text-gray-500">
+                  Voulez-vous blacklister cette entreprise ? Cela supprimera toutes ses analyses de besoin et offres associées, et l'entreprise ne pourra plus être prospectée.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => handleDeleteBlacklistChoice(false)}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                  >
+                    Non
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBlacklistChoice(true)}
+                    className="rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90"
+                  >
+                    Oui, blacklister
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteStep === 'confirming' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Confirmer la suppression</h3>
+                <div className="space-y-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+                  <p><strong>Raison :</strong> {deleteReason}</p>
+                  <p><strong>Action :</strong> {shouldBlacklist ? 'Blacklistage de l\'entreprise (supprime toutes ses AB et offres)' : deleteAllFromNA ? 'Suppression de toutes les offres de l\'AB' : 'Suppression de cette offre uniquement'}</p>
+                </div>
+                {deleteError && (
+                  <div className="flex items-start gap-2 rounded-lg bg-danger-bg p-3 text-xs text-danger">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <span>{deleteError}</span>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={handleDeleteClose}
+                    disabled={isDeleting}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100 disabled:opacity-40"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={isDeleting}
+                    className="flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90 disabled:opacity-40"
+                  >
+                    {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                    {isDeleting ? 'Suppression…' : 'Confirmer la suppression'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Company Search Modal ─────────────────────────────────────────────────────
+
+function CompanySearchModal({ open, onClose, currentUser }: { open: boolean; onClose: () => void; currentUser: import('@/store/authStore').AppUser | null }) {
+  const [mode, setMode] = useState<'search' | 'siret'>('search')
+  const [query, setQuery] = useState('')
+  const [siret, setSiret] = useState('')
+  const [siretData, setSiretData] = useState<CheckSiretResult | null>(null)
+  const [siretStatus, setSiretStatus] = useState<'idle' | 'loading' | 'error' | 'success'>('idle')
+  const [siretError, setSiretError] = useState('')
+  const [selectedOwnerId, setSelectedOwnerId] = useState<number | null>(null)
+  const [abCompany, setAbCompany] = useState<Entreprise | null>(null)
+  const [creating, setCreating] = useState(false)
+
+  useCompanies()
+  const { createCompany } = useCreateCompany()
+  const companies = usePortefeuilleStore((s) => s.companies)
+  const salePersons = usePortefeuilleStore((s) => s.salePersons)
+  const setSalePersons = usePortefeuilleStore((s) => s.setSalePersons)
+  const [spResult] = useQuery({ query: GET_SALE_PERSONS, pause: salePersons.length > 0 })
+  useEffect(() => {
+    if (spResult.data?.salePersons) {
+      setSalePersons(spResult.data.salePersons)
+    }
+  }, [spResult.data, setSalePersons])
+
+  useEffect(() => {
+    if (open) {
+      setMode('search'); setQuery(''); setSiret('')
+      setSiretData(null); setSiretStatus('idle'); setSiretError('')
+      setSelectedOwnerId(null); setAbCompany(null); setCreating(false)
+    }
+  }, [open])
+
+  const findAutoOwner = useCallback((siren: string) => {
+    const match = companies.find((c) => c.siret?.startsWith(siren) && c.proprietaire_id != null)
+    return match?.proprietaire_id ?? null
+  }, [companies])
+
+  const handleSiretLookup = useCallback(async () => {
+    if (!/^\d{14}$/.test(siret)) {
+      setSiretError('Le SIRET doit contenir exactement 14 chiffres'); setSiretStatus('error')
+      return
+    }
+    setSiretStatus('loading'); setSiretError('')
+    try {
+      const res = await apiFetch(`/api/sourcing/${siret}`)
+      if (res.status === 404) {
+        setSiretError('SIRET introuvable dans le registre INSEE'); setSiretStatus('error')
+        return
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Erreur lors de la recherche' }))
+        setSiretError(err.error || 'Erreur lors de la recherche'); setSiretStatus('error')
+        return
+      }
+      const data = await res.json()
+      if (data.alreadyExists) {
+        setSiretError('Cette entreprise existe déjà dans le portefeuille'); setSiretStatus('error')
+        return
+      }
+      if (data.isBlacklisted) {
+        setSiretError(`Cette entreprise est blacklistée${data.blacklistReason ? ` : ${data.blacklistReason}` : ''}`)
+        setSiretStatus('error')
+        return
+      }
+      setSiretData(data); setSiretStatus('success')
+      const ownerId = findAutoOwner(data.siren)
+      setSelectedOwnerId(ownerId ?? (currentUser?.id ? Number(currentUser.id) : null))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erreur lors de la recherche'
+      setSiretError(msg); setSiretStatus('error')
+    }
+  }, [siret, findAutoOwner, currentUser])
+
+  const handleCreate = useCallback(async () => {
+    if (!siretData) return
+    setCreating(true)
+    try {
+      const name = siretData.denomination || siretData.nomPrenom || 'Entreprise sans nom'
+      const address = [siretData.adresse.numeroVoie, siretData.adresse.typeVoie, siretData.adresse.libelleVoie].filter(Boolean).join(' ')
+      const res = await createCompany({
+        name: name.trim(),
+        siret: siretData.siret,
+        userID: selectedOwnerId,
+        address: address || undefined,
+      })
+      if (res.data?.createCompany) {
+        setAbCompany({
+          id: String(res.data.createCompany.id),
+          nom_commercial: res.data.createCompany.name,
+          proprietaire_contact: null,
+          commercial: null,
+          proprietaire_id: res.data.createCompany.userID ?? null,
+          representant_legal: null,
+          telephone: res.data.createCompany.phone,
+          email: res.data.createCompany.email,
+          adresse: res.data.createCompany.address,
+          secteur: res.data.createCompany.sector,
+          metier: res.data.createCompany.mainActivity,
+          siret: res.data.createCompany.siret,
+          idcc: res.data.createCompany.idcc,
+          note: res.data.createCompany.notes,
+          conclusion: res.data.createCompany.conclusion,
+          status: (res.data.createCompany.status as Entreprise['status']) || 'À Réfléchir',
+          date_insertion: null,
+          date_relance: null,
+          type_relance: null,
+          relance_template_id: null,
+          relance_channel: null,
+        })
+      }
+    } finally {
+      setCreating(false)
+    }
+  }, [siretData, createCompany, selectedOwnerId])
+
+  if (!open) return null
+
+  if (abCompany) {
+    return (
+      <NeedsAnalysisModal
+        entreprise={abCompany}
+        currentUser={currentUser!}
+        onClose={() => { setAbCompany(null); onClose() }}
+        onSuccess={() => { setAbCompany(null); onClose() }}
+      />
+    )
+  }
+
+  if (mode === 'siret') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setMode('search'); onClose() }}>
+        <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-900">Nouvelle entreprise</h3>
+
+            <div>
+              <input
+                type="text"
+                value={siret}
+                onChange={(e) => { setSiret(e.target.value.replace(/\D/g, '').slice(0, 14)); setSiretStatus('idle') }}
+                placeholder="SIRET (14 chiffres)"
+                maxLength={14}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSiretLookup() }}
+              />
+              <button
+                onClick={handleSiretLookup}
+                disabled={siret.length !== 14 || siretStatus === 'loading'}
+                className="mt-2 w-full rounded-lg bg-blue px-3 py-2 text-sm font-medium text-white transition hover:bg-blue/90 disabled:opacity-40"
+              >
+                {siretStatus === 'loading' ? (
+                  <><Loader2 size={14} className="inline animate-spin mr-1" /> Vérification…</>
+                ) : 'Vérifier le SIRET'}
+              </button>
+            </div>
+
+            {siretStatus === 'error' && (
+              <div className="rounded-lg bg-danger-bg p-3 text-xs text-danger flex items-start gap-2">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                <span>{siretError}</span>
+                {siretError.includes('existe déjà') && (
+                  <button onClick={() => setMode('search')} className="shrink-0 font-medium underline whitespace-nowrap">
+                    Rechercher
+                  </button>
+                )}
+              </div>
+            )}
+
+            {siretStatus === 'success' && siretData && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-1.5">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {siretData.denomination || siretData.nomPrenom || 'Entreprise sans nom'}
+                  </p>
+                  {siretData.adresse && (
+                    <p className="text-xs text-gray-500">
+                      {[siretData.adresse.numeroVoie, siretData.adresse.typeVoie, siretData.adresse.libelleVoie].filter(Boolean).join(' ')}
+                      {siretData.adresse.codePostal && `, ${siretData.adresse.codePostal}`}
+                      {siretData.adresse.commune && ` ${siretData.adresse.commune}`}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400">SIRET : {siretData.siret}</p>
+                  <p className="text-xs text-gray-400">SIREN : {siretData.siren}</p>
+                </div>
+
+                {salePersons.length > 0 && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-600">Propriétaire du contact</label>
+                    <select
+                      value={selectedOwnerId ?? ''}
+                      onChange={(e) => setSelectedOwnerId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
+                    >
+                      <option value="">Sélectionner un commercial</option>
+                      {salePersons.map((sp) => (
+                        <option key={sp.id} value={sp.id}>
+                          {sp.firstName} {sp.lastName} ({sp.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setMode('siret')}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
+                  >
+                    Modifier le SIRET
+                  </button>
+                  <button
+                    onClick={handleCreate}
+                    disabled={creating}
+                    className="flex items-center gap-1.5 rounded-lg bg-blue px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue/90 disabled:opacity-40"
+                  >
+                    {creating && <Loader2 size={14} className="animate-spin" />}
+                    {creating ? 'Création…' : "Créer l'entreprise"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {siretStatus !== 'success' && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setMode('search')}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
+                >
+                  Retour
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-gray-900">Ajouter une entreprise</h3>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher par nom..."
+              className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
+              autoFocus
+            />
+          </div>
+          <ul className="max-h-60 divide-y overflow-y-auto rounded-lg border border-gray-100">
+            {companies
+              .filter((c) => c.nom_commercial?.toLowerCase().includes(query.toLowerCase()))
+              .map((c) => (
+                <li
+                  key={c.id}
+                  onClick={() => setAbCompany(c)}
+                  className="flex cursor-pointer items-center justify-between px-3 py-2.5 text-sm transition hover:bg-blue-50"
+                >
+                  <span className="font-medium text-gray-900">{c.nom_commercial}</span>
+                  {c.siret && <span className="text-xs text-gray-400">{c.siret}</span>}
+                </li>
+              ))}
+            {companies.filter((c) => c.nom_commercial?.toLowerCase().includes(query.toLowerCase())).length === 0 && (
+              <li className="px-3 py-4 text-center text-xs text-gray-400">Aucune entreprise trouvée</li>
+            )}
+          </ul>
+          <button
+            onClick={() => { setMode('siret'); setSiret(''); setSiretStatus('idle'); setSiretError(''); setSiretData(null) }}
+            className="flex items-center gap-2 text-sm font-medium text-blue transition hover:text-blue/80"
+          >
+            <Plus size={14} />
+            Créer une nouvelle entreprise
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -2041,18 +2604,39 @@ export default function Matching() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [filters, setFilters] = useState<JobFiltersType>(EMPTY_JOB_FILTERS)
 
-  const token = useAuthStore((s) => s.token)
-  const [jobsResult] = useQuery({
+  const [showCompanySearch, setShowCompanySearch] = useState(false)
+
+  const [jobsResult, reexecuteJobsQuery] = useQuery({
     query: GET_OFFERS,
     context: {
       url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
-      fetchOptions: { headers: { Authorization: `Bearer ${token}` } },
+      fetchOptions: {
+        credentials: 'include' as const,
+        headers: getCsrfCookie() ? { [CSRF_HEADER]: getCsrfCookie() as string } : {},
+      },
     },
   })
 
   const jobs: Job[] = jobsResult.data?.offers ?? []
   const filteredJobs = applyJobFilters(jobs, filters)
-  // ?offer= (lien de notification) sert d'offre présélectionnée tant qu'aucune sélection manuelle
+
+  // ?offer= (lien de notification) : se synchronise dans selectedJobId à chaque
+  // changement (notamment quand on clique sur une notification déjà sur la page).
+  const offerFromUrl = searchParams.get('offer')
+  useEffect(() => {
+    if (offerFromUrl) setSelectedJobId(offerFromUrl)
+  }, [offerFromUrl])
+
+  // Default commune filter from the current user's sectors.
+  const userSectors = currentUser?.sectors
+  useEffect(() => {
+    if (userSectors?.length && filters.localisations.length === 0) {
+      const regions = userSectors.map((s) => SECTOR_TO_REGION[s]).filter(Boolean)
+      const communes = [...new Set(regions.flatMap((r) => REGION_COMMUNES[r as keyof typeof REGION_COMMUNES]))]
+      if (communes.length) setFilters((prev) => ({ ...prev, localisations: communes }))
+    }
+  }, [userSectors, filters.localisations.length])
+
   const effectiveJobId = selectedJobId ?? searchParams.get('offer')
   const selectedJob = filteredJobs.find((j) => j.id === effectiveJobId) ?? null
 
@@ -2088,6 +2672,15 @@ export default function Matching() {
               {filteredJobs.length} offre{filteredJobs.length > 1 ? 's' : ''}{jobs.length !== filteredJobs.length ? ` · ${jobs.length} au total` : ''}
             </p>
           </div>
+          {(currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
+            <button
+              onClick={() => setShowCompanySearch(true)}
+              className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-gray-500 transition hover:border-gray-400 hover:text-gray-700"
+            >
+              <Plus size={16} />
+              Ajouter des entreprises
+            </button>
+          )}
         </div>
         <JobFilters filters={filters} onChange={setFilters} />
       </div>
@@ -2122,9 +2715,15 @@ export default function Matching() {
 
         {/* ─ Right: Detail panel ─ */}
         <div className="flex-1 overflow-y-auto px-5 pt-5">
-          <RightPanel selectedJob={selectedJob} currentUser={currentUser} />
+          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} />
         </div>
       </div>
+
+      <CompanySearchModal
+        open={showCompanySearch}
+        onClose={() => setShowCompanySearch(false)}
+        currentUser={currentUser}
+      />
     </div>
   )
 }

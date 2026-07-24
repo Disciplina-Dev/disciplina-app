@@ -15,6 +15,7 @@ export enum MatchedCandidateStatus {
     REFUSED = 'REFUSED',
     INTERVIEW = 'INTERVIEW',
     IMMERSING = 'IMMERSING',
+    CONTRACT = 'CONTRACT',
 }
 
 export enum InterviewConclusion {
@@ -45,6 +46,7 @@ export enum Localisation {
     SAINTE_MARIE = 'SAINTE_MARIE',
     SAINTE_SUZANNE = 'SAINTE_SUZANNE',
     SAINT_PAUL = 'SAINT_PAUL',
+    SAINT_GILLES = 'SAINT_GILLES',
     LA_POSSESSION = 'LA_POSSESSION',
     LE_PORT = 'LE_PORT',
     TROIS_BASSINS = 'TROIS_BASSINS',
@@ -86,6 +88,12 @@ export enum Sector {
     ENFANT = 'ENFANT',
     PHARMACIE = 'PHARMACIE',
     BAZAR = 'BAZAR',
+    BTP = 'BTP',
+    ASSOCIATION = 'ASSOCIATION',
+    MEDICAL = 'MEDICAL',
+    ENERGIE = 'ENERGIE',
+    IMPORT_EXPORT = 'IMPORT_EXPORT',
+    SOCIAL = 'SOCIAL',
     NONE = 'NONE',
 }
 
@@ -102,6 +110,7 @@ export interface MatchingCandidate {
     phone?: string;
     status?: MatchedCandidateStatus;
     description?: string;
+    identity_description?: string;
     cv_webview?: string;
     interview_location?: string;
     booked_interview_slot?: string;

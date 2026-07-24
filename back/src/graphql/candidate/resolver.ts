@@ -1,5 +1,5 @@
-import { authGuard } from '../authGuard';
-import { Role } from '../../types/user.types';
+import { authGuard, authGuardRole } from '../authGuard';
+import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
 import { CandidateHistoryService } from '../../services/CandidateHistoryService';
@@ -8,7 +8,6 @@ import { TitleProfessionalType, CandidateStatus, CandidateHistoryEntry } from '.
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
-import { GoogleTokens } from '../../external/google/types';
 import { camelToSnakeCase, candidateToGql, offerToMatchedOfferGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
@@ -80,9 +79,6 @@ async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
     }
 }
 
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
-
 interface CreateCandidateInput {
     status: CandidateStatus;
     tpType: TitleProfessionalType;
@@ -111,7 +107,7 @@ function driveFolderConfigToGql(config: { rootFolderId: string | null; tpFolders
 export const resolvers = {
     Query: {
         candidates: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidates = await candidateService.findAll();
             return candidates.map(candidateToGql);
         },
@@ -125,7 +121,7 @@ export const resolvers = {
             }: PaginationArgs & { search?: string; filters?: CandidateFiltersInput },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
             const filters: CandidateFilters | undefined = filtersInput
                 ? {
@@ -135,7 +131,7 @@ export const resolvers = {
                       drivingLicenseB: filtersInput.drivingLicenseB,
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,
-                      tpType: filtersInput.tpType,
+                      tpType: filtersInput.tpType?.length ? filtersInput.tpType : undefined,
                       // Bornage défensif : on ignore les tableaux vides et on plafonne
                       // la taille pour éviter un `$in` démesuré. Les secteurs sont des
                       // chaînes libres → on écarte les valeurs non-string/vides.
@@ -150,6 +146,7 @@ export const resolvers = {
                       createdAfter: parseFilterDate(filtersInput.createdAfter, false),
                       createdBefore: parseFilterDate(filtersInput.createdBefore, true),
                       createdMissing: filtersInput.createdMissing || undefined,
+                      interviewedBy: filtersInput.interviewedBy?.trim() || undefined,
                   }
                 : undefined;
             const candidates = await candidateService.findPage(pageSize, after, search, filters);
@@ -164,11 +161,11 @@ export const resolvers = {
             };
         },
         candidateStats: async (_: unknown, { sectors }: { sectors?: string[] }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return candidateService.stats(sectors);
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) return null;
             // Backfill unique de la date de création pour les fiches antérieures au champ.
@@ -189,47 +186,33 @@ export const resolvers = {
         },
         // Vérification de doublon en direct : existe-t-il déjà une fiche pour cet email ?
         candidateByEmail: async (_: unknown, { email }: { email: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const existing = await candidateService.findByEmail(email);
             return existing
                 ? { exists: true, id: existing._id, fullName: existing.identity.full_name }
                 : { exists: false, id: null, fullName: null };
         },
         matchCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map(offerToMatchedOfferGql) };
+            return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
         },
         candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const entries = await candidateHistoryService.findByCandidate(candidateId);
             return entries.map(candidateHistoryToGql);
         },
-        candidateTemplate: async (_: unknown, { tpType }: { tpType: TitleProfessionalType }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
-            const template = CANDIDATE_TEMPLATES[tpType];
-            return {
-                tpType: template.tp_type,
-                hasEnglishLevel: template.has_english_level,
-                availableSectors: template.available_sectors,
-                availableExpectedSkills: template.available_expected_skills,
-                defaultSkillsAssessment: template.default_skills_assessment.map((s) => ({
-                    competence: s.competence,
-                    level: s.level,
-                })),
-            };
-        },
         driveFolderConfig: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const config = await driveFolderConfigService.getConfig();
             return driveFolderConfigToGql(config);
         },
     },
     Mutation: {
         createCandidate: async (_: unknown, { input }: { input: CreateCandidateInput }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
 
             // Doublon : une fiche existe déjà pour cette adresse mail.
             const email = input.identity?.email?.trim();
@@ -289,7 +272,7 @@ export const resolvers = {
                 if (creator && creator.oauthToken) {
                     const driveService = GoogleDriveService.fromTokens(
                         { access_token: creator.oauthToken, refresh_token: creator.refreshToken ?? undefined },
-                        persistRefreshedTokens(creator.id),
+                        userService.googleTokenPersister(creator.id),
                     );
 
                     const folderName = `${newCandidate.identity.full_name} - ${id.substring(0, 8)}`;
@@ -311,7 +294,7 @@ export const resolvers = {
             }
 
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(newCandidate), matchedOffers: matchedOffers.map(offerToMatchedOfferGql) };
+            return { ...candidateToGql(newCandidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
         },
 
         updateCandidate: async (
@@ -319,7 +302,7 @@ export const resolvers = {
             { id, input }: { id: string; input: UpdateCandidateInput },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const snakeInput = camelToSnakeCase(input);
             // Multi-sites : garde le single legacy training_site = 1er site choisi.
             if (Array.isArray(snakeInput.training_sites)) {
@@ -332,8 +315,7 @@ export const resolvers = {
             // État avant mise à jour : statut (transitions KPI) + interviewer (crédit
             // entretien une seule fois). On ne relit le dossier que si l'un des deux change.
             const newInterviewer = snakeInput.synthesis?.interviewed_by?.trim();
-            const previous =
-                snakeInput.status || newInterviewer ? await candidateService.findById(id) : undefined;
+            const previous = snakeInput.status || newInterviewer ? await candidateService.findById(id) : undefined;
             const previousStatus = previous?.status;
             const previousInterviewer = previous?.synthesis?.interviewed_by?.trim();
             const updated = await candidateService.update(id, snakeInput);
@@ -360,12 +342,12 @@ export const resolvers = {
         },
 
         deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return candidateService.delete(id);
         },
 
         createCandidateDriveFolder: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
 
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
@@ -376,7 +358,7 @@ export const resolvers = {
 
             const driveService = GoogleDriveService.fromTokens(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
 
             // Secteur courant de l'utilisateur agissant (prioritaire), sinon snapshot owner, sinon site de formation.
@@ -408,13 +390,13 @@ export const resolvers = {
             { candidateId, description }: { candidateId: string; description: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const entry = await candidateHistoryService.recordManual(candidateId, description, context.user.email);
             return candidateHistoryToGql(entry);
         },
 
         deleteCandidateHistoryEntry: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return candidateHistoryService.deleteOwnedEntry(id, context.user.email);
         },
 
@@ -430,7 +412,7 @@ export const resolvers = {
             },
             context: any,
         ) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const tpFolders: Record<string, string> = {};
             for (const { tp, region, folderId } of input.tpFolders ?? []) {
                 if (folderId) tpFolders[driveFolderKey(tp, region)] = folderId;

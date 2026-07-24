@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FileSpreadsheet, Clock, Save, Loader2, PlayCircle, CheckCircle2, Trash2, AlertTriangle } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import { useAuthStore } from '@/store/authStore'
 import {
   fetchPedaConfig, savePedaSheet, deletePedaSheet,
   fetchDraftHour, saveDraftHour, runDraftJobNow,
@@ -16,8 +15,6 @@ const inputClass =
  * heure globale du job quotidien, et déclenchement manuel.
  */
 export default function SuiviAbsences() {
-  const token = useAuthStore((s) => s.token)
-
   const [sheetLink, setSheetLink] = useState('')
   const [savedSheetId, setSavedSheetId] = useState<string | null>(null)
   const [hour, setHour] = useState('08:00')
@@ -30,15 +27,14 @@ export default function SuiviAbsences() {
   const [success, setSuccess] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) return
-    Promise.all([fetchPedaConfig(token), fetchDraftHour(token)])
+    Promise.all([fetchPedaConfig(), fetchDraftHour()])
       .then(([config, h]) => {
         setSavedSheetId(config.sheetId)
         setHour(h)
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   function flash(msg: string) {
     setSuccess(msg)
@@ -47,11 +43,11 @@ export default function SuiviAbsences() {
   }
 
   async function handleSaveSheet() {
-    if (!token || !sheetLink.trim()) return
+    if (!sheetLink.trim()) return
     setSavingSheet(true)
     setError(null)
     try {
-      const { sheetId } = await savePedaSheet(token, sheetLink)
+      const { sheetId } = await savePedaSheet(sheetLink)
       setSavedSheetId(sheetId)
       setSheetLink('')
       flash('Google Sheet enregistré')
@@ -63,10 +59,9 @@ export default function SuiviAbsences() {
   }
 
   async function handleDeleteSheet() {
-    if (!token) return
     setError(null)
     try {
-      await deletePedaSheet(token)
+      await deletePedaSheet()
       setSavedSheetId(null)
       flash('Google Sheet retiré')
     } catch (e: any) {
@@ -75,11 +70,10 @@ export default function SuiviAbsences() {
   }
 
   async function handleSaveHour() {
-    if (!token) return
     setSavingHour(true)
     setError(null)
     try {
-      await saveDraftHour(token, hour)
+      await saveDraftHour(hour)
       flash('Heure du job enregistrée')
     } catch (e: any) {
       setError(e.message ?? 'Échec de l’enregistrement')
@@ -89,12 +83,11 @@ export default function SuiviAbsences() {
   }
 
   async function handleRunNow() {
-    if (!token) return
     setRunning(true)
     setError(null)
     setReport(null)
     try {
-      setReport(await runDraftJobNow(token))
+      setReport(await runDraftJobNow())
     } catch (e: any) {
       setError(e.message ?? 'Échec de l’exécution')
     } finally {

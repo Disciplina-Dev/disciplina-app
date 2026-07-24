@@ -5,7 +5,7 @@ import { getConfig, putSheet, deleteSheet, getDraftHour, putDraftHour, runNow } 
 
 export const router: Router = Router();
 
-const access = [authenticate, requireRoles('ADMIN', 'PEDA')];
+const access = [authenticate, requireRoles('AD', 'GESTION', 'PEDA')];
 const json = express.json({ limit: '256kb' });
 
 // Sheet d'absences du Peda connecté

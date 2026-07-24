@@ -7,6 +7,8 @@ import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
 import session from 'express-session';
 import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 import { router as authRouter } from './rest/auth/route';
 import { router as emailRouter } from './rest/email/route';
@@ -27,6 +29,7 @@ import { router as bookingRouter } from './rest/booking/route';
 import { router as mailTemplatesRouter } from './rest/mailTemplates/route';
 import { router as matchRouter } from './rest/match/route';
 import { router as interviewRouter } from './rest/interview/route';
+import { router as externalRouter } from './rest/external/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
@@ -38,9 +41,8 @@ import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
-import { logger } from './external/logger/logger';
+import { logger } from './external/logger';
 import { env } from './config/env';
-import { errorMonitor } from 'events';
 
 declare module 'express-session' {
     interface SessionData {
@@ -51,6 +53,21 @@ declare module 'express-session' {
 export async function createApp(): Promise<express.Express> {
     const app: any = express();
 
+    const isProduction = env.NODE_ENV === 'production';
+
+    // Hors production il n'y a pas de proxy : faire confiance à X-Forwarded-For
+    // laisserait n'importe qui forger son IP et contourner les rate limits.
+    if (isProduction) app.set('trust proxy', 1);
+
+    // CSP coupée hors production (elle casse la sandbox Apollo), HSTS aussi
+    // (le navigateur mémorise l'en-tête et force ensuite https://localhost).
+    app.use(
+        helmet({
+            contentSecurityPolicy: isProduction ? undefined : false,
+            hsts: isProduction ? undefined : false,
+        }),
+    );
+
     app.use(httpLogger);
 
     app.use(
@@ -58,26 +75,26 @@ export async function createApp(): Promise<express.Express> {
             origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
                 // No Origin header: same-origin, curl, server-to-server
                 if (!origin) return callback(null, true);
-                let allowed = env.CORS_ORIGINS.includes(origin);
-                if (!allowed) {
-                    try {
-                        allowed = /\.vercel\.app$/.test(new URL(origin).hostname);
-                    } catch {
-                        allowed = false;
-                    }
-                }
-                if (allowed) return callback(null, true);
+                if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
                 return callback(new Error(`CORS: origin ${origin} not allowed`));
             },
             credentials: true,
         }),
     );
 
+    app.use(cookieParser());
+
     app.use(
         session({
             secret: env.SESSION_SECRET,
             resave: false,
             saveUninitialized: false,
+            cookie: {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: 'lax',
+                maxAge: 24 * 60 * 60 * 1000,
+            },
         }),
     );
 
@@ -109,6 +126,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/mail-templates', mailTemplatesRouter);
     app.use('/api/match', matchRouter);
     app.use('/api/interview', interviewRouter);
+    app.use('/api/external', externalRouter);
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
@@ -127,17 +145,20 @@ export async function createApp(): Promise<express.Express> {
         next();
     });
 
+    // cors: false — Apollo sinon installe son propre middleware CORS par
+    // défaut (Access-Control-Allow-Origin: *), qui écrase la config globale
+    // ci-dessus et casse les requêtes avec cookies (credentials: 'include').
     await CompanyAPI.start();
-    CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies' });
+    CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies', cors: false });
 
     await CandidateAPI.start();
-    CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates' });
+    CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates', cors: false });
 
     await OfferAPI.start();
-    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers' });
+    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers', cors: false });
 
     await NeedsAnalysisAPI.start();
-    NeedsAnalysisAPI.applyMiddleware({ app, path: '/api/graphql/needs-analysis' });
+    NeedsAnalysisAPI.applyMiddleware({ app, path: '/api/graphql/needs-analysis', cors: false });
 
     return app;
 }
@@ -148,9 +169,16 @@ export async function startServer(): Promise<http.Server> {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
     // Modèles de relance d'absence par défaut (idempotent, une seule fois).
-    new MailTemplateService()
+    const mailTemplateService = new MailTemplateService();
+    mailTemplateService
         .seedPedaDefaults()
         .catch((err) => logger.error({ err }, 'peda-templates: seed des modèles par défaut échoué'));
+    mailTemplateService
+        .seedAbSignatureDefault()
+        .catch((err) => logger.error({ err }, 'ab-signature: seed du modèle système échoué'));
+    mailTemplateService
+        .seedCvImportDefault()
+        .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();

@@ -6,8 +6,8 @@ import { CompaniesService } from './CompaniesService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { GoogleGmailService } from '../external/google/gmail.service';
-import { logger } from '../external/logger/logger';
-import { Role } from '../types/user.types';
+import { logger } from '../external/logger';
+
 import { notifyUser } from '../rest/yousign/sse';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();
@@ -64,7 +64,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
     // Trouver un compte avec des credentials Google valides pour envoyer l'email.
     let senderUser: any = commercial;
     if (!senderUser?.oauth_token || !senderUser?.refresh_token) {
-        const allUsers = (await userRepo.findByRole(Role.COMMERCIAL)) || [];
+        const allUsers = (await userRepo.findByRoleId(1)) || [];
         const fallback = allUsers.find((u: any) => u.oauth_token && u.refresh_token);
         if (fallback) senderUser = fallback;
     }

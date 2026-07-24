@@ -119,17 +119,29 @@ export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentIn
     };
 }
 
-export function offerToMatchedOfferGql(offer: Offer): object {
+export function offerToMatchedOfferGql(offer: Offer, candidateId?: string): object {
     const ageMin = offer.criteria?.age_min;
     const ageMax = offer.criteria?.age_max;
     const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
+
+    let status: string | undefined | null = offer.matching?.status;
+    if (candidateId && offer.matching?.candidates) {
+        const candidateEntry = offer.matching.candidates.find((mc) => mc.id === candidateId);
+        if (candidateEntry?.status) {
+            status = candidateEntry.status;
+        }
+    }
+
     return {
         id: offer._id,
+        needsAnalysisId: offer.needs_analysis_id,
         companyName: offer.company_infos?.name,
         sector: null,
         localisation: offer.localisation,
         desiredTP: offer.tp_type,
         ageRange,
-        status: offer.matching?.status,
+        status,
+        title: offer.title,
+        jobRole: offer.job_role,
     };
 }

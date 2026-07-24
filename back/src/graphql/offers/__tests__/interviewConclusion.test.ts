@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
@@ -10,14 +10,14 @@ import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
-function authHeaders(token: string) {
-    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+function authHeaders(auth: { cookieHeader: string; csrfHeader: string }) {
+    return { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader };
 }
 
-async function gql(token: string, body: object) {
+async function gql(auth: { cookieHeader: string; csrfHeader: string }, body: object) {
     const res = await fetch(ENDPOINT, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(auth),
         body: JSON.stringify(body),
     });
     return { res, json: await res.json() };
@@ -89,12 +89,12 @@ async function seedJobWithProposedCandidate(
 
 describe('GraphQL setInterviewConclusion', () => {
     it('rejects when the interview has not happened yet', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const futureSlot = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, futureSlot);
 
-        const { res, json } = await gql(token, {
+        const { res, json } = await gql(auth, {
             query: MUTATION,
             variables: { offerId, candidateId, conclusion: 'REJECTED' },
         });
@@ -105,12 +105,12 @@ describe('GraphQL setInterviewConclusion', () => {
     });
 
     it('rejects IMMERSING without immersion dates', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + 1;
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
 
-        const { res, json } = await gql(token, {
+        const { res, json } = await gql(auth, {
             query: MUTATION,
             variables: { offerId, candidateId, conclusion: 'IMMERSING' },
         });
@@ -124,12 +124,12 @@ describe('GraphQL setInterviewConclusion', () => {
         ['REJECTED', CandidateStatus.SEEKING],
         ['CONTRACT', CandidateStatus.CONTRACT],
     ])('sets %s conclusion, candidate status, and a history entry', async (conclusion, expectedStatus) => {
-        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'rh@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
 
-        const { res, json } = await gql(token, {
+        const { res, json } = await gql(auth, {
             query: MUTATION,
             variables: { offerId, candidateId, conclusion },
         });
@@ -152,12 +152,12 @@ describe('GraphQL setInterviewConclusion', () => {
     });
 
     it('sets IMMERSING conclusion with immersion dates', async () => {
-        const token = mintToken({ id: 1, email: 'rh@test.local', role: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'rh@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now() + Math.floor(Math.random() * 10000);
         const pastSlot = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { offerId, candidateId } = await seedJobWithProposedCandidate(suffix, pastSlot);
 
-        const { res, json } = await gql(token, {
+        const { res, json } = await gql(auth, {
             query: MUTATION,
             variables: {
                 offerId,

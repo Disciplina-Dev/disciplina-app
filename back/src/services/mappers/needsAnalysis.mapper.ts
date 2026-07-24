@@ -10,7 +10,7 @@ import {
     TrainingDomain,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
-import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, TITLE_TO_TP, Zone } from './abToJob';
+import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, TITLE_TO_TP, Zone } from './abToOffer';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
 
@@ -56,6 +56,7 @@ function buildPosition(position: Position): Position {
         localisation: position.localisation ?? [],
         tp_type: TITLE_TO_TP[position.title ?? ''] ?? (tDomain && DOMAIN_TO_TP[tDomain]) ?? null,
         training_domain: trainingDomain,
+        job_role: position.job_role ?? (position as any).jobRole ?? null,
         title: position.title,
         missions: position.missions ?? [],
         description_missions: position.description_missions ?? (position as any).descriptionMissions ?? [],
@@ -133,6 +134,7 @@ function toGqlPosition(p: Position) {
         localisation: p.localisation ?? [],
         tpType: p.tp_type ?? null,
         trainingDomain: p.training_domain ?? null,
+        jobRole: p.job_role ?? null,
         title: p.title ?? '',
         missions: p.missions ?? [],
         descriptionMissions: p.description_missions ?? [],

@@ -4,10 +4,18 @@ export interface UserRow {
     first_name: string;
     last_name: string;
     password?: string;
-    role: 'ADMIN' | 'RESPONSABLE' | 'COMMERCIAL' | 'RH' | 'PEDA';
+    role_id: number;
+    permission_id: number;
     sectors: string | string[] | null; // mysql2 v3 returns JSON columns as parsed objects
     oauth_token: string | null;
     refresh_token: string | null;
+}
+
+// Jointure avec les tables roles/permissions : le repository enrichit le UserRow
+// pour porter les noms en toutes lettres sans modifier le type de base.
+export interface UserRowJoined extends UserRow {
+    role_name?: string;
+    permission_name?: string;
 }
 
 export interface MatchLinkRow {
@@ -34,6 +42,21 @@ export interface InterviewAccessRow {
     status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
     attempts: number;
     // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
+    expires_at: string | Date;
+    created_at?: string | Date;
+    updated_at?: string | Date;
+}
+
+export interface ExternalLinkRow {
+    id: number;
+    signature: string;
+    code: string;
+    external_email: string;
+    rh_email: string;
+    guest_type: 'COMPANY' | 'CANDIDATE';
+    external_uuid: string;
+    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
     expires_at: string | Date;
     created_at?: string | Date;
     updated_at?: string | Date;
@@ -87,6 +110,8 @@ export interface CompanyHistoryRow {
     status: string;
     previous_status?: string | null;
     modified_by?: number | null;
+    /** JSON [{ column, from, to }] stocké en chaîne. mysql2 peut le renvoyer déjà parsé à la lecture. */
+    changes?: string | null;
 }
 
 export interface ContactLogRow {
@@ -94,6 +119,15 @@ export interface ContactLogRow {
     company_id: number;
     user_id: number;
     comment: string;
+    created_at?: string | Date;
+}
+
+export interface RefreshTokenRow {
+    id: number;
+    user_id: number;
+    token_hash: string;
+    expires_at: string | Date;
+    revoked_at: string | Date | null;
     created_at?: string | Date;
 }
 

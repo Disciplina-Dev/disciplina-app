@@ -4,6 +4,7 @@ import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
 import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel } from '@/api/mailTemplates'
+import { cleanHtml } from '@/services/sanitizeHtml'
 
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
@@ -39,6 +40,10 @@ const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boo
   { token: 'duree', label: 'Durée', example: '30 minutes' },
   { token: 'hote', label: 'Nom de l’hôte', example: 'Jean Martin' },
   { token: 'lien', label: 'Lien de réservation (proposition d’entretien)', example: 'https://app.disciplina.re/booking/xxxx' },
+  { token: 'prenom', label: 'Prénom du candidat', example: 'Marie' },
+  { token: 'nom', label: 'Nom du candidat', example: 'Dupont' },
+  { token: 'code', label: 'Code à 6 chiffres pour l\'import CV', example: '483291' },
+  { token: 'lien_import', label: 'Lien d\'import du CV', example: 'https://app.disciplina.re/public/cv-import?sig=xxx' },
 ]
 
 // Variables du scope peda, remplacées à la génération des brouillons de relance
@@ -49,6 +54,14 @@ const PEDA_TEMPLATE_VARS: typeof TEMPLATE_VARS = [
   { token: 'mail', label: 'Adresse mail de l’apprenant', example: 'marie.dupont@exemple.re' },
 ]
 
+// Variables du modèle système « Analyse du Besoin à signer » (kind ab_signature),
+// remplacées à l'envoi (cf. back NeedsAnalysisService.buildSignatureEmail).
+const AB_SIGNATURE_VARS: typeof TEMPLATE_VARS = [
+  { token: 'entreprise', label: 'Nom de l’entreprise', example: 'Ma Société SARL' },
+  { token: 'lien_signature', label: 'Bouton de signature (obligatoire)', example: '[ Signer les documents ]' },
+  { token: 'signature', label: 'Votre signature mail', example: 'votre image de signature' },
+]
+
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
   const { templates, loading, loaded, error: storeError, load, add, update, remove } =
     useMailTemplatesStore(scope)
@@ -57,7 +70,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
-  const templateVars = scope === 'peda' ? PEDA_TEMPLATE_VARS : TEMPLATE_VARS
+  // Le modèle système « AB à signer » a ses propres variables.
+  const editingKind = editing && editing !== 'new' ? editing.kind : null
+  const templateVars =
+    editingKind === 'ab_signature'
+      ? AB_SIGNATURE_VARS
+      : scope === 'peda'
+        ? PEDA_TEMPLATE_VARS
+        : TEMPLATE_VARS
 
   useEffect(() => { load() }, [load])
 
@@ -325,6 +345,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                           {PEDA_LEVEL_LABELS[t.pedaLevel]}
                         </span>
                       )}
+                      {t.kind === 'ab_signature' && (
+                        <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue">
+                          Signature AB
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-400 truncate">{t.subject}</p>
                   </div>
@@ -335,17 +360,20 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                     >
                       <Pencil size={15} />
                     </button>
-                    <button
-                      onClick={() => remove(t.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {/* Un modèle système (kind) ne se supprime pas, seulement s'édite. */}
+                    {!t.kind && (
+                      <button
+                        onClick={() => remove(t.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <p
                   className="text-xs text-gray-400 line-clamp-2"
-                  dangerouslySetInnerHTML={{ __html: t.body }}
+                  dangerouslySetInnerHTML={{ __html: cleanHtml(t.body) }}
                 />
                 {t.attachment && (
                   <span className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -361,4 +389,3 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
     </div>
   )
 }
-

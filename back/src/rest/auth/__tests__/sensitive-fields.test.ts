@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from '../../../config/env';
 import { UserRepository } from '../../../repositories/mysql/UserRepository';
 import { truncateMysql } from '../../../../test/helpers/db';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import bcrypt from 'bcrypt';
 
 const API_PORT = env.API_PORT;
@@ -22,7 +23,8 @@ describe('Auth sensitive fields sanitization', () => {
             first_name: 'Test',
             last_name: 'User',
             password: hashedPassword,
-            role: 'ADMIN',
+            role_id: 1,
+            permission_id: 3,
             sectors: null,
             oauth_token: 'encrypted_token_here',
             refresh_token: 'encrypted_refresh_token_here',
@@ -39,7 +41,7 @@ describe('Auth sensitive fields sanitization', () => {
 
         const data = await res.json();
         expect(res.status).toBe(200);
-        expect(data.token).toBeDefined();
+        expect(res.headers.get('set-cookie')).toContain('disc_at=');
         expect(data.user).toBeDefined();
 
         expect(data.user).not.toHaveProperty('password');
@@ -62,30 +64,34 @@ describe('Auth sensitive fields sanitization', () => {
             first_name: 'Admin',
             last_name: '',
             password: hashedPassword,
-            role: 'ADMIN',
+            role_id: 1,
+            permission_id: 3,
             sectors: null,
             oauth_token: null,
             refresh_token: null,
         });
 
-        const adminToken = require('jsonwebtoken').sign(
-            { id: adminId, email: 'admin@local.test', role: 'ADMIN' },
-            env.JWT_SECRET,
-            { expiresIn: '24h' },
-        );
+        const { cookieHeader, csrfHeader } = mintAuthCookies({
+            id: adminId,
+            email: 'admin@local.test',
+            role: 'COMMERCIAL',
+            permission: 'ADMIN',
+        });
 
         const res = await fetch(REGISTER_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${adminToken}`,
+                Cookie: cookieHeader,
+                'x-csrf-token': csrfHeader,
             },
             body: JSON.stringify({
                 email: 'newuser@local.test',
                 firstName: 'New',
                 lastName: 'User',
-                passwordPlain: 'newpass123',
+                passwordPlain: 'Newpass123456',
                 role: 'COMMERCIAL',
+                permission: 'EMPLOYEE',
             }),
         });
 

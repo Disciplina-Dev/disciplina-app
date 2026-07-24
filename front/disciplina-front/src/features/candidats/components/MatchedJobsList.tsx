@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search } from 'lucide-react'
+import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search, ChevronDown, Info } from 'lucide-react'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
-import { useCurrentUser, UserRole } from '@/store/authStore'
+import { useCurrentUser, Permission } from '@/store/authStore'
+import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import AddCandidateToJobModal from './AddCandidateToJobModal'
 import JobSearchModal from './JobSearchModal'
+import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 
 interface MatchedJobsListProps {
   candidateId: string
@@ -22,8 +24,9 @@ function formatSector(raw?: string): string {
 
 export default function MatchedJobsList({ candidateId, confirmedJobIds, candidateTpTypes }: MatchedJobsListProps) {
   const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.role === UserRole.RESPONSABLE || currentUser?.role === UserRole.ADMIN;
+  const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN;
 
+  const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedOffer[]>([])
@@ -33,6 +36,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
   const [showJobSearch, setShowJobSearch] = useState(false)
   const [queuedJobs, setQueuedJobs] = useState<MatchedOffer[]>([])
   const [queueIndex, setQueueIndex] = useState(0)
+  const [companyInfoOfferId, setCompanyInfoOfferId] = useState<string | null>(null)
 
   const fetchMatches = useCallback(async () => {
     setLoading(true)
@@ -52,8 +56,8 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
   }, [candidateId])
 
   useEffect(() => {
-    fetchMatches()
-  }, [fetchMatches])
+    if (expanded) fetchMatches()
+  }, [expanded, fetchMatches])
 
   const modalJob = jobs.find((job) => job.id === modalJobId)
   const queuedJob = queuedJobs[queueIndex]
@@ -67,18 +71,18 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
 
   return (
     <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className={`flex items-center justify-between gap-3 ${expanded ? 'mb-4' : ''}`}>
         <div className="flex items-center gap-3">
           <Briefcase className="w-5 h-5 text-blue" />
           <h2 className="text-base font-semibold text-gray-800">Offres correspondantes</h2>
-          {!loading && !error && (
+          {expanded && !loading && !error && (
             <span className="inline-flex items-center text-xs font-semibold py-1 px-2.5 rounded-full bg-blue-light text-blue">
               {jobs.length} offre{jobs.length > 1 ? 's' : ''}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
-          {canProposeOffers && (
+          {expanded && canProposeOffers && (
             <button
               type="button"
               onClick={() => setShowJobSearch(true)}
@@ -88,39 +92,53 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
               Proposer des offres
             </button>
           )}
+          {expanded && (
+            <button
+              type="button"
+              onClick={fetchMatches}
+              disabled={loading}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Rafraîchir
+            </button>
+          )}
           <button
             type="button"
-            onClick={fetchMatches}
-            disabled={loading}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
+            onClick={() => setExpanded(v => !v)}
+            className={`flex items-center gap-2 text-blue font-semibold text-sm transition-colors cursor-pointer ${
+              expanded
+                ? 'py-2 px-3 hover:text-blue/80'
+                : 'py-2 px-3 rounded-lg border border-blue-light bg-blue-light/50 hover:bg-blue-light'
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Rafraîchir
+            {!expanded && <ChevronDown className="w-4 h-4" />}
+            {expanded ? 'Réduire' : 'Voir les offres'}
           </button>
         </div>
       </div>
 
-      {loading && (
+      {expanded && loading && (
         <div className="flex items-center justify-center py-8">
           <div className="w-5 h-5 border-2 border-blue border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
-      {!loading && error && (
+      {expanded && !loading && error && (
         <div className="text-center py-6 px-4 bg-danger-bg rounded-lg">
           <p className="text-sm text-danger">{error}</p>
         </div>
       )}
 
-      {!loading && !error && jobs.length === 0 && (
+      {expanded && !loading && !error && jobs.length === 0 && (
         <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
           <AlertTriangle className="w-6 h-6 text-gray-400 mx-auto mb-2" />
           <p className="text-sm text-gray-600">Aucune offre ne correspond à ce profil pour le moment.</p>
         </div>
       )}
 
-      {!loading && !error && jobs.length > 0 && (
-        <div className="flex flex-col gap-2">
+      {expanded && !loading && !error && jobs.length > 0 && (
+        <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
           {jobs.map(job => (
             <div
               key={job.id}
@@ -131,6 +149,11 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{job.companyName || 'Entreprise'}</p>
+                {(job.title || job.jobRole) && (
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {[job.title, job.jobRole].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
                   {job.desiredTP && (
                     <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
@@ -152,24 +175,34 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                   ))}
                 </div>
               </div>
-              {confirmedJobIds?.has(job.id) ? (
-                <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success shrink-0">
-                  <UserCheck className="w-3.5 h-3.5" /> Matché
-                </span>
-              ) : addedJobIds.has(job.id) ? (
-                <span className="flex items-center gap-1 text-xs font-medium text-success shrink-0">
-                  <Check className="w-3.5 h-3.5" /> Ajouté
-                </span>
-              ) : (
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setModalJobId(job.id)}
-                  className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors disabled:opacity-50 shrink-0"
+                  onClick={() => setCompanyInfoOfferId(job.id)}
+                  className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue transition-colors"
+                  title="Voir toutes les infos de l'offre"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Ajouter
+                  <Info className="w-3.5 h-3.5" />
                 </button>
-              )}
+                {confirmedJobIds?.has(job.id) ? (
+                  <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${(job.status && MATCHED_CANDIDATE_STATUS_BADGE_CLASS[job.status as MatchedCandidateStatus]) ?? 'bg-success-bg text-success'}`}>
+                    <UserCheck className="w-3.5 h-3.5" /> {(job.status && MATCHED_CANDIDATE_STATUS_LABELS[job.status as MatchedCandidateStatus]) ?? 'Matché'}
+                  </span>
+                ) : addedJobIds.has(job.id) ? (
+                  <span className="flex items-center gap-1 text-xs font-medium text-success">
+                    <Check className="w-3.5 h-3.5" /> Ajouté
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setModalJobId(job.id)}
+                    className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Ajouter
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -207,6 +240,14 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
             advanceQueue()
           }}
           onClose={advanceQueue}
+        />
+      )}
+
+      {companyInfoOfferId && (
+        <CompanyInfoModal
+          offerId={companyInfoOfferId}
+          needsAnalysisId={jobs.find(j => j.id === companyInfoOfferId)?.needsAnalysisId ?? null}
+          onClose={() => setCompanyInfoOfferId(null)}
         />
       )}
     </section>

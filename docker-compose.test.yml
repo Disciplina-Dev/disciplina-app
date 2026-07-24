@@ -17,7 +17,7 @@ services:
       start_period: 30s
 
   test-nosql-db:
-    image: mongo:latest
+    image: mongo:8.2.6
     environment:
       MONGO_INITDB_ROOT_USERNAME: test-root
       MONGO_INITDB_ROOT_PASSWORD: test-root-password
@@ -36,6 +36,8 @@ services:
     build:
       context: ./back/
       dockerfile: Dockerfile
+      # Stage dev : dépendances complètes (vitest) + code source, requis pour `npm test`.
+      target: dev
     network_mode: host
     depends_on:
       test-sql-db:
@@ -51,6 +53,7 @@ services:
       API_PORT: 4000
       SESSION_SECRET: test-session-secret
       JWT_SECRET: test-jwt-secret
+      JWT_REFRESH_SECRET: test-jwt-refresh-secret
       MYSQL_USER: root
       MYSQL_DATABASE: disciplina
       GOOGLE_CLIENT_ID: test
@@ -73,5 +76,6 @@ services:
       INSEE_API_KEY: test-api-key
       OAUTH_ENCRYPTION_KEY: 5D539695AC72E55098D81BA3F2DDCA68
       CI: true
+      RELANCE_HMAC_SECRET: Super-secret-hmac-relance
     user: root
     command: npm test

@@ -1,11 +1,19 @@
-import { createHmac, timingSafeEqual } from 'crypto';
 import express, { Request, Response, NextFunction } from 'express';
+import { hmac } from '../../external/crypto';
 
 type RawBodyParser = ReturnType<typeof express.raw>;
 type VerifierFn = (req: Request, res: Response, next: NextFunction) => void;
 type MiddlewarePair = [RawBodyParser, VerifierFn];
 
 const IS_PROD = process.env.NODE_ENV === 'production';
+
+// Ce qui distingue un webhook d'un autre : le header de signature, l'encodage du
+// digest, et un éventuel préfixe à retirer (Yousign envoie `sha256=<hex>`).
+interface WebhookGuardConfig {
+    header: string;
+    encoding: 'hex' | 'base64';
+    stripPrefix?: string;
+}
 
 function rawJsonParser(): RawBodyParser {
     return express.raw({ type: 'application/json', limit: '256kb' });
@@ -22,44 +30,33 @@ function extractAndParseRawBody(req: Request, res: Response): string | null {
     return raw;
 }
 
-function timingSafeStringEqual(a: string, b: string): boolean {
-    const aBuf = Buffer.from(a);
-    const bBuf = Buffer.from(b);
-    if (aBuf.length !== bBuf.length) return false;
-    return timingSafeEqual(aBuf, bBuf);
-}
-
-function hmacDigest(secret: string, payload: string, encoding: 'hex' | 'base64'): string {
-    return createHmac('sha256', secret).update(payload).digest(encoding);
-}
-
-function guardMissingSecret(res: Response, next: NextFunction): void {
-    if (IS_PROD) {
-        res.status(500).json({ error: 'Webhook secret not configured' });
-        return;
-    }
-    next();
-}
-
-export function classmarkerWebhookGuard(secret: string | undefined): MiddlewarePair {
-    return [
+function makeWebhookGuard(config: WebhookGuardConfig) {
+    return (secret: string | undefined): MiddlewarePair => [
         rawJsonParser(),
         (req: Request, res: Response, next: NextFunction): void => {
             const rawBody = extractAndParseRawBody(req, res);
             if (rawBody === null) return;
             if (!secret) {
-                guardMissingSecret(res, next);
+                // Hors production, un secret absent ne bloque pas le développement.
+                if (IS_PROD) {
+                    res.status(500).json({ error: 'Webhook secret not configured' });
+                    return;
+                }
+                next();
                 return;
             }
 
-            const sig = req.headers['x-classmarker-hmac-sha256'] as string | undefined;
-            if (!sig) {
+            const header = req.headers[config.header] as string | undefined;
+            if (!header) {
                 res.status(401).json({ error: 'Missing webhook signature' });
                 return;
             }
 
-            const expected = hmacDigest(secret, rawBody, 'base64');
-            if (!timingSafeStringEqual(sig, expected)) {
+            const sig =
+                config.stripPrefix && header.startsWith(config.stripPrefix)
+                    ? header.slice(config.stripPrefix.length)
+                    : header;
+            if (!hmac.verify(secret, rawBody, sig, config.encoding)) {
                 res.status(401).json({ error: 'Invalid webhook signature' });
                 return;
             }
@@ -68,57 +65,18 @@ export function classmarkerWebhookGuard(secret: string | undefined): MiddlewareP
     ];
 }
 
-export function yousignWebhookGuard(secret: string | undefined): MiddlewarePair {
-    return [
-        rawJsonParser(),
-        (req: Request, res: Response, next: NextFunction): void => {
-            const rawBody = extractAndParseRawBody(req, res);
-            if (rawBody === null) return;
-            if (!secret) {
-                guardMissingSecret(res, next);
-                return;
-            }
+export const classmarkerWebhookGuard = makeWebhookGuard({
+    header: 'x-classmarker-hmac-sha256',
+    encoding: 'base64',
+});
 
-            const sigHeader = req.headers['x-yousign-signature-256'] as string | undefined;
-            if (!sigHeader) {
-                res.status(401).json({ error: 'Missing webhook signature' });
-                return;
-            }
+export const yousignWebhookGuard = makeWebhookGuard({
+    header: 'x-yousign-signature-256',
+    encoding: 'hex',
+    stripPrefix: 'sha256=',
+});
 
-            const sig = sigHeader.startsWith('sha256=') ? sigHeader.slice(7) : sigHeader;
-            const expected = hmacDigest(secret, rawBody, 'hex');
-            if (!timingSafeStringEqual(sig, expected)) {
-                res.status(401).json({ error: 'Invalid webhook signature' });
-                return;
-            }
-            next();
-        },
-    ];
-}
-
-export function docusealWebhookGuard(secret: string | undefined): MiddlewarePair {
-    return [
-        rawJsonParser(),
-        (req: Request, res: Response, next: NextFunction): void => {
-            const rawBody = extractAndParseRawBody(req, res);
-            if (rawBody === null) return;
-            if (!secret) {
-                guardMissingSecret(res, next);
-                return;
-            }
-
-            const sig = req.headers['x-docuseal-signature'] as string | undefined;
-            if (!sig) {
-                res.status(401).json({ error: 'Missing webhook signature' });
-                return;
-            }
-
-            const expected = hmacDigest(secret, rawBody, 'base64');
-            if (!timingSafeStringEqual(sig, expected)) {
-                res.status(401).json({ error: 'Invalid webhook signature' });
-                return;
-            }
-            next();
-        },
-    ];
-}
+export const docusealWebhookGuard = makeWebhookGuard({
+    header: 'x-docuseal-signature',
+    encoding: 'base64',
+});

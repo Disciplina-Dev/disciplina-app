@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, History, PhoneCall, ArrowRight } from 'lucide-react'
 import { useCompanyHistory, useContactLogs } from '@/graphql/hooks'
-import { USERS, fullName } from '@/store/authStore'
+import { fullName } from '@/store/authStore'
+import { useStaffDirectory, type StaffMember } from '@/hooks/useStaffDirectory'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -10,9 +11,9 @@ function formatDate(iso: string | null | undefined) {
   try { return format(new Date(iso), "d MMM yyyy 'à' HH:mm", { locale: fr }) } catch { return iso }
 }
 
-function authorName(userID: number | null) {
+function authorName(directory: Record<string, StaffMember>, userID: number | null) {
   if (userID == null) return 'Inconnu'
-  const user = USERS[String(userID)]
+  const user = directory[String(userID)]
   return user ? fullName(user) : `Utilisateur #${userID}`
 }
 
@@ -60,6 +61,12 @@ interface ContactEvent {
   comment: string
 }
 
+interface FieldChange {
+  column: string
+  from: string | null
+  to: string | null
+}
+
 interface ModificationEvent {
   kind: 'modification'
   id: number
@@ -68,6 +75,7 @@ interface ModificationEvent {
   updatedColumn: string
   status: string
   previousStatus: string | null
+  changes: FieldChange[]
 }
 
 type TimelineEvent = ContactEvent | ModificationEvent
@@ -86,10 +94,12 @@ interface RawModification {
   updatedColumn: string
   status: string
   previousStatus: string | null
+  changes: FieldChange[] | null
 }
 
 export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTimelineProps) {
   const [expanded, setExpanded] = useState(false)
+  const { directory } = useStaffDirectory()
   const contacts = useContactLogs(expanded ? companyID : null)
   const modifications = useCompanyHistory(expanded ? companyID : null)
 
@@ -124,6 +134,7 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
       updatedColumn: m.updatedColumn,
       status: m.status,
       previousStatus: m.previousStatus ?? null,
+      changes: m.changes ?? [],
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
@@ -169,7 +180,7 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
                   <div key={`c-${e.id}`} className="bg-blue-light/30 border border-blue-light rounded-lg px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
                       <PhoneCall className="w-4 h-4 text-blue shrink-0" />
-                      <span className="text-sm font-semibold text-gray-900">{authorName(e.userID)}</span>
+                      <span className="text-sm font-semibold text-gray-900">{authorName(directory, e.userID)}</span>
                       <span className="text-xs text-gray-400">a pris contact</span>
                       <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{formatDate(e.date)}</span>
                     </div>
@@ -195,30 +206,51 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
   )
 }
 
+function formatValue(directory: Record<string, StaffMember>, column: string, value: string | null) {
+  if (value == null || value === '') return null
+  // Le propriétaire est stocké en id → affiche le nom lisible.
+  if (column === 'user_id') return authorName(directory, Number(value))
+  return value
+}
+
+function ChangeValue({ value }: { value: string | null }) {
+  if (value == null) {
+    return <span className="italic text-gray-400">vide</span>
+  }
+  return <span className="break-words">{value}</span>
+}
+
 function ModificationCard({ event }: { event: ModificationEvent }) {
-  const statusChanged = event.previousStatus != null && event.previousStatus !== event.status
+  const { directory } = useStaffDirectory()
+  // Fallback pour les anciennes entrées sans valeurs avant/après.
+  const hasDetail = event.changes.length > 0
   const fields = formatColumns(event.updatedColumn)
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
       <div className="flex items-center gap-2 mb-1">
         <History className="w-4 h-4 text-gray-400 shrink-0" />
         <span className="text-sm text-gray-900">
-          <span className="font-semibold">{authorName(event.modifiedBy)}</span>
+          <span className="font-semibold">{authorName(directory, event.modifiedBy)}</span>
           {fields ? <> a modifié <span className="font-medium text-gray-700">{fields}</span></> : ' a modifié la fiche'}
         </span>
         <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{formatDate(event.date)}</span>
       </div>
-      {statusChanged && (
-        <div className="flex items-center gap-1 mt-1.5 pl-6">
-          <span className="text-xs text-gray-500">Statut :</span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-            {event.previousStatus}
-          </span>
-          <ArrowRight className="w-3 h-3 text-gray-400" />
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-light text-blue">
-            {event.status}
-          </span>
-        </div>
+
+      {hasDetail && (
+        <ul className="mt-2 space-y-1.5 pl-6">
+          {event.changes.map((c, i) => (
+            <li key={`${c.column}-${i}`} className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="font-medium text-gray-600">{COLUMN_LABELS[c.column] ?? c.column} :</span>
+              <span className="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-gray-500 line-through decoration-gray-400">
+                <ChangeValue value={formatValue(directory, c.column, c.from)} />
+              </span>
+              <ArrowRight className="h-3 w-3 shrink-0 text-gray-400" />
+              <span className="inline-flex items-center rounded-md bg-blue-light px-1.5 py-0.5 font-medium text-blue">
+                <ChangeValue value={formatValue(directory, c.column, c.to)} />
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

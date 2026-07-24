@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Globe2, Briefcase, ChevronRight } from 'lucide-react'
 
-import { useAuthStore } from '@/store/authStore'
 import {
   fetchKpiCombined,
   fetchKpiLive,
@@ -111,14 +110,12 @@ function SectionShell({ icon, title, children }: { icon: ReactNode; title: strin
  * par secteur et par commercial. Toujours à jour, indépendant de l'année.
  */
 export function KpiLiveSection() {
-  const token = useAuthStore((s) => s.token)
   const [sites, setSites] = useState<KpiSiteOverview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) return
     let cancelled = false
-    fetchKpiLive(token)
+    fetchKpiLive()
       .then((data) => {
         if (!cancelled) setSites(data.sites)
       })
@@ -128,7 +125,7 @@ export function KpiLiveSection() {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [])
 
   if (error) return <p className="text-[13px] text-danger">{error}</p>
   if (!sites) return null
@@ -148,23 +145,27 @@ export function KpiLiveSection() {
  * commerciaux regroupés par secteur, chaque carte renvoie vers la page profil.
  */
 export default function KpiOverviewSection({ year }: { year: number }) {
-  const token = useAuthStore((s) => s.token)
   const [sites, setSites] = useState<KpiSiteOverview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) return
     let cancelled = false
-    Promise.all(KPI_SITES.map((site) => fetchKpiCombined(token, year, site)))
+    Promise.allSettled(KPI_SITES.map((site) => fetchKpiCombined(year, site)))
       .then((results) => {
         if (cancelled) return
-        setSites(
-          results.map((r, i) => ({
-            site: KPI_SITES[i],
-            totals: r.summary.totals,
-            users: r.summary.users.map((u) => ({ userId: u.userId, userName: u.userName, totals: u.totals })),
-          })),
-        )
+        const sites: KpiSiteOverview[] = results
+          .map((r, i) => {
+            if (r.status === 'fulfilled') {
+              return {
+                site: KPI_SITES[i],
+                totals: r.value.summary.totals,
+                users: r.value.summary.users.map((u) => ({ userId: u.userId, userName: u.userName, totals: u.totals })),
+              }
+            }
+            return null
+          })
+          .filter((s): s is KpiSiteOverview => s != null)
+        setSites(sites)
         setError(null)
       })
       .catch((err: unknown) => {
@@ -173,7 +174,7 @@ export default function KpiOverviewSection({ year }: { year: number }) {
     return () => {
       cancelled = true
     }
-  }, [token, year])
+  }, [year])
 
   if (error) return <p className="text-[13px] text-danger">{error}</p>
   if (!sites || sites.every((s) => s.users.length === 0)) return null

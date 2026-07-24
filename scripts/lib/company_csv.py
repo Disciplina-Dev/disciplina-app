@@ -2,10 +2,11 @@
 
 Handles heterogeneous headers across the *-company.csv files, derives the
 commercial zone from the postal code, classifies a free-text status into one of
-the six allowed values, and normalizes the SIRET (with a unique zero-padded
+the six allowed values, and normalizes the SIRET (with a deterministic
 placeholder when missing).
 """
 
+import hashlib
 import re
 import unicodedata
 
@@ -124,12 +125,26 @@ def build_company_notes(secteur_raw, note_raw):
     return "\n".join(parts)
 
 
-def clean_siret(raw, placeholder_counter):
-    """Return a 14-digit SIRET, or a unique zero-padded placeholder when invalid."""
+def placeholder_siret(name, saler):
+    """Fabricate a stable SIRET for a company that has none.
+
+    Derived from the content rather than a counter, so a company keeps the same
+    placeholder across runs and whichever file order it is read in. The saler is
+    part of the key: two homonymous companies held by different salers are
+    distinct companies and must not collapse onto one row.
+    """
+    # '00' is a reserved namespace here: no real SIRET starts with it.
+    key = f"{saler}|{remove_accents(name).lower().strip()}"
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
+    return "00" + str(int(digest, 16) % 10**12).zfill(12)
+
+
+def clean_siret(raw, name, saler):
+    """Return a 14-digit SIRET, or a deterministic placeholder when invalid."""
     digits = re.sub(r"\D", "", raw or "")
     if len(digits) == 14:
         return digits
-    return str(next(placeholder_counter)).zfill(14)
+    return placeholder_siret(name, saler)
 
 
 def match_status(text):
@@ -161,7 +176,7 @@ def parse_relance_date(raw):
     return f"{year}-{month}-{day}"
 
 
-def build_clean_row(headers, values, placeholder_counter):
+def build_clean_row(headers, values, saler):
     fields = extract_fields(headers, values)
     secteur_raw = fields.get("secteur", "")
     address_raw = fields.get("address", "")
@@ -173,7 +188,7 @@ def build_clean_row(headers, values, placeholder_counter):
         "address": address_raw,
         "sector": postal_to_zone(secteur_raw or address_raw),
         "main_activity": fields.get("main_activity", ""),
-        "siret": clean_siret(fields.get("siret", ""), placeholder_counter),
+        "siret": clean_siret(fields.get("siret", ""), fields.get("name", ""), saler),
         "notes": build_company_notes(secteur_raw, fields.get("note", "")),
         "conclusion": fields.get("conclusion", ""),
         "status": classify_status(

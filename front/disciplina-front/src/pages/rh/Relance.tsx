@@ -4,9 +4,10 @@ import Button from '@/components/ui/Button'
 import { useCandidates } from '@/graphql/hooks'
 import { CandidateStatus, TrainingSite, TitleProfessionalType } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
-import { useAuthStore } from '@/store/authStore'
+import { apiJson } from '@/api/httpClient'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus'
+import { cleanHtml } from '@/services/sanitizeHtml'
 
 interface SendResult {
   sent: number
@@ -88,13 +89,14 @@ function hasFreshResponse(c: Candidate): boolean {
 
 export default function Relance() {
   const { candidates, loading } = useCandidates()
-  const token = useAuthStore((s) => s.token)
   const templates = useRhMailTemplatesStore((s) => s.templates)
   const loadTemplates = useRhMailTemplatesStore((s) => s.load)
 
   const [sendType, setSendType] = useState<string>(AVAILABILITY)
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | 'ALL'>(CandidateStatus.SEEKING)
   const [tpFilter, setTpFilter] = useState<Set<TitleProfessionalType>>(new Set())
+  const [zoneFilter, setZoneFilter] = useState<Set<ZoneKey>>(new Set())
+  const [showRelanced, setShowRelanced] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
@@ -113,9 +115,11 @@ export default function Relance() {
         if (!c.identity.email) return false
         if (statusFilter !== 'ALL' && c.status !== statusFilter) return false
         if (tpFilter.size > 0 && !tpsOf(c).some((tp) => tpFilter.has(tp))) return false
+        if (zoneFilter.size > 0 && !zoneFilter.has(zoneOf(c))) return false
+        if (!showRelanced && (c.last_relance_at || hasFreshResponse(c))) return false
         return true
       }),
-    [candidates, statusFilter, tpFilter],
+    [candidates, statusFilter, tpFilter, zoneFilter, showRelanced],
   )
 
   // Nettoie la sélection quand le filtre change (des candidats disparaissent de la liste).
@@ -132,6 +136,14 @@ export default function Relance() {
     setTpFilter((prev) => {
       const next = new Set(prev)
       next.has(tp) ? next.delete(tp) : next.add(tp)
+      return next
+    })
+  }
+
+  function toggleZone(zone: ZoneKey) {
+    setZoneFilter((prev) => {
+      const next = new Set(prev)
+      next.has(zone) ? next.delete(zone) : next.add(zone)
       return next
     })
   }
@@ -160,22 +172,14 @@ export default function Relance() {
     setResult(null)
     setError(null)
     try {
-      const url =
-        sendType === AVAILABILITY
-          ? `${import.meta.env.VITE_API_URL}/api/relance/send`
-          : `${import.meta.env.VITE_API_URL}/api/relance/bulk`
+      const path = sendType === AVAILABILITY ? '/api/relance/send' : '/api/relance/bulk'
       const body =
         sendType === AVAILABILITY ? { ids: selectedIds } : { ids: selectedIds, templateId: sendType }
-      const res = await fetch(url, {
+      const data = await apiJson<SendResult>(path, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erreur serveur')
       setResult(data)
       setSelected(new Set())
     } catch (err: any) {
@@ -279,6 +283,54 @@ export default function Relance() {
           </div>
         </div>
 
+        {/* Filtre par zone géographique */}
+        <div className="sm:col-span-2 flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Zone géographique</span>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(ZONE_LABEL).map(([key, label]) => {
+              const k = key as ZoneKey
+              const active = zoneFilter.has(k)
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => toggleZone(k)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-all ${
+                    active
+                      ? 'bg-[#E0E7FF] text-[#4338CA] ring-[#4338CA]/20'
+                      : 'bg-white text-gray-400 ring-gray-200 hover:ring-gray-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+            {zoneFilter.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setZoneFilter(new Set())}
+                className="rounded-full px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Exclure les déjà relancés */}
+        <div className="sm:col-span-2 flex items-center gap-2">
+          <input
+            id="show-relanced"
+            type="checkbox"
+            checked={showRelanced}
+            onChange={() => setShowRelanced((v) => !v)}
+            className="h-4 w-4 rounded accent-purple cursor-pointer"
+          />
+          <label htmlFor="show-relanced" className="text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer">
+            Inclure les déjà relancés
+          </label>
+        </div>
+
         {/* Aperçu du type d'envoi */}
         <div className="sm:col-span-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-sm text-gray-600">
           {sendType === AVAILABILITY ? (
@@ -294,7 +346,7 @@ export default function Relance() {
               </span>
               <div
                 className="prose prose-sm max-w-none text-gray-700 line-clamp-4"
-                dangerouslySetInnerHTML={{ __html: selectedTemplate.body }}
+                dangerouslySetInnerHTML={{ __html: cleanHtml(selectedTemplate.body) }}
               />
             </div>
           ) : (

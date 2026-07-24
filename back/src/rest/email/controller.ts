@@ -2,13 +2,9 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
 import { GoogleGmailService } from '../../external/google/gmail.service';
-import { GoogleTokens } from '../../external/google/types';
 
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
-
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 export async function sendEmail(req: AuthRequest, res: Response): Promise<void> {
     await handleEmail(req, res, 'send');
@@ -45,9 +41,9 @@ async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draf
 
     try {
         if (mode === 'draft') {
-            await gmailService.createDraft(creds, options, persistRefreshedTokens(user.id));
+            await gmailService.createDraft(creds, options, userService.googleTokenPersister(user.id));
         } else {
-            await gmailService.sendEmail(creds, options, persistRefreshedTokens(user.id));
+            await gmailService.sendEmail(creds, options, userService.googleTokenPersister(user.id));
         }
         res.json({ success: true });
     } catch (err: any) {

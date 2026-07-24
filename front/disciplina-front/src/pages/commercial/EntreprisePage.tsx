@@ -15,18 +15,18 @@ import {
   Check,
   ClipboardList,
   Trash2,
-  Save,
-  Loader2,
   Ban,
   PhoneCall,
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate, useLocation, useBlocker } from 'react-router-dom'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
-import { useCurrentUser, USERS } from '@/store/authStore'
+import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
+import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
@@ -44,6 +44,8 @@ import CompanyTimeline from '@/features/portefeuille/components/CompanyTimeline'
 import ContactLogModal from '@/features/portefeuille/components/ContactLogModal'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import BanCompanyModal from '@/features/portefeuille/components/BanCompanyModal'
+import UnsavedChangesBar from '@/features/portefeuille/components/UnsavedChangesBar'
+import LeaveConfirmDialog from '@/features/portefeuille/components/LeaveConfirmDialog'
 import { formatErrorMessage } from '@/utils/companyErrors'
 import type { CompanyWithSalePerson } from '@/types/entreprise'
 
@@ -140,6 +142,7 @@ export default function EntreprisePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const currentUser = useCurrentUser()
+  const { directory } = useStaffDirectory()
   const companies = usePortefeuilleStore((s) => s.companies)
   const { update } = useUpdateCompany()
   const { createCompany } = useCreateCompany()
@@ -149,6 +152,7 @@ export default function EntreprisePage() {
   useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   const [abOpen, setAbOpen] = useState(false)
+  const [abEditTarget, setAbEditTarget] = useState<{ data: NeedsAnalysis; duplicate: boolean } | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
   const [selectedAbId, setSelectedAbId] = useState<string | null>(null)
   const [selectedAbIds, setSelectedAbIds] = useState<Set<string>>(new Set())
@@ -174,6 +178,24 @@ export default function EntreprisePage() {
   const abList = abResult.data?.needsAnalysesByCompany ?? []
   const { deleteNeedsAnalysis } = useDeleteNeedsAnalysis()
 
+  // ─── Détection des modifications non enregistrées ───────────────────────────
+  const bypassBlockRef = useRef(false)
+  const isDirty = !!draft && !!baseEntreprise && JSON.stringify(draft) !== JSON.stringify(baseEntreprise)
+
+  // Bloque la navigation interne (React Router) tant que des modifs sont en attente
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && !bypassBlockRef.current && currentLocation.pathname !== nextLocation.pathname,
+  )
+
+  // Avertit avant fermeture / rechargement de l'onglet
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
   if (!baseEntreprise || !draft) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
@@ -186,31 +208,48 @@ export default function EntreprisePage() {
   }
 
   const canEdit =
-    currentUser?.role?.toUpperCase() === 'ADMIN' ||
-    currentUser?.role?.toUpperCase() === 'RESPONSABLE' ||
+    currentUser?.permission === Permission.ADMIN ||
+    currentUser?.permission === Permission.RESPONSABLE ||
     String(baseEntreprise.proprietaire_id) === String(currentUser?.id)
-
-  // Check if draft differs from baseEntreprise
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(baseEntreprise)
 
   const set = <K extends keyof Entreprise>(key: K, value: Entreprise[K]) =>
     setDraft((d) => d ? { ...d, [key]: value } : d)
 
-  const handleSave = async () => {
-    if (!isDirty) return
+  // Persiste le draft. Retourne true si succès.
+  const persist = async (): Promise<boolean> => {
     setSaving(true)
     setSaveError(null)
-    const company = toCompany(draft)
-    const response = await update(Number(draft.id), company)
+    const response = await update(Number(draft.id), toCompany(draft))
     setSaving(false)
     if (response.error) {
       setSaveError(response.error.message)
-      return
+      return false
     }
+    return true
+  }
+
+  // Barre : enregistrer et rester sur la page
+  const handleSave = async () => {
+    if (!isDirty) return
+    const ok = await persist()
+    if (!ok) return
+    bypassBlockRef.current = true
     navigate(`/commercial/portefeuille/${toSlug(draft.nom_commercial ?? draft.id)}`, {
       replace: true,
       state: { entreprise: draft },
     })
+    // Force le rafraîchissement de l'historique pour voir la modif immédiatement.
+    setContactRefresh((n) => n + 1)
+    setTimeout(() => { bypassBlockRef.current = false }, 0)
+  }
+
+  // Barre : annuler les modifications
+  const handleDiscard = () => setDraft({ ...baseEntreprise })
+
+  // Dialog quitter : enregistrer puis poursuivre la navigation bloquée
+  const handleSaveAndLeave = async () => {
+    const ok = await persist()
+    if (ok) blocker.proceed?.()
   }
 
   const toggleSelect = (id: string) => {
@@ -252,8 +291,8 @@ export default function EntreprisePage() {
   }
 
   const statusCfg = STATUS_CONFIG[draft.status] ?? STATUS_CONFIG['Non']
-  const owner = draft.proprietaire_id ? USERS[String(draft.proprietaire_id)] : null
-  const commercialUsers = Object.values(USERS).filter((u) => u.role === 'COMMERCIAL' || u.role === 'RESPONSABLE')
+  const owner = draft.proprietaire_id ? directory[String(draft.proprietaire_id)] : null
+  const commercialUsers = Object.values(directory).filter((u) => u.role === UserRole.COMMERCIAL)
   const siren = draft.siret ? normalizeSiret(draft.siret).slice(0, 9) : null
 
   return (
@@ -270,7 +309,7 @@ export default function EntreprisePage() {
         </button>
 
         {/* ─── Header ─────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="mb-6">
           <div className="flex items-start gap-4 min-w-0 flex-1">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-light">
               <Building2 className="h-6 w-6 text-blue" />
@@ -308,17 +347,7 @@ export default function EntreprisePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {isDirty && (
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-1.5 rounded-xl bg-blue px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_2px_8px_-2px_rgba(17,48,167,0.35)] hover:bg-blue/90 transition-all disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Enregistrer
-              </button>
-            )}
+          <div className="flex items-center gap-2 flex-wrap mt-4">
             <Button size="sm" variant="secondary" leftIcon={<PhoneCall className="h-3.5 w-3.5" />} onClick={() => setContactOpen(true)}>
               Prise de contact
             </Button>
@@ -418,7 +447,7 @@ export default function EntreprisePage() {
                         <select
                           value={String(draft.proprietaire_id ?? '')}
                           onChange={(e) => {
-                            const u = USERS[e.target.value]
+                            const u = directory[e.target.value]
                             set('proprietaire_id', u ? Number(e.target.value) : null)
                             set('commercial', u ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || null : null)
                           }}
@@ -457,7 +486,7 @@ export default function EntreprisePage() {
                             setDraft((d) => d ? {
                               ...d,
                               type_relance: typeId,
-                              date_relance: typeId ? computeRelanceDate(typeId) : d.date_relance,
+                              date_relance: typeId ? computeRelanceDate(typeId) : null,
                             } : d)
                           }}
                           className={INLINE_INPUT}
@@ -597,7 +626,13 @@ export default function EntreprisePage() {
               </ul>
             )}
             {selectedAbId && (
-              <ABDetailModal id={selectedAbId} onClose={() => setSelectedAbId(null)} onDelete={() => { setSelectedAbId(null); abResult.refetch() }} />
+              <ABDetailModal
+                id={selectedAbId}
+                onClose={() => setSelectedAbId(null)}
+                onDelete={() => { setSelectedAbId(null); abResult.refetch() }}
+                onEdit={(ab) => { setSelectedAbId(null); setAbEditTarget({ data: ab, duplicate: false }) }}
+                onDuplicate={(ab) => { setSelectedAbId(null); setAbEditTarget({ data: ab, duplicate: true }) }}
+              />
             )}
           </div>
 
@@ -620,6 +655,17 @@ export default function EntreprisePage() {
 
       {abOpen && currentUser && (
         <NeedsAnalysisModal entreprise={baseEntreprise} currentUser={currentUser} onClose={() => setAbOpen(false)} onSuccess={() => setAbOpen(false)} />
+      )}
+
+      {abEditTarget && currentUser && (
+        <NeedsAnalysisModal
+          entreprise={baseEntreprise}
+          currentUser={currentUser}
+          initialData={abEditTarget.data}
+          isDuplicate={abEditTarget.duplicate}
+          onClose={() => setAbEditTarget(null)}
+          onSuccess={() => { setAbEditTarget(null); abResult.refetch() }}
+        />
       )}
 
       {mailOpen && (
@@ -663,6 +709,23 @@ export default function EntreprisePage() {
           }}
         />
       )}
+
+      {/* Barre flottante d'enregistrement */}
+      <UnsavedChangesBar
+        visible={isDirty}
+        saving={saving}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+      />
+
+      {/* Confirmation avant de quitter la page avec des modifs non enregistrées */}
+      <LeaveConfirmDialog
+        open={blocker.state === 'blocked'}
+        saving={saving}
+        onCancel={() => blocker.reset?.()}
+        onDiscard={() => blocker.proceed?.()}
+        onSave={handleSaveAndLeave}
+      />
     </div>
   )
 }

@@ -37,7 +37,8 @@ export interface CandidateFilters {
     drivingLicenseB?: boolean;
     ageMin?: number;
     ageMax?: number;
-    tpType?: string;
+    /** Titres professionnels visés (OR). */
+    tpType?: string[];
     /** Villes de mobilité géographique souhaitées (OR). */
     geographicMobility?: string[];
     /** Secteurs d'activité souhaités (OR). */
@@ -47,6 +48,8 @@ export interface CandidateFilters {
     createdBefore?: Date;
     /** Ne renvoyer que les fiches sans date de création (héritées). */
     createdMissing?: boolean;
+    /** Filtrer par le RH qui a mené l'entretien (nom complet). */
+    interviewedBy?: string;
 }
 
 /**
@@ -108,22 +111,18 @@ export class CandidateRepository {
         const conditions: Record<string, any>[] = [];
 
         const trimmedSearch = search?.trim();
-        if (trimmedSearch) {
-            conditions.push({
-                'identity.full_name': { $regex: escapeRegexSpecialChars(trimmedSearch), $options: 'i' },
-            });
-        }
         if (filters?.trainingSite) conditions.push({ training_site: filters.trainingSite });
         if (filters?.status) conditions.push({ status: filters.status });
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
-        if (filters?.tpType) conditions.push({ tp_type: filters.tpType });
+        if (filters?.tpType?.length) conditions.push({ tp_type: { $in: filters.tpType } });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
         if (filters?.geographicMobility?.length)
             conditions.push({ 'job_info.geographic_mobility': { $in: filters.geographicMobility } });
         if (filters?.desiredSectors?.length) conditions.push({ desired_sectors: { $in: filters.desiredSectors } });
+        if (filters?.interviewedBy) conditions.push({ 'synthesis.interviewed_by': filters.interviewedBy });
         if (filters?.createdMissing) {
             // `null` matche aussi le champ absent en Mongo → couvre les fiches héritées.
             conditions.push({ created_at: null });
@@ -175,12 +174,52 @@ export class CandidateRepository {
             }
         }
 
-        const filter = conditions.length ? { $and: conditions } : {};
-        const query = CandidateModel.find(filter).sort({ created_at: -1, _id: 1 });
         if (!trimmedSearch) {
-            query.limit(first + 1);
+            const filter = conditions.length ? { $and: conditions } : {};
+            return CandidateModel.find(filter)
+                .sort({ created_at: -1, _id: 1 })
+                .limit(first + 1)
+                .lean();
         }
-        return query.lean();
+
+        // `$text` ne matche que des tokens entiers (avec stemming), pas de sous-chaîne.
+        // On combine une requête `$text` (pertinence, portée élargie à identity.description)
+        // et une requête `$regex` (préserve la recherche par préfixe/sous-chaîne, ex. "jea" → "Jean"),
+        // exécutées en parallèle puis fusionnées par _id (un `$text` ne peut pas être imbriqué
+        // dans le même `$or` qu'un autre opérateur au niveau racine).
+        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
+        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase } }] };
+        // `identity.description` peut être absent (fiches héritées créées avant son introduction,
+        // ou écrites hors du flux CandidateService qui le génère) : on garde `full_name` en repli
+        // pour ne jamais régresser sur la recherche par nom.
+        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
+        const regexFilter = {
+            $and: [
+                ...conditions,
+                {
+                    $or: [
+                        { 'identity.description': { $regex: regexPattern, $options: 'i' } },
+                        { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
+                    ],
+                },
+            ],
+        };
+        const sort = { created_at: -1 as const, _id: 1 as const };
+        const [textResults, regexResults] = await Promise.all([
+            CandidateModel.find(textFilter).sort(sort).lean(),
+            CandidateModel.find(regexFilter).sort(sort).lean(),
+        ]);
+
+        const uniqueById = new Map<string, Candidate>();
+        for (const candidate of [...textResults, ...regexResults]) {
+            uniqueById.set(String(candidate._id), candidate);
+        }
+        return Array.from(uniqueById.values()).sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : -Infinity;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : -Infinity;
+            if (aTime !== bTime) return bTime - aTime;
+            return String(a._id).localeCompare(String(b._id));
+        });
     }
 
     async findById(id: string): Promise<Candidate | null> {

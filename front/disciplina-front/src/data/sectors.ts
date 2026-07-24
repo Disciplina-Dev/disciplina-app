@@ -16,6 +16,12 @@ export enum Sector {
   ENFANT = 'ENFANT',
   PHARMACIE = 'PHARMACIE',
   BAZAR = 'BAZAR',
+  BTP = 'BTP',
+  ASSOCIATION = 'ASSOCIATION',
+  MEDICAL = 'MEDICAL',
+  ENERGIE = 'ENERGIE',
+  IMPORT_EXPORT = 'IMPORT_EXPORT',
+  SOCIAL = 'SOCIAL',
   NONE = 'NONE',
 }
 
@@ -23,7 +29,7 @@ export const SECTOR_LABELS: Record<string, string> = {
   [Sector.BOULANGERIE]: 'Boulangerie',
   [Sector.RESTAURATION]: 'Restauration',
   [Sector.STATION]: 'Station de service',
-  [Sector.PAP]: 'Papeterie / Presse / Librairie',
+  [Sector.PAP]: 'Prêt à porter',
   [Sector.LIBRE_SERVICE]: 'Libre service / Alimentation',
   [Sector.TELEPHONIE]: 'Téléphonie / Audio / Vidéo',
   [Sector.AUTO]: 'Automobile',
@@ -37,10 +43,17 @@ export const SECTOR_LABELS: Record<string, string> = {
   [Sector.ENFANT]: 'Enfant / Puériculture',
   [Sector.PHARMACIE]: 'Pharmacie',
   [Sector.BAZAR]: 'Bazar / Maison / Déco',
+  [Sector.BTP]: 'BTP',
+  [Sector.ASSOCIATION]: 'Association',
+  [Sector.MEDICAL]: 'Médical',
+  [Sector.ENERGIE]: 'Energie',
+  [Sector.IMPORT_EXPORT]: 'Import / Export',
+  [Sector.SOCIAL]: 'Social',
   [Sector.NONE]: 'Aucun',
 }
 
-export const ALL_SECTORS: Sector[] = [
+/** Secteurs historiques, proposés aux TP commerciaux (CC, NTC, REM) et à SA. */
+export const COMMERCE_SECTORS: Sector[] = [
   Sector.BOULANGERIE,
   Sector.RESTAURATION,
   Sector.STATION,
@@ -59,3 +72,19 @@ export const ALL_SECTORS: Sector[] = [
   Sector.PHARMACIE,
   Sector.BAZAR,
 ]
+
+/** Secteurs propres au TP Assistant(e) de Direction (AD), triés alphabétiquement. */
+export const AD_SECTORS: Sector[] = [
+  Sector.ASSOCIATION,
+  Sector.AUTO,
+  Sector.BTP,
+  Sector.COMMERCIAL,
+  Sector.ENERGIE,
+  Sector.IMPORT_EXPORT,
+  Sector.MEDICAL,
+  Sector.SOCIAL,
+  Sector.TELEPHONIE,
+]
+
+/** Union de tous les secteurs sélectionnables (offres entreprises, filtres). */
+export const ALL_SECTORS: Sector[] = Array.from(new Set([...COMMERCE_SECTORS, ...AD_SECTORS]))

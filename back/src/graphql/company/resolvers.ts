@@ -1,13 +1,15 @@
 import { CompaniesService } from '../../services/CompaniesService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { ContactLogService } from '../../services/ContactLogService';
 import { toBlacklistedCompany } from '../../services/mappers/company.mapper';
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
-import { authGuard } from '../authGuard';
-import { Role } from '../../types/user.types';
+import { authGuard, authGuardRole } from '../authGuard';
+import { JobRole, Permission } from '../../types/user.types';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
+import { permission } from 'node:process';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
@@ -62,6 +64,13 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     if (input.relanceType !== undefined) row.relance_type = input.relanceType;
     if (input.relanceTemplateId !== undefined) row.relance_template_id = input.relanceTemplateId;
     if (input.relanceChannel !== undefined) row.relance_channel = input.relanceChannel;
+    // « Aucune relance » : vider la date purge aussi le type / modèle / canal, sinon
+    // la fiche garde une relance orpheline invisible dans la page Relances.
+    if (input.relanceDate !== undefined && row.relance_date === null) {
+        row.relance_type = null;
+        row.relance_template_id = null;
+        row.relance_channel = null;
+    }
     return row;
 }
 
@@ -77,7 +86,7 @@ export const resolvers = {
             }: PaginationArgs & { search?: string; filters?: Record<string, unknown> },
             context: any,
         ) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
             const filters: CompanyFilters | undefined = filtersInput
                 ? {
@@ -112,37 +121,37 @@ export const resolvers = {
         // Liste légère (id + nom) pour les sélecteurs d'entreprise côté RH
         // (ex. choix de l'entreprise d'immersion sur la fiche candidat).
         companyOptions: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE, Role.ADMIN, Role.COMMERCIAL]);
+            authGuardRole(context.user, Permission.RESPONSABLE, [JobRole.RH, JobRole.COMMERCIAL]);
             const companies = await companiesService.findAll(100000);
             return companies.map((c) => ({ id: c.id, name: c.name }));
         },
 
         companyStats: async (_: unknown, { year }: { year: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             // Plain COMMERCIAL users only get their own numbers; RESPONSABLE/ADMIN see the whole team
-            const restrictedTo = context.user.role === Role.COMMERCIAL ? Number(context.user.id) : null;
+            const restrictedTo = context.user.role === JobRole.COMMERCIAL ? Number(context.user.id) : null;
             return companiesService.getStats(Math.floor(Number(year)), restrictedTo);
         },
 
         salePersons: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            return userService.findByRoles([Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            return userService.findByJobRoles([JobRole.COMMERCIAL]);
         },
 
         // Liste « Entretien fait par » : users cochés is_interviewer, tous rôles
         // confondus (l'équipe qui mène les AB déborde le seul rôle RH).
         rhUsers: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RH, Role.RESPONSABLE, Role.ADMIN]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return userService.findInterviewers();
         },
 
         salePerson: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return userService.findById(id);
         },
 
         companyByCommercial: async (_: unknown, { userID }: { userID: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const companies = await companiesService.findByCommercial(userID);
             const result = [];
             for (const company of companies) {
@@ -156,7 +165,7 @@ export const resolvers = {
         },
 
         companyBySiret: async (_: unknown, { siret }: { siret: string }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const company = await companiesService.findBySiret(siret);
             if (!company) return null;
             return {
@@ -169,7 +178,7 @@ export const resolvers = {
             { first, after, search }: PaginationArgs & { search?: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
             const rows = await companiesBlacklistService.findAll(pageSize, after, search);
             const companies = rows.map(toBlacklistedCompany);
@@ -177,26 +186,26 @@ export const resolvers = {
         },
 
         companyHistory: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return companiesService.getHistory(companyID);
         },
 
         contactLogs: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             // Timeline interne : tous les rôles internes voient toutes les prises de contact.
             return contactLogService.getByCompany(companyID);
         },
 
         contactLogStats: async (_: unknown, __: unknown, context: any) => {
-            authGuard(context.user, [Role.RESPONSABLE]);
+            authGuard(context.user, Permission.RESPONSABLE);
             return contactLogService.getStats();
         },
     },
     Mutation: {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const rowData = mapInputToRow(input);
-            if (context.user.role === Role.COMMERCIAL) {
+            if (context.user.role === JobRole.COMMERCIAL) {
                 rowData.user_id = context.user.id;
             } else if (rowData.user_id === undefined) {
                 rowData.user_id = context.user.id;
@@ -207,8 +216,8 @@ export const resolvers = {
             };
         },
         updateCompany: async (_: unknown, { id, input }: { id: number; input: CompanyInput }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            if (context.user.role === Role.COMMERCIAL) {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            if (context.user.role === JobRole.COMMERCIAL && context.user.permission === Permission.EMPLOYEE) {
                 const existing = await companiesService.findById(id);
                 if (existing?.userID && existing.userID !== context.user.id) {
                     throw new Error('Forbidden: You can only edit your own companies');
@@ -221,8 +230,8 @@ export const resolvers = {
             };
         },
         deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
-            if (context.user.role === Role.COMMERCIAL) {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            if (context.user.role === JobRole.COMMERCIAL) {
                 const existing = await companiesService.findById(id);
                 if (existing?.userID && existing.userID !== context.user.id) {
                     throw new Error('Forbidden: You can only delete your own companies');
@@ -235,19 +244,32 @@ export const resolvers = {
             { id, reason, allBlacklist }: { id: number; reason: string; allBlacklist: boolean },
             context: any,
         ) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return companiesBlacklistService.blacklistCompany(id, reason, allBlacklist);
         },
         unblacklistCompany: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuard(context.user, [Role.RESPONSABLE]);
+            authGuard(context.user, Permission.RESPONSABLE);
             return companiesBlacklistService.unblacklistCompany(id);
+        },
+        deleteAndBlacklistCompany: async (
+            _: unknown,
+            { companyId, reason, allBlacklist }: { companyId: number; reason: string; allBlacklist: boolean },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.RESPONSABLE, [JobRole.RH]);
+            const needsAnalysisService = new NeedsAnalysisService();
+            const nas = await needsAnalysisService.findByCompanyId(companyId);
+            for (const na of nas) {
+                await needsAnalysisService.delete(na.id);
+            }
+            return companiesBlacklistService.blacklistCompany(companyId, reason, allBlacklist);
         },
         createContactLog: async (
             _: unknown,
             { companyID, comment }: { companyID: number; comment: string },
             context: any,
         ) => {
-            authGuard(context.user, [Role.COMMERCIAL, Role.RESPONSABLE]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             // user_id provient toujours du token, jamais du body.
             return contactLogService.create(companyID, Number(context.user.id), comment);
         },

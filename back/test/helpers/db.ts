@@ -13,6 +13,7 @@ export async function truncateMysql(): Promise<void> {
         await conn.query('TRUNCATE TABLE match_link');
         await conn.query('TRUNCATE TABLE interview_access');
         await conn.query('TRUNCATE TABLE users');
+        await conn.query('TRUNCATE TABLE refresh_tokens');
         await conn.query('SET FOREIGN_KEY_CHECKS = 1');
     } finally {
         conn.release();

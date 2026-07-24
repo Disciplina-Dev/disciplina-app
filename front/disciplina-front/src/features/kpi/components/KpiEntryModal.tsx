@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 
 import { saveKpi, KPI_SITES, type KpiMetrics, type KpiSelectableUser, type KpiSite } from '@/api/kpi'
-import { useAuthStore } from '@/store/authStore'
 import { KPI_METRICS, MONTH_FULL_LABELS, SITE_LABELS, emptyMetrics } from '../config'
 
 export interface KpiEntryDraft {
@@ -27,8 +26,6 @@ interface Props {
 
 /** Saisie / édition manuelle d'un mois de KPI pour un commercial. */
 export default function KpiEntryModal({ year, site, users, draft, onClose, onSaved }: Props) {
-  const token = useAuthStore((s) => s.token)
-
   const [userId, setUserId] = useState<number | ''>(draft?.userId ?? '')
   const [month, setMonth] = useState(draft?.month ?? new Date().getMonth() + 1)
   const [week, setWeek] = useState(draft?.week ?? 0)
@@ -45,11 +42,11 @@ export default function KpiEntryModal({ year, site, users, draft, onClose, onSav
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!token || userId === '') return
+    if (userId === '') return
     setSaving(true)
     setError(null)
     try {
-      await saveKpi(token, { user_id: userId, year, month, week, site: entrySite, ...metrics })
+      await saveKpi({ user_id: userId, year, month, week, site: entrySite, ...metrics })
       onSaved()
       onClose()
     } catch (err) {

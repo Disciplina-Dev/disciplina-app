@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL;
+import { apiFetch } from '@/api/httpClient';
 
 /** Plages horaires locales par jour ISO (1=lundi … 7=dimanche). */
 export type WorkingHours = Record<string, [string, string][]>;
@@ -36,13 +36,12 @@ export interface Slot {
   end: string;
 }
 
-async function bookFetch(path: string, init?: RequestInit, token?: string): Promise<Response> {
-  const res = await fetch(`${API_BASE}/api/booking${path}`, {
+async function bookFetch(path: string, init?: RequestInit): Promise<Response> {
+  const res = await apiFetch(`/api/booking${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
   if (!res.ok) {
@@ -53,13 +52,13 @@ async function bookFetch(path: string, init?: RequestInit, token?: string): Prom
 }
 
 // ── Espace RH (authentifié) ───────────────────────────────────────────────
-export async function fetchMyBookingSettings(token: string): Promise<BookingSettings> {
-  const res = await bookFetch('/settings', undefined, token);
+export async function fetchMyBookingSettings(): Promise<BookingSettings> {
+  const res = await bookFetch('/settings');
   return ((await res.json()) as { settings: BookingSettings }).settings;
 }
 
-export async function updateMyBookingSettings(token: string, patch: BookingSettingsPatch): Promise<BookingSettings> {
-  const res = await bookFetch('/settings', { method: 'PUT', body: JSON.stringify(patch) }, token);
+export async function updateMyBookingSettings(patch: BookingSettingsPatch): Promise<BookingSettings> {
+  const res = await bookFetch('/settings', { method: 'PUT', body: JSON.stringify(patch) });
   return ((await res.json()) as { settings: BookingSettings }).settings;
 }
 

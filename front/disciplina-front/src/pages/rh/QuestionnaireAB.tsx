@@ -12,7 +12,7 @@ import { CANDIDATE_TEMPLATES, TP_TYPE_LABELS, SKILL_LEVEL_LABELS, DISCOVERY_SOUR
 import { SECTOR_LABELS } from '@/data/sectors'
 import { candidateGraphqlClient } from '@/graphql/client'
 import SignaturePad from '@/components/ui/SignaturePad'
-import { useAuthStore } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
 import { UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
 
 // ─── Form state ───────────────────────────────────────────────────────────────
@@ -330,7 +330,6 @@ export default function QuestionnaireAB() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { candidate, loading, error } = useCandidateFull(id!)
-  const token = useAuthStore((s) => s.token)
   const [form, setForm] = useState<FormState | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -342,6 +341,16 @@ export default function QuestionnaireAB() {
   }, [candidate])
 
   const template = form ? CANDIDATE_TEMPLATES[form.tp_type] : null
+
+  // Secteurs proposés : ceux de tous les TP du candidat, plus ceux déjà cochés
+  // même s'ils ne sont plus au référentiel (aucune perte sur les fiches saisies).
+  const sectorOptions: string[] = form
+    ? Array.from(new Set([
+        ...(form.tp_types.length ? form.tp_types : [form.tp_type])
+          .flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? []),
+        ...form.desired_sectors,
+      ]))
+    : []
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm(prev => prev ? { ...prev, [key]: value } : prev)
@@ -401,9 +410,8 @@ export default function QuestionnaireAB() {
       // (remplace l'AB précédent). Best-effort : n'empêche pas la sauvegarde.
       setDriveStatus('Enregistrement de l’AB dans le Drive…')
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/candidates/${id}/ab-to-drive`, {
+        const res = await apiFetch(`/api/candidates/${id}/ab-to-drive`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -722,7 +730,7 @@ export default function QuestionnaireAB() {
         <Section title="Secteurs d'activité et compétences attendues">
           <CheckGroup
             label="Secteurs d'activité souhaités"
-            options={template.availableSectors}
+            options={sectorOptions}
             selected={form.desired_sectors}
             onToggle={toggleSector}
             renderLabel={(s) => SECTOR_LABELS[s] ?? s}

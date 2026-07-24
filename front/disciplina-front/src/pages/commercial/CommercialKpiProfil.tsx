@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertTriangle, MapPin } from 'lucide-react'
 
-import { useAuthStore, useCurrentUser, UserRole } from '@/store/authStore'
+import { useCurrentUser, Permission } from '@/store/authStore'
 import {
   fetchKpiLive,
   fetchKpiUserDetail,
@@ -29,7 +29,7 @@ export default function CommercialKpiProfil() {
   const currentUser = useCurrentUser()
   const { userId } = useParams<{ userId: string }>()
   const isManager =
-    currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.RESPONSABLE
+    currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE
   const ownId = Number(currentUser?.id)
 
   if (!isManager && Number(userId) !== ownId) {
@@ -49,7 +49,6 @@ interface KpiProfilViewProps {
 
 /** Vue profil KPI réutilisable : page dédiée (managers) ou dashboard du commercial. */
 export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProfilViewProps) {
-  const token = useAuthStore((s) => s.token)
   const currentYear = new Date().getFullYear()
 
   const [year, setYear] = useState(currentYear)
@@ -65,17 +64,16 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), [])
 
   useEffect(() => {
-    if (!token) return
-    fetchKpiYears(token).then(setYears).catch(() => setYears([]))
+    fetchKpiYears().then(setYears).catch(() => setYears([]))
     // Liste des commerciaux : réservée aux managers (saisie manuelle uniquement).
-    if (canEdit) fetchKpiUsers(token).then(setSelectableUsers).catch(() => setSelectableUsers([]))
-    fetchKpiLive(token).then(setLive).catch(() => setLive(null))
-  }, [token, canEdit])
+    if (canEdit) fetchKpiUsers().then(setSelectableUsers).catch(() => setSelectableUsers([]))
+    fetchKpiLive().then(setLive).catch(() => setLive(null))
+  }, [canEdit])
 
   useEffect(() => {
-    if (!token || !Number.isInteger(id)) return
+    if (!Number.isInteger(id)) return
     let cancelled = false
-    fetchKpiUserDetail(token, id, year)
+    fetchKpiUserDetail(id, year)
       .then((data) => {
         if (!cancelled) {
           setDetail(data)
@@ -88,7 +86,7 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
     return () => {
       cancelled = true
     }
-  }, [token, id, year, refreshKey])
+  }, [id, year, refreshKey])
 
   const selectableYears = [...new Set([currentYear, ...years])].sort((a, b) => a - b)
 

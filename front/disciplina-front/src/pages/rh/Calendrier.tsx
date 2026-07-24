@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import {
-  ChevronLeft, ChevronRight, Loader2, AlertCircle, CalendarDays,
+  ChevronLeft, ChevronRight, ChevronDown, Layers, Loader2, AlertCircle, CalendarDays,
   MapPin, Video, Plus, Trash2, X, Pencil, LinkIcon, Share2, Copy, Check,
   Mail, UserCheck, UserX, User as UserIcon,
 } from 'lucide-react'
@@ -10,6 +10,8 @@ import {
   type BookingSettings, type WorkingHours,
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
+import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
 import { SECTEUR_VALUES } from '@/types/entreprise'
@@ -112,21 +114,6 @@ function toTimeInput(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-// Liens description Google → nouvel onglet sans fuite de referrer.
-DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-  if (node.tagName === 'A') {
-    node.setAttribute('target', '_blank')
-    node.setAttribute('rel', 'noopener noreferrer')
-  }
-})
-
-function cleanHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['a', 'b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li', 'span'],
-    ALLOWED_ATTR: ['href', 'target', 'rel'],
-  })
-}
-
 /** Layout des events d'un jour en colonnes pour gérer les chevauchements. */
 interface PositionedEvent { event: OwnedEvent; col: number; cols: number }
 function layoutDay(events: OwnedEvent[]): PositionedEvent[] {
@@ -161,7 +148,6 @@ function layoutDay(events: OwnedEvent[]): PositionedEvent[] {
 }
 
 export default function Calendrier() {
-  const token = useAuthStore((s) => s.token)
   const selfId = Number(useAuthStore((s) => s.user?.id))
   const { connectGoogle, isLoading: isConnecting } = useGoogleOAuthPopup()
 
@@ -189,9 +175,8 @@ export default function Calendrier() {
   const [visible, setVisible] = useState<Set<number>>(new Set())
 
   const loadUsers = useCallback(async () => {
-    if (!token) return
     try {
-      const list = await fetchCalendarUsers(token)
+      const list = await fetchCalendarUsers()
       setUsers(list)
       // Par défaut : son propre agenda + ceux des collègues partageant ≥ 1 secteur (connectés).
       const self = list.find((u) => u.isSelf)
@@ -201,7 +186,7 @@ export default function Calendrier() {
     } catch {
       /* géré via état notConnected au chargement des events */
     }
-  }, [token])
+  }, [])
 
   useEffect(() => { void loadUsers() }, [loadUsers])
 
@@ -212,6 +197,14 @@ export default function Calendrier() {
     setVisible((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  const toggleGroup = (ids: number[]) =>
+    setVisible((prev) => {
+      const areAllSelected = ids.every((id) => prev.has(id))
+      const next = new Set(prev)
+      ids.forEach((id) => (areAllSelected ? next.delete(id) : next.add(id)))
       return next
     })
 
@@ -229,7 +222,6 @@ export default function Calendrier() {
   const visibleKey = useMemo(() => [...visible].sort().join(','), [visible])
 
   const load = useCallback(async () => {
-    if (!token) return
     const ids = visibleKey ? visibleKey.split(',').map(Number) : []
     setLoading(true); setError(null); setNotConnected(false)
     try {
@@ -238,7 +230,7 @@ export default function Calendrier() {
         ids.map(async (id) => {
           // Un agenda en échec (409 non connecté ou erreur Google) ne doit jamais bloquer les autres.
           try {
-            const evs = await fetchCalendarEvents(token, range.min, range.max, id === selfId ? undefined : id)
+            const evs = await fetchCalendarEvents(range.min, range.max, id === selfId ? undefined : id)
             return evs.map((e) => ({ ...e, ownerId: id }))
           } catch (err) {
             if (err instanceof CalendarNotConnectedError && id === selfId) setNotConnected(true)
@@ -255,7 +247,7 @@ export default function Calendrier() {
     } finally {
       setLoading(false)
     }
-  }, [token, range.min, range.max, visibleKey, selfId])
+  }, [range.min, range.max, visibleKey, selfId])
 
   useEffect(() => { void load() }, [load])
 
@@ -358,7 +350,7 @@ export default function Calendrier() {
             </div>
           )}
           <div className="flex min-h-0 flex-1 gap-4">
-          <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} />
+          <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} onToggleGroup={toggleGroup} />
           <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white">
             {loading && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
@@ -373,10 +365,9 @@ export default function Calendrier() {
         </div>
       )}
 
-      {detail && token && (
+      {detail && (
         <EventModal
           event={detail}
-          token={token}
           isOwn={detail.ownerId === selfId}
           ownerName={(() => { const u = users.find((u) => u.id === detail.ownerId); return u ? `${u.firstName} ${u.lastName}`.trim() : undefined })()}
           onClose={() => setDetail(null)}
@@ -396,9 +387,8 @@ export default function Calendrier() {
           onCreated={(id) => { setCreateFromEvent(null); navigate(`/rh/candidats/${id}`) }}
         />
       )}
-      {editing && token && (
+      {editing && (
         <EventForm
-          token={token}
           event={editing.event}
           ownerId={editing.ownerId}
           users={users}
@@ -409,7 +399,7 @@ export default function Calendrier() {
           onSaved={() => { setEditing(null); void load() }}
         />
       )}
-      {showBooking && token && <BookingSettingsModal token={token} onClose={() => setShowBooking(false)} />}
+      {showBooking && <BookingSettingsModal onClose={() => setShowBooking(false)} />}
     </div>
   )
 }
@@ -419,7 +409,7 @@ const ISO_DAYS: { key: string; label: string }[] = [
   { key: '4', label: 'Jeudi' }, { key: '5', label: 'Vendredi' }, { key: '6', label: 'Samedi' }, { key: '7', label: 'Dimanche' },
 ]
 
-function BookingSettingsModal({ token, onClose }: { token: string; onClose: () => void }) {
+function BookingSettingsModal({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState<BookingSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -431,11 +421,11 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
   useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   useEffect(() => {
-    fetchMyBookingSettings(token)
+    fetchMyBookingSettings()
       .then(setSettings)
       .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur'))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   const patch = (p: Partial<BookingSettings>) => setSettings((s) => (s ? { ...s, ...p } : s))
 
@@ -467,7 +457,7 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
     if (!settings) return
     setBusy(true); setErr(null)
     try {
-      const updated = await updateMyBookingSettings(token, {
+      const updated = await updateMyBookingSettings({
         enabled: settings.enabled, title: settings.title, location: settings.location,
         durationMin: settings.durationMin, bufferMin: settings.bufferMin,
         minNoticeHours: settings.minNoticeHours, maxDaysAhead: settings.maxDaysAhead,
@@ -524,7 +514,7 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
                 <input value={settings.title} onChange={(e) => patch({ title: e.target.value })} className={inputCls} />
               </Field>
               <Field label="Lieu (optionnel)" className="col-span-2">
-                <LocationPicker token={token} value={settings.location ?? ''} onChange={(v) => patch({ location: v || null })} autoDefault />
+                <LocationPicker value={settings.location ?? ''} onChange={(v) => patch({ location: v || null })} autoDefault />
               </Field>
               <Field label="Durée (min)">
                 <input type="number" min={5} max={480} value={settings.durationMin} onChange={(e) => patch({ durationMin: Number(e.target.value) })} className={inputCls} />
@@ -657,8 +647,8 @@ const CUSTOM_LOCATION = '__custom'
  * Sélecteur de lieu : dropdown des lieux par secteur (sector_settings) + saisie libre (« Autre… »).
  * `autoDefault` pré-sélectionne le lieu du secteur de l'utilisateur (fallback Nord-Est) si la valeur est vide.
  */
-function LocationPicker({ token, value, onChange, autoDefault }: {
-  token: string; value: string; onChange: (v: string) => void; autoDefault?: boolean
+function LocationPicker({ value, onChange, autoDefault }: {
+  value: string; onChange: (v: string) => void; autoDefault?: boolean
 }) {
   const [options, setOptions] = useState<SectorSetting[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -667,7 +657,7 @@ function LocationPicker({ token, value, onChange, autoDefault }: {
 
   useEffect(() => {
     let cancelled = false
-    fetchSectorSettings(token)
+    fetchSectorSettings()
       .then((all) => {
         if (cancelled) return
         const withLocation = all.filter((s) => s.location.trim())
@@ -683,7 +673,7 @@ function LocationPicker({ token, value, onChange, autoDefault }: {
       .catch(() => setLoaded(true)) // best-effort : saisie libre reste possible
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [])
 
   // Valeur existante hors liste (ancien lieu libre) → mode « Autre » automatiquement.
   const isKnown = options.some((s) => s.location === value)
@@ -845,39 +835,112 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
   )
 }
 
-function AgendasPanel({ users, visible, selfId, onToggle }: {
-  users: CalendarUser[]; visible: Set<number>; selfId: number; onToggle: (id: number) => void
+function AgendaRow({ user, selfId, visible, onToggle }: {
+  user: CalendarUser; selfId: number; visible: Set<number>; onToggle: (id: number) => void
 }) {
-  const ordered = [...users].sort((a, b) => (a.isSelf === b.isSelf ? a.firstName.localeCompare(b.firstName) : a.isSelf ? -1 : 1))
+  const hex = user.id === selfId ? DEFAULT_EVENT_HEX : ownerColor(user.id)
+  const checked = visible.has(user.id)
   return (
-    <aside className="w-52 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
-      <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Agendas</p>
-      <div className="flex flex-col gap-0.5">
-        {ordered.map((u) => {
-          const hex = u.id === selfId ? DEFAULT_EVENT_HEX : ownerColor(u.id)
-          const checked = visible.has(u.id)
-          return (
-            <button
-              key={u.id}
-              onClick={() => u.connected && onToggle(u.id)}
-              disabled={!u.connected}
-              title={u.connected ? '' : 'Google Calendar non connecté'}
-              className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${u.connected ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-50'}`}
-            >
-              <span
-                className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2"
-                style={{ borderColor: hex, backgroundColor: checked ? hex : 'transparent' }}
-              >
-                {checked && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
-              </span>
-              <span className="truncate text-[13px] font-semibold text-gray-700">
-                {`${u.firstName} ${u.lastName}`.trim()}{u.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
-              </span>
-            </button>
-          )
-        })}
-        {users.length === 0 && <p className="px-1 text-[12px] text-gray-400">Aucun agenda</p>}
+    <button
+      onClick={() => user.connected && onToggle(user.id)}
+      disabled={!user.connected}
+      title={user.connected ? '' : 'Google Calendar non connecté'}
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${user.connected ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-50'}`}
+    >
+      <span
+        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2"
+        style={{ borderColor: hex, backgroundColor: checked ? hex : 'transparent' }}
+      >
+        {checked && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
+      </span>
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="truncate text-[13px] font-semibold text-gray-700">
+          {`${user.firstName} ${user.lastName}`.trim()}{user.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
+        </span>
+        {user.sectors.length > 1 && (
+          <Layers className="h-3 w-3 flex-shrink-0 text-gray-300" aria-label={`Agenda partagé entre ${user.sectors.join(', ')}`}>
+            <title>{`Agenda partagé entre ${user.sectors.join(', ')}`}</title>
+          </Layers>
+        )}
+      </span>
+    </button>
+  )
+}
+
+function GroupCheckbox({ connectedIds, visible, onToggleGroup }: {
+  connectedIds: number[]; visible: Set<number>; onToggleGroup: (ids: number[]) => void
+}) {
+  const isAllSelected = connectedIds.length > 0 && connectedIds.every((id) => visible.has(id))
+  const isSomeSelected = !isAllSelected && connectedIds.some((id) => visible.has(id))
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggleGroup(connectedIds) }}
+      disabled={connectedIds.length === 0}
+      className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${connectedIds.length === 0 ? 'cursor-not-allowed border-gray-200' : 'border-gray-300'} ${isAllSelected || isSomeSelected ? 'border-purple bg-purple' : ''}`}
+    >
+      {isAllSelected && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
+      {isSomeSelected && <span className="h-0.5 w-2 rounded-sm bg-white" />}
+    </button>
+  )
+}
+
+function AgendaGroup({ label, users, selfId, visible, onToggle, onToggleGroup, defaultCollapsed }: {
+  label: string; users: CalendarUser[]; selfId: number; visible: Set<number>
+  onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void; defaultCollapsed: boolean
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
+  const ordered = [...users].sort((a, b) => (a.isSelf === b.isSelf ? a.firstName.localeCompare(b.firstName) : a.isSelf ? -1 : 1))
+  if (ordered.length === 0) return null
+  const connectedIds = ordered.filter((u) => u.connected).map((u) => u.id)
+  return (
+    <div className="mb-2">
+      <div className="mb-1 flex items-center gap-1.5 px-1">
+        <GroupCheckbox connectedIds={connectedIds} visible={visible} onToggleGroup={onToggleGroup} />
+        <button
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          className="flex flex-1 items-center justify-between gap-1 text-gray-400 hover:text-gray-600"
+        >
+          <span className="truncate text-[10px] font-bold uppercase tracking-wider">{label} ({ordered.length})</span>
+          <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+        </button>
       </div>
+      {!isCollapsed && (
+        <div className="flex flex-col gap-0.5">
+          {ordered.map((u) => <AgendaRow key={u.id} user={u} selfId={selfId} visible={visible} onToggle={onToggle} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
+  users: CalendarUser[]; visible: Set<number>; selfId: number; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
+}) {
+  const withoutSector = users.filter((u) => u.sectors.length === 0)
+  return (
+    <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
+      {SECTEUR_VALUES.map((sector) => (
+        <AgendaGroup
+          key={sector}
+          label={sector}
+          users={users.filter((u) => u.sectors.includes(sector))}
+          selfId={selfId}
+          visible={visible}
+          onToggle={onToggle}
+          onToggleGroup={onToggleGroup}
+          defaultCollapsed={false}
+        />
+      ))}
+      <AgendaGroup
+        label="Sans secteur"
+        users={withoutSector}
+        selfId={selfId}
+        visible={visible}
+        onToggle={onToggle}
+        onToggleGroup={onToggleGroup}
+        defaultCollapsed={false}
+      />
+      {users.length === 0 && <p className="px-1 text-[12px] text-gray-400">Aucun agenda</p>}
     </aside>
   )
 }
@@ -904,8 +967,8 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
   )
 }
 
-function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttendance, onArrived }: {
-  event: OwnedEvent; token: string; isOwn: boolean; ownerName?: string
+function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, onArrived }: {
+  event: OwnedEvent; isOwn: boolean; ownerName?: string
   onClose: () => void; onEdit: () => void; onAttendance: (e: CalendarEvent) => void
   onArrived: (e: CalendarEvent) => void
 }) {
@@ -921,7 +984,7 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
   const mark = async (status: Attendance) => {
     setSavingAtt(status); setAttErr(null)
     try {
-      const updated = await setEventAttendance(token, event.id, status, event.ownerId)
+      const updated = await setEventAttendance(event.id, status, event.ownerId)
       onAttendance(updated)
       // « Arrivé » → création du candidat pré-rempli puis redirection vers sa fiche.
       if (status === 'arrived') onArrived(updated)
@@ -995,8 +1058,8 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
   )
 }
 
-function EventForm({ token, event, ownerId, users, selfId, defaultStart, defaultEnd, onClose, onSaved }: {
-  token: string; event?: CalendarEvent; ownerId?: number
+function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, onClose, onSaved }: {
+  event?: CalendarEvent; ownerId?: number
   users: CalendarUser[]; selfId: number
   defaultStart?: Date; defaultEnd?: Date
   onClose: () => void; onSaved: () => void
@@ -1049,7 +1112,7 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setErr('Renseignez l\'email du candidat ci-dessus'); return }
     setBusy(true)
     try {
-      const settings = await fetchMyBookingSettings(token)
+      const settings = await fetchMyBookingSettings()
       if (!settings.enabled) {
         setErr('Activez d\'abord votre page de réservation (bouton Partager).'); setBusy(false); return
       }
@@ -1083,9 +1146,9 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
         html += `<br/><img src="${signatureImage}" alt="signature" style="width:100%;max-width:480px;height:auto"/>`
       }
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
+      const res = await apiFetch('/api/email/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: email, subject, body: html }),
       })
       const data = await res.json().catch(() => ({}))
@@ -1122,8 +1185,8 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
       // ownerId omis (undefined) quand c'est son propre agenda → route par défaut sur soi.
       const owner = (isEdit ? ownerId : targetId)
       const ownerArg = owner != null && owner !== selfId ? owner : undefined
-      if (isEdit && event) await updateCalendarEvent(token, event.id, input, ownerArg)
-      else await createCalendarEvent(token, input, ownerArg)
+      if (isEdit && event) await updateCalendarEvent(event.id, input, ownerArg)
+      else await createCalendarEvent(input, ownerArg)
       onSaved()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false)
@@ -1133,7 +1196,7 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
   const remove = async () => {
     if (!event || !confirm('Supprimer ce créneau ?')) return
     setBusy(true); setErr(null)
-    try { await deleteCalendarEvent(token, event.id, ownerId != null && ownerId !== selfId ? ownerId : undefined); onSaved() }
+    try { await deleteCalendarEvent(event.id, ownerId != null && ownerId !== selfId ? ownerId : undefined); onSaved() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false) }
   }
 
@@ -1177,7 +1240,7 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
             <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-lg border border-gray-200 px-2 py-2 text-[13px] outline-none focus:border-purple" />
           </div>
 
-          <LocationPicker token={token} value={location} onChange={setLocation} autoDefault={!isEdit} />
+          <LocationPicker value={location} onChange={setLocation} autoDefault={!isEdit} />
 
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
             <Mail size={15} className="flex-shrink-0 text-gray-400" />

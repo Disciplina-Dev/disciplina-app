@@ -1,23 +1,36 @@
-FROM node:22
+# --- base: deps + Chromium (partagé dev/prod) ---
+FROM node:22 AS base
 
-# Dépendances système nécessaires à Chrome (mais PAS Chromium lui-même)
-RUN apt-get update && apt-get install -y \
-  fonts-liberation \
-  libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
-  libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-  libgbm1 libasound2 libpango-1.0-0 libcairo2 \
-  --no-install-recommends \
-  && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    chromium \
+    fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
 COPY package*.json ./
-# On laisse Puppeteer télécharger SON Chromium → on retire le SKIP
-RUN --mount=type=cache,target=/root/.npm npm ci
 
+# --- dev: ts-node-dev hot reload (comportement historique) ---
+FROM base AS dev
+RUN --mount=type=cache,target=/root/.npm npm ci
 RUN useradd -ms /bin/sh -u 1001 app
 USER app
-
 COPY --chown=app:app . /app
-
 CMD [ "npm", "run", "dev" ]
+
+# --- build: compile TS -> dist/ ---
+FROM base AS build
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY . /app
+RUN npm run build
+
+# --- prod: runtime deps only, node dist/index.js ---
+FROM base AS prod
+ENV NODE_ENV=production
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
+RUN useradd -ms /bin/sh -u 1001 app
+COPY --from=build --chown=app:app /app/dist /app/dist
+USER app
+CMD [ "node", "dist/index.js" ]

@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiFetch } from '@/api/httpClient'
 
 export type MailTemplatesScope = 'rh' | 'commercial' | 'peda'
 
@@ -35,12 +35,16 @@ export interface MailTemplateAttachmentMeta {
   contentType: string
 }
 
+/** Modèle système (non supprimable, partagé) ; null pour un modèle utilisateur. */
+export type MailTemplateKind = 'ab_signature'
+
 export interface MailTemplate {
   id: string
   name: string
   subject: string
   body: string
   pedaLevel: PedaLevel | null
+  kind: MailTemplateKind | null
   attachment: MailTemplateAttachmentMeta | null
 }
 
@@ -51,11 +55,8 @@ export interface ResolvedAttachment {
   content: string // base64 (sans préfixe data URL)
 }
 
-async function tplFetch(path: string, token: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${API_BASE}/api/mail-templates${path}`, {
-    ...init,
-    headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
-  })
+async function tplFetch(path: string, init?: RequestInit): Promise<Response> {
+  const res = await apiFetch(`/api/mail-templates${path}`, init)
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error ?? `Requête modèles échouée (${res.status})`)
@@ -66,56 +67,56 @@ async function tplFetch(path: string, token: string, init?: RequestInit): Promis
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
 // ── Modèles ────────────────────────────────────────────────────────────────
-export async function fetchTemplates(token: string, scope: MailTemplatesScope): Promise<MailTemplate[]> {
-  const res = await tplFetch(`/?scope=${scope}`, token)
+export async function fetchTemplates(scope: MailTemplatesScope): Promise<MailTemplate[]> {
+  const res = await tplFetch(`/?scope=${scope}`)
   return ((await res.json()) as { templates: MailTemplate[] }).templates
 }
 
-export async function createTemplate(token: string, scope: MailTemplatesScope, data: MailTemplateInput): Promise<MailTemplate> {
-  const res = await tplFetch(`/?scope=${scope}`, token, { method: 'POST', headers: jsonHeaders, body: JSON.stringify(data) })
+export async function createTemplate(scope: MailTemplatesScope, data: MailTemplateInput): Promise<MailTemplate> {
+  const res = await tplFetch(`/?scope=${scope}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify(data) })
   return ((await res.json()) as { template: MailTemplate }).template
 }
 
-export async function updateTemplate(token: string, id: string, data: MailTemplateInput): Promise<MailTemplate> {
-  const res = await tplFetch(`/${id}`, token, { method: 'PUT', headers: jsonHeaders, body: JSON.stringify(data) })
+export async function updateTemplate(id: string, data: MailTemplateInput): Promise<MailTemplate> {
+  const res = await tplFetch(`/${id}`, { method: 'PUT', headers: jsonHeaders, body: JSON.stringify(data) })
   return ((await res.json()) as { template: MailTemplate }).template
 }
 
-export async function deleteTemplate(token: string, id: string): Promise<void> {
-  await tplFetch(`/${id}`, token, { method: 'DELETE' })
+export async function deleteTemplate(id: string): Promise<void> {
+  await tplFetch(`/${id}`, { method: 'DELETE' })
 }
 
 // ── Pièce jointe ─────────────────────────────────────────────────────────────
-export async function uploadTemplateAttachment(token: string, id: string, file: File): Promise<MailTemplate> {
+export async function uploadTemplateAttachment(id: string, file: File): Promise<MailTemplate> {
   const form = new FormData()
   form.append('file', file)
-  const res = await tplFetch(`/${id}/attachment`, token, { method: 'POST', body: form })
+  const res = await tplFetch(`/${id}/attachment`, { method: 'POST', body: form })
   return ((await res.json()) as { template: MailTemplate }).template
 }
 
-export async function deleteTemplateAttachment(token: string, id: string): Promise<MailTemplate> {
-  const res = await tplFetch(`/${id}/attachment`, token, { method: 'DELETE' })
+export async function deleteTemplateAttachment(id: string): Promise<MailTemplate> {
+  const res = await tplFetch(`/${id}/attachment`, { method: 'DELETE' })
   return ((await res.json()) as { template: MailTemplate }).template
 }
 
-export async function resolveTemplateAttachment(token: string, id: string): Promise<ResolvedAttachment> {
-  const res = await tplFetch(`/${id}/attachment`, token)
+export async function resolveTemplateAttachment(id: string): Promise<ResolvedAttachment> {
+  const res = await tplFetch(`/${id}/attachment`)
   return ((await res.json()) as { attachment: ResolvedAttachment }).attachment
 }
 
 // ── Signature ────────────────────────────────────────────────────────────────
-export async function fetchSignature(token: string, scope: MailTemplatesScope): Promise<string> {
-  const res = await tplFetch(`/signature?scope=${scope}`, token)
+export async function fetchSignature(scope: MailTemplatesScope): Promise<string> {
+  const res = await tplFetch(`/signature?scope=${scope}`)
   return ((await res.json()) as { signature: string | null }).signature ?? ''
 }
 
-export async function uploadSignature(token: string, scope: MailTemplatesScope, file: File): Promise<string> {
+export async function uploadSignature(scope: MailTemplatesScope, file: File): Promise<string> {
   const form = new FormData()
   form.append('file', file)
-  const res = await tplFetch(`/signature?scope=${scope}`, token, { method: 'PUT', body: form })
+  const res = await tplFetch(`/signature?scope=${scope}`, { method: 'PUT', body: form })
   return ((await res.json()) as { signature: string | null }).signature ?? ''
 }
 
-export async function deleteSignature(token: string, scope: MailTemplatesScope): Promise<void> {
-  await tplFetch(`/signature?scope=${scope}`, token, { method: 'DELETE' })
+export async function deleteSignature(scope: MailTemplatesScope): Promise<void> {
+  await tplFetch(`/signature?scope=${scope}`, { method: 'DELETE' })
 }

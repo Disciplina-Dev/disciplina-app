@@ -10,6 +10,7 @@ export enum CandidateStatus {
     SEEKING = 'SEEKING',
     NOT_SEEKING = 'NOT_SEEKING',
     UNAVAILABLE = 'UNAVAILABLE',
+    TEST_FAILED = 'TEST_FAILED',
     CANCELLED = 'CANCELLED',
     CONTRACT = 'CONTRACT',
     IMMERSING = 'IMMERSING',
@@ -114,6 +115,7 @@ export interface Identity {
     description?: string;                  // Descriptif libre du candidat (contexte matching)
     avatar_url?: string;
     avatar_updated_at?: string;
+    drive_avatar_file_id?: string;
 }
 
 export interface Education {
@@ -204,12 +206,15 @@ export interface Synthesis {
 
 export interface MatchedOffer {
     id: string;
+    needsAnalysisId?: string;
     companyName?: string;
     sector?: string;
     localisation?: Localisation[];
     desiredTP?: TitleProfessionalType;
     ageRange?: string;
     status?: string;
+    title?: string;
+    jobRole?: string;
 }
 
 export interface CandidateOwner {
@@ -254,6 +259,7 @@ export interface Candidate {
     pdf_link?: string;
     cv_link?: string;
     drive_folder_id?: string;
+    photo_link?: string;
     filiz_folder_id?: string;
     created_at?: string;
     last_relance_at?: string;      // dernière relance de disponibilité envoyée

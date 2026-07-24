@@ -7,10 +7,25 @@ import { TitleProfessionalType } from '../../types/candidate.types';
 export type Zone = 'NORD' | 'OUEST' | 'SUD';
 
 // Zone → communes. Sert de référentiel pour la déduction inverse (commune → zone).
+// Doit couvrir tout l'enum Localisation : une commune absente retomberait sur le
+// fallback de zoneFromCommunes, qui poserait un secteur faux sans lever d'erreur.
 export const ZONE_TO_COMMUNES: Record<Zone, Localisation[]> = {
-    NORD: [Localisation.SAINT_DENIS, Localisation.SAINTE_MARIE, Localisation.SAINTE_SUZANNE],
+    // NORD porte le secteur « Nord-Est » côté MySQL : les communes de l'Est y sont rattachées.
+    NORD: [
+        Localisation.SAINT_DENIS,
+        Localisation.SAINTE_MARIE,
+        Localisation.SAINTE_SUZANNE,
+        Localisation.SAINTE_ROSE,
+        Localisation.SAINT_BENOIT,
+        Localisation.BRAS_PANON,
+        Localisation.SAINT_ANDRE,
+        Localisation.LA_PLAINE_DES_PALMISTES,
+        Localisation.SALAZIE,
+        Localisation.SAINTE_ANNE,
+    ],
     OUEST: [
         Localisation.SAINT_PAUL,
+        Localisation.SAINT_GILLES,
         Localisation.LA_POSSESSION,
         Localisation.LE_PORT,
         Localisation.TROIS_BASSINS,

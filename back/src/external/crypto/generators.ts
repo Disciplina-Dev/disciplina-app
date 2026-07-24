@@ -7,6 +7,10 @@ export function generateSignature(): string {
     return randomBytes(32).toString('hex');
 }
 
+export function generateExternalSignature(): string {
+    return randomBytes(64).toString('hex');
+}
+
 export function generateNumericCode(length: number = 6): string {
     let code = '';
     for (let i = 0; i < length; i++) {

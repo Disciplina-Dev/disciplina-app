@@ -21,6 +21,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from 'lucide-react';
+import { useCurrentUser, Permission } from '@/store/authStore';
 import { useCandidateStats, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
@@ -113,9 +114,15 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 export default function DashboardRH() {
+  const currentUser = useCurrentUser();
+  const canViewAll = currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE;
+
   // Filtre secteur global : null = tous ; sinon 1, 2 ou 3 secteurs cumulés.
   // Pilote à la fois les indicateurs candidats, les diagrammes et les KPI RH.
-  const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(null);
+  // RH -> restreint à son secteur ; Admin/Resp -> libre (tous par défaut).
+  const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(
+    () => canViewAll ? null : new Set(currentUser?.sectors ?? []),
+  );
   const sectorArray = useMemo(
     () => (selectedSectors ? [...selectedSectors] : undefined),
     [selectedSectors],
@@ -221,24 +228,26 @@ export default function DashboardRH() {
           <p className="mt-1 text-gray-500">Vue d'ensemble des candidats</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Filtre secteur global (indicateurs + diagrammes + KPI RH) */}
-          <div className="flex items-center gap-1 rounded-[10px] border border-gray-100 bg-white p-0.5 shadow-sm">
-            <button
-              onClick={() => setSelectedSectors(null)}
-              className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${!selectedSectors ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
-            >
-              Tous
-            </button>
-            {CANON_SECTORS.map((s) => (
+          {/* Filtre secteur global — réservé Admin/Resp ; RH voit uniquement son secteur. */}
+          {canViewAll && (
+            <div className="flex items-center gap-1 rounded-[10px] border border-gray-100 bg-white p-0.5 shadow-sm">
               <button
-                key={s}
-                onClick={() => toggleSector(s)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${selectedSectors && isSectorOn(s) ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
+                onClick={() => setSelectedSectors(null)}
+                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${!selectedSectors ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
               >
-                {s}
+                Tous
               </button>
-            ))}
-          </div>
+              {CANON_SECTORS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => toggleSector(s)}
+                  className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${selectedSectors && isSectorOn(s) ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             onClick={refetch}
             className="flex items-center gap-2 rounded-md border border-gray-100 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"

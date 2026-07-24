@@ -18,6 +18,7 @@ export const typeDefs = gql`
         REFUSED
         INTERVIEW
         IMMERSING
+        CONTRACT
     }
 
     enum Localisation {
@@ -81,6 +82,12 @@ export const typeDefs = gql`
         ENFANT
         PHARMACIE
         BAZAR
+        BTP
+        ASSOCIATION
+        MEDICAL
+        ENERGIE
+        IMPORT_EXPORT
+        SOCIAL
         NONE
     }
 
@@ -105,7 +112,9 @@ export const typeDefs = gql`
         phone: String
         status: MatchedCandidateStatus
         description: String
+        identityDescription: String
         comment: String
+        cvWebview: String
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -125,7 +134,9 @@ export const typeDefs = gql`
         phone: String
         status: MatchedCandidateStatus
         description: String
+        identityDescription: String
         comment: String
+        cvWebview: String
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -190,6 +201,7 @@ export const typeDefs = gql`
         referents: Referents
         companyInfos: CompanyInfos
         title: String
+        jobRole: String
         missions: [String]
         softSkills: String
     }
@@ -263,6 +275,7 @@ export const typeDefs = gql`
         offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!
         candidateMatchedOfferIds(candidateId: String!): [String!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
+        offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
     }
 
     type Mutation {
@@ -271,7 +284,6 @@ export const typeDefs = gql`
         addCandidateToOffer(offerId: String!, candidateId: String!): Offer
         removeCandidateFromOffer(offerId: String!, candidateId: String!): Offer
         updateMatchedCandidateStatus(offerId: String!, candidateId: String!, status: MatchedCandidateStatus!): Offer
-        sendCandidateInterestMail(offerId: String!, candidateId: String!): Offer
         addManualProposedCandidate(
             offerId: String!
             candidateId: String!
@@ -295,5 +307,7 @@ export const typeDefs = gql`
             immersionEndDate: String
         ): Offer
         setImmersionConclusion(offerId: String!, candidateId: String!, conclusion: ImmersionConclusion!): Offer
+        deleteOffer(id: String!): Boolean!
+        deleteOffersByNeedsAnalysis(needsAnalysisId: String!): Boolean!
     }
 `;

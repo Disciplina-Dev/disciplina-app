@@ -1,35 +1,38 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { GoogleGmailService } from '../../external/google/gmail.service';
-import { GoogleTokens } from '../../external/google/types';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CompaniesService } from '../../services/CompaniesService';
 import { RelanceHistoryRepository } from '../../repositories/mysql/RelanceHistoryRepository';
 import { toRelanceHistory } from '../../services/mappers/company.mapper';
 import { CandidateStatus } from '../../types/candidate.types';
-import { Role } from '../../types/user.types';
+import { JobRole, Permission } from '../../types/user.types';
 import { signRelanceUrl, verifyRelanceUrl } from '../../external/crypto';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 import { MailTemplateService } from '../../services/MailTemplateService';
+import { BulkRelanceService } from '../../services/BulkRelanceService';
 
 const mailTemplateService = new MailTemplateService();
+const bulkRelanceService = new BulkRelanceService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const companiesService = new CompaniesService();
 const relanceHistoryRepo = new RelanceHistoryRepository();
 
-const RELANCE_ROLES = [Role.COMMERCIAL, Role.RESPONSABLE, Role.ADMIN];
+const RELANCE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
 
 /**
  * Vérifie l'accès à l'entreprise pour une action de relance. Renvoie l'entreprise
  * ou null (en ayant déjà répondu en erreur). Un COMMERCIAL n'agit que sur ses entreprises.
  */
 async function loadOwnedCompany(req: AuthRequest, res: Response, companyId: number) {
-    if (!RELANCE_ROLES.includes(req.user?.role as Role)) {
+    const hasPermission = req.user?.permission === Permission.RESPONSABLE || req.user?.permission === Permission.ADMIN;
+    const hasJobRole = req.user?.role === JobRole.COMMERCIAL;
+    if (!hasPermission && !hasJobRole) {
         res.status(403).json({ error: 'Forbidden' });
         return null;
     }
@@ -42,7 +45,7 @@ async function loadOwnedCompany(req: AuthRequest, res: Response, companyId: numb
         res.status(404).json({ error: 'Entreprise introuvable' });
         return null;
     }
-    if (req.user?.role === Role.COMMERCIAL && company.userID != null && company.userID !== req.user.id) {
+    if (req.user?.role === JobRole.COMMERCIAL && company.userID != null && company.userID !== req.user.id) {
         res.status(403).json({ error: 'Forbidden' });
         return null;
     }
@@ -78,7 +81,7 @@ export async function sendCompanyMailRelance(req: AuthRequest, res: Response): P
         await gmailService.sendEmail(
             { access_token: user.oauthToken, refresh_token: user.refreshToken },
             { to, subject, html: html ?? '', text: text ?? '', attachments },
-            persistRefreshedTokens(user.id),
+            userService.googleTokenPersister(user.id),
         );
     } catch (err) {
         logger.error({ err, companyId }, '[relance] mail send failed');
@@ -132,6 +135,27 @@ export async function getCompanyRelanceHistory(req: AuthRequest, res: Response):
     res.status(200).json(rows.map(toRelanceHistory));
 }
 
+/** Relance groupée asynchrone — lance l'envoi en arrière-plan et répond immédiatement. */
+export async function sendCompanyBulkRelance(req: AuthRequest, res: Response): Promise<void> {
+    const { ids, templateId, all } = req.body as { ids?: number[]; templateId?: string; all?: boolean };
+
+    if (!templateId) {
+        res.status(400).json({ error: 'Modèle de mail requis.' });
+        return;
+    }
+
+    if (!all && (!Array.isArray(ids) || ids.length === 0)) {
+        res.status(400).json({ error: 'Sélectionne des entreprises ou utilise le mode "Toutes les entreprises".' });
+        return;
+    }
+
+    bulkRelanceService.startCompanyBulk(req.user.id, { ids: ids ?? [], templateId, all: all ?? false }).catch((err) => {
+        logger.error({ err }, '[bulk-relance] background job failed');
+    });
+
+    res.status(202).json({ message: 'Relance lancée en arrière-plan. Vous serez notifié à la fin.' });
+}
+
 /** Conversion HTML → texte brut, best-effort, pour l'alternative text/plain d'un mail. */
 function htmlToText(html: string): string {
     return html
@@ -144,9 +168,6 @@ function htmlToText(html: string): string {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
-
-const persistRefreshedTokens = (userId: number) => (refreshed: GoogleTokens) =>
-    userService.updateGoogleTokens(userId, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
 
 export async function sendRelance(req: AuthRequest, res: Response) {
     const user = await userService.findById(req.user.id);
@@ -173,10 +194,10 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 
     for (const candidate of seeking) {
         const name = candidate.identity.full_name?.split(' ')[0] ?? 'Candidat';
-        const sig_oui = signRelanceUrl(candidate._id, 'oui');
-        const sig_non = signRelanceUrl(candidate._id, 'non');
-        const ouiUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=oui&sig=${sig_oui}`;
-        const nonUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=non&sig=${sig_non}`;
+        const oui = signRelanceUrl(candidate._id, 'oui');
+        const non = signRelanceUrl(candidate._id, 'non');
+        const ouiUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=oui&sig=${oui.sig}&ts=${oui.ts}`;
+        const nonUrl = `${env.APP_BASE_URL}/api/relance/response?id=${candidate._id}&answer=non&sig=${non.sig}&ts=${non.ts}`;
 
         // Volontairement sobre : pas de <style>/DOCTYPE, pas de gros boutons colorés
         // ni de footer type newsletter. Une mise en forme « campagne » fait basculer
@@ -204,7 +225,7 @@ export async function sendRelance(req: AuthRequest, res: Response) {
                     html,
                     text,
                 },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
             // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;
             // l'affichage ne la considère « à jour » que si elle est postérieure à cette relance.
@@ -280,7 +301,7 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
                     listUnsubscribe,
                     attachments,
                 },
-                persistRefreshedTokens(user.id),
+                userService.googleTokenPersister(user.id),
             );
             sent++;
         } catch {
@@ -292,13 +313,13 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
 }
 
 export async function handleResponse(req: Request, res: Response) {
-    const { id, answer, sig } = req.query as { id?: string; answer?: string; sig?: string };
+    const { id, answer, sig, ts } = req.query as { id?: string; answer?: string; sig?: string; ts?: string };
 
-    if (!id || !answer || !sig || !['oui', 'non'].includes(answer)) {
+    if (!id || !answer || !sig || !ts || !['oui', 'non'].includes(answer)) {
         return res.status(400).send(confirmationPage('Lien invalide.', false));
     }
 
-    if (!verifyRelanceUrl(id, answer, sig)) {
+    if (!verifyRelanceUrl(id, answer, sig, Number(ts))) {
         return res.status(400).send(confirmationPage('Lien invalide ou expiré.', false));
     }
 

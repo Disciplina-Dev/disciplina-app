@@ -3,7 +3,8 @@ import { BarChart3, Plus, AlertTriangle, CheckCircle2, PhoneCall, Users } from '
 
 import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
-import { useAuthStore, useCurrentUser, UserRole, USERS } from '@/store/authStore'
+import { useCurrentUser, Permission } from '@/store/authStore'
+import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { useContactLogStats } from '@/graphql/hooks'
 import {
   fetchKpiUsers,
@@ -38,7 +39,7 @@ const KpiYearComparison = lazyWithRetry(() => import('@/features/kpi/components/
 export default function DashboardCommercial() {
   const currentUser = useCurrentUser()
   const isManager =
-    currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.RESPONSABLE
+    currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE
 
   if (!isManager) {
     return <KpiProfilView userId={Number(currentUser?.id)} canEdit={false} />
@@ -50,6 +51,7 @@ export default function DashboardCommercial() {
 // ─── Prises de contact (appels) — total + par commercial ────────────────────
 function ContactStatsSection() {
   const { data, fetching } = useContactLogStats()
+  const { directory } = useStaffDirectory()
   const stats = data?.contactLogStats as { total: number; byUser: { userID: number; count: number }[] } | undefined
 
   if (fetching && !stats) return null
@@ -69,7 +71,7 @@ function ContactStatsSection() {
           <p className="mt-1 text-[28px] font-extrabold leading-none text-gray-900">{stats.total}</p>
         </div>
         {byUser.map((u) => {
-          const user = USERS[String(u.userID)]
+          const user = directory[String(u.userID)]
           return (
             <div key={u.userID} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
               <div className="flex items-center gap-1.5">
@@ -94,8 +96,6 @@ function ContactStatsSection() {
 function KpiDashboard() {
   const currentYear = new Date().getFullYear()
 
-  const token = useAuthStore((s) => s.token)
-
   const [year, setYear] = useState(currentYear)
   const [site, setSite] = useState<KpiSite>('NORD')
   // Source des chiffres : Combiné (défaut), portefeuille seul ou Excel/saisie seul
@@ -116,11 +116,10 @@ function KpiDashboard() {
 
   // Liste des commerciaux sélectionnables (saisie manuelle) — chargée une fois.
   useEffect(() => {
-    if (!token) return
-    fetchKpiUsers(token)
+    fetchKpiUsers()
       .then(setSelectableUsers)
       .catch(() => setSelectableUsers([]))
-  }, [token])
+  }, [])
 
   // Changer de secteur/année réinitialise la sélection d'un commercial.
   const selectSite = (s: KpiSite) => {

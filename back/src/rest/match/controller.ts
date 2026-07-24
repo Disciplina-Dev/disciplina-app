@@ -8,7 +8,7 @@ import { NotificationService } from '../../services/NotificationService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
 import { GoogleTokens } from '../../external/google/types';
 import { MatchingCandidate } from '../../types/matching.types';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 import { GeocodageService } from '../../external/insee/geocodage.service';
 
 const matchLinkService = new MatchLinkService();

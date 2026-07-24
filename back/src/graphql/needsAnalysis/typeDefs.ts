@@ -159,6 +159,7 @@ export const typeDefs = gql`
         localisation: [Localisation!]!
         tpType: TitleProfessionalType
         trainingDomain: TrainingDomain
+        jobRole: String
         title: String!
         missions: [String!]!
         descriptionMissions: [String!]!
@@ -170,6 +171,7 @@ export const typeDefs = gql`
     input PositionInput {
         localisation: [Localisation!]!
         trainingDomain: TrainingDomain
+        jobRole: String
         title: String!
         missions: [String!]
         descriptionMissions: [String!]
@@ -237,7 +239,6 @@ export const typeDefs = gql`
     }
 
     type Query {
-        needsAnalyses: [NeedsAnalysis!]!
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
         abDriveConfig: AbDriveConfig!

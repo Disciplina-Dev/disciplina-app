@@ -10,6 +10,9 @@ const INSECURE_DEFAULTS = new Set([
     'changeme',
     'change-this-relance-secret',
     'change-this-google-state-secret',
+    'ci-jwt-secret',
+    'ci-jwt-refresh-secret',
+    'ci-session-secret',
     '7325fd3fc113dc0034d98ee93eb9a50fc4c71d2798c819bc4e3f7e7e2fb7a940',
 ]);
 
@@ -23,7 +26,8 @@ function requireString(key: string): string {
     }
     return raw;
 }
-const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
+// Jamais en production : CI=true sur un serveur ne doit pas ouvrir les secrets de repli.
+const IS_CI = (process.env.CI === 'true' || process.env.CI === '1') && process.env.NODE_ENV !== 'production';
 
 function requireStringWithCIFallback(key: string, fallback: string): string {
     const raw = process.env[key];
@@ -84,10 +88,9 @@ const data = {
     RELANCE_HMAC_SECRET: stringWithDefault('RELANCE_HMAC_SECRET', 'change-this-relance-secret'),
     GOOGLE_STATE_SECRET: stringWithDefault('GOOGLE_STATE_SECRET', 'change-this-google-state-secret'),
 
-    CLASSMARKER_API_NAME: optionalString('CLASSMARKER_API_NAME'),
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
-    CLASSMARKER_WEBHOOK_SECRET: optionalString('CLASSMARKER_WEBHOOK_SECRET'),
+    CLASSMARKER_WEBHOOK_SECRET: requireStringWithCIFallback('CLASSMARKER_WEBHOOK_SECRET', 'sldllsdkldkls'),
     MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
@@ -112,18 +115,14 @@ const data = {
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
 
     JWT_SECRET: requireStringWithCIFallback('JWT_SECRET', 'ci-jwt-secret'),
+    JWT_REFRESH_SECRET: requireStringWithCIFallback('JWT_REFRESH_SECRET', 'ci-jwt-refresh-secret'),
     SESSION_SECRET: requireStringWithCIFallback('SESSION_SECRET', 'ci-session-secret'),
+    ACCESS_TOKEN_TTL_SECONDS: numberWithDefault('ACCESS_TOKEN_TTL_SECONDS', 15 * 60),
+    REFRESH_TOKEN_TTL_SECONDS: numberWithDefault('REFRESH_TOKEN_TTL_SECONDS', 30 * 24 * 60 * 60),
 
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
     GOOGLE_REDIRECT_URI: stringWithDefault('GOOGLE_REDIRECT_URI', 'http://localhost:5173/auth/google'),
-
-    SMTP_HOST: optionalString('SMTP_HOST'),
-    SMTP_PORT: numberWithDefault('SMTP_PORT', 587),
-    SMTP_SECURE: optionalString('SMTP_SECURE'),
-    SMTP_USER: optionalString('SMTP_USER'),
-    SMTP_PASS: optionalString('SMTP_PASS'),
-    SMTP_FROM: optionalString('SMTP_FROM'),
 
     FILIZ_CLIENT_ID: requireStringWithCIFallback('FILIZ_CLIENT_ID', 'ci-filiz-client-id'),
     FILIZ_CLIENT_SECRET: requireStringWithCIFallback('FILIZ_CLIENT_SECRET', 'ci-filiz-secret'),
@@ -141,6 +140,9 @@ const data = {
     // or a self-hosted instance URL as needed.
     DOCUSEAL_API_KEY: optionalString('DOCUSEAL_API_KEY', 'docuseal_key_placeholder'),
     DOCUSEAL_BASE_URL: stringWithDefault('DOCUSEAL_BASE_URL', 'https://api.docuseal.com'),
+    // URL publique de signature (host qui sert les pages /s/<slug>). Différent de
+    // l'API host. https://docuseal.eu (EU) ou l'URL d'une instance auto-hébergée.
+    DOCUSEAL_SIGN_URL: stringWithDefault('DOCUSEAL_SIGN_URL', 'https://docuseal.com'),
     DOCUSEAL_WEBHOOK_SECRET: optionalString('DOCUSEAL_WEBHOOK_SECRET'),
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
@@ -164,6 +166,11 @@ const data = {
     MCP_API_KEY: optionalString('MCP_API_KEY'),
 };
 
+const VALID_NODE_ENVS = ['development', 'production', 'test'] as const;
+if (!VALID_NODE_ENVS.includes(data.NODE_ENV)) {
+    errors.push(`NODE_ENV must be one of: ${VALID_NODE_ENVS.join(', ')} (got "${process.env.NODE_ENV}")`);
+}
+
 if (errors.length > 0) {
     console.error('Invalid environment variables:');
     for (const message of errors) {
@@ -174,6 +181,11 @@ if (errors.length > 0) {
 
 if (INSECURE_DEFAULTS.has(data.JWT_SECRET)) {
     console.error('JWT_SECRET is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.JWT_REFRESH_SECRET)) {
+    console.error('JWT_REFRESH_SECRET is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 

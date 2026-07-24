@@ -8,6 +8,7 @@ import { CandidateHistoryService } from './CandidateHistoryService';
 import {
     InterviewConclusion,
     ImmersionConclusion,
+    Localisation,
     OfferStatus,
     MatchedCandidateStatus,
     MatchingCandidate,
@@ -18,14 +19,15 @@ import { env } from '../config/env';
 import { isInterviewDatePast } from '../utils/interview';
 import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
-import { MatchMailService } from './MatchMailService';
-import { Role } from '../types/user.types';
-import { logger } from '../external/logger';
+import { regionFromSector } from '../utils/sector';
+import { ZONE_TO_COMMUNES } from './mappers/abToOffer';
+import type { DriveRegion } from './DriveFolderConfigService';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
 const PROPOSED_STATUSES = [
     MatchedCandidateStatus.SEND,
     MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
 ];
@@ -52,7 +54,9 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         phone: mc.phone,
         status: mc.status,
         description: mc.description,
+        identityDescription: mc.identity_description,
         comment: mc.comment,
+        cvWebview: mc.cv_webview,
         interviewLocation: mc.interview_location,
         bookedInterviewSlot: mc.booked_interview_slot,
         interviewConclusion: mc.interview_conclusion,
@@ -117,6 +121,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
             ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
             : null,
         title: offer.title,
+        jobRole: offer.job_role,
         missions: offer.missions,
     };
 }
@@ -131,10 +136,11 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
         phone: c.identity.phone,
         sex: c.identity.sex as Sex,
         status: MatchedCandidateStatus.PRE_SELECTED,
+        identity_description: c.identity.description,
     };
 }
 
-function deriveJobStatus(matchedCandidates: MatchingCandidate[], currentStatus?: OfferStatus): OfferStatus {
+function deriveOfferStatus(matchedCandidates: MatchingCandidate[], currentStatus?: OfferStatus): OfferStatus {
     if (matchedCandidates.length === 0) return OfferStatus.NOT_MATCHED;
 
     const manualStages = [OfferStatus.CV_SEND, OfferStatus.IMMERSING, OfferStatus.CONTRACT];
@@ -152,7 +158,6 @@ export class OfferService {
     private companiesService = new CompaniesService();
     private notificationService = new NotificationService();
     private userRepository = new UserRepository();
-    private matchMailService = new MatchMailService();
 
     async findAll(): Promise<object[]> {
         const offers = await this.offerRepository.listMatchingOffers();
@@ -170,11 +175,12 @@ export class OfferService {
         return { companyName: companyName ?? company?.name ?? null, company };
     }
 
-    async find(id: string): Promise<object | null> {
+    async find(id: string, userId?: number): Promise<object | null> {
         const offer = await this.offerRepository.findById(id);
         if (!offer) return null;
 
         const filter: Record<string, any> = {};
+        filter['status'] = { $ne: CandidateStatus.CONTRACT };
 
         if (offer.tp_type) filter['tp_type'] = offer.tp_type;
         if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
@@ -183,10 +189,32 @@ export class OfferService {
             filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
         }
 
-        if (offer.localisation?.length) filter['job_info.geographic_mobility'] = { $all: offer.localisation };
-
         if (offer.company_infos?.activities?.length) {
             filter['desired_sectors'] = { $in: offer.company_infos.activities };
+        }
+
+        let geoFilter: Localisation[] = [];
+        if (offer.localisation?.length) geoFilter = [...offer.localisation];
+
+        if (userId) {
+            const user = await this.userRepository.findById(userId);
+            const userSectors = user?.sectors ?? null;
+            const sectors = typeof userSectors === 'string' ? (() => { try { return JSON.parse(userSectors); } catch { return []; } })() : userSectors;
+            if (sectors?.length) {
+                const userCommunes = (sectors as string[])
+                    .map((s) => regionFromSector(s))
+                    .filter((r): r is DriveRegion => r !== undefined)
+                    .flatMap((r: DriveRegion) => ZONE_TO_COMMUNES[r]);
+                if (userCommunes.length) {
+                    geoFilter = geoFilter.length
+                        ? geoFilter.filter((c) => userCommunes.includes(c))
+                        : userCommunes;
+                }
+            }
+        }
+
+        if (geoFilter.length) {
+            filter['job_info.geographic_mobility'] = { $in: geoFilter };
         }
 
         const candidates = await this.candidateRepository.findByfilter(filter);
@@ -205,6 +233,15 @@ export class OfferService {
 
     async delete(id: string): Promise<boolean> {
         return this.offerRepository.deleteById(id);
+    }
+
+    async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
+        return this.offerRepository.deleteByNeedsAnalysisId(needsAnalysisId);
+    }
+
+    async findByNeedsAnalysisId(needsAnalysisId: string): Promise<object[]> {
+        const offers = await this.offerRepository.findByNeedsAnalysisId(needsAnalysisId);
+        return offers.map((o) => toGql(o));
     }
 
     async addCandidate(offerId: string, candidateId: string): Promise<object | null> {
@@ -303,6 +340,7 @@ export class OfferService {
             const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
             await this.notifyRhCandidateAnswer(
                 status as MatchedCandidateStatus,
+                offerId,
                 candidate?.full_name,
                 offer.company_infos?.name,
             );
@@ -315,10 +353,11 @@ export class OfferService {
     // Le candidat a répondu au mail de proposition : on prévient les RH.
     private async notifyRhCandidateAnswer(
         status: MatchedCandidateStatus,
+        offerId: string,
         candidateName?: string,
         companyName?: string,
     ): Promise<void> {
-        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const name = candidateName ?? 'Un candidat';
         const company = companyName ?? "l'entreprise";
         const accepted = status === MatchedCandidateStatus.ACCEPTED;
@@ -330,43 +369,36 @@ export class OfferService {
                     level: accepted ? 'success' : 'info',
                     title: accepted ? 'Offre acceptée' : 'Offre déclinée',
                     message: `${name} a ${accepted ? 'accepté' : 'refusé'} l'offre de ${company}`,
-                    link: '/rh/matching',
+                    link: `/rh/matching?offer=${offerId}`,
                 }),
             ),
         );
     }
 
-    // Envoie au candidat le mail de proposition (liens oui/non) et passe son statut
-    // à PRE_SELECTED_MAIL_SEND.
-    async sendInterestMailToCandidate(offerId: string, candidateId: string, rhEmail: string): Promise<object | null> {
-        const offer = await this.offerRepository.setMatchedCandidateStatus(
-            offerId,
-            candidateId,
-            MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
-        );
-        if (!offer) return null;
+    private async notifyContractSigned(
+        salerInfo: { id?: number } | undefined,
+        candidateName: string | undefined,
+        companyName: string | undefined,
+        offerId: string,
+    ): Promise<void> {
+        const name = candidateName ?? 'Un candidat';
+        const company = companyName ?? "l'entreprise";
+        const type = 'contract_signed';
+        const level = 'success' as const;
+        const title = 'Contrat signé';
+        const message = `${name} a signé un contrat avec ${company}`;
+        const link = `/rh/matching?offer=${offerId}`;
 
-        const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
-        if (candidate?.email) {
-            const { ouiUrl, nonUrl } = this.offerResponseLinks(offerId, candidateId);
-            await this.matchMailService.sendCandidateInterest(
-                rhEmail,
-                candidate.email,
-                offer.company_infos?.name,
-                ouiUrl,
-                nonUrl,
-            );
+        if (salerInfo?.id) {
+            await this.notificationService.create({ userId: salerInfo.id, type, level, title, message, link });
         } else {
-            logger.warn({ offerId, candidateId }, '[matching] candidate has no email for interest mail');
+            const responsables = await this.userRepository.findByRoleIdAndPermissionId(1, 2);
+            await Promise.all(
+                responsables.map((user) =>
+                    this.notificationService.create({ userId: user.id, type, level, title, message, link }),
+                ),
+            );
         }
-
-        const entry = this.candidateHistoryService.buildMatchedStatusHistoryEntry(
-            MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
-            offer.company_infos?.name,
-        );
-        if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
-
-        return toGql(offer);
     }
 
     async addManualProposedCandidate(
@@ -464,12 +496,18 @@ export class OfferService {
             throw new Error("Les dates d'immersion sont requises pour cette conclusion");
         }
 
+        const status =
+            conclusion === InterviewConclusion.IMMERSING ? MatchedCandidateStatus.IMMERSING :
+            conclusion === InterviewConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
+            conclusion === InterviewConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
+            undefined;
         const updated = await this.offerRepository.setProposedCandidateConclusion(
             offerId,
             candidateId,
             conclusion,
             immersionStartDate,
             immersionEndDate,
+            status,
         );
         if (!updated) return null;
 
@@ -485,6 +523,10 @@ export class OfferService {
             immersionEndDate,
         );
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
+
+        if (conclusion === InterviewConclusion.CONTRACT) {
+            await this.notifyContractSigned(offer.saler_info, proposed.full_name, offer.company_infos?.name, offerId);
+        }
 
         return toGql(updated);
     }
@@ -509,6 +551,9 @@ export class OfferService {
             offerId,
             candidateId,
             conclusion,
+            conclusion === ImmersionConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
+            conclusion === ImmersionConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
+            undefined,
         );
         if (!updated) return null;
 
@@ -522,6 +567,10 @@ export class OfferService {
             offer.company_infos?.name,
         );
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
+
+        if (conclusion === ImmersionConclusion.CONTRACT) {
+            await this.notifyContractSigned(offer.saler_info, proposed.full_name, offer.company_infos?.name, offerId);
+        }
 
         return toGql(updated);
     }
@@ -558,18 +607,19 @@ export class OfferService {
 
     private async syncDerivedStatus(offerId: string, offer: Offer): Promise<Offer> {
         const candidates = offer.matching?.candidates ?? [];
-        const derived = deriveJobStatus(candidates, offer.matching?.status);
+        const derived = deriveOfferStatus(candidates, offer.matching?.status);
         if (derived === offer.matching?.status) return offer;
         const updated = await this.offerRepository.setOfferStatus(offerId, derived);
         return updated ?? offer;
     }
 
     offerResponseLinks(offerId: string, candidateId: string): { ouiUrl: string; nonUrl: string } {
-        const sigOui = signMatchUrl(offerId, candidateId, 'oui');
-        const sigNon = signMatchUrl(offerId, candidateId, 'non');
+        const oui = signMatchUrl(offerId, candidateId, 'oui');
+        const non = signMatchUrl(offerId, candidateId, 'non');
+        const base = `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}`;
         return {
-            ouiUrl: `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}&answer=oui&sig=${sigOui}`,
-            nonUrl: `${env.APP_BASE_URL}/api/matching/response?offerId=${offerId}&candidateId=${candidateId}&answer=non&sig=${sigNon}`,
+            ouiUrl: `${base}&answer=oui&sig=${oui.sig}&ts=${oui.ts}`,
+            nonUrl: `${base}&answer=non&sig=${non.sig}&ts=${non.ts}`,
         };
     }
 }

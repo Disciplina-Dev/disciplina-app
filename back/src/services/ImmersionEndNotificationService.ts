@@ -1,8 +1,8 @@
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
-import { Role } from '../types/user.types';
 import { Candidate } from '../types/candidate.types';
+import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger/logger';
 
 /**
@@ -22,7 +22,14 @@ export class ImmersionEndNotificationService {
         const candidates = await this.candidateRepository.findImmersionEndedUnnotified(now);
         if (candidates.length === 0) return 0;
 
-        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const [byRole, byPermission] = await Promise.all([
+            this.userRepository.findByRoleIds([2]), // RH
+            this.userRepository.findByPermissionIds([2, 3]), // RESPONSABLE, ADMIN
+        ]);
+        const map = new Map<number, UserRowJoined>();
+        for (const u of byRole) map.set(u.id, u);
+        for (const u of byPermission) map.set(u.id, u);
+        const rhUsers = [...map.values()];
         if (rhUsers.length === 0) {
             logger.warn('immersion-end: aucun destinataire RH, notifications ignorées');
             return 0;
@@ -31,7 +38,10 @@ export class ImmersionEndNotificationService {
         let notified = 0;
         for (const candidate of candidates) {
             try {
-                await this.notifyOne(candidate, rhUsers.map((u) => u.id));
+                await this.notifyOne(
+                    candidate,
+                    rhUsers.map((u) => u.id),
+                );
                 await this.candidateRepository.markImmersionEndNotified(candidate._id, now);
                 notified += 1;
             } catch (err) {

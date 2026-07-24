@@ -12,6 +12,7 @@ export enum CandidateStatus {
     SEEKING = 'SEEKING',
     NOT_SEEKING = 'NOT_SEEKING',
     UNAVAILABLE = 'UNAVAILABLE',
+    TEST_FAILED = 'TEST_FAILED',
     CANCELLED = 'CANCELLED',
     CONTRACT = 'CONTRACT',
     IMMERSING = 'IMMERSING',
@@ -77,6 +78,7 @@ export interface Identity {
     apprenticeship_contract_details?: string;
     description?: string;
     avatar_updated_at?: Date;
+    drive_avatar_file_id?: string;
 }
 
 export interface Education {

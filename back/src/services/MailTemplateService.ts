@@ -1,10 +1,18 @@
 import { randomUUID } from 'crypto';
 import { gzipSync, gunzipSync } from 'zlib';
 import { MailTemplateModel, MailSignatureModel } from '../db/mongo/schemas/mailTemplate.schema';
-import { MailTemplate, MailTemplateScope, MailTemplateAttachment, PedaLevel } from '../types/mailTemplate.types';
+import {
+    MailTemplate,
+    MailTemplateScope,
+    MailTemplateAttachment,
+    PedaLevel,
+    MailTemplateKind,
+} from '../types/mailTemplate.types';
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
+import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
+import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
-import { logger } from '../external/logger/logger';
+import { logger } from '../external/logger';
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
@@ -14,6 +22,8 @@ export class GoogleNotConnectedError extends Error {}
 export class TemplateNotFoundError extends Error {}
 /** Un seul modèle peut porter un niveau de relance donné. */
 export class DuplicatePedaLevelError extends Error {}
+/** Un modèle système (kind) ne peut pas être supprimé. */
+export class SystemTemplateError extends Error {}
 
 /**
  * Les modèles RH sont communs à tous les RH/responsables : ils sont stockés
@@ -25,8 +35,21 @@ export const SHARED_RH_USER_ID = 0;
 /** Même principe pour les Pedas : modèles communs, propriétaire partagé dédié. */
 export const SHARED_PEDA_USER_ID = -1;
 
+/**
+ * Modèles « système » du scope commercial (ex. mail d'invitation à signer l'AB) :
+ * partagés par tous les commerciaux, stockés sous ce propriétaire dédié. Les modèles
+ * commerciaux ordinaires restent, eux, privés à chaque user.
+ */
+export const SHARED_COMMERCIAL_USER_ID = -2;
+
 /** Clé app_settings : les modèles Peda par défaut ont déjà été semés une fois. */
 export const PEDA_TEMPLATES_SEEDED_KEY = 'peda_templates_seeded';
+
+/** Clé app_settings : le modèle système « AB à signer » a déjà été semé une fois. */
+export const AB_SIGNATURE_SEEDED_KEY = 'ab_signature_template_seeded';
+
+/** Clé app_settings : le modèle « Import CV » par défaut a déjà été semé une fois. */
+export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
 
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
@@ -36,6 +59,8 @@ export interface MailTemplateDTO {
     body: string;
     /** Niveau de relance (scope `peda` uniquement) ; null sinon. */
     pedaLevel: PedaLevel | null;
+    /** Modèle système non supprimable (ex. `ab_signature`) ; null pour les modèles utilisateur. */
+    kind: MailTemplateKind | null;
     attachment: { filename: string; contentType: string } | null;
 }
 
@@ -54,6 +79,7 @@ function toDTO(t: MailTemplate): MailTemplateDTO {
         subject: t.subject,
         body: t.body,
         pedaLevel: t.peda_level ?? null,
+        kind: t.kind ?? null,
         attachment: t.attachment ? { filename: t.attachment.filename, contentType: t.attachment.contentType } : null,
     };
 }
@@ -83,22 +109,35 @@ export class MailTemplateService {
         return userId;
     }
 
-    // Accès à un modèle : les modèles RH et Peda sont communs, les autres sont privés.
-    private canAccess(doc: { scope: string; user_id: number }, userId: number): boolean {
-        return doc.scope === 'rh' || doc.scope === 'peda' || doc.user_id === userId;
+    // Accès à un modèle : les modèles RH/Peda et les modèles système (kind) sont
+    // communs à tous ; les modèles commerciaux ordinaires restent privés.
+    private canAccess(
+        doc: { scope: string; user_id: number; kind?: MailTemplateKind | null },
+        userId: number,
+    ): boolean {
+        return doc.scope === 'rh' || doc.scope === 'peda' || !!doc.kind || doc.user_id === userId;
     }
 
     // ── Modèles (CRUD) ───────────────────────────────────────────────────
     async list(userId: number, scope: MailTemplateScope): Promise<MailTemplateDTO[]> {
-        const docs = await MailTemplateModel.find({ user_id: this.ownerFor(userId, scope), scope })
-            .sort({ created_at: 1 })
-            .lean<MailTemplate[]>();
+        // Scope commercial : modèles privés du user + modèles système partagés (kind).
+        const filter =
+            scope === 'commercial'
+                ? { scope, $or: [{ user_id: userId }, { kind: { $ne: null } }] }
+                : { user_id: this.ownerFor(userId, scope), scope };
+        const docs = await MailTemplateModel.find(filter).sort({ created_at: 1 }).lean<MailTemplate[]>();
         return docs.map(toDTO);
+    }
+
+    /** Modèle système du scope commercial (ex. mail « AB à signer »), ou null s'il n'existe pas. */
+    async findCommercialTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
+        const doc = await MailTemplateModel.findOne({ scope: 'commercial', kind }).lean<MailTemplate>();
+        return doc ? toDTO(doc) : null;
     }
 
     /** Le niveau n'a de sens que pour le scope `peda` ; il est ignoré ailleurs. */
     private pedaLevelFor(scope: MailTemplateScope, level: PedaLevel | null | undefined): PedaLevel | null {
-        return scope === 'peda' ? (level ?? null) : null;
+        return scope === 'peda' ? level ?? null : null;
     }
 
     /** Refuse deux modèles Peda sur le même niveau : la résolution serait ambiguë. */
@@ -190,9 +229,67 @@ export class MailTemplateService {
         logger.info({ created }, 'peda-templates: modèles par défaut semés');
     }
 
+    /**
+     * Sème le modèle système « Analyse du Besoin à signer » (scope commercial,
+     * kind `ab_signature`) au premier démarrage. Idempotent via flag app_settings
+     * ET vérification d'existence, pour ne pas dupliquer si un modèle a déjà ce kind.
+     */
+    async seedAbSignatureDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(AB_SIGNATURE_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'commercial', kind: 'ab_signature' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_COMMERCIAL_USER_ID,
+                scope: 'commercial',
+                name: 'Analyse du Besoin à signer',
+                subject: AB_SIGNATURE_SUBJECT,
+                body: AB_SIGNATURE_BODY,
+                peda_level: null,
+                kind: 'ab_signature',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('ab-signature: modèle système semé');
+        }
+        await settings.set(AB_SIGNATURE_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle « Import CV » par défaut (scope rh) au premier démarrage.
+     * Idempotent via flag app_settings.
+     */
+    async seedCvImportDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(CV_IMPORT_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', name: 'Import CV' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Import CV',
+                subject: CV_IMPORT_SUBJECT,
+                body: CV_IMPORT_BODY,
+                peda_level: null,
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('cv-import: modèle par défaut semé');
+        }
+        await settings.set(CV_IMPORT_SEEDED_KEY, '1');
+    }
+
     async remove(userId: number, id: string): Promise<void> {
         const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
         if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
+        // Un modèle système (kind) ne peut pas être supprimé, seulement édité.
+        if (doc.kind) throw new SystemTemplateError();
         // Nettoyage de la PJ sur Drive (best-effort).
         if (doc.attachment) {
             try {

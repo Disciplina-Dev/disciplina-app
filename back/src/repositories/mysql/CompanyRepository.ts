@@ -1,4 +1,5 @@
 import { query, getConnection } from '../../db/mysql/connection';
+import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 
@@ -186,12 +187,8 @@ export class CompanyRepository {
     async create(data: Partial<CompaniesRow>): Promise<number> {
         const conn = await getConnection();
         try {
-            const fields = Object.keys(data).join(', ');
-            const placeholders = Object.keys(data)
-                .map(() => '?')
-                .join(', ');
-            const values = Object.values(data);
-            const result = await conn.execute(`INSERT INTO companies (${fields}) VALUES (${placeholders})`, values);
+            const { sql, values } = buildInsert('companies', data);
+            const result = await conn.execute(sql, values);
             return (result[0] as any).insertId;
         } finally {
             conn.release();
@@ -201,7 +198,10 @@ export class CompanyRepository {
     async update(id: number, data: Partial<CompaniesRow>): Promise<boolean> {
         const conn = await getConnection();
         try {
-            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v != null));
+            // `null` est une valeur significative (ex. « aucune relance » vide relance_date) :
+            // seuls les champs absents (undefined) sont ignorés.
+            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+            if (Object.keys(cleaned).length === 0) return false;
             const sets = Object.keys(cleaned)
                 .map((key) => `${key} = ?`)
                 .join(', ');

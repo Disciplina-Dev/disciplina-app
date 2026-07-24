@@ -9,7 +9,8 @@ Date source per candidate: classmarker.completed_at, else identity.avatar_update
 Candidates with no usable date are treated as incomplete test data and deleted.
 
 Cascade: also removes candidate_history, candidate_avatars, and pulls the
-candidate from jobs.matched_candidate[] / jobs.proposed_candidate[].
+candidate from offers.matching.candidates[], which embeds their name, email,
+phone, age and sex.
 
 Google Drive folders/files (drive_folder_id, cv_link, ...) are NOT removed.
 """
@@ -87,20 +88,18 @@ def delete_candidates_cascade(db, ids: list[str]) -> dict[str, int]:
     candidates = db["candidates"].delete_many({"_id": {"$in": ids}})
     history = db["candidate_history"].delete_many({"candidate_id": {"$in": ids}})
     avatars = db["candidate_avatars"].delete_many({"candidate_id": {"$in": ids}})
-    jobs = db["jobs"].update_many(
-        {},
-        {
-            "$pull": {
-                "matched_candidate": {"id": {"$in": ids}},
-                "proposed_candidate": {"id": {"$in": ids}},
-            }
-        },
+    # `offers.matching.candidates[]` embarque nom, email, téléphone, âge et sexe :
+    # sans ce $pull, les données personnelles survivent à la suppression du candidat.
+    # Même clé que OfferRepository.removeMatchedCandidate.
+    offers = db["offers"].update_many(
+        {"matching.candidates.id": {"$in": ids}},
+        {"$pull": {"matching.candidates": {"id": {"$in": ids}}}},
     )
     return {
         "candidates": candidates.deleted_count,
         "candidate_history": history.deleted_count,
         "candidate_avatars": avatars.deleted_count,
-        "jobs_updated": jobs.modified_count,
+        "offers_updated": offers.modified_count,
     }
 
 

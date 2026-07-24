@@ -3,7 +3,7 @@ import { InterviewGuestRequest } from './guard';
 import { InterviewAccessService, SlotUnavailableError } from '../../services/InterviewAccessService';
 import { UserService } from '../../services/UserService';
 import { NotificationService } from '../../services/NotificationService';
-import { logger } from '../../external/logger/logger';
+import { logger } from '../../external/logger';
 
 const interviewAccessService = new InterviewAccessService();
 const userService = new UserService();
