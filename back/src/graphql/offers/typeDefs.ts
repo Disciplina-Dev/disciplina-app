@@ -111,6 +111,7 @@ export const typeDefs = gql`
         phone: String
         status: MatchedCandidateStatus
         description: String
+        identityDescription: String
         comment: String
         cvWebview: String
         interviewLocation: String
@@ -132,6 +133,7 @@ export const typeDefs = gql`
         phone: String
         status: MatchedCandidateStatus
         description: String
+        identityDescription: String
         comment: String
         cvWebview: String
         interviewLocation: String

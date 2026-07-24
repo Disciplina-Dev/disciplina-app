@@ -9,6 +9,7 @@ import { UserService } from '../../services/UserService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
+import { permission } from 'node:process';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
@@ -216,7 +217,7 @@ export const resolvers = {
         },
         updateCompany: async (_: unknown, { id, input }: { id: number; input: CompanyInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
-            if (context.user.role === JobRole.COMMERCIAL) {
+            if (context.user.role === JobRole.COMMERCIAL && context.user.permission === Permission.EMPLOYEE) {
                 const existing = await companiesService.findById(id);
                 if (existing?.userID && existing.userID !== context.user.id) {
                     throw new Error('Forbidden: You can only edit your own companies');

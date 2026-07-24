@@ -37,6 +37,7 @@ export const matchingCandidateSchema = new Schema<MatchingCandidate>(
         phone: { type: String },
         status: { type: String, enum: Object.values(MatchedCandidateStatus) },
         description: { type: String },
+        identity_description: { type: String },
         cv_webview: { type: String },
         comment: { type: String },
         interview_location: { type: String },

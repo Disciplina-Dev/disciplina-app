@@ -54,6 +54,7 @@ export const typeDefs = gql`
         SEEKING
         NOT_SEEKING
         UNAVAILABLE
+        TEST_FAILED
         CANCELLED
         CONTRACT
         IMMERSING

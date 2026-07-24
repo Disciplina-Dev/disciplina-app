@@ -167,12 +167,11 @@ function getLogoDataUrl(): string {
 
 function buildHeaderTemplate(logoDataUrl: string): string {
     const logoHtml = logoDataUrl
-        ? `<img src="${logoDataUrl}" style="height:38px;display:block;" />`
+        ? `<img src="${logoDataUrl}" style="height:128px;display:block;" />`
         : `<div style="font-size:22px;font-weight:bold;color:#1130A7;">Disciplina</div>`;
     return `
     <div style="width:100%;padding:6px 18mm 0;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;">
         ${logoHtml}
-        <div style="font-size:8px;color:#C41E3A;font-style:italic;margin-top:2px;">Notre passion, votre progression</div>
     </div>`;
 }
 

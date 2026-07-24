@@ -13,8 +13,10 @@ import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 import { MailTemplateService } from '../../services/MailTemplateService';
+import { BulkRelanceService } from '../../services/BulkRelanceService';
 
 const mailTemplateService = new MailTemplateService();
+const bulkRelanceService = new BulkRelanceService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
@@ -131,6 +133,27 @@ export async function getCompanyRelanceHistory(req: AuthRequest, res: Response):
 
     const rows = await relanceHistoryRepo.findByCompanyId(companyId);
     res.status(200).json(rows.map(toRelanceHistory));
+}
+
+/** Relance groupée asynchrone — lance l'envoi en arrière-plan et répond immédiatement. */
+export async function sendCompanyBulkRelance(req: AuthRequest, res: Response): Promise<void> {
+    const { ids, templateId, all } = req.body as { ids?: number[]; templateId?: string; all?: boolean };
+
+    if (!templateId) {
+        res.status(400).json({ error: 'Modèle de mail requis.' });
+        return;
+    }
+
+    if (!all && (!Array.isArray(ids) || ids.length === 0)) {
+        res.status(400).json({ error: 'Sélectionne des entreprises ou utilise le mode "Toutes les entreprises".' });
+        return;
+    }
+
+    bulkRelanceService.startCompanyBulk(req.user.id, { ids: ids ?? [], templateId, all: all ?? false }).catch((err) => {
+        logger.error({ err }, '[bulk-relance] background job failed');
+    });
+
+    res.status(202).json({ message: 'Relance lancée en arrière-plan. Vous serez notifié à la fin.' });
 }
 
 /** Conversion HTML → texte brut, best-effort, pour l'alternative text/plain d'un mail. */

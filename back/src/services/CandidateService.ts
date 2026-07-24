@@ -4,11 +4,14 @@ import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { computeAge } from '../utils/age';
 import { CandidateHistoryService } from './CandidateHistoryService';
+import { NotificationService } from './NotificationService';
+import { buildCandidateSummary } from './buildCandidateSummary';
 
 export class CandidateService {
     private repository = new CandidateRepository();
     private offerRepository = new OfferRepository();
     private candidateHistoryService = new CandidateHistoryService();
+    private notificationService = new NotificationService();
 
     async findAll(): Promise<Candidate[]> {
         const candidates = await this.repository.findAll();
@@ -32,7 +35,24 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.UNAVAILABLE) {
             const availabilityDate = candidate.job_info?.availability_date;
             if (!availabilityDate || new Date(availabilityDate) > new Date()) return candidate;
-            return this.revertToSeeking(candidate);
+            const reverted = await this.revertToSeeking(candidate);
+            if (reverted) {
+                const name = candidate.identity?.full_name ?? 'Un candidat';
+                const ownerId = candidate.owner?.user_id;
+                if (ownerId) {
+                    this.notificationService
+                        .create({
+                            userId: ownerId,
+                            type: 'availability_ended',
+                            level: 'info',
+                            title: 'Disponible',
+                            message: `${name} est de nouveau disponible.`,
+                            link: `/rh/candidats/${candidate._id}`,
+                        })
+                        .catch(() => {});
+                }
+            }
+            return reverted;
         }
 
         if (candidate.status === CandidateStatus.IMMERSING) {
@@ -66,6 +86,9 @@ export class CandidateService {
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {
+        if (data.identity && !data.identity.description) {
+            data.identity.description = buildCandidateSummary(data as Candidate);
+        }
         return this.repository.create(data);
     }
 
@@ -85,6 +108,29 @@ export class CandidateService {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
+        const existing = await this.repository.findById(id);
+        if (existing) {
+            const merged: Candidate = {
+                ...existing,
+                ...data,
+                identity: { ...existing.identity, ...(data.identity ?? {}) },
+            };
+            if (data.education) merged.education = { ...existing.education, ...data.education } as any;
+            if (data.background) merged.background = { ...existing.background, ...data.background } as any;
+            if (data.job_info) merged.job_info = { ...existing.job_info, ...data.job_info } as any;
+            if (data.profile) merged.profile = { ...existing.profile, ...data.profile } as any;
+            if (data.professional_projects)
+                merged.professional_projects = {
+                    ...existing.professional_projects,
+                    ...data.professional_projects,
+                } as any;
+            if (!data.identity?.description) {
+                data.identity = {
+                    ...(data.identity ?? {}),
+                    description: buildCandidateSummary(merged),
+                } as Candidate['identity'];
+            }
+        }
         const updated = await this.repository.update(id, data);
         return updated;
     }
@@ -97,8 +143,21 @@ export class CandidateService {
         const candidate = await this.repository.findById(id);
         if (!candidate) return [];
 
-        const offers = await this.offerRepository.listMatchingOffers();
-        return offers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
+        const [allOffers, assignedOffers] = await Promise.all([
+            this.offerRepository.listMatchingOffers(),
+            this.offerRepository.findWithCandidate(id),
+        ]);
+
+        const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
+        const matchedIds = new Set(matched.map((o) => String(o._id)));
+
+        for (const o of assignedOffers) {
+            if (!matchedIds.has(String(o._id))) {
+                matched.push(o);
+            }
+        }
+
+        return matched;
     }
 
     private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {

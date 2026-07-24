@@ -76,6 +76,7 @@ interface MatchedCandidate {
   phone: string
   status?: string | null
   description?: string | null
+  identityDescription?: string | null
   comment?: string | null
   cvWebview?: string | null
   interviewLocation?: string
@@ -1516,6 +1517,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
       if (result.error) { setLoadError(result.error.message); return }
       if (result.data?.matchOffer) {
         const data = result.data.matchOffer as MatchJobResult
+        console.log(data);
         setJobData(data)
         const matchedIds = new Set((data.matchedCandidate ?? []).map((c) => c.id))
         setSavedCandidateIds(matchedIds)
