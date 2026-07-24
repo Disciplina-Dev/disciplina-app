@@ -1,19 +1,25 @@
 import { Client, cacheExchange, fetchExchange, mapExchange, CombinedError } from 'urql'
-import { useAuthStore, handleSessionExpired } from '@/store/authStore'
+import { handleSessionExpired } from '@/store/authStore'
+import { CSRF_HEADER, getCsrfCookie } from '@/lib/csrf'
 
 const getFetchOptions = () => {
-  const token = useAuthStore.getState().token
+  const csrf = getCsrfCookie()
   return {
     method: 'POST' as const,
+    credentials: 'include' as const,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrf ? { [CSRF_HEADER]: csrf } : {}),
     },
   }
 }
 
 // Le contexte GraphQL renvoie une erreur "Unauthorized" (HTTP 200) quand le JWT
 // est expiré/invalide ; le fetchExchange peut aussi remonter un 401 réseau.
+// Le retry-après-refresh transparent se fait déjà au niveau window.fetch
+// (lib/sessionGuard.ts, seul point qui voit tous les fetches y compris ceux
+// d'urql) : si une erreur d'auth arrive quand même jusqu'ici, le refresh a
+// déjà été tenté et a échoué — il ne reste qu'à terminer la session.
 function isAuthError(error: CombinedError): boolean {
   if (error.response?.status === 401) return true
   return error.graphQLErrors.some((e) => /unauthorized|no valid session/i.test(e.message))

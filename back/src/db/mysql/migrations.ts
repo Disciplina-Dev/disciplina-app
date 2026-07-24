@@ -315,6 +315,23 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             INDEX idx_todos_user (user_id)
         )`,
     },
+    {
+        // Refresh tokens (session JWT en cookie httpOnly). token_hash = sha256 du
+        // token brut, jamais stocké en clair. Rotation à chaque /refresh : revoked_at
+        // posé sur l'ancienne ligne, nouvelle ligne créée.
+        table: 'refresh_tokens',
+        ddl: `CREATE TABLE IF NOT EXISTS refresh_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token_hash VARCHAR(64) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            revoked_at TIMESTAMP NULL DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            INDEX idx_refresh_user (user_id),
+            INDEX idx_refresh_hash (token_hash)
+        )`,
+    },
 ];
 
 /** Lieux par défaut (modifiables ensuite par l'admin via l'interface). */

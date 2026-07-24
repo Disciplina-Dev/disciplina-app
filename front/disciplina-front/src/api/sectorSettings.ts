@@ -1,23 +1,21 @@
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiFetch } from '@/api/httpClient'
 
 export interface SectorSetting {
   sector: string
   location: string
 }
 
-export async function fetchSectorSettings(token: string): Promise<SectorSetting[]> {
-  const res = await fetch(`${API_BASE}/api/sector-settings`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+export async function fetchSectorSettings(): Promise<SectorSetting[]> {
+  const res = await apiFetch('/api/sector-settings')
   if (!res.ok) throw new Error(`Échec du chargement des lieux (${res.status})`)
   const data = (await res.json()) as { settings: SectorSetting[] }
   return data.settings
 }
 
-export async function updateSectorSettings(token: string, settings: SectorSetting[]): Promise<SectorSetting[]> {
-  const res = await fetch(`${API_BASE}/api/sector-settings`, {
+export async function updateSectorSettings(settings: SectorSetting[]): Promise<SectorSetting[]> {
+  const res = await apiFetch('/api/sector-settings', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ settings }),
   })
   if (!res.ok) {

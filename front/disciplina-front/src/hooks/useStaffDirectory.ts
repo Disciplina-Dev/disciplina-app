@@ -35,8 +35,8 @@ function indexById(entries: DirectoryEntry[]): Record<string, StaffMember> {
 // Un seul appel réseau partagé par tous les composants montés.
 let pending: Promise<Record<string, StaffMember>> | null = null
 
-function loadDirectory(token: string): Promise<Record<string, StaffMember>> {
-  if (!pending) pending = fetchStaffDirectory(token).then(indexById)
+function loadDirectory(): Promise<Record<string, StaffMember>> {
+  if (!pending) pending = fetchStaffDirectory().then(indexById)
   return pending
 }
 
@@ -45,19 +45,19 @@ export function resetStaffDirectoryCache(): void {
 }
 
 export function useStaffDirectory(): { directory: Record<string, StaffMember>; loading: boolean } {
-  const token = useAuthStore((s) => s.token)
+  const user = useAuthStore((s) => s.user)
   const [directory, setDirectory] = useState<Record<string, StaffMember>>({})
   const [settled, setSettled] = useState(false)
 
   useEffect(() => {
-    if (!token) return
+    if (!user) return
     let cancelled = false
-    loadDirectory(token)
+    loadDirectory()
       .then((map) => { if (!cancelled) setDirectory(map) })
       .catch(() => { pending = null })
       .finally(() => { if (!cancelled) setSettled(true) })
     return () => { cancelled = true }
-  }, [token])
+  }, [user])
 
-  return { directory, loading: Boolean(token) && !settled }
+  return { directory, loading: Boolean(user) && !settled }
 }

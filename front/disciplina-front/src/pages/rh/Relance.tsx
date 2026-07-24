@@ -4,7 +4,7 @@ import Button from '@/components/ui/Button'
 import { useCandidates } from '@/graphql/hooks'
 import { CandidateStatus, TrainingSite, TitleProfessionalType } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
-import { useAuthStore } from '@/store/authStore'
+import { apiJson } from '@/api/httpClient'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus'
 import { cleanHtml } from '@/services/sanitizeHtml'
@@ -89,7 +89,6 @@ function hasFreshResponse(c: Candidate): boolean {
 
 export default function Relance() {
   const { candidates, loading } = useCandidates()
-  const token = useAuthStore((s) => s.token)
   const templates = useRhMailTemplatesStore((s) => s.templates)
   const loadTemplates = useRhMailTemplatesStore((s) => s.load)
 
@@ -173,22 +172,14 @@ export default function Relance() {
     setResult(null)
     setError(null)
     try {
-      const url =
-        sendType === AVAILABILITY
-          ? `${import.meta.env.VITE_API_URL}/api/relance/send`
-          : `${import.meta.env.VITE_API_URL}/api/relance/bulk`
+      const path = sendType === AVAILABILITY ? '/api/relance/send' : '/api/relance/bulk'
       const body =
         sendType === AVAILABILITY ? { ids: selectedIds } : { ids: selectedIds, templateId: sendType }
-      const res = await fetch(url, {
+      const data = await apiJson<SendResult>(path, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erreur serveur')
       setResult(data)
       setSelected(new Set())
     } catch (err: any) {

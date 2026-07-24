@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { useAuthStore } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCreateNeedsAnalysis, useUpdateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
@@ -765,13 +765,9 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   }
 
   const sendForSignature = async (id: string, email: { subject: string; body: string }) => {
-    const token = useAuthStore.getState().token
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/needs-analysis/${id}/sign`, {
+    const res = await apiFetch(`/api/needs-analysis/${id}/sign`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(email),
     })
     if (!res.ok) {
@@ -781,10 +777,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   }
 
   const downloadPdf = async (id: string) => {
-    const token = useAuthStore.getState().token
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/needs-analysis/${id}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    const res = await apiFetch(`/api/needs-analysis/${id}/pdf`)
     if (!res.ok) throw new Error(`PDF download failed: ${res.status}`)
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)

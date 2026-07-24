@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
@@ -38,12 +38,13 @@ function validEtablissement(siret: string) {
     };
 }
 
-async function createCompany(token: string, input: Record<string, unknown>) {
+async function createCompany(auth: { cookieHeader: string; csrfHeader: string }, input: Record<string, unknown>) {
     const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Cookie: auth.cookieHeader,
+            'x-csrf-token': auth.csrfHeader,
         },
         body: JSON.stringify({ query: MUTATION, variables: { input } }),
     });
@@ -69,12 +70,12 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when INSEE does not recognise the SIRET', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const siret = `${suffix}0000000010`.slice(0, 14);
         checkSiret.mockRejectedValue(new Error('SIRET not found'));
 
-        const { res, json } = await createCompany(token, {
+        const { res, json } = await createCompany(auth, {
             name: `Unknown Corp ${suffix}`,
             siret,
             address: 'X',
@@ -89,7 +90,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when the SIRET is already in the portfolio', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const siret = `${suffix}0000000011`.slice(0, 14);
         checkSiret.mockResolvedValue(validEtablissement(siret));
@@ -102,7 +103,7 @@ describe('createCompany INSEE + blacklist validation', () => {
             conclusion: 'X',
         });
 
-        const { res, json } = await createCompany(token, {
+        const { res, json } = await createCompany(auth, {
             name: `Duplicate Corp ${suffix}`,
             siret,
             address: 'X',
@@ -116,7 +117,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when the whole SIREN is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const blacklistedSiret = `${siren}00001`;
         const newSiret = `${siren}00099`;
@@ -131,7 +132,7 @@ describe('createCompany INSEE + blacklist validation', () => {
             all_blacklist: 1,
         });
 
-        const { res, json } = await createCompany(token, {
+        const { res, json } = await createCompany(auth, {
             name: 'New Establishment',
             siret: newSiret,
             address: 'X',
@@ -145,7 +146,7 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('rejects when the exact SIRET is blacklisted, even without all_blacklist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const siren = Date.now().toString().slice(0, 9);
         const siret = `${siren}00001`;
         checkSiret.mockResolvedValue(validEtablissement(siret));
@@ -159,7 +160,7 @@ describe('createCompany INSEE + blacklist validation', () => {
             all_blacklist: 0,
         });
 
-        const { res, json } = await createCompany(token, {
+        const { res, json } = await createCompany(auth, {
             name: 'New Establishment',
             siret,
             address: 'X',
@@ -173,12 +174,12 @@ describe('createCompany INSEE + blacklist validation', () => {
     });
 
     it('creates the company when INSEE confirms the SIRET and nothing is blacklisted', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const siret = `${suffix}0000000012`.slice(0, 14);
         checkSiret.mockResolvedValue(validEtablissement(siret));
 
-        const { res, json } = await createCompany(token, {
+        const { res, json } = await createCompany(auth, {
             name: `Brand New Corp ${suffix}`,
             siret,
             address: 'X',

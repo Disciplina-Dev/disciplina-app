@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from '../../../config/env';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 
 const URL = `http://localhost:${env.API_PORT}/api/auth/register`;
@@ -9,16 +9,18 @@ let counter = 0;
 
 function register(passwordPlain: string) {
     counter += 1;
+    const { cookieHeader, csrfHeader } = mintAuthCookies({
+        id: 1,
+        email: 'admin@test.com',
+        role: 'COMMERCIAL',
+        permission: 'ADMIN',
+    });
     return fetch(URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${mintToken({
-                id: 1,
-                email: 'admin@test.com',
-                role: 'COMMERCIAL',
-                permission: 'ADMIN',
-            })}`,
+            Cookie: cookieHeader,
+            'x-csrf-token': csrfHeader,
         },
         body: JSON.stringify({
             email: `policy-${counter}@test.local`,

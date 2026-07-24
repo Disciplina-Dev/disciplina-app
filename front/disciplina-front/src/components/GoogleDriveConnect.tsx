@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { CheckCircle2, XCircle, Loader2, AlertCircle, LogOut } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
-
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiJson } from '@/api/httpClient'
 
 function GoogleLogo({ size = 22 }: { size?: number }) {
   return (
@@ -37,18 +36,7 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
     setErrorMsg(null)
     setIsDisconnecting(true)
     try {
-      const token = useAuthStore.getState().token
-      const res = await fetch(`${API_BASE}/api/auth/google/disconnect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Erreur lors de la déconnexion')
-      }
+      await apiJson('/api/auth/google/disconnect', { method: 'POST' })
       useAuthStore.getState().updateUser({ googleConnected: false })
     } catch (err: any) {
       setErrorMsg(err.message || 'Une erreur inattendue est survenue')

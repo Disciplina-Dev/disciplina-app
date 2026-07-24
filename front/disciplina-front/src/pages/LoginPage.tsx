@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import { login } from '@/api/auth'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const setAuth = useAuthStore((state) => state.setAuth)
+  const setAuthReady = useAuthStore((state) => state.setAuthReady)
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,21 +21,8 @@ export default function LoginPage() {
     setFetching(true)
     setError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, passwordPlain }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        // `error` peut être une chaîne ou, selon la source, un objet { message }.
-        const raw = data?.error
-        const msg = typeof raw === 'string' ? raw : raw?.message
-        setError(msg || 'Erreur de connexion')
-        return
-      }
-      const { token, user } = data
-      setAuth(token, user)
+      const user = await login(email, passwordPlain)
+      setAuthReady(user)
 
       if (user.role === 'RH') {
         navigate('/rh/candidats')
@@ -49,8 +37,8 @@ export default function LoginPage() {
       } else {
         navigate('/')
       }
-    } catch {
-      setError('Erreur réseau')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur réseau')
     } finally {
       setFetching(false)
     }

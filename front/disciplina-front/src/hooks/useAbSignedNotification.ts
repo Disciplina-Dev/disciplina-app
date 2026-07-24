@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useAuthStore } from '@/store/authStore'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -11,14 +10,11 @@ export interface AbSignedEvent {
 }
 
 export function useAbSignedNotification() {
-  const token = useAuthStore((s) => s.token)
   const [notifications, setNotifications] = useState<AbSignedEvent[]>([])
 
   useEffect(() => {
-    if (!token) return
-
-    const url = `${API_BASE}/api/webhooks/yousign/stream?token=${encodeURIComponent(token)}`
-    const es = new EventSource(url)
+    const url = `${API_BASE}/api/webhooks/yousign/stream`
+    const es = new EventSource(url, { withCredentials: true })
 
     es.onmessage = (e) => {
       try {
@@ -32,7 +28,7 @@ export function useAbSignedNotification() {
     es.onerror = () => { /* auto-reconnect by browser */ }
 
     return () => { es.close() }
-  }, [token])
+  }, [])
 
   const dismiss = (abId: number) =>
     setNotifications((prev) => prev.filter((n) => n.abId !== abId))

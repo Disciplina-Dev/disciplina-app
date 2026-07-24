@@ -1,13 +1,15 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { UserRepository } from '../repositories/mysql/UserRepository';
+import { RefreshTokenRepository } from '../repositories/mysql/RefreshTokenRepository';
 import { User, JobRole, Permission } from '../types/user.types';
 import { UserRow } from '../types/db-rows.types';
 import { GoogleTokens } from '../external/google/types';
 import { toUser } from './mappers/user.mapper';
 import { env } from '../config/env';
 import { encryptToken, decryptToken, isEncryptedToken } from '../external/crypto/token-cipher';
+import { sha256Hex } from '../external/crypto/hash';
 import { logger } from '../external/logger';
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../rest/middleware/tokenAuth';
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -52,9 +54,24 @@ export function permissionToId(permission: Permission): number {
 
 export class UserService {
     private userRepository: UserRepository;
+    private refreshTokenRepository: RefreshTokenRepository;
 
     constructor() {
         this.userRepository = new UserRepository();
+        this.refreshTokenRepository = new RefreshTokenRepository();
+    }
+
+    private async issueSession(user: User): Promise<{ accessToken: string; refreshToken: string }> {
+        const accessToken = signAccessToken({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            permission: user.permission,
+        });
+        const refreshToken = signRefreshToken({ id: user.id });
+        const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_TTL_SECONDS * 1000);
+        await this.refreshTokenRepository.create(user.id, sha256Hex(refreshToken), expiresAt);
+        return { accessToken, refreshToken };
     }
 
     private decryptUserTokens(user: User): User {
@@ -227,7 +244,10 @@ export class UserService {
         return toUser(created);
     }
 
-    async login(email: string, passwordPlain: string): Promise<{ token: string; user: User }> {
+    async login(
+        email: string,
+        passwordPlain: string,
+    ): Promise<{ accessToken: string; refreshToken: string; user: User }> {
         const userRow = await this.userRepository.findByEmail(email);
 
         // Sur e-mail inconnu, comparer quand même contre un faux hash : sans ce
@@ -238,16 +258,44 @@ export class UserService {
         }
 
         const user = toUser(userRow);
+        const { accessToken, refreshToken } = await this.issueSession(user);
+        return { accessToken, refreshToken, user };
+    }
 
-        const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role, permission: user.permission },
-            env.JWT_SECRET,
-            {
-                expiresIn: '24h',
-            },
-        );
+    /**
+     * Rotation du refresh token : révoque l'ancien, en émet un nouveau. Si le
+     * token présenté a déjà été rotaté (réutilisation), c'est un signal de vol
+     * — on révoque toute la session de l'utilisateur.
+     */
+    async refreshAccessToken(
+        refreshTokenRaw: string,
+    ): Promise<{ accessToken: string; refreshToken: string; user: User } | null> {
+        const payload = verifyRefreshToken(refreshTokenRaw);
+        if (!payload) return null;
 
-        return { token, user };
+        const tokenHash = sha256Hex(refreshTokenRaw);
+        const stored = await this.refreshTokenRepository.findByHash(tokenHash);
+        if (!stored) return null;
+
+        if (stored.revoked_at) {
+            await this.refreshTokenRepository.revokeAllForUser(stored.user_id);
+            return null;
+        }
+        if (new Date(stored.expires_at).getTime() <= Date.now()) return null;
+
+        const user = await this.findById(stored.user_id);
+        if (!user) return null;
+
+        await this.refreshTokenRepository.revokeById(stored.id);
+        const { accessToken, refreshToken } = await this.issueSession(user);
+        return { accessToken, refreshToken, user };
+    }
+
+    /** Révoque uniquement la session courante (l'appareil qui se déconnecte). */
+    async logout(refreshTokenRaw: string): Promise<void> {
+        const tokenHash = sha256Hex(refreshTokenRaw);
+        const stored = await this.refreshTokenRepository.findByHash(tokenHash);
+        if (stored) await this.refreshTokenRepository.revokeById(stored.id);
     }
 
     async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {

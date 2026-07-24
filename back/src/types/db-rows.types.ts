@@ -122,6 +122,15 @@ export interface ContactLogRow {
     created_at?: string | Date;
 }
 
+export interface RefreshTokenRow {
+    id: number;
+    user_id: number;
+    token_hash: string;
+    expires_at: string | Date;
+    revoked_at: string | Date | null;
+    created_at?: string | Date;
+}
+
 export interface FilizRow {
     token: string;
     created_at: Date;

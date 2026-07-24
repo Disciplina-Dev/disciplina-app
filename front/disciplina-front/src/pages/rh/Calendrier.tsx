@@ -10,6 +10,7 @@ import {
   type BookingSettings, type WorkingHours,
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
 import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
@@ -147,7 +148,6 @@ function layoutDay(events: OwnedEvent[]): PositionedEvent[] {
 }
 
 export default function Calendrier() {
-  const token = useAuthStore((s) => s.token)
   const selfId = Number(useAuthStore((s) => s.user?.id))
   const { connectGoogle, isLoading: isConnecting } = useGoogleOAuthPopup()
 
@@ -175,9 +175,8 @@ export default function Calendrier() {
   const [visible, setVisible] = useState<Set<number>>(new Set())
 
   const loadUsers = useCallback(async () => {
-    if (!token) return
     try {
-      const list = await fetchCalendarUsers(token)
+      const list = await fetchCalendarUsers()
       setUsers(list)
       // Par défaut : son propre agenda + ceux des collègues partageant ≥ 1 secteur (connectés).
       const self = list.find((u) => u.isSelf)
@@ -187,7 +186,7 @@ export default function Calendrier() {
     } catch {
       /* géré via état notConnected au chargement des events */
     }
-  }, [token])
+  }, [])
 
   useEffect(() => { void loadUsers() }, [loadUsers])
 
@@ -215,7 +214,6 @@ export default function Calendrier() {
   const visibleKey = useMemo(() => [...visible].sort().join(','), [visible])
 
   const load = useCallback(async () => {
-    if (!token) return
     const ids = visibleKey ? visibleKey.split(',').map(Number) : []
     setLoading(true); setError(null); setNotConnected(false)
     try {
@@ -224,7 +222,7 @@ export default function Calendrier() {
         ids.map(async (id) => {
           // Un agenda en échec (409 non connecté ou erreur Google) ne doit jamais bloquer les autres.
           try {
-            const evs = await fetchCalendarEvents(token, range.min, range.max, id === selfId ? undefined : id)
+            const evs = await fetchCalendarEvents(range.min, range.max, id === selfId ? undefined : id)
             return evs.map((e) => ({ ...e, ownerId: id }))
           } catch (err) {
             if (err instanceof CalendarNotConnectedError && id === selfId) setNotConnected(true)
@@ -241,7 +239,7 @@ export default function Calendrier() {
     } finally {
       setLoading(false)
     }
-  }, [token, range.min, range.max, visibleKey, selfId])
+  }, [range.min, range.max, visibleKey, selfId])
 
   useEffect(() => { void load() }, [load])
 
@@ -359,10 +357,9 @@ export default function Calendrier() {
         </div>
       )}
 
-      {detail && token && (
+      {detail && (
         <EventModal
           event={detail}
-          token={token}
           isOwn={detail.ownerId === selfId}
           ownerName={(() => { const u = users.find((u) => u.id === detail.ownerId); return u ? `${u.firstName} ${u.lastName}`.trim() : undefined })()}
           onClose={() => setDetail(null)}
@@ -382,9 +379,8 @@ export default function Calendrier() {
           onCreated={(id) => { setCreateFromEvent(null); navigate(`/rh/candidats/${id}`) }}
         />
       )}
-      {editing && token && (
+      {editing && (
         <EventForm
-          token={token}
           event={editing.event}
           ownerId={editing.ownerId}
           users={users}
@@ -395,7 +391,7 @@ export default function Calendrier() {
           onSaved={() => { setEditing(null); void load() }}
         />
       )}
-      {showBooking && token && <BookingSettingsModal token={token} onClose={() => setShowBooking(false)} />}
+      {showBooking && <BookingSettingsModal onClose={() => setShowBooking(false)} />}
     </div>
   )
 }
@@ -405,7 +401,7 @@ const ISO_DAYS: { key: string; label: string }[] = [
   { key: '4', label: 'Jeudi' }, { key: '5', label: 'Vendredi' }, { key: '6', label: 'Samedi' }, { key: '7', label: 'Dimanche' },
 ]
 
-function BookingSettingsModal({ token, onClose }: { token: string; onClose: () => void }) {
+function BookingSettingsModal({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState<BookingSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -417,11 +413,11 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
   useEffect(() => { loadMailTemplates() }, [loadMailTemplates])
 
   useEffect(() => {
-    fetchMyBookingSettings(token)
+    fetchMyBookingSettings()
       .then(setSettings)
       .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur'))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   const patch = (p: Partial<BookingSettings>) => setSettings((s) => (s ? { ...s, ...p } : s))
 
@@ -453,7 +449,7 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
     if (!settings) return
     setBusy(true); setErr(null)
     try {
-      const updated = await updateMyBookingSettings(token, {
+      const updated = await updateMyBookingSettings({
         enabled: settings.enabled, title: settings.title, location: settings.location,
         durationMin: settings.durationMin, bufferMin: settings.bufferMin,
         minNoticeHours: settings.minNoticeHours, maxDaysAhead: settings.maxDaysAhead,
@@ -510,7 +506,7 @@ function BookingSettingsModal({ token, onClose }: { token: string; onClose: () =
                 <input value={settings.title} onChange={(e) => patch({ title: e.target.value })} className={inputCls} />
               </Field>
               <Field label="Lieu (optionnel)" className="col-span-2">
-                <LocationPicker token={token} value={settings.location ?? ''} onChange={(v) => patch({ location: v || null })} autoDefault />
+                <LocationPicker value={settings.location ?? ''} onChange={(v) => patch({ location: v || null })} autoDefault />
               </Field>
               <Field label="Durée (min)">
                 <input type="number" min={5} max={480} value={settings.durationMin} onChange={(e) => patch({ durationMin: Number(e.target.value) })} className={inputCls} />
@@ -643,8 +639,8 @@ const CUSTOM_LOCATION = '__custom'
  * Sélecteur de lieu : dropdown des lieux par secteur (sector_settings) + saisie libre (« Autre… »).
  * `autoDefault` pré-sélectionne le lieu du secteur de l'utilisateur (fallback Nord-Est) si la valeur est vide.
  */
-function LocationPicker({ token, value, onChange, autoDefault }: {
-  token: string; value: string; onChange: (v: string) => void; autoDefault?: boolean
+function LocationPicker({ value, onChange, autoDefault }: {
+  value: string; onChange: (v: string) => void; autoDefault?: boolean
 }) {
   const [options, setOptions] = useState<SectorSetting[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -653,7 +649,7 @@ function LocationPicker({ token, value, onChange, autoDefault }: {
 
   useEffect(() => {
     let cancelled = false
-    fetchSectorSettings(token)
+    fetchSectorSettings()
       .then((all) => {
         if (cancelled) return
         const withLocation = all.filter((s) => s.location.trim())
@@ -669,7 +665,7 @@ function LocationPicker({ token, value, onChange, autoDefault }: {
       .catch(() => setLoaded(true)) // best-effort : saisie libre reste possible
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [])
 
   // Valeur existante hors liste (ancien lieu libre) → mode « Autre » automatiquement.
   const isKnown = options.some((s) => s.location === value)
@@ -890,8 +886,8 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
   )
 }
 
-function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttendance, onArrived }: {
-  event: OwnedEvent; token: string; isOwn: boolean; ownerName?: string
+function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, onArrived }: {
+  event: OwnedEvent; isOwn: boolean; ownerName?: string
   onClose: () => void; onEdit: () => void; onAttendance: (e: CalendarEvent) => void
   onArrived: (e: CalendarEvent) => void
 }) {
@@ -907,7 +903,7 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
   const mark = async (status: Attendance) => {
     setSavingAtt(status); setAttErr(null)
     try {
-      const updated = await setEventAttendance(token, event.id, status, event.ownerId)
+      const updated = await setEventAttendance(event.id, status, event.ownerId)
       onAttendance(updated)
       // « Arrivé » → création du candidat pré-rempli puis redirection vers sa fiche.
       if (status === 'arrived') onArrived(updated)
@@ -981,8 +977,8 @@ function EventModal({ event, token, isOwn, ownerName, onClose, onEdit, onAttenda
   )
 }
 
-function EventForm({ token, event, ownerId, users, selfId, defaultStart, defaultEnd, onClose, onSaved }: {
-  token: string; event?: CalendarEvent; ownerId?: number
+function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, onClose, onSaved }: {
+  event?: CalendarEvent; ownerId?: number
   users: CalendarUser[]; selfId: number
   defaultStart?: Date; defaultEnd?: Date
   onClose: () => void; onSaved: () => void
@@ -1035,7 +1031,7 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setErr('Renseignez l\'email du candidat ci-dessus'); return }
     setBusy(true)
     try {
-      const settings = await fetchMyBookingSettings(token)
+      const settings = await fetchMyBookingSettings()
       if (!settings.enabled) {
         setErr('Activez d\'abord votre page de réservation (bouton Partager).'); setBusy(false); return
       }
@@ -1069,9 +1065,9 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
         html += `<br/><img src="${signatureImage}" alt="signature" style="width:100%;max-width:480px;height:auto"/>`
       }
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
+      const res = await apiFetch('/api/email/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: email, subject, body: html }),
       })
       const data = await res.json().catch(() => ({}))
@@ -1108,8 +1104,8 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
       // ownerId omis (undefined) quand c'est son propre agenda → route par défaut sur soi.
       const owner = (isEdit ? ownerId : targetId)
       const ownerArg = owner != null && owner !== selfId ? owner : undefined
-      if (isEdit && event) await updateCalendarEvent(token, event.id, input, ownerArg)
-      else await createCalendarEvent(token, input, ownerArg)
+      if (isEdit && event) await updateCalendarEvent(event.id, input, ownerArg)
+      else await createCalendarEvent(input, ownerArg)
       onSaved()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false)
@@ -1119,7 +1115,7 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
   const remove = async () => {
     if (!event || !confirm('Supprimer ce créneau ?')) return
     setBusy(true); setErr(null)
-    try { await deleteCalendarEvent(token, event.id, ownerId != null && ownerId !== selfId ? ownerId : undefined); onSaved() }
+    try { await deleteCalendarEvent(event.id, ownerId != null && ownerId !== selfId ? ownerId : undefined); onSaved() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false) }
   }
 
@@ -1163,7 +1159,7 @@ function EventForm({ token, event, ownerId, users, selfId, defaultStart, default
             <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-lg border border-gray-200 px-2 py-2 text-[13px] outline-none focus:border-purple" />
           </div>
 
-          <LocationPicker token={token} value={location} onChange={setLocation} autoDefault={!isEdit} />
+          <LocationPicker value={location} onChange={setLocation} autoDefault={!isEdit} />
 
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
             <Mail size={15} className="flex-shrink-0 text-gray-400" />

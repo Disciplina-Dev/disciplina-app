@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL;
+import { apiFetch } from '@/api/httpClient';
 
 export type KpiSite = 'NORD' | 'OUEST' | 'SUD';
 export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
@@ -124,14 +124,8 @@ export interface KpiSelectableUser {
   role: string;
 }
 
-async function kpiFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${API_BASE}/api/kpi${path}`, {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+async function kpiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const res = await apiFetch(`/api/kpi${path}`, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Requête KPI échouée (${res.status})`);
@@ -139,65 +133,65 @@ async function kpiFetch(token: string, path: string, init?: RequestInit): Promis
   return res;
 }
 
-export async function fetchKpiUsers(token: string): Promise<KpiSelectableUser[]> {
-  const res = await kpiFetch(token, '/users');
+export async function fetchKpiUsers(): Promise<KpiSelectableUser[]> {
+  const res = await kpiFetch('/users');
   const data = (await res.json()) as { users: KpiSelectableUser[] };
   return data.users;
 }
 
-export async function fetchKpiYears(token: string): Promise<number[]> {
-  const res = await kpiFetch(token, '/years');
+export async function fetchKpiYears(): Promise<number[]> {
+  const res = await kpiFetch('/years');
   const data = (await res.json()) as { years: number[] };
   return data.years;
 }
 
-export async function fetchKpiSummary(token: string, year: number, site: KpiSite): Promise<KpiAnnualSummary> {
-  const res = await kpiFetch(token, `/summary?year=${year}&site=${site}`);
+export async function fetchKpiSummary(year: number, site: KpiSite): Promise<KpiAnnualSummary> {
+  const res = await kpiFetch(`/summary?year=${year}&site=${site}`);
   return (await res.json()) as KpiAnnualSummary;
 }
 
-export async function fetchKpiWeekly(token: string, year: number, site: KpiSite): Promise<KpiWeeklyDetail> {
-  const res = await kpiFetch(token, `/weekly?year=${year}&site=${site}`);
+export async function fetchKpiWeekly(year: number, site: KpiSite): Promise<KpiWeeklyDetail> {
+  const res = await kpiFetch(`/weekly?year=${year}&site=${site}`);
   return (await res.json()) as KpiWeeklyDetail;
 }
 
-export async function fetchKpiActivity(token: string, year: number, site: KpiSite): Promise<KpiActivity> {
-  const res = await kpiFetch(token, `/activity?year=${year}&site=${site}`);
+export async function fetchKpiActivity(year: number, site: KpiSite): Promise<KpiActivity> {
+  const res = await kpiFetch(`/activity?year=${year}&site=${site}`);
   return (await res.json()) as KpiActivity;
 }
 
-export async function fetchKpiCombined(token: string, year: number, site: KpiSite): Promise<KpiActivity> {
-  const res = await kpiFetch(token, `/combined?year=${year}&site=${site}`);
+export async function fetchKpiCombined(year: number, site: KpiSite): Promise<KpiActivity> {
+  const res = await kpiFetch(`/combined?year=${year}&site=${site}`);
   return (await res.json()) as KpiActivity;
 }
 
-export async function fetchKpiLive(token: string): Promise<KpiLiveSnapshot> {
-  const res = await kpiFetch(token, '/live');
+export async function fetchKpiLive(): Promise<KpiLiveSnapshot> {
+  const res = await kpiFetch('/live');
   return (await res.json()) as KpiLiveSnapshot;
 }
 
-export async function fetchKpiOverview(token: string, year: number): Promise<KpiOverview> {
-  const res = await kpiFetch(token, `/overview?year=${year}`);
+export async function fetchKpiOverview(year: number): Promise<KpiOverview> {
+  const res = await kpiFetch(`/overview?year=${year}`);
   return (await res.json()) as KpiOverview;
 }
 
-export async function fetchKpiUserDetail(token: string, userId: number, year: number): Promise<KpiUserDetail> {
-  const res = await kpiFetch(token, `/user/${userId}?year=${year}`);
+export async function fetchKpiUserDetail(userId: number, year: number): Promise<KpiUserDetail> {
+  const res = await kpiFetch(`/user/${userId}?year=${year}`);
   return (await res.json()) as KpiUserDetail;
 }
 
-export async function saveKpi(token: string, input: KpiUpsertInput): Promise<void> {
-  await kpiFetch(token, '/', {
+export async function saveKpi(input: KpiUpsertInput): Promise<void> {
+  await kpiFetch('/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
 }
 
-export async function importKpiExcel(token: string, file: File, site: KpiSite): Promise<KpiImportResult> {
+export async function importKpiExcel(file: File, site: KpiSite): Promise<KpiImportResult> {
   const form = new FormData();
   form.append('file', file);
   form.append('site', site);
-  const res = await kpiFetch(token, '/import', { method: 'POST', body: form });
+  const res = await kpiFetch('/import', { method: 'POST', body: form });
   return (await res.json()) as KpiImportResult;
 }

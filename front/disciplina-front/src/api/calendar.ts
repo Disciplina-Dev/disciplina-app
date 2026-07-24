@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL;
+import { apiFetch } from '@/api/httpClient';
 
 export interface CalendarEvent {
   id: string;
@@ -94,13 +94,12 @@ export function ownerColor(userId: number): string {
 
 export class CalendarNotConnectedError extends Error {}
 
-async function calFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${API_BASE}/api/calendar${path}`, {
+async function calFetch(path: string, init?: RequestInit): Promise<Response> {
+  const res = await apiFetch(`/api/calendar${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
-      Authorization: `Bearer ${token}`,
     },
   });
   if (res.status === 409) throw new CalendarNotConnectedError('Google Calendar non connecté');
@@ -111,20 +110,19 @@ async function calFetch(token: string, path: string, init?: RequestInit): Promis
   return res;
 }
 
-export async function fetchCalendarUsers(token: string): Promise<CalendarUser[]> {
-  const res = await calFetch(token, '/users');
+export async function fetchCalendarUsers(): Promise<CalendarUser[]> {
+  const res = await calFetch('/users');
   return ((await res.json()) as { users: CalendarUser[] }).users;
 }
 
 export async function fetchCalendarEvents(
-  token: string,
   timeMin: Date,
   timeMax: Date,
   userId?: number,
 ): Promise<CalendarEvent[]> {
   const params = new URLSearchParams({ timeMin: timeMin.toISOString(), timeMax: timeMax.toISOString() });
   if (userId != null) params.set('userId', String(userId));
-  const res = await calFetch(token, `/events?${params}`);
+  const res = await calFetch(`/events?${params}`);
   const data = (await res.json()) as { events: CalendarEvent[] };
   return data.events;
 }
@@ -134,22 +132,22 @@ function ownerQuery(ownerId?: number): string {
   return ownerId != null ? `?userId=${ownerId}` : '';
 }
 
-export async function createCalendarEvent(token: string, input: CalendarEventInput, ownerId?: number): Promise<CalendarEvent> {
-  const res = await calFetch(token, `/events${ownerQuery(ownerId)}`, { method: 'POST', body: JSON.stringify(input) });
+export async function createCalendarEvent(input: CalendarEventInput, ownerId?: number): Promise<CalendarEvent> {
+  const res = await calFetch(`/events${ownerQuery(ownerId)}`, { method: 'POST', body: JSON.stringify(input) });
   return ((await res.json()) as { event: CalendarEvent }).event;
 }
 
-export async function updateCalendarEvent(token: string, id: string, input: CalendarEventInput, ownerId?: number): Promise<CalendarEvent> {
-  const res = await calFetch(token, `/events/${id}${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify(input) });
+export async function updateCalendarEvent(id: string, input: CalendarEventInput, ownerId?: number): Promise<CalendarEvent> {
+  const res = await calFetch(`/events/${id}${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify(input) });
   return ((await res.json()) as { event: CalendarEvent }).event;
 }
 
-export async function deleteCalendarEvent(token: string, id: string, ownerId?: number): Promise<void> {
-  await calFetch(token, `/events/${id}${ownerQuery(ownerId)}`, { method: 'DELETE' });
+export async function deleteCalendarEvent(id: string, ownerId?: number): Promise<void> {
+  await calFetch(`/events/${id}${ownerQuery(ownerId)}`, { method: 'DELETE' });
 }
 
 /** Marque la présence de l'invité. 'noshow' déclenche un mail de relance avec le lien de réservation. */
-export async function setEventAttendance(token: string, id: string, status: Attendance, ownerId?: number): Promise<CalendarEvent> {
-  const res = await calFetch(token, `/events/${id}/attendance${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export async function setEventAttendance(id: string, status: Attendance, ownerId?: number): Promise<CalendarEvent> {
+  const res = await calFetch(`/events/${id}/attendance${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
   return ((await res.json()) as { event: CalendarEvent }).event;
 }
