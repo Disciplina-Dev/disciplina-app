@@ -23,6 +23,7 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 const PROPOSED_STATUSES = [
     MatchedCandidateStatus.SEND,
     MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
 ];
@@ -493,7 +494,9 @@ export class OfferService {
             offerId,
             candidateId,
             conclusion,
-            conclusion === ImmersionConclusion.REJECTED ? MatchedCandidateStatus.REFUSED : undefined,
+            conclusion === ImmersionConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
+            conclusion === ImmersionConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
+            undefined,
         );
         if (!updated) return null;
 

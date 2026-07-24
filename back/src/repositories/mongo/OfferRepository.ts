@@ -171,7 +171,7 @@ export class OfferRepository {
         return OfferModel.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: update },
-            { new: true },
+            { returnDocument: 'after' },
         ).lean();
     }
 
@@ -186,7 +186,7 @@ export class OfferRepository {
         return OfferModel.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: update },
-            { new: true },
+            { returnDocument: 'after' },
         ).lean();
     }
 
