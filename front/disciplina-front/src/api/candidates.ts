@@ -1,3 +1,5 @@
+import { apiFetch } from '@/api/httpClient';
+
 const API_BASE = import.meta.env.VITE_API_URL;
 
 /**
@@ -5,16 +7,14 @@ const API_BASE = import.meta.env.VITE_API_URL;
  * Returns the new avatarUpdatedAt timestamp on success.
  */
 export async function uploadCandidateAvatar(
-  token: string,
   candidateId: string,
   photo: Blob,
 ): Promise<string> {
   const form = new FormData();
   form.append('photo', photo, 'avatar.jpg');
 
-  const res = await fetch(`${API_BASE}/api/candidates/${candidateId}/avatar`, {
+  const res = await apiFetch(`/api/candidates/${candidateId}/avatar`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
 

@@ -1,20 +1,11 @@
 import type { ClassMarkerLink, ClassMarkerResult } from '@/types/classmarker';
 import { TitleProfessionalType } from '@/types/candidate';
+import { apiFetch } from '@/api/httpClient';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-async function authedFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-}
-
-export async function fetchClassMarkerLinks(token: string): Promise<ClassMarkerLink[]> {
-  const res = await authedFetch(token, '/api/classmarker/links');
+export async function fetchClassMarkerLinks(): Promise<ClassMarkerLink[]> {
+  const res = await apiFetch('/api/classmarker/links');
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `ClassMarker fetch failed (${res.status})`);
@@ -41,26 +32,24 @@ export interface ClassMarkerResultBundle {
 }
 
 export async function fetchClassMarkerResult(
-  token: string,
   candidateId: string
 ): Promise<ClassMarkerResultBundle | null> {
-  const res = await authedFetch(token, `/api/webhooks/classmarker/result/${encodeURIComponent(candidateId)}`);
+  const res = await apiFetch(`/api/webhooks/classmarker/result/${encodeURIComponent(candidateId)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Result fetch failed (${res.status})`);
   const data = (await res.json()) as { result: ClassMarkerResult | null; history?: ClassMarkerResult[] };
   return { result: data.result ?? null, history: data.history ?? [] };
 }
 
-export function classMarkerStreamUrl(candidateId: string, token: string): string {
-  const query = `candidateId=${encodeURIComponent(candidateId)}&token=${encodeURIComponent(token)}`;
-  return `${API_BASE}/api/webhooks/classmarker/stream?${query}`;
+/** Cookie httpOnly envoyé automatiquement par le navigateur : le caller doit ouvrir l'EventSource avec `withCredentials: true`. */
+export function classMarkerStreamUrl(candidateId: string): string {
+  return `${API_BASE}/api/webhooks/classmarker/stream?candidateId=${encodeURIComponent(candidateId)}`;
 }
 
 export async function quickCreateCandidate(
-  token: string,
   body: QuickCreateBody
 ): Promise<QuickCreateResult> {
-  const res = await authedFetch(token, '/api/candidates/quick-create', {
+  const res = await apiFetch('/api/candidates/quick-create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

@@ -23,6 +23,7 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 const PROPOSED_STATUSES = [
     MatchedCandidateStatus.SEND,
     MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
 ];
@@ -175,6 +176,7 @@ export class OfferService {
         if (!offer) return null;
 
         const filter: Record<string, any> = {};
+        filter['status'] = { $ne: CandidateStatus.CONTRACT };
 
         if (offer.tp_type) filter['tp_type'] = offer.tp_type;
         if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
@@ -442,12 +444,18 @@ export class OfferService {
             throw new Error("Les dates d'immersion sont requises pour cette conclusion");
         }
 
+        const status =
+            conclusion === InterviewConclusion.IMMERSING ? MatchedCandidateStatus.IMMERSING :
+            conclusion === InterviewConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
+            conclusion === InterviewConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
+            undefined;
         const updated = await this.offerRepository.setProposedCandidateConclusion(
             offerId,
             candidateId,
             conclusion,
             immersionStartDate,
             immersionEndDate,
+            status,
         );
         if (!updated) return null;
 
@@ -487,6 +495,9 @@ export class OfferService {
             offerId,
             candidateId,
             conclusion,
+            conclusion === ImmersionConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
+            conclusion === ImmersionConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
+            undefined,
         );
         if (!updated) return null;
 

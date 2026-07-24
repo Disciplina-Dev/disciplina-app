@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import { Upload } from 'lucide-react'
 
 import { importKpiExcel, type KpiImportResult, type KpiSite } from '@/api/kpi'
-import { useAuthStore } from '@/store/authStore'
 
 interface Props {
   site: KpiSite
@@ -12,15 +11,14 @@ interface Props {
 
 /** Import du fichier Excel « Suivi commercial » (feuilles C.R Mois). */
 export default function KpiImportButton({ site, onImported, onError }: Props) {
-  const token = useAuthStore((s) => s.token)
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
   const handleFile = async (file: File | undefined) => {
-    if (!file || !token) return
+    if (!file) return
     setUploading(true)
     try {
-      onImported(await importKpiExcel(token, file, site))
+      onImported(await importKpiExcel(file, site))
     } catch (err) {
       onError(err instanceof Error ? err.message : "Échec de l'import Excel")
     } finally {

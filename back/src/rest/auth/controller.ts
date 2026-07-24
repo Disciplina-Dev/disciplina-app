@@ -8,6 +8,9 @@ import { toUserResponse, toDirectoryEntry } from '../../services/mappers/user.ma
 import { sanitizeSectors } from '../../utils/sector';
 import { isValidEmail } from '../../services/validation';
 import { JobRole, Permission } from '../../types/user.types';
+import { setAuthCookies, clearAuthCookies } from '../middleware/cookies';
+import { issueCsrfCookie } from '../middleware/csrf';
+import { REFRESH_TOKEN_COOKIE } from '../middleware/tokenAuth';
 
 const userService = new UserService();
 
@@ -75,10 +78,54 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
             return;
         }
         const result = await userService.login(email, passwordPlain);
-        res.json({ token: result.token, user: toUserResponse(result.user) });
+        setAuthCookies(res, result.accessToken, result.refreshToken, issueCsrfCookie());
+        res.json({ user: toUserResponse(result.user) });
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: login failed');
         res.status(401).json({ error: error.message || 'Invalid credentials' });
+    }
+}
+
+export async function me(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const user = await userService.findById(req.user.id);
+        if (!user) {
+            res.status(401).json({ error: 'User not found' });
+            return;
+        }
+        res.json(toUserResponse(user));
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: me failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+}
+
+export async function refresh(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const refreshTokenRaw = req.cookies?.[REFRESH_TOKEN_COOKIE];
+        const result = refreshTokenRaw ? await userService.refreshAccessToken(refreshTokenRaw) : null;
+        if (!result) {
+            clearAuthCookies(res);
+            res.status(401).json({ error: 'Invalid or expired session' });
+            return;
+        }
+        setAuthCookies(res, result.accessToken, result.refreshToken, issueCsrfCookie());
+        res.json({ user: toUserResponse(result.user) });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: refresh failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+}
+
+export async function logout(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const refreshTokenRaw = req.cookies?.[REFRESH_TOKEN_COOKIE];
+        if (refreshTokenRaw) await userService.logout(refreshTokenRaw);
+        clearAuthCookies(res);
+        res.json({ message: 'Logged out' });
+    } catch (error: any) {
+        logger.error({ err: error }, 'Auth: logout failed');
+        res.status(500).json({ error: 'Internal error' });
     }
 }
 

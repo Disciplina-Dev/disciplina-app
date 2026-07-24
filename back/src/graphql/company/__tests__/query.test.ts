@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
@@ -15,13 +15,14 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns an empty list when no companies exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: '{ companies { edges { node { company { id name } salePerson { id email } } cursor } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
@@ -35,7 +36,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns all seeded companies with camelCase fields', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -63,7 +64,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: '{ companies { edges { node { company { id name siret mainActivity userID } salePerson { id } } cursor } pageInfo { hasNextPage } } }',
@@ -82,7 +84,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns companies with associated salePerson', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -112,7 +114,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: '{ companies { edges { node { company { id name userID } salePerson { id email firstName lastName } } cursor } pageInfo { hasNextPage } } }',
@@ -130,7 +133,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('paginates companies with first and after', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -148,7 +151,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: '{ companies(first: 2) { edges { cursor node { company { id name } } } pageInfo { hasNextPage endCursor } } }',
@@ -164,7 +168,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($after: String!) { companies(first: 2, after: $after) { edges { node { company { id name } } } pageInfo { hasNextPage } } }`,
@@ -179,7 +184,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns all sale persons', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const conn = await pool.getConnection();
@@ -209,7 +214,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({ query: '{ salePersons { id email firstName lastName } }' }),
         });
@@ -223,7 +229,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns a sale person by id', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
 
         const conn = await pool.getConnection();
@@ -242,7 +248,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($id: Int!) { salePerson(id: $id) { id email firstName lastName } }`,
@@ -260,13 +267,14 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns null for a non-existent sale person id', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($id: Int!) { salePerson(id: $id) { id } }`,
@@ -281,7 +289,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns companies filtered by commercial', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -326,7 +334,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($userID: Int!) { companyByCommercial(userID: $userID) { company { id name } salePerson { id } } }`,
@@ -342,7 +351,7 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns a company by siret', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -360,7 +369,8 @@ describe('GraphQL company queries', () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($siret: String!) { companyBySiret(siret: $siret) { id name siret userID } }`,
@@ -377,13 +387,14 @@ describe('GraphQL company queries', () => {
     });
 
     it('returns null for a non-existent siret', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
                 query: `query($siret: String!) { companyBySiret(siret: $siret) { id } }`,
@@ -417,7 +428,7 @@ describe('companyStats', () => {
     });
 
     it('returns counts by status and year', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -449,7 +460,7 @@ describe('companyStats', () => {
         const year = new Date().getFullYear();
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($year: Int!) { companyStats(year: $year) { current { status count } byPeriod { status count } years } }`,
                 variables: { year },
@@ -469,11 +480,11 @@ describe('companyStats', () => {
     });
 
     it('errors on an invalid year', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($year: Int!) { companyStats(year: $year) { current { status count } } }`,
                 variables: { year: 1900 },
@@ -493,7 +504,7 @@ describe('companyHistory', () => {
     });
 
     it('returns history entries created on each update', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -508,7 +519,7 @@ describe('companyHistory', () => {
 
         const updateRes = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `mutation($id: Int!, $input: CompanyInput!) { updateCompany(id: $id, input: $input) { id } }`,
                 variables: { id, input: { name: `History Corp Updated ${suffix}` } },
@@ -518,7 +529,7 @@ describe('companyHistory', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($companyID: Int!) { companyHistory(companyID: $companyID) { id companyID updatedColumn status } }`,
                 variables: { companyID: id },
@@ -534,7 +545,7 @@ describe('companyHistory', () => {
     });
 
     it('returns an empty array when no updates were made', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const repo = new CompanyRepository();
 
@@ -549,7 +560,7 @@ describe('companyHistory', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($companyID: Int!) { companyHistory(companyID: $companyID) { id } }`,
                 variables: { companyID: id },
@@ -563,11 +574,11 @@ describe('companyHistory', () => {
     });
 
     it('errors when the company does not exist', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($companyID: Int!) { companyHistory(companyID: $companyID) { id } }`,
                 variables: { companyID: 99999 },
@@ -587,7 +598,7 @@ describe('blacklistedCompanies', () => {
     });
 
     it('returns blacklisted companies paginated', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const blacklistRepo = new CompanyBlacklistRepository();
 
@@ -610,7 +621,7 @@ describe('blacklistedCompanies', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `{ blacklistedCompanies { edges { node { id name siret allBlacklist } } pageInfo { hasNextPage } } }`,
             }),
@@ -629,7 +640,7 @@ describe('blacklistedCompanies', () => {
     });
 
     it('filters by search term', async () => {
-        const token = mintToken({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
         const suffix = Date.now();
         const blacklistRepo = new CompanyBlacklistRepository();
 
@@ -652,7 +663,7 @@ describe('blacklistedCompanies', () => {
 
         const res = await fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
             body: JSON.stringify({
                 query: `query($search: String) { blacklistedCompanies(search: $search) { edges { node { name } } } }`,
                 variables: { search: `SearchMe-${suffix}` },

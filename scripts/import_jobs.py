@@ -6,8 +6,9 @@ Each CSV row becomes one offer per desired TP (Formation split on '/'), and the
 candidates to populate matching.candidates[]. Unmatched/ambiguous names and unknown
 localisations are collected into a JSON report under scripts/backups/.
 
-Offers are upserted by (company_infos.name, tp_type, localisation[0]) so the
-script is idempotent — re-runs update existing offers instead of duplicating them.
+Offers are always upserted by (company_infos.name, tp_type[, localisation[0]]) so the
+script is idempotent — re-runs update existing offers instead of duplicating them, even
+for rows whose localisation could not be resolved.
 """
 
 import argparse
@@ -137,9 +138,6 @@ def upsert_offer(collection, doc):
     name = doc.get("company_infos", {}).get("name")
     tp = doc.get("tp_type")
     loc = doc.get("localisation", [])
-    if not name or not tp or not loc:
-        collection.insert_one(doc)
-        return
 
     doc_id = doc.pop("_id", None)
     created_at = doc.pop("created_at", None)
@@ -157,7 +155,9 @@ def upsert_offer(collection, doc):
     if matching:
         set_on_insert["matching"] = matching
 
-    filter_ = {"company_infos.name": name, "tp_type": tp, "localisation.0": loc[0]}
+    filter_ = {"company_infos.name": name, "tp_type": tp}
+    if loc:
+        filter_["localisation.0"] = loc[0]
     update = {"$set": doc}
     if updated_at:
         update["$set"]["updated_at"] = updated_at

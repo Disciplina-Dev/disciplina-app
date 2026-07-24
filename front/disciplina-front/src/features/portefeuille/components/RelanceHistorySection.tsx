@@ -2,23 +2,21 @@ import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Mail, Phone, History } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
 import { getCompanyRelanceHistory, type RelanceHistoryEntry } from '@/api/relance'
 import { getRelanceType } from '@/types/relance'
 
 // Historique des relances d'une entreprise (mail : objet ; téléphone : résumé).
 export default function RelanceHistorySection({ companyId }: { companyId: number }) {
-  const token = useAuthStore((s) => s.token) ?? ''
   const [entries, setEntries] = useState<RelanceHistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    getCompanyRelanceHistory(token, companyId)
+    getCompanyRelanceHistory(companyId)
       .then((rows) => { if (!cancelled) setEntries(rows) })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Erreur') })
     return () => { cancelled = true }
-  }, [token, companyId])
+  }, [companyId])
 
   return (
     <div className="flex flex-col gap-3">

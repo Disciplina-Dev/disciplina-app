@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiFetch } from '@/api/httpClient'
 
 export type RelanceChannel = 'PHONE' | 'MAIL'
 
@@ -28,20 +28,19 @@ interface SendMailPayload {
   typeRelance?: number | null
 }
 
-async function relanceFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${API_BASE}/api/relance${path}`, {
+async function relanceFetch(path: string, init?: RequestInit): Promise<Response> {
+  return apiFetch(`/api/relance${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
       ...(init?.headers ?? {}),
     },
   })
 }
 
 /** Envoie la relance mail (envoi réel), historise et retire l'entreprise de la liste. */
-export async function sendCompanyMailRelance(token: string, companyId: number, payload: SendMailPayload): Promise<void> {
-  const res = await relanceFetch(token, `/company/${companyId}/mail`, {
+export async function sendCompanyMailRelance(companyId: number, payload: SendMailPayload): Promise<void> {
+  const res = await relanceFetch(`/company/${companyId}/mail`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -53,11 +52,10 @@ export async function sendCompanyMailRelance(token: string, companyId: number, p
 
 /** Marque une relance téléphonique comme faite (résumé d'appel), historise et retire l'entreprise. */
 export async function completePhoneRelance(
-  token: string,
   companyId: number,
   payload: { note: string; typeRelance?: number | null },
 ): Promise<void> {
-  const res = await relanceFetch(token, `/company/${companyId}/phone`, {
+  const res = await relanceFetch(`/company/${companyId}/phone`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -67,8 +65,8 @@ export async function completePhoneRelance(
   }
 }
 
-export async function getCompanyRelanceHistory(token: string, companyId: number): Promise<RelanceHistoryEntry[]> {
-  const res = await relanceFetch(token, `/company/${companyId}/history`)
+export async function getCompanyRelanceHistory(companyId: number): Promise<RelanceHistoryEntry[]> {
+  const res = await relanceFetch(`/company/${companyId}/history`)
   if (!res.ok) throw new Error(`Chargement de l'historique échoué (${res.status})`)
   return res.json()
 }

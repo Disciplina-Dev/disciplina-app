@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
-
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiFetch } from '@/api/httpClient'
 
 export function useGoogleOAuthPopup() {
   const [isLoading, setIsLoading] = useState(false)
@@ -27,17 +26,9 @@ export function useGoogleOAuthPopup() {
     setError(null)
 
     try {
-      const token = useAuthStore.getState().token
-      if (!token) {
-        throw new Error('Vous devez être connecté')
-      }
-
-      const uriRes = await fetch(`${API_BASE}/api/auth/google/uri`, {
+      const uriRes = await apiFetch('/api/auth/google/uri', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: userId ? JSON.stringify({ userId }) : undefined,
       })
       const uriData = await uriRes.json()
@@ -90,7 +81,7 @@ export function useGoogleOAuthPopup() {
         window.addEventListener('message', handler)
       })
 
-      const tokenRes = await fetch(`${API_BASE}/api/auth/google/token`, {
+      const tokenRes = await apiFetch('/api/auth/google/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: result.code, state: result.state }),

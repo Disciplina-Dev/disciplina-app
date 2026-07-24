@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from '../../../config/env';
-import { mintToken } from '../../../../test/helpers/auth';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 
 const URL = `http://localhost:${env.API_PORT}/api/candidates/000000000000000000000000/avatar`;
 
@@ -18,10 +18,17 @@ const WEBP = Buffer.concat([
 function upload(bytes: Buffer, filename: string, declaredType: string) {
     const form = new FormData();
     form.append('photo', new Blob([bytes], { type: declaredType }), filename);
+    const { cookieHeader, csrfHeader } = mintAuthCookies({
+        id: 1,
+        email: 'rh@test.com',
+        role: 'RH',
+        permission: 'EMPLOYEE',
+    });
     return fetch(URL, {
         method: 'POST',
         headers: {
-            Authorization: `Bearer ${mintToken({ id: 1, email: 'rh@test.com', role: 'RH', permission: 'EMPLOYEE' })}`,
+            Cookie: cookieHeader,
+            'x-csrf-token': csrfHeader,
         },
         body: form,
     });

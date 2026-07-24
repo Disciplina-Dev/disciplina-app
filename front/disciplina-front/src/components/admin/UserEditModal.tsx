@@ -3,8 +3,9 @@ import { X, Shield, User as UserIcon, Mail, MapPin, Loader2 } from 'lucide-react
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
-import { Permission, useAuthStore } from '@/store/authStore'
+import { Permission } from '@/store/authStore'
 import { SECTEUR_VALUES } from '@/types/entreprise'
+import { apiJson } from '@/api/httpClient'
 
 export interface ManagedUser {
   id: number
@@ -38,7 +39,6 @@ interface Props {
 }
 
 export default function UserEditModal({ user, onClose, onSaved }: Props) {
-  const token = useAuthStore((s) => s.token)
   const [firstName, setFirstName] = useState(user.firstName)
   const [lastName, setLastName] = useState(user.lastName)
   const [email, setEmail] = useState(user.email)
@@ -72,12 +72,9 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/users/${user.id}`, {
+      const data = await apiJson<ManagedUser>(`/api/auth/users/${user.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
@@ -88,8 +85,6 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
           ...(password ? { passwordPlain: password } : {}),
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Échec de la mise à jour')
       onSaved({
         id: data.id,
         email: data.email,

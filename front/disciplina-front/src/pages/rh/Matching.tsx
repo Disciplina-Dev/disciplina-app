@@ -37,7 +37,9 @@ import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
-import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
+import { useCurrentUser, Permission } from '@/store/authStore'
+import { apiFetch } from '@/api/httpClient'
+import { CSRF_HEADER, getCsrfCookie } from '@/lib/csrf'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { JobFilters } from '@/features/matching/components/JobFilters'
 import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
@@ -1474,8 +1476,6 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
       ? `Commune ${interviewLocationNeedsAnalysis.data.needsAnalysis.companyInfos.postalCode}`
       : '')
 
-  const token = useAuthStore((s) => s.token)
-
   useEffect(() => {
     if (abEditOpen && needsAnalysisData?.companyInfos?.siret) {
       searchAbCompanyBySiret(needsAnalysisData.companyInfos.siret)
@@ -1494,6 +1494,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   ]
   const alreadySentStatuses: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.REFUSED,
+    MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
     MatchedCandidateStatus.IMMERSING,
   ]
@@ -1603,9 +1604,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           const { ouiUrl, nonUrl } = linksResult.data.offerResponseLinks
           const subject = `DISCIPLINA – Offre en alternance`
           const body = buildOfferMailBody(candidate.fullName, jobData, ouiUrl, nonUrl)
-          await fetch(`${import.meta.env.VITE_API_URL}/api/email/send`, {
+          await apiFetch('/api/email/send', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ to: candidate.email, subject, body }),
           })
           await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }).toPromise()
@@ -1945,9 +1946,22 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const preselectedCandidates = filterByStatus(jobData.matchedCandidate, preselectedStatuses)
   const toSendCandidates = filterByStatus(jobData.matchedCandidate, toSendStatuses)
   const alreadySentCandidates = filterByStatus(jobData.matchedCandidate, alreadySentStatuses)
+  const contractCandidates = filterByStatus(jobData.matchedCandidate, [MatchedCandidateStatus.CONTRACT])
 
   return (
     <div className="flex flex-col gap-4 pb-6">
+
+      {contractCandidates.length > 0 && (
+        <div className="rounded-xl border border-success/20 bg-success-bg p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <UserCheck size={16} className="text-success" />
+            <p className="text-sm font-semibold text-success">
+              En contrat avec {contractCandidates.map((c) => c.fullName).join(', ')}
+            </p>
+          </div>
+        </div>
+      )}
+
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
@@ -2313,8 +2327,6 @@ function CompanySearchModal({ open, onClose, currentUser }: { open: boolean; onC
   const companies = usePortefeuilleStore((s) => s.companies)
   const salePersons = usePortefeuilleStore((s) => s.salePersons)
   const setSalePersons = usePortefeuilleStore((s) => s.setSalePersons)
-  const token = useAuthStore((s) => s.token)
-
   const [spResult] = useQuery({ query: GET_SALE_PERSONS, pause: salePersons.length > 0 })
   useEffect(() => {
     if (spResult.data?.salePersons) {
@@ -2342,9 +2354,7 @@ function CompanySearchModal({ open, onClose, currentUser }: { open: boolean; onC
     }
     setSiretStatus('loading'); setSiretError('')
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/sourcing/${siret}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await apiFetch(`/api/sourcing/${siret}`)
       if (res.status === 404) {
         setSiretError('SIRET introuvable dans le registre INSEE'); setSiretStatus('error')
         return
@@ -2371,7 +2381,7 @@ function CompanySearchModal({ open, onClose, currentUser }: { open: boolean; onC
       const msg = err instanceof Error ? err.message : 'Erreur lors de la recherche'
       setSiretError(msg); setSiretStatus('error')
     }
-  }, [siret, token, findAutoOwner, currentUser])
+  }, [siret, findAutoOwner, currentUser])
 
   const handleCreate = useCallback(async () => {
     if (!siretData) return
@@ -2595,12 +2605,14 @@ export default function Matching() {
 
   const [showCompanySearch, setShowCompanySearch] = useState(false)
 
-  const token = useAuthStore((s) => s.token)
   const [jobsResult, reexecuteJobsQuery] = useQuery({
     query: GET_OFFERS,
     context: {
       url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
-      fetchOptions: { headers: { Authorization: `Bearer ${token}` } },
+      fetchOptions: {
+        credentials: 'include' as const,
+        headers: getCsrfCookie() ? { [CSRF_HEADER]: getCsrfCookie() as string } : {},
+      },
     },
   })
 

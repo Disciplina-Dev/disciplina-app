@@ -6,9 +6,10 @@ import { useNavigate } from 'react-router-dom'
 import type { Entreprise } from '@/types/entreprise'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio } from '@/graphql/useInitializePortfolio'
-import { useAuthStore, useCurrentUser } from '@/store/authStore'
+import { useCurrentUser } from '@/store/authStore'
 import { getRelanceType, RELANCE_TYPES } from '@/types/relance'
 import { sendCompanyMailRelance } from '@/api/relance'
+import { apiJson } from '@/api/httpClient'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { cleanHtml } from '@/services/sanitizeHtml'
 import { toSlug } from '@/utils/slug'
@@ -46,7 +47,6 @@ export default function RelanceCommercial() {
   const companies = usePortefeuilleStore((s) => s.companies)
   const salePersons = usePortefeuilleStore((s) => s.salePersons)
   const clearCompanyRelance = usePortefeuilleStore((s) => s.updateCompany)
-  const token = useAuthStore((s) => s.token) ?? ''
   const currentUser = useCurrentUser()
 
   // Par défaut on ne voit que ses propres relances ; null = tous les commerciaux.
@@ -154,7 +154,7 @@ export default function RelanceCommercial() {
   }
 
   async function sendMailRelance(ent: Entreprise, mail: { to: string; subject: string; body: string; attachments: { filename: string; contentType: string; content: string }[] }) {
-    await sendCompanyMailRelance(token, Number(ent.id), {
+    await sendCompanyMailRelance(Number(ent.id), {
       to: mail.to,
       subject: mail.subject,
       html: mail.body,
@@ -176,16 +176,11 @@ export default function RelanceCommercial() {
       const body = sendMode === 'all'
         ? JSON.stringify({ all: true, templateId: selectedTemplateId })
         : JSON.stringify({ ids: manuallySelected.map((c) => Number(c.id)).filter((n) => !Number.isNaN(n)), templateId: selectedTemplateId })
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/relance/company/bulk`, {
+      const data = await apiJson<{ message: string }>('/api/relance/company/bulk', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erreur serveur')
       setBulkResult(data)
       setManuallySelected([])
       setSearchTerm('')

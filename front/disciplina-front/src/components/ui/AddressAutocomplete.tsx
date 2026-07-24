@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { apiJson } from '@/api/httpClient';
 
 interface AddressAutocompleteProps {
   label: string;
@@ -11,7 +11,6 @@ interface AddressAutocompleteProps {
 }
 
 export function AddressAutocomplete({ label, id, value, onChange, apiEndpoint, placeholder }: AddressAutocompleteProps) {
-  const token = useAuthStore((s) => s.token);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,7 +31,7 @@ export function AddressAutocomplete({ label, id, value, onChange, apiEndpoint, p
     onChange(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (!v.trim() || !token) {
+    if (!v.trim()) {
       setSuggestions([]);
       setOpen(false);
       return;
@@ -41,11 +40,7 @@ export function AddressAutocomplete({ label, id, value, onChange, apiEndpoint, p
     debounceRef.current = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ input: v });
-        const url = `${import.meta.env.VITE_API_URL}${apiEndpoint}?${params}`;
-        const response = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await response.json() as { status: string; results: string[] };
+        const data = await apiJson<{ status: string; results: string[] }>(`${apiEndpoint}?${params}`);
         if (data.status === 'OK' && data.results.length > 0) {
           setSuggestions(data.results);
           setOpen(true);

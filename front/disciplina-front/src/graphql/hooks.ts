@@ -34,7 +34,7 @@ import {
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
-import { useAuthStore } from '@/store/authStore'
+import { apiJson } from '@/api/httpClient'
 import type { PageInfo } from '@/types/pagination'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
 
@@ -825,27 +825,22 @@ export function useDeleteCandidate() {
 }
 
 export function useFilizDegrees() {
-  const token = useAuthStore((s) => s.token)
   const [degrees, setDegrees] = useState<{ degreeId: string; degreeType: string; exactDegreeTitle: string; preparedTitleName: string }[]>([])
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setFetching(true)
-    fetch(`${import.meta.env.VITE_API_URL}/api/filiz/degrees`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
+    apiJson<{ degrees?: typeof degrees }>('/api/filiz/degrees')
       .then(data => { setDegrees(data.degrees ?? []); setError(null) })
       .catch(err => setError(err.message))
       .finally(() => setFetching(false))
-  }, [token])
+  }, [])
 
   return { degrees, fetching, error }
 }
 
 export function useFilizClasses(degreeId: string | null) {
-  const token = useAuthStore((s) => s.token)
   const [classes, setClasses] = useState<{ degreeId: string; classId: string; className: string; startDate?: string; endDate?: string }[]>([])
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -853,39 +848,28 @@ export function useFilizClasses(degreeId: string | null) {
   useEffect(() => {
     if (!degreeId) { setClasses([]); return }
     setFetching(true)
-    fetch(`${import.meta.env.VITE_API_URL}/api/filiz/classes?degreeId=${encodeURIComponent(degreeId)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
+    apiJson<{ classes?: typeof classes }>(`/api/filiz/classes?degreeId=${encodeURIComponent(degreeId)}`)
       .then(data => { setClasses(data.classes ?? []); setError(null) })
       .catch(err => setError(err.message))
       .finally(() => setFetching(false))
-  }, [degreeId, token])
+  }, [degreeId])
 
   return { classes, fetching, error }
 }
 
 export function useCreateFilizFolder() {
-  const token = useAuthStore((s) => s.token)
-
   const createFilizFolder = async (body: {
     candidateId: string
     classId: string
     fileManagerFirstName: string
     fileManagerLastName: string
     fileManagerEmail: string
-  }): Promise<{ folderId: string }> => {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/filiz/folders`, {
+  }): Promise<{ folderId: string }> =>
+    apiJson<{ folderId: string }>('/api/filiz/folders', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.error ?? 'Filiz folder creation failed')
-    }
-    return res.json()
-  }
 
   return { createFilizFolder }
 }

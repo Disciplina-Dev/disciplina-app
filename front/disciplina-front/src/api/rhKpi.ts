@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL;
+import { apiFetch } from '@/api/httpClient';
 
 /** Colonnes de compteurs du KPI RH (ordre stable). */
 export const RH_KPI_COLUMNS = [
@@ -49,10 +49,8 @@ export function sumMetrics(list: RhKpiMetrics[]): RhKpiMetrics {
   }, emptyRhMetrics());
 }
 
-async function rhKpiFetch(token: string, path: string): Promise<Response> {
-  const res = await fetch(`${API_BASE}/api/rh-kpi${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+async function rhKpiFetch(path: string): Promise<Response> {
+  const res = await apiFetch(`/api/rh-kpi${path}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Requête KPI RH échouée (${res.status})`);
@@ -60,12 +58,12 @@ async function rhKpiFetch(token: string, path: string): Promise<Response> {
   return res;
 }
 
-export async function fetchRhKpiYears(token: string): Promise<number[]> {
-  const res = await rhKpiFetch(token, '/years');
+export async function fetchRhKpiYears(): Promise<number[]> {
+  const res = await rhKpiFetch('/years');
   return ((await res.json()) as { years: number[] }).years;
 }
 
-export async function fetchRhKpiReport(token: string, year: number): Promise<RhKpiReport> {
-  const res = await rhKpiFetch(token, `/report?year=${year}`);
+export async function fetchRhKpiReport(year: number): Promise<RhKpiReport> {
+  const res = await rhKpiFetch(`/report?year=${year}`);
   return (await res.json()) as RhKpiReport;
 }

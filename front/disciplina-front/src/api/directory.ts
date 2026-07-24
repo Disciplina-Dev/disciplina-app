@@ -1,6 +1,5 @@
 import type { UserRole, Permission } from '@/store/authStore'
-
-const API_BASE = import.meta.env.VITE_API_URL
+import { apiJson } from '@/api/httpClient'
 
 export interface DirectoryEntry {
   id: number
@@ -10,10 +9,6 @@ export interface DirectoryEntry {
   permission: Permission
 }
 
-export async function fetchStaffDirectory(token: string): Promise<DirectoryEntry[]> {
-  const res = await fetch(`${API_BASE}/api/auth/directory`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) throw new Error(`Directory fetch failed (${res.status})`)
-  return (await res.json()) as DirectoryEntry[]
+export async function fetchStaffDirectory(): Promise<DirectoryEntry[]> {
+  return apiJson<DirectoryEntry[]>('/api/auth/directory')
 }

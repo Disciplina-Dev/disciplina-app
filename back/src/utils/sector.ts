@@ -34,3 +34,9 @@ export function primarySector(sectors?: string[] | null): Sector | undefined {
 export function regionFromSector(sector?: string | null): DriveRegion | undefined {
     return isSector(sector) ? SECTOR_TO_REGION[sector] : undefined;
 }
+
+/** Vrai si les deux listes de secteurs ont au moins un secteur en commun. */
+export function shareSector(a?: string[] | null, b?: string[] | null): boolean {
+    const sectorsB = new Set(sanitizeSectors(b));
+    return sanitizeSectors(a).some((sector) => sectorsB.has(sector));
+}

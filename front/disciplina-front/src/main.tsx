@@ -6,14 +6,17 @@ import './index.css'
 import { router } from '@/router'
 import { graphqlClient } from '@/graphql/client'
 import { installSessionGuard } from '@/lib/sessionGuard'
+import { AuthBootstrap } from '@/components/AuthBootstrap'
 
-// Intercepte les 401 REST → fin de session → redirection vers login.
+// Intercepte les 401 (REST + GraphQL) → refresh silencieux ou fin de session.
 installSessionGuard()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
       <UrqlProvider value={graphqlClient}>
-        <RouterProvider router={router} />
+        <AuthBootstrap>
+          <RouterProvider router={router} />
+        </AuthBootstrap>
       </UrqlProvider>
   </StrictMode>,
 )

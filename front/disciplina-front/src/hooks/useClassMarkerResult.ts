@@ -1,23 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { ClassMarkerResult } from '@/types/classmarker';
 import { fetchClassMarkerResult, classMarkerStreamUrl } from '@/api/classmarker';
-import { useAuthStore } from '@/store/authStore';
 
 export function useClassMarkerResult(candidateId: string | undefined) {
-  const token = useAuthStore((s) => s.token);
   const [result, setResult] = useState<ClassMarkerResult | null>(null);
   const [history, setHistory] = useState<ClassMarkerResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!candidateId || !token) {
+    if (!candidateId) {
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
 
-    fetchClassMarkerResult(token, candidateId)
+    fetchClassMarkerResult(candidateId)
       .then(bundle => {
         console.log('[ClassMarker] résultat initial depuis DB:', bundle);
         if (!cancelled && bundle) {
@@ -29,7 +27,7 @@ export function useClassMarkerResult(candidateId: string | undefined) {
       .catch((err) => { console.warn('[ClassMarker] fetch initial échoué:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
-    const es = new EventSource(classMarkerStreamUrl(candidateId, token));
+    const es = new EventSource(classMarkerStreamUrl(candidateId), { withCredentials: true });
 
     es.onopen = () => console.log('[ClassMarker] SSE connecté ✓');
     es.onmessage = (e) => {
@@ -54,7 +52,7 @@ export function useClassMarkerResult(candidateId: string | undefined) {
       cancelled = true;
       es.close();
     };
-  }, [candidateId, token]);
+  }, [candidateId]);
 
   return { result, history, loading };
 }
