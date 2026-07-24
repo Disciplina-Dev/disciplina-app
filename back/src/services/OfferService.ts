@@ -176,6 +176,7 @@ export class OfferService {
         if (!offer) return null;
 
         const filter: Record<string, any> = {};
+        filter['status'] = { $ne: CandidateStatus.CONTRACT };
 
         if (offer.tp_type) filter['tp_type'] = offer.tp_type;
         if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;

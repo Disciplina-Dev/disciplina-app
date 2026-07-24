@@ -37,9 +37,14 @@ export class OfferRepository {
         return OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
     }
 
-    /** Toutes les offres à matcher : une offre n'existe qu'une fois l'AB envoyée en signature. */
+    /** Toutes les offres à matcher (hors offres déjà contractualisées). */
     async listMatchingOffers(): Promise<Offer[]> {
-        return OfferModel.find().lean();
+        return OfferModel.find({
+            $nor: [
+                { 'matching.status': OfferStatus.CONTRACT },
+                { 'matching.candidates': { $elemMatch: { status: MatchedCandidateStatus.CONTRACT } } },
+            ],
+        }).lean();
     }
 
     /** Remplace le contenu (poste, entreprise, référents, saler) d'une offre sans toucher à `matching`. */
