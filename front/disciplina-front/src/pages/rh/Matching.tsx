@@ -35,6 +35,7 @@ import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, Intervie
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
+import { SECTOR_TO_REGION, REGION_COMMUNES } from '@/features/matching/constants/regions'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useCurrentUser, Permission } from '@/store/authStore'
@@ -2625,6 +2626,16 @@ export default function Matching() {
   useEffect(() => {
     if (offerFromUrl) setSelectedJobId(offerFromUrl)
   }, [offerFromUrl])
+
+  // Default commune filter from the current user's sectors.
+  const userSectors = currentUser?.sectors
+  useEffect(() => {
+    if (userSectors?.length && filters.localisations.length === 0) {
+      const regions = userSectors.map((s) => SECTOR_TO_REGION[s]).filter(Boolean)
+      const communes = [...new Set(regions.flatMap((r) => REGION_COMMUNES[r as keyof typeof REGION_COMMUNES]))]
+      if (communes.length) setFilters((prev) => ({ ...prev, localisations: communes }))
+    }
+  }, [userSectors, filters.localisations.length])
 
   const effectiveJobId = selectedJobId ?? searchParams.get('offer')
   const selectedJob = filteredJobs.find((j) => j.id === effectiveJobId) ?? null

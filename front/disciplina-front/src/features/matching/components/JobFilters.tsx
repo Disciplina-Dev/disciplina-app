@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from 'react'
-import { Search, ChevronDown, X, Check, Briefcase, Building2 } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { Search, ChevronDown, X, Check, Briefcase, Building2, MapPin } from 'lucide-react'
 import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
 import { OfferStatus, DesiredTP, Sector, formatEnumLabel } from '../constants/jobEnums'
 import { JOB_STATUS_LABELS } from '@/constants/jobStatus'
+import { REGION_COMMUNES, REGION_LABELS, type Region } from '../constants/regions'
+import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 
 interface Props {
   filters: JobFilters
@@ -153,6 +155,83 @@ function SelectContent({
   )
 }
 
+// ─── Region-sorted commune multi-select content ─────────────────────────────
+const ALL_REGIONS: Region[] = ['NORD', 'OUEST', 'SUD']
+const ALL_COMMUNES = ALL_REGIONS.flatMap((r) => REGION_COMMUNES[r])
+
+function RegionMultiSelectContent({
+  selected,
+  onChange,
+}: {
+  selected: string[]
+  onChange: (localisations: string[]) => void
+}) {
+  const allSelected = ALL_COMMUNES.every((c) => selected.includes(c))
+
+  return (
+    <div className="py-1.5 max-h-72 overflow-y-auto">
+      {/* Select / deselect all */}
+      <button
+        onClick={() => onChange(allSelected ? [] : [...ALL_COMMUNES])}
+        className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors"
+      >
+        <span className="flex-1 text-left italic">{allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}</span>
+      </button>
+      <div className="border-t border-gray-100 my-1" />
+
+      {ALL_REGIONS.map((region) => {
+        const communes = REGION_COMMUNES[region]
+        const regionSelected = communes.every((c) => selected.includes(c))
+        const regionPartial = communes.some((c) => selected.includes(c)) && !regionSelected
+
+        return (
+          <div key={region}>
+            {/* Region toggle */}
+            <button
+              onClick={() =>
+                onChange(
+                  regionSelected
+                    ? selected.filter((c) => !communes.includes(c as any))
+                    : [...new Set([...selected, ...communes])],
+                )
+              }
+              className="flex w-full items-center gap-3 px-3.5 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors border-b border-gray-50"
+            >
+              <span className="flex-1 text-left">{REGION_LABELS[region]}</span>
+              <span className="text-[11px] text-gray-400 font-normal">{communes.length} communes</span>
+              {regionSelected && <Check className="h-3.5 w-3.5 text-blue shrink-0" />}
+              {regionPartial && <div className="h-3.5 w-3.5 rounded-sm border-2 border-blue" />}
+            </button>
+
+            {/* Individual communes */}
+            <div className="ml-4">
+              {communes.map((commune) => {
+                const active = selected.includes(commune)
+                return (
+                  <button
+                    key={commune}
+                    onClick={() =>
+                      onChange(
+                        active
+                          ? selected.filter((c) => c !== commune)
+                          : [...selected, commune],
+                      )
+                    }
+                    className="flex w-full items-center gap-3 px-3.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="flex-1 text-left">{LOCALISATION_LABELS[commune] ?? commune}</span>
+                    {active && <Check className="h-3.5 w-3.5 text-blue shrink-0" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 export function JobFilters({ filters, onChange }: Props) {
   const statusOptions = Object.values(OfferStatus).map((s) => ({ label: JOB_STATUS_LABELS[s], value: s }))
@@ -161,9 +240,24 @@ export function JobFilters({ filters, onChange }: Props) {
     .filter((s) => s !== Sector.NONE)
     .map((s) => ({ label: formatEnumLabel(s), value: s }))
 
-  const activeCount = [filters.search, ...filters.statuses, filters.desiredTP, filters.sector].filter(
-    Boolean,
-  ).length
+  const communeActiveLabel = useMemo(() => {
+    if (filters.localisations.length === 0) return undefined
+    const activeRegions = ALL_REGIONS.filter((r) =>
+      REGION_COMMUNES[r].every((c) => filters.localisations.includes(c)),
+    )
+    if (activeRegions.length > 0) {
+      return activeRegions.map((r) => REGION_LABELS[r]).join(', ')
+    }
+    return `${filters.localisations.length} commune${filters.localisations.length > 1 ? 's' : ''}`
+  }, [filters.localisations])
+
+  const activeCount = [
+    filters.search,
+    ...filters.statuses,
+    filters.desiredTP,
+    filters.sector,
+    ...(filters.localisations.length > 0 ? ['localisations'] : []),
+  ].filter(Boolean).length
 
   return (
     <div className="space-y-3">
@@ -228,6 +322,19 @@ export function JobFilters({ filters, onChange }: Props) {
             value={filters.sector}
             onChange={(s) => onChange({ ...filters, sector: s })}
             placeholder="Tous les secteurs"
+          />
+        </ChipDropdown>
+
+        <ChipDropdown
+          icon={<MapPin className="h-3 w-3" />}
+          label="Commune"
+          activeLabel={communeActiveLabel}
+          isActive={filters.localisations.length > 0}
+          onClear={() => onChange({ ...filters, localisations: [] })}
+        >
+          <RegionMultiSelectContent
+            selected={filters.localisations}
+            onChange={(localisations) => onChange({ ...filters, localisations })}
           />
         </ChipDropdown>
 
