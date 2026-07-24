@@ -10,6 +10,13 @@ const PERMISSION_LEVEL: Record<string, number> = {
     [Permission.ADMIN]: 3,
 };
 
+/** Compare le niveau de permission d'un user au minimum requis, sans lever d'erreur (réutilisable hors GraphQL, ex. filtres REST). */
+export function hasMinPermission(user: { permission?: string } | null | undefined, minPermission: Permission): boolean {
+    const userLevel = PERMISSION_LEVEL[user?.permission ?? ''] ?? 0;
+    const requiredLevel = PERMISSION_LEVEL[minPermission] ?? 0;
+    return userLevel >= requiredLevel;
+}
+
 /**
  * Vérifie que l'utilisateur a le niveau de permission suffisant.
  * ADMIN peut tout faire ; RESPONSABLE peut tout ce qu'EMPLOYEE peut.
@@ -21,10 +28,7 @@ export function authGuard(user: any, minPermission: Permission): void {
         throw new Error('Unauthorized: No valid session found');
     }
 
-    const userLevel = PERMISSION_LEVEL[user.permission] ?? 0;
-    const requiredLevel = PERMISSION_LEVEL[minPermission] ?? 0;
-
-    if (userLevel >= requiredLevel) {
+    if (hasMinPermission(user, minPermission)) {
         return;
     }
 

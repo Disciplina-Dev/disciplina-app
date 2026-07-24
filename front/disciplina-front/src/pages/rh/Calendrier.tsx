@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import {
-  ChevronLeft, ChevronRight, Loader2, AlertCircle, CalendarDays,
+  ChevronLeft, ChevronRight, ChevronDown, Layers, Loader2, AlertCircle, CalendarDays,
   MapPin, Video, Plus, Trash2, X, Pencil, LinkIcon, Share2, Copy, Check,
   Mail, UserCheck, UserX, User as UserIcon,
 } from 'lucide-react'
@@ -200,6 +200,14 @@ export default function Calendrier() {
       return next
     })
 
+  const toggleGroup = (ids: number[]) =>
+    setVisible((prev) => {
+      const areAllSelected = ids.every((id) => prev.has(id))
+      const next = new Set(prev)
+      ids.forEach((id) => (areAllSelected ? next.delete(id) : next.add(id)))
+      return next
+    })
+
   const range = useMemo(() => {
     if (view === 'month') {
       const grid = buildMonthGrid(cursor.getFullYear(), cursor.getMonth())
@@ -342,7 +350,7 @@ export default function Calendrier() {
             </div>
           )}
           <div className="flex min-h-0 flex-1 gap-4">
-          <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} />
+          <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} onToggleGroup={toggleGroup} />
           <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white">
             {loading && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
@@ -827,39 +835,112 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
   )
 }
 
-function AgendasPanel({ users, visible, selfId, onToggle }: {
-  users: CalendarUser[]; visible: Set<number>; selfId: number; onToggle: (id: number) => void
+function AgendaRow({ user, selfId, visible, onToggle }: {
+  user: CalendarUser; selfId: number; visible: Set<number>; onToggle: (id: number) => void
 }) {
-  const ordered = [...users].sort((a, b) => (a.isSelf === b.isSelf ? a.firstName.localeCompare(b.firstName) : a.isSelf ? -1 : 1))
+  const hex = user.id === selfId ? DEFAULT_EVENT_HEX : ownerColor(user.id)
+  const checked = visible.has(user.id)
   return (
-    <aside className="w-52 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
-      <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Agendas</p>
-      <div className="flex flex-col gap-0.5">
-        {ordered.map((u) => {
-          const hex = u.id === selfId ? DEFAULT_EVENT_HEX : ownerColor(u.id)
-          const checked = visible.has(u.id)
-          return (
-            <button
-              key={u.id}
-              onClick={() => u.connected && onToggle(u.id)}
-              disabled={!u.connected}
-              title={u.connected ? '' : 'Google Calendar non connecté'}
-              className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${u.connected ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-50'}`}
-            >
-              <span
-                className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2"
-                style={{ borderColor: hex, backgroundColor: checked ? hex : 'transparent' }}
-              >
-                {checked && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
-              </span>
-              <span className="truncate text-[13px] font-semibold text-gray-700">
-                {`${u.firstName} ${u.lastName}`.trim()}{u.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
-              </span>
-            </button>
-          )
-        })}
-        {users.length === 0 && <p className="px-1 text-[12px] text-gray-400">Aucun agenda</p>}
+    <button
+      onClick={() => user.connected && onToggle(user.id)}
+      disabled={!user.connected}
+      title={user.connected ? '' : 'Google Calendar non connecté'}
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${user.connected ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-50'}`}
+    >
+      <span
+        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2"
+        style={{ borderColor: hex, backgroundColor: checked ? hex : 'transparent' }}
+      >
+        {checked && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
+      </span>
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="truncate text-[13px] font-semibold text-gray-700">
+          {`${user.firstName} ${user.lastName}`.trim()}{user.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
+        </span>
+        {user.sectors.length > 1 && (
+          <Layers className="h-3 w-3 flex-shrink-0 text-gray-300" aria-label={`Agenda partagé entre ${user.sectors.join(', ')}`}>
+            <title>{`Agenda partagé entre ${user.sectors.join(', ')}`}</title>
+          </Layers>
+        )}
+      </span>
+    </button>
+  )
+}
+
+function GroupCheckbox({ connectedIds, visible, onToggleGroup }: {
+  connectedIds: number[]; visible: Set<number>; onToggleGroup: (ids: number[]) => void
+}) {
+  const isAllSelected = connectedIds.length > 0 && connectedIds.every((id) => visible.has(id))
+  const isSomeSelected = !isAllSelected && connectedIds.some((id) => visible.has(id))
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggleGroup(connectedIds) }}
+      disabled={connectedIds.length === 0}
+      className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${connectedIds.length === 0 ? 'cursor-not-allowed border-gray-200' : 'border-gray-300'} ${isAllSelected || isSomeSelected ? 'border-purple bg-purple' : ''}`}
+    >
+      {isAllSelected && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
+      {isSomeSelected && <span className="h-0.5 w-2 rounded-sm bg-white" />}
+    </button>
+  )
+}
+
+function AgendaGroup({ label, users, selfId, visible, onToggle, onToggleGroup, defaultCollapsed }: {
+  label: string; users: CalendarUser[]; selfId: number; visible: Set<number>
+  onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void; defaultCollapsed: boolean
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
+  const ordered = [...users].sort((a, b) => (a.isSelf === b.isSelf ? a.firstName.localeCompare(b.firstName) : a.isSelf ? -1 : 1))
+  if (ordered.length === 0) return null
+  const connectedIds = ordered.filter((u) => u.connected).map((u) => u.id)
+  return (
+    <div className="mb-2">
+      <div className="mb-1 flex items-center gap-1.5 px-1">
+        <GroupCheckbox connectedIds={connectedIds} visible={visible} onToggleGroup={onToggleGroup} />
+        <button
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          className="flex flex-1 items-center justify-between gap-1 text-gray-400 hover:text-gray-600"
+        >
+          <span className="truncate text-[10px] font-bold uppercase tracking-wider">{label} ({ordered.length})</span>
+          <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+        </button>
       </div>
+      {!isCollapsed && (
+        <div className="flex flex-col gap-0.5">
+          {ordered.map((u) => <AgendaRow key={u.id} user={u} selfId={selfId} visible={visible} onToggle={onToggle} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
+  users: CalendarUser[]; visible: Set<number>; selfId: number; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
+}) {
+  const withoutSector = users.filter((u) => u.sectors.length === 0)
+  return (
+    <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
+      {SECTEUR_VALUES.map((sector) => (
+        <AgendaGroup
+          key={sector}
+          label={sector}
+          users={users.filter((u) => u.sectors.includes(sector))}
+          selfId={selfId}
+          visible={visible}
+          onToggle={onToggle}
+          onToggleGroup={onToggleGroup}
+          defaultCollapsed={false}
+        />
+      ))}
+      <AgendaGroup
+        label="Sans secteur"
+        users={withoutSector}
+        selfId={selfId}
+        visible={visible}
+        onToggle={onToggle}
+        onToggleGroup={onToggleGroup}
+        defaultCollapsed={false}
+      />
+      {users.length === 0 && <p className="px-1 text-[12px] text-gray-400">Aucun agenda</p>}
     </aside>
   )
 }
