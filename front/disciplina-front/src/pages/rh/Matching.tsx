@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Building2,
@@ -34,7 +34,7 @@ import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, 
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
-import { OfferStatus, formatEnumLabel, Localisation } from '@/features/matching/constants/jobEnums'
+import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { SECTOR_TO_REGION, REGION_COMMUNES } from '@/features/matching/constants/regions'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
