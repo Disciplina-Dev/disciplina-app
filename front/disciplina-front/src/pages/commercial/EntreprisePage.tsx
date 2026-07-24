@@ -292,7 +292,7 @@ export default function EntreprisePage() {
 
   const statusCfg = STATUS_CONFIG[draft.status] ?? STATUS_CONFIG['Non']
   const owner = draft.proprietaire_id ? directory[String(draft.proprietaire_id)] : null
-  const commercialUsers = Object.values(directory).filter((u) => u.role === UserRole.COMMERCIAL || u.permission === Permission.RESPONSABLE)
+  const commercialUsers = Object.values(directory).filter((u) => u.role === UserRole.COMMERCIAL)
   const siren = draft.siret ? normalizeSiret(draft.siret).slice(0, 9) : null
 
   return (

@@ -1118,6 +1118,7 @@ export const MATCH_OFFER = gql`
         phone
         status
         description
+        identityDescription
         comment
         cvWebview
         interviewLocation
@@ -1183,6 +1184,9 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         email
         phone
         status
+        description
+        identityDescription
+        cvWebview
       }
     }
   }
@@ -1209,6 +1213,7 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         fullName
         email
         description
+        identityDescription
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1240,6 +1245,7 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
         fullName
         email
         description
+        identityDescription
         immersionStartDate
         immersionEndDate
         immersionLocation
@@ -1386,6 +1392,9 @@ export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
         email
         phone
         status
+        description
+        identityDescription
+        cvWebview
       }
     }
   }

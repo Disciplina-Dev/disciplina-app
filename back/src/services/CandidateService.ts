@@ -5,6 +5,7 @@ import { Offer } from '../types/offer.types';
 import { computeAge } from '../utils/age';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { NotificationService } from './NotificationService';
+import { buildCandidateSummary } from './buildCandidateSummary';
 
 export class CandidateService {
     private repository = new CandidateRepository();
@@ -39,14 +40,16 @@ export class CandidateService {
                 const name = candidate.identity?.full_name ?? 'Un candidat';
                 const ownerId = candidate.owner?.user_id;
                 if (ownerId) {
-                    this.notificationService.create({
-                        userId: ownerId,
-                        type: 'availability_ended',
-                        level: 'info',
-                        title: 'Disponible',
-                        message: `${name} est de nouveau disponible.`,
-                        link: `/rh/candidats/${candidate._id}`,
-                    }).catch(() => {});
+                    this.notificationService
+                        .create({
+                            userId: ownerId,
+                            type: 'availability_ended',
+                            level: 'info',
+                            title: 'Disponible',
+                            message: `${name} est de nouveau disponible.`,
+                            link: `/rh/candidats/${candidate._id}`,
+                        })
+                        .catch(() => {});
                 }
             }
             return reverted;
@@ -83,6 +86,9 @@ export class CandidateService {
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {
+        if (data.identity && !data.identity.description) {
+            data.identity.description = buildCandidateSummary(data as Candidate);
+        }
         return this.repository.create(data);
     }
 
@@ -102,6 +108,29 @@ export class CandidateService {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
+        const existing = await this.repository.findById(id);
+        if (existing) {
+            const merged: Candidate = {
+                ...existing,
+                ...data,
+                identity: { ...existing.identity, ...(data.identity ?? {}) },
+            };
+            if (data.education) merged.education = { ...existing.education, ...data.education } as any;
+            if (data.background) merged.background = { ...existing.background, ...data.background } as any;
+            if (data.job_info) merged.job_info = { ...existing.job_info, ...data.job_info } as any;
+            if (data.profile) merged.profile = { ...existing.profile, ...data.profile } as any;
+            if (data.professional_projects)
+                merged.professional_projects = {
+                    ...existing.professional_projects,
+                    ...data.professional_projects,
+                } as any;
+            if (!data.identity?.description) {
+                data.identity = {
+                    ...(data.identity ?? {}),
+                    description: buildCandidateSummary(merged),
+                } as Candidate['identity'];
+            }
+        }
         const updated = await this.repository.update(id, data);
         return updated;
     }
