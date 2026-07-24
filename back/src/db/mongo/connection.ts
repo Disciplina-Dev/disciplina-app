@@ -35,6 +35,7 @@ async function patchCandidatesValidator(): Promise<void> {
                             'CONTRACT',
                             'IMMERSING',
                             'BANNED',
+                            'TEST_FAILED',
                         ],
                     },
                     tp_type: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] },
