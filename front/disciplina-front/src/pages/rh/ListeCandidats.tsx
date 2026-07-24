@@ -306,7 +306,7 @@ export default function ListeCandidats() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="Rechercher par nom..."
+              placeholder="Rechercher (nom, ville, métier visé...)"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"

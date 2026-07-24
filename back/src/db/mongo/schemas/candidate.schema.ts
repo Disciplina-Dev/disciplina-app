@@ -251,6 +251,10 @@ const candidateSchema = new Schema<Candidate & Document>(
 // seek O(log n) sur les bornes created_at. _id en tie-break déterministe.
 candidateSchema.index({ created_at: -1, _id: 1 });
 
+// Index full-text pour la recherche (candidatesPage → search) sur le résumé
+// auto-généré du candidat (nom, ville, métier visé, diplôme, mobilité...).
+candidateSchema.index({ 'identity.description': 'text' });
+
 export const CandidateModel = mongoose.models.Candidate || model<Candidate & Document>('Candidate', candidateSchema);
 
 interface CandidateAvatar {
