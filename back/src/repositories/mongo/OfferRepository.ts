@@ -162,10 +162,12 @@ export class OfferRepository {
         conclusion: InterviewConclusion,
         immersionStartDate?: string,
         immersionEndDate?: string,
+        status?: MatchedCandidateStatus,
     ): Promise<Offer | null> {
         const update: Record<string, unknown> = { 'matching.candidates.$.interview_conclusion': conclusion };
         if (immersionStartDate) update['matching.candidates.$.immersion_start_date'] = immersionStartDate;
         if (immersionEndDate) update['matching.candidates.$.immersion_end_date'] = immersionEndDate;
+        if (status) update['matching.candidates.$.status'] = status;
         return OfferModel.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: update },
@@ -177,10 +179,13 @@ export class OfferRepository {
         offerId: string,
         candidateId: string,
         conclusion: ImmersionConclusion,
+        status?: MatchedCandidateStatus,
     ): Promise<Offer | null> {
+        const update: Record<string, unknown> = { 'matching.candidates.$.immersion_conclusion': conclusion };
+        if (status) update['matching.candidates.$.status'] = status;
         return OfferModel.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
-            { $set: { 'matching.candidates.$.immersion_conclusion': conclusion } },
+            { $set: update },
             { new: true },
         ).lean();
     }
