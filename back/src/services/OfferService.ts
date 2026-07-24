@@ -349,6 +349,32 @@ export class OfferService {
         );
     }
 
+    private async notifyContractSigned(
+        salerInfo: { id?: number } | undefined,
+        candidateName: string | undefined,
+        companyName: string | undefined,
+        offerId: string,
+    ): Promise<void> {
+        const name = candidateName ?? 'Un candidat';
+        const company = companyName ?? "l'entreprise";
+        const type = 'contract_signed';
+        const level = 'success' as const;
+        const title = 'Contrat signé';
+        const message = `${name} a signé un contrat avec ${company}`;
+        const link = `/rh/matching?offer=${offerId}`;
+
+        if (salerInfo?.id) {
+            await this.notificationService.create({ userId: salerInfo.id, type, level, title, message, link });
+        } else {
+            const responsables = await this.userRepository.findByRoleIdAndPermissionId(1, 2);
+            await Promise.all(
+                responsables.map((user) =>
+                    this.notificationService.create({ userId: user.id, type, level, title, message, link }),
+                ),
+            );
+        }
+    }
+
     async addManualProposedCandidate(
         offerId: string,
         candidateId: string,
@@ -472,6 +498,10 @@ export class OfferService {
         );
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
 
+        if (conclusion === InterviewConclusion.CONTRACT) {
+            await this.notifyContractSigned(offer.saler_info, proposed.full_name, offer.company_infos?.name, offerId);
+        }
+
         return toGql(updated);
     }
 
@@ -511,6 +541,10 @@ export class OfferService {
             offer.company_infos?.name,
         );
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
+
+        if (conclusion === ImmersionConclusion.CONTRACT) {
+            await this.notifyContractSigned(offer.saler_info, proposed.full_name, offer.company_infos?.name, offerId);
+        }
 
         return toGql(updated);
     }
