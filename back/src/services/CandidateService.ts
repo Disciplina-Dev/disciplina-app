@@ -58,7 +58,8 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.IMMERSING) {
             const endDate = candidate.immersion_end_date;
             if (!endDate || !this.immersionEnded(endDate)) return candidate;
-            return this.revertToSeeking(candidate);
+            const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
+            return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
         }
 
         return candidate;
@@ -72,9 +73,52 @@ export class CandidateService {
         return end.getTime() < Date.now();
     }
 
-    private async revertToSeeking(candidate: Candidate): Promise<Candidate> {
-        const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
-        return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
+    // Fin d'indisponibilité : bascule atomique en recherche puis notification RH.
+    // La bascule atomique garantit qu'un seul appelant (lecture paresseuse ou
+    // scheduler) notifie, même en cas d'accès concurrents.
+    private async revertUnavailableToSeeking(candidate: Candidate): Promise<Candidate> {
+        const changed = await this.repository.revertUnavailableToSeeking(candidate._id);
+        if (changed) await this.notifyBackToSeeking(candidate);
+        return { ...candidate, status: CandidateStatus.SEEKING };
+    }
+
+    // Parcours proactif (scheduler) : repasse en recherche et notifie les RH pour
+    // tout candidat dont la date de fin d'indisponibilité est atteinte. Retourne le
+    // nombre de candidats effectivement basculés.
+    async processExpiredUnavailable(now: Date = new Date()): Promise<number> {
+        const candidates = await this.repository.findExpiredUnavailable(now);
+        let reverted = 0;
+        for (const candidate of candidates) {
+            try {
+                const changed = await this.repository.revertUnavailableToSeeking(candidate._id);
+                if (changed) {
+                    await this.notifyBackToSeeking(candidate);
+                    reverted += 1;
+                }
+            } catch (err) {
+                logger.error({ err, candidateId: candidate._id }, 'unavailable-expiry: échec bascule candidat');
+            }
+        }
+        return reverted;
+    }
+
+    // Notifie toute l'équipe RH (RH + RESPONSABLE + ADMIN) qu'un candidat est de
+    // nouveau en recherche à l'issue de son indisponibilité.
+    private async notifyBackToSeeking(candidate: Candidate): Promise<void> {
+        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const name = candidate.identity?.full_name ?? 'Un candidat';
+        await Promise.all(
+            rhUsers.map((user) =>
+                this.notificationService.create({
+                    userId: user.id,
+                    type: 'candidate_available_again',
+                    level: 'info',
+                    title: 'Candidat de nouveau disponible',
+                    message: `${name} est de nouveau en recherche (indisponibilité terminée).`,
+                    link: `/rh/candidats/${candidate._id}`,
+                }),
+            ),
+        );
     }
 
     async stats(sectors?: string[]): Promise<CandidateStats> {

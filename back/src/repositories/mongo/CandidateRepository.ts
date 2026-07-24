@@ -1,5 +1,5 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
-import { Candidate } from '../../types/candidate.types';
+import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 import { after } from 'cheerio/dist/commonjs/api/manipulation';
 
@@ -279,6 +279,26 @@ export class CandidateRepository {
     // Marque la notification « immersion terminée » comme émise (dédup scheduler).
     async markImmersionEndNotified(id: string, at: Date): Promise<void> {
         await CandidateModel.updateOne({ _id: id }, { $set: { immersion_end_notified_at: at } });
+    }
+
+    // Candidats indisponibles dont la date de disponibilité est atteinte (fin
+    // d'indisponibilité). Sert au scheduler de retour en recherche.
+    async findExpiredUnavailable(now: Date): Promise<Candidate[]> {
+        return CandidateModel.find({
+            status: CandidateStatus.UNAVAILABLE,
+            'job_info.availability_date': { $ne: null, $lte: now },
+        }).lean();
+    }
+
+    // Repasse un candidat indisponible en recherche, de façon atomique : la mise à
+    // jour n'a lieu que si le statut est encore UNAVAILABLE. Retourne true si ce
+    // candidat vient d'être basculé (⇒ un seul appelant notifie, dédup lecture/scheduler).
+    async revertUnavailableToSeeking(id: string): Promise<boolean> {
+        const res = await CandidateModel.updateOne(
+            { _id: id, status: CandidateStatus.UNAVAILABLE },
+            { $set: { status: CandidateStatus.SEEKING } },
+        );
+        return res.modifiedCount > 0;
     }
 
     // Recherche par email (exact, insensible à la casse + espaces) pour la
