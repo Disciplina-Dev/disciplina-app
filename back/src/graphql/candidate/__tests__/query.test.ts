@@ -605,3 +605,183 @@ describe('candidatesPage with filters', () => {
         expect(nodes[0].id).toBe(`${suffix}-boul`);
     });
 });
+
+describe('candidatesPage search (identity.description $text + $regex)', () => {
+    it('matches on a prefix/substring of identity.description (regex branch)', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-pfx-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-jean`,
+            candidate_id: `${suffix}-jean`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `${suffix}Jean`,
+                email: `jean-${suffix}@test.local`,
+                phone: '0600000000',
+                description: `${suffix}Jean, 25 ans, basé à Saint-Denis, vise un poste de boulanger.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                // "${suffix}Jea" est un préfixe de "${suffix}Jean" : ne matche pas via
+                // $text (tokens entiers) mais doit toujours matcher via le repli $regex (sous-chaîne).
+                variables: { search: `${suffix}Jea` },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-jean`);
+    });
+
+    it('matches on content outside the name (city/job — $text branch)', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-txt-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-a`,
+            candidate_id: `${suffix}-a`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alpha ${suffix}`,
+                email: `alpha-${suffix}@test.local`,
+                phone: '0600000000',
+                description: `Alpha ${suffix}, vise un poste de patissier${suffix}, basé à Saint-Paul.`,
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-b`,
+            candidate_id: `${suffix}-b`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Beta ${suffix}`,
+                email: `beta-${suffix}@test.local`,
+                phone: '0600000001',
+                description: `Beta ${suffix}, vise un poste de boulanger, basé à Saint-Denis.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: `patissier${suffix}` },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-a`]);
+    });
+
+    it('quoted-phrase search only matches candidates having both words, not just one', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-phr-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-both`,
+            candidate_id: `${suffix}-both`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Jean${suffix} Dupont${suffix}`,
+                email: `both-${suffix}@test.local`,
+                phone: '0600000000',
+                description: `Jean${suffix} Dupont${suffix}, candidat motivé.`,
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-partial`,
+            candidate_id: `${suffix}-partial`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Jean${suffix} Martin${suffix}`,
+                email: `partial-${suffix}@test.local`,
+                phone: '0600000001',
+                description: `Jean${suffix} Martin${suffix}, candidat motivé.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: `Jean${suffix} Dupont${suffix}` },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-both`]);
+    });
+
+    it('deduplicates a candidate matched by both the $text and $regex branches', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-dedup-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-dup`,
+            candidate_id: `${suffix}-dup`,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Dup ${suffix}`,
+                email: `dup-${suffix}@test.local`,
+                phone: '0600000000',
+                description: `Dup ${suffix}, candidat motivé.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: `Dup ${suffix}` },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-dup`]);
+    });
+});
