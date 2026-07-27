@@ -47,6 +47,13 @@ export class UserRepository {
         ]);
     }
 
+    async findByRoleIdAndPermissionId(roleId: number, permissionId: number): Promise<UserRowJoined[]> {
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ? AND u.permission_id = ?`,
+            [roleId, permissionId],
+        );
+    }
+
     async findByRoleIds(roleIds: number[]): Promise<UserRowJoined[]> {
         if (roleIds.length === 0) return [];
         const placeholders = roleIds.map(() => '?').join(', ');

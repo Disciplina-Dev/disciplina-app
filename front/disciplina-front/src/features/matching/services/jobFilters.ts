@@ -5,6 +5,7 @@ export interface JobFilters {
   statuses: string[]
   desiredTP: string | null
   sector: string | null
+  localisations: string[]
 }
 
 export const EMPTY_JOB_FILTERS: JobFilters = {
@@ -12,6 +13,7 @@ export const EMPTY_JOB_FILTERS: JobFilters = {
   statuses: [],
   desiredTP: null,
   sector: null,
+  localisations: [],
 }
 
 export function applyJobFilters(jobs: Job[], filters: JobFilters): Job[] {
@@ -30,6 +32,12 @@ export function applyJobFilters(jobs: Job[], filters: JobFilters): Job[] {
 
     if (filters.sector && !job.companyInfos?.activities?.includes(filters.sector)) {
       return false
+    }
+
+    if (filters.localisations.length > 0) {
+      if (!job.localisation || !job.localisation.some((l) => filters.localisations.includes(l))) {
+        return false
+      }
     }
 
     return true

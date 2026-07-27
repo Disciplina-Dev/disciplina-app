@@ -1,5 +1,5 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
-import { Candidate } from '../../types/candidate.types';
+import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 import { after } from 'cheerio/dist/commonjs/api/manipulation';
 
@@ -111,11 +111,6 @@ export class CandidateRepository {
         const conditions: Record<string, any>[] = [];
 
         const trimmedSearch = search?.trim();
-        if (trimmedSearch) {
-            conditions.push({
-                'identity.full_name': { $regex: escapeRegexSpecialChars(trimmedSearch), $options: 'i' },
-            });
-        }
         if (filters?.trainingSite) conditions.push({ training_site: filters.trainingSite });
         if (filters?.status) conditions.push({ status: filters.status });
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
@@ -179,12 +174,52 @@ export class CandidateRepository {
             }
         }
 
-        const filter = conditions.length ? { $and: conditions } : {};
-        const query = CandidateModel.find(filter).sort({ created_at: -1, _id: 1 });
         if (!trimmedSearch) {
-            query.limit(first + 1);
+            const filter = conditions.length ? { $and: conditions } : {};
+            return CandidateModel.find(filter)
+                .sort({ created_at: -1, _id: 1 })
+                .limit(first + 1)
+                .lean();
         }
-        return query.lean();
+
+        // `$text` ne matche que des tokens entiers (avec stemming), pas de sous-chaîne.
+        // On combine une requête `$text` (pertinence, portée élargie à identity.description)
+        // et une requête `$regex` (préserve la recherche par préfixe/sous-chaîne, ex. "jea" → "Jean"),
+        // exécutées en parallèle puis fusionnées par _id (un `$text` ne peut pas être imbriqué
+        // dans le même `$or` qu'un autre opérateur au niveau racine).
+        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
+        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase } }] };
+        // `identity.description` peut être absent (fiches héritées créées avant son introduction,
+        // ou écrites hors du flux CandidateService qui le génère) : on garde `full_name` en repli
+        // pour ne jamais régresser sur la recherche par nom.
+        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
+        const regexFilter = {
+            $and: [
+                ...conditions,
+                {
+                    $or: [
+                        { 'identity.description': { $regex: regexPattern, $options: 'i' } },
+                        { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
+                    ],
+                },
+            ],
+        };
+        const sort = { created_at: -1 as const, _id: 1 as const };
+        const [textResults, regexResults] = await Promise.all([
+            CandidateModel.find(textFilter).sort(sort).lean(),
+            CandidateModel.find(regexFilter).sort(sort).lean(),
+        ]);
+
+        const uniqueById = new Map<string, Candidate>();
+        for (const candidate of [...textResults, ...regexResults]) {
+            uniqueById.set(String(candidate._id), candidate);
+        }
+        return Array.from(uniqueById.values()).sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : -Infinity;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : -Infinity;
+            if (aTime !== bTime) return bTime - aTime;
+            return String(a._id).localeCompare(String(b._id));
+        });
     }
 
     async findById(id: string): Promise<Candidate | null> {
@@ -244,6 +279,26 @@ export class CandidateRepository {
     // Marque la notification « immersion terminée » comme émise (dédup scheduler).
     async markImmersionEndNotified(id: string, at: Date): Promise<void> {
         await CandidateModel.updateOne({ _id: id }, { $set: { immersion_end_notified_at: at } });
+    }
+
+    // Candidats indisponibles dont la date de disponibilité est atteinte (fin
+    // d'indisponibilité). Sert au scheduler de retour en recherche.
+    async findExpiredUnavailable(now: Date): Promise<Candidate[]> {
+        return CandidateModel.find({
+            status: CandidateStatus.UNAVAILABLE,
+            'job_info.availability_date': { $ne: null, $lte: now },
+        }).lean();
+    }
+
+    // Repasse un candidat indisponible en recherche, de façon atomique : la mise à
+    // jour n'a lieu que si le statut est encore UNAVAILABLE. Retourne true si ce
+    // candidat vient d'être basculé (⇒ un seul appelant notifie, dédup lecture/scheduler).
+    async revertUnavailableToSeeking(id: string): Promise<boolean> {
+        const res = await CandidateModel.updateOne(
+            { _id: id, status: CandidateStatus.UNAVAILABLE },
+            { $set: { status: CandidateStatus.SEEKING } },
+        );
+        return res.modifiedCount > 0;
     }
 
     // Recherche par email (exact, insensible à la casse + espaces) pour la
