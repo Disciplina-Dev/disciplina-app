@@ -6,12 +6,16 @@ import { computeAge } from '../utils/age';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
+import { UserRepository } from '../repositories/mysql/UserRepository';
+import { UserRowJoined } from '../types/db-rows.types';
+import { logger } from '../external/logger';
 
 export class CandidateService {
     private repository = new CandidateRepository();
     private offerRepository = new OfferRepository();
     private candidateHistoryService = new CandidateHistoryService();
     private notificationService = new NotificationService();
+    private userRepository = new UserRepository();
 
     async findAll(): Promise<Candidate[]> {
         const candidates = await this.repository.findAll();
@@ -35,7 +39,7 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.UNAVAILABLE) {
             const availabilityDate = candidate.job_info?.availability_date;
             if (!availabilityDate || new Date(availabilityDate) > new Date()) return candidate;
-            const reverted = await this.revertToSeeking(candidate);
+            const reverted = await this.revertUnavailableToSeeking(candidate);
             if (reverted) {
                 const name = candidate.identity?.full_name ?? 'Un candidat';
                 const ownerId = candidate.owner?.user_id;
@@ -105,10 +109,10 @@ export class CandidateService {
     // Notifie toute l'équipe RH (RH + RESPONSABLE + ADMIN) qu'un candidat est de
     // nouveau en recherche à l'issue de son indisponibilité.
     private async notifyBackToSeeking(candidate: Candidate): Promise<void> {
-        const rhUsers = (await this.userRepository.findByRoles([Role.RH, Role.RESPONSABLE, Role.ADMIN])) ?? [];
+        const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const name = candidate.identity?.full_name ?? 'Un candidat';
         await Promise.all(
-            rhUsers.map((user) =>
+            rhUsers.map((user: UserRowJoined) =>
                 this.notificationService.create({
                     userId: user.id,
                     type: 'candidate_available_again',
