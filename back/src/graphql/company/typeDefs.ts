@@ -13,6 +13,7 @@ export const typeDefs = gql`
         sector: String
         mainActivity: String
         siret: String
+        siren: String
         idcc: String
         ape: String
         notes: String
@@ -23,6 +24,22 @@ export const typeDefs = gql`
         relanceType: Int
         relanceTemplateId: String
         relanceChannel: String
+    }
+
+    type CompanySirenGroup {
+        siren: String!
+        count: Int!
+        companies: [Company!]!
+    }
+
+    type CompanySirenGroupEdge {
+        node: CompanySirenGroup!
+        cursor: String!
+    }
+
+    type CompanySirenGroupConnection {
+        edges: [CompanySirenGroupEdge!]!
+        pageInfo: PageInfo!
     }
 
     input CompanyFiltersInput {
@@ -168,6 +185,7 @@ export const typeDefs = gql`
 
     type Query {
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
+        companiesBySiren(first: Int, after: String, filters: CompanyFiltersInput): CompanySirenGroupConnection!
         companyOptions: [CompanyOption!]!
         companyStats(year: Int!): CompanyStats!
         salePersons: [User!]!
