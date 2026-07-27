@@ -199,16 +199,23 @@ export class OfferService {
         if (userId) {
             const user = await this.userRepository.findById(userId);
             const userSectors = user?.sectors ?? null;
-            const sectors = typeof userSectors === 'string' ? (() => { try { return JSON.parse(userSectors); } catch { return []; } })() : userSectors;
+            const sectors =
+                typeof userSectors === 'string'
+                    ? (() => {
+                          try {
+                              return JSON.parse(userSectors);
+                          } catch {
+                              return [];
+                          }
+                      })()
+                    : userSectors;
             if (sectors?.length) {
                 const userCommunes = (sectors as string[])
                     .map((s) => regionFromSector(s))
                     .filter((r): r is DriveRegion => r !== undefined)
                     .flatMap((r: DriveRegion) => ZONE_TO_COMMUNES[r]);
                 if (userCommunes.length) {
-                    geoFilter = geoFilter.length
-                        ? geoFilter.filter((c) => userCommunes.includes(c))
-                        : userCommunes;
+                    geoFilter = geoFilter.length ? geoFilter.filter((c) => userCommunes.includes(c)) : userCommunes;
                 }
             }
         }
@@ -497,10 +504,13 @@ export class OfferService {
         }
 
         const status =
-            conclusion === InterviewConclusion.IMMERSING ? MatchedCandidateStatus.IMMERSING :
-            conclusion === InterviewConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
-            conclusion === InterviewConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
-            undefined;
+            conclusion === InterviewConclusion.IMMERSING
+                ? MatchedCandidateStatus.IMMERSING
+                : conclusion === InterviewConclusion.REJECTED
+                  ? MatchedCandidateStatus.REFUSED
+                  : conclusion === InterviewConclusion.CONTRACT
+                    ? MatchedCandidateStatus.CONTRACT
+                    : undefined;
         const updated = await this.offerRepository.setProposedCandidateConclusion(
             offerId,
             candidateId,
@@ -551,9 +561,11 @@ export class OfferService {
             offerId,
             candidateId,
             conclusion,
-            conclusion === ImmersionConclusion.REJECTED ? MatchedCandidateStatus.REFUSED :
-            conclusion === ImmersionConclusion.CONTRACT ? MatchedCandidateStatus.CONTRACT :
-            undefined,
+            conclusion === ImmersionConclusion.REJECTED
+                ? MatchedCandidateStatus.REFUSED
+                : conclusion === ImmersionConclusion.CONTRACT
+                  ? MatchedCandidateStatus.CONTRACT
+                  : undefined,
         );
         if (!updated) return null;
 
