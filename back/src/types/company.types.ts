@@ -10,6 +10,7 @@ export interface Companies {
     sector: string | null;
     mainActivity: string | null;
     siret: string | null;
+    siren: string | null;
     idcc: string | null;
     ape: string | null;
     notes: string | null;
@@ -20,6 +21,12 @@ export interface Companies {
     relanceType: number | null;
     relanceTemplateId: string | null;
     relanceChannel: string | null;
+}
+
+export interface CompanySirenGroup {
+    siren: string;
+    count: number;
+    companies: Companies[];
 }
 
 export type RelanceChannel = 'PHONE' | 'MAIL';

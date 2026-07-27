@@ -9,11 +9,13 @@ import {
     Companies,
     BlacklistedCompany,
     CompanyHistory,
+    CompanySirenGroup,
     FieldChange,
     ContactLog,
     RelanceHistory,
     RelanceChannel,
 } from '../../types/company.types';
+import { CompanySirenGroupRow } from '../../repositories/mysql/CompanyRepository';
 
 function toIso(value?: string | Date | null): string {
     if (!value) return new Date().toISOString();
@@ -33,6 +35,7 @@ export function toCompanies(row: CompaniesRow): Companies {
         sector: row.sector,
         mainActivity: row.main_activity,
         siret: row.siret,
+        siren: row.siren ?? (row.siret ? row.siret.slice(0, 9) : null),
         idcc: row.idcc,
         ape: row.ape,
         notes: row.notes,
@@ -51,6 +54,16 @@ export function toCompanies(row: CompaniesRow): Companies {
         relanceType: row.relance_type ?? null,
         relanceTemplateId: row.relance_template_id ?? null,
         relanceChannel: row.relance_channel ?? null,
+    };
+}
+
+export function toSirenGroup(row: CompanySirenGroupRow): CompanySirenGroup {
+    // JSON_ARRAYAGG comes back already parsed with mysql2, but stays a string with raw SQL.
+    const rows: CompaniesRow[] = typeof row.companies === 'string' ? JSON.parse(row.companies) : row.companies;
+    return {
+        siren: row.siren,
+        count: Number(row.count),
+        companies: rows.map(toCompanies),
     };
 }
 

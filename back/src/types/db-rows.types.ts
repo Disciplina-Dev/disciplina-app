@@ -74,6 +74,7 @@ export interface CompaniesRow {
     sector: string | null;
     main_activity: string | null;
     siret: string | null;
+    siren: string | null;
     idcc: string | null;
     ape: string | null;
     notes: string | null;

@@ -23,6 +23,7 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     secteur: company.sector,
     metier: company.mainActivity,
     siret: company.siret,
+    siren: company.siren ?? (company.siret ? company.siret.slice(0, 9) : null),
     idcc: company.idcc,
     note: company.notes,
     conclusion: legacyStatus ? '' : company.conclusion,

@@ -59,6 +59,7 @@ export const GET_COMPANIES = gql`
             sector
             mainActivity
             siret
+            siren
             idcc
             ape
             notes
@@ -75,6 +76,49 @@ export const GET_COMPANIES = gql`
             email
             firstName
             lastName
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`
+
+export const GET_COMPANIES_BY_SIREN = gql`
+  query GetCompaniesBySiren($first: Int, $after: String, $filters: CompanyFiltersInput) {
+    companiesBySiren(first: $first, after: $after, filters: $filters) {
+      edges {
+        cursor
+        node {
+          siren
+          count
+          companies {
+            id
+            userID
+            legalReferent
+            name
+            phone
+            email
+            address
+            sector
+            mainActivity
+            siret
+            siren
+            idcc
+            ape
+            notes
+            conclusion
+            status
+            relanceDate
+            createdAt
+            relanceType
+            relanceTemplateId
+            relanceChannel
           }
         }
       }

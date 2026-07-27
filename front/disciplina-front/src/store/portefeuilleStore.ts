@@ -1,13 +1,15 @@
 import { create } from 'zustand'
-import type { Entreprise, SalePerson } from '@/types/entreprise'
+import type { Entreprise, SalePerson, SirenGroup } from '@/types/entreprise'
 
 interface PortefeuilleState {
   companies: Entreprise[]
+  sirenGroups: SirenGroup[]
   salePersons: SalePerson[]
   loading: boolean
   error: string | null
 
   setCompanies: (companies: Entreprise[]) => void
+  setSirenGroups: (sirenGroups: SirenGroup[]) => void
   setSalePersons: (salePersons: SalePerson[]) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
@@ -21,11 +23,13 @@ interface PortefeuilleState {
 
 export const usePortefeuilleStore = create<PortefeuilleState>((set, get) => ({
   companies: [],
+  sirenGroups: [],
   salePersons: [],
   loading: false,
   error: null,
 
   setCompanies: (companies) => set({ companies }),
+  setSirenGroups: (sirenGroups) => set({ sirenGroups }),
   setSalePersons: (salePersons) => set({ salePersons }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),

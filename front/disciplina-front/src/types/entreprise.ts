@@ -36,6 +36,7 @@ export interface Company {
   sector: string | null
   mainActivity: string | null
   siret: string | null
+  siren?: string | null
   idcc: string | null
   ape: string | null
   notes: string | null
@@ -86,6 +87,7 @@ export interface Entreprise {
   secteur: string | null
   metier: string | null
   siret: string | null
+  siren?: string | null
   idcc: string | null
   note: string | null
   conclusion: string | null
@@ -95,6 +97,12 @@ export interface Entreprise {
   type_relance: number | null
   relance_template_id: string | null
   relance_channel: string | null
+}
+
+export interface SirenGroup {
+  siren: string
+  count: number
+  entreprises: Entreprise[]
 }
 
 export interface EntrepriseBlacklistee extends Entreprise {

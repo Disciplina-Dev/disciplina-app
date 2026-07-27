@@ -11,8 +11,10 @@ import type { EntrepriseFilters } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio, type ServerFilters } from '@/graphql/useInitializePortfolio'
+import { useInitializePortfolioBySiren } from '@/graphql/useInitializePortfolioBySiren'
 import { usePersistedListView } from '@/hooks/usePersistedListView'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
+import { SirenGroupCard } from '@/features/portefeuille/components/SirenGroupCard'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
@@ -56,6 +58,7 @@ export default function PortefeuilleEntreprises() {
   const currentUser = useCurrentUser()
   const navigate = useNavigate()
   const companies = usePortefeuilleStore((s) => s.companies)
+  const sirenGroups = usePortefeuilleStore((s) => s.sirenGroups)
   const salePersons = usePortefeuilleStore((s) => s.salePersons)
   const { createCompany } = useCreateCompany()
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
@@ -79,7 +82,14 @@ export default function PortefeuilleEntreprises() {
   const serverFilters = useMemo(() => toServerFilters(filters), [filters])
   const isRelanceMode = !!filters.relance
 
-  const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters)
+  // Vue à plat en recherche/relance (la query groupée ne les gère pas), sinon groupée par SIREN.
+  const isFlatMode = !!debouncedSearch || isRelanceMode
+  const flat = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters, !isFlatMode)
+  const grouped = useInitializePortfolioBySiren(PAGE_SIZE, afterCursor, serverFilters, isFlatMode)
+
+  const loading = isFlatMode ? flat.loading : grouped.loading
+  const pageInfo = isFlatMode ? flat.pageInfo : grouped.pageInfo
+  const isEmpty = isFlatMode ? companies.length === 0 : sirenGroups.length === 0
 
   const secteurs = SECTEUR_VALUES as unknown as string[]
 
@@ -108,11 +118,25 @@ export default function PortefeuilleEntreprises() {
     setCreateOpen(true)
   }
 
+  const renderCard = (e: Entreprise) => (
+    <EntrepriseCard
+      key={e.id}
+      entreprise={e}
+      currentUser={currentUser!}
+      onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
+      onClaim={() => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
+    />
+  )
+
   const activeFilterCount = countActiveFilters(filters)
 
   const hidePagination = debouncedSearch || isRelanceMode
 
-  if (loading && companies.length === 0) {
+  const totalCount = isFlatMode
+    ? companies.length
+    : sirenGroups.reduce((sum, g) => sum + g.entreprises.length, 0)
+
+  if (loading && isEmpty) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
         <div className="flex flex-col items-center gap-4">
@@ -139,8 +163,11 @@ export default function PortefeuilleEntreprises() {
                 Portefeuille entreprises
               </h1>
               <p className="mt-1.5 text-[13px] text-gray-400">
-                {companies.length.toLocaleString('fr-FR')}{' '}
-                entreprise{companies.length !== 1 ? 's' : ''}
+                {totalCount.toLocaleString('fr-FR')}{' '}
+                entreprise{totalCount !== 1 ? 's' : ''}
+                {!isFlatMode && sirenGroups.length > 0 && (
+                  <span className="text-gray-400"> — {sirenGroups.length.toLocaleString('fr-FR')} SIREN</span>
+                )}
                 {activeFilterCount > 0 && (
                   <span className="ml-1 text-blue font-medium">— vue filtrée</span>
                 )}
@@ -201,7 +228,7 @@ export default function PortefeuilleEntreprises() {
         </div>
 
         {/* ─── Cards grid ──────────────────────────────────────────── */}
-        {companies.length === 0 ? (
+        {isEmpty ? (
           <div className="flex flex-col items-center justify-center py-32 gap-5">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-light border border-blue/10">
               <Building2 className="h-7 w-7 text-blue" />
@@ -226,15 +253,19 @@ export default function PortefeuilleEntreprises() {
               </Button>
             )}
           </div>
-        ) : (
+        ) : isFlatMode ? (
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {companies.map((e) => (
-              <EntrepriseCard
-                key={e.id}
-                entreprise={e}
+            {companies.map(renderCard)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            {sirenGroups.map((group) => (
+              <SirenGroupCard
+                key={group.siren}
+                group={group}
                 currentUser={currentUser!}
-                onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
-                onClaim={() => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
+                onOpen={(e) => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
+                onClaim={(e) => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
               />
             ))}
           </div>

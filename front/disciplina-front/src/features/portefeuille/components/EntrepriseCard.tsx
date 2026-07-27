@@ -14,6 +14,7 @@ import {
 import { useState } from 'react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
+import { STATUS_CONFIG } from './statusConfig'
 
 interface Props {
   entreprise: Entreprise
@@ -21,51 +22,6 @@ interface Props {
   onClick: () => void
   onClaim: () => void
 }
-
-const STATUS_CONFIG = {
-  Oui: {
-    label: 'Oui',
-    dot: 'bg-success',
-    text: 'text-success',
-    pill: 'bg-success-bg text-success',
-    ring: 'ring-success/20',
-  },
-  Non: {
-    label: 'Non',
-    dot: 'bg-danger',
-    text: 'text-danger',
-    pill: 'bg-danger-bg text-danger',
-    ring: 'ring-danger/20',
-  },
-  'À Réfléchir': {
-    label: 'À Réfléchir',
-    dot: 'bg-warning',
-    text: 'text-warning',
-    pill: 'bg-warning-bg text-warning',
-    ring: 'ring-warning/20',
-  },
-  Relance: {
-    label: 'Relance',
-    dot: 'bg-blue',
-    text: 'text-blue',
-    pill: 'bg-blue/10 text-blue',
-    ring: 'ring-blue/20',
-  },
-  'Réponds pas': {
-    label: 'Réponds pas',
-    dot: 'bg-gray-400',
-    text: 'text-gray-500',
-    pill: 'bg-gray-100 text-gray-500',
-    ring: 'ring-gray-300/30',
-  },
-  Fermé: {
-    label: 'Fermé',
-    dot: 'bg-gray-700',
-    text: 'text-gray-700',
-    pill: 'bg-gray-200 text-gray-700',
-    ring: 'ring-gray-400/30',
-  },
-} as const
 
 export default function EntrepriseCard({ entreprise, currentUser, onClick, onClaim }: Props) {
   const [copied, setCopied] = useState(false)
