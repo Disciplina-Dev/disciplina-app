@@ -6,6 +6,11 @@ services:
       target: prod
       args:
         VITE_API_URL: ${VITE_API_URL}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE}
+        VITE_SENTRY_REPLAYS_SESSION_SAMPLE_RATE: ${VITE_SENTRY_REPLAYS_SESSION_SAMPLE_RATE}
+        VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE: ${VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE}
+        VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE}
     environment: []
     develop: !reset null
     # Remplace (pas fusionne) les ports du service de base : le port dev 5173 ne
