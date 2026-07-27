@@ -1,4 +1,5 @@
 import './config/env'; // validate env vars at startup
+import './instrumentation'; // OpenTelemetry SDK (must be before any module that uses pino, express, etc.)
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from './graphql/server';
@@ -168,6 +169,18 @@ export async function startServer(): Promise<http.Server> {
     const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
+
+    const shutdown = async () => {
+        logger.info('Shutting down gracefully…');
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        const { sdk } = await import('./instrumentation');
+        await sdk.shutdown();
+        process.exit(0);
+    };
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+
     // Modèles de relance d'absence par défaut (idempotent, une seule fois).
     const mailTemplateService = new MailTemplateService();
     mailTemplateService
