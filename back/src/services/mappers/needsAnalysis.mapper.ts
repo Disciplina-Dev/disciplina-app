@@ -63,6 +63,7 @@ function buildPosition(position: Position): Position {
         other_description_missions:
             position.other_description_missions ?? (position as any).otherDescriptionMissions ?? null,
         other_missions: position.other_missions ?? (position as any).otherMissions ?? null,
+        count: position.count ?? 1,
         criteria,
     };
 }
@@ -140,6 +141,7 @@ function toGqlPosition(p: Position) {
         descriptionMissions: p.description_missions ?? [],
         otherDescriptionMissions: p.other_description_missions ?? null,
         otherMissions: p.other_missions ?? null,
+        count: p.count ?? 1,
         criteria: p.criteria
             ? {
                   educationLevel: c.education_level ?? null,
@@ -202,7 +204,7 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
                       : null,
               }
             : null,
-        positionsCount: positions.length,
+        positionsCount: positions.reduce((sum, p) => sum + (p.count ?? 1), 0),
         positions,
         recruitmentMethod: doc.recruitment_method ?? null,
         immersionPeriod: doc.immersion_period ?? null,

@@ -14,6 +14,7 @@ export const positionSchemaDefinition = {
     description_missions: { type: [String], default: [] },
     other_description_missions: { type: String, default: null },
     other_missions: { type: String, default: null },
+    count: { type: Number, default: 1 },
     criteria: { type: criteriaSchema },
 };
 

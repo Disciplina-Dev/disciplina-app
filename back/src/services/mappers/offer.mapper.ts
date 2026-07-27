@@ -6,6 +6,7 @@ import { OfferStatus } from '../../types/matching.types';
 function buildOffer(position: Position, doc: NeedsAnalysisDocument): Offer {
     return {
         ...position,
+        count: 1,
         _id: randomUUID(),
         needs_analysis_id: doc._id,
         company_infos: {
@@ -20,9 +21,14 @@ function buildOffer(position: Position, doc: NeedsAnalysisDocument): Offer {
     };
 }
 
-/** Crée une offre par poste de l'AB, avec le snapshot entreprise/référents/saler déjà stocké sur l'AB. */
+/**
+ * Crée une offre par poste à pourvoir de l'AB (une position de quantité N donne N offres),
+ * avec le snapshot entreprise/référents/saler déjà stocké sur l'AB.
+ */
 export function buildOffers(doc: NeedsAnalysisDocument): Offer[] {
-    return (doc.positions ?? []).map((position) => buildOffer(position, doc));
+    return (doc.positions ?? []).flatMap((position) =>
+        Array.from({ length: Math.max(1, position.count ?? 1) }, () => buildOffer(position, doc)),
+    );
 }
 
 // Une reconstruction complète des offres (après une mise à jour de l'AB) régénère les

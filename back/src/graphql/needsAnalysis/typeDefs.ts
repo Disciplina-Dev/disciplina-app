@@ -165,6 +165,7 @@ export const typeDefs = gql`
         descriptionMissions: [String!]!
         otherDescriptionMissions: String
         otherMissions: String
+        count: Int
         criteria: OfferCriteria
     }
 
@@ -177,6 +178,7 @@ export const typeDefs = gql`
         descriptionMissions: [String!]
         otherDescriptionMissions: String
         otherMissions: String
+        count: Int
         criteria: OfferCriteriaInput
     }
 

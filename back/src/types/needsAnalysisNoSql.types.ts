@@ -124,6 +124,7 @@ export interface Position {
     description_missions?: string[];
     other_description_missions?: string | null;
     other_missions?: string | null;
+    count?: number;
     criteria?: OfferCriteria;
 }
 

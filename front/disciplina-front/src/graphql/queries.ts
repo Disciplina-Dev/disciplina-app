@@ -1640,6 +1640,7 @@ export const GET_NEEDS_ANALYSIS = gql`
         tpType
         trainingDomain
         jobRole
+        count
         title
         missions
         descriptionMissions
