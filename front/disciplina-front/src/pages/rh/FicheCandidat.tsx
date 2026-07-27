@@ -264,8 +264,6 @@ export default function FicheCandidat() {
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
   const [availabilityDate, setAvailabilityDate] = useState('')
   const [companyListOpen, setCompanyListOpen] = useState(false)
-  const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
-  const [availabilityDate, setAvailabilityDate] = useState('')
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
