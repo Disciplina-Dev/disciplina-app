@@ -31,6 +31,10 @@ db['candidates'].createIndex({
 db['candidates'].createIndex({
   "candidate_id": 1
 });
+// Recherche full-text (candidatesPage → search) sur le résumé auto-généré du candidat.
+db['candidates'].createIndex({
+  "identity.description": "text"
+});
 
 db.createCollection('drive_folder_config');
 

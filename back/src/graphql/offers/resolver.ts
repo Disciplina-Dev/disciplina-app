@@ -17,7 +17,7 @@ export const resolvers = {
         },
         matchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            return await offerService.find(id);
+            return await offerService.find(id, context.user.id);
         },
         offerCompanyInfo: async (_: unknown, { offerId }: { offerId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);

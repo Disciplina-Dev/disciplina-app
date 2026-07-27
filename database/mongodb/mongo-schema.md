@@ -53,7 +53,7 @@ Stores complete candidate profiles including identity, education, support system
 | has_vehicle | bool | — | Owns a personal vehicle |
 | transport_means | string | — | How candidate commutes |
 | psh_referral_request | bool | — | Person with disabilities support request |
-| description | string | — | Free-text candidate summary (recruiter context for manual matching) |
+| description | string | — | Free-text candidate summary (recruiter context for manual matching; text-indexed, used for candidatesPage search) |
 
 ### Embedded object: education
 
