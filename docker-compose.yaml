@@ -68,6 +68,8 @@ services:
       nosql-db:
         condition: service_healthy
         restart: true
+      otel-collector:
+        condition: service_started
       # ollama:
         # condition: service_healthy
     develop:
@@ -88,6 +90,9 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - E2E_DISABLE_LOGIN_RATE_LIMIT=${E2E_DISABLE_LOGIN_RATE_LIMIT:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_SERVICE_NAME=disciplina-api
+      - OTEL_TRACES_SAMPLER=always_on
     networks:
       - backend-net
       - frontend-net
@@ -156,6 +161,26 @@ services:
       - frontend-net
     ports:
       - "9999:8080"
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config", "/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel/config.yaml
+    networks:
+      - backend-net
+    ports:
+      - "4318:4318"
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - backend-net
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+
 networks:
   frontend-net:
   backend-net:
