@@ -7,6 +7,7 @@ services:
     volumes:
       - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/mysql/mysql-seed-dev.sql:/docker-entrypoint-initdb.d/99-seed-dev.sql
+      - ./database/mysql/mysql-seed-e2e.sql:/docker-entrypoint-initdb.d/98-seed-e2e.sql
       - ./database/mysql/mysql-data:/var/lib/mysql
     networks:
       - backend-net
@@ -88,6 +89,7 @@ services:
       - ./back/.env
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
+      - E2E_DISABLE_LOGIN_RATE_LIMIT=${E2E_DISABLE_LOGIN_RATE_LIMIT:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - OTEL_SERVICE_NAME=disciplina-api
       - OTEL_TRACES_SAMPLER=always_on

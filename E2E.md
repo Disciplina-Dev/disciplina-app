@@ -217,6 +217,12 @@ Source : `back/src/external/*`, `back/src/config/env.ts`. Rappel : au démarrage
 
 ## 5. Correspondance flux ↔ tests automatisés existants
 
+### Suite E2E Playwright (front → back → DB)
+
+Les 16 flux sont désormais automatisés bout-en-bout par une suite **Playwright** dans [`front/disciplina-front/e2e/`](front/disciplina-front/e2e/README.md) (un `*.spec.ts` par flux, nommé d'après ce document). Prérequis : `docker compose up` (le seed `database/mysql/mysql-seed-e2e.sql` provisionne un compte par rôle). Lancement : `npm run test:e2e` (ou `test:e2e:ci` pour exclure les tests taggés `@external`). Complète les tests component vitest ci-dessous, ne les remplace pas.
+
+### Tests component vitest
+
 Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` (DBs Docker requises). Voir [`back/HOWTOTEST.md`](back/HOWTOTEST.md).
 
 | Flux | Couvert par | Gap |

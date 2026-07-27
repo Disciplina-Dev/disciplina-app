@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { env } from '../../config/env';
 
 // Convention API : le corps d'erreur expose `error` sous forme de chaîne
 // (le front lit `body.error` partout). Ne pas renvoyer d'objet ici.
@@ -26,6 +27,7 @@ export const loginRateLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: RATE_LIMIT_MESSAGE,
+    skip: () => env.E2E_DISABLE_LOGIN_RATE_LIMIT,
 });
 
 export const graphqlRateLimiter = rateLimit({
