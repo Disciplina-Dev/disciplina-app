@@ -79,6 +79,11 @@ const data = {
 
     API_PORT: numberWithDefault('API_PORT', 4000),
 
+    // Contourne le loginRateLimiter pour les suites E2E (login réel par rôle à chaque run).
+    // Ignoré en production : le garde-fou anti-brute-force reste actif.
+    E2E_DISABLE_LOGIN_RATE_LIMIT:
+        process.env.NODE_ENV !== 'production' && process.env.E2E_DISABLE_LOGIN_RATE_LIMIT === 'true',
+
     APP_BASE_URL: stringWithDefault('APP_BASE_URL', 'http://localhost:4000'),
     FRONTEND_BASE_URL: stringWithDefault('FRONTEND_BASE_URL', 'http://localhost:5173'),
     CORS_ORIGINS: stringWithDefault('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
