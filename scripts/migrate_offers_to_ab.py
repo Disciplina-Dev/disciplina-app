@@ -88,17 +88,22 @@ def build_company_infos(offers_group, company_row):
     return company_infos
 
 
+def build_desired_tp(offer):
+    tp_type = offer.get("tp_type")
+    if not tp_type:
+        return []
+    return [{
+        "tp_type": tp_type,
+        "missions": offer.get("missions") or [],
+        "description_missions": offer.get("description_missions") or [],
+        "other_missions": offer.get("other_missions") or None,
+        "other_description_missions": offer.get("other_description_missions") or None,
+    }]
+
+
 def build_position(offer):
     tp_type = offer.get("tp_type")
-    desired_tp = []
-    if tp_type:
-        desired_tp = [{
-            "tp_type": tp_type,
-            "missions": offer.get("missions") or [],
-            "description_missions": offer.get("description_missions") or [],
-            "other_missions": offer.get("other_missions") or None,
-            "other_description_missions": offer.get("other_description_missions") or None,
-        }]
+    desired_tp = build_desired_tp(offer)
 
     criteria = offer.get("criteria") or {}
     criteria = {k: v for k, v in criteria.items() if v not in (None, "", [], {})}
