@@ -65,6 +65,7 @@ async function notifyBooked(signature: string): Promise<void> {
         await notificationService.create({
             userId: rh.id,
             type: 'interview_booked',
+            category: 'candidate',
             level: 'success',
             title: "Créneau d'entretien réservé",
             message: "Un candidat a réservé son créneau d'entretien.",

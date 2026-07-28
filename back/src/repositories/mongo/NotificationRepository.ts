@@ -8,6 +8,7 @@ export class NotificationRepository {
             _id: randomUUID(),
             user_id: input.userId,
             type: input.type,
+            category: input.category,
             level: input.level ?? 'info',
             title: input.title,
             message: input.message,
@@ -18,8 +19,10 @@ export class NotificationRepository {
         return doc.toObject() as Notification;
     }
 
-    async findForUser(userId: number, limit = 50): Promise<Notification[]> {
-        return NotificationModel.find({ user_id: userId }).sort({ created_at: -1 }).limit(limit).lean();
+    async findForUser(userId: number, limit = 50, category?: string): Promise<Notification[]> {
+        const filter: Record<string, unknown> = { user_id: userId };
+        if (category) filter.category = category;
+        return NotificationModel.find(filter).sort({ created_at: -1 }).limit(limit).lean();
     }
 
     async countUnread(userId: number): Promise<number> {

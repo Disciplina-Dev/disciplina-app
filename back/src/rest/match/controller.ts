@@ -69,6 +69,7 @@ async function notifyLock(signature: string): Promise<void> {
         await notificationService.create({
             userId: rh.id,
             type: 'match_locked',
+            category: 'company',
             level: 'warning',
             title: 'Session entreprise bloquée',
             message: `${context.companyEmail} a échoué 3 fois. Créez une nouvelle session.`,
@@ -162,6 +163,7 @@ async function notifyCompletion(signature: string): Promise<void> {
     await notificationService.create({
         userId: rh.id,
         type: 'match_completed',
+        category: 'company',
         level: 'success',
         title: 'Réponses entreprise reçues',
         message: `${context.companyEmail} a répondu aux candidats proposés.`,

@@ -5,10 +5,12 @@ import { apiFetch } from '@/api/httpClient'
 const API_BASE = import.meta.env.VITE_API_URL
 
 export type NotificationLevel = 'info' | 'success' | 'warning' | 'error'
+export type NotificationCategory = 'candidate' | 'company'
 
 export interface AppNotification {
   id: string
   type: string
+  category: NotificationCategory
   level: NotificationLevel
   title: string
   message: string | null
@@ -30,9 +32,15 @@ export function useNotifications() {
   const user = useAuthStore((s) => s.user)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<NotificationCategory | null>(null)
   const esRef = useRef<EventSource | null>(null)
 
   const unreadCount = notifications.filter((n) => !n.read).length
+  const filteredNotifications = selectedCategory
+    ? notifications.filter((n) => n.category === selectedCategory)
+    : notifications
+  const unreadByCategory = (cat: NotificationCategory) =>
+    notifications.filter((n) => !n.read && n.category === cat).length
 
   const refresh = useCallback(async () => {
     if (!user) return
@@ -111,5 +119,5 @@ export function useNotifications() {
     }
   }, [user])
 
-  return { notifications, unreadCount, loading, refresh, markRead, markAllRead }
+  return { notifications, filteredNotifications, unreadCount, unreadByCategory, selectedCategory, setSelectedCategory, loading, refresh, markRead, markAllRead }
 }

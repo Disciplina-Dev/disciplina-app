@@ -373,6 +373,7 @@ export class OfferService {
                 this.notificationService.create({
                     userId: user.id,
                     type: 'candidate_offer_answer',
+                    category: 'candidate',
                     level: accepted ? 'success' : 'info',
                     title: accepted ? 'Offre acceptée' : 'Offre déclinée',
                     message: `${name} a ${accepted ? 'accepté' : 'refusé'} l'offre de ${company}`,
@@ -391,18 +392,19 @@ export class OfferService {
         const name = candidateName ?? 'Un candidat';
         const company = companyName ?? "l'entreprise";
         const type = 'contract_signed';
+        const category = 'company' as const;
         const level = 'success' as const;
         const title = 'Contrat signé';
         const message = `${name} a signé un contrat avec ${company}`;
         const link = `/rh/matching?offer=${offerId}`;
 
         if (salerInfo?.id) {
-            await this.notificationService.create({ userId: salerInfo.id, type, level, title, message, link });
+            await this.notificationService.create({ userId: salerInfo.id, type, category, level, title, message, link });
         } else {
             const responsables = await this.userRepository.findByRoleIdAndPermissionId(1, 2);
             await Promise.all(
                 responsables.map((user) =>
-                    this.notificationService.create({ userId: user.id, type, level, title, message, link }),
+                    this.notificationService.create({ userId: user.id, type, category, level, title, message, link }),
                 ),
             );
         }
