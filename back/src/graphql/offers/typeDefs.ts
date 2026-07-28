@@ -274,6 +274,15 @@ export const typeDefs = gql`
         immersionEndDate: String
     }
 
+    type OfferHistoryEntry {
+        id: ID!
+        firstName: String
+        lastName: String
+        text: String!
+        ownerEmail: String
+        createdAt: String!
+    }
+
     type Query {
         offers: [Offer!]!
         matchOffer(id: String!): Offer!
@@ -282,6 +291,7 @@ export const typeDefs = gql`
         candidateMatchedOfferIds(candidateId: String!): [String!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
         offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
+        offerHistory(offerId: String!): [OfferHistoryEntry!]!
     }
 
     type Mutation {
@@ -313,6 +323,8 @@ export const typeDefs = gql`
             immersionEndDate: String
         ): Offer
         setImmersionConclusion(offerId: String!, candidateId: String!, conclusion: ImmersionConclusion!): Offer
+        addOfferHistoryEntry(offerId: String!, text: String!): OfferHistoryEntry!
+        deleteOfferHistoryEntry(id: String!): Boolean!
         deleteOffer(id: String!): Boolean!
         deleteOffersByNeedsAnalysis(needsAnalysisId: String!): Boolean!
     }

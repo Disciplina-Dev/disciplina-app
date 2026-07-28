@@ -47,6 +47,7 @@ import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
 import SendToCompanyModal from '@/features/matching/components/SendToCompanyModal'
+import HistoryModal from '@/features/matching/components/HistoryModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
@@ -1940,6 +1941,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
             : undefined
         }
       />
+
+      <HistoryModal offerId={selectedJob.id} />
 
       {showCompanyInfo && selectedJob && (
         <CompanyInfoModal offerId={selectedJob.id} needsAnalysisId={selectedJob.needsAnalysisId} onClose={() => setShowCompanyInfo(false)} />

@@ -24,6 +24,15 @@ export interface OfferTp {
   otherMissions?: string | null
 }
 
+export interface OfferHistoryEntry {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  text: string
+  ownerEmail: string | null
+  createdAt: string
+}
+
 export interface Job {
   id: string
   needsAnalysisId?: string | null
