@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 import { Offer } from '../../src/types/offer.types';
+import { TitleProfessionalType } from '../../src/types/candidate.types';
 import { OfferStatus, Localisation, Sector, MatchingCandidate } from '../../src/types/matching.types';
 
 // Seed d'une offre de matching dans la collection `offers`. Remplace l'ancien
@@ -36,7 +37,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
         needs_analysis_id: `ab-${offerId}`,
         company_infos: input.company_name ? { name: input.company_name } : undefined,
         localisation: input.localisation ?? [],
-        tp_type: (input.desired_tp ?? null) as Offer['tp_type'],
+        desired_tp: input.desired_tp ? [{ tp_type: input.desired_tp as TitleProfessionalType, missions: [], description_missions: [] }] : [],
         criteria: {
             age_min: min,
             age_max: max,
