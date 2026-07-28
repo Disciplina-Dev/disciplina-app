@@ -199,6 +199,30 @@ function sh(title: string): string {
     return `<div class="section-header">${title}</div>`;
 }
 
+type PositionTpGql = NonNullable<NeedsAnalysisGql['positions'][number]['desiredTp']>[number];
+
+function buildTpMissionsBlock(tp: PositionTpGql): string {
+    const missionItems = (tp.missions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
+    const missionsType = (tp.descriptionMissions ?? []).join(', ');
+    const descriptifMissions = tp.otherDescriptionMissions ?? '';
+    const complementaire =
+        missionsType || descriptifMissions
+            ? `
+<div class="field-row">
+    <span class="field-label">Description complémentaire des missions :</span><br/>
+    ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
+    ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
+</div>`
+            : '';
+    return `
+${fr('Titre professionnel visé :', TP_LABELS[tp.tpType ?? ''] ?? tp.tpType ?? '')}
+<div class="field-row">
+    <span class="field-label">Description des missions :</span><br/>
+    <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
+    ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : '<div class="text-area">&nbsp;</div>'}
+</div>${complementaire}`;
+}
+
 function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
     const days = parseDays(analysis.trainingDays ?? '{}');
 
@@ -212,9 +236,7 @@ function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
         .map((p, i) => {
             const title =
                 positions.length > 1 ? `Poste ${i + 1} sur ${positions.length}` : 'Exigences du poste à pourvoir';
-            const missionItems = (p.missions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
-            const missionsType = (p.descriptionMissions ?? []).join(', ');
-            const descriptifMissions = p.otherDescriptionMissions ?? '';
+            const tpBlocks = (p.desiredTp ?? []).map(buildTpMissionsBlock).join('');
             return `
 ${sh(title)}
 ${p.jobRole ? fr('Intitulé de métier :', p.jobRole) : ''}
@@ -225,21 +247,7 @@ ${fr('Intitulé de la formation :', p.title)}
     <span class="option">${chk(p.trainingDomain === 'VENTE')}&nbsp;Vente</span>
 </div>
 ${fr('Localisation du poste :', formatCommunes(p.localisation))}
-<div class="field-row">
-    <span class="field-label">Description des missions :</span><br/>
-    <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
-    ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : '<div class="text-area">&nbsp;</div>'}
-</div>
-${
-    missionsType || descriptifMissions
-        ? `
-<div class="field-row">
-    <span class="field-label">Description complémentaire des missions :</span><br/>
-    ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
-    ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
-</div>`
-        : ''
-}`;
+${tpBlocks}`;
         })
         .join('');
 

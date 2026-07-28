@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS `companies` (
   `sector` varchar(255) NOT NULL DEFAULT 'Nord-Est',
   `main_activity` varchar(255) DEFAULT NULL,
   `siret` char(14) NOT NULL,
+  `siren` char(9) GENERATED ALWAYS AS (SUBSTRING(`siret`, 1, 9)) STORED,
   `idcc` char(4) DEFAULT NULL,
   `ape` char(5) DEFAULT NULL,
   `notes` text DEFAULT NULL,
@@ -133,6 +134,7 @@ CREATE TABLE IF NOT EXISTS `companies` (
   `relance_channel` enum('PHONE','MAIL') DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `siret` (`siret`),
+  KEY `idx_companies_siren` (`siren`),
   KEY `idx_companies_user_id` (`user_id`),
   CONSTRAINT `fk_companies_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

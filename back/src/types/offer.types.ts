@@ -8,6 +8,24 @@ export interface OfferCompanyInfos {
     activities?: string[];
 }
 
+export interface OfferAbFilter {
+    search?: string;
+    statuses?: string[];
+    desiredTp?: string[];
+    sectors?: string[];
+    localisations?: string[];
+}
+
+export interface OfferHistoryEntry {
+    _id: string;
+    offer_id: string;
+    first_name: string | null;
+    last_name: string | null;
+    text: string;
+    owner_email: string | null;
+    created_at: Date;
+}
+
 export interface Offer extends Position {
     _id?: string;
     needs_analysis_id?: string;

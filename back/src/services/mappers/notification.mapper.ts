@@ -5,6 +5,7 @@ export function notificationToDto(n: Notification): object {
     return {
         id: n._id,
         type: n.type,
+        category: n.category,
         level: n.level,
         title: n.title,
         message: n.message ?? null,

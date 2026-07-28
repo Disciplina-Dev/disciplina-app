@@ -6,11 +6,13 @@
  * du code peut émettre un nouveau type sans modifier ce modèle.
  */
 export type NotificationLevel = 'info' | 'success' | 'warning' | 'error';
+export type NotificationCategory = 'candidate' | 'company';
 
 export interface Notification {
     _id: string;
     user_id: number;
     type: string;
+    category: NotificationCategory;
     level: NotificationLevel;
     title: string;
     message?: string;
@@ -24,6 +26,7 @@ export interface Notification {
 export interface CreateNotificationInput {
     userId: number;
     type: string;
+    category: NotificationCategory;
     title: string;
     level?: NotificationLevel;
     message?: string;

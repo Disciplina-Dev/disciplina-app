@@ -33,7 +33,7 @@ import DashboardRH from "@/pages/rh/DashboardRH";
 import ListeCandidats from "@/pages/rh/ListeCandidats";
 import FicheCandidat from "@/pages/rh/FicheCandidat";
 import QuestionnaireAB from "@/pages/rh/QuestionnaireAB";
-import Matching from "@/pages/rh/Matching";
+import NeedsAnalysisList from "@/pages/rh/NeedsAnalysisList";
 import Calendrier from "@/pages/rh/Calendrier";
 import ABEntreprisesRecues from "@/pages/rh/ABEntreprisesRecues";
 import MailTemplates from "@/pages/rh/MailTemplates";
@@ -136,7 +136,7 @@ export const router = createBrowserRouter([
       { path: "candidats", element: <ListeCandidats />, handle: { crumb: "Candidats" } },
       { path: "candidats/:id", element: <FicheCandidat />, handle: { crumb: "Fiche candidat" } },
       { path: "candidats/:id/questionnaire", element: <QuestionnaireAB />, handle: { crumb: "Questionnaire" } },
-      { path: "matching", element: <Matching />, handle: { crumb: "Matching" } },
+      { path: "matching", element: <NeedsAnalysisList />, handle: { crumb: "Matching" } },
       { path: "calendrier", element: <Calendrier />, handle: { crumb: "Calendrier" } },
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },

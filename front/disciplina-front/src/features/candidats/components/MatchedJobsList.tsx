@@ -155,10 +155,16 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                   </p>
                 )}
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {job.desiredTP && (
-                    <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
-                      {TP_TYPE_LABELS[job.desiredTP]}
-                    </span>
+                  {(job.desiredTp ?? []).map(
+                    (tp) =>
+                      tp.tpType && (
+                        <span
+                          key={tp.tpType}
+                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                        >
+                          {TP_TYPE_LABELS[tp.tpType]}
+                        </span>
+                      ),
                   )}
                   {job.sector && (
                     <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">

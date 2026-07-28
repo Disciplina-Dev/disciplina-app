@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Disciplina — consolidated database seed script.
 
-Imports CSV data into MySQL and MongoDB in 9 steps:
+Imports CSV data into MySQL and MongoDB in 10 steps:
   1. Companies -> MySQL (disciplina.companies)
   2. Blacklist -> MySQL (disciplina.blacklist)
   3. Sales candidates (Nord) -> MongoDB (human_ressources.candidates)
@@ -11,6 +11,7 @@ Imports CSV data into MySQL and MongoDB in 9 steps:
   7. Sales candidates (Sud) -> MongoDB (human_ressources.candidates)
   8. Secretariat candidates (Sud) -> MongoDB (human_ressources.candidates)
   9. Offers -> MongoDB (human_ressources.offers)
+ 10. Migrate legacy offers -> needs_analysis (human_ressources.needs_analysis)
 
 Missing CSV files are skipped gracefully.
 Environment variables control DB host/port (defaults to localhost for dev).
@@ -32,6 +33,7 @@ from clean_companies import clean_all
 from import_company import import_companies
 from import_blacklist import import_blacklist
 from import_jobs import seed_offers
+from migrate_offers_to_ab import run_migration
 
 load_dotenv()
 
@@ -578,7 +580,7 @@ def main() -> int:
     errors = []
 
     # 1. Companies -- idempotent via INSERT IGNORE, runs even on a populated table.
-    print("\n[1/9] Importing companies -> MySQL ...")
+    print("\n[1/10] Importing companies -> MySQL ...")
     try:
         clean_all()
         n = import_companies()
@@ -588,7 +590,7 @@ def main() -> int:
         errors.append(f"Companies: {e}")
 
     # 2. Blacklist -- idempotent via INSERT IGNORE, runs even on a populated table.
-    print("\n[2/9] Importing blacklist -> MySQL ...")
+    print("\n[2/10] Importing blacklist -> MySQL ...")
     try:
         n = import_blacklist()
         print(f"  OK -- {n} blacklisted companies inserted")
@@ -597,7 +599,7 @@ def main() -> int:
         errors.append(f"Blacklist: {e}")
 
     # 3. Sales candidates (Nord) — idempotent via upsert on email
-    print("\n[3/9] Importing sales candidates (Nord) -> MongoDB ...")
+    print("\n[3/10] Importing sales candidates (Nord) -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidat-nord-vente.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidat-nord-vente.csv not found")
@@ -610,7 +612,7 @@ def main() -> int:
             errors.append(f"Sales candidates (Nord): {e}")
 
     # 4. Secretariat candidates (Nord) — idempotent via upsert on email
-    print("\n[4/9] Importing secretariat candidates (Nord) -> MongoDB ...")
+    print("\n[4/10] Importing secretariat candidates (Nord) -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidat-nord-secretariat.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidat-nord-secretariat.csv not found")
@@ -628,7 +630,7 @@ def main() -> int:
         ("candidat-ouest-vente-NTC.csv", "NTC"),
         ("candidat-ouest-vente-REM.csv", "REM"),
     ]
-    print("\n[5/9] Importing sales candidates (Ouest) -> MongoDB ...")
+    print("\n[5/10] Importing sales candidates (Ouest) -> MongoDB ...")
     for filename, tp_type in ouest_sales_files:
         path = os.path.join(RESOURCE_DIR, filename)
         if not os.path.exists(path):
@@ -642,7 +644,7 @@ def main() -> int:
             errors.append(f"Ouest sales candidates ({tp_type}): {e}")
 
     # 6. Secretariat candidates (Ouest) — idempotent via upsert on email
-    print("\n[6/9] Importing secretariat candidates (Ouest) -> MongoDB ...")
+    print("\n[6/10] Importing secretariat candidates (Ouest) -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidat-ouest-secretariat-AD.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidat-ouest-secretariat-AD.csv not found")
@@ -660,7 +662,7 @@ def main() -> int:
         ("candidat-sud-vente-NTC.csv", "NTC"),
         ("candidat-sud-vente-REM.csv", "REM"),
     ]
-    print("\n[7/9] Importing sales candidates (Sud) -> MongoDB ...")
+    print("\n[7/10] Importing sales candidates (Sud) -> MongoDB ...")
     for filename, tp_type in sud_sales_files:
         path = os.path.join(RESOURCE_DIR, filename)
         if not os.path.exists(path):
@@ -674,7 +676,7 @@ def main() -> int:
             errors.append(f"Sud sales candidates ({tp_type}): {e}")
 
     # 8. Secretariat candidates (Sud) — idempotent via upsert on email
-    print("\n[8/9] Importing secretariat candidates (Sud) -> MongoDB ...")
+    print("\n[8/10] Importing secretariat candidates (Sud) -> MongoDB ...")
     path = os.path.join(RESOURCE_DIR, 'candidat-sud-secretariat-AD.csv')
     if not os.path.exists(path):
         print(f"  SKIP -- candidat-sud-secretariat-AD.csv not found")
@@ -687,13 +689,23 @@ def main() -> int:
             errors.append(f"Secretariat candidates (Sud): {e}")
 
     # 9. Offers — idempotent via upsert on (company_infos.name, tp_type, localisation[0])
-    print("\n[9/9] Importing offers -> MongoDB ...")
+    print("\n[9/10] Importing offers -> MongoDB ...")
     try:
         n = seed_offers()
         print(f"  OK -- {n} offers upserted")
     except Exception as e:
         print(f"  FAIL -- Offers: {e}")
         errors.append(f"Offers: {e}")
+
+    # 10. Migrate legacy offers to needs_analysis — creates one SIGNE needs_analysis
+    #     per company for offers without needs_analysis_id, tagged 'Importé du drive'.
+    print("\n[10/10] Migrating legacy offers -> needs_analysis ...")
+    try:
+        run_migration(auto_confirm=True)
+        print("  OK -- migration complete")
+    except Exception as e:
+        print(f"  FAIL -- Migration: {e}")
+        errors.append(f"Migration: {e}")
 
     print()
     print("=" * 50)
