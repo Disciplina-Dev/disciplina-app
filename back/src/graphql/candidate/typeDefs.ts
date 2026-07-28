@@ -197,13 +197,19 @@ export const typeDefs = gql`
         interviewedBy: String
     }
 
+    type MatchedOfferTp {
+        tpType: TitleProfessionalType
+        missions: [String!]!
+        descriptionMissions: [String!]!
+    }
+
     type MatchedOffer {
         id: String
         needsAnalysisId: String
         companyName: String
         sector: String
         localisation: [Localisation]
-        desiredTP: TitleProfessionalType
+        desiredTp: [MatchedOfferTp!]!
         ageRange: String
         status: String
         title: String

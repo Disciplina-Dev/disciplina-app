@@ -111,19 +111,25 @@ export interface OfferCriteria {
     additional_comments?: string | null;
 }
 
+// Titre professionnel visé par le poste, avec ses missions propres : un même poste
+// peut relever de plusieurs TP (ex. CC ou NTC) dont les missions diffèrent.
+export interface PositionTp {
+    tp_type?: TitleProfessionalType | null;
+    missions?: string[];
+    description_missions?: string[];
+    other_missions?: string | null;
+    other_description_missions?: string | null;
+}
+
 // Poste demandé par l'AB (formulaire commercial). Contient uniquement la donnée de
 // poste : le snapshot entreprise/référents/saler et l'état de matching ne vivent que
 // dans la collection `offers`, créée au premier envoi en signature.
 export interface Position {
     localisation?: Localisation[];
-    tp_type?: TitleProfessionalType | null;
+    desired_tp?: PositionTp[];
     training_domain?: TrainingDomain | null;
     job_role?: string | null;
     title?: string;
-    missions?: string[];
-    description_missions?: string[];
-    other_description_missions?: string | null;
-    other_missions?: string | null;
     count?: number;
     criteria?: OfferCriteria;
 }
@@ -139,6 +145,7 @@ export interface NeedsAnalysis {
     training_days?: string;
     signature_request_id?: string | null;
     status?: NeedsAnalysisStatus;
+    tags?: string[];
     created_at?: Date;
     updated_at?: Date;
 }
@@ -167,5 +174,6 @@ export interface NeedsAnalysisWriteInput {
     trainingDays?: string;
     yousignSignatureRequestID?: string | null;
     status?: NeedsAnalysisStatus;
+    tags?: string[];
     createdAt?: string;
 }

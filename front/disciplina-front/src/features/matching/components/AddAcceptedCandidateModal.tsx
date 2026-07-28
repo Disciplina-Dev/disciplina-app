@@ -6,7 +6,7 @@ import { GET_CANDIDATES_PAGE } from '@/graphql/queries'
 interface AddAcceptedCandidateModalProps {
   job: {
     id: string
-    desiredTP?: string | null
+    desiredTp?: Array<{ tpType?: string | null }>
     matchedCandidate?: Array<{ id: string }>
   }
   onSubmit: (candidateId: string, candidateName: string) => void
@@ -35,7 +35,8 @@ export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: Ad
     setIsSearching(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const filters = job.desiredTP ? { tpType: job.desiredTP } : undefined
+        const tps = (job.desiredTp ?? []).map((tp) => tp.tpType).filter(Boolean)
+        const filters = tps.length ? { tpType: tps } : undefined
         const result = await candidateGraphqlClient
           .query(GET_CANDIDATES_PAGE, { first: 20, search: candidateSearch, filters })
           .toPromise()
@@ -65,7 +66,7 @@ export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: Ad
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [candidateSearch, job.desiredTP, job.matchedCandidate])
+  }, [candidateSearch, job.desiredTp, job.matchedCandidate])
 
   const handleSubmit = () => {
     if (!selectedCandidate) return
@@ -94,9 +95,12 @@ export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: Ad
             />
           </div>
 
-          {job.desiredTP && (
+          {(job.desiredTp ?? []).length > 0 && (
             <p className="mb-3 text-xs text-gray-400">
-              Candidats filtrés par type de TP : <span className="font-semibold">{job.desiredTP}</span>
+              Candidats filtrés par type de TP :{' '}
+              <span className="font-semibold">
+                {(job.desiredTp ?? []).map((tp) => tp.tpType).filter(Boolean).join(', ')}
+              </span>
             </p>
           )}
 

@@ -8,6 +8,14 @@ export interface OfferCompanyInfos {
     activities?: string[];
 }
 
+export interface OfferAbFilter {
+    search?: string;
+    statuses?: string[];
+    desiredTp?: string[];
+    sectors?: string[];
+    localisations?: string[];
+}
+
 export interface Offer extends Position {
     _id?: string;
     needs_analysis_id?: string;

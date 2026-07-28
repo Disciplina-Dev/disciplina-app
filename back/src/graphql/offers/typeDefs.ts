@@ -180,12 +180,20 @@ export const typeDefs = gql`
         activities: [String!]
     }
 
+    type OfferTp {
+        tpType: DesiredTP
+        missions: [String!]!
+        descriptionMissions: [String!]!
+        otherMissions: String
+        otherDescriptionMissions: String
+    }
+
     type Offer {
         needsAnalysisId: String
         id: String!
         companyName: String
         ageRange: String
-        desiredTP: DesiredTP
+        desiredTp: [OfferTp!]!
         desiredSex: Sex
         drivingLicencseB: Boolean
         professionalExperience: Boolean
@@ -202,7 +210,6 @@ export const typeDefs = gql`
         companyInfos: CompanyInfos
         title: String
         jobRole: String
-        missions: [String]
         softSkills: String
     }
 
@@ -221,7 +228,6 @@ export const typeDefs = gql`
         id: String!
         companyName: String
         ageRange: String
-        desiredTP: DesiredTP
         desiredSex: Sex
         drivingLicencseB: Boolean
         professionalExperience: Boolean

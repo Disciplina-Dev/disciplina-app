@@ -3,6 +3,7 @@ import { CandidateRepository, CandidateFilters, CandidateStats } from '../reposi
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { computeAge } from '../utils/age';
+import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
@@ -210,7 +211,9 @@ export class CandidateService {
     }
 
     private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {
-        if (offer.tp_type && offer.tp_type !== candidate.tp_type) return false;
+        const offerTps = offerTpCodes(offer);
+        const candidateTps = candidate.tp_types?.length ? candidate.tp_types : [candidate.tp_type];
+        if (offerTps.length && !offerTps.some((tp) => candidateTps.includes(tp))) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
 
         const candidateAge = computeAge(candidate.identity.date_of_birth) ?? candidate.identity.age;

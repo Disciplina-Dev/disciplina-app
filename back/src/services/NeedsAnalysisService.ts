@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
+import { OfferAbFilter } from '../types/offer.types';
 import {
     NeedsAnalysis as NeedsAnalysisNoSql,
     NeedsAnalysisWriteInput,
@@ -29,6 +30,16 @@ import { PDFDocument } from 'pdf-lib';
  * compresse les objets en `object streams` (où `/Type /Page` n'apparaît pas en
  * clair, ce qui faisait échouer l'ancien comptage par regex).
  */
+function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
+    return Boolean(
+        filter.search ||
+            filter.statuses?.length ||
+            filter.desiredTp?.length ||
+            filter.sectors?.length ||
+            filter.localisations?.length,
+    );
+}
+
 async function countPdfPages(buffer: Buffer): Promise<number> {
     try {
         const pdf = await PDFDocument.load(buffer);
@@ -77,6 +88,15 @@ export class NeedsAnalysisService {
     async findAll(): Promise<NeedsAnalysisGql[]> {
         const docs = await this.repository.findAll();
         return docs.map(toNeedsAnalysis);
+    }
+
+    async findPage(first: number, after?: string, filter?: OfferAbFilter): Promise<NeedsAnalysisNoSql[]> {
+        if (!filter || !hasActiveOfferFilter(filter)) {
+            return this.repository.findPage(first, after);
+        }
+        const ids = await this.offerRepository.findNeedsAnalysisIdsByFilter(filter);
+        if (ids.length === 0) return [];
+        return this.repository.findPage(first, after, ids);
     }
 
     async findById(id: string): Promise<NeedsAnalysisGql | null> {
@@ -320,7 +340,6 @@ export class NeedsAnalysisService {
         // RH + Responsables + Admin : tous ont accès à l'espace de matching.
         const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const positionsLabel = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
-        const firstOfferId = offers[0]?._id;
         await Promise.all(
             rhUsers.map((user) =>
                 this.notificationService.create({
@@ -329,7 +348,7 @@ export class NeedsAnalysisService {
                     level: 'info',
                     title: 'Nouvelle analyse du besoin à matcher',
                     message: `${companyName} — ${positionsLabel} à pourvoir`,
-                    link: firstOfferId ? `/rh/matching?offer=${firstOfferId}` : '/rh/matching',
+                    link: `/rh/matching?needsAnalysis=${analysisId}`,
                 }),
             ),
         );

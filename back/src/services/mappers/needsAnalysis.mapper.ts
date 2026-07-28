@@ -4,13 +4,13 @@ import {
     CompanyInfos,
     Referents,
     Position,
+    PositionTp,
     OfferCriteria,
     CompanyRegion,
     NeedsAnalysisStatus,
-    TrainingDomain,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
-import { ZONE_TO_COMMUNES, DOMAIN_TO_TP, TITLE_TO_TP, Zone } from './abToOffer';
+import { ZONE_TO_COMMUNES, Zone } from './abToOffer';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
 
@@ -29,6 +29,16 @@ export function zoneFromCommunes(communes: string[] | undefined, fallback: Zone)
     return (first && COMMUNE_TO_ZONE.get(first)) || fallback;
 }
 
+function buildPositionTp(tp: any): PositionTp {
+    return {
+        tp_type: tp.tp_type ?? tp.tpType ?? null,
+        missions: tp.missions ?? [],
+        description_missions: tp.description_missions ?? tp.descriptionMissions ?? [],
+        other_missions: tp.other_missions ?? tp.otherMissions ?? null,
+        other_description_missions: tp.other_description_missions ?? tp.otherDescriptionMissions ?? null,
+    };
+}
+
 function buildPosition(position: Position): Position {
     const c = position.criteria ?? {};
     const trainingDomain =
@@ -37,7 +47,6 @@ function buildPosition(position: Position): Position {
         c.training_domain ??
         (c as any).trainingDomain ??
         null;
-    const tDomain = trainingDomain as TrainingDomain | null;
     const criteria: OfferCriteria = {
         education_level: c.education_level ?? (c as any).educationLevel ?? null,
         driving_license: c.driving_license ?? (c as any).drivingLicense ?? false,
@@ -54,15 +63,10 @@ function buildPosition(position: Position): Position {
 
     return {
         localisation: position.localisation ?? [],
-        tp_type: TITLE_TO_TP[position.title ?? ''] ?? (tDomain && DOMAIN_TO_TP[tDomain]) ?? null,
+        desired_tp: (position.desired_tp ?? (position as any).desiredTp ?? []).map(buildPositionTp),
         training_domain: trainingDomain,
         job_role: position.job_role ?? (position as any).jobRole ?? null,
         title: position.title,
-        missions: position.missions ?? [],
-        description_missions: position.description_missions ?? (position as any).descriptionMissions ?? [],
-        other_description_missions:
-            position.other_description_missions ?? (position as any).otherDescriptionMissions ?? null,
-        other_missions: position.other_missions ?? (position as any).otherMissions ?? null,
         count: position.count ?? 1,
         criteria,
     };
@@ -124,8 +128,19 @@ export function toNeedsAnalysisDocument(
         training_days: data.trainingDays,
         signature_request_id: data.yousignSignatureRequestID ?? null,
         status: data.status ?? NeedsAnalysisStatus.BROUILLON,
+        tags: data.tags ?? [],
         created_at: data.createdAt ? new Date(data.createdAt) : now,
         updated_at: now,
+    };
+}
+
+function toGqlPositionTp(tp: PositionTp) {
+    return {
+        tpType: tp.tp_type ?? null,
+        missions: tp.missions ?? [],
+        descriptionMissions: tp.description_missions ?? [],
+        otherDescriptionMissions: tp.other_description_missions ?? null,
+        otherMissions: tp.other_missions ?? null,
     };
 }
 
@@ -133,14 +148,10 @@ function toGqlPosition(p: Position) {
     const c = p.criteria ?? {};
     return {
         localisation: p.localisation ?? [],
-        tpType: p.tp_type ?? null,
+        desiredTp: (p.desired_tp ?? []).map(toGqlPositionTp),
         trainingDomain: p.training_domain ?? null,
         jobRole: p.job_role ?? null,
         title: p.title ?? '',
-        missions: p.missions ?? [],
-        descriptionMissions: p.description_missions ?? [],
-        otherDescriptionMissions: p.other_description_missions ?? null,
-        otherMissions: p.other_missions ?? null,
         count: p.count ?? 1,
         criteria: p.criteria
             ? {
@@ -211,6 +222,7 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         trainingDays: doc.training_days ?? '{}',
         yousignSignatureRequestID: doc.signature_request_id ?? null,
         status: doc.status ?? NeedsAnalysisStatus.BROUILLON,
+        tags: doc.tags ?? [],
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
         updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
     };

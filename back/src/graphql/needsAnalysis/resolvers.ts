@@ -1,12 +1,29 @@
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
+import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
+import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
+import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
+import { OfferAbFilter } from '../../types/offer.types';
 import {
     abDriveConfigService,
     abDriveConfigToGql,
     abFolderKey,
     AbFolderKind,
 } from '../../services/AbDriveConfigService';
+
+interface OfferFilterInput {
+    search?: string;
+    statuses?: string[];
+    desiredTp?: string[];
+    sectors?: string[];
+    localisations?: string[];
+}
+
+function toOfferAbFilter(filter?: OfferFilterInput): OfferAbFilter | undefined {
+    if (!filter) return undefined;
+    return { ...filter };
+}
 
 const needsAnalysisService = new NeedsAnalysisService();
 
@@ -19,6 +36,20 @@ export const resolvers = {
         needsAnalysesByCompany: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return needsAnalysisService.findByCompanyId(companyID);
+        },
+        needsAnalysesPage: async (
+            _: unknown,
+            { first, after, filter }: PaginationArgs & { filter?: OfferFilterInput },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const docs = await needsAnalysisService.findPage(pageSize, after, toOfferAbFilter(filter));
+            const conn = buildConnection(docs, encodeNeedsAnalysisCursor, pageSize);
+            return {
+                edges: conn.edges.map((edge) => ({ ...edge, node: toNeedsAnalysis(edge.node) })),
+                pageInfo: conn.pageInfo,
+            };
         },
         abDriveConfig: async (_: unknown, __: unknown, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);

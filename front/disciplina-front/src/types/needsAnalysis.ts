@@ -46,17 +46,21 @@ export interface OfferCriteria {
   additionalComments?: string | null
 }
 
-export interface Position {
-  localisation?: string[] | null
+export interface PositionTp {
   tpType?: string | null
-  trainingDomain?: string | null
-  jobRole?: string | null
-  count?: number | null
-  title?: string | null
   missions?: string[] | null
   descriptionMissions?: string[] | null
   otherDescriptionMissions?: string | null
   otherMissions?: string | null
+}
+
+export interface Position {
+  localisation?: string[] | null
+  desiredTp?: PositionTp[] | null
+  trainingDomain?: string | null
+  jobRole?: string | null
+  count?: number | null
+  title?: string | null
   criteria?: OfferCriteria | null
 }
 

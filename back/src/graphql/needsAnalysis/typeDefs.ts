@@ -155,29 +155,38 @@ export const typeDefs = gql`
         additionalComments: String
     }
 
-    type Position {
-        localisation: [Localisation!]!
+    type PositionTp {
         tpType: TitleProfessionalType
-        trainingDomain: TrainingDomain
-        jobRole: String
-        title: String!
         missions: [String!]!
         descriptionMissions: [String!]!
         otherDescriptionMissions: String
         otherMissions: String
+    }
+
+    input PositionTpInput {
+        tpType: TitleProfessionalType
+        missions: [String!]
+        descriptionMissions: [String!]
+        otherDescriptionMissions: String
+        otherMissions: String
+    }
+
+    type Position {
+        localisation: [Localisation!]!
+        desiredTp: [PositionTp!]!
+        trainingDomain: TrainingDomain
+        jobRole: String
+        title: String!
         count: Int
         criteria: OfferCriteria
     }
 
     input PositionInput {
         localisation: [Localisation!]!
+        desiredTp: [PositionTpInput!]!
         trainingDomain: TrainingDomain
         jobRole: String
         title: String!
-        missions: [String!]
-        descriptionMissions: [String!]
-        otherDescriptionMissions: String
-        otherMissions: String
         count: Int
         criteria: OfferCriteriaInput
     }
@@ -194,6 +203,7 @@ export const typeDefs = gql`
         trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
+        tags: [String!]
         createdAt: String
         updatedAt: String
     }
@@ -218,6 +228,7 @@ export const typeDefs = gql`
         trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus
+        tags: [String!]
     }
 
     type AbDriveFolder {
@@ -240,9 +251,35 @@ export const typeDefs = gql`
         sectorFolders: [AbDriveFolderInput!]!
     }
 
+    type PageInfo {
+        hasNextPage: Boolean!
+        hasPreviousPage: Boolean!
+        startCursor: String
+        endCursor: String
+    }
+
+    type NeedsAnalysisEdge {
+        node: NeedsAnalysis!
+        cursor: String!
+    }
+
+    type NeedsAnalysisConnection {
+        edges: [NeedsAnalysisEdge!]!
+        pageInfo: PageInfo!
+    }
+
+    input OfferFilterInput {
+        search: String
+        statuses: [String!]
+        desiredTp: [String!]
+        sectors: [String!]
+        localisations: [String!]
+    }
+
     type Query {
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
+        needsAnalysesPage(first: Int, after: String, filter: OfferFilterInput): NeedsAnalysisConnection!
         abDriveConfig: AbDriveConfig!
     }
 

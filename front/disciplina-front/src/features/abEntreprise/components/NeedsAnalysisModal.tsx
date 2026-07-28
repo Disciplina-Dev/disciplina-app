@@ -55,14 +55,18 @@ interface PosteCriteria {
   additionalComments: string
 }
 
+interface PosteTp {
+  jobTitle: string
+  selectedMissions: string[]
+  otherDescriptionMissions: string
+}
+
 interface Poste {
   jobRole: string
   count: number
   trainingDomain: TrainingDomain | undefined
-  jobTitle: string
-  selectedMissions: string[]
+  desiredTp: PosteTp[]
   localisation: Localisation[]
-  otherDescriptionMissions: string
   criteria: PosteCriteria
 }
 
@@ -126,6 +130,19 @@ const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
   SECRETARIAT: ['Secrétaire Assistante', 'Assistante de Direction'],
   VENTE: ['Conseiller Commercial', 'Négociateur Technico-Commercial', "Responsable d'Établissement Marchand"],
 }
+
+// Chaque intitulé de formation correspond à un titre professionnel (TP).
+const TITLE_TO_TP: Record<string, string> = {
+  'Secrétaire Assistante': 'SA',
+  'Assistante de Direction': 'AD',
+  'Conseiller Commercial': 'CC',
+  'Négociateur Technico-Commercial': 'NTC',
+  "Responsable d'Établissement Marchand": 'REM',
+}
+
+const TP_TO_TITLE: Record<string, string> = Object.fromEntries(
+  Object.entries(TITLE_TO_TP).map(([title, tp]) => [tp, title]),
+)
 
 const SOFT_SKILLS_LIST = [
   'Rigueur et organisation',
@@ -240,10 +257,8 @@ const EMPTY_POSTE: Poste = {
   jobRole: '',
   count: 1,
   trainingDomain: undefined,
-  jobTitle: '',
-  selectedMissions: [],
+  desiredTp: [],
   localisation: [],
-  otherDescriptionMissions: '',
   criteria: {
     drivingLicense: undefined,
     experienceRequired: undefined,
@@ -257,6 +272,38 @@ const EMPTY_POSTE: Poste = {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function TpMissionsFields({ domain, tp, onChangeMissions, onChangeOther }: {
+  domain: TrainingDomain
+  tp: PosteTp
+  onChangeMissions: (missions: string[]) => void
+  onChangeOther: (value: string) => void
+}) {
+  const options = MISSIONS[domain]?.[tp.jobTitle] ?? []
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-gray-100 p-3">
+      <p className="text-sm font-semibold text-gray-900">{tp.jobTitle}</p>
+      {options.length > 0 && (
+        <CheckboxGroup
+          label={`Missions à confier à l'apprenti — ${tp.jobTitle}`}
+          options={options}
+          selected={tp.selectedMissions}
+          onChange={onChangeMissions}
+          columns={2}
+        />
+      )}
+      {tp.selectedMissions.length > 0 && (
+        <p className="text-xs text-blue">
+          {tp.selectedMissions.length} mission{tp.selectedMissions.length > 1 ? 's' : ''} sélectionnée{tp.selectedMissions.length > 1 ? 's' : ''}
+        </p>
+      )}
+      <TextareaField id={`jobDescriptionOther-${tp.jobTitle}`} label="Description complémentaire" optional rows={3}
+        placeholder="Responsabilités spécifiques, contexte…"
+        value={tp.otherDescriptionMissions}
+        onChange={(e) => onChangeOther(e.target.value)} />
+    </div>
+  )
+}
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
@@ -495,10 +542,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         jobRole: p.jobRole ?? '',
         count: p.count ?? 1,
         trainingDomain: p.trainingDomain as TrainingDomain | undefined,
-        jobTitle: p.title ?? '',
-        selectedMissions: p.missions ?? [],
+        desiredTp: (p.desiredTp ?? []).map((tp) => ({
+          jobTitle: tp.tpType ? TP_TO_TITLE[tp.tpType] ?? '' : '',
+          selectedMissions: tp.missions ?? [],
+          otherDescriptionMissions: tp.otherDescriptionMissions ?? '',
+        })),
         localisation: (p.localisation ?? []) as Localisation[],
-        otherDescriptionMissions: p.otherDescriptionMissions ?? '',
         criteria: {
           drivingLicense: p.criteria?.drivingLicense == null ? undefined : p.criteria.drivingLicense ? 'OUI' : 'OPTIONNEL',
           experienceRequired: p.criteria?.experienceRequired == null ? undefined : p.criteria.experienceRequired ? 'OBLIGATOIRE' : 'DEBUTANT',
@@ -613,12 +662,40 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     setPostes((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)))
   }
 
+  // Réconcilie les TP d'un poste avec les intitulés cochés : conserve les missions
+  // déjà saisies pour un TP maintenu, initialise une entrée vide pour un TP ajouté.
+  const setPosteTitles = (index: number, titles: string[]) => {
+    setPostes((prev) =>
+      prev.map((p, i) => {
+        if (i !== index) return p
+        const desiredTp = titles.map(
+          (jobTitle) =>
+            p.desiredTp.find((tp) => tp.jobTitle === jobTitle) ?? {
+              jobTitle,
+              selectedMissions: [],
+              otherDescriptionMissions: '',
+            },
+        )
+        return { ...p, desiredTp }
+      }),
+    )
+  }
+
+  const updatePosteTp = (index: number, tpIndex: number, patch: Partial<PosteTp>) => {
+    setPostes((prev) =>
+      prev.map((p, i) =>
+        i === index ? { ...p, desiredTp: p.desiredTp.map((tp, j) => (j === tpIndex ? { ...tp, ...patch } : tp)) } : p,
+      ),
+    )
+  }
+
   const validatePostes = (): boolean => {
     const errs = postes.map((p) => {
       if (!p.jobRole.trim()) return 'Renseignez l\'intitulé de métier.'
       if (!p.trainingDomain) return 'Sélectionnez le domaine de formation.'
-      if (!p.jobTitle) return 'Sélectionnez l\'intitulé de la formation.'
-      if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
+      if (p.desiredTp.length === 0) return 'Sélectionnez au moins un titre professionnel.'
+      if (p.desiredTp.some((tp) => tp.selectedMissions.length === 0))
+        return 'Sélectionnez au moins une mission par titre professionnel.'
       if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
       if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
       if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
@@ -705,12 +782,15 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         trainingDomain:   p.trainingDomain,
         jobRole:          p.jobRole.trim(),
         count:            p.count,
-        title:            p.jobTitle,
-        missions:         p.selectedMissions,
+        title:            p.desiredTp[0]?.jobTitle ?? '',
         localisation:     p.localisation,
-        descriptionMissions: [],
-        otherDescriptionMissions: p.otherDescriptionMissions || null,
-        otherMissions:    null,
+        desiredTp:        p.desiredTp.map((tp) => ({
+          tpType:                   TITLE_TO_TP[tp.jobTitle] ?? null,
+          missions:                 tp.selectedMissions,
+          descriptionMissions:      [],
+          otherDescriptionMissions: tp.otherDescriptionMissions || null,
+          otherMissions:            null,
+        })),
         criteria: {
           educationLevel:     null,
           drivingLicense:     p.criteria.drivingLicense === 'OUI',
@@ -999,36 +1079,28 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                         { value: 'VENTE' as const,       label: 'Vente (Commercial)' },
                       ]}
                       value={poste.trainingDomain}
-                      onChange={(v) => updatePoste(index, { trainingDomain: v, jobTitle: '', selectedMissions: [] })}
+                      onChange={(v) => updatePoste(index, { trainingDomain: v, desiredTp: [] })}
                       required />
 
                     {poste.trainingDomain && (
-                      <SelectField
-                        id={`jobTitle-${index}`}
-                        label="Intitulé de la formation *"
+                      <CheckboxGroup
+                        label="Titre(s) professionnel(s) visé(s) *"
                         options={JOB_TITLES_BY_DOMAIN[poste.trainingDomain]}
-                        required
-                        value={poste.jobTitle}
-                        onChange={(e) => updatePoste(index, { jobTitle: e.target.value, selectedMissions: [] })}
+                        selected={poste.desiredTp.map((tp) => tp.jobTitle)}
+                        onChange={(titles) => setPosteTitles(index, titles)}
+                        columns={1}
                       />
                     )}
 
-                    {poste.jobTitle && poste.trainingDomain && MISSIONS[poste.trainingDomain]?.[poste.jobTitle] && (
-                      <div className="flex flex-col gap-2">
-                        <CheckboxGroup
-                          label={`Missions à confier à l'apprenti — ${poste.jobTitle}`}
-                          options={MISSIONS[poste.trainingDomain][poste.jobTitle]}
-                          selected={poste.selectedMissions}
-                          onChange={(v) => updatePoste(index, { selectedMissions: v })}
-                          columns={2}
-                        />
-                        {poste.selectedMissions.length > 0 && (
-                          <p className="text-xs text-blue">
-                            {poste.selectedMissions.length} mission{poste.selectedMissions.length > 1 ? 's' : ''} sélectionnée{poste.selectedMissions.length > 1 ? 's' : ''}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    {poste.trainingDomain && poste.desiredTp.map((tp, tpIndex) => (
+                      <TpMissionsFields
+                        key={tp.jobTitle}
+                        domain={poste.trainingDomain!}
+                        tp={tp}
+                        onChangeMissions={(missions) => updatePosteTp(index, tpIndex, { selectedMissions: missions })}
+                        onChangeOther={(value) => updatePosteTp(index, tpIndex, { otherDescriptionMissions: value })}
+                      />
+                    ))}
 
                     <CheckboxGroup label="Localisation du poste (communes) *"
                       options={COMMUNES}
@@ -1036,11 +1108,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       onChange={(v) => updatePoste(index, { localisation: v as Localisation[] })}
                       renderLabel={formatCommune}
                       columns={2} />
-
-                    <TextareaField id={`jobDescriptionOther-${index}`} label="Description complémentaire" optional rows={3}
-                      placeholder="Responsabilités spécifiques, contexte…"
-                      value={poste.otherDescriptionMissions}
-                      onChange={(e) => updatePoste(index, { otherDescriptionMissions: e.target.value })} />
 
                     <CheckboxGroup
                       label="Compétences et savoir-être attendus"

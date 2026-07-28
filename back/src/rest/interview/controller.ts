@@ -4,6 +4,7 @@ import { InterviewAccessService, SlotUnavailableError } from '../../services/Int
 import { UserService } from '../../services/UserService';
 import { NotificationService } from '../../services/NotificationService';
 import { logger } from '../../external/logger';
+import { buildMatchingLink } from '../../utils/matchingLink';
 
 const interviewAccessService = new InterviewAccessService();
 const userService = new UserService();
@@ -68,7 +69,7 @@ async function notifyBooked(signature: string): Promise<void> {
             level: 'success',
             title: "Créneau d'entretien réservé",
             message: "Un candidat a réservé son créneau d'entretien.",
-            link: `/rh/matching?offer=${context.offerUuid}`,
+            link: buildMatchingLink(context.offerUuid, context.needsAnalysisId),
         });
     } catch (err) {
         logger.error({ err }, '[interview] failed to notify RH of slot booking');

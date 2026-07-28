@@ -10,6 +10,7 @@ import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 interface Props {
   filters: JobFilters
   onChange: (filters: JobFilters) => void
+  hideSearch?: boolean
 }
 
 // ─── Generic dropdown chip ────────────────────────────────────────────────────
@@ -119,42 +120,6 @@ function MultiSelectContent({
   )
 }
 
-// ─── Single-select dropdown content ──────────────────────────────────────────
-function SelectContent({
-  options,
-  value,
-  onChange,
-  placeholder,
-}: {
-  options: { label: string; value: string }[]
-  value: string | null
-  onChange: (v: string | null) => void
-  placeholder: string
-}) {
-  return (
-    <div className="py-1.5 max-h-60 overflow-y-auto">
-      <button
-        onClick={() => onChange(null)}
-        className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors"
-      >
-        <span className="flex-1 text-left italic">{placeholder}</span>
-        {value === null && <Check className="h-3.5 w-3.5 text-blue" />}
-      </button>
-      <div className="border-t border-gray-100 my-1" />
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          <span className="flex-1 text-left">{opt.label}</span>
-          {value === opt.value && <Check className="h-3.5 w-3.5 text-blue" />}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // ─── Region-sorted commune multi-select content ─────────────────────────────
 const ALL_REGIONS: Region[] = ['NORD', 'OUEST', 'SUD']
 const ALL_COMMUNES = ALL_REGIONS.flatMap((r) => REGION_COMMUNES[r])
@@ -233,7 +198,7 @@ function RegionMultiSelectContent({
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────
-export function JobFilters({ filters, onChange }: Props) {
+export function JobFilters({ filters, onChange, hideSearch = false }: Props) {
   const statusOptions = Object.values(OfferStatus).map((s) => ({ label: JOB_STATUS_LABELS[s], value: s }))
   const tpOptions = Object.values(DesiredTP).map((tp) => ({ label: tp, value: tp }))
   const sectorOptions = Object.values(Sector)
@@ -254,24 +219,26 @@ export function JobFilters({ filters, onChange }: Props) {
   const activeCount = [
     filters.search,
     ...filters.statuses,
-    filters.desiredTP,
-    filters.sector,
+    ...filters.desiredTPs,
+    ...filters.sectors,
     ...(filters.localisations.length > 0 ? ['localisations'] : []),
   ].filter(Boolean).length
 
   return (
     <div className="space-y-3">
       {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Rechercher par entreprise..."
-          value={filters.search}
-          onChange={(e) => onChange({ ...filters, search: e.target.value })}
-          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
-        />
-      </div>
+      {!hideSearch && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher par entreprise..."
+            value={filters.search}
+            onChange={(e) => onChange({ ...filters, search: e.target.value })}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+          />
+        </div>
+      )}
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
@@ -298,14 +265,19 @@ export function JobFilters({ filters, onChange }: Props) {
         <ChipDropdown
           icon={<Briefcase className="h-3 w-3" />}
           label="Type TP"
-          activeLabel={filters.desiredTP ? filters.desiredTP : undefined}
-          isActive={filters.desiredTP !== null}
-          onClear={() => onChange({ ...filters, desiredTP: null })}
+          activeLabel={filters.desiredTPs.length === 1 ? filters.desiredTPs[0] : `${filters.desiredTPs.length} sélectionnés`}
+          isActive={filters.desiredTPs.length > 0}
+          onClear={() => onChange({ ...filters, desiredTPs: [] })}
         >
-          <SelectContent
+          <MultiSelectContent
             options={tpOptions}
-            value={filters.desiredTP}
-            onChange={(tp) => onChange({ ...filters, desiredTP: tp })}
+            selected={filters.desiredTPs}
+            onToggle={(tp) => {
+              const updated = filters.desiredTPs.includes(tp)
+                ? filters.desiredTPs.filter((x) => x !== tp)
+                : [...filters.desiredTPs, tp]
+              onChange({ ...filters, desiredTPs: updated })
+            }}
             placeholder="Tous les types"
           />
         </ChipDropdown>
@@ -313,14 +285,19 @@ export function JobFilters({ filters, onChange }: Props) {
         <ChipDropdown
           icon={<Building2 className="h-3 w-3" />}
           label="Secteur"
-          activeLabel={filters.sector ? formatEnumLabel(filters.sector) : undefined}
-          isActive={filters.sector !== null}
-          onClear={() => onChange({ ...filters, sector: null })}
+          activeLabel={filters.sectors.length === 1 ? formatEnumLabel(filters.sectors[0]) : `${filters.sectors.length} sélectionnés`}
+          isActive={filters.sectors.length > 0}
+          onClear={() => onChange({ ...filters, sectors: [] })}
         >
-          <SelectContent
+          <MultiSelectContent
             options={sectorOptions}
-            value={filters.sector}
-            onChange={(s) => onChange({ ...filters, sector: s })}
+            selected={filters.sectors}
+            onToggle={(s) => {
+              const updated = filters.sectors.includes(s)
+                ? filters.sectors.filter((x) => x !== s)
+                : [...filters.sectors, s]
+              onChange({ ...filters, sectors: updated })
+            }}
             placeholder="Tous les secteurs"
           />
         </ChipDropdown>
