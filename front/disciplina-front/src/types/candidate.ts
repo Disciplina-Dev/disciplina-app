@@ -204,13 +204,19 @@ export interface Synthesis {
     interviewed_by?: string;
 }
 
+export interface MatchedOfferTp {
+    tpType?: TitleProfessionalType;
+    missions?: string[];
+    descriptionMissions?: string[];
+}
+
 export interface MatchedOffer {
     id: string;
     needsAnalysisId?: string;
     companyName?: string;
     sector?: string;
     localisation?: Localisation[];
-    desiredTP?: TitleProfessionalType;
+    desiredTp?: MatchedOfferTp[];
     ageRange?: string;
     status?: string;
     title?: string;

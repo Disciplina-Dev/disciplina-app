@@ -1,10 +1,10 @@
-import { CompanyRepository, CompanyFilters } from '../repositories/mysql/CompanyRepository';
+import { CompanyRepository, CompanyFilters, CompanySirenGroupRow } from '../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
 import { CompanyHistoryRepository } from '../repositories/mysql/CompanyHistoryRepository';
 import { SireneService } from '../external/insee/sirene.service';
 import { CompaniesRow } from '../types/db-rows.types';
-import { Companies, CompanyHistory } from '../types/company.types';
-import { toCompanies, toCompanyHistory } from './mappers/company.mapper';
+import { Companies, CompanyHistory, CompanySirenGroup } from '../types/company.types';
+import { toCompanies, toCompanyHistory, toSirenGroup } from './mappers/company.mapper';
 
 export interface CompanyStats {
     current: { userID: number | null; status: string | null; count: number }[];
@@ -28,6 +28,11 @@ export class CompaniesService {
     async findAll(first?: number, after?: string, search?: string, filters?: CompanyFilters): Promise<Companies[]> {
         const rows = await this.repository.findAll(first, after, search, filters);
         return rows.map(toCompanies);
+    }
+
+    async findGroupedBySiren(first?: number, after?: string, filters?: CompanyFilters): Promise<CompanySirenGroup[]> {
+        const rows = await this.repository.findGroupedBySiren(first, after, filters);
+        return rows.map(toSirenGroup);
     }
 
     async getStats(year: number, userID?: number | null): Promise<CompanyStats> {
@@ -120,8 +125,7 @@ export class CompaniesService {
             throw new Error('Company not found');
         }
 
-        const toText = (v: unknown): string | null =>
-            v === null || v === undefined || v === '' ? null : String(v);
+        const toText = (v: unknown): string | null => (v === null || v === undefined || v === '' ? null : String(v));
 
         // Champs réellement modifiés, avec valeur avant/après pour l'historique.
         const changes = Object.keys(data)

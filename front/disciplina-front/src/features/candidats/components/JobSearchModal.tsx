@@ -47,7 +47,11 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
 
   const visibleJobs = jobs.filter((job) => {
     if (excludedJobIds.has(job.id)) return false
-    if (candidateTpTypes?.length && (!job.desiredTP || !candidateTpTypes.includes(job.desiredTP))) return false
+    if (
+      candidateTpTypes?.length &&
+      !(job.desiredTp ?? []).some((tp) => tp.tpType && candidateTpTypes.includes(tp.tpType))
+    )
+      return false
     if (!search.trim()) return true
     return (job.companyName ?? '').toLowerCase().includes(search.trim().toLowerCase())
   })
@@ -131,10 +135,16 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{job.companyName || 'Entreprise'}</p>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {job.desiredTP && (
-                        <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
-                          {TP_TYPE_LABELS[job.desiredTP]}
-                        </span>
+                      {(job.desiredTp ?? []).map(
+                        (tp) =>
+                          tp.tpType && (
+                            <span
+                              key={tp.tpType}
+                              className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                            >
+                              {TP_TYPE_LABELS[tp.tpType]}
+                            </span>
+                          ),
                       )}
                       {job.sector && (
                         <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">

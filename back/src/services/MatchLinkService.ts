@@ -149,15 +149,21 @@ export class MatchLinkService {
         return { ok: true, token: issueMatchToken(signature, row.offer_uuid, expiresIn) };
     }
 
-    async getContext(
-        signature: string,
-    ): Promise<{ rhEmail: string; companyEmail: string; offerUuid: string; status: MatchLinkStatus } | null> {
+    async getContext(signature: string): Promise<{
+        rhEmail: string;
+        companyEmail: string;
+        offerUuid: string;
+        needsAnalysisId?: string;
+        status: MatchLinkStatus;
+    } | null> {
         const row = await this.matchLinkRepository.findBySignature(signature);
         if (!row) return null;
+        const offer = await this.offerRepository.findById(row.offer_uuid);
         return {
             rhEmail: row.rh_email,
             companyEmail: row.company_email,
             offerUuid: row.offer_uuid,
+            needsAnalysisId: offer?.needs_analysis_id,
             status: row.status as MatchLinkStatus,
         };
     }

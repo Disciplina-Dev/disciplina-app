@@ -39,9 +39,11 @@ def saler_from_path(path):
 
 def resolve_owner_ids(cursor):
     """Lowercased first name -> user_id, for salers and the conflict portfolio."""
-    roles = ", ".join(["%s"] * len(SALER_ROLES))
+    placeholders = ", ".join(["%s"] * len(SALER_ROLES))
     cursor.execute(
-        f"SELECT id, first_name FROM users WHERE role IN ({roles}) OR first_name = %s ORDER BY id",
+        f"SELECT id, first_name FROM users "
+        f"WHERE role_id IN (SELECT id FROM roles WHERE name IN ({placeholders})) "
+        f"OR first_name = %s ORDER BY id",
         (*SALER_ROLES, CONFLICT_OWNER_FIRST_NAME),
     )
     return {first_name.lower(): user_id for user_id, first_name in cursor.fetchall()}

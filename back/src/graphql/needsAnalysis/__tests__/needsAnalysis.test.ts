@@ -79,8 +79,8 @@ describe('GraphQL Needs Analysis integration', () => {
                     {
                         trainingDomain: 'VENTE',
                         title: 'Apprenti Conseiller de Vente',
-                        missions: ['Accueil client', 'Mise en rayon'],
                         localisation: ['SAINT_DENIS', 'SAINTE_MARIE'],
+                        desiredTp: [{ missions: ['Accueil client', 'Mise en rayon'] }],
                         criteria: {
                             educationLevel: 'BAC',
                             drivingLicense: false,
@@ -94,8 +94,8 @@ describe('GraphQL Needs Analysis integration', () => {
                     {
                         trainingDomain: 'SECRETARIAT',
                         title: 'Secrétaire Assistante',
-                        missions: ['Saisie de données'],
                         localisation: ['SAINT_PIERRE'],
+                        desiredTp: [{ missions: ['Saisie de données'] }],
                         criteria: {
                             educationLevel: 'BAC_PLUS_2',
                             drivingLicense: true,
@@ -123,7 +123,7 @@ describe('GraphQL Needs Analysis integration', () => {
                     positionsCount
                     positions {
                         title
-                        missions
+                        desiredTp { missions }
                         localisation
                         criteria {
                             educationLevel
@@ -225,8 +225,8 @@ describe('GraphQL Needs Analysis integration', () => {
                 {
                     trainingDomain: 'VENTE',
                     title: 'Apprenti Conseiller de Vente',
-                    missions: ['Accueil client'],
                     localisation: ['SAINT_DENIS', 'SAINTE_MARIE'],
+                    desiredTp: [{ missions: ['Accueil client'] }],
                     criteria: {
                         educationLevel: 'BAC',
                         drivingLicense: false,
