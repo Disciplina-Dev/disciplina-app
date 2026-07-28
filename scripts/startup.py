@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Disciplina — consolidated database seed script.
 
-Imports CSV data into MySQL and MongoDB in 10 steps:
+Imports CSV data into MySQL and MongoDB in 11 steps:
   1. Companies -> MySQL (disciplina.companies)
   2. Blacklist -> MySQL (disciplina.blacklist)
   3. Sales candidates (Nord) -> MongoDB (human_ressources.candidates)
@@ -12,6 +12,7 @@ Imports CSV data into MySQL and MongoDB in 10 steps:
   8. Secretariat candidates (Sud) -> MongoDB (human_ressources.candidates)
   9. Offers -> MongoDB (human_ressources.offers)
  10. Migrate legacy offers -> needs_analysis (human_ressources.needs_analysis)
+ 11. Normalize legacy offers -> current offer schema (human_ressources.offers)
 
 Missing CSV files are skipped gracefully.
 Environment variables control DB host/port (defaults to localhost for dev).
@@ -34,6 +35,7 @@ from import_company import import_companies
 from import_blacklist import import_blacklist
 from import_jobs import seed_offers
 from migrate_offers_to_ab import run_migration
+from normalize_legacy_offers import run_normalization
 
 load_dotenv()
 
@@ -689,7 +691,7 @@ def main() -> int:
             errors.append(f"Secretariat candidates (Sud): {e}")
 
     # 9. Offers — idempotent via upsert on (company_infos.name, tp_type, localisation[0])
-    print("\n[9/10] Importing offers -> MongoDB ...")
+    print("\n[9/11] Importing offers -> MongoDB ...")
     try:
         n = seed_offers()
         print(f"  OK -- {n} offers upserted")
@@ -699,13 +701,22 @@ def main() -> int:
 
     # 10. Migrate legacy offers to needs_analysis — creates one SIGNE needs_analysis
     #     per company for offers without needs_analysis_id, tagged 'Importé du drive'.
-    print("\n[10/10] Migrating legacy offers -> needs_analysis ...")
+    print("\n[10/11] Migrating legacy offers -> needs_analysis ...")
     try:
         run_migration(auto_confirm=True)
         print("  OK -- migration complete")
     except Exception as e:
         print(f"  FAIL -- Migration: {e}")
         errors.append(f"Migration: {e}")
+
+    # 11. Normalize legacy offers to the current offer schema (desired_tp + full fields)
+    print("\n[11/11] Normalizing legacy offers -> current schema ...")
+    try:
+        run_normalization(auto_confirm=True)
+        print("  OK -- normalization complete")
+    except Exception as e:
+        print(f"  FAIL -- Normalization: {e}")
+        errors.append(f"Normalization: {e}")
 
     print()
     print("=" * 50)
