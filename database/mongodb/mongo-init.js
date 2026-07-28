@@ -73,6 +73,11 @@ db['notifications'].createIndex({
   "created_at": 1
 });
 
+db.createCollection('offer_history');
+db['offer_history'].createIndex({
+  "offer_id": 1
+});
+
 db.createCollection('offers');
 db['offers'].createIndex({
   "needs_analysis_id": 1

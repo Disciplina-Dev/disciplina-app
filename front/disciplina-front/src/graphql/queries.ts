@@ -1805,3 +1805,35 @@ export const UPDATE_NEEDS_ANALYSIS = gql`
     }
   }
 `
+
+export const GET_OFFER_HISTORY = gql`
+  query OfferHistory($offerId: String!) {
+    offerHistory(offerId: $offerId) {
+      id
+      firstName
+      lastName
+      text
+      ownerEmail
+      createdAt
+    }
+  }
+`
+
+export const ADD_OFFER_HISTORY_ENTRY = gql`
+  mutation AddOfferHistoryEntry($offerId: String!, $text: String!) {
+    addOfferHistoryEntry(offerId: $offerId, text: $text) {
+      id
+      firstName
+      lastName
+      text
+      ownerEmail
+      createdAt
+    }
+  }
+`
+
+export const DELETE_OFFER_HISTORY_ENTRY = gql`
+  mutation DeleteOfferHistoryEntry($id: String!) {
+    deleteOfferHistoryEntry(id: $id)
+  }
+`

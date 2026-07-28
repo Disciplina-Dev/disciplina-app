@@ -32,6 +32,9 @@ import {
   GET_CANDIDATE_HISTORY,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
+  GET_OFFER_HISTORY,
+  ADD_OFFER_HISTORY_ENTRY,
+  DELETE_OFFER_HISTORY_ENTRY,
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
@@ -61,7 +64,7 @@ export interface CandidateServerFilters {
   /** Filtrer par le RH qui a mené l'entretien (nom complet). */
   interviewedBy?: string
 }
-import { candidateGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
+import { candidateGraphqlClient, offerGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -712,6 +715,40 @@ export function useDeleteCandidateHistoryEntry() {
   }
 
   return { deleteHistoryEntry }
+}
+
+export function useOfferHistory(offerId: string | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_OFFER_HISTORY,
+    variables: { offerId: offerId ?? '' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/offers` },
+    pause: offerId === null,
+  })
+
+  const history: any[] = result.data?.offerHistory ?? []
+
+  return {
+    history,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+export function useAddOfferHistoryEntry() {
+  const addEntry = (offerId: string, text: string) => {
+    return offerGraphqlClient.mutation(ADD_OFFER_HISTORY_ENTRY, { offerId, text }).toPromise()
+  }
+
+  return { addEntry }
+}
+
+export function useDeleteOfferHistoryEntry() {
+  const deleteEntry = (id: string) => {
+    return offerGraphqlClient.mutation(DELETE_OFFER_HISTORY_ENTRY, { id }).toPromise()
+  }
+
+  return { deleteEntry }
 }
 
 export function useCreateNeedsAnalysis() {

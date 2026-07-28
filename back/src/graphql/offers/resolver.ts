@@ -2,10 +2,14 @@ import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { InterviewConclusion, ImmersionConclusion } from '../../types/matching.types';
 import { OfferService } from '../../services/OfferService';
+import { OfferHistoryService } from '../../services/OfferHistoryService';
+import { UserService } from '../../services/UserService';
 import { MatchLinkService } from '../../services/MatchLinkService';
 import { MatchMailService } from '../../services/MatchMailService';
 
 const offerService = new OfferService();
+const offerHistoryService = new OfferHistoryService();
+const userService = new UserService();
 const matchLinkService = new MatchLinkService();
 const matchMailService = new MatchMailService();
 
@@ -42,6 +46,18 @@ export const resolvers = {
         offersByNeedsAnalysis: async (_: unknown, { needsAnalysisId }: { needsAnalysisId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.findByNeedsAnalysisId(needsAnalysisId);
+        },
+        offerHistory: async (_: unknown, { offerId }: { offerId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const entries = await offerHistoryService.findByOffer(offerId);
+            return entries.map((e) => ({
+                id: e._id,
+                firstName: e.first_name,
+                lastName: e.last_name,
+                text: e.text,
+                ownerEmail: e.owner_email,
+                createdAt: e.created_at.toISOString(),
+            }));
         },
     },
     Mutation: {
@@ -170,6 +186,33 @@ export const resolvers = {
                 conclusion as ImmersionConclusion,
                 context.user.email,
             );
+        },
+        addOfferHistoryEntry: async (
+            _: unknown,
+            { offerId, text }: { offerId: string; text: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const user = await userService.findById(context.user.id);
+            const entry = await offerHistoryService.recordManual(
+                offerId,
+                user!.firstName,
+                user!.lastName,
+                text,
+                context.user.email,
+            );
+            return {
+                id: entry._id,
+                firstName: entry.first_name,
+                lastName: entry.last_name,
+                text: entry.text,
+                ownerEmail: entry.owner_email,
+                createdAt: entry.created_at.toISOString(),
+            };
+        },
+        deleteOfferHistoryEntry: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerHistoryService.deleteOwnedEntry(id, context.user.email);
         },
         deleteOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.RESPONSABLE, [JobRole.RH]);
