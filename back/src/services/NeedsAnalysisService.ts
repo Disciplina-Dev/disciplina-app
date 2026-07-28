@@ -326,6 +326,7 @@ export class NeedsAnalysisService {
                 this.notificationService.create({
                     userId: user.id,
                     type: 'ab_ready_for_matching',
+                    category: 'company',
                     level: 'info',
                     title: 'Nouvelle analyse du besoin à matcher',
                     message: `${companyName} — ${positionsLabel} à pourvoir`,

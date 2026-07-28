@@ -48,6 +48,7 @@ export class CandidateService {
                         .create({
                             userId: ownerId,
                             type: 'availability_ended',
+                            category: 'candidate',
                             level: 'info',
                             title: 'Disponible',
                             message: `${name} est de nouveau disponible.`,
@@ -116,6 +117,7 @@ export class CandidateService {
                 this.notificationService.create({
                     userId: user.id,
                     type: 'candidate_available_again',
+                    category: 'candidate',
                     level: 'info',
                     title: 'Candidat de nouveau disponible',
                     message: `${name} est de nouveau en recherche (indisponibilité terminée).`,

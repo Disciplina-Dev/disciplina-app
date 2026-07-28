@@ -85,6 +85,7 @@ export class BulkRelanceService {
             await this.notificationService.create({
                 userId,
                 type: 'bulk_relance_error',
+                category: 'company',
                 level: 'error',
                 title: 'Relance groupée impossible',
                 message: err.message,
@@ -150,6 +151,7 @@ export class BulkRelanceService {
         await this.notificationService.create({
             userId,
             type: 'bulk_relance_completed',
+            category: 'company',
             level,
             title: 'Relance groupée terminée',
             message: `${sent}/${totalRequested} mail${sent > 1 ? 's' : ''} envoyé${sent > 1 ? 's' : ''} avec succès${
