@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Check, CheckCheck } from 'lucide-react'
-import { useNotifications, type AppNotification, type NotificationLevel } from '@/hooks/useNotifications'
+import { useNotifications, type AppNotification, type NotificationLevel, type NotificationCategory } from '@/hooks/useNotifications'
 
 const LEVEL_DOT: Record<NotificationLevel, string> = {
   info: 'bg-blue-500',
@@ -21,8 +21,14 @@ function timeAgo(iso: string): string {
   return `Il y a ${d} j`
 }
 
+const CATEGORIES: { key: NotificationCategory | null; label: string }[] = [
+  { key: null, label: 'Toutes' },
+  { key: 'candidate', label: 'Candidat' },
+  { key: 'company', label: 'Entreprise' },
+]
+
 export default function NotificationBell({ accent = '#60207E' }: { accent?: string }) {
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
+  const { filteredNotifications, unreadCount, unreadByCategory, selectedCategory, setSelectedCategory, markRead, markAllRead } = useNotifications()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -75,11 +81,40 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
             )}
           </div>
 
+          <div className="flex gap-1 px-3 py-2 border-b border-gray-100">
+            {CATEGORIES.map(({ key, label }) => {
+              const count = key ? unreadByCategory(key) : unreadCount
+              const active = selectedCategory === key
+              return (
+                <button
+                  key={label}
+                  onClick={() => setSelectedCategory(key)}
+                  className={[
+                    'flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
+                    active
+                      ? 'bg-gray-800 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                  ].join(' ')}
+                >
+                  {label}
+                  {count > 0 && (
+                    <span className={[
+                      'flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-1 text-[10px] font-bold',
+                      active ? 'bg-white/25 text-white' : 'bg-red-500 text-white',
+                    ].join(' ')}>
+                      {count > 9 ? '9+' : count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {filteredNotifications.length === 0 ? (
               <div className="px-4 py-10 text-center text-sm text-gray-400">Aucune notification</div>
             ) : (
-              notifications.map((n) => (
+              filteredNotifications.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => handleClick(n)}

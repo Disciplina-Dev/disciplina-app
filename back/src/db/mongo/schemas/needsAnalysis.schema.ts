@@ -43,6 +43,7 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
         training_days: { type: String },
         signature_request_id: { type: String, default: null },
         status: { type: String, enum: Object.values(NeedsAnalysisStatus), default: NeedsAnalysisStatus.BROUILLON },
+        tags: { type: [String], default: [] },
         created_at: { type: Date },
         updated_at: { type: Date },
     },

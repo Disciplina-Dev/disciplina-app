@@ -1,5 +1,5 @@
 import { OfferModel } from '../../db/mongo/schemas/offer.schema';
-import { Offer } from '../../types/offer.types';
+import { Offer, OfferAbFilter } from '../../types/offer.types';
 import {
     ImmersionConclusion,
     InterviewConclusion,
@@ -28,7 +28,29 @@ function resetProposal(candidate: MatchingCandidate): MatchingCandidate {
     return { ...identity, status: MatchedCandidateStatus.ACCEPTED };
 }
 
+function buildOfferAbMongoFilter(filter: OfferAbFilter): Record<string, unknown> {
+    const mongo: Record<string, unknown> = {};
+    if (filter.statuses?.length) mongo['matching.status'] = { $in: filter.statuses };
+    if (filter.desiredTp?.length) mongo['desired_tp.tp_type'] = { $in: filter.desiredTp };
+    if (filter.sectors?.length) mongo['company_infos.activities'] = { $in: filter.sectors };
+    if (filter.localisations?.length) mongo['localisation'] = { $in: filter.localisations };
+    if (filter.search) {
+        mongo['company_infos.name'] = { $regex: escapeRegExp(filter.search), $options: 'i' };
+    }
+    return mongo;
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export class OfferRepository {
+    /** Ids des AB dont au moins une offre correspond au filtre. */
+    async findNeedsAnalysisIdsByFilter(filter: OfferAbFilter): Promise<string[]> {
+        const mongoFilter = buildOfferAbMongoFilter(filter);
+        return OfferModel.distinct('needs_analysis_id', mongoFilter);
+    }
+
     async findById(offerId: string): Promise<Offer | null> {
         return OfferModel.findOne({ _id: offerId }).lean();
     }

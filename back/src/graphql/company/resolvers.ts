@@ -74,6 +74,19 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     return row;
 }
 
+function toCompanyFilters(filtersInput?: Record<string, unknown>): CompanyFilters | undefined {
+    if (!filtersInput) return undefined;
+    return {
+        status: filtersInput.status as string[] | undefined,
+        userID: filtersInput.userID as number | undefined,
+        sector: filtersInput.sector as string | undefined,
+        relance: filtersInput.relance as string | undefined,
+        unassigned: filtersInput.unassigned as boolean | undefined,
+        createdFrom: filtersInput.createdFrom as string | undefined,
+        createdTo: filtersInput.createdTo as string | undefined,
+    };
+}
+
 export const resolvers = {
     Query: {
         companies: async (
@@ -88,17 +101,7 @@ export const resolvers = {
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
-            const filters: CompanyFilters | undefined = filtersInput
-                ? {
-                      status: filtersInput.status as string[] | undefined,
-                      userID: filtersInput.userID as number | undefined,
-                      sector: filtersInput.sector as string | undefined,
-                      relance: filtersInput.relance as string | undefined,
-                      unassigned: filtersInput.unassigned as boolean | undefined,
-                      createdFrom: filtersInput.createdFrom as string | undefined,
-                      createdTo: filtersInput.createdTo as string | undefined,
-                  }
-                : undefined;
+            const filters = toCompanyFilters(filtersInput);
             const companies = await companiesService.findAll(pageSize, after, search, filters);
             const isRelanceMode = !!filters?.relance;
             const conn = buildConnection(
@@ -116,6 +119,18 @@ export const resolvers = {
                 })),
             );
             return { ...conn, edges: enrichedEdges };
+        },
+
+        companiesBySiren: async (
+            _: unknown,
+            { first, after, filters: filtersInput }: PaginationArgs & { filters?: Record<string, unknown> },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const filters = toCompanyFilters(filtersInput);
+            const groups = await companiesService.findGroupedBySiren(pageSize, after, filters);
+            return buildConnection(groups, (g) => g.siren, pageSize);
         },
 
         // Liste légère (id + nom) pour les sélecteurs d'entreprise côté RH

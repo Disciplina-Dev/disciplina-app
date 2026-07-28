@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import {
-  X, Check, Briefcase, Plus, Minus, PenLine,
+  X, Check, Briefcase, Plus, Minus, PenLine, ChevronDown, ChevronRight, Trash2,
 } from 'lucide-react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
@@ -55,13 +55,18 @@ interface PosteCriteria {
   additionalComments: string
 }
 
-interface Poste {
-  jobRole: string
-  trainingDomain: TrainingDomain | undefined
+interface PosteTp {
   jobTitle: string
   selectedMissions: string[]
-  localisation: Localisation[]
   otherDescriptionMissions: string
+}
+
+interface Poste {
+  jobRole: string
+  count: number
+  trainingDomain: TrainingDomain | undefined
+  desiredTp: PosteTp[]
+  localisation: Localisation[]
   criteria: PosteCriteria
 }
 
@@ -125,6 +130,19 @@ const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
   SECRETARIAT: ['Secrétaire Assistante', 'Assistante de Direction'],
   VENTE: ['Conseiller Commercial', 'Négociateur Technico-Commercial', "Responsable d'Établissement Marchand"],
 }
+
+// Chaque intitulé de formation correspond à un titre professionnel (TP).
+const TITLE_TO_TP: Record<string, string> = {
+  'Secrétaire Assistante': 'SA',
+  'Assistante de Direction': 'AD',
+  'Conseiller Commercial': 'CC',
+  'Négociateur Technico-Commercial': 'NTC',
+  "Responsable d'Établissement Marchand": 'REM',
+}
+
+const TP_TO_TITLE: Record<string, string> = Object.fromEntries(
+  Object.entries(TITLE_TO_TP).map(([title, tp]) => [tp, title]),
+)
 
 const SOFT_SKILLS_LIST = [
   'Rigueur et organisation',
@@ -237,11 +255,10 @@ const DAYS: { key: keyof TrainingDaysState; label: string }[] = [
 
 const EMPTY_POSTE: Poste = {
   jobRole: '',
+  count: 1,
   trainingDomain: undefined,
-  jobTitle: '',
-  selectedMissions: [],
+  desiredTp: [],
   localisation: [],
-  otherDescriptionMissions: '',
   criteria: {
     drivingLicense: undefined,
     experienceRequired: undefined,
@@ -255,6 +272,38 @@ const EMPTY_POSTE: Poste = {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function TpMissionsFields({ domain, tp, onChangeMissions, onChangeOther }: {
+  domain: TrainingDomain
+  tp: PosteTp
+  onChangeMissions: (missions: string[]) => void
+  onChangeOther: (value: string) => void
+}) {
+  const options = MISSIONS[domain]?.[tp.jobTitle] ?? []
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-gray-100 p-3">
+      <p className="text-sm font-semibold text-gray-900">{tp.jobTitle}</p>
+      {options.length > 0 && (
+        <CheckboxGroup
+          label={`Missions à confier à l'apprenti — ${tp.jobTitle}`}
+          options={options}
+          selected={tp.selectedMissions}
+          onChange={onChangeMissions}
+          columns={2}
+        />
+      )}
+      {tp.selectedMissions.length > 0 && (
+        <p className="text-xs text-blue">
+          {tp.selectedMissions.length} mission{tp.selectedMissions.length > 1 ? 's' : ''} sélectionnée{tp.selectedMissions.length > 1 ? 's' : ''}
+        </p>
+      )}
+      <TextareaField id={`jobDescriptionOther-${tp.jobTitle}`} label="Description complémentaire" optional rows={3}
+        placeholder="Responsabilités spécifiques, contexte…"
+        value={tp.otherDescriptionMissions}
+        onChange={(e) => onChangeOther(e.target.value)} />
+    </div>
+  )
+}
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
@@ -304,41 +353,33 @@ function SelectField({
   )
 }
 
-function NumberStepper({
-  label, value, onChange, min = 1, max = 99, required,
+function QuantityStepper({
+  value, onChange, min = 1, max = 99,
 }: {
-  label: string
   value: number
   onChange: (v: number) => void
   min?: number
   max?: number
-  required?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">
-        {label}{required && <span className="ml-1 text-danger">*</span>}
-      </label>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => onChange(Math.max(min, value - 1))}
-          disabled={value <= min}
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-100 bg-white text-gray-700 transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
-        >
-          <Minus size={16} />
-        </button>
-        <span className="min-w-[3rem] text-center text-xl font-bold text-gray-900">{value}</span>
-        <button
-          type="button"
-          onClick={() => onChange(Math.min(max, value + 1))}
-          disabled={value >= max}
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-100 bg-white text-gray-700 transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
-        >
-          <Plus size={16} />
-        </button>
-        <span className="text-sm text-gray-500">poste{value > 1 ? 's' : ''}</span>
-      </div>
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(min, value - 1))}
+        disabled={value <= min}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-700 transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
+      >
+        <Minus size={14} />
+      </button>
+      <span className="min-w-[1.75rem] text-center text-sm font-bold text-gray-900">×{value}</span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(max, value + 1))}
+        disabled={value >= max}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-700 transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
+      >
+        <Plus size={14} />
+      </button>
     </div>
   )
 }
@@ -499,11 +540,14 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     if (initialData?.positions && initialData.positions.length > 0) {
       return initialData.positions.map((p) => ({
         jobRole: p.jobRole ?? '',
+        count: p.count ?? 1,
         trainingDomain: p.trainingDomain as TrainingDomain | undefined,
-        jobTitle: p.title ?? '',
-        selectedMissions: p.missions ?? [],
+        desiredTp: (p.desiredTp ?? []).map((tp) => ({
+          jobTitle: tp.tpType ? TP_TO_TITLE[tp.tpType] ?? '' : '',
+          selectedMissions: tp.missions ?? [],
+          otherDescriptionMissions: tp.otherDescriptionMissions ?? '',
+        })),
         localisation: (p.localisation ?? []) as Localisation[],
-        otherDescriptionMissions: p.otherDescriptionMissions ?? '',
         criteria: {
           drivingLicense: p.criteria?.drivingLicense == null ? undefined : p.criteria.drivingLicense ? 'OUI' : 'OPTIONNEL',
           experienceRequired: p.criteria?.experienceRequired == null ? undefined : p.criteria.experienceRequired ? 'OBLIGATOIRE' : 'DEBUTANT',
@@ -518,6 +562,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     }
     return [{ ...EMPTY_POSTE }]
   })
+  // Un poste existant (édition/duplication) démarre replié ; un poste unique neuf, déplié.
+  const [collapsed, setCollapsed] = useState<boolean[]>(() =>
+    postes.length > 1 ? postes.map(() => true) : [false]
+  )
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -595,31 +643,66 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
   // ─── Postes ──────────────────────────────────────────────────────────────────
 
-  const setPostesCount = (count: number) => {
-    setPostes((prev) => {
-      if (count > prev.length) {
-        return [...prev, ...Array.from({ length: count - prev.length }, () => ({ ...EMPTY_POSTE }))]
-      }
-      return prev.slice(0, count)
-    })
+  const addPoste = () => {
+    setPostes((prev) => [...prev, { ...EMPTY_POSTE }])
+    setCollapsed((prev) => [...prev, false])
+  }
+
+  const removePoste = (index: number) => {
+    setPostes((prev) => prev.filter((_, i) => i !== index))
+    setCollapsed((prev) => prev.filter((_, i) => i !== index))
+    setPosteErrors((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const toggleCollapsed = (index: number) => {
+    setCollapsed((prev) => prev.map((c, i) => (i === index ? !c : c)))
   }
 
   const updatePoste = (index: number, patch: Partial<Poste>) => {
     setPostes((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)))
   }
 
+  // Réconcilie les TP d'un poste avec les intitulés cochés : conserve les missions
+  // déjà saisies pour un TP maintenu, initialise une entrée vide pour un TP ajouté.
+  const setPosteTitles = (index: number, titles: string[]) => {
+    setPostes((prev) =>
+      prev.map((p, i) => {
+        if (i !== index) return p
+        const desiredTp = titles.map(
+          (jobTitle) =>
+            p.desiredTp.find((tp) => tp.jobTitle === jobTitle) ?? {
+              jobTitle,
+              selectedMissions: [],
+              otherDescriptionMissions: '',
+            },
+        )
+        return { ...p, desiredTp }
+      }),
+    )
+  }
+
+  const updatePosteTp = (index: number, tpIndex: number, patch: Partial<PosteTp>) => {
+    setPostes((prev) =>
+      prev.map((p, i) =>
+        i === index ? { ...p, desiredTp: p.desiredTp.map((tp, j) => (j === tpIndex ? { ...tp, ...patch } : tp)) } : p,
+      ),
+    )
+  }
+
   const validatePostes = (): boolean => {
     const errs = postes.map((p) => {
       if (!p.jobRole.trim()) return 'Renseignez l\'intitulé de métier.'
       if (!p.trainingDomain) return 'Sélectionnez le domaine de formation.'
-      if (!p.jobTitle) return 'Sélectionnez l\'intitulé de la formation.'
-      if (p.selectedMissions.length === 0) return 'Sélectionnez au moins une mission.'
+      if (p.desiredTp.length === 0) return 'Sélectionnez au moins un titre professionnel.'
+      if (p.desiredTp.some((tp) => tp.selectedMissions.length === 0))
+        return 'Sélectionnez au moins une mission par titre professionnel.'
       if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
       if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
       if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
       return ''
     })
     setPosteErrors(errs)
+    setCollapsed((prev) => prev.map((c, i) => (errs[i] ? false : c)))
     return errs.every((e) => !e)
   }
 
@@ -698,12 +781,16 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       positions:          postes.map((p) => ({
         trainingDomain:   p.trainingDomain,
         jobRole:          p.jobRole.trim(),
-        title:            p.jobTitle,
-        missions:         p.selectedMissions,
+        count:            p.count,
+        title:            p.desiredTp[0]?.jobTitle ?? '',
         localisation:     p.localisation,
-        descriptionMissions: [],
-        otherDescriptionMissions: p.otherDescriptionMissions || null,
-        otherMissions:    null,
+        desiredTp:        p.desiredTp.map((tp) => ({
+          tpType:                   TITLE_TO_TP[tp.jobTitle] ?? null,
+          missions:                 tp.selectedMissions,
+          descriptionMissions:      [],
+          otherDescriptionMissions: tp.otherDescriptionMissions || null,
+          otherMissions:            null,
+        })),
         criteria: {
           educationLevel:     null,
           drivingLicense:     p.criteria.drivingLicense === 'OUI',
@@ -940,23 +1027,43 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
               <section className="flex flex-col gap-5">
                 <SectionTitle>Poste(s) à pourvoir</SectionTitle>
 
-                <NumberStepper
-                  label="Nombre de poste(s) à pourvoir *"
-                  value={postes.length}
-                  onChange={setPostesCount}
-                  max={10}
-                  required
-                />
-
                 {postes.map((poste, index) => (
                   <div key={index} className="flex flex-col gap-5 rounded-xl border border-gray-100 bg-white p-4">
-                    {postes.length > 1 && (
-                      <p className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                        <Briefcase size={14} className="text-blue" />
-                        Poste {index + 1}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleCollapsed(index)}
+                        className="flex flex-1 items-center gap-2 overflow-hidden text-left text-sm font-bold text-gray-900"
+                      >
+                        {collapsed[index]
+                          ? <ChevronRight size={16} className="shrink-0 text-gray-400" />
+                          : <ChevronDown size={16} className="shrink-0 text-gray-400" />}
+                        <Briefcase size={14} className="shrink-0 text-blue" />
+                        <span className="truncate">{poste.jobRole.trim() || 'Nouveau poste'}</span>
+                        {collapsed[index] && poste.trainingDomain && (
+                          <span className="truncate text-xs font-normal text-gray-500">
+                            · {poste.trainingDomain === 'VENTE' ? 'Vente' : 'Secrétariat'}
+                            {poste.localisation.length > 0 && ` · ${poste.localisation.length} commune${poste.localisation.length > 1 ? 's' : ''}`}
+                          </span>
+                        )}
+                      </button>
+                      <QuantityStepper value={poste.count} onChange={(v) => updatePoste(index, { count: v })} max={10} />
+                      {postes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePoste(index)}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-danger/10 hover:text-danger"
+                          aria-label="Supprimer ce poste"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
 
+                    {collapsed[index] ? (
+                      posteErrors[index] && <FieldError message={posteErrors[index]} />
+                    ) : (
+                    <>
                     <InputField
                       id={`jobRole-${index}`}
                       label="Intitulé de métier *"
@@ -972,36 +1079,28 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                         { value: 'VENTE' as const,       label: 'Vente (Commercial)' },
                       ]}
                       value={poste.trainingDomain}
-                      onChange={(v) => updatePoste(index, { trainingDomain: v, jobTitle: '', selectedMissions: [] })}
+                      onChange={(v) => updatePoste(index, { trainingDomain: v, desiredTp: [] })}
                       required />
 
                     {poste.trainingDomain && (
-                      <SelectField
-                        id={`jobTitle-${index}`}
-                        label="Intitulé de la formation *"
+                      <CheckboxGroup
+                        label="Titre(s) professionnel(s) visé(s) *"
                         options={JOB_TITLES_BY_DOMAIN[poste.trainingDomain]}
-                        required
-                        value={poste.jobTitle}
-                        onChange={(e) => updatePoste(index, { jobTitle: e.target.value, selectedMissions: [] })}
+                        selected={poste.desiredTp.map((tp) => tp.jobTitle)}
+                        onChange={(titles) => setPosteTitles(index, titles)}
+                        columns={1}
                       />
                     )}
 
-                    {poste.jobTitle && poste.trainingDomain && MISSIONS[poste.trainingDomain]?.[poste.jobTitle] && (
-                      <div className="flex flex-col gap-2">
-                        <CheckboxGroup
-                          label={`Missions à confier à l'apprenti — ${poste.jobTitle}`}
-                          options={MISSIONS[poste.trainingDomain][poste.jobTitle]}
-                          selected={poste.selectedMissions}
-                          onChange={(v) => updatePoste(index, { selectedMissions: v })}
-                          columns={2}
-                        />
-                        {poste.selectedMissions.length > 0 && (
-                          <p className="text-xs text-blue">
-                            {poste.selectedMissions.length} mission{poste.selectedMissions.length > 1 ? 's' : ''} sélectionnée{poste.selectedMissions.length > 1 ? 's' : ''}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    {poste.trainingDomain && poste.desiredTp.map((tp, tpIndex) => (
+                      <TpMissionsFields
+                        key={tp.jobTitle}
+                        domain={poste.trainingDomain!}
+                        tp={tp}
+                        onChangeMissions={(missions) => updatePosteTp(index, tpIndex, { selectedMissions: missions })}
+                        onChangeOther={(value) => updatePosteTp(index, tpIndex, { otherDescriptionMissions: value })}
+                      />
+                    ))}
 
                     <CheckboxGroup label="Localisation du poste (communes) *"
                       options={COMMUNES}
@@ -1009,11 +1108,6 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       onChange={(v) => updatePoste(index, { localisation: v as Localisation[] })}
                       renderLabel={formatCommune}
                       columns={2} />
-
-                    <TextareaField id={`jobDescriptionOther-${index}`} label="Description complémentaire" optional rows={3}
-                      placeholder="Responsabilités spécifiques, contexte…"
-                      value={poste.otherDescriptionMissions}
-                      onChange={(e) => updatePoste(index, { otherDescriptionMissions: e.target.value })} />
 
                     <CheckboxGroup
                       label="Compétences et savoir-être attendus"
@@ -1064,8 +1158,19 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     </div>
 
                     {posteErrors[index] && <FieldError message={posteErrors[index]} />}
+                    </>
+                    )}
                   </div>
                 ))}
+
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-500">
+                    Total : {postes.reduce((sum, p) => sum + p.count, 0)} poste{postes.reduce((sum, p) => sum + p.count, 0) > 1 ? 's' : ''} à pourvoir
+                  </p>
+                  <Button type="button" variant="secondary" onClick={addPoste}>
+                    <Plus size={16} /> Ajouter un poste
+                  </Button>
+                </div>
               </section>
 
               {/* ── Exigences de l'apprenti ──────────────────────────────────── */}

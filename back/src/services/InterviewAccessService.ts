@@ -80,14 +80,20 @@ export class InterviewAccessService {
         return { ok: true, token: issueInterviewToken(signature, row.offer_uuid, row.candidate_id, expiresIn) };
     }
 
-    async getContext(
-        signature: string,
-    ): Promise<{ rhEmail: string; offerUuid: string; candidateId: string; status: InterviewAccessStatus } | null> {
+    async getContext(signature: string): Promise<{
+        rhEmail: string;
+        offerUuid: string;
+        needsAnalysisId?: string;
+        candidateId: string;
+        status: InterviewAccessStatus;
+    } | null> {
         const row = await this.repository.findBySignature(signature);
         if (!row) return null;
+        const offer = await this.offerRepository.findById(row.offer_uuid);
         return {
             rhEmail: row.rh_email,
             offerUuid: row.offer_uuid,
+            needsAnalysisId: offer?.needs_analysis_id,
             candidateId: row.candidate_id,
             status: row.status as InterviewAccessStatus,
         };

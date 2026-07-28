@@ -21,6 +21,7 @@ import {
   CREATE_CANDIDATE_DRIVE_FOLDER,
   CREATE_NEEDS_ANALYSIS,
   GET_NEEDS_ANALYSES_BY_COMPANY,
+  GET_NEEDS_ANALYSES_PAGE,
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
@@ -31,11 +32,16 @@ import {
   GET_CANDIDATE_HISTORY,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
+  GET_OFFER_HISTORY,
+  ADD_OFFER_HISTORY_ENTRY,
+  DELETE_OFFER_HISTORY_ENTRY,
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
 import { apiJson } from '@/api/httpClient'
 import type { PageInfo } from '@/types/pagination'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import type { OfferFilterInput } from '@/features/matching/services/jobFilters'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
 
 export interface CandidateServerFilters {
@@ -58,7 +64,7 @@ export interface CandidateServerFilters {
   /** Filtrer par le RH qui a mené l'entretien (nom complet). */
   interviewedBy?: string
 }
-import { candidateGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
+import { candidateGraphqlClient, offerGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -711,6 +717,40 @@ export function useDeleteCandidateHistoryEntry() {
   return { deleteHistoryEntry }
 }
 
+export function useOfferHistory(offerId: string | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_OFFER_HISTORY,
+    variables: { offerId: offerId ?? '' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/offers` },
+    pause: offerId === null,
+  })
+
+  const history: any[] = result.data?.offerHistory ?? []
+
+  return {
+    history,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+export function useAddOfferHistoryEntry() {
+  const addEntry = (offerId: string, text: string) => {
+    return offerGraphqlClient.mutation(ADD_OFFER_HISTORY_ENTRY, { offerId, text }).toPromise()
+  }
+
+  return { addEntry }
+}
+
+export function useDeleteOfferHistoryEntry() {
+  const deleteEntry = (id: string) => {
+    return offerGraphqlClient.mutation(DELETE_OFFER_HISTORY_ENTRY, { id }).toPromise()
+  }
+
+  return { deleteEntry }
+}
+
 export function useCreateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(CREATE_NEEDS_ANALYSIS)
 
@@ -724,6 +764,32 @@ export function useCreateNeedsAnalysis() {
   }
 
   return { createNeedsAnalysis, result }
+}
+
+/**
+ * Page paginée (curseur) de toutes les analyses de besoin — espace matching RH.
+ * Retourne { items, pageInfo, loading, error, refetch }.
+ */
+export function useNeedsAnalysesPage(first?: number, after?: string, filter?: OfferFilterInput) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_NEEDS_ANALYSES_PAGE,
+    variables: { first, after, filter },
+    context: { url: NEEDS_ANALYSIS_URL },
+    requestPolicy: 'network-only',
+  })
+
+  const items: NeedsAnalysis[] = (result.data?.needsAnalysesPage?.edges ?? []).map(
+    (edge: { node: NeedsAnalysis }) => edge.node,
+  )
+  const pageInfo: PageInfo | undefined = result.data?.needsAnalysesPage?.pageInfo
+
+  return {
+    items,
+    pageInfo,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
 }
 
 export function useNeedsAnalysesByCompany(companyID: number | null) {

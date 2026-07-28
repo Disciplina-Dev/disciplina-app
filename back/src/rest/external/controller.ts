@@ -19,6 +19,7 @@ async function notifyLock(signature: string): Promise<void> {
         await notificationService.create({
             userId: rh.id,
             type: 'external_locked',
+            category: 'company',
             level: 'warning',
             title: 'Session externe bloquée',
             message: `${context.externalEmail} a échoué 3 fois. Créez une nouvelle session.`,
