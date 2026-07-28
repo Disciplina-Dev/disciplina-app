@@ -21,7 +21,9 @@ import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { regionFromSector } from '../utils/sector';
 import { ZONE_TO_COMMUNES } from './mappers/abToOffer';
+import { offerTpCodes, positionTpToGql } from './mappers/offer.mapper';
 import type { DriveRegion } from './DriveFolderConfigService';
+import { buildMatchingLink } from '../utils/matchingLink';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
 const PROPOSED_STATUSES = [
@@ -93,7 +95,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
         needsAnalysisId: offer.needs_analysis_id,
         companyName: offer.company_infos?.name,
         ageRange,
-        desiredTP: offer.tp_type,
+        desiredTp: (offer.desired_tp ?? []).map(positionTpToGql),
         desiredSex: offer.criteria?.desired_sex ?? 'MIXTE',
         drivingLicencseB: offer.criteria?.driving_license ?? false,
         professionalExperience: offer.criteria?.experience_required ?? false,
@@ -122,7 +124,6 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
             : null,
         title: offer.title,
         jobRole: offer.job_role,
-        missions: offer.missions,
     };
 }
 
@@ -182,7 +183,8 @@ export class OfferService {
         const filter: Record<string, any> = {};
         filter['status'] = { $ne: CandidateStatus.CONTRACT };
 
-        if (offer.tp_type) filter['tp_type'] = offer.tp_type;
+        const tps = offerTpCodes(offer);
+        if (tps.length) filter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
         if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
 
         if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
@@ -350,6 +352,7 @@ export class OfferService {
                 offerId,
                 candidate?.full_name,
                 offer.company_infos?.name,
+                offer.needs_analysis_id,
             );
         }
 
@@ -363,6 +366,7 @@ export class OfferService {
         offerId: string,
         candidateName?: string,
         companyName?: string,
+        needsAnalysisId?: string,
     ): Promise<void> {
         const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
         const name = candidateName ?? 'Un candidat';
@@ -377,7 +381,7 @@ export class OfferService {
                     level: accepted ? 'success' : 'info',
                     title: accepted ? 'Offre acceptée' : 'Offre déclinée',
                     message: `${name} a ${accepted ? 'accepté' : 'refusé'} l'offre de ${company}`,
-                    link: `/rh/matching?offer=${offerId}`,
+                    link: buildMatchingLink(offerId, needsAnalysisId),
                 }),
             ),
         );
@@ -388,6 +392,7 @@ export class OfferService {
         candidateName: string | undefined,
         companyName: string | undefined,
         offerId: string,
+        needsAnalysisId?: string,
     ): Promise<void> {
         const name = candidateName ?? 'Un candidat';
         const company = companyName ?? "l'entreprise";
@@ -396,7 +401,7 @@ export class OfferService {
         const level = 'success' as const;
         const title = 'Contrat signé';
         const message = `${name} a signé un contrat avec ${company}`;
-        const link = `/rh/matching?offer=${offerId}`;
+        const link = buildMatchingLink(offerId, needsAnalysisId);
 
         if (salerInfo?.id) {
             await this.notificationService.create({ userId: salerInfo.id, type, category, level, title, message, link });
@@ -537,7 +542,13 @@ export class OfferService {
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
 
         if (conclusion === InterviewConclusion.CONTRACT) {
-            await this.notifyContractSigned(offer.saler_info, proposed.full_name, offer.company_infos?.name, offerId);
+            await this.notifyContractSigned(
+                offer.saler_info,
+                proposed.full_name,
+                offer.company_infos?.name,
+                offerId,
+                offer.needs_analysis_id,
+            );
         }
 
         return toGql(updated);
@@ -583,7 +594,13 @@ export class OfferService {
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
 
         if (conclusion === ImmersionConclusion.CONTRACT) {
-            await this.notifyContractSigned(offer.saler_info, proposed.full_name, offer.company_infos?.name, offerId);
+            await this.notifyContractSigned(
+                offer.saler_info,
+                proposed.full_name,
+                offer.company_infos?.name,
+                offerId,
+                offer.needs_analysis_id,
+            );
         }
 
         return toGql(updated);

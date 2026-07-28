@@ -918,7 +918,11 @@ export const MATCH_CANDIDATE = gql`
         companyName
         sector
         localisation
-        desiredTP
+        desiredTp {
+          tpType
+          missions
+          descriptionMissions
+        }
         ageRange
         status
         title
@@ -1101,7 +1105,13 @@ export const GET_OFFERS = gql`
       companyInfos { id name activities }
       companyName
       ageRange
-      desiredTP
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
       desiredSex
       drivingLicencseB
       professionalExperience
@@ -1144,7 +1154,13 @@ export const MATCH_OFFER = gql`
       companyInfos { id name activities }
       companyName
       ageRange
-      desiredTP
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
       desiredSex
       drivingLicencseB
       professionalExperience
@@ -1184,7 +1200,6 @@ export const MATCH_OFFER = gql`
       }
       title
       jobRole
-      missions
       salerInfo {
         id
         email
@@ -1382,7 +1397,13 @@ export const UNMATCH_OFFER = gql`
       id
       companyName
       ageRange
-      desiredTP
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
       desiredSex
       drivingLicencseB
       professionalExperience
@@ -1458,7 +1479,23 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
   query OffersByNeedsAnalysis($needsAnalysisId: String!) {
     offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) {
       id
+      needsAnalysisId
+      companyInfos { id name activities }
       companyName
+      ageRange
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
+      desiredSex
+      drivingLicencseB
+      professionalExperience
+      status
+      localisation
+      sector
       title
     }
   }
@@ -1538,6 +1575,44 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
       positionsCount
       status
       createdAt
+    }
+  }
+`
+
+export const GET_NEEDS_ANALYSES_PAGE = gql`
+  query GetNeedsAnalysesPage($first: Int, $after: String, $filter: OfferFilterInput) {
+    needsAnalysesPage(first: $first, after: $after, filter: $filter) {
+      edges {
+        cursor
+        node {
+          id
+          status
+          positionsCount
+          createdAt
+          companyInfos {
+            name
+            siret
+            sector
+            activities
+            commune
+          }
+          positions {
+            jobRole
+            title
+            count
+            localisation
+            desiredTp {
+              tpType
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
     }
   }
 `
@@ -1637,14 +1712,17 @@ export const GET_NEEDS_ANALYSIS = gql`
       positionsCount
       positions {
         localisation
-        tpType
+        desiredTp {
+          tpType
+          missions
+          descriptionMissions
+          otherDescriptionMissions
+          otherMissions
+        }
         trainingDomain
         jobRole
+        count
         title
-        missions
-        descriptionMissions
-        otherDescriptionMissions
-        otherMissions
         criteria {
           educationLevel
           drivingLicense

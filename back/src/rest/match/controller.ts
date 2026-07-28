@@ -10,6 +10,7 @@ import { GoogleTokens } from '../../external/google/types';
 import { MatchingCandidate } from '../../types/matching.types';
 import { logger } from '../../external/logger';
 import { GeocodageService } from '../../external/insee/geocodage.service';
+import { buildMatchingLink } from '../../utils/matchingLink';
 
 const matchLinkService = new MatchLinkService();
 const matchMailService = new MatchMailService();
@@ -73,7 +74,7 @@ async function notifyLock(signature: string): Promise<void> {
             level: 'warning',
             title: 'Session entreprise bloquée',
             message: `${context.companyEmail} a échoué 3 fois. Créez une nouvelle session.`,
-            link: `/rh/matching?offer=${context.offerUuid}`,
+            link: buildMatchingLink(context.offerUuid, context.needsAnalysisId),
         });
     }
 }

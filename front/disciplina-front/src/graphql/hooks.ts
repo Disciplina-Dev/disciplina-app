@@ -21,6 +21,7 @@ import {
   CREATE_CANDIDATE_DRIVE_FOLDER,
   CREATE_NEEDS_ANALYSIS,
   GET_NEEDS_ANALYSES_BY_COMPANY,
+  GET_NEEDS_ANALYSES_PAGE,
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
@@ -36,6 +37,8 @@ import {
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
 import { apiJson } from '@/api/httpClient'
 import type { PageInfo } from '@/types/pagination'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import type { OfferFilterInput } from '@/features/matching/services/jobFilters'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
 
 export interface CandidateServerFilters {
@@ -724,6 +727,32 @@ export function useCreateNeedsAnalysis() {
   }
 
   return { createNeedsAnalysis, result }
+}
+
+/**
+ * Page paginée (curseur) de toutes les analyses de besoin — espace matching RH.
+ * Retourne { items, pageInfo, loading, error, refetch }.
+ */
+export function useNeedsAnalysesPage(first?: number, after?: string, filter?: OfferFilterInput) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_NEEDS_ANALYSES_PAGE,
+    variables: { first, after, filter },
+    context: { url: NEEDS_ANALYSIS_URL },
+    requestPolicy: 'network-only',
+  })
+
+  const items: NeedsAnalysis[] = (result.data?.needsAnalysesPage?.edges ?? []).map(
+    (edge: { node: NeedsAnalysis }) => edge.node,
+  )
+  const pageInfo: PageInfo | undefined = result.data?.needsAnalysesPage?.pageInfo
+
+  return {
+    items,
+    pageInfo,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
 }
 
 export function useNeedsAnalysesByCompany(companyID: number | null) {

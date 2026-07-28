@@ -63,7 +63,7 @@ describe('GraphQL job queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: `{ offers { id companyName ageRange desiredTP desiredSex drivingLicencseB professionalExperience status localisation } }`,
+                query: `{ offers { id companyName ageRange desiredTp { tpType } desiredSex drivingLicencseB professionalExperience status localisation } }`,
             }),
         });
         const json = await res.json();
@@ -75,7 +75,7 @@ describe('GraphQL job queries', () => {
         const first = json.data.offers.find((j: any) => j.id === j1._id);
         expect(first.companyName).toBe(`Alpha Corp ${suffix}`);
         expect(first.ageRange).toBe('25-35');
-        expect(first.desiredTP).toBe('AD');
+        expect(first.desiredTp[0].tpType).toBe('AD');
         expect(first.desiredSex).toBe('MIXTE');
         expect(first.drivingLicencseB).toBe(true);
         expect(first.professionalExperience).toBe(false);
@@ -85,7 +85,7 @@ describe('GraphQL job queries', () => {
         const second = json.data.offers.find((j: any) => j.id === j2._id);
         expect(second.companyName).toBe(`Beta Corp ${suffix}`);
         expect(second.ageRange).toBe('18-25');
-        expect(second.desiredTP).toBe('CC');
+        expect(second.desiredTp[0].tpType).toBe('CC');
         expect(second.desiredSex).toBe('FILLE');
         expect(second.drivingLicencseB).toBe(false);
         expect(second.professionalExperience).toBe(true);
@@ -113,7 +113,7 @@ describe('GraphQL job queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: `query($id: String!) { matchOffer(id: $id) { id companyName ageRange desiredTP status } }`,
+                query: `query($id: String!) { matchOffer(id: $id) { id companyName ageRange desiredTp { tpType } status } }`,
                 variables: { id: seeded._id },
             }),
         });
@@ -123,7 +123,7 @@ describe('GraphQL job queries', () => {
         expect(json.errors).toBeUndefined();
         expect(json.data.matchOffer.id).toBe(seeded._id);
         expect(json.data.matchOffer.companyName).toBe(`Target Corp ${suffix}`);
-        expect(json.data.matchOffer.desiredTP).toBe('NTC');
+        expect(json.data.matchOffer.desiredTp[0].tpType).toBe('NTC');
     });
 
     it('returns a job with matched candidates', async () => {

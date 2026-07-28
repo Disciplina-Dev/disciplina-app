@@ -75,9 +75,7 @@ export function candidateToGql(candidate: Candidate): any {
         photoLink: candidate.photo_link || null,
         createdAt: candidate.created_at ? new Date(candidate.created_at).toISOString() : null,
         lastRelanceAt: candidate.last_relance_at ? new Date(candidate.last_relance_at).toISOString() : null,
-        relanceResponseAt: candidate.relance_response_at
-            ? new Date(candidate.relance_response_at).toISOString()
-            : null,
+        relanceResponseAt: candidate.relance_response_at ? new Date(candidate.relance_response_at).toISOString() : null,
     };
 }
 
@@ -138,7 +136,11 @@ export function offerToMatchedOfferGql(offer: Offer, candidateId?: string): obje
         companyName: offer.company_infos?.name,
         sector: null,
         localisation: offer.localisation,
-        desiredTP: offer.tp_type,
+        desiredTp: (offer.desired_tp ?? []).map((tp) => ({
+            tpType: tp.tp_type ?? null,
+            missions: tp.missions ?? [],
+            descriptionMissions: tp.description_missions ?? [],
+        })),
         ageRange,
         status,
         title: offer.title,
