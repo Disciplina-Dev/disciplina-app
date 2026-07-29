@@ -104,8 +104,8 @@ export default function PortefeuilleEntreprises() {
       }
       setCreateOpen(false)
       setPrefillSiret(undefined)
-    } catch (err: any) {
-      setCreateError(err.message || String(err))
+    } catch (err: unknown) {
+      setCreateError(err instanceof Error ? err.message : String(err))
     }
   }
 

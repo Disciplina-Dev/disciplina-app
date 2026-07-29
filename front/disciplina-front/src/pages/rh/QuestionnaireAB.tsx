@@ -418,12 +418,12 @@ export default function QuestionnaireAB() {
           throw new Error(data.error ?? 'échec')
         }
         setDriveStatus('AB enregistré dans le Drive ✓')
-      } catch (e: any) {
-        setDriveStatus(`AB non envoyé au Drive (${e.message ?? 'erreur'})`)
+      } catch (e: unknown) {
+        setDriveStatus(`AB non envoyé au Drive (${e instanceof Error ? e.message : 'erreur'})`)
       }
       setTimeout(() => setDriveStatus(null), 5000)
-    } catch (err: any) {
-      setSaveError(err.message ?? 'Erreur lors de la sauvegarde')
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde')
     } finally {
       setSaving(false)
     }

@@ -950,7 +950,7 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
   const [err, setErr] = useState<string | null>(null)
   const handle = async () => {
     setErr(null)
-    try { await onConnect(); onDone() } catch (e: any) { setErr(e?.message || 'Erreur de connexion') }
+    try { await onConnect(); onDone() } catch (e: unknown) { setErr(e instanceof Error ? e.message : 'Erreur de connexion') }
   }
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-gray-100 bg-white">

@@ -30,6 +30,7 @@ export default function CandidateAvatar({
 
   useEffect(() => {
     if (!hasPhoto) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resets photo state when the candidate has no photo, synced to hasPhoto/candidateId/version
       setUrl(null)
       return
     }

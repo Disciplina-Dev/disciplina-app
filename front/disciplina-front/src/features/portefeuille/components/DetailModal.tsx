@@ -29,6 +29,7 @@ import MailModal from '@/components/ui/MailModal'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import RelanceHistorySection from '@/features/portefeuille/components/RelanceHistorySection'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
 
 const STATUS_CONFIG = {
   Oui: { bg: 'bg-success-bg', text: 'text-success', dot: 'bg-success' },
@@ -298,8 +299,8 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
             )}
             {abList.length > 0 && (
               <ul className="space-y-2">
-                {abList.map((ab: any) => {
-                  const badge = STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']
+                {(abList as NeedsAnalysis[]).map((ab) => {
+                  const badge = STATUS_BADGE[ab.status ?? ''] ?? STATUS_BADGE['BROUILLON']
                   const isSelected = selectedAbIds.has(ab.id)
                   return (
                     <li
@@ -319,7 +320,7 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
                       />
                       <div className="min-w-0 flex-1">
                         <span className="font-medium text-gray-900 truncate">{ab.positions?.[0]?.title ?? 'Analyse du besoin'}</span>
-                        <span className="ml-2 text-xs text-gray-400">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
+                        <span className="ml-2 text-xs text-gray-400">{ab.positionsCount} poste{(ab.positionsCount ?? 0) > 1 ? 's' : ''}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {ab.createdAt && (

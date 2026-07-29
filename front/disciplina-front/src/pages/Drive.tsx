@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+interface DriveFile {
+  id: string;
+  name: string;
+  mimeType?: string;
+  modifiedTime?: string;
+}
+
 export default function Drive() {
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 

@@ -185,8 +185,8 @@ export default function Relance() {
       })
       setResult(data)
       setSelected(new Set())
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setSending(false)
     }

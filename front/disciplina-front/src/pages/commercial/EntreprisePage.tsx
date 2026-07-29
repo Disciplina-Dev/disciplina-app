@@ -171,6 +171,7 @@ export default function EntreprisePage() {
   const [draft, setDraft] = useState<Entreprise | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time init of the local edit draft once baseEntreprise becomes available
     if (baseEntreprise && !draft) setDraft({ ...baseEntreprise })
   }, [baseEntreprise])
 
@@ -289,9 +290,9 @@ export default function EntreprisePage() {
       }
       setAddModalOpen(false)
       setAddPrefillSiret(undefined)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err)
-      alert(`Erreur lors de la création : ${err.message || err}`)
+      alert(`Erreur lors de la création : ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -607,8 +608,8 @@ export default function EntreprisePage() {
             {!abResult.fetching && abList.length === 0 && <p className="text-sm text-gray-400 italic">Aucune analyse du besoin pour cette entreprise.</p>}
             {abList.length > 0 && (
               <ul className="space-y-2">
-                {abList.map((ab: any) => {
-                  const badge = STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']
+                {abList.map((ab: NeedsAnalysis) => {
+                  const badge = STATUS_BADGE[ab.status ?? 'BROUILLON'] ?? STATUS_BADGE['BROUILLON']
                   const isSelected = selectedAbIds.has(ab.id)
                   return (
                     <li
@@ -619,7 +620,7 @@ export default function EntreprisePage() {
                       <input type="checkbox" checked={isSelected} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(ab.id)} className="h-4 w-4 shrink-0 rounded border-gray-300 accent-blue cursor-pointer" />
                       <div className="min-w-0 flex-1">
                         <span className="font-medium text-gray-900 truncate">{ab.positions?.[0]?.title ?? 'Analyse du besoin'}</span>
-                        <span className="ml-2 text-xs text-gray-400">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
+                        <span className="ml-2 text-xs text-gray-400">{ab.positionsCount} poste{(ab.positionsCount ?? 0) > 1 ? 's' : ''}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {ab.createdAt && <span className="text-xs text-gray-400">{formatDate(ab.createdAt)}</span>}

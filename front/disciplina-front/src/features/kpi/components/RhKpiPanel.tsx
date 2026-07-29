@@ -82,6 +82,7 @@ export default function RhKpiPanel({
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
 
   // Réinitialise le filtre RH quand l'année change.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset local filter on year change, not an external-system read
   useEffect(() => { setSelectedUserId(null) }, [year])
 
   const [report, setReport] = useState<RhKpiReport | null>(null)
@@ -102,6 +103,7 @@ export default function RhKpiPanel({
       .catch(() => { /* liste d'années best-effort */ })
   }, [now])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs report state from the KPI API fetch
   useEffect(load, [year])
 
   // Semaines retenues selon la granularité choisie.

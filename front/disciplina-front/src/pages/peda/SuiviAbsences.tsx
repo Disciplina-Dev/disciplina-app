@@ -51,8 +51,8 @@ export default function SuiviAbsences() {
       setSavedSheetId(sheetId)
       setSheetLink('')
       flash('Google Sheet enregistré')
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de l’enregistrement')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Échec de l’enregistrement')
     } finally {
       setSavingSheet(false)
     }
@@ -64,8 +64,8 @@ export default function SuiviAbsences() {
       await deletePedaSheet()
       setSavedSheetId(null)
       flash('Google Sheet retiré')
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de la suppression')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Échec de la suppression')
     }
   }
 
@@ -75,8 +75,8 @@ export default function SuiviAbsences() {
     try {
       await saveDraftHour(hour)
       flash('Heure du job enregistrée')
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de l’enregistrement')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Échec de l’enregistrement')
     } finally {
       setSavingHour(false)
     }
@@ -88,8 +88,8 @@ export default function SuiviAbsences() {
     setReport(null)
     try {
       setReport(await runDraftJobNow())
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de l’exécution')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Échec de l’exécution')
     } finally {
       setRunning(false)
     }

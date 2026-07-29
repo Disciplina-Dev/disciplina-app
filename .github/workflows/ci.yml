@@ -56,9 +56,6 @@ jobs:
   frontend-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Non-bloquant : ~65 erreurs pré-existantes (no-explicit-any + refactors
-    # d'effets React) restent à traiter séparément. À retirer une fois résorbées.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -184,8 +184,8 @@ export default function RelanceCommercial() {
       setBulkResult(data)
       setManuallySelected([])
       setSearchTerm('')
-    } catch (err: any) {
-      setBulkError(err.message)
+    } catch (err: unknown) {
+      setBulkError(err instanceof Error ? err.message : String(err))
     } finally {
       setSending(false)
     }

@@ -2,6 +2,25 @@ import { useEffect } from 'react'
 import { useQuery } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { GET_COMPANIES, GET_SALE_PERSONS } from '@/graphql/queries'
+import type { Company } from '@/types/entreprise'
+
+/** Shape of `company` as selected by GET_COMPANIES. */
+interface GqlCompanyNode extends Company {
+  legalReferent: string | null
+}
+
+interface GqlSalePerson {
+  id: number
+  email: string
+  firstName: string
+  lastName: string
+}
+
+/** Shape of an edge `node` in GET_COMPANIES. */
+interface GqlCompanyEdgeNode {
+  company: GqlCompanyNode
+  salePerson: GqlSalePerson | null
+}
 
 export interface ServerFilters {
   status?: string[]
@@ -40,7 +59,7 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
     setError(error || null)
 
     if (companiesResult.data?.companies) {
-      const entreprises = companiesResult.data.companies.edges.map(({ node: c }: any) => {
+      const entreprises = companiesResult.data.companies.edges.map(({ node: c }: { node: GqlCompanyEdgeNode }) => {
         return {
           id: String(c.company.id),
           nom_commercial: c.company.name,

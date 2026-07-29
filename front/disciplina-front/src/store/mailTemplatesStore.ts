@@ -46,8 +46,8 @@ function createMailTemplatesStore(scope: MailTemplatesScope) {
           api.fetchSignature(scope).catch(() => ''), // signature optionnelle (Drive peut échouer)
         ])
         set({ templates, signatureImage, loaded: true })
-      } catch (e: any) {
-        set({ error: e.message ?? 'Erreur de chargement' })
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : 'Erreur de chargement' })
       } finally {
         set({ loading: false })
       }

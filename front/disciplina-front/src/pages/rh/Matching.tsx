@@ -2365,10 +2365,14 @@ export default function Matching() {
 
   // ?offer= (lien de notification) : se synchronise dans selectedJobId à chaque
   // changement (notamment quand on clique sur une notification déjà sur la page).
+  // Ajustement pendant le rendu (cf. https://react.dev/learn/you-might-not-need-an-effect)
+  // plutôt qu'un effect, pour éviter un setState synchrone dans un effect.
   const offerFromUrl = searchParams.get('offer')
-  useEffect(() => {
+  const [prevOfferFromUrl, setPrevOfferFromUrl] = useState(offerFromUrl)
+  if (offerFromUrl !== prevOfferFromUrl) {
+    setPrevOfferFromUrl(offerFromUrl)
     if (offerFromUrl) setSelectedJobId(offerFromUrl)
-  }, [offerFromUrl])
+  }
 
   const effectiveJobId = selectedJobId ?? searchParams.get('offer')
   const selectedJob = jobs.find((j) => j.id === effectiveJobId) ?? null

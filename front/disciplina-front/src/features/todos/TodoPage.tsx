@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation } from 'urql'
 import {
   DndContext,
@@ -337,6 +337,7 @@ export default function TodoPage() {
     ;[...todos]
       .sort((a, b) => a.position - b.position)
       .forEach((t) => groups[t.status].push(t.id))
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- derives local column order from freshly fetched todos
     setColOrder(groups)
   }, [data])
 
@@ -385,50 +386,47 @@ export default function TodoPage() {
     })
   }
 
-  const handleDragEnd = useCallback(
-    async ({ active, over }: DragEndEvent) => {
-      setActiveId(null)
-      if (!over) return
+  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
+    setActiveId(null)
+    if (!over) return
 
-      const activeId = active.id as number
-      const overId = over.id
+    const activeId = active.id as number
+    const overId = over.id
 
-      // Use originalCol (captured at dragStart, before optimistic moves)
-      const startCol = originalCol
-      const currentCol = findContainer(activeId) // after optimistic moves
-      const overCol = typeof overId === 'string'
-        ? (overId as TodoStatus)
-        : findContainer(overId as number)
+    // Use originalCol (captured at dragStart, before optimistic moves)
+    const startCol = originalCol
+    const currentCol = findContainer(activeId) // after optimistic moves
+    const overCol = typeof overId === 'string'
+      ? (overId as TodoStatus)
+      : findContainer(overId as number)
 
-      if (!startCol || !currentCol || !overCol) return
+    if (!startCol || !currentCol || !overCol) return
 
-      if (startCol !== currentCol) {
-        // Status changed — currentCol is the destination after optimistic dragOver
-        await updateTodo({ id: activeId, input: { status: currentCol } })
-      } else if (typeof overId === 'number' && activeId !== overId) {
-        // Reordered within same column
-        setColOrder((prev) => {
-          const ids = prev[currentCol]
-          const oldIdx = ids.indexOf(activeId)
-          const newIdx = ids.indexOf(overId)
-          if (oldIdx === -1 || newIdx === -1) return prev
-          return { ...prev, [currentCol]: arrayMove(ids, oldIdx, newIdx) }
-        })
-        // Persist new order for entire user todo list
-        const allIds = [
-          ...colOrder['TODO'],
-          ...colOrder['IN_PROGRESS'],
-          ...colOrder['DONE'],
-        ].filter((id) => id !== activeId)
-        const overIdx = allIds.indexOf(overId)
-        allIds.splice(overIdx, 0, activeId)
-        await reorderTodos({ orderedIds: allIds })
-      }
+    if (startCol !== currentCol) {
+      // Status changed — currentCol is the destination after optimistic dragOver
+      await updateTodo({ id: activeId, input: { status: currentCol } })
+    } else if (typeof overId === 'number' && activeId !== overId) {
+      // Reordered within same column
+      setColOrder((prev) => {
+        const ids = prev[currentCol]
+        const oldIdx = ids.indexOf(activeId)
+        const newIdx = ids.indexOf(overId)
+        if (oldIdx === -1 || newIdx === -1) return prev
+        return { ...prev, [currentCol]: arrayMove(ids, oldIdx, newIdx) }
+      })
+      // Persist new order for entire user todo list
+      const allIds = [
+        ...colOrder['TODO'],
+        ...colOrder['IN_PROGRESS'],
+        ...colOrder['DONE'],
+      ].filter((id) => id !== activeId)
+      const overIdx = allIds.indexOf(overId)
+      allIds.splice(overIdx, 0, activeId)
+      await reorderTodos({ orderedIds: allIds })
+    }
 
-      refetch({ requestPolicy: 'network-only' })
-    },
-    [colOrder, originalCol, todoMap, updateTodo, reorderTodos, refetch],
-  )
+    refetch({ requestPolicy: 'network-only' })
+  }
 
   const handleCreate = async (title: string, description: string, deadline: string) => {
     await createTodo({ input: { title, description: description || null, deadline: deadline || null, status: defaultStatus } })

@@ -156,7 +156,7 @@ function RegionMultiSelectContent({
               onClick={() =>
                 onChange(
                   regionSelected
-                    ? selected.filter((c) => !communes.includes(c as any))
+                    ? selected.filter((c) => !(communes as string[]).includes(c))
                     : [...new Set([...selected, ...communes])],
                 )
               }

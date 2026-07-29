@@ -6,6 +6,13 @@ import { GET_OFFER_COMPANY_INFO } from '@/graphql/queries'
 import { useNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
+import type { Position } from '@/types/needsAnalysis'
+
+// Champs renvoyés par l'API mais absents du type Position partagé (structure historique divergente).
+type PositionDisplay = Position & {
+  missions?: string[] | null
+  otherDescriptionMissions?: string | null
+}
 
 interface CompanyInfoModalProps {
   offerId: string
@@ -76,6 +83,7 @@ export default function CompanyInfoModal({ offerId, needsAnalysisId, onClose }: 
 
   useEffect(() => {
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signals fetch start for the GraphQL query below
     setLoading(true)
     offerGraphqlClient
       .query(GET_OFFER_COMPANY_INFO, { offerId })
@@ -152,7 +160,7 @@ export default function CompanyInfoModal({ offerId, needsAnalysisId, onClose }: 
               <Row label="Comment a connu DISCIPLINA" value={lbl(ab.companyInfos?.referralSource)} />
               <Row label="Nombre de postes" value={ab.positionsCount} />
 
-              {(ab.positions ?? []).map((p: any, i: number) => {
+              {(ab.positions ?? []).map((p: PositionDisplay, i: number) => {
                 const c = p.criteria ?? {}
                 return (
                   <div key={i} className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
