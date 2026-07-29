@@ -10,7 +10,6 @@ import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.ty
 import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
-import pdfParse from 'pdf-parse';
 import { OllamaService } from '../../external/ollama/ollama.service';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
@@ -736,6 +735,7 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
                         // PDF uniquement (les CV importés sont en PDF)
                         if (meta.mimeType === 'application/pdf') {
                             const { buffer } = await driveService.downloadFile(fileId);
+                            const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
                             const parsed = await pdfParse(buffer);
                             cvText = parsed.text?.trim() || null;
                         }
