@@ -264,6 +264,10 @@ export default function FicheCandidat() {
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
   const [availabilityDate, setAvailabilityDate] = useState('')
   const [companyListOpen, setCompanyListOpen] = useState(false)
+  const [aiSummaryOpen, setAiSummaryOpen] = useState(false)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
+  const [aiSummaryText, setAiSummaryText] = useState('')
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -452,6 +456,39 @@ export default function FicheCandidat() {
     const updated = { ...formData, identity: { ...formData.identity, description: summary } }
     setFormData(updated)
     try { await update(updated._id, updated) } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
+  }
+
+  const handleGenerateAiSummary = async () => {
+    if (!formData) return
+    setAiSummaryLoading(true)
+    setAiSummaryError(null)
+    setAiSummaryText('')
+    try {
+      const res = await apiFetch(`/api/candidates/${formData._id}/generate-summary`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }))
+        throw new Error(err.error || `Échec (${res.status})`)
+      }
+      const data = await res.json()
+      setAiSummaryText(data.summary)
+      setAiSummaryOpen(true)
+    } catch (err) {
+      setAiSummaryError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setAiSummaryLoading(false)
+    }
+  }
+
+  const handleSaveAiSummary = async () => {
+    if (!formData || !aiSummaryText.trim()) return
+    const updated = { ...formData, identity: { ...formData.identity, description: aiSummaryText } }
+    setFormData(updated)
+    try {
+      await update(updated._id, updated)
+      setAiSummaryOpen(false)
+    } catch {
+      setAiSummaryError('Erreur lors de l\'enregistrement')
+    }
   }
 
   const handleStatusChange = async (newStatus: CandidateStatus) => {
@@ -938,14 +975,26 @@ export default function FicheCandidat() {
               </Field>
               <div>
                 <div className="flex items-center justify-between">
-                  <span className={labelCls}>Description</span>
-                  <button
-                    type="button"
-                    onClick={handleGenerateDescription}
-                    className="text-[11px] font-semibold text-purple hover:underline">
-                    {formData.identity.description?.trim() ? 'Régénérer' : 'Générer le résumé'}
-                  </button>
-                </div>
+                    <span className={labelCls}>Description</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGenerateDescription}
+                        className="text-[11px] font-semibold text-purple hover:underline">
+                        {formData.identity.description?.trim() ? 'Régénérer' : 'Générer le résumé'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleGenerateAiSummary}
+                        disabled={aiSummaryLoading}
+                        className="text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                        {aiSummaryLoading ? 'IA…' : 'Résumé IA'}
+                      </button>
+                    </div>
+                  </div>
+                {aiSummaryError && (
+                  <p className="mt-1 text-xs text-red-500">{aiSummaryError}</p>
+                )}
                 {isEditing ? (
                   <textarea className={inputCls} rows={4} value={formData.identity.description ?? ''}
                     onChange={e => updateIdentity('description', e.target.value)} />
@@ -1528,6 +1577,24 @@ export default function FicheCandidat() {
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setUnavailableModalOpen(false)}>Annuler</Button>
               <Button variant="primary" size="sm" disabled={!availabilityDate} onClick={confirmUnavailable}>Confirmer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {aiSummaryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAiSummaryOpen(false)}>
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Résumé IA</h3>
+            <p className="mt-1 text-sm text-gray-500">Modifie le résumé généré par l'IA si nécessaire, puis enregistre.</p>
+            <div className="mt-4">
+              <textarea className={inputCls} rows={6} value={aiSummaryText}
+                onChange={e => setAiSummaryText(e.target.value)} />
+            </div>
+            {aiSummaryError && <p className="mt-2 text-xs text-red-500">{aiSummaryError}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setAiSummaryOpen(false)}>Annuler</Button>
+              <Button variant="primary" size="sm" disabled={!aiSummaryText.trim()} onClick={handleSaveAiSummary}>Enregistrer</Button>
             </div>
           </div>
         </div>
