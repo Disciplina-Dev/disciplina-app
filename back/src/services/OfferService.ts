@@ -338,7 +338,7 @@ export class OfferService {
             companyName: hit.offer.company_infos?.name ?? null,
             kind,
             since,
-            immersionEndDate: kind === 'IMMERSING' ? hit.pc.immersion_end_date ?? null : null,
+            immersionEndDate: kind === 'IMMERSING' ? (hit.pc.immersion_end_date ?? null) : null,
         };
     }
 

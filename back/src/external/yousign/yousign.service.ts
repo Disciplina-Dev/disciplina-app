@@ -13,8 +13,8 @@ function sanitizeName(name: string): string {
 export class YousignService {
     private getHeaders() {
         return {
-            'Authorization': `Bearer ${env.YOUSIGN_API_KEY}`,
-            'Accept': 'application/json'
+            Authorization: `Bearer ${env.YOUSIGN_API_KEY}`,
+            Accept: 'application/json',
         };
     }
 
@@ -24,11 +24,13 @@ export class YousignService {
         signerEmail: string,
         signerFirstName: string,
         signerLastName: string,
-        lastPage: number = 1
+        lastPage: number = 1,
     ): Promise<string | null> {
         // If the API key is not configured or left as placeholder, we mock the Yousign interaction in sandbox mode
         if (!env.YOUSIGN_API_KEY || env.YOUSIGN_API_KEY === 'sandbox_yousign_key_placeholder') {
-            logger.warn('YOUSIGN_API_KEY is not configured. Simulating successful Yousign procedure signature request.');
+            logger.warn(
+                'YOUSIGN_API_KEY is not configured. Simulating successful Yousign procedure signature request.',
+            );
             return `mock-yousign-req-${Date.now()}`;
         }
 
@@ -39,13 +41,13 @@ export class YousignService {
                 method: 'POST',
                 headers: {
                     ...this.getHeaders(),
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     name: `Analyse du Besoin - ${fileName.replace('.pdf', '')}`,
                     delivery_mode: 'email',
-                    timezone: 'Europe/Paris'
-                })
+                    timezone: 'Europe/Paris',
+                }),
             });
 
             if (!createReqRes.ok) {
@@ -64,11 +66,14 @@ export class YousignService {
             formData.append('file', blob, fileName);
             formData.append('nature', 'signable_document');
 
-            const uploadRes = await fetch(`${env.YOUSIGN_BASE_URL}/signature_requests/${signatureRequestId}/documents`, {
-                method: 'POST',
-                headers: this.getHeaders(), // No Content-Type, native FormData handles it
-                body: formData
-            });
+            const uploadRes = await fetch(
+                `${env.YOUSIGN_BASE_URL}/signature_requests/${signatureRequestId}/documents`,
+                {
+                    method: 'POST',
+                    headers: this.getHeaders(), // No Content-Type, native FormData handles it
+                    body: formData,
+                },
+            );
 
             if (!uploadRes.ok) {
                 const errText = await uploadRes.text();
@@ -85,14 +90,14 @@ export class YousignService {
                 method: 'POST',
                 headers: {
                     ...this.getHeaders(),
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     info: {
                         first_name: sanitizeName(signerFirstName || 'Responsable'),
                         last_name: sanitizeName(signerLastName || 'Recrutement'),
                         email: signerEmail,
-                        locale: 'fr'
+                        locale: 'fr',
                     },
                     signature_level: 'electronic_signature',
                     signature_authentication_mode: 'no_otp',
@@ -102,10 +107,10 @@ export class YousignService {
                             document_id: documentId,
                             page: lastPage,
                             x: 350,
-                            y: 550
-                        }
-                    ]
-                })
+                            y: 550,
+                        },
+                    ],
+                }),
             });
 
             if (!signerRes.ok) {
@@ -118,14 +123,17 @@ export class YousignService {
 
             // 4. Activate Signature Request
             logger.info('Activating signature request...');
-            const activateRes = await fetch(`${env.YOUSIGN_BASE_URL}/signature_requests/${signatureRequestId}/activate`, {
-                method: 'POST',
-                headers: {
-                    ...this.getHeaders(),
-                    'Content-Type': 'application/json'
+            const activateRes = await fetch(
+                `${env.YOUSIGN_BASE_URL}/signature_requests/${signatureRequestId}/activate`,
+                {
+                    method: 'POST',
+                    headers: {
+                        ...this.getHeaders(),
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({}),
                 },
-                body: JSON.stringify({})
-            });
+            );
 
             if (!activateRes.ok) {
                 const errText = await activateRes.text();
@@ -134,7 +142,6 @@ export class YousignService {
 
             logger.info('Signature request activated successfully.');
             return signatureRequestId;
-
         } catch (error) {
             logger.error(error, 'Yousign integration failed');
             throw error;
@@ -158,7 +165,7 @@ export class YousignService {
             logger.info(`Listing documents for signature request: ${signatureRequestId}`);
             const docsRes = await fetch(`${env.YOUSIGN_BASE_URL}/signature_requests/${signatureRequestId}/documents`, {
                 method: 'GET',
-                headers: this.getHeaders()
+                headers: this.getHeaders(),
             });
 
             if (!docsRes.ok) {
@@ -175,10 +182,13 @@ export class YousignService {
 
             // Now, download the document
             logger.info(`Downloading signed document ${documentId} for request ${signatureRequestId}...`);
-            const downloadRes = await fetch(`${env.YOUSIGN_BASE_URL}/signature_requests/${signatureRequestId}/documents/${documentId}/download`, {
-                method: 'GET',
-                headers: this.getHeaders()
-            });
+            const downloadRes = await fetch(
+                `${env.YOUSIGN_BASE_URL}/signature_requests/${signatureRequestId}/documents/${documentId}/download`,
+                {
+                    method: 'GET',
+                    headers: this.getHeaders(),
+                },
+            );
 
             if (!downloadRes.ok) {
                 throw new Error(`Failed to download signed document: ${downloadRes.status}`);

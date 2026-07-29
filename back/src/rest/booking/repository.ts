@@ -47,11 +47,26 @@ interface BookingRow {
 
 /** Plages par défaut : lun–ven 9h–12h et 14h–17h. */
 export const DEFAULT_WORKING_HOURS: WorkingHours = {
-    '1': [['09:00', '12:00'], ['14:00', '17:00']],
-    '2': [['09:00', '12:00'], ['14:00', '17:00']],
-    '3': [['09:00', '12:00'], ['14:00', '17:00']],
-    '4': [['09:00', '12:00'], ['14:00', '17:00']],
-    '5': [['09:00', '12:00'], ['14:00', '17:00']],
+    '1': [
+        ['09:00', '12:00'],
+        ['14:00', '17:00'],
+    ],
+    '2': [
+        ['09:00', '12:00'],
+        ['14:00', '17:00'],
+    ],
+    '3': [
+        ['09:00', '12:00'],
+        ['14:00', '17:00'],
+    ],
+    '4': [
+        ['09:00', '12:00'],
+        ['14:00', '17:00'],
+    ],
+    '5': [
+        ['09:00', '12:00'],
+        ['14:00', '17:00'],
+    ],
 };
 
 function toSettings(row: BookingRow): BookingSettings {
@@ -87,17 +102,21 @@ export class BookingRepository {
     }
 
     async create(userId: number, slug: string): Promise<BookingSettings> {
-        await query(
-            'INSERT INTO booking_settings (user_id, slug, working_hours) VALUES (?, ?, ?)',
-            [userId, slug, JSON.stringify(DEFAULT_WORKING_HOURS)],
-        );
+        await query('INSERT INTO booking_settings (user_id, slug, working_hours) VALUES (?, ?, ?)', [
+            userId,
+            slug,
+            JSON.stringify(DEFAULT_WORKING_HOURS),
+        ]);
         return (await this.findByUserId(userId))!;
     }
 
     async update(userId: number, patch: Partial<BookingSettings>): Promise<BookingSettings> {
         const fields: string[] = [];
         const values: unknown[] = [];
-        const set = (col: string, val: unknown) => { fields.push(`${col} = ?`); values.push(val); };
+        const set = (col: string, val: unknown) => {
+            fields.push(`${col} = ?`);
+            values.push(val);
+        };
 
         if (patch.enabled !== undefined) set('enabled', patch.enabled ? 1 : 0);
         if (patch.durationMin !== undefined) set('duration_min', patch.durationMin);

@@ -9,12 +9,8 @@ const kpi = new KpiService();
 const rhKpi = new RhKpiService();
 
 export function registerKpiTools(server: McpServer): void {
-    readTool(
-        server,
-        'kpi_available_years',
-        'Années disponibles pour les KPI commerciaux.',
-        {},
-        async () => toolResult(await kpi.getAvailableYears()),
+    readTool(server, 'kpi_available_years', 'Années disponibles pour les KPI commerciaux.', {}, async () =>
+        toolResult(await kpi.getAvailableYears()),
     );
 
     readTool(
@@ -39,7 +35,7 @@ export function registerKpiTools(server: McpServer): void {
     readTool(
         server,
         'kpi_activity',
-        "Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.",
+        'Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.',
         {
             year: z.number().int().describe('Année'),
             site: z.string().describe('Site (ex: NORD, SUD)'),

@@ -20,9 +20,5 @@ export function readTool<S extends Shape>(
     inputSchema: S,
     handler: (args: Args<S>) => Promise<ToolResult>,
 ): void {
-    server.registerTool(
-        name,
-        { description, inputSchema } as never,
-        handler as never,
-    );
+    server.registerTool(name, { description, inputSchema } as never, handler as never);
 }

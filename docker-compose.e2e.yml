@@ -1,0 +1,32 @@
+name: disciplina-test
+
+# Overlay for docker-compose.test.yml: turns the component-test stack into a
+# stack that actually serves front+back, for Playwright e2e in CI.
+# Usage: docker compose -f docker-compose.test.yml -f docker-compose.e2e.yml up ...
+
+services:
+  test-sql-db:
+    volumes:
+      - ./database/mysql/mysql-seed-e2e.sql:/docker-entrypoint-initdb.d/98-seed-e2e.sql
+
+  test-backend:
+    command: npm run dev
+    environment:
+      E2E_DISABLE_LOGIN_RATE_LIMIT: "true"
+
+  test-frontend:
+    build:
+      context: ./front/disciplina-front
+      dockerfile: Dockerfile
+      target: dev
+    network_mode: host
+    depends_on:
+      test-backend:
+        condition: service_started
+    environment:
+      VITE_API_URL: http://localhost:4000
+      VITE_SENTRY_DSN: ""
+      VITE_SENTRY_TRACES_SAMPLE_RATE: "0"
+      VITE_SENTRY_REPLAYS_SESSION_SAMPLE_RATE: "0"
+      VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE: "0"
+      VITE_SENTRY_RELEASE: ci

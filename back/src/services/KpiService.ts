@@ -358,9 +358,7 @@ export class KpiService {
         const byWeek = new Map<number, KpiWeeklyDetail['weeks'][number]>();
 
         const nameOf = (row: { first_name: string | null; last_name: string | null }) =>
-            row.first_name || row.last_name
-                ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
-                : 'Non attribué';
+            row.first_name || row.last_name ? `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim() : 'Non attribué';
 
         // -- Résumé : état actuel du portefeuille ---------------------------------
         const summaryUsers = new Map<string, KpiUserSummary>();

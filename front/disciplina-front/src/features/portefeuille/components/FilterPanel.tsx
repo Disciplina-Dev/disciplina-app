@@ -40,17 +40,6 @@ interface Props {
   activeCount: number
 }
 
-export const EMPTY_FILTERS: EntrepriseFilters = {
-  siret: '',
-  status: [],
-  commercial_id: null,
-  secteur: '',
-  relance: '',
-  unassigned_only: false,
-  date_insertion_from: '',
-  date_insertion_to: '',
-}
-
 // ─── Generic dropdown chip ────────────────────────────────────────────────────
 interface ChipDropdownProps {
   icon: React.ReactNode

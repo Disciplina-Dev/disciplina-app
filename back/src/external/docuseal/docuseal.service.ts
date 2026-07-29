@@ -41,10 +41,7 @@ const CATALOGUE_FILENAME = 'Catalogue Disciplina.pdf';
  * local / `node dist`). Renvoie null si introuvable.
  */
 function loadAssetPdf(filename: string): Buffer | null {
-    const candidates = [
-        path.join(process.cwd(), 'assets', filename),
-        path.join(__dirname, '../../assets', filename),
-    ];
+    const candidates = [path.join(process.cwd(), 'assets', filename), path.join(__dirname, '../../assets', filename)];
     for (const candidate of candidates) {
         try {
             return fs.readFileSync(candidate);

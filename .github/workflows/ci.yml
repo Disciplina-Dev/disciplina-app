@@ -8,11 +8,127 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  backend-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: back/package-lock.json
+      - working-directory: back
+        run: npm ci
+      - working-directory: back
+        run: npm run lint
+      - working-directory: back
+        run: npm run format:check
 
+  backend-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: back/package-lock.json
+      - working-directory: back
+        run: npm ci
+      - working-directory: back
+        run: npm run build
+
+  backend-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
       - name: Run backend tests
         run: CI=true docker compose -f docker-compose.test.yml up --build --force-recreate --abort-on-container-exit --exit-code-from test-backend
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Non-bloquant : ~65 erreurs pré-existantes (no-explicit-any + refactors
+    # d'effets React) restent à traiter séparément. À retirer une fois résorbées.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: front/disciplina-front/package-lock.json
+      - working-directory: front/disciplina-front
+        run: npm ci
+      - working-directory: front/disciplina-front
+        run: npm run lint
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: front/disciplina-front/package-lock.json
+      - working-directory: front/disciplina-front
+        run: npm ci
+      - working-directory: front/disciplina-front
+        env:
+          VITE_SENTRY_DSN: ""
+          VITE_SENTRY_TRACES_SAMPLE_RATE: "0"
+          VITE_SENTRY_REPLAYS_SESSION_SAMPLE_RATE: "0"
+          VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE: "0"
+          VITE_SENTRY_RELEASE: "ci"
+        run: npm run build
+
+  frontend-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [frontend-build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack (db + backend + frontend)
+        run: CI=true docker compose -f docker-compose.test.yml -f docker-compose.e2e.yml up -d --build test-sql-db test-nosql-db test-backend test-frontend
+      - name: Wait for backend and frontend to be ready
+        run: |
+          npx wait-on -t 120000 tcp:localhost:4000 http://localhost:5173
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: front/disciplina-front/package-lock.json
+      - working-directory: front/disciplina-front
+        run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('front/disciplina-front/package-lock.json') }}
+      - working-directory: front/disciplina-front
+        run: npx playwright install --with-deps chromium
+      - working-directory: front/disciplina-front
+        run: npm run test:e2e:ci
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: front/disciplina-front/playwright-report/
+          retention-days: 7
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml -f docker-compose.e2e.yml logs
+      - name: Stop stack
+        if: always()
+        run: docker compose -f docker-compose.test.yml -f docker-compose.e2e.yml down -v

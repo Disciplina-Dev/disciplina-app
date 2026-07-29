@@ -253,7 +253,12 @@ export default function EntreprisePage() {
   }
 
   const toggleSelect = (id: string) => {
-    setSelectedAbIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+    setSelectedAbIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
   const handleBulkDelete = async () => {
     await Promise.all([...selectedAbIds].map((id) => deleteNeedsAnalysis(id)))

@@ -33,10 +33,10 @@ import { PDFDocument } from 'pdf-lib';
 function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
     return Boolean(
         filter.search ||
-            filter.statuses?.length ||
-            filter.desiredTp?.length ||
-            filter.sectors?.length ||
-            filter.localisations?.length,
+        filter.statuses?.length ||
+        filter.desiredTp?.length ||
+        filter.sectors?.length ||
+        filter.localisations?.length,
     );
 }
 

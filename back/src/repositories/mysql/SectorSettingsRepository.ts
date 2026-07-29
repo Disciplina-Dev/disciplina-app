@@ -8,9 +8,7 @@ export interface SectorSettingRow {
 export class SectorSettingsRepository {
     /** Tous les lieux de RDV par secteur, ordonnés par secteur. */
     async findAll(): Promise<SectorSettingRow[]> {
-        return query<SectorSettingRow[]>(
-            'SELECT sector, location FROM sector_settings ORDER BY sector',
-        );
+        return query<SectorSettingRow[]>('SELECT sector, location FROM sector_settings ORDER BY sector');
     }
 
     /** Crée/écrase le lieu d'un secteur (upsert sur la clé primaire `sector`). */

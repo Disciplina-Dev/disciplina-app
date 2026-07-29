@@ -4,7 +4,6 @@ import { truncateMysql, dropMongo } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
-import { JobRole, Permission } from '../../../types/user.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/needs-analysis`;
 

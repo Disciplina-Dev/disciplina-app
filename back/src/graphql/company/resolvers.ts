@@ -10,7 +10,6 @@ import { UserService } from '../../services/UserService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { permission } from 'node:process';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();

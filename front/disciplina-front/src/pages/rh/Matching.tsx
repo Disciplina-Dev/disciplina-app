@@ -1753,7 +1753,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     setAddPreselectedOpen(false)
   }
 
-  const handleAddAcceptedCandidate = async (candidateId: string, _candidateName: string) => {
+  const handleAddAcceptedCandidate = async (candidateId: string) => {
     if (!selectedJob) return
     try {
       const result = await offerGraphqlClient

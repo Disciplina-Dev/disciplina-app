@@ -9,7 +9,7 @@ export const SECTEUR_VALUES: Secteur[] = ['Nord-Est', 'Ouest', 'Sud']
 export const DEFAULT_SECTEUR: Secteur = 'Nord-Est'
 export type RelanceFilter = 'today' | 'past' | 'future'
 
-const saleUserData = [
+export const saleUserData = [
   { id: 1, name: 'Pas de commerciaux' },
   { id: 2, name: 'Amanda' },
   { id: 3, name: 'Emile' },
@@ -110,7 +110,7 @@ export interface EntrepriseBlacklistee extends Entreprise {
   all_blacklist: boolean
 }
 
-export interface EntrepriseConflit extends Entreprise {}
+export type EntrepriseConflit = Entreprise
 
 export type EntrepriseFilters = {
   siret: string
@@ -121,4 +121,15 @@ export type EntrepriseFilters = {
   unassigned_only: boolean
   date_insertion_from: string
   date_insertion_to: string
+}
+
+export const EMPTY_FILTERS: EntrepriseFilters = {
+  siret: '',
+  status: [],
+  commercial_id: null,
+  secteur: '',
+  relance: '',
+  unassigned_only: false,
+  date_insertion_from: '',
+  date_insertion_to: '',
 }

@@ -1,7 +1,4 @@
-import {
-    DriveFolderConfigModel,
-    DRIVE_FOLDER_CONFIG_ID,
-} from '../../db/mongo/schemas/driveFolderConfig.schema';
+import { DriveFolderConfigModel, DRIVE_FOLDER_CONFIG_ID } from '../../db/mongo/schemas/driveFolderConfig.schema';
 
 export interface DriveFolderConfig {
     rootFolderId: string | null;
@@ -11,8 +8,7 @@ export interface DriveFolderConfig {
 function toConfig(doc: any): DriveFolderConfig {
     // tp_folders peut être une Map Mongoose ; normaliser en objet plat.
     const raw = doc?.tp_folders;
-    const tpFolders: Record<string, string> =
-        raw instanceof Map ? Object.fromEntries(raw) : { ...(raw ?? {}) };
+    const tpFolders: Record<string, string> = raw instanceof Map ? Object.fromEntries(raw) : { ...(raw ?? {}) };
     return {
         rootFolderId: doc?.root_folder_id ?? null,
         tpFolders,

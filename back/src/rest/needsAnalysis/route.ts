@@ -1,12 +1,6 @@
 import express, { Router } from 'express';
 import { authenticate } from '../middleware/auth';
-import {
-    downloadPdf,
-    sendSignature,
-    getMandatPdf,
-    getCataloguePdf,
-    getSignatureEmail,
-} from './controller';
+import { downloadPdf, sendSignature, getMandatPdf, getCataloguePdf, getSignatureEmail } from './controller';
 
 export const router: Router = express.Router();
 

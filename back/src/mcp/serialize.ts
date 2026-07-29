@@ -7,7 +7,8 @@
  * a secret".
  */
 
-const SENSITIVE_KEY = /(password|passwd|secret|token|hash|salt|credential|apikey|api_key|privatekey|private_key|encryptionkey)/i;
+const SENSITIVE_KEY =
+    /(password|passwd|secret|token|hash|salt|credential|apikey|api_key|privatekey|private_key|encryptionkey)/i;
 
 function scrub(value: unknown): unknown {
     if (Array.isArray(value)) return value.map(scrub);

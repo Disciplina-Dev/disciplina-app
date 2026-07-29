@@ -93,7 +93,10 @@ export class RhKpiService {
                 userId: r.user_id,
                 userName: r.user_name,
                 sector: r.sector ?? '',
-                metrics: RH_KPI_COLUMNS.reduce((acc, c) => { acc[c] = Number(r[c]) || 0; return acc; }, emptyRhMetrics()),
+                metrics: RH_KPI_COLUMNS.reduce((acc, c) => {
+                    acc[c] = Number(r[c]) || 0;
+                    return acc;
+                }, emptyRhMetrics()),
             });
         }
         return {
