@@ -97,6 +97,7 @@ export interface Entreprise {
   type_relance: number | null
   relance_template_id: string | null
   relance_channel: string | null
+  candidateUserIds?: number[] | null
 }
 
 export interface SirenGroup {
@@ -108,6 +109,8 @@ export interface SirenGroup {
 export interface EntrepriseBlacklistee extends Entreprise {
   all_blacklist: boolean
 }
+
+export interface EntrepriseConflit extends Entreprise {}
 
 export type EntrepriseFilters = {
   siret: string

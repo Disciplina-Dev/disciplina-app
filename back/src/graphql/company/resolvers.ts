@@ -1,10 +1,11 @@
 import { CompaniesService } from '../../services/CompaniesService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { CompanyConflictService } from '../../services/CompanyConflictService';
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { ContactLogService } from '../../services/ContactLogService';
-import { toBlacklistedCompany } from '../../services/mappers/company.mapper';
+import { toBlacklistedCompany, toCompanyConflict, toCompanies } from '../../services/mappers/company.mapper';
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
-import { CompaniesRow } from '../../types/db-rows.types';
+import { CompaniesRow, CompanyConflictRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
@@ -13,6 +14,7 @@ import { permission } from 'node:process';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
+const companyConflictService = new CompanyConflictService();
 const contactLogService = new ContactLogService();
 const userService = new UserService();
 
@@ -35,6 +37,36 @@ interface CompanyInput {
     relanceType?: number | null;
     relanceTemplateId?: string | null;
     relanceChannel?: string | null;
+}
+
+interface CompanyConflictInput {
+    legalReferent?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    sector?: string | null;
+    mainActivity?: string | null;
+    siret?: string | null;
+    idcc?: string | null;
+    ape?: string | null;
+    userId?: number | null;
+}
+
+function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConflictRow> {
+    const row: Partial<CompanyConflictRow> = {};
+    if (input.legalReferent !== undefined) row.legal_referent = input.legalReferent;
+    if (input.name !== undefined) row.name = input.name;
+    if (input.phone !== undefined) row.phone = input.phone;
+    if (input.email !== undefined) row.email = input.email;
+    if (input.address !== undefined) row.address = input.address;
+    if (input.sector !== undefined) row.sector = input.sector;
+    if (input.mainActivity !== undefined) row.main_activity = input.mainActivity;
+    if (input.siret !== undefined) row.siret = input.siret;
+    if (input.idcc !== undefined) row.idcc = input.idcc;
+    if (input.ape !== undefined) row.ape = input.ape;
+    if (input.userId !== undefined) row.user_id = input.userId;
+    return row;
 }
 
 const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
@@ -200,6 +232,18 @@ export const resolvers = {
             return buildConnection(companies, (c) => String(c.id), search ? companies.length : pageSize);
         },
 
+        companyConflicts: async (
+            _: unknown,
+            { first, after, search, conflictType }: PaginationArgs & { search?: string; conflictType?: string },
+            context: any,
+        ) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const rows = await companyConflictService.findAll(pageSize, after, search, conflictType);
+            const conflicts = rows.map(toCompanyConflict);
+            return buildConnection(conflicts, (c) => String(c.id), search ? conflicts.length : pageSize);
+        },
+
         companyHistory: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return companiesService.getHistory(companyID);
@@ -278,6 +322,28 @@ export const resolvers = {
                 await needsAnalysisService.delete(na.id);
             }
             return companiesBlacklistService.blacklistCompany(companyId, reason, allBlacklist);
+        },
+        updateCompanyConflict: async (
+            _: unknown,
+            { id, input }: { id: number; input: CompanyConflictInput },
+            context: any,
+        ) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const row = await companyConflictService.updateConflict(id, mapConflictInputToRow(input));
+            return toCompanyConflict(row);
+        },
+        resolveCompanyConflict: async (_: unknown, { id }: { id: number }, context: any) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const company = await companyConflictService.resolveConflict(id);
+            return toCompanies(company);
+        },
+        deleteCompanyConflict: async (_: unknown, { id }: { id: number }, context: any) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            return companyConflictService.deleteConflict(id);
+        },
+        deleteCompanyConflictsByType: async (_: unknown, { conflictType }: { conflictType: string }, context: any) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            return companyConflictService.deleteConflictsByType(conflictType);
         },
         createContactLog: async (
             _: unknown,
