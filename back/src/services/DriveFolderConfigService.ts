@@ -1,9 +1,6 @@
 import { env } from '../config/env';
 import { TitleProfessionalType, TrainingSite } from '../types/candidate.types';
-import {
-    DriveFolderConfig,
-    DriveFolderConfigRepository,
-} from '../repositories/mongo/DriveFolderConfigRepository';
+import { DriveFolderConfig, DriveFolderConfigRepository } from '../repositories/mongo/DriveFolderConfigRepository';
 
 // Régions disponibles (un dossier Drive par couple TP × Région).
 export const DRIVE_REGIONS = ['NORD', 'OUEST', 'SUD'] as const;

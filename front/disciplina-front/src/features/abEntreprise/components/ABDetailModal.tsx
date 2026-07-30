@@ -5,7 +5,14 @@ import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
-import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import type { NeedsAnalysis, Position } from '@/types/needsAnalysis'
+
+// Champs renvoyés par l'API mais absents du type Position partagé (structure historique divergente).
+type PositionDisplay = Position & {
+  missions?: string[] | null
+  descriptionMissions?: string[] | null
+  otherDescriptionMissions?: string | null
+}
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -191,7 +198,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               <Row label="Immersion"           value={LABELS.immersionPeriod[ab.immersionPeriod]} />
             </Section>
 
-            {(ab.positions ?? []).map((p: any, i: number, arr: unknown[]) => {
+            {(ab.positions ?? []).map((p: PositionDisplay, i: number, arr: unknown[]) => {
               const c = p.criteria ?? {}
               return (
                 <Section
@@ -200,9 +207,9 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                   title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
                 >
                   <Row label="Intitulé"     value={p.title} />
-                  <Row label="Domaine"      value={LABELS.trainingDomain[p.trainingDomain]} />
+                  <Row label="Domaine"      value={p.trainingDomain ? LABELS.trainingDomain[p.trainingDomain] : undefined} />
                   <Row label="Localisation" value={(p.localisation ?? []).map(formatCommune).join(', ')} />
-                  {p.missions?.length > 0 && (
+                  {p.missions && p.missions.length > 0 && (
                     <div className="py-2">
                       <ul className="list-disc list-inside space-y-0.5">
                         {p.missions.map((m: string) => (
@@ -211,9 +218,9 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                       </ul>
                     </div>
                   )}
-                  {(p.descriptionMissions?.length > 0 || p.otherDescriptionMissions) && (
+                  {((p.descriptionMissions && p.descriptionMissions.length > 0) || p.otherDescriptionMissions) && (
                     <>
-                      {p.descriptionMissions?.length > 0 && (
+                      {p.descriptionMissions && p.descriptionMissions.length > 0 && (
                         <Row label="Types de missions" value={p.descriptionMissions.join(', ')} />
                       )}
                       <Row label="Descriptif" value={p.otherDescriptionMissions} />
@@ -228,7 +235,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                     <Row label="Âge" value={[c.ageMin ? `de ${c.ageMin} ans` : null, c.ageMax ? `à ${c.ageMax} ans` : null].filter(Boolean).join(' ')} />
                   )}
                   <Row label="Soft skills" value={c.softSkills} />
-                  <Row label="Conditions" value={c.conditions ?? (c.scheduleOptions?.length > 0 ? c.scheduleOptions.join(', ') : null)} />
+                  <Row label="Conditions" value={c.conditions ?? (c.scheduleOptions && c.scheduleOptions.length > 0 ? c.scheduleOptions.join(', ') : null)} />
                   <Row label="Commentaires" value={c.additionalComments} />
                 </Section>
               )

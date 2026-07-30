@@ -2,6 +2,13 @@ import { useEffect } from 'react'
 import { useQuery } from 'urql'
 import { useBlacklistStore } from '@/store/blacklistStore'
 import { GET_BLACKLISTED_COMPANIES } from '@/graphql/queries'
+import type { Company } from '@/types/entreprise'
+
+/** Shape of an edge `node` in GET_BLACKLISTED_COMPANIES. */
+interface GqlBlacklistedCompanyNode extends Company {
+  legalReferent: string | null
+  allBlacklist: boolean | null
+}
 
 export function useInitializeBlacklist(first?: number, after?: string, search?: string) {
   const setCompanies = useBlacklistStore((s) => s.setCompanies)
@@ -21,7 +28,7 @@ export function useInitializeBlacklist(first?: number, after?: string, search?: 
     setError(result.error?.message || null)
 
     if (result.data?.blacklistedCompanies) {
-      const entreprises = result.data.blacklistedCompanies.edges.map(({ node: c }: any) => ({
+      const entreprises = result.data.blacklistedCompanies.edges.map(({ node: c }: { node: GqlBlacklistedCompanyNode }) => ({
         id: String(c.id),
         nom_commercial: c.name,
         proprietaire_contact: null,

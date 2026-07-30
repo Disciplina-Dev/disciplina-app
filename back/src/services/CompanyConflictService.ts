@@ -75,7 +75,9 @@ export class CompanyConflictService {
 
         const siren = siret.slice(0, 9);
         const sameSiren = await this.companyRepository.findAllBySiren(siren);
-        const distinctUserIds = new Set(sameSiren.map((c) => c.user_id).filter((userId): userId is number => userId !== null));
+        const distinctUserIds = new Set(
+            sameSiren.map((c) => c.user_id).filter((userId): userId is number => userId !== null),
+        );
         if (distinctUserIds.size > 1) {
             throw new Error('Plusieurs commerciaux sont déjà rattachés à ce SIREN : contactez un responsable.');
         }

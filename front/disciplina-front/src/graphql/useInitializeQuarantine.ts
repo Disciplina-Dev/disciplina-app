@@ -2,6 +2,13 @@ import { useEffect } from 'react'
 import { useQuery } from 'urql'
 import { useQuarantineStore } from '@/store/quarantineStore'
 import { GET_COMPANY_CONFLICTS } from '@/graphql/queries'
+import type { Company } from '@/types/entreprise'
+
+/** Shape of an edge `node` in GET_COMPANY_CONFLICTS. */
+interface GqlCompanyConflictNode extends Company {
+  legalReferent: string | null
+  candidateUserIds?: number[] | null
+}
 
 export function useInitializeQuarantine(first?: number, after?: string, search?: string, conflictType?: string) {
   const setCompanies = useQuarantineStore((s) => s.setCompanies)
@@ -22,7 +29,7 @@ export function useInitializeQuarantine(first?: number, after?: string, search?:
     setError(result.error?.message || null)
 
     if (result.data?.companyConflicts) {
-      const entreprises = result.data.companyConflicts.edges.map(({ node: c }: any) => ({
+      const entreprises = result.data.companyConflicts.edges.map(({ node: c }: { node: GqlCompanyConflictNode }) => ({
         id: String(c.id),
         nom_commercial: c.name,
         proprietaire_contact: null,

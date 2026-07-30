@@ -25,5 +25,4 @@ const abDriveConfigSchema = new Schema<AbDriveConfigDoc & Document>(
 );
 
 export const AbDriveConfigModel =
-    mongoose.models.AbDriveConfig ||
-    model<AbDriveConfigDoc & Document>('AbDriveConfig', abDriveConfigSchema);
+    mongoose.models.AbDriveConfig || model<AbDriveConfigDoc & Document>('AbDriveConfig', abDriveConfigSchema);

@@ -19,8 +19,8 @@ export default function GoogleReconnectBanner() {
     setErrorMsg(null)
     try {
       await connectGoogle()
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Une erreur inattendue est survenue')
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Une erreur inattendue est survenue')
     }
   }
 

@@ -116,8 +116,8 @@ export default function MailModal({ defaultTo = '', candidateName, scope = 'rh',
       }
       setSent(true)
       onSent?.()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l’envoi')
     } finally {
       setSending(false)
     }

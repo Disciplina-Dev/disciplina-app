@@ -113,8 +113,8 @@ export default function ConflictResolverModal({ entreprise, onClose }: Props) {
       if (data.isBlacklisted) {
         setSourcingError(`Attention : entreprise blacklistée (${data.blacklistReason ?? 'raison inconnue'}).`)
       }
-    } catch (err: any) {
-      setSourcingError(err?.message || 'Impossible de récupérer les informations Sirene.')
+    } catch (err) {
+      setSourcingError(err instanceof Error ? err.message : 'Impossible de récupérer les informations Sirene.')
     } finally {
       setSourcingLoading(false)
     }

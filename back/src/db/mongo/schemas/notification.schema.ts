@@ -8,7 +8,7 @@ const notificationSchema = new Schema<Notification & Document>(
         _id: { type: String, required: true },
         user_id: { type: Number, required: true, index: true },
         type: { type: String, required: true },
-        category: { type: String, enum: ['candidate', 'company']},
+        category: { type: String, enum: ['candidate', 'company'] },
         level: { type: String, enum: ['info', 'success', 'warning', 'error'], default: 'info' },
         title: { type: String, required: true },
         message: { type: String },

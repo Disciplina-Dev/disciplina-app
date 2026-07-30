@@ -96,8 +96,8 @@ export function useGoogleOAuthPopup() {
       }
 
       return tokenData
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
       throw err
     } finally {
       setIsLoading(false)

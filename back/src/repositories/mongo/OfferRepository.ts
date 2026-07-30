@@ -13,16 +13,16 @@ const PLACEMENT_CONCLUSIONS = [InterviewConclusion.IMMERSING, InterviewConclusio
 // Retire les champs de proposition d'un candidat rebasculé en simple « retenu ».
 function resetProposal(candidate: MatchingCandidate): MatchingCandidate {
     const {
-        description,
-        cv_webview,
-        comment,
-        interview_location,
-        booked_interview_slot,
-        interview_conclusion,
-        immersion_start_date,
-        immersion_end_date,
-        immersion_location,
-        immersion_conclusion,
+        description: _description,
+        cv_webview: _cv_webview,
+        comment: _comment,
+        interview_location: _interview_location,
+        booked_interview_slot: _booked_interview_slot,
+        interview_conclusion: _interview_conclusion,
+        immersion_start_date: _immersion_start_date,
+        immersion_end_date: _immersion_end_date,
+        immersion_location: _immersion_location,
+        immersion_conclusion: _immersion_conclusion,
         ...identity
     } = candidate;
     return { ...identity, status: MatchedCandidateStatus.ACCEPTED };
@@ -71,7 +71,7 @@ export class OfferRepository {
 
     /** Remplace le contenu (poste, entreprise, référents, saler) d'une offre sans toucher à `matching`. */
     async updateContent(offerId: string, offer: Partial<Offer>): Promise<Offer | null> {
-        const { _id, matching, ...patch } = offer;
+        const { _id, matching: _matching, ...patch } = offer;
         return OfferModel.findOneAndUpdate({ _id: offerId }, { $set: patch }, { new: true }).lean();
     }
 

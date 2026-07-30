@@ -770,7 +770,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Parcours & prérequis');
     kv(
         'Niveau de formation',
-        c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level : '',
+        c.education?.school_level ? (SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level) : '',
     );
     kv('Justificatif', c.education?.justification);
     kv('Dernier diplôme obtenu', c.background?.last_diploma);
@@ -860,7 +860,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv(
         'Comment a connu Disciplina',
         c.job_info?.discovery_source
-            ? DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source
+            ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source)
             : '',
     );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);

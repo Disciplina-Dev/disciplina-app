@@ -10,7 +10,10 @@ export class TodoRepository {
     }
 
     async findById(id: number, userId: number): Promise<TodoRow | null> {
-        const rows = await query<TodoRow[]>('SELECT * FROM todos WHERE id = ? AND user_id = ? AND deleted = 0', [id, userId]);
+        const rows = await query<TodoRow[]>('SELECT * FROM todos WHERE id = ? AND user_id = ? AND deleted = 0', [
+            id,
+            userId,
+        ]);
         return rows[0] ?? null;
     }
 
@@ -32,7 +35,12 @@ export class TodoRepository {
         );
     }
 
-    async create(userId: number, input: CreateTodoInput, source: TodoSource = 'MANUAL', sourceRef?: string): Promise<number> {
+    async create(
+        userId: number,
+        input: CreateTodoInput,
+        source: TodoSource = 'MANUAL',
+        sourceRef?: string,
+    ): Promise<number> {
         const maxPos = await query<{ maxPos: number | null }[]>(
             'SELECT MAX(position) as maxPos FROM todos WHERE user_id = ?',
             [userId],
@@ -42,7 +50,16 @@ export class TodoRepository {
         const result = await query<any>(
             `INSERT INTO todos (user_id, title, description, deadline, position, status, source, source_ref)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [userId, input.title, input.description ?? null, input.deadline ?? null, position, input.status ?? 'TODO', source, sourceRef ?? null],
+            [
+                userId,
+                input.title,
+                input.description ?? null,
+                input.deadline ?? null,
+                position,
+                input.status ?? 'TODO',
+                source,
+                sourceRef ?? null,
+            ],
         );
         return result.insertId as number;
     }
@@ -51,10 +68,22 @@ export class TodoRepository {
         const fields: string[] = [];
         const values: unknown[] = [];
 
-        if (input.title !== undefined) { fields.push('title = ?'); values.push(input.title); }
-        if (input.description !== undefined) { fields.push('description = ?'); values.push(input.description); }
-        if (input.deadline !== undefined) { fields.push('deadline = ?'); values.push(input.deadline); }
-        if (input.status !== undefined) { fields.push('status = ?'); values.push(input.status); }
+        if (input.title !== undefined) {
+            fields.push('title = ?');
+            values.push(input.title);
+        }
+        if (input.description !== undefined) {
+            fields.push('description = ?');
+            values.push(input.description);
+        }
+        if (input.deadline !== undefined) {
+            fields.push('deadline = ?');
+            values.push(input.deadline);
+        }
+        if (input.status !== undefined) {
+            fields.push('status = ?');
+            values.push(input.status);
+        }
 
         if (fields.length === 0) return;
         values.push(id, userId);
@@ -75,10 +104,7 @@ export class TodoRepository {
     async delete(id: number, userId: number): Promise<void> {
         // SYSTEM todos are soft-deleted so the sweep does not recreate them
         // (source_ref stays as dedup key); MANUAL todos are hard-deleted.
-        await query(
-            "UPDATE todos SET deleted = 1 WHERE id = ? AND user_id = ? AND source = 'SYSTEM'",
-            [id, userId],
-        );
+        await query("UPDATE todos SET deleted = 1 WHERE id = ? AND user_id = ? AND source = 'SYSTEM'", [id, userId]);
         await query("DELETE FROM todos WHERE id = ? AND user_id = ? AND source = 'MANUAL'", [id, userId]);
     }
 }

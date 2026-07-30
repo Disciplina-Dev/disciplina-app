@@ -6,7 +6,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: test-root-password
     volumes:
-      - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
       - "3307:3306"
     healthcheck:

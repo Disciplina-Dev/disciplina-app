@@ -206,9 +206,7 @@ export class KpiRepository {
     }
 
     async getAvailableYears(): Promise<number[]> {
-        const rows = await query<{ year: number }[]>(
-            'SELECT DISTINCT year FROM commercial_kpi ORDER BY year DESC',
-        );
+        const rows = await query<{ year: number }[]>('SELECT DISTINCT year FROM commercial_kpi ORDER BY year DESC');
         return rows.map((r) => Number(r.year));
     }
 }

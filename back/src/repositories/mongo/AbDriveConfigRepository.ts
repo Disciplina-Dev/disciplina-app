@@ -7,8 +7,7 @@ export interface AbDriveConfig {
 function toConfig(doc: any): AbDriveConfig {
     // sector_folders peut être une Map Mongoose ; normaliser en objet plat.
     const raw = doc?.sector_folders;
-    const sectorFolders: Record<string, string> =
-        raw instanceof Map ? Object.fromEntries(raw) : { ...(raw ?? {}) };
+    const sectorFolders: Record<string, string> = raw instanceof Map ? Object.fromEntries(raw) : { ...(raw ?? {}) };
     return { sectorFolders };
 }
 

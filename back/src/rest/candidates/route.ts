@@ -13,7 +13,6 @@ import { GoogleDriveService, extractDriveFileId } from '../../external/google/dr
 import { OllamaService } from '../../external/ollama/ollama.service';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
-import { file } from 'pdfkit';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -687,7 +686,9 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         if (i.driving_license_b) parts.push('Permis B : oui');
         if (i.has_vehicle) parts.push('Véhicule : oui');
 
-        const tps = (candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).join(', ');
+        const tps = (
+            candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []
+        ).join(', ');
         if (tps) parts.push(`Titres visés : ${tps}`);
 
         if (candidate.education?.school_level) parts.push(`Niveau d'études : ${candidate.education.school_level}`);
@@ -713,7 +714,8 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         if (pp?.apprenticeship_motivation) parts.push(`Motivation : ${pp.apprenticeship_motivation}`);
 
         const j = candidate.job_info;
-        if (j?.availability_date) parts.push(`Disponible le : ${new Date(j.availability_date).toLocaleDateString('fr-FR')}`);
+        if (j?.availability_date)
+            parts.push(`Disponible le : ${new Date(j.availability_date).toLocaleDateString('fr-FR')}`);
         if (j?.geographic_mobility?.length) {
             const mob = j.geographic_mobility.join(', ');
             parts.push(`Mobilité : ${mob}`);
@@ -735,7 +737,9 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
                         // PDF uniquement (les CV importés sont en PDF)
                         if (meta.mimeType === 'application/pdf') {
                             const { buffer } = await driveService.downloadFile(fileId);
-                            const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
+                            const pdfParse: (
+                                buf: Buffer,
+                            ) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
                             const parsed = await pdfParse(buffer);
                             cvText = parsed.text?.trim() || null;
                         }

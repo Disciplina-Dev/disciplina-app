@@ -101,7 +101,7 @@ const data = {
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
     MYSQL_ROOT_PASSWORD:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MYSQL_ROOT_PASSWORD') ?? ''
+            ? (optionalString('MYSQL_ROOT_PASSWORD') ?? '')
             : requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
     MYSQL_URI: optionalString('MYSQL_URI'),
@@ -109,11 +109,11 @@ const data = {
     MONGO_URI: optionalString('MONGO_URI'),
     MONGO_ROOT_USERNAME:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MONGO_ROOT_USERNAME') ?? ''
+            ? (optionalString('MONGO_ROOT_USERNAME') ?? '')
             : requireString('MONGO_ROOT_USERNAME'),
     MONGO_ROOT_PASSWORD:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MONGO_ROOT_PASSWORD') ?? ''
+            ? (optionalString('MONGO_ROOT_PASSWORD') ?? '')
             : requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
     MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),

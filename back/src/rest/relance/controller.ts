@@ -23,8 +23,6 @@ const gmailService = new GoogleGmailService();
 const companiesService = new CompaniesService();
 const relanceHistoryRepo = new RelanceHistoryRepository();
 
-const RELANCE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
-
 /**
  * Vérifie l'accès à l'entreprise pour une action de relance. Renvoie l'entreprise
  * ou null (en ayant déjà répondu en erreur). Un COMMERCIAL n'agit que sur ses entreprises.

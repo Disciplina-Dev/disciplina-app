@@ -9,6 +9,7 @@ export function useClassMarkerResult(candidateId: string | undefined) {
 
   useEffect(() => {
     if (!candidateId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- no candidate selected, nothing to load
       setLoading(false);
       return;
     }

@@ -40,7 +40,10 @@ export class CompanyConflictRepository {
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
         const limit = Math.max(1, Math.floor(Number(first)) + 1);
-        return query<CompanyConflictRow[]>(`SELECT * FROM company_conflict ${where} ORDER BY id LIMIT ${limit}`, params);
+        return query<CompanyConflictRow[]>(
+            `SELECT * FROM company_conflict ${where} ORDER BY id LIMIT ${limit}`,
+            params,
+        );
     }
 
     async findById(id: number): Promise<CompanyConflictRow | null> {

@@ -28,10 +28,9 @@ export class ContactLogRepository {
                 [companyID, userID],
             );
         }
-        return query<ContactLogRow[]>(
-            'SELECT * FROM contact_logs WHERE company_id = ? ORDER BY created_at DESC',
-            [companyID],
-        );
+        return query<ContactLogRow[]>('SELECT * FROM contact_logs WHERE company_id = ? ORDER BY created_at DESC', [
+            companyID,
+        ]);
     }
 
     async countByCompany(companyID: number): Promise<number> {

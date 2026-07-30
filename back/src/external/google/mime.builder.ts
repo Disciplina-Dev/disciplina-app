@@ -82,7 +82,10 @@ function inlineImagePart(img: InlineImage, boundary: string): string {
     ].join('\r\n');
 }
 
-function attachmentPart(attachment: { filename: string; content: string; contentType?: string }, boundary: string): string {
+function attachmentPart(
+    attachment: { filename: string; content: string; contentType?: string },
+    boundary: string,
+): string {
     return [
         `--${boundary}`,
         `Content-Type: ${attachment.contentType || 'application/octet-stream'}`,

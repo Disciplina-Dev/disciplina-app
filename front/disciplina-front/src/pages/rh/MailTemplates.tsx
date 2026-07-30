@@ -148,8 +148,8 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         await update(editing.id, data, form.newFile, form.removeExisting && !form.newFile)
       }
       closeForm()
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de l’enregistrement.')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Échec de l’enregistrement.')
     } finally {
       setSaving(false)
     }

@@ -120,8 +120,8 @@ function SignatureEditor({
       setFile(null)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de l\'enregistrement')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Échec de l\'enregistrement')
     } finally {
       setSaving(false)
     }
@@ -133,8 +133,8 @@ function SignatureEditor({
       await removeSignature()
       setPreview('')
       setFile(null)
-    } catch (e: any) {
-      setError(e.message ?? 'Échec de la suppression')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Échec de la suppression')
     }
   }
 

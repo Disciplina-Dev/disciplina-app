@@ -1,4 +1,4 @@
-import { authGuard, authGuardRole } from '../authGuard';
+import { authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { InterviewConclusion, ImmersionConclusion } from '../../types/matching.types';
 import { OfferService } from '../../services/OfferService';

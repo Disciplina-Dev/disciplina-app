@@ -1,4 +1,4 @@
-import { authGuard, authGuardRole } from '../authGuard';
+import { authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
@@ -197,7 +197,10 @@ export const resolvers = {
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
+            return {
+                ...candidateToGql(candidate),
+                matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)),
+            };
         },
         candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -294,7 +297,10 @@ export const resolvers = {
             }
 
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(newCandidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
+            return {
+                ...candidateToGql(newCandidate),
+                matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)),
+            };
         },
 
         updateCandidate: async (

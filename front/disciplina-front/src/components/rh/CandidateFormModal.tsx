@@ -545,7 +545,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       return;
     }
     setForm(prev => ({ ...prev, skills: reconcileSkills(prev.skills, prev.tpTypes) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [tpKey]);
 
   // Vérifie en direct (débounce 400 ms) si une fiche existe déjà pour cet email.
@@ -668,8 +668,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       // Édition enregistrée → le brouillon de cette fiche n'a plus lieu d'être.
       clearDraft(draftKey);
       onClose();
-    } catch (err: any) {
-      setError(err.message ?? (isEdit ? 'Erreur lors de la modification' : 'Erreur lors de la création'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : (isEdit ? 'Erreur lors de la modification' : 'Erreur lors de la création'));
     } finally {
       setLoading(false);
     }

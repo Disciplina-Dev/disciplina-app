@@ -1,6 +1,6 @@
 import { Building2, MapPin, Hash, Briefcase, Calendar } from 'lucide-react'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
-import { AB_STATUS_BADGE } from '@/features/abEntreprise/components/ABDetailContent'
+import { AB_STATUS_BADGE } from '@/features/abEntreprise/constants'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatCommune } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'

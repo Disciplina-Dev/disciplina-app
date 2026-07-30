@@ -27,8 +27,8 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
     setErrorMsg(null)
     try {
       await connectGoogle()
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Une erreur inattendue est survenue')
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Une erreur inattendue est survenue')
     }
   }
 
@@ -38,8 +38,8 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
     try {
       await apiJson('/api/auth/google/disconnect', { method: 'POST' })
       useAuthStore.getState().updateUser({ googleConnected: false })
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Une erreur inattendue est survenue')
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Une erreur inattendue est survenue')
     } finally {
       setIsDisconnecting(false)
     }

@@ -23,11 +23,11 @@ Sentry.init({
     integrations: [
         Sentry.browserTracingIntegration(),
         Sentry.replayIntegration(),
-        // Optionnel : ajoute un span "route change" pour chaque navigation React Router.
+        // Optionnel : ajoute un span "route change" pour chaque navigation React Router.
         // Voir https://docs.sentry.io/platforms/javascript/guides/react/configuration/integrations/react-router/
     ],
     // Trace sampling (0 = never, 1 = always).
-    // Adjust in production (ex. 0.1 = 10 %) :
+    // Adjust in production (ex. 0.1 = 10 %) :
     tracesSampleRate: Number(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE ?? 1.0),
     tracePropagationTargets: ['localhost', /^https:\/\/app-reunion.disciplina.re\/api/],
     // Session Replay — sampling

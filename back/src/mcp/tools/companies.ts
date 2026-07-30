@@ -16,7 +16,7 @@ export function registerCompanyTools(server: McpServer): void {
     readTool(
         server,
         'get_company',
-        "Récupère la fiche entreprise complète par son id (MySQL) : raison sociale, SIRET, APE, adresse, secteur, référent, statut, conclusion, notes, relance.",
+        'Récupère la fiche entreprise complète par son id (MySQL) : raison sociale, SIRET, APE, adresse, secteur, référent, statut, conclusion, notes, relance.',
         { id: z.number().int().describe("Id numérique de l'entreprise") },
         async ({ id }) => toolResult(await companies.findById(id)),
     );

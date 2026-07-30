@@ -15,6 +15,15 @@ interface HistoryModalProps {
   offerId: string
 }
 
+interface OfferHistoryEntry {
+  id: string
+  text: string
+  createdAt: string | null
+  firstName: string | null
+  lastName: string | null
+  ownerEmail: string | null
+}
+
 export default function HistoryModal({ offerId }: HistoryModalProps) {
   const [expanded, setExpanded] = useState(false)
   const [text, setText] = useState('')
@@ -82,7 +91,7 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
 
           {!loading && history.length > 0 && (
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {history.map((entry: any) => {
+              {(history as OfferHistoryEntry[]).map((entry) => {
                 const isAuto = entry.firstName === null && entry.lastName === null
                 const canDelete = entry.ownerEmail !== null && entry.ownerEmail === currentUser?.email
                 return (

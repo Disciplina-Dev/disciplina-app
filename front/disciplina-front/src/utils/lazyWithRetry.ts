@@ -8,6 +8,7 @@ import { lazy, type ComponentType } from 'react'
  * module". On recharge alors la page une seule fois pour récupérer le nouvel
  * index.html (garde anti-boucle via sessionStorage).
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic bound must accept any component's prop type; `unknown` breaks inference at call sites
 export function lazyWithRetry<T extends ComponentType<any>>(
   factory: () => Promise<{ default: T }>,
 ) {

@@ -37,7 +37,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 let cache: { data: ClassMarkerLink[]; expiresAt: number } | null = null;
 
 function buildSignature(apiKey: string, apiSecret: string, timestamp: number): string {
-    return crypto.createHash('sha256').update(apiKey + apiSecret + timestamp).digest('hex');
+    return crypto
+        .createHash('sha256')
+        .update(apiKey + apiSecret + timestamp)
+        .digest('hex');
 }
 
 export async function getClassMarkerLinks(): Promise<ClassMarkerLink[]> {
@@ -65,7 +68,10 @@ export async function getClassMarkerLinks(): Promise<ClassMarkerLink[]> {
 
     if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new ClassMarkerApiError(response.status, `ClassMarker responded ${response.status}: ${text.slice(0, 200)}`);
+        throw new ClassMarkerApiError(
+            response.status,
+            `ClassMarker responded ${response.status}: ${text.slice(0, 200)}`,
+        );
     }
 
     const payload = (await response.json()) as { links?: RawLink[] };

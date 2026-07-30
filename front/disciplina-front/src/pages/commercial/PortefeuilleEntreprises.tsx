@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { EntrepriseFilters } from '@/types/entreprise'
+import { EMPTY_FILTERS, type EntrepriseFilters } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio, type ServerFilters } from '@/graphql/useInitializePortfolio'
@@ -16,7 +16,7 @@ import { usePersistedListView } from '@/hooks/usePersistedListView'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
 import { SirenGroupCard } from '@/features/portefeuille/components/SirenGroupCard'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
-import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
+import FilterPanel from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
 import { useCreateCompany } from '@/graphql/hooks'
 import { toSlug } from '@/utils/slug'
@@ -104,8 +104,8 @@ export default function PortefeuilleEntreprises() {
       }
       setCreateOpen(false)
       setPrefillSiret(undefined)
-    } catch (err: any) {
-      setCreateError(err.message || String(err))
+    } catch (err: unknown) {
+      setCreateError(err instanceof Error ? err.message : String(err))
     }
   }
 

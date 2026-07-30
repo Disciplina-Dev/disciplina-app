@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useMutation, useClient } from 'urql'
+import { useQuery, useMutation, useClient, type CombinedError } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useBlacklistStore } from '@/store/blacklistStore'
 import { useQuarantineStore } from '@/store/quarantineStore'
@@ -48,6 +48,15 @@ import type { PageInfo } from '@/types/pagination'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import type { OfferFilterInput } from '@/features/matching/services/jobFilters'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
+import type { SkillLevel, Localisation, DiscoverySource } from '@/types/candidate'
+import type { EntrepriseStatus, Company, CompanyInput } from '@/types/entreprise'
+
+/**
+ * Input accepted by the company create/update mutations: either a (partial) `CompanyInput`
+ * — optionally including `legalReferent`, which the mutation accepts but `CompanyInput` doesn't
+ * model — or an ad-hoc patch of specific fields (e.g. `{ status, relanceDate }`).
+ */
+type CompanyMutationInput = (Partial<CompanyInput> & { legalReferent?: string | null }) | Record<string, unknown>
 
 export interface CandidateServerFilters {
   trainingSite?: TrainingSite
@@ -71,6 +80,43 @@ export interface CandidateServerFilters {
 }
 import { candidateGraphqlClient, offerGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
+/** Shape of `company` as selected by GET_COMPANIES / CREATE_COMPANY / UPDATE_COMPANY. */
+interface GqlCompanyNode extends Company {
+  legalReferent: string | null
+}
+
+interface GqlSalePerson {
+  id: number
+  email: string
+  firstName: string
+  lastName: string
+}
+
+/** Shape of an edge `node` in GET_COMPANIES. */
+interface GqlCompanyEdgeNode {
+  company: GqlCompanyNode
+  salePerson: GqlSalePerson | null
+}
+
+/** Shape of `companyBySiret` as selected by GET_COMPANY_BY_SIRET. */
+interface GqlCompanyBySiret {
+  id: number
+  userID: number | null
+  legalReferent: string | null
+  name: string
+  phone: string | null
+  email: string | null
+  address: string | null
+  sector: string | null
+  mainActivity: string | null
+  siret: string | null
+  idcc: string | null
+  ape: string | null
+  notes: string | null
+  conclusion: string | null
+  status: string
+}
+
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
   const setLoading = usePortefeuilleStore((s) => s.setLoading)
@@ -82,7 +128,7 @@ export function useCompanies() {
     if (result.error) {
       setError(result.error.message)
     } else if (result.data?.companies) {
-      const entreprises = result.data.companies.edges.map(({ node: c }: any) => ({
+      const entreprises = result.data.companies.edges.map(({ node: c }: { node: GqlCompanyEdgeNode }) => ({
         id: String(c.company.id),
         nom_commercial: c.company.name,
         proprietaire_contact: c.salePerson?.email || null,
@@ -98,7 +144,7 @@ export function useCompanies() {
         idcc: c.company.idcc,
         note: c.company.notes,
         conclusion: c.company.conclusion,
-        status: (c.company.status as any) || 'À Réfléchir',
+        status: (c.company.status as EntrepriseStatus) || 'À Réfléchir',
         date_insertion: new Date().toISOString().split('T')[0],
         date_relance: c.company.relanceDate ?? null,
         type_relance: c.company.relanceType ?? null,
@@ -132,7 +178,11 @@ export function useSalePersons() {
 
 export function useCompanyBySiret() {
   const client = useClient()
-  const [result, setResult] = useState<{ data?: any; error?: any; fetching: boolean }>({
+  const [result, setResult] = useState<{
+    data?: { companyBySiret?: GqlCompanyBySiret }
+    error?: CombinedError
+    fetching: boolean
+  }>({
     data: undefined, error: undefined, fetching: false,
   })
 
@@ -153,10 +203,8 @@ export function useCreateCompany() {
   const addCompany = usePortefeuilleStore((s) => s.addCompany)
   const [result, executeMutation] = useMutation(CREATE_COMPANY)
 
-  const createCompany = (input: any) => {
+  const createCompany = (input: CompanyMutationInput) => {
     return executeMutation({ input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
@@ -177,7 +225,7 @@ export function useCreateCompany() {
           idcc: response.data.createCompany.idcc,
           note: response.data.createCompany.notes,
           conclusion: response.data.createCompany.conclusion,
-          status: (response.data.createCompany.status as any) || 'À Réfléchir',
+          status: (response.data.createCompany.status as EntrepriseStatus) || 'À Réfléchir',
           date_insertion: new Date().toISOString().split('T')[0],
           date_relance: response.data.createCompany.relanceDate ?? null,
           type_relance: response.data.createCompany.relanceType ?? null,
@@ -197,10 +245,8 @@ export function useUpdateCompany() {
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
   const [result, executeMutation] = useMutation(UPDATE_COMPANY)
 
-  const update = async (id: number, input: any) => {
+  const update = async (id: number, input: CompanyMutationInput) => {
     return executeMutation({ id, input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.updateCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.updateCompany.userID);
@@ -216,7 +262,7 @@ export function useUpdateCompany() {
           idcc: response.data.updateCompany.idcc,
           note: response.data.updateCompany.notes,
           conclusion: response.data.updateCompany.conclusion,
-          status: (response.data.updateCompany.status as any) || 'À Réfléchir',
+          status: (response.data.updateCompany.status as EntrepriseStatus) || 'À Réfléchir',
           proprietaire_id: response.data.updateCompany.userID || null,
           commercial: salePerson ? `${salePerson.firstName ?? ''} ${salePerson.lastName ?? ''}`.trim() || null : null,
           proprietaire_contact: salePerson?.email || null,
@@ -362,16 +408,132 @@ export function useDeleteCompanyConflictsByType() {
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
 function mapTpType(raw: string): TitleProfessionalType {
-  return (TitleProfessionalType as any)[raw] ?? TitleProfessionalType.CC
+  return TitleProfessionalType[raw as keyof typeof TitleProfessionalType] ?? TitleProfessionalType.CC
 }
 
 function mapSchoolLevel(raw: string | null | undefined): SchoolLevel | undefined {
   if (!raw) return undefined
-  return (SchoolLevel as any)[raw] ?? undefined
+  return SchoolLevel[raw as keyof typeof SchoolLevel] ?? undefined
+}
+
+/** Shape of `candidate`/`candidates` node as selected by GET_CANDIDATE_FULL (superset of the other candidate queries). */
+interface GqlCandidate {
+  id: string
+  owner?: { userId: number; name: string; sector?: string | null } | null
+  tpType: string
+  tpTypes?: string[] | null
+  status: string
+  trainingSite?: TrainingSite
+  trainingSites?: TrainingSite[] | null
+  immersionAgreement?: boolean
+  immersionStartDate?: string | null
+  immersionEndDate?: string | null
+  immersionCompanyId?: number | null
+  immersionCompanyName?: string | null
+  desiredSectors?: string[]
+  expectedCompanySkills?: string[]
+  identity: {
+    fullName: string
+    socialSecurityNumber?: string
+    email: string
+    phone: string
+    dateOfBirth?: string
+    placeOfBirth?: string
+    age?: number
+    sex?: string
+    address?: string
+    postalCode?: string
+    city?: string
+    drivingLicenseB?: boolean
+    hasVehicle?: boolean
+    transportMeans?: string
+    pshReferralRequest?: boolean
+    hadApprenticeshipContract?: boolean
+    apprenticeshipContractDetails?: string
+    description?: string
+    avatarUpdatedAt?: string
+    driveAvatarFileId?: string
+  }
+  education?: { schoolLevel?: string | null; justification?: string } | null
+  support?: {
+    franceTravailRegistered?: boolean
+    franceTravailAgency?: string
+    missionLocaleRegistered?: boolean
+    missionLocaleCity?: string
+  } | null
+  background?: {
+    lastDiploma?: string
+    lastDiplomaPrepared?: string
+    previousTrainings?: string
+    professionalExperiences?: { position?: string; duration?: string; responsibilities?: string; company?: string }[]
+  } | null
+  profile?: {
+    frenchLevel?: number
+    englishLevel?: number
+    otherLanguages?: string[]
+    strengthsAndImprovements?: string
+    qualities?: string[]
+    defects?: string[]
+    digitalSkills?: string[]
+    readyForChallenges?: boolean
+    hobbies?: string
+  } | null
+  professionalProjects?: {
+    careerObjectives?: string
+    desiredSkills?: string
+    apprenticeshipMotivation?: string
+    trainingExpectations?: string
+  } | null
+  skillsAssessment?: { competence: string; level: string }[]
+  jobInfo?: {
+    domainMotivation?: string
+    questionsConcerns?: string
+    availabilityDate?: string
+    geographicMobility?: string[]
+    weekendWork?: boolean
+    discoverySource?: string
+  } | null
+  synthesis?: {
+    feasibilityConclusion?: string
+    pathwayRelevance?: string
+    specialNeeds?: string
+    pedagogicalRecommendations?: {
+      officeToolsReinforcement?: boolean
+      writtenCommunicationSupport?: boolean
+      oralConfidenceDevelopment?: boolean
+      timeManagementSupport?: boolean
+      professionalPostureWork?: boolean
+      enhancedCompanyImmersion?: boolean
+      pshSpecificSupport?: boolean
+      individualFollowUp?: boolean
+      languageTraining?: boolean
+      stressManagementFollowUp?: boolean
+    } | null
+    otherRecommendations?: string
+    location?: string
+    date?: string
+    recruiterSignature?: string
+    candidateSignature?: string
+  } | null
+  pdfLink?: string
+  cvLink?: string
+  driveFolderId?: string
+  photoLink?: string
+  filizFolderId?: string
+  createdAt?: string
+  lastRelanceAt?: string | null
+  relanceResponseAt?: string | null
+  emergencyContact?: {
+    lastName?: string | null
+    firstName?: string | null
+    relationship?: string | null
+    phone?: string | null
+    email?: string | null
+  } | null
 }
 
 /** Maps GraphQL response (camelCase) → frontend Candidate (snake_case) */
-function fromGql(c: any): Candidate {
+function fromGql(c: GqlCandidate): Candidate {
   return {
     _id: c.id,
     owner: c.owner
@@ -411,7 +573,7 @@ function fromGql(c: any): Candidate {
       avatar_updated_at: c.identity.avatarUpdatedAt,
       drive_avatar_file_id: c.identity.driveAvatarFileId,
       avatar_url: (c.identity.avatarUpdatedAt || c.identity.driveAvatarFileId)
-        ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent(c.identity.avatarUpdatedAt ?? c.identity.driveAvatarFileId)}`
+        ? `${import.meta.env.VITE_API_URL}/api/candidates/${c.id}/avatar?v=${encodeURIComponent((c.identity.avatarUpdatedAt ?? c.identity.driveAvatarFileId)!)}`
         : undefined,
     },
     education: c.education
@@ -433,7 +595,7 @@ function fromGql(c: any): Candidate {
           last_diploma: c.background.lastDiploma,
           last_diploma_prepared: c.background.lastDiplomaPrepared,
           previous_trainings: c.background.previousTrainings,
-          professional_experiences: c.background.professionalExperiences?.map((e: any) => ({
+          professional_experiences: c.background.professionalExperiences?.map((e) => ({
             position: e.position,
             duration: e.duration,
             responsibilities: e.responsibilities,
@@ -462,15 +624,15 @@ function fromGql(c: any): Candidate {
           training_expectations: c.professionalProjects.trainingExpectations,
         }
       : undefined,
-    skills_assessment: c.skillsAssessment?.map((s: any) => ({ competence: s.competence, level: s.level })),
+    skills_assessment: c.skillsAssessment?.map((s) => ({ competence: s.competence, level: s.level as SkillLevel })),
     job_info: c.jobInfo
       ? {
           domain_motivation: c.jobInfo.domainMotivation,
           questions_concerns: c.jobInfo.questionsConcerns,
           availability_date: c.jobInfo.availabilityDate,
-          geographic_mobility: c.jobInfo.geographicMobility,
+          geographic_mobility: c.jobInfo.geographicMobility as Localisation[] | undefined,
           weekend_work: c.jobInfo.weekendWork,
-          discovery_source: c.jobInfo.discoverySource,
+          discovery_source: c.jobInfo.discoverySource as DiscoverySource | undefined,
         }
       : undefined,
     synthesis: c.synthesis
@@ -520,7 +682,7 @@ function fromGql(c: any): Candidate {
 }
 
 /** Maps frontend Candidate (snake_case) → GraphQL UpdateCandidateInput (camelCase) for mutation */
-function toGqlUpdateInput(c: Candidate): any {
+function toGqlUpdateInput(c: Candidate) {
   return {
     tpType: c.tp_type,
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
@@ -667,7 +829,7 @@ export function useCandidatesPage(first?: number, after?: string, search?: strin
     requestPolicy: 'network-only',
   })
 
-  const candidates: Candidate[] = (result.data?.candidatesPage?.edges ?? []).map((edge: { node: Record<string, unknown> }) => fromGql(edge.node))
+  const candidates: Candidate[] = (result.data?.candidatesPage?.edges ?? []).map((edge: { node: GqlCandidate }) => fromGql(edge.node))
   const pageInfo: PageInfo | undefined = result.data?.candidatesPage?.pageInfo
 
   return {
@@ -694,10 +856,10 @@ export function useUpdateCandidate() {
 interface CreateCandidateInput {
   tpType: string
   status: string
-  identity: { fullName: string; email: string; phone: string; [key: string]: any }
-  education?: { schoolLevel?: string | null; [key: string]: any } | null
+  identity: { fullName: string; email: string; phone: string; [key: string]: unknown }
+  education?: { schoolLevel?: string | null; [key: string]: unknown } | null
   trainingSite?: string | null
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export function useCreateCandidate() {
@@ -800,6 +962,16 @@ export function useDeleteCandidateHistoryEntry() {
   return { deleteHistoryEntry }
 }
 
+/** Shape of an entry as selected by GET_OFFER_HISTORY / ADD_OFFER_HISTORY_ENTRY. */
+interface OfferHistoryEntry {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  text: string
+  ownerEmail: string | null
+  createdAt: string
+}
+
 export function useOfferHistory(offerId: string | null) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_OFFER_HISTORY,
@@ -808,7 +980,7 @@ export function useOfferHistory(offerId: string | null) {
     pause: offerId === null,
   })
 
-  const history: any[] = result.data?.offerHistory ?? []
+  const history: OfferHistoryEntry[] = result.data?.offerHistory ?? []
 
   return {
     history,
@@ -837,7 +1009,7 @@ export function useDeleteOfferHistoryEntry() {
 export function useCreateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(CREATE_NEEDS_ANALYSIS)
 
-  const createNeedsAnalysis = (input: any) => {
+  const createNeedsAnalysis = (input: Record<string, unknown>) => {
     return executeMutation({ input }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
       if (response.error) {
         console.error("createNeedsAnalysis failed:", response.error)
@@ -954,7 +1126,7 @@ export function useDeleteNeedsAnalysis() {
 export function useUpdateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS)
 
-  const updateNeedsAnalysis = (id: string, input: any) => {
+  const updateNeedsAnalysis = (id: string, input: Record<string, unknown>) => {
     return executeMutation({ id, input }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
       if (response.error) {
         console.error('updateNeedsAnalysis failed:', response.error)
@@ -979,6 +1151,8 @@ export function useFilizDegrees() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Data-fetch sync (not render-derived state): kicks off the request and reflects its result in state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFetching(true)
     apiJson<{ degrees?: typeof degrees }>('/api/filiz/degrees')
       .then(data => { setDegrees(data.degrees ?? []); setError(null) })
@@ -995,6 +1169,8 @@ export function useFilizClasses(degreeId: string | null) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Data-fetch sync (not render-derived state): resetting/reflecting fetch result in state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!degreeId) { setClasses([]); return }
     setFetching(true)
     apiJson<{ classes?: typeof classes }>(`/api/filiz/classes?degreeId=${encodeURIComponent(degreeId)}`)

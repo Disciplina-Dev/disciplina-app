@@ -34,6 +34,7 @@ export default function PublicBooking() {
 
   useEffect(() => {
     if (!info) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- starting a new fetch: reset loading/selection state before the async call
     setLoadingSlots(true); setSelected(null)
     fetchPublicSlots(slug, dayStr, dayStr)
       .then(setSlots)

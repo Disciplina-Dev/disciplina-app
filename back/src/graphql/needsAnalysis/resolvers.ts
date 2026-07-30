@@ -62,7 +62,7 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const ownedInput = {
                 ...input,
-                userID: context.user.role === JobRole.COMMERCIAL ? context.user.id : input.userID ?? context.user.id,
+                userID: context.user.role === JobRole.COMMERCIAL ? context.user.id : (input.userID ?? context.user.id),
             };
             return needsAnalysisService.create(ownedInput);
         },

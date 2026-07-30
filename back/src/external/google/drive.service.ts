@@ -102,10 +102,7 @@ export class GoogleDriveService {
 
     /** Exporte un Google Doc natif (Docs/Sheets/Slides) vers un format téléchargeable. */
     async exportFile(fileId: string, mimeType = 'application/pdf'): Promise<{ buffer: Buffer; mimeType: string }> {
-        const response = await this.drive.files.export(
-            { fileId, mimeType },
-            { responseType: 'arraybuffer' },
-        );
+        const response = await this.drive.files.export({ fileId, mimeType }, { responseType: 'arraybuffer' });
         return { buffer: Buffer.from(response.data as ArrayBuffer), mimeType };
     }
 
@@ -116,8 +113,7 @@ export class GoogleDriveService {
         'application/msword': 'application/vnd.google-apps.document',
         'application/vnd.oasis.opendocument.text': 'application/vnd.google-apps.document',
         'application/rtf': 'application/vnd.google-apps.document',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-            'application/vnd.google-apps.spreadsheet',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'application/vnd.google-apps.spreadsheet',
         'application/vnd.ms-excel': 'application/vnd.google-apps.spreadsheet',
         'application/vnd.oasis.opendocument.spreadsheet': 'application/vnd.google-apps.spreadsheet',
         'text/csv': 'application/vnd.google-apps.spreadsheet',
