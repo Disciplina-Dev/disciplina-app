@@ -12,7 +12,9 @@ services:
   test-backend:
     command: npm run dev
     environment:
-      NODE_ENV: test
+      # NODE_ENV=test would skip startServer() entirely (see back/src/index.ts) — set
+      # MONGO_HOST directly instead, since network_mode: host has no compose DNS for "nosql-db".
+      MONGO_HOST: localhost
       E2E_DISABLE_LOGIN_RATE_LIMIT: "true"
 
   test-frontend:
