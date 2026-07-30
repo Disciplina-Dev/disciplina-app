@@ -17,6 +17,7 @@ import { CandidateFilters, encodeCandidateCursor } from '../../repositories/mong
 
 /** Filtres reçus côté GraphQL : dates au format ISO (string), converties ensuite. */
 type CandidateFiltersInput = Omit<CandidateFilters, 'createdAfter' | 'createdBefore'> & {
+    statusIn?: string[];
     createdAfter?: string;
     createdBefore?: string;
     createdMissing?: boolean;
@@ -126,7 +127,8 @@ export const resolvers = {
             const filters: CandidateFilters | undefined = filtersInput
                 ? {
                       trainingSite: filtersInput.trainingSite,
-                      status: filtersInput.status,
+                      status: filtersInput.statusIn?.length ? undefined : filtersInput.status,
+                      statusIn: filtersInput.statusIn?.length ? filtersInput.statusIn : undefined,
                       schoolLevel: filtersInput.schoolLevel,
                       drivingLicenseB: filtersInput.drivingLicenseB,
                       ageMin: filtersInput.ageMin,
