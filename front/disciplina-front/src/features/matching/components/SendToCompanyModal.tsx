@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { X, Loader2, Send, ExternalLink, FileText, Copy, Check } from 'lucide-react'
+import { X, Loader2, Send, ExternalLink, FileText, Copy, Check, Sparkles } from 'lucide-react'
+import { apiFetch } from '@/api/httpClient'
 
 interface MatchedCandidate {
   id: string
@@ -41,9 +42,29 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ signature: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [aiLoading, setAiLoading] = useState<Set<string>>(new Set())
+  const [aiErrors, setAiErrors] = useState<Record<string, string>>({})
 
   const handleDescriptionChange = (candidateId: string, value: string) => {
     setDescriptions((prev) => ({ ...prev, [candidateId]: value }))
+  }
+
+  const handleGenerateAiSummary = async (candidateId: string) => {
+    setAiLoading((prev) => new Set(prev).add(candidateId))
+    setAiErrors((prev) => { const n = { ...prev }; delete n[candidateId]; return n })
+    try {
+      const res = await apiFetch(`/api/candidates/${candidateId}/generate-summary`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }))
+        throw new Error(err.error || `Échec (${res.status})`)
+      }
+      const data = await res.json()
+      setDescriptions((prev) => ({ ...prev, [candidateId]: data.summary }))
+    } catch (err) {
+      setAiErrors((prev) => ({ ...prev, [candidateId]: err instanceof Error ? err.message : 'Erreur inconnue' }))
+    } finally {
+      setAiLoading((prev) => { const n = new Set(prev); n.delete(candidateId); return n })
+    }
   }
 
   const handleSubmit = async () => {
@@ -214,9 +235,24 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
                   )}
 
                   <div className="px-3 pb-3">
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1 block">
-                      Description pour l'entreprise
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        Description pour l'entreprise
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateAiSummary(candidate.id)}
+                        disabled={aiLoading.has(candidate.id)}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40 transition-opacity"
+                      >
+                        {aiLoading.has(candidate.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Sparkles size={11} />
+                        )}
+                        {aiLoading.has(candidate.id) ? 'IA…' : 'Résumé IA'}
+                      </button>
+                    </div>
                     <textarea
                       value={descriptions[candidate.id] ?? ''}
                       onChange={(e) => handleDescriptionChange(candidate.id, e.target.value)}
@@ -224,6 +260,9 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
                       rows={2}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors resize-none"
                     />
+                    {aiErrors[candidate.id] && (
+                      <p className="mt-1 text-[11px] text-red-500">{aiErrors[candidate.id]}</p>
+                    )}
                   </div>
                 </div>
               ))}
