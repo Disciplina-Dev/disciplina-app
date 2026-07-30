@@ -274,23 +274,23 @@ function CandidateRow({
       )}
 
       {candidate.bookedInterviewSlot && (
-        <div className="mb-2 rounded-md bg-green-50 px-2 py-1 text-[11px] text-gray-600">
+        <div className="mb-2 rounded-md bg-green-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
           <p><CalendarClock size={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot)}</p>
-          <p>📍 {candidate.interviewLocation || interviewLocation || 'Lieu non précisé'}</p>
+          <p>{candidate.interviewLocation || interviewLocation || 'Lieu non précisé'}</p>
         </div>
       )}
 
       {!candidate.bookedInterviewSlot && interviewSlots && interviewSlots.length > 0 && (
-        <div className="mb-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-gray-600">
+        <div className="mb-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
           <p className="font-medium mb-0.5">Créneaux proposés par l'entreprise</p>
           <div className="flex flex-wrap gap-1">
             {interviewSlots.map((slot) => (
-              <span key={slot} className="rounded bg-white px-1.5 py-0.5 text-[10px] text-gray-500">
+              <span key={slot} className="rounded bg-white px-1.5 py-0.5 text-[15px] text-gray-500">
                 {formatSlot(slot)}
               </span>
             ))}
           </div>
-          {interviewLocation && <p className="mt-0.5">📍 {interviewLocation}</p>}
+          {interviewLocation && <p className="mt-0.5">{interviewLocation}</p>}
         </div>
       )}
 
