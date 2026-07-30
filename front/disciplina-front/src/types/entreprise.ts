@@ -106,6 +106,12 @@ export interface SirenGroup {
   entreprises: Entreprise[]
 }
 
+export interface SirenGroup {
+  siren: string
+  count: number
+  entreprises: Entreprise[]
+}
+
 export interface EntrepriseBlacklistee extends Entreprise {
   all_blacklist: boolean
 }
