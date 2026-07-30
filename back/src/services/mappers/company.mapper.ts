@@ -1,6 +1,7 @@
 import {
     CompaniesRow,
     CompaniesBlacklistRow,
+    CompanyConflictRow,
     CompanyHistoryRow,
     ContactLogRow,
     RelanceHistoryRow,
@@ -8,6 +9,7 @@ import {
 import {
     Companies,
     BlacklistedCompany,
+    CompanyConflict,
     CompanyHistory,
     CompanySirenGroup,
     FieldChange,
@@ -85,6 +87,52 @@ export function toBlacklistedCompany(row: CompaniesBlacklistRow): BlacklistedCom
         ...toCompanies(row),
         allBlacklist: row.all_blacklist === 1,
     };
+}
+
+export function toCompanyConflict(row: CompanyConflictRow): CompanyConflict {
+    return {
+        id: row.id,
+        abID: row.ab_id ?? null,
+        userID: row.user_id,
+        legalReferent: row.legal_referent,
+        name: row.name,
+        phone: row.phone,
+        email: row.email,
+        address: row.address,
+        sector: row.sector,
+        mainActivity: row.main_activity,
+        siret: row.siret,
+        siren: row.siret ? row.siret.slice(0, 9) : null,
+        idcc: row.idcc,
+        ape: row.ape,
+        notes: row.notes,
+        conclusion: row.conclusion,
+        status: row.status,
+        relanceDate: row.relance_date
+            ? row.relance_date instanceof Date
+                ? row.relance_date.toISOString().slice(0, 10)
+                : String(row.relance_date).slice(0, 10)
+            : null,
+        createdAt: row.created_at
+            ? row.created_at instanceof Date
+                ? row.created_at.toISOString().slice(0, 10)
+                : String(row.created_at).slice(0, 10)
+            : null,
+        relanceType: row.relance_type ?? null,
+        relanceTemplateId: row.relance_template_id ?? null,
+        relanceChannel: row.relance_channel ?? null,
+        candidateUserIds: parseCandidateUserIds(row.candidate_user_ids),
+    };
+}
+
+function parseCandidateUserIds(raw: string | null): number[] | null {
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : null;
+    } catch {
+        return null;
+    }
 }
 
 export function toCompanyHistory(row: CompanyHistoryRow): CompanyHistory {

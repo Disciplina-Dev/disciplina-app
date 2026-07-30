@@ -1,13 +1,20 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuthStore, UserRole } from '../store/authStore'
+import { useAuthStore, UserRole, Permission } from '../store/authStore'
 
 interface ProtectedRouteProps {
   children: ReactNode
   allowedRoles?: UserRole[]
+  minPermission?: Permission
 }
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+const PERMISSION_LEVEL: Record<Permission, number> = {
+  [Permission.EMPLOYEE]: 1,
+  [Permission.RESPONSABLE]: 2,
+  [Permission.ADMIN]: 3,
+}
+
+export function ProtectedRoute({ children, allowedRoles, minPermission }: ProtectedRouteProps) {
   const authReady = useAuthStore((state) => state.authReady)
   const user = useAuthStore((state) => state.user)
 
@@ -24,6 +31,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   // ADMIN permission bypasses role checks on all routes
   if (user.permission === 'ADMIN') {
     return <>{children}</>
+  }
+
+  if (minPermission && PERMISSION_LEVEL[user.permission] < PERMISSION_LEVEL[minPermission]) {
+    return <Navigate to="/commercial/portefeuille" replace />
   }
 
   // RESPONSABLE permission can access COMMERCIAL and RH routes (not admin-only)

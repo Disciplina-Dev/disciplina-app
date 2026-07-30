@@ -33,6 +33,9 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
     { table: 'companies', column: 'ab_id', definition: 'VARCHAR(36) DEFAULT NULL' },
     { table: 'companies_blacklist', column: 'relance_channel', definition: "ENUM('PHONE', 'MAIL') DEFAULT NULL" },
+    // Quarantaine : liste (JSON) des commerciaux candidats pour les conflits
+    // multiple_commercials_same_siren, pour ne proposer que ceux-ci en résolution.
+    { table: 'company_conflict', column: 'candidate_user_ids', definition: 'TEXT DEFAULT NULL' },
 ];
 
 /**
@@ -122,6 +125,38 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY unique_kpi (user_id, year, month, week, site),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Quarantaine des entreprises Digiforma en conflit lors de l'import
+        // (SIRET manquant/factice, plusieurs commerciaux sur un même SIREN).
+        // Une ligne = une entreprise Digiforma non importée ; conclusion/notes
+        // portent le type et le détail du conflit.
+        table: 'company_conflict',
+        ddl: `CREATE TABLE IF NOT EXISTS company_conflict (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT DEFAULT NULL,
+            ab_id VARCHAR(36) DEFAULT NULL,
+            legal_referent VARCHAR(255) DEFAULT NULL,
+            name VARCHAR(255) DEFAULT NULL,
+            phone VARCHAR(50) DEFAULT NULL,
+            email VARCHAR(255) DEFAULT NULL,
+            address VARCHAR(255) DEFAULT NULL,
+            sector VARCHAR(255) DEFAULT NULL,
+            main_activity VARCHAR(255) DEFAULT NULL,
+            siret CHAR(14) DEFAULT NULL,
+            idcc CHAR(4) DEFAULT NULL,
+            ape CHAR(5) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            conclusion VARCHAR(255) DEFAULT NULL,
+            status VARCHAR(50) DEFAULT NULL,
+            relance_date DATE DEFAULT NULL,
+            relance_type TINYINT DEFAULT NULL,
+            relance_template_id VARCHAR(64) DEFAULT NULL,
+            relance_channel ENUM('PHONE', 'MAIL') DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_company_conflict_siret (siret),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
         )`,
     },
     {

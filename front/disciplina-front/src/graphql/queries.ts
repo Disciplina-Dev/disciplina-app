@@ -318,6 +318,86 @@ export const UNBLACKLIST_COMPANY = gql`
   }
 `
 
+export const GET_COMPANY_CONFLICTS = gql`
+  query GetCompanyConflicts($first: Int, $after: String, $search: String, $conflictType: String) {
+    companyConflicts(first: $first, after: $after, search: $search, conflictType: $conflictType) {
+      edges {
+        cursor
+        node {
+          id
+          userID
+          legalReferent
+          name
+          phone
+          email
+          address
+          sector
+          mainActivity
+          siret
+          idcc
+          ape
+          notes
+          conclusion
+          status
+          relanceDate
+          createdAt
+          relanceType
+          relanceTemplateId
+          relanceChannel
+          candidateUserIds
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`
+
+export const UPDATE_COMPANY_CONFLICT = gql`
+  mutation UpdateCompanyConflict($id: Int!, $input: CompanyConflictInput!) {
+    updateCompanyConflict(id: $id, input: $input) {
+      id
+      userID
+      legalReferent
+      name
+      phone
+      email
+      address
+      sector
+      mainActivity
+      siret
+      idcc
+      ape
+      notes
+      conclusion
+    }
+  }
+`
+
+export const RESOLVE_COMPANY_CONFLICT = gql`
+  mutation ResolveCompanyConflict($id: Int!) {
+    resolveCompanyConflict(id: $id) {
+      id
+    }
+  }
+`
+
+export const DELETE_COMPANY_CONFLICT = gql`
+  mutation DeleteCompanyConflict($id: Int!) {
+    deleteCompanyConflict(id: $id)
+  }
+`
+
+export const DELETE_COMPANY_CONFLICTS_BY_TYPE = gql`
+  mutation DeleteCompanyConflictsByType($conflictType: String!) {
+    deleteCompanyConflictsByType(conflictType: $conflictType)
+  }
+`
+
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
 const CANDIDATE_FIELDS = gql`
@@ -1151,7 +1231,7 @@ export const MATCH_OFFER = gql`
     matchOffer(id: $id) {
       id
       needsAnalysisId
-      companyInfos { id name activities }
+      companyInfos { id name address email activities }
       companyName
       ageRange
       desiredTp {
@@ -1198,6 +1278,8 @@ export const MATCH_OFFER = gql`
         email
         phone
       }
+      interviewSlots
+      interviewLocation
       title
       jobRole
       salerInfo {

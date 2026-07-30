@@ -107,7 +107,7 @@ interface OfferTp {
 interface Job {
   id: string
   needsAnalysisId?: string | null
-  companyInfos?: { id?: number; name?: string; activities?: string[] | null } | null
+  companyInfos?: { id?: number; name?: string; address?: string | null; email?: string | null; activities?: string[] | null } | null
   softSkills?: string | null
   companyName: string
   ageRange: string
@@ -127,6 +127,8 @@ interface Job {
 interface MatchJobResult extends Job {
   matchedCandidate: MatchedCandidate[]
   suggestedCandidates: MatchedCandidate[]
+  interviewSlots?: string[] | null
+  interviewLocation?: string | null
 }
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
@@ -228,12 +230,16 @@ function CandidateRow({
   onSendMail,
   onRemove,
   actions,
+  interviewSlots,
+  interviewLocation,
 }: {
   candidate: MatchedCandidate
   onInfo: () => void
   onSendMail?: () => void
   onRemove?: () => void
   actions?: React.ReactNode
+  interviewSlots?: string[] | null
+  interviewLocation?: string | null
 }) {
   return (
     <div className="rounded-lg border border-gray-100 p-3">
@@ -267,10 +273,24 @@ function CandidateRow({
         </p>
       )}
 
-      {candidate.bookedInterviewSlot && candidate.interviewLocation && (
-        <div className="mb-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+      {candidate.bookedInterviewSlot && (
+        <div className="mb-2 rounded-md bg-green-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
           <p><CalendarClock size={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot)}</p>
-          <p>📍 {candidate.interviewLocation}</p>
+          <p>{candidate.interviewLocation || interviewLocation || 'Lieu non précisé'}</p>
+        </div>
+      )}
+
+      {!candidate.bookedInterviewSlot && interviewSlots && interviewSlots.length > 0 && (
+        <div className="mb-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
+          <p className="font-medium mb-0.5">Créneaux proposés par l'entreprise</p>
+          <div className="flex flex-wrap gap-1">
+            {interviewSlots.map((slot) => (
+              <span key={slot} className="rounded bg-white px-1.5 py-0.5 text-[15px] text-gray-500">
+                {formatSlot(slot)}
+              </span>
+            ))}
+          </div>
+          {interviewLocation && <p className="mt-0.5">{interviewLocation}</p>}
         </div>
       )}
 
@@ -653,6 +673,15 @@ function JobDetailsSection({
               </div>
             </div>
           )}
+          {job.companyInfos?.address && (
+            <div className="flex items-start gap-2">
+              <Building2 size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Siège social</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{job.companyInfos.address}</p>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-2 mt-2">
           {job.desiredTp
@@ -1028,6 +1057,8 @@ function AlreadySentCandidatesSection({
   onConcludeInterview,
   onConcludeImmersion,
   onAddCandidate,
+  interviewSlots,
+  interviewLocation,
 }: {
   candidates: MatchedCandidate[]
   onInfo: (c: MatchedCandidate) => void
@@ -1035,6 +1066,8 @@ function AlreadySentCandidatesSection({
   onConcludeInterview: (c: MatchedCandidate) => void
   onConcludeImmersion: (c: MatchedCandidate) => void
   onAddCandidate: () => void
+  interviewSlots?: string[] | null
+  interviewLocation?: string | null
 }) {
   const currentUser = useCurrentUser()
   const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
@@ -1067,13 +1100,15 @@ function AlreadySentCandidatesSection({
           {candidates.map((c) => {
             const needsInterviewConclusion = c.status === MatchedCandidateStatus.INTERVIEW && isInterviewDatePast(c.bookedInterviewSlot) && !c.interviewConclusion
             const needsImmersionConclusion = c.status === MatchedCandidateStatus.IMMERSING && !c.immersionConclusion
-            const canSendDates = c.status === MatchedCandidateStatus.INTERVIEW && c.bookedInterviewSlot && c.interviewLocation
+            const canSendDates = c.status === MatchedCandidateStatus.INTERVIEW && c.bookedInterviewSlot && (c.interviewLocation || interviewLocation)
 
             return (
               <CandidateRow
                 key={c.id}
                 candidate={c}
                 onInfo={() => onInfo(c)}
+                interviewSlots={interviewSlots}
+                interviewLocation={interviewLocation}
                 actions={
                   <div className="flex items-center gap-1">
                     {canSendDates && (
@@ -1974,6 +2009,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         onConcludeInterview={setConclusionCandidate}
         onConcludeImmersion={setImmersionConclusionCandidate}
         onAddCandidate={() => setInterviewModalOpen(true)}
+        interviewSlots={jobData.interviewSlots}
+        interviewLocation={jobData.interviewLocation}
       />
 
       <MatchingSection
@@ -2030,11 +2067,11 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           candidateName={datesMailState.fullName}
           defaultSubject="DISCIPLINA – Convocation à un entretien"
           defaultBody={
-            datesMailState.bookedInterviewSlot && datesMailState.interviewLocation
+            datesMailState.bookedInterviewSlot
               ? buildInterviewMailBody(
                 datesMailState.fullName,
                 datesMailState.bookedInterviewSlot,
-                datesMailState.interviewLocation,
+                datesMailState.interviewLocation || jobData?.interviewLocation || '',
               )
               : ''
           }

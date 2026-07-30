@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY startup.py clean_companies.py import_company.py import_blacklist.py import_jobs.py ./
 COPY migrate_offers_to_ab.py migrate-position-desired-tp.js ./
-COPY normalize_legacy_offers.py ./
+COPY normalize_legacy_offers.py sync_digiforma.py ./
 COPY db/ ./db/
 COPY lib/ ./lib/
 COPY resources/ ./resources/
