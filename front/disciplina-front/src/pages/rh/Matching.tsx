@@ -107,7 +107,7 @@ interface OfferTp {
 interface Job {
   id: string
   needsAnalysisId?: string | null
-  companyInfos?: { id?: number; name?: string; address?: string | null; activities?: string[] | null } | null
+  companyInfos?: { id?: number; name?: string; address?: string | null; email?: string | null; activities?: string[] | null } | null
   softSkills?: string | null
   companyName: string
   ageRange: string
@@ -676,9 +676,9 @@ function JobDetailsSection({
           {job.companyInfos?.address && (
             <div className="flex items-start gap-2">
               <Building2 size={13} className="text-gray-300 mt-0.5 shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Siège social</p>
-                <p className="text-xs font-medium text-gray-800 mt-0.5">{job.companyInfos.address}</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{job.companyInfos.address}</p>
               </div>
             </div>
           )}

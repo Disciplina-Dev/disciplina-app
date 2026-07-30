@@ -236,8 +236,10 @@ export class OfferService {
         const companyId = offer.company_infos?.id;
         if (companyId) {
             const company = await this.companiesService.findById(companyId);
-            if (company?.address && result.companyInfos) {
-                (result.companyInfos as Record<string, unknown>).address = company.address;
+            if (company && result.companyInfos) {
+                const ci = result.companyInfos as Record<string, unknown>;
+                if (company.address) ci.address = company.address;
+                if (company.email) ci.email = company.email;
             }
         }
 
