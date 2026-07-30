@@ -46,6 +46,10 @@ export interface BlacklistedCompany extends Companies {
     allBlacklist: boolean;
 }
 
+export interface CompanyConflict extends Companies {
+    candidateUserIds: number[] | null;
+}
+
 export interface CompanyHistory {
     id: number;
     companyID: number;

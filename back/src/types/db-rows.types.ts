@@ -103,6 +103,33 @@ export interface CompaniesBlacklistRow extends CompaniesRow {
     all_blacklist: number | null;
 }
 
+// Quarantaine des entreprises Digiforma en conflit : mêmes colonnes que
+// `companies`, sans `siren` (colonne générée absente de `company_conflict`).
+export interface CompanyConflictRow {
+    id: number;
+    ab_id: string | null;
+    user_id: number | null;
+    legal_referent: string | null;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    sector: string | null;
+    main_activity: string | null;
+    siret: string | null;
+    idcc: string | null;
+    ape: string | null;
+    notes: string | null;
+    conclusion: string | null;
+    status: string | null;
+    relance_date: Date | string | null;
+    relance_type: number | null;
+    relance_template_id: string | null;
+    relance_channel: string | null;
+    candidate_user_ids: string | null;
+    created_at?: string | Date;
+}
+
 export interface CompanyHistoryRow {
     id: number;
     company_id: number;

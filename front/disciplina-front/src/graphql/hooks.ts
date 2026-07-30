@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useClient } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useBlacklistStore } from '@/store/blacklistStore'
+import { useQuarantineStore } from '@/store/quarantineStore'
 import {
   GET_COMPANIES,
   GET_COMPANY_BY_SIRET,
@@ -11,6 +12,10 @@ import {
   DELETE_COMPANY,
   BLACKLIST_COMPANY,
   UNBLACKLIST_COMPANY,
+  UPDATE_COMPANY_CONFLICT,
+  RESOLVE_COMPANY_CONFLICT,
+  DELETE_COMPANY_CONFLICT,
+  DELETE_COMPANY_CONFLICTS_BY_TYPE,
   GET_CANDIDATES,
   GET_CANDIDATE_STATS,
   GET_CANDIDATES_PAGE,
@@ -47,6 +52,7 @@ import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } fro
 export interface CandidateServerFilters {
   trainingSite?: TrainingSite
   status?: CandidateStatus
+  statusIn?: CandidateStatus[]
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
   ageMin?: number
@@ -274,6 +280,84 @@ export function useUnblacklistCompany() {
   }
 
   return { unblacklistCompany, result }
+}
+
+export function useUpdateCompanyConflict() {
+  const updateCompany = useQuarantineStore((s) => s.updateCompany)
+  const [result, executeMutation] = useMutation(UPDATE_COMPANY_CONFLICT)
+
+  const updateCompanyConflict = (id: number, input: Record<string, unknown>) => {
+    return executeMutation({ id, input }).then((response) => {
+      const updated = response.data?.updateCompanyConflict
+      if (updated) {
+        updateCompany(String(id), {
+          nom_commercial: updated.name,
+          representant_legal: updated.legalReferent,
+          telephone: updated.phone,
+          email: updated.email,
+          adresse: updated.address,
+          secteur: updated.sector,
+          metier: updated.mainActivity,
+          siret: updated.siret,
+          idcc: updated.idcc,
+          note: updated.notes,
+          conclusion: updated.conclusion,
+          proprietaire_id: updated.userID ?? null,
+        })
+      }
+      return response
+    })
+  }
+
+  return { updateCompanyConflict, result }
+}
+
+export function useResolveCompanyConflict() {
+  const removeCompany = useQuarantineStore((s) => s.removeCompany)
+  const [result, executeMutation] = useMutation(RESOLVE_COMPANY_CONFLICT)
+
+  const resolveCompanyConflict = (id: number) => {
+    return executeMutation({ id }).then((response) => {
+      if (response.data?.resolveCompanyConflict) {
+        removeCompany(String(id))
+      }
+      return response
+    })
+  }
+
+  return { resolveCompanyConflict, result }
+}
+
+export function useDeleteCompanyConflict() {
+  const removeCompany = useQuarantineStore((s) => s.removeCompany)
+  const [result, executeMutation] = useMutation(DELETE_COMPANY_CONFLICT)
+
+  const deleteCompanyConflict = (id: number) => {
+    return executeMutation({ id }).then((response) => {
+      if (response.data?.deleteCompanyConflict) {
+        removeCompany(String(id))
+      }
+      return response
+    })
+  }
+
+  return { deleteCompanyConflict, result }
+}
+
+export function useDeleteCompanyConflictsByType() {
+  const removeByConflictType = useQuarantineStore((s) => s.removeByConflictType)
+  const [result, executeMutation] = useMutation(DELETE_COMPANY_CONFLICTS_BY_TYPE)
+
+  const deleteCompanyConflictsByType = (conflictType: string) => {
+    return executeMutation({ conflictType }).then((response) => {
+      if (typeof response.data?.deleteCompanyConflictsByType === 'number') {
+        removeByConflictType(conflictType)
+      }
+      return response
+    })
+  }
+
+  return { deleteCompanyConflictsByType, result }
 }
 
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────

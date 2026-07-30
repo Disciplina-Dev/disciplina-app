@@ -10,6 +10,7 @@ import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.ty
 import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
+import { OllamaService } from '../../external/ollama/ollama.service';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { file } from 'pdfkit';
@@ -657,6 +658,122 @@ router.get('/:id/avatar', async (req, res: Response) => {
     } catch (err) {
         logger.error(err, 'serve avatar failed');
         res.status(500).end();
+    }
+});
+
+router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res: Response) => {
+    const role = req.user?.role;
+    const permission = req.user?.permission;
+    if (role !== JobRole.RH && permission !== Permission.RESPONSABLE && permission !== Permission.ADMIN) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
+
+    const { id } = req.params;
+    try {
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).json({ error: 'Candidate not found' });
+            return;
+        }
+
+        const ollama = new OllamaService();
+
+        const parts: string[] = [];
+        const i = candidate.identity;
+        if (i.full_name) parts.push(`Nom : ${i.full_name}`);
+        if (i.age) parts.push(`Âge : ${i.age} ans`);
+        if (i.city) parts.push(`Ville : ${i.city}`);
+        if (i.driving_license_b) parts.push('Permis B : oui');
+        if (i.has_vehicle) parts.push('Véhicule : oui');
+
+        const tps = (candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).join(', ');
+        if (tps) parts.push(`Titres visés : ${tps}`);
+
+        if (candidate.education?.school_level) parts.push(`Niveau d'études : ${candidate.education.school_level}`);
+
+        const b = candidate.background;
+        if (b?.last_diploma) parts.push(`Dernier diplôme : ${b.last_diploma}`);
+        if (b?.last_diploma_prepared) parts.push(`Diplôme préparé : ${b.last_diploma_prepared}`);
+        if (b?.previous_trainings) parts.push(`Formations : ${b.previous_trainings}`);
+        if (b?.professional_experiences?.length) {
+            for (const exp of b.professional_experiences) {
+                const ex = [exp.position, exp.company, exp.duration, exp.responsibilities].filter(Boolean).join(' - ');
+                if (ex) parts.push(`Expérience : ${ex}`);
+            }
+        }
+
+        const p = candidate.profile;
+        if (p?.qualities?.length) parts.push(`Qualités : ${p.qualities.join(', ')}`);
+        if (p?.hobbies) parts.push(`Centres d'intérêt : ${p.hobbies}`);
+        if (p?.digital_skills?.length) parts.push(`Compétences numériques : ${p.digital_skills.join(', ')}`);
+
+        const pp = candidate.professional_projects;
+        if (pp?.career_objectives) parts.push(`Objectif : ${pp.career_objectives}`);
+        if (pp?.apprenticeship_motivation) parts.push(`Motivation : ${pp.apprenticeship_motivation}`);
+
+        const j = candidate.job_info;
+        if (j?.availability_date) parts.push(`Disponible le : ${new Date(j.availability_date).toLocaleDateString('fr-FR')}`);
+        if (j?.geographic_mobility?.length) {
+            const mob = j.geographic_mobility.join(', ');
+            parts.push(`Mobilité : ${mob}`);
+        }
+
+        // Tentative de récupération du texte du CV depuis Google Drive
+        let cvText: string | null = null;
+        if (candidate.cv_link) {
+            const fileId = extractDriveFileId(candidate.cv_link);
+            if (fileId) {
+                try {
+                    const user = await userService.findById(req.user!.id);
+                    if (user?.oauthToken) {
+                        const driveService = GoogleDriveService.fromTokens(
+                            { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                            userService.googleTokenPersister(user.id),
+                        );
+                        const meta = await driveService.getFileMeta(fileId);
+                        // PDF uniquement (les CV importés sont en PDF)
+                        if (meta.mimeType === 'application/pdf') {
+                            const { buffer } = await driveService.downloadFile(fileId);
+                            const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
+                            const parsed = await pdfParse(buffer);
+                            cvText = parsed.text?.trim() || null;
+                        }
+                    }
+                } catch (cvErr) {
+                    logger.warn({ err: cvErr }, 'CV extraction skipped (non-blocking)');
+                }
+            }
+        }
+
+        const prompt = parts.join('\n') + (cvText ? `\n\n--- CONTENU DU CV ---\n${cvText}` : '');
+        const systemRole = `You are an HR and recruitment assistant.
+
+Your task is to generate a professional summary of a candidate based exclusively on the information provided, including profile fields and the extracted contents of their resume/CV.
+
+Requirements:
+- Write in French.
+- Write in the third person.
+- Target the summary toward recruiters and companies.
+- Highlight the candidate's skills, experience, strengths, technologies, achievements, and professional value.
+- Make the summary compelling while remaining factual. Never invent, infer, or exaggerate information.
+- Use only professionally relevant information. Ignore personal details unless they directly relate to the candidate's professional profile.
+- Keep the summary concise (approximately 100-200 words).
+- Return only the summary text, without titles, bullet points, comments, or explanations.
+
+If the available information is insufficient, generate the best possible summary using only the provided professional data without mentioning missing information.`;
+
+        const summary = await ollama.chat(prompt, systemRole, 'qwen2.5:3b');
+
+        if (!summary) {
+            res.status(500).json({ error: "Le service IA n'a pas pu générer de résumé." });
+            return;
+        }
+
+        res.json({ summary });
+    } catch (err) {
+        logger.error({ err }, 'generate-summary failed');
+        res.status(500).json({ error: 'Internal error' });
     }
 });
 

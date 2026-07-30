@@ -26,6 +26,7 @@ import EntreprisePage from "@/pages/commercial/EntreprisePage";
 import Sourcing from "@/pages/commercial/sourcing";
 import RelanceCommercial from "@/pages/commercial/RelanceCommercial";
 import ListeNoire from "@/pages/commercial/ListeNoire";
+import QuarantineCompany from "@/pages/commercial/QuarantineCompany";
 import AbDriveConfig from "@/pages/commercial/AbDriveConfig";
 
 import RHLayout from "@/components/layout/RHLayout";
@@ -55,7 +56,7 @@ import TodoPage from "@/features/todos/TodoPage";
 import ProfilePage from "@/pages/profile/ProfilePage";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { UserRole } from "@/store/authStore";
+import { UserRole, Permission } from "@/store/authStore";
 
 export const router = createBrowserRouter([
   {
@@ -107,6 +108,15 @@ export const router = createBrowserRouter([
         },
       },
       { path: "liste-noire", element: <ListeNoire />, handle: { crumb: "Liste noire" } },
+      {
+        path: "quarantaine",
+        element: (
+          <ProtectedRoute allowedRoles={[UserRole.COMMERCIAL]} minPermission={Permission.RESPONSABLE}>
+            <QuarantineCompany />
+          </ProtectedRoute>
+        ),
+        handle: { crumb: "Quarantaine" },
+      },
       { path: "sourcing", element: <Sourcing />, handle: { crumb: "Sourcing SIRET" } },
       { path: "mail", element: <MailTemplates scope="commercial" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <RelanceCommercial />, handle: { crumb: "Relances" } },

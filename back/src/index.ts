@@ -174,7 +174,7 @@ export async function startServer(): Promise<http.Server> {
         logger.info('Shutting down gracefully…');
         await new Promise<void>((resolve) => server.close(() => resolve()));
         const { sdk } = await import('./instrumentation');
-        await sdk.shutdown();
+        await sdk?.shutdown();
         process.exit(0);
     };
 
