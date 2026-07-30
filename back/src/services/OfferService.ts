@@ -231,7 +231,19 @@ export class OfferService {
         const candidates = await this.candidateRepository.findByfilter(filter);
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
 
-        return toGql(offer, suggestedCandidates);
+        const result = toGql(offer, suggestedCandidates) as Record<string, unknown>;
+
+        const companyId = offer.company_infos?.id;
+        if (companyId) {
+            const company = await this.companiesService.findById(companyId);
+            if (company && result.companyInfos) {
+                const ci = result.companyInfos as Record<string, unknown>;
+                if (company.address) ci.address = company.address;
+                if (company.email) ci.email = company.email;
+            }
+        }
+
+        return result;
     }
 
     async update(id: string, data: any): Promise<object | null> {

@@ -19,6 +19,7 @@ interface MatchedCandidate {
 interface MatchJobResult {
   id: string
   companyName: string
+  companyInfos?: { email?: string | null } | null
 }
 
 interface SendToCompanyModalProps {
@@ -30,7 +31,7 @@ interface SendToCompanyModalProps {
 
 export default function SendToCompanyModal({ job, candidates, onClose, onSubmit }: SendToCompanyModalProps) {
   console.log(candidates);
-  const [companyEmail, setCompanyEmail] = useState('')
+  const [companyEmail, setCompanyEmail] = useState(job.companyInfos?.email ?? '')
   const [descriptions, setDescriptions] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
     for (const c of candidates) {
