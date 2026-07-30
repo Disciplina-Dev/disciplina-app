@@ -1278,6 +1278,8 @@ export const MATCH_OFFER = gql`
         email
         phone
       }
+      interviewSlots
+      interviewLocation
       title
       jobRole
       salerInfo {
