@@ -12,6 +12,7 @@ services:
   test-backend:
     command: npm run dev
     environment:
+      NODE_ENV: test
       E2E_DISABLE_LOGIN_RATE_LIMIT: "true"
 
   test-frontend:
