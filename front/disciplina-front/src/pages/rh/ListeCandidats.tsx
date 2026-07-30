@@ -53,6 +53,23 @@ const formatTrainingSite = (site?: TrainingSite) => {
   return site;
 };
 
+// --- Tabs ---
+
+type CandidateTab = 'all' | 'active' | 'archived' | 'inactive'
+
+const TAB_STATUS_MAP: Record<Exclude<CandidateTab, 'all'>, CandidateStatus[]> = {
+  active: [CandidateStatus.SEEKING],
+  archived: [CandidateStatus.CONTRACT, CandidateStatus.IMMERSING],
+  inactive: [CandidateStatus.NOT_SEEKING, CandidateStatus.UNAVAILABLE, CandidateStatus.TEST_FAILED, CandidateStatus.BANNED, CandidateStatus.CANCELLED],
+}
+
+const TAB_LABELS: Record<CandidateTab, string> = {
+  all: 'Tous',
+  active: 'Actif',
+  archived: 'Archivé',
+  inactive: 'Inactif',
+}
+
 // --- Main Page Component ---
 
 const PAGE_SIZE = 20;
@@ -91,7 +108,7 @@ const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   interviewedBy: '',
 };
 
-function toServerFilters(filters: CandidateFilterState): CandidateServerFilters | undefined {
+function toServerFilters(filters: CandidateFilterState, activeTab: CandidateTab): CandidateServerFilters | undefined {
   // Bornes de création selon le mode choisi (dates yyyy-mm-dd des <input type=date>).
   let createdAfter: string | undefined;
   let createdBefore: string | undefined;
@@ -106,6 +123,7 @@ function toServerFilters(filters: CandidateFilterState): CandidateServerFilters 
   const serverFilters: CandidateServerFilters = {
     trainingSite: filters.trainingSite || undefined,
     status: filters.status || undefined,
+    statusIn: activeTab !== 'all' ? TAB_STATUS_MAP[activeTab] : undefined,
     schoolLevel: filters.schoolLevel || undefined,
     drivingLicenseB: filters.permis === 'all' ? undefined : filters.permis === 'yes',
     ageMin: filters.ageMin || undefined,
@@ -140,6 +158,14 @@ export default function ListeCandidats() {
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [activeTab, setActiveTab] = useState<CandidateTab>('all');
+
+  const handleTabChange = (tab: CandidateTab) => {
+    setActiveTab(tab);
+    if (tab !== 'all') {
+      setFilters({ ...filters, status: '' });
+    }
+  };
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -165,7 +191,7 @@ export default function ListeCandidats() {
       .catch(() => setRhUsers([]));
   }, []);
 
-  const serverFilters = useMemo(() => toServerFilters(filters), [filters]);
+  const serverFilters = useMemo(() => toServerFilters(filters, activeTab), [filters, activeTab]);
 
   const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
@@ -331,6 +357,23 @@ export default function ListeCandidats() {
             Nouveau
           </Button>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-6 flex gap-1 rounded-xl bg-white border border-gray-100 p-1 shadow-sm">
+        {(Object.keys(TAB_LABELS) as CandidateTab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => handleTabChange(tab)}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              activeTab === tab
+                ? 'bg-purple text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+            }`}
+          >
+            {TAB_LABELS[tab]}
+          </button>
+        ))}
       </div>
 
       {/* Filter Panel */}

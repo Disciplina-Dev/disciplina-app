@@ -33,6 +33,7 @@ interface RawStats {
 export interface CandidateFilters {
     trainingSite?: string;
     status?: string;
+    statusIn?: string[];
     schoolLevel?: string;
     drivingLicenseB?: boolean;
     ageMin?: number;
@@ -112,7 +113,8 @@ export class CandidateRepository {
 
         const trimmedSearch = search?.trim();
         if (filters?.trainingSite) conditions.push({ training_site: filters.trainingSite });
-        if (filters?.status) conditions.push({ status: filters.status });
+        if (filters?.statusIn?.length) conditions.push({ status: { $in: filters.statusIn } });
+        else if (filters?.status) conditions.push({ status: filters.status });
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });

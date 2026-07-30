@@ -452,6 +452,7 @@ export const typeDefs = gql`
     input CandidateFiltersInput {
         trainingSite: TrainingSite
         status: CandidateStatus
+        statusIn: [CandidateStatus!]
         schoolLevel: SchoolLevel
         drivingLicenseB: Boolean
         ageMin: Int

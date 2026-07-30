@@ -52,6 +52,7 @@ import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } fro
 export interface CandidateServerFilters {
   trainingSite?: TrainingSite
   status?: CandidateStatus
+  statusIn?: CandidateStatus[]
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
   ageMin?: number
