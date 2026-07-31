@@ -229,6 +229,10 @@ export interface Candidate {
     immersion_company_id?: number; // entreprise d'immersion (réf MySQL companies)
     immersion_company_name?: string; // snapshot du nom au moment du choix
     immersion_end_notified_at?: Date; // date d'émission de la notif « immersion terminée » (dédup)
+    contract_offer_id?: string; // offre (Mongo offers) liée au contrat signé
+    contract_company_id?: number; // entreprise du contrat (réf MySQL companies)
+    contract_company_name?: string; // snapshot du nom au moment du choix
+    contract_start_date?: Date;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

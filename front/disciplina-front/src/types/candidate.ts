@@ -210,10 +210,16 @@ export interface MatchedOfferTp {
     descriptionMissions?: string[];
 }
 
+export interface MatchedOfferCompanyInfos {
+    id?: number;
+    name?: string;
+}
+
 export interface MatchedOffer {
     id: string;
     needsAnalysisId?: string;
     companyName?: string;
+    companyInfos?: MatchedOfferCompanyInfos;
     sector?: string;
     localisation?: Localisation[];
     desiredTp?: MatchedOfferTp[];
@@ -252,6 +258,10 @@ export interface Candidate {
     immersion_end_date?: string;
     immersion_company_id?: number;
     immersion_company_name?: string;
+    contract_offer_id?: string;
+    contract_company_id?: number;
+    contract_company_name?: string;
+    contract_start_date?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

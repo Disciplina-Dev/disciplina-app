@@ -309,5 +309,8 @@ export const typeDefs = gql`
         updateNeedsAnalysis(id: ID!, input: NeedsAnalysisInput!): NeedsAnalysis!
         deleteNeedsAnalysis(id: ID!): Boolean!
         updateAbDriveConfig(input: AbDriveConfigInput!): AbDriveConfig!
+        # Marque une AB comme signée sans passer par le flux Yousign : réservé au cas où le
+        # contrat a été trouvé hors sourcing Disciplina (candidat ayant trouvé sa propre entreprise).
+        markNeedsAnalysisSigned(id: ID!): NeedsAnalysis!
     }
 `;

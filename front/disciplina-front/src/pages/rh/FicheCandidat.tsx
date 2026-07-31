@@ -9,6 +9,7 @@ import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
+import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
@@ -264,6 +265,7 @@ export default function FicheCandidat() {
   const [companyQuery, setCompanyQuery] = useState('')
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
   const [availabilityDate, setAvailabilityDate] = useState('')
+  const [contractModalOpen, setContractModalOpen] = useState(false)
   const [companyListOpen, setCompanyListOpen] = useState(false)
   const [aiSummaryOpen, setAiSummaryOpen] = useState(false)
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
@@ -516,6 +518,11 @@ export default function FicheCandidat() {
       setUnavailableModalOpen(true)
       return
     }
+    // Passage en contrat : renseigner l'offre (ou l'entreprise trouvée par le candidat) et la date de début.
+    if (newStatus === CandidateStatus.CONTRACT) {
+      setContractModalOpen(true)
+      return
+    }
     await persistStatus({ ...formData, status: newStatus })
   }
 
@@ -739,9 +746,14 @@ export default function FicheCandidat() {
                         </>
                       )}
                     </span>
-                  ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_company_name || formData.immersion_start_date || formData.immersion_end_date) && (
+                  ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_company_name || formData.immersion_start_date || formData.immersion_end_date) ? (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       Immersion{formData.immersion_company_name ? ` chez ${formData.immersion_company_name}` : ''} : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
+                    </span>
+                  ) : formData.status === CandidateStatus.CONTRACT && (formData.contract_company_name || formData.contract_start_date) && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
+                      En contrat{formData.contract_company_name ? ` avec ${formData.contract_company_name}` : ''}
+                      {formData.contract_start_date ? ` depuis le ${new Date(formData.contract_start_date).toLocaleDateString('fr-FR')}` : ''}
                     </span>
                   )}
                   {(() => {
@@ -1895,6 +1907,17 @@ export default function FicheCandidat() {
             </div>
           </div>
         </div>
+      )}
+
+      {contractModalOpen && (
+        <ContractModal
+          candidate={formData}
+          onSuccess={(updated) => {
+            setFormData(updated)
+            setContractModalOpen(false)
+          }}
+          onClose={() => setContractModalOpen(false)}
+        />
       )}
 
       {aiSummaryOpen && (

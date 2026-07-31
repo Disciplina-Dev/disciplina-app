@@ -222,6 +222,10 @@ const candidateSchema = new Schema<Candidate & Document>(
         // Horodatage de l'envoi de la notification « immersion terminée » : évite
         // de re-notifier chaque jour une fois la date de fin passée (dédup scheduler).
         immersion_end_notified_at: { type: Date },
+        contract_offer_id: { type: String },
+        contract_company_id: { type: Number },
+        contract_company_name: { type: String },
+        contract_start_date: { type: Date },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
         education: { type: educationSchema },

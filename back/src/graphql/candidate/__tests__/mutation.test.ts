@@ -255,6 +255,72 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.immersionEndDate).toContain('2026-09-15');
         });
 
+        it('stores contract offer/company/start date when moving to CONTRACT', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-contract-${suffix}`,
+                candidate_id: `update-contract-${suffix}`,
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Erin ${suffix}`, email: `erin-${suffix}@test.local`, phone: '0100000010' },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) {
+                            id status contractOfferId contractCompanyId contractCompanyName contractStartDate
+                        }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            status: 'CONTRACT',
+                            contractOfferId: `offer-${suffix}`,
+                            contractCompanyId: 42,
+                            contractCompanyName: `Entreprise ${suffix}`,
+                            contractStartDate: '2026-10-01',
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('CONTRACT');
+            expect(json.data.updateCandidate.contractOfferId).toBe(`offer-${suffix}`);
+            expect(json.data.updateCandidate.contractCompanyId).toBe(42);
+            expect(json.data.updateCandidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
+            expect(json.data.updateCandidate.contractStartDate).toContain('2026-10-01');
+
+            // Verify persisted via a follow-up query
+            const verify = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `query($id: String!) { candidate(id: $id) { contractCompanyName contractStartDate } }`,
+                    variables: { id: seeded._id },
+                }),
+            });
+            const vjson = await verify.json();
+            expect(vjson.data.candidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
+            expect(vjson.data.candidate.contractStartDate).toContain('2026-10-01');
+        });
+
         it('updates nested identity fields', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();

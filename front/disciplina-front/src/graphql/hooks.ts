@@ -389,6 +389,10 @@ function fromGql(c: any): Candidate {
     immersion_end_date: c.immersionEndDate ?? undefined,
     immersion_company_id: c.immersionCompanyId ?? undefined,
     immersion_company_name: c.immersionCompanyName ?? undefined,
+    contract_offer_id: c.contractOfferId ?? undefined,
+    contract_company_id: c.contractCompanyId ?? undefined,
+    contract_company_name: c.contractCompanyName ?? undefined,
+    contract_start_date: c.contractStartDate ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -532,6 +536,10 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
     ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
     ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
+    ...(c.contract_offer_id !== undefined && { contractOfferId: c.contract_offer_id }),
+    ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
+    ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
+    ...(c.contract_start_date !== undefined && { contractStartDate: c.contract_start_date }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
