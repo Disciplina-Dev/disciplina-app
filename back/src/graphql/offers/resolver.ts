@@ -232,7 +232,13 @@ export const resolvers = {
                 offerId,
                 companyEmail,
                 candidates,
-            }: { offerId: string; companyEmail: string; candidates: { id: string; description?: string }[] },
+                templateId,
+            }: {
+                offerId: string;
+                companyEmail: string;
+                candidates: { id: string; description?: string }[];
+                templateId?: string;
+            },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -242,7 +248,7 @@ export const resolvers = {
                 companyEmail,
                 candidates,
             });
-            await matchMailService.sendInvitation(credentials);
+            await matchMailService.sendInvitation(credentials, templateId ?? undefined);
             return credentials.signature;
         },
     },

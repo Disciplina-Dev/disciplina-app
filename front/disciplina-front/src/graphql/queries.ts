@@ -1306,8 +1306,8 @@ export const MATCH_OFFER = gql`
 `
 
 export const CREATE_MATCH_SESSION = gql`
-  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!) {
-    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates)
+  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!, $templateId: String) {
+    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates, templateId: $templateId)
   }
 `
 

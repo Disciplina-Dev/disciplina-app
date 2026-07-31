@@ -16,8 +16,9 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
  * Modèles « système » : uniques, semés par défaut, non supprimables, partagés
  * par tous les utilisateurs du scope. Repérés par ce champ (et non par leur nom).
  * `ab_signature` = mail d'invitation à signer l'Analyse du Besoin (scope commercial).
+ * `proposition_candidat` = mail d'invitation à la sélection de candidats (scope rh).
  */
-export const MAIL_TEMPLATE_KINDS = ['ab_signature'] as const;
+export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'proposition_candidat'] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
 
 /** Libellés affichés (front + logs). */
@@ -30,9 +31,9 @@ export const PEDA_LEVEL_LABELS: Record<PedaLevel, string> = {
 
 /** Pièce jointe d'un modèle : le fichier original est zippé et stocké sur le Drive de l'utilisateur. */
 export interface MailTemplateAttachment {
-    filename: string;        // nom original (ex: "plaquette.pdf")
-    contentType: string;     // type MIME original
-    driveFileId: string;     // id du .zip sur Drive
+    filename: string; // nom original (ex: "plaquette.pdf")
+    contentType: string; // type MIME original
+    driveFileId: string; // id du .zip sur Drive
 }
 
 export interface MailTemplate {
@@ -53,12 +54,12 @@ export interface MailTemplate {
 
 /** Signature image d'un utilisateur (une par scope), stockée sur Drive. */
 export interface MailSignature {
-    _id: string;             // `${user_id}:${scope}`
+    _id: string; // `${user_id}:${scope}`
     user_id: number;
     scope: MailTemplateScope;
     driveFileId: string;
     driveWebViewLink: string; // lien Drive du fichier signature
-    filename: string;         // nom du fichier sur Drive
+    filename: string; // nom du fichier sur Drive
     contentType: string;
     updated_at: Date;
 }

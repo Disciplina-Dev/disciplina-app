@@ -36,7 +36,7 @@ export interface MailTemplateAttachmentMeta {
 }
 
 /** Modèle système (non supprimable, partagé) ; null pour un modèle utilisateur. */
-export type MailTemplateKind = 'ab_signature'
+export type MailTemplateKind = 'ab_signature' | 'proposition_candidat'
 
 export interface MailTemplate {
   id: string
