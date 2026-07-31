@@ -62,6 +62,17 @@ const AB_SIGNATURE_VARS: typeof TEMPLATE_VARS = [
   { token: 'signature', label: 'Votre signature mail', example: 'votre image de signature' },
 ]
 
+// Variables du modèle système « Proposition de candidats » (kind proposition_candidat),
+// remplacées à l'envoi (cf. back MatchMailService.sendInvitation).
+const PROPOSITION_CANDIDAT_VARS: typeof TEMPLATE_VARS = [
+  { token: 'hr_name', label: 'Prénom + nom du conseiller RH', example: 'Jean Martin' },
+  { token: 'link', label: 'Lien de la session de matching', example: 'https://app.disciplina.re/public/match?sig=xxx' },
+  { token: 'id', label: 'Identifiant de connexion', example: 'DISCIPLINA-4F8A' },
+  { token: 'code', label: 'Code de connexion', example: '483291' },
+  { token: 'expiration time', label: 'Durée de validité du lien', example: '24 heures' },
+  { token: 'hr_signature', label: 'Votre signature mail', example: 'votre image de signature' },
+]
+
 export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesScope }) {
   const { templates, loading, loaded, error: storeError, load, add, update, remove } =
     useMailTemplatesStore(scope)
@@ -75,9 +86,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const templateVars =
     editingKind === 'ab_signature'
       ? AB_SIGNATURE_VARS
-      : scope === 'peda'
-        ? PEDA_TEMPLATE_VARS
-        : TEMPLATE_VARS
+      : editingKind === 'proposition_candidat'
+        ? PROPOSITION_CANDIDAT_VARS
+        : scope === 'peda'
+          ? PEDA_TEMPLATE_VARS
+          : TEMPLATE_VARS
 
   useEffect(() => { load() }, [load])
 
@@ -348,6 +361,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                       {t.kind === 'ab_signature' && (
                         <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue">
                           Signature AB
+                        </span>
+                      )}
+                      {t.kind === 'proposition_candidat' && (
+                        <span className="shrink-0 rounded-full bg-purple/10 px-2 py-0.5 text-[11px] font-semibold text-purple">
+                          Invitation candidats
                         </span>
                       )}
                     </div>

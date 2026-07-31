@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Loader2, Send, ExternalLink, FileText, Copy, Check, Sparkles } from 'lucide-react'
 import { apiFetch } from '@/api/httpClient'
+import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 
 interface MatchedCandidate {
   id: string
@@ -30,14 +31,15 @@ interface SendToCompanyModalProps {
   job: MatchJobResult
   candidates: MatchedCandidate[]
   onClose: () => void
-  onSubmit: (offerId: string, companyEmail: string, candidates: { id: string; description: string }[]) => Promise<string>
+  onSubmit: (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string) => Promise<string>
 }
 
 export default function SendToCompanyModal({ job, candidates, onClose, onSubmit }: SendToCompanyModalProps) {
-  console.log(candidates);
+  const { templates, load: loadTemplates } = useRhMailTemplatesStore()
   const [companyEmail, setCompanyEmail] = useState(
     job.referents?.recruitmentReferents?.email ?? job.companyInfos?.email ?? '',
   )
+  const [templateId, setTemplateId] = useState<string>('')
   const [descriptions, setDescriptions] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
     for (const c of candidates) {
@@ -51,6 +53,15 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
   const [copied, setCopied] = useState(false)
   const [aiLoading, setAiLoading] = useState<Set<string>>(new Set())
   const [aiErrors, setAiErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => { loadTemplates() }, [loadTemplates])
+
+  // Par défaut : le modèle système « Proposition de candidats ».
+  useEffect(() => {
+    if (templateId) return
+    const system = templates.find((t) => t.kind === 'proposition_candidat')
+    setTemplateId(system?.id ?? templates[0]?.id ?? '')
+  }, [templates]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDescriptionChange = (candidateId: string, value: string) => {
     setDescriptions((prev) => ({ ...prev, [candidateId]: value }))
@@ -89,6 +100,7 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
           id: c.id,
           description: descriptions[c.id] ?? '',
         })),
+        templateId || undefined,
       )
       setSuccess({ signature })
     } catch (err) {
@@ -195,6 +207,27 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
             />
             <p className="text-xs text-gray-400 mt-1">
               L'invitation à la session de matching sera envoyée à cette adresse.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
+              Modèle de mail d'invitation
+            </label>
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors"
+            >
+              {templates.length === 0 && <option value="">Modèle par défaut</option>}
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.kind === 'proposition_candidat' ? 'Proposition de candidats' : t.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Les modèles RH sont modifiables dans « Modèles mail ».
             </p>
           </div>
 

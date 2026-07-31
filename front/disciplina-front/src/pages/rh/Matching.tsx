@@ -1819,9 +1819,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     }
   }
 
-  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[]): Promise<string> => {
+  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string): Promise<string> => {
     const result = await offerGraphqlClient
-      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates })
+      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates, templateId })
       .toPromise()
     if (result.error) throw new Error(result.error.message)
     const signature = result.data?.createMatchSession
