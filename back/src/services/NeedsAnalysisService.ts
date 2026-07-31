@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { OfferAbFilter } from '../types/offer.types';
+import { OfferAbFilter, AbStatus } from '../types/offer.types';
 import {
     NeedsAnalysis as NeedsAnalysisNoSql,
     NeedsAnalysisWriteInput,
@@ -110,12 +110,63 @@ export class NeedsAnalysisService {
     }
 
     async findPage(first: number, after?: string, filter?: OfferAbFilter): Promise<NeedsAnalysisNoSql[]> {
-        if (!filter || !hasActiveOfferFilter(filter)) {
+        const hasOfferFilter = Boolean(filter && hasActiveOfferFilter(filter));
+        const abStatus = filter?.abStatus;
+
+        // Aucune contrainte : liste brute (la liste « Tous » inclut les AB inactives).
+        if (!hasOfferFilter && !abStatus) {
             return this.repository.findPage(first, after);
         }
-        const ids = await this.offerRepository.findNeedsAnalysisIdsByFilter(filter);
-        if (ids.length === 0) return [];
-        return this.repository.findPage(first, after, ids);
+
+        // Contrainte par offres (statut, TP, secteur, localisation, recherche…).
+        let offerIds: string[] | undefined;
+        if (hasOfferFilter) {
+            offerIds = await this.offerRepository.findNeedsAnalysisIdsByFilter(filter!);
+            if (offerIds.length === 0) return [];
+        }
+
+        // Contrainte par statut d'AB dérivé (onglets Actif / Archivé / Inactif).
+        let statusIds: string[] | undefined;
+        if (abStatus) {
+            statusIds = await this.resolveAbStatusIds(abStatus);
+            if (statusIds.length === 0) return [];
+        }
+
+        // Intersection des deux contraintes, sinon celle présente seule.
+        let restrictIds: string[] | undefined;
+        if (offerIds && statusIds) {
+            const statusSet = new Set(statusIds);
+            restrictIds = offerIds.filter((id) => statusSet.has(id));
+        } else {
+            restrictIds = offerIds ?? statusIds;
+        }
+        if (restrictIds && restrictIds.length === 0) return [];
+
+        return this.repository.findPage(first, after, restrictIds);
+    }
+
+    /** Ids des AB correspondant à l'onglet choisi, hors AB supprimées pour Actif/Archivé. */
+    private async resolveAbStatusIds(abStatus: AbStatus): Promise<string[]> {
+        if (abStatus === 'INACTIVE') {
+            return this.repository.findDeletedIds();
+        }
+
+        const deletedIds = await this.repository.findDeletedIds();
+        const deletedSet = new Set(deletedIds);
+
+        if (abStatus === 'ARCHIVED') {
+            const ids = await this.offerRepository.findNeedsAnalysisIdsByAbStatus('ARCHIVED');
+            return ids.filter((id) => !deletedSet.has(id));
+        }
+
+        // ACTIVE : au moins une offre pas encore en contrat, ou aucune offre du tout
+        // (AB en cours de création non encore envoyée en signature).
+        const [withOffers, withoutOffers] = await Promise.all([
+            this.offerRepository.findNeedsAnalysisIdsByAbStatus('ACTIVE'),
+            this.repository.findIdsWithoutOffers(),
+        ]);
+        const unique = [...new Set([...withOffers, ...withoutOffers])];
+        return unique.filter((id) => !deletedSet.has(id));
     }
 
     async findById(id: string): Promise<NeedsAnalysisGql | null> {
@@ -536,7 +587,7 @@ export class NeedsAnalysisService {
         }
 
         // Supprime les offres de matching de cette AB.
-        // Hors du chemin critique : un échec ne doit pas empêcher la suppression de l'AB.
+        // Hors du chemin critique : un échec ne doit pas empêcher la mise en inactif de l'AB.
         try {
             const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
             logger.info({ id, removed }, '[NeedsAnalysis] offers cleared for AB');
@@ -554,7 +605,9 @@ export class NeedsAnalysisService {
             }
         }
 
-        return this.repository.delete(id);
+        // Soft delete : l'AB devient inactive (is_deleted) au lieu d'être retirée.
+        // Elle reste visible dans l'onglet « Inactif » de la liste matching RH.
+        return this.repository.markDeleted(id);
     }
 
     private validateData(data: Partial<NeedsAnalysisWriteInput>): void {

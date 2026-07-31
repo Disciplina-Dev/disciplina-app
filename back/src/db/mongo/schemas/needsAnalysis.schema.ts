@@ -44,6 +44,7 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
         signature_request_id: { type: String, default: null },
         status: { type: String, enum: Object.values(NeedsAnalysisStatus), default: NeedsAnalysisStatus.BROUILLON },
         tags: { type: [String], default: [] },
+        is_deleted: { type: Boolean, default: false },
         created_at: { type: Date },
         updated_at: { type: Date },
     },

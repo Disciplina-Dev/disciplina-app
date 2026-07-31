@@ -94,6 +94,12 @@ export const typeDefs = gql`
         EXPIRE
     }
 
+    enum AbStatus {
+        ACTIVE
+        ARCHIVED
+        INACTIVE
+    }
+
     type CompanyInfos {
         id: Int
         name: String
@@ -274,6 +280,7 @@ export const typeDefs = gql`
         desiredTp: [String!]
         sectors: [String!]
         localisations: [String!]
+        abStatus: AbStatus
     }
 
     type NeedsAnalysisDashboardItem {
