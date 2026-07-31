@@ -6,7 +6,7 @@ import { regionFromSector } from '../../utils/sector';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
-import { OfferAbFilter } from '../../types/offer.types';
+import { OfferAbFilter, AbStatus } from '../../types/offer.types';
 import {
     abDriveConfigService,
     abDriveConfigToGql,
@@ -20,6 +20,7 @@ interface OfferFilterInput {
     desiredTp?: string[];
     sectors?: string[];
     localisations?: string[];
+    abStatus?: AbStatus;
 }
 
 function toOfferAbFilter(filter?: OfferFilterInput): OfferAbFilter | undefined {

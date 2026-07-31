@@ -192,6 +192,9 @@ export async function startServer(): Promise<http.Server> {
     mailTemplateService
         .seedCvImportDefault()
         .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
+    mailTemplateService
+        .seedpropositionCandidatsDefault()
+        .catch((err) => logger.error({ err }, 'match-invitation: seed du modèle système échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();

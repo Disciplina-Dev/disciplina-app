@@ -146,6 +146,9 @@ export interface NeedsAnalysis {
     signature_request_id?: string | null;
     status?: NeedsAnalysisStatus;
     tags?: string[];
+    // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
+    // d'être retirée — on conserve le document pour l'historique.
+    is_deleted?: boolean;
     created_at?: Date;
     updated_at?: Date;
 }

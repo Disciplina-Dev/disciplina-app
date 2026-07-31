@@ -1,4 +1,5 @@
 import { NeedsAnalysisModel } from '../../db/mongo/schemas/needsAnalysis.schema';
+import { OfferModel } from '../../db/mongo/schemas/offer.schema';
 import { NeedsAnalysis, NeedsAnalysisStatus } from '../../types/needsAnalysisNoSql.types';
 import { decodeCursor } from '../../services/pagination';
 
@@ -55,7 +56,8 @@ export class NeedsAnalysisRepository {
     }
 
     async findByCompanyId(companyId: number): Promise<NeedsAnalysis[]> {
-        return NeedsAnalysisModel.find({ 'company_infos.id': companyId }).lean();
+        // Les AB supprimées (inactives) n'apparaissent pas dans le portefeuille commercial.
+        return NeedsAnalysisModel.find({ 'company_infos.id': companyId, is_deleted: { $ne: true } }).lean();
     }
 
     async findBySignatureRequestId(signatureRequestId: string): Promise<NeedsAnalysis | null> {
@@ -73,12 +75,35 @@ export class NeedsAnalysisRepository {
         return NeedsAnalysisModel.findOneAndUpdate({ _id: id }, { $set: patch }, { new: true }).lean();
     }
 
-    async delete(id: string): Promise<boolean> {
-        return (await NeedsAnalysisModel.deleteOne({ _id: id })).deletedCount > 0;
+    /**
+     * Soft delete : l'AB n'est pas retirée, elle devient inactive (is_deleted).
+     * Elle reste visible dans la liste matching (onglet « Inactif ») pour l'historique.
+     */
+    async markDeleted(id: string): Promise<boolean> {
+        const res = await NeedsAnalysisModel.updateOne({ _id: id }, { $set: { is_deleted: true } });
+        return res.modifiedCount > 0;
+    }
+
+    /** Ids des AB supprimées (inactives). */
+    async findDeletedIds(): Promise<string[]> {
+        return NeedsAnalysisModel.distinct('_id', { is_deleted: true });
+    }
+
+    /** Ids des AB non supprimées qui n'ont aucune offre de matching. */
+    async findIdsWithoutOffers(): Promise<string[]> {
+        const [allIds, offerIds] = await Promise.all([
+            NeedsAnalysisModel.distinct('_id', { is_deleted: { $ne: true } }),
+            OfferModel.distinct('needs_analysis_id', { needs_analysis_id: { $exists: true, $ne: null } }),
+        ]);
+        const offerSet = new Set(offerIds);
+        return allIds.filter((id) => !offerSet.has(id));
     }
 
     async findByStatusNotBrouillon(limit: number = 10, regions?: string[]): Promise<NeedsAnalysis[]> {
-        const filter: Record<string, any> = { status: { $ne: NeedsAnalysisStatus.BROUILLON } };
+        const filter: Record<string, any> = {
+            status: { $ne: NeedsAnalysisStatus.BROUILLON },
+            is_deleted: { $ne: true },
+        };
         if (regions?.length) {
             filter['company_infos.sector'] = { $in: regions };
         }
@@ -89,7 +114,10 @@ export class NeedsAnalysisRepository {
     }
 
     async countByStatusNotBrouillon(regions?: string[]): Promise<number> {
-        const filter: Record<string, any> = { status: { $ne: NeedsAnalysisStatus.BROUILLON } };
+        const filter: Record<string, any> = {
+            status: { $ne: NeedsAnalysisStatus.BROUILLON },
+            is_deleted: { $ne: true },
+        };
         if (regions?.length) {
             filter['company_infos.sector'] = { $in: regions };
         }

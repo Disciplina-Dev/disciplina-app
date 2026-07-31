@@ -8,10 +8,19 @@ import NeedsAnalysisCard from '@/features/matching/components/NeedsAnalysisCard'
 import { JobFilters } from '@/features/matching/components/JobFilters'
 import { CompanySearchModal } from '@/features/matching/components/CompanySearchModal'
 import { EMPTY_JOB_FILTERS, toOfferFilterInput } from '@/features/matching/services/jobFilters'
-import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
+import type { JobFilters as JobFiltersType, AbTab } from '@/features/matching/services/jobFilters'
 import Matching from '@/pages/rh/Matching'
 
 const PAGE_SIZE = 25
+
+// --- Tabs (statut d'AB dérivé des offres) ---
+
+const AB_TABS: { value: AbTab; label: string }[] = [
+  { value: 'ALL', label: 'Tous' },
+  { value: 'ACTIVE', label: 'Actif' },
+  { value: 'ARCHIVED', label: 'Archivé' },
+  { value: 'INACTIVE', label: 'Inactif' },
+]
 
 // Route `/rh/matching` : liste des AB, sauf si une AB est sélectionnée (?needsAnalysis)
 // où l'on rend le matching existant. Le branchement se fait avant le hook de liste
@@ -56,6 +65,23 @@ function AbListView() {
             Ajouter des entreprises
           </button>
         )}
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-6 flex gap-1 rounded-xl bg-white border border-gray-100 p-1 shadow-sm">
+        {AB_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setFilters({ ...filters, tab: tab.value })}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              filters.tab === tab.value
+                ? 'bg-purple text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="mb-6 space-y-3">
