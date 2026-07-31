@@ -316,7 +316,12 @@ export const typeDefs = gql`
             immersionEndDate: String!
             immersionLocation: String!
         ): Offer
-        createMatchSession(offerId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
+        createMatchSession(
+            offerId: String!
+            companyEmail: String!
+            candidates: [ProposedCandidateInput!]!
+            templateId: String
+        ): String!
         setInterviewConclusion(
             offerId: String!
             candidateId: String!

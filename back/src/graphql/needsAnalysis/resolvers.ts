@@ -1,6 +1,8 @@
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
+import { UserService } from '../../services/UserService';
+import { regionFromSector } from '../../utils/sector';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
@@ -26,6 +28,7 @@ function toOfferAbFilter(filter?: OfferFilterInput): OfferAbFilter | undefined {
 }
 
 const needsAnalysisService = new NeedsAnalysisService();
+const userService = new UserService();
 
 export const resolvers = {
     Query: {
@@ -55,6 +58,21 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const config = await abDriveConfigService.getConfig();
             return abDriveConfigToGql(config);
+        },
+        needsAnalysesForDashboard: async (_: unknown, { limit }: { limit?: number }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            // Le RH ne voit que les AB de ses secteurs. Les admin/responsables (ADMIN,
+            // RESPONSABLE) voient tous les secteurs.
+            let regions: string[] | undefined;
+            if (context.user.permission !== Permission.ADMIN && context.user.permission !== Permission.RESPONSABLE) {
+                const user = await userService.findById(Number(context.user.id));
+                const sectors = user?.sectors ?? [];
+                const mapped = sectors
+                    .map((s) => regionFromSector(s))
+                    .filter((r): r is 'NORD' | 'OUEST' | 'SUD' => Boolean(r));
+                if (mapped.length > 0) regions = mapped;
+            }
+            return needsAnalysisService.findForDashboard(limit ?? 5, regions);
         },
     },
     Mutation: {

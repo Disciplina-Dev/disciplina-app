@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
   PieChart,
@@ -20,9 +21,11 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Bell,
+  X,
 } from 'lucide-react';
 import { useCurrentUser, Permission } from '@/store/authStore';
-import { useCandidateStats, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { useCandidateStats, useNeedsAnalysesForDashboard, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
@@ -67,6 +70,8 @@ const SITE_LABELS: Record<string, string> = {
   [TrainingSite.SUD_SAINT_PIERRE]: 'Sud · Saint-Pierre',
 };
 
+const DISMISSED_AB_KEY = 'disciplina:dismissed-ab-ids';
+
 /** Index un tableau de buckets `{ key, count }` en map clé → count. */
 function indexBuckets(buckets: StatBucket[]): Record<string, number> {
   return buckets.reduce<Record<string, number>>((acc, b) => {
@@ -76,6 +81,65 @@ function indexBuckets(buckets: StatBucket[]): Record<string, number> {
 }
 
 // --- Sous-composants présentationnels ---
+
+function AbCallout() {
+  const navigate = useNavigate()
+  const { items, totalCount, loading } = useNeedsAnalysesForDashboard(10)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(DISMISSED_AB_KEY) ?? '[]') as string[])
+    } catch {
+      return new Set<string>()
+    }
+  })
+
+  const visible = items.filter((item) => !dismissedIds.has(item.id))
+  if (loading || visible.length === 0) return null
+
+  const dismiss = (id: string) => {
+    const updated = new Set(dismissedIds)
+    updated.add(id)
+    setDismissedIds(updated)
+    localStorage.setItem(DISMISSED_AB_KEY, JSON.stringify([...updated]))
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Bell className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div>
+            <p className="text-sm font-bold text-amber-900">
+              {totalCount > visible.length
+                ? `${visible.length} analyse${visible.length > 1 ? 's' : ''} de besoin récente${visible.length > 1 ? 's' : ''} à traiter`
+                : `${visible.length} analyse${visible.length > 1 ? 's' : ''} de besoin à traiter`}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {visible.slice(0, 5).map((item) => (
+                <li key={item.id} className="group flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => navigate(`/rh/matching?needsAnalysis=${item.id}`)}
+                    className="flex items-center gap-2 text-left text-sm text-amber-800 underline-offset-2 hover:underline"
+                  >
+                    <span className="font-medium">{item.companyName ?? 'Entreprise'}</span>
+                    <span className="text-amber-600">· {item.positionsCount} poste{item.positionsCount > 1 ? 's' : ''}</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); dismiss(item.id) }}
+                    className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition hover:text-amber-600 group-hover:opacity-100"
+                    title="Ignorer"
+                  >
+                    <X size={14} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function KpiCard({
   icon: Icon,
@@ -256,6 +320,8 @@ export default function DashboardRH() {
           </button>
         </div>
       </div>
+
+      <AbCallout />
 
       {/* KPI RH par semaine / mois / année — piloté par le filtre secteur global */}
       <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">

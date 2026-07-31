@@ -11,6 +11,7 @@ import {
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
 import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
+import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
 import { UserService } from './UserService';
@@ -50,6 +51,9 @@ export const AB_SIGNATURE_SEEDED_KEY = 'ab_signature_template_seeded';
 
 /** Clé app_settings : le modèle « Import CV » par défaut a déjà été semé une fois. */
 export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
+
+/** Clé app_settings : le modèle « Invitation sélection candidats » a déjà été semé une fois. */
+export const PROPOSITION_CANDIDAT_SEEDED_KEY = 'proposition_candidat_template_seeded';
 
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
@@ -133,6 +137,19 @@ export class MailTemplateService {
     async findCommercialTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
         const doc = await MailTemplateModel.findOne({ scope: 'commercial', kind }).lean<MailTemplate>();
         return doc ? toDTO(doc) : null;
+    }
+
+    /** Modèle système du scope rh (ex. invitation à la sélection de candidats), ou null s'il n'existe pas. */
+    async findRhTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
+        const doc = await MailTemplateModel.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+        return doc ? toDTO(doc) : null;
+    }
+
+    /** Modèle accessible à un user (toutes scopes), ou null s'il est introuvable / non autorisé. */
+    async findById(userId: number, id: string): Promise<MailTemplateDTO | null> {
+        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        if (!doc || !this.canAccess(doc, userId)) return null;
+        return toDTO(doc);
     }
 
     /** Le niveau n'a de sens que pour le scope `peda` ; il est ignoré ailleurs. */
@@ -283,6 +300,35 @@ export class MailTemplateService {
             logger.info('cv-import: modèle par défaut semé');
         }
         await settings.set(CV_IMPORT_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Proposition de candidats » (scope rh,
+     * kind `proposition_candidat`) au premier démarrage. Idempotent via flag app_settings
+     * ET vérification d'existence, pour ne pas dupliquer si un modèle a déjà ce kind.
+     */
+    async seedpropositionCandidatsDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(PROPOSITION_CANDIDAT_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'proposition_candidat' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Proposition de candidats',
+                subject: PROPOSITION_CANDIDAT_SUBJECT,
+                body: PROPOSITION_CANDIDAT_BODY,
+                peda_level: null,
+                kind: 'proposition_candidat',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('match-invitation: modèle système semé');
+        }
+        await settings.set(PROPOSITION_CANDIDAT_SEEDED_KEY, '1');
     }
 
     async remove(userId: number, id: string): Promise<void> {
