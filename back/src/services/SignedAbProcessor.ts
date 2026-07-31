@@ -6,6 +6,7 @@ import { CompaniesService } from './CompaniesService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { GoogleGmailService } from '../external/google/gmail.service';
+import { MailTemplateService } from './MailTemplateService';
 import { logger } from '../external/logger';
 
 import { notifyUser } from '../rest/yousign/sse';
@@ -15,6 +16,7 @@ const userRepo = new UserRepository();
 const companiesService = new CompaniesService();
 const docusealService = new DocuSealService();
 const gmailService = new GoogleGmailService();
+const mailTemplateService = new MailTemplateService();
 
 /**
  * Traitement commun quand une Analyse du Besoin est signée :
@@ -86,6 +88,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
             contentType: 'application/pdf',
         };
     });
+    const signatureHtml = await mailTemplateService.getSignatureHtml(senderUser.id, 'commercial').catch(() => '');
     const mailOptions = {
         to: `${analysis.referents?.recruitmentReferents?.email || ''}, ${senderUser.email}`,
         subject: `[Disciplina] Fiche Analyse du Besoin Signée - ${companyName}`,
@@ -108,6 +111,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
                     Ceci est un e-mail automatique envoyé par l'application CRM Disciplina.
                 </div>
             </div>
+            ${signatureHtml}
         `,
         attachments,
     };

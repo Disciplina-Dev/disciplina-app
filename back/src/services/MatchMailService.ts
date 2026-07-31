@@ -45,11 +45,14 @@ export class MatchMailService {
     }
 
     async sendLockAlert(rhEmail: string, companyEmail: string): Promise<void> {
-        await this.sendAs(rhEmail, {
+        const rh = await this.userService.findByEmail(rhEmail);
+        if (!rh) return;
+        const signatureHtml = await this.mailTemplateService.getSignatureHtml(rh.id, 'rh').catch(() => '');
+        await this.sendAs(rh, {
             to: `${companyEmail}, ${rhEmail}`,
             subject: '[Disciplina] Accès bloqué après 3 tentatives',
             text: "L'accès à la sélection de candidats a été bloqué après 3 tentatives incorrectes.",
-            html: lockAlertHtml(),
+            html: lockAlertHtml() + signatureHtml,
         });
     }
 
