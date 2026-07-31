@@ -336,6 +336,12 @@ Real examples: `src/graphql/company/__tests__/create-blacklist-validation.test.t
 "no `vi.spyOn` on internals" rule below — it's still mocking the `external/` boundary, just via
 the prototype instead of a module factory.
 
+For routes/webhooks that send Gmail (`GoogleGmailService.prototype.sendEmail`) and/or read a
+signature off Drive (`GoogleDriveService.fromTokens`), reuse `test/helpers/googleMail.ts`
+(`spyOnGoogleMail()`) instead of re-declaring the spies per file — see
+`src/rest/relance/__tests__/signature.test.ts`, `src/rest/yousign/__tests__/signature.test.ts`,
+and `src/services/__tests__/SignedAbProcessor.test.ts` for usage.
+
 ---
 
 ## 10. Anti-patterns
