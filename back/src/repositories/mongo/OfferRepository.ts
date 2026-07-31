@@ -1,5 +1,5 @@
 import { OfferModel } from '../../db/mongo/schemas/offer.schema';
-import { Offer, OfferAbFilter } from '../../types/offer.types';
+import { Offer, OfferAbFilter, AbStatus } from '../../types/offer.types';
 import {
     ImmersionConclusion,
     InterviewConclusion,
@@ -49,6 +49,57 @@ export class OfferRepository {
     async findNeedsAnalysisIdsByFilter(filter: OfferAbFilter): Promise<string[]> {
         const mongoFilter = buildOfferAbMongoFilter(filter);
         return OfferModel.distinct('needs_analysis_id', mongoFilter);
+    }
+
+    /**
+     * Ids des AB selon leur statut dérivé des offres (hors AB supprimées) :
+     * - ARCHIVED : toutes les offres de l'AB sont en contrat,
+     * - ACTIVE   : au moins une offre n'est pas encore en contrat.
+     * Une offre est « en contrat » quand matching.status = CONTRACT ou qu'un de ses
+     * candidats a un statut CONTRACT (miroir de listMatchingOffers).
+     */
+    async findNeedsAnalysisIdsByAbStatus(abStatus: AbStatus): Promise<string[]> {
+        const contractStatus = OfferStatus.CONTRACT;
+        const contractCandidate = MatchedCandidateStatus.CONTRACT;
+        const contractConditions = [
+            { 'matching.status': contractStatus },
+            { 'matching.candidates.status': contractCandidate },
+        ];
+
+        if (abStatus === 'ARCHIVED') {
+            const rows = await OfferModel.aggregate([
+                { $match: { needs_analysis_id: { $exists: true, $ne: null } } },
+                {
+                    $group: {
+                        _id: '$needs_analysis_id',
+                        total: { $sum: 1 },
+                        contracted: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $or: [
+                                            { $eq: ['$matching.status', contractStatus] },
+                                            { $in: [contractCandidate, { $ifNull: ['$matching.candidates.status', []] }] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                    },
+                },
+                { $match: { $expr: { $eq: ['$contracted', '$total'] } } },
+                { $project: { _id: 1 } },
+            ]);
+            return rows.map((row) => String(row._id));
+        }
+
+        // ACTIVE : au moins une offre pas encore en contrat.
+        return OfferModel.distinct('needs_analysis_id', {
+            needs_analysis_id: { $exists: true, $ne: null },
+            $nor: contractConditions,
+        });
     }
 
     async findById(offerId: string): Promise<Offer | null> {
