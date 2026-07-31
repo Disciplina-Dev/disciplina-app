@@ -1919,3 +1919,18 @@ export const DELETE_OFFER_HISTORY_ENTRY = gql`
     deleteOfferHistoryEntry(id: $id)
   }
 `
+
+export const NEEDS_ANALYSES_FOR_DASHBOARD = gql`
+  query NeedsAnalysesForDashboard($limit: Int) {
+    needsAnalysesForDashboard(limit: $limit) {
+      items {
+        id
+        companyName
+        positionsCount
+        createdAt
+        status
+      }
+      totalCount
+    }
+  }
+`

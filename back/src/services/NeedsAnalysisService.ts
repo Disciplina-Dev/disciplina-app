@@ -21,6 +21,8 @@ import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
 import { JobRole, Permission } from '../types/user.types';
 import { abDriveConfigService } from './AbDriveConfigService';
+import { sendSystemEmail } from '../external/google/system-mail';
+import { env } from '../config/env';
 import { logger } from '../external/logger';
 import { PDFDocument } from 'pdf-lib';
 
@@ -38,6 +40,23 @@ function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
             filter.sectors?.length ||
             filter.localisations?.length,
     );
+}
+
+// Région de l'AB (NORD/OUEST/SUD) → libellé du secteur des users (Nord-Est/Ouest/Sud).
+const REGION_TO_USER_SECTOR: Record<string, string> = {
+    NORD: 'Nord-Est',
+    OUEST: 'Ouest',
+    SUD: 'Sud',
+};
+
+/** Vrai si l'utilisateur est rattaché au secteur de l'AB (ou n'a pas de secteur défini). */
+function userBelongsToSector(user: { sectors?: string | string[] | null }, region: string | undefined): boolean {
+    if (!region) return true;
+    const sector = REGION_TO_USER_SECTOR[region];
+    if (!sector) return true;
+    const raw = user.sectors;
+    const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? (JSON.parse(raw) as string[]) : [];
+    return list.length === 0 || list.includes(sector);
 }
 
 async function countPdfPages(buffer: Buffer): Promise<number> {
@@ -107,6 +126,26 @@ export class NeedsAnalysisService {
     async findByCompanyId(companyId: number): Promise<NeedsAnalysisGql[]> {
         const docs = await this.repository.findByCompanyId(companyId);
         return docs.map(toNeedsAnalysis);
+    }
+
+    async findForDashboard(limit: number, regions?: string[]): Promise<{
+        items: { id: string; companyName: string | null; positionsCount: number; createdAt: string | null; status: string }[];
+        totalCount: number;
+    }> {
+        const [docs, totalCount] = await Promise.all([
+            this.repository.findByStatusNotBrouillon(limit, regions),
+            this.repository.countByStatusNotBrouillon(regions),
+        ]);
+        return {
+            items: docs.map((doc) => ({
+                id: doc._id!,
+                companyName: doc.company_infos?.name ?? null,
+                positionsCount: doc.positions?.length ?? 0,
+                createdAt: doc.created_at?.toISOString() ?? null,
+                status: doc.status ?? 'BROUILLON',
+            })),
+            totalCount,
+        };
     }
 
     async create(data: Partial<NeedsAnalysisWriteInput>): Promise<NeedsAnalysisGql> {
@@ -339,6 +378,7 @@ export class NeedsAnalysisService {
 
         // RH + Responsables + Admin : tous ont accès à l'espace de matching.
         const rhUsers = (await this.userRepository.findByRoleIds([2, 4, 5])) ?? [];
+        const onlyRhUsers = rhUsers.filter((u) => u.role_name === JobRole.RH);
         const positionsLabel = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
         await Promise.all(
             rhUsers.map((user) =>
@@ -354,6 +394,40 @@ export class NeedsAnalysisService {
             ),
         );
         logger.info({ id: analysisId, recipients: rhUsers.length }, '[NeedsAnalysis] RH notified');
+
+        // Notifier par email uniquement les RH du secteur de l'AB
+        const region = doc.company_infos?.sector;
+        const emailRecipients = onlyRhUsers.filter(
+            (user) => user.email && userBelongsToSector(user, region),
+        );
+        const positionsHtml = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
+        await Promise.all(
+            emailRecipients.map((user) => {
+                const recipientName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+                return sendSystemEmail({
+                    to: user.email,
+                    subject: `Nouvelle Analyse du Besoin — ${companyName}`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <p>Bonjour${recipientName ? ` ${recipientName}` : ''},</p>
+                            <p>Une nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.</p>
+                            <p><strong>${companyName}</strong> — ${positionsHtml} à pourvoir</p>
+                            <p style="margin-top: 20px;">
+                                <a href="${env.FRONTEND_BASE_URL}/rh/matching?needsAnalysis=${analysisId}"
+                                   style="display: inline-block; background: #1130A7; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+                                    Voir les candidats
+                                </a>
+                            </p>
+                            <br />
+                            <p style="margin-bottom: 0;">Cordialement,</p>
+                            <p style="margin-top: 4px; font-weight: bold; color: #1130A7;">L'équipe Disciplina</p>
+                        </div>
+                    `,
+                    text: `Bonjour${recipientName ? ` ${recipientName}` : ''},\n\nUne nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.\n\n${companyName} — ${positionsHtml} à pourvoir\n\nAccéder au matching : ${env.FRONTEND_BASE_URL}/rh/matching?needsAnalysis=${analysisId}\n\nCordialement,\nL'équipe Disciplina`,
+                });
+            }),
+        );
+        logger.info({ id: analysisId, recipients: emailRecipients.length }, '[NeedsAnalysis] RH emailed');
 
         // Responsables + RH: create an actionable todo
         const todoRecipients = rhUsers.filter(

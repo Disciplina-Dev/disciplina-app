@@ -27,6 +27,7 @@ import {
   CREATE_NEEDS_ANALYSIS,
   GET_NEEDS_ANALYSES_BY_COMPANY,
   GET_NEEDS_ANALYSES_PAGE,
+  NEEDS_ANALYSES_FOR_DASHBOARD,
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
@@ -1022,4 +1023,34 @@ export function useCreateFilizFolder() {
     })
 
   return { createFilizFolder }
+}
+
+export interface NeedsAnalysisDashboardItem {
+  id: string
+  companyName: string | null
+  positionsCount: number
+  createdAt: string | null
+  status: string
+}
+
+export function useNeedsAnalysesForDashboard(limit = 5) {
+  const [result, reexecuteQuery] = useQuery({
+    query: NEEDS_ANALYSES_FOR_DASHBOARD,
+    variables: { limit },
+    context: { url: NEEDS_ANALYSIS_URL },
+    requestPolicy: 'network-only',
+  })
+
+  const items: NeedsAnalysisDashboardItem[] = (result.data?.needsAnalysesForDashboard?.items ?? []).map(
+    (item: NeedsAnalysisDashboardItem) => item,
+  )
+  const totalCount: number = result.data?.needsAnalysesForDashboard?.totalCount ?? 0
+
+  return {
+    items,
+    totalCount,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
 }
