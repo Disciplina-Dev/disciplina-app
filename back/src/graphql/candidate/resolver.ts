@@ -152,6 +152,7 @@ export const resolvers = {
                   }
                 : undefined;
             const candidates = await candidateService.findPage(pageSize, after, search, filters);
+            const totalCount = await candidateService.countPage(search, filters);
             const conn = buildConnection(
                 candidates,
                 encodeCandidateCursor,
@@ -160,6 +161,7 @@ export const resolvers = {
             return {
                 edges: conn.edges.map((edge) => ({ ...edge, node: candidateToGql(edge.node) })),
                 pageInfo: conn.pageInfo,
+                totalCount,
             };
         },
         candidateStats: async (_: unknown, { sectors }: { sectors?: string[] }, context: any) => {

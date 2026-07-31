@@ -85,6 +85,7 @@ export const GET_COMPANIES = gql`
         startCursor
         endCursor
       }
+      totalCount
     }
   }
 `
@@ -128,6 +129,7 @@ export const GET_COMPANIES_BY_SIREN = gql`
         startCursor
         endCursor
       }
+      totalCount
     }
   }
 `
@@ -492,6 +494,7 @@ export const GET_CANDIDATES_PAGE = gql`
         startCursor
         endCursor
       }
+      totalCount
     }
   }
   ${CANDIDATE_FIELDS}

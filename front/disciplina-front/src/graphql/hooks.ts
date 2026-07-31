@@ -659,7 +659,7 @@ export function useCandidates() {
 
 /**
  * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
- * Returns { candidates, pageInfo, loading, error, refetch }.
+ * Returns { candidates, pageInfo, totalCount, loading, error, refetch }.
  */
 export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters) {
   const [result, reexecuteQuery] = useQuery({
@@ -671,10 +671,12 @@ export function useCandidatesPage(first?: number, after?: string, search?: strin
 
   const candidates: Candidate[] = (result.data?.candidatesPage?.edges ?? []).map((edge: { node: Record<string, unknown> }) => fromGql(edge.node))
   const pageInfo: PageInfo | undefined = result.data?.candidatesPage?.pageInfo
+  const totalCount: number = result.data?.candidatesPage?.totalCount ?? 0
 
   return {
     candidates,
     pageInfo,
+    totalCount,
     loading: result.fetching,
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),

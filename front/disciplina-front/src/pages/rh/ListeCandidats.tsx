@@ -193,7 +193,7 @@ export default function ListeCandidats() {
 
   const serverFilters = useMemo(() => toServerFilters(filters, activeTab), [filters, activeTab]);
 
-  const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
+  const { candidates, pageInfo, totalCount, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
 
   // Sync server candidates into local state (enables optimistic edits)
@@ -323,7 +323,7 @@ export default function ListeCandidats() {
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Candidats</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {localCandidates.length} candidat{localCandidates.length !== 1 ? 's' : ''} trouvé{localCandidates.length !== 1 ? 's' : ''}
+            {localCandidates.length} candidat{localCandidates.length !== 1 ? 's' : ''} trouvé{localCandidates.length !== 1 ? 's' : ''} sur {totalCount}
           </p>
         </div>
 

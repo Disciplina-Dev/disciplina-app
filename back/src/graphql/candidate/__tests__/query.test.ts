@@ -95,6 +95,7 @@ describe('GraphQL candidate queries', () => {
             candidatesPage(first: $first, after: $after) {
                 edges { cursor node { id } }
                 pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                totalCount
             }
         }`;
 
@@ -107,6 +108,7 @@ describe('GraphQL candidate queries', () => {
 
         expect(firstPage.edges).toHaveLength(2);
         expect(firstPage.pageInfo.hasNextPage).toBe(true);
+        expect(firstPage.totalCount).toBe(3);
 
         const secondPageRes = await fetch(ENDPOINT, {
             method: 'POST',
@@ -409,6 +411,7 @@ describe('candidatesPage with filters', () => {
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
                         edges { node { id tpType } }
+                        totalCount
                     }
                 }`,
                 variables: { search: `FLT-TP-${suffix}`, filters: { tpType: 'SA' } },
@@ -420,6 +423,7 @@ describe('candidatesPage with filters', () => {
         expect(json.errors).toBeUndefined();
         const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
         expect(nodes).toHaveLength(2);
+        expect(json.data.candidatesPage.totalCount).toBe(2);
         expect(nodes.every((n: any) => n.tpType === 'SA')).toBe(true);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-1`);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-2`);

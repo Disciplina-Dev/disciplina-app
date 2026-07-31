@@ -108,10 +108,10 @@ export class CandidateRepository {
         return CandidateModel.find().sort({ created_at: -1, _id: 1 }).lean();
     }
 
-    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
+    /** Construit les conditions Mongo dérivées des filtres (hors recherche et curseur). */
+    private buildConditions(filters?: CandidateFilters): Record<string, any>[] {
         const conditions: Record<string, any>[] = [];
 
-        const trimmedSearch = search?.trim();
         if (filters?.trainingSite) conditions.push({ training_site: filters.trainingSite });
         if (filters?.statusIn?.length) conditions.push({ status: { $in: filters.statusIn } });
         else if (filters?.status) conditions.push({ status: filters.status });
@@ -156,7 +156,13 @@ export class CandidateRepository {
                 ],
             });
         }
+        return conditions;
+    }
 
+    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
+        const conditions = this.buildConditions(filters);
+
+        const trimmedSearch = search?.trim();
         // Keyset sur (created_at DESC, _id ASC) : les fiches datées les plus récentes
         // d'abord, les non datées (created_at absent) en dernier.
         if (after && !trimmedSearch) {
@@ -222,6 +228,39 @@ export class CandidateRepository {
             if (aTime !== bTime) return bTime - aTime;
             return String(a._id).localeCompare(String(b._id));
         });
+    }
+
+    /** Compte les candidats correspondant à la recherche + filtres (même logique que findPage). */
+    async countPage(search?: string, filters?: CandidateFilters): Promise<number> {
+        const conditions = this.buildConditions(filters);
+        const trimmedSearch = search?.trim();
+
+        if (!trimmedSearch) {
+            const filter = conditions.length ? { $and: conditions } : {};
+            return CandidateModel.countDocuments(filter);
+        }
+
+        // Même combinaison `$text` ∪ `$regex` que findPage : on déduplique par _id.
+        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
+        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase } }] };
+        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
+        const regexFilter = {
+            $and: [
+                ...conditions,
+                {
+                    $or: [
+                        { 'identity.description': { $regex: regexPattern, $options: 'i' } },
+                        { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
+                    ],
+                },
+            ],
+        };
+
+        const [textIds, regexIds] = await Promise.all([
+            CandidateModel.distinct('_id', textFilter),
+            CandidateModel.distinct('_id', regexFilter),
+        ]);
+        return new Set([...textIds.map(String), ...regexIds.map(String)]).size;
     }
 
     async findById(id: string): Promise<Candidate | null> {

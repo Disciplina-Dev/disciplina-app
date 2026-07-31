@@ -30,9 +30,17 @@ export class CompaniesService {
         return rows.map(toCompanies);
     }
 
+    async countAll(search?: string, filters?: CompanyFilters): Promise<number> {
+        return this.repository.countAll(search, filters);
+    }
+
     async findGroupedBySiren(first?: number, after?: string, filters?: CompanyFilters): Promise<CompanySirenGroup[]> {
         const rows = await this.repository.findGroupedBySiren(first, after, filters);
         return rows.map(toSirenGroup);
+    }
+
+    async countGroupedBySiren(filters?: CompanyFilters): Promise<number> {
+        return this.repository.countGroupedBySiren(filters);
     }
 
     async getStats(year: number, userID?: number | null): Promise<CompanyStats> {

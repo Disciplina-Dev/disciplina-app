@@ -28,6 +28,10 @@ export class CandidateService {
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
+    async countPage(search?: string, filters?: CandidateFilters): Promise<number> {
+        return this.repository.countPage(search, filters);
+    }
+
     async findById(id: string): Promise<Candidate | null> {
         const candidate = await this.repository.findById(id);
         return candidate ? this.refreshAvailability(candidate) : null;
