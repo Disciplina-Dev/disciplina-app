@@ -306,4 +306,70 @@ describe('GraphQL Needs Analysis integration', () => {
         expect(fetchJson.errors).toBeUndefined();
         expect(fetchJson.data.needsAnalysis.status).toBe('SIGNE');
     });
+
+    it('markNeedsAnalysisSigned marks status SIGNE and creates offers without Yousign', async () => {
+        const input = {
+            companyID: companyId,
+            userID: userId,
+            recruitmentResponsibleName: 'Jean Dupont',
+            recruitmentResponsiblePhone: '0692112233',
+            recruitmentResponsibleEmail: 'jean.dupont@company.local',
+            positions: [
+                {
+                    trainingDomain: 'VENTE',
+                    title: 'Apprenti Conseiller de Vente',
+                    localisation: ['SAINT_DENIS'],
+                    desiredTp: [{ missions: ['Accueil client'] }],
+                    criteria: {
+                        educationLevel: 'BAC',
+                        drivingLicense: false,
+                        experienceRequired: false,
+                        softSkills: 'Dynamique',
+                    },
+                },
+            ],
+            recruitmentMethod: 'PRESELECTION',
+            immersionPeriod: 'OUI',
+            trainingDays: JSON.stringify({ monday: ['MATIN'] }),
+            status: 'BROUILLON',
+        };
+
+        const createMutation = `
+            mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
+                createNeedsAnalysis(input: $input) { id status }
+            }
+        `;
+        const { json: createJson } = await graphql(createMutation, { input });
+        expect(createJson.errors).toBeUndefined();
+        const created = createJson.data.createNeedsAnalysis;
+        expect(created.status).toBe('BROUILLON');
+
+        const signMutation = `
+            mutation MarkSigned($id: ID!) {
+                markNeedsAnalysisSigned(id: $id) { id status }
+            }
+        `;
+        const { json: signJson } = await graphql(signMutation, { id: created.id });
+        expect(signJson.errors).toBeUndefined();
+        expect(signJson.data.markNeedsAnalysisSigned.status).toBe('SIGNE');
+
+        // The candidate having found their own contract skips Yousign entirely, but
+        // the matching offer must still be generated so it can be linked to them.
+        const offersEndpoint = `http://localhost:${env.API_PORT}/api/graphql/offers`;
+        const offersRes = await fetch(offersEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: authCookies.cookieHeader,
+                'x-csrf-token': authCookies.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($needsAnalysisId: String!) { offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) { id status } }`,
+                variables: { needsAnalysisId: created.id },
+            }),
+        });
+        const offersJson = await offersRes.json();
+        expect(offersJson.errors).toBeUndefined();
+        expect(offersJson.data.offersByNeedsAnalysis.length).toBeGreaterThan(0);
+    });
 });

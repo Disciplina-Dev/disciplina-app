@@ -35,10 +35,10 @@ import { PDFDocument } from 'pdf-lib';
 function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
     return Boolean(
         filter.search ||
-            filter.statuses?.length ||
-            filter.desiredTp?.length ||
-            filter.sectors?.length ||
-            filter.localisations?.length,
+        filter.statuses?.length ||
+        filter.desiredTp?.length ||
+        filter.sectors?.length ||
+        filter.localisations?.length,
     );
 }
 
@@ -179,8 +179,17 @@ export class NeedsAnalysisService {
         return docs.map(toNeedsAnalysis);
     }
 
-    async findForDashboard(limit: number, regions?: string[]): Promise<{
-        items: { id: string; companyName: string | null; positionsCount: number; createdAt: string | null; status: string }[];
+    async findForDashboard(
+        limit: number,
+        regions?: string[],
+    ): Promise<{
+        items: {
+            id: string;
+            companyName: string | null;
+            positionsCount: number;
+            createdAt: string | null;
+            status: string;
+        }[];
         totalCount: number;
     }> {
         const [docs, totalCount] = await Promise.all([
@@ -448,9 +457,7 @@ export class NeedsAnalysisService {
 
         // Notifier par email uniquement les RH du secteur de l'AB
         const region = doc.company_infos?.sector;
-        const emailRecipients = onlyRhUsers.filter(
-            (user) => user.email && userBelongsToSector(user, region),
-        );
+        const emailRecipients = onlyRhUsers.filter((user) => user.email && userBelongsToSector(user, region));
         const positionsHtml = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
         await Promise.all(
             emailRecipients.map((user) => {
@@ -571,6 +578,32 @@ export class NeedsAnalysisService {
             ...(toCreate.length ? [this.offerRepository.createMany(toCreate)] : []),
             ...toDelete.map((offer) => this.offerRepository.deleteById(offer._id!)),
         ]);
+    }
+
+    /**
+     * Marque une AB comme signée sans passer par le flux Yousign : cas du candidat
+     * ayant trouvé son contrat hors sourcing Disciplina. Crée les offres de matching
+     * si elles n'existent pas encore (normalement générées au premier envoi en
+     * signature), sans notifier les RH puisque le poste est déjà pourvu.
+     */
+    async markSigned(id: string): Promise<NeedsAnalysisGql> {
+        const doc = await this.repository.findById(id);
+        if (!doc) {
+            throw new Error('Needs analysis not found');
+        }
+
+        const existingOffers = await this.offerRepository.findByNeedsAnalysisId(id);
+        if (existingOffers.length === 0) {
+            await this.offerRepository.createMany(buildOffers(doc));
+        }
+
+        await this.repository.update(id, { status: NeedsAnalysisStatus.SIGNE });
+
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        return toNeedsAnalysis(updated);
     }
 
     async delete(id: string): Promise<boolean> {

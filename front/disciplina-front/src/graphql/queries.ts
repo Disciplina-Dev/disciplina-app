@@ -589,6 +589,10 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -720,6 +724,10 @@ export const UPDATE_CANDIDATE = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -897,6 +905,10 @@ export const GET_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1029,6 +1041,10 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1827,6 +1843,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      tags
       createdAt
       updatedAt
     }
@@ -1887,6 +1904,15 @@ export const UPDATE_NEEDS_ANALYSIS = gql`
       id
       status
       updatedAt
+    }
+  }
+`
+
+export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
+  mutation MarkNeedsAnalysisSigned($id: ID!) {
+    markNeedsAnalysisSigned(id: $id) {
+      id
+      status
     }
   }
 `

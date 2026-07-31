@@ -2322,6 +2322,15 @@ function AbHeader({
             {info?.activities && info.activities.length > 0 && (
               <span>{info.activities.map((a: string) => SECTOR_LABELS[a] ?? a).join(' · ')}</span>
             )}
+            {ab?.tags && ab.tags.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1">
+                {ab.tags.map((tag: string) => (
+                  <span key={tag} className="rounded-full bg-blue-light px-2 py-0.5 text-[11px] font-medium text-blue">
+                    {tag}
+                  </span>
+                ))}
+              </span>
+            )}
             {legalReferent?.name && (
               <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {legalReferent.name}</span>
             )}

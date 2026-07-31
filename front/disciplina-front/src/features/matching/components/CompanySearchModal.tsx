@@ -16,7 +16,7 @@ interface CheckSiretResult extends SireneEtablissement {
   blacklistReason: string | null
 }
 
-export function CompanySearchModal({ open, onClose, currentUser }: { open: boolean; onClose: () => void; currentUser: AppUser | null }) {
+export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { open: boolean; onClose: () => void; currentUser: AppUser | null; onSuccess?: (needsAnalysisId: string) => void }) {
   const [mode, setMode] = useState<'search' | 'siret'>('search')
   const [query, setQuery] = useState('')
   const [siret, setSiret] = useState('')
@@ -138,7 +138,7 @@ export function CompanySearchModal({ open, onClose, currentUser }: { open: boole
         entreprise={abCompany}
         currentUser={currentUser!}
         onClose={() => { setAbCompany(null); onClose() }}
-        onSuccess={() => { setAbCompany(null); onClose() }}
+        onSuccess={(needsAnalysisId) => { setAbCompany(null); onSuccess?.(needsAnalysisId); onClose() }}
       />
     )
   }

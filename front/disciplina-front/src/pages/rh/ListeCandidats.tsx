@@ -8,6 +8,7 @@ import {
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateAvatar from '@/components/rh/CandidateAvatar';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
+import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
@@ -210,6 +211,9 @@ export default function ListeCandidats() {
   const [unavailableModal, setUnavailableModal] = useState<{ id: string; candidate: Candidate } | null>(null);
   const [availabilityDate, setAvailabilityDate] = useState('');
 
+  // Modal state for CONTRACT
+  const [contractModal, setContractModal] = useState<{ id: string; candidate: Candidate } | null>(null);
+
   const handleUpdateStatus = async (id: string, newStatus: CandidateStatus) => {
     const candidate = localCandidates.find(c => c._id === id);
     if (!candidate) return;
@@ -224,6 +228,11 @@ export default function ListeCandidats() {
     if (newStatus === CandidateStatus.UNAVAILABLE) {
       setAvailabilityDate(candidate.job_info?.availability_date?.slice(0, 10) ?? '');
       setUnavailableModal({ id, candidate });
+      return;
+    }
+
+    if (newStatus === CandidateStatus.CONTRACT) {
+      setContractModal({ id, candidate });
       return;
     }
 
@@ -584,6 +593,14 @@ export default function ListeCandidats() {
               </select>
               {CANDIDATE_STATUS_LABELS[candidate.status]}
             </div>
+            {candidate.status === CandidateStatus.CONTRACT && candidate.contract_company_name && (
+              <div
+                className="absolute top-8 right-0 px-4 py-0.5 text-[10px] font-medium text-gray-500 text-right max-w-[60%] truncate z-10"
+                title={candidate.contract_company_name}
+              >
+                {candidate.contract_company_name}
+              </div>
+            )}
 
             {/* Card Header: Avatar */}
             <div className="mb-4 mt-2">
@@ -817,6 +834,18 @@ export default function ListeCandidats() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Contract modal */}
+      {contractModal && (
+        <ContractModal
+          candidate={contractModal.candidate}
+          onSuccess={(updated) => {
+            setLocalCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));
+            setContractModal(null);
+          }}
+          onClose={() => setContractModal(null)}
+        />
       )}
 
     </div>
