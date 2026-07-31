@@ -447,6 +447,7 @@ export const typeDefs = gql`
     type CandidateConnection {
         edges: [CandidateEdge!]!
         pageInfo: PageInfo!
+        totalCount: Int!
     }
 
     input CandidateFiltersInput {

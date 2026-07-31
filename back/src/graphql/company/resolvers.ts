@@ -135,6 +135,7 @@ export const resolvers = {
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
             const filters = toCompanyFilters(filtersInput);
             const companies = await companiesService.findAll(pageSize, after, search, filters);
+            const totalCount = await companiesService.countAll(search, filters);
             const isRelanceMode = !!filters?.relance;
             const conn = buildConnection(
                 companies,
@@ -150,7 +151,7 @@ export const resolvers = {
                     },
                 })),
             );
-            return { ...conn, edges: enrichedEdges };
+            return { ...conn, edges: enrichedEdges, totalCount };
         },
 
         companiesBySiren: async (
@@ -162,7 +163,8 @@ export const resolvers = {
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
             const filters = toCompanyFilters(filtersInput);
             const groups = await companiesService.findGroupedBySiren(pageSize, after, filters);
-            return buildConnection(groups, (g) => g.siren, pageSize);
+            const totalCount = await companiesService.countGroupedBySiren(filters);
+            return { ...buildConnection(groups, (g) => g.siren, pageSize), totalCount };
         },
 
         // Liste légère (id + nom) pour les sélecteurs d'entreprise côté RH

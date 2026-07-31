@@ -40,6 +40,7 @@ export const typeDefs = gql`
     type CompanySirenGroupConnection {
         edges: [CompanySirenGroupEdge!]!
         pageInfo: PageInfo!
+        totalCount: Int!
     }
 
     input CompanyFiltersInput {
@@ -86,6 +87,7 @@ export const typeDefs = gql`
     type CompanyConnection {
         edges: [CompanyEdge!]!
         pageInfo: PageInfo!
+        totalCount: Int!
     }
 
     type BlacklistedCompany {

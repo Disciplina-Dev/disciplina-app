@@ -155,7 +155,7 @@ describe('GraphQL company queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: '{ companies(first: 2) { edges { cursor node { company { id name } } } pageInfo { hasNextPage endCursor } } }',
+                query: '{ companies(first: 2) { edges { cursor node { company { id name } } } pageInfo { hasNextPage endCursor } totalCount } }',
             }),
         });
         const page1 = await page1Res.json();
@@ -163,6 +163,7 @@ describe('GraphQL company queries', () => {
         expect(page1.errors).toBeUndefined();
         expect(page1.data.companies.edges).toHaveLength(2);
         expect(page1.data.companies.pageInfo.hasNextPage).toBe(true);
+        expect(page1.data.companies.totalCount).toBe(3);
 
         const page2Res = await fetch(ENDPOINT, {
             method: 'POST',
@@ -172,7 +173,7 @@ describe('GraphQL company queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: `query($after: String!) { companies(first: 2, after: $after) { edges { node { company { id name } } } pageInfo { hasNextPage } } }`,
+                query: `query($after: String!) { companies(first: 2, after: $after) { edges { node { company { id name } } } pageInfo { hasNextPage } totalCount } }`,
                 variables: { after: page1.data.companies.pageInfo.endCursor },
             }),
         });
@@ -181,6 +182,90 @@ describe('GraphQL company queries', () => {
         expect(page2.errors).toBeUndefined();
         expect(page2.data.companies.edges).toHaveLength(1);
         expect(page2.data.companies.pageInfo.hasNextPage).toBe(false);
+        expect(page2.data.companies.totalCount).toBe(3);
+    });
+
+    it('groups companies by siren with a distinct siren totalCount', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CompanyRepository();
+
+        // Deux entreprises partagent le même SIREN → un seul groupe, mais totalCount par entreprise.
+        const siren = String(suffix).slice(-8).padStart(9, '1');
+        await repo.create({
+            name: `Siren Corp A ${suffix}`,
+            siret: `${siren}00001`,
+            address: 'Place',
+            sector: 'IT',
+            conclusion: 'conclusion',
+        });
+        await repo.create({
+            name: `Siren Corp B ${suffix}`,
+            siret: `${siren}00002`,
+            address: 'Place',
+            sector: 'IT',
+            conclusion: 'conclusion',
+        });
+        await repo.create({
+            name: `Lone Corp ${suffix}`,
+            siret: `${suffix}9999999999`.slice(0, 14),
+            address: 'Place',
+            sector: 'IT',
+            conclusion: 'conclusion',
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `{ companiesBySiren { edges { node { siren count } } pageInfo { hasNextPage } totalCount } }`,
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.companiesBySiren.edges).toHaveLength(2);
+        expect(json.data.companiesBySiren.totalCount).toBe(2);
+        const shared = json.data.companiesBySiren.edges.find((e: any) => e.node.siren === siren);
+        expect(shared?.node.count).toBe(2);
+    });
+
+    it('totalCount reflects active filters', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CompanyRepository();
+
+        await repo.create({
+            name: `Filtered Corp Oui ${suffix}`,
+            siret: `${suffix}1111111111`.slice(0, 14),
+            address: 'Place',
+            sector: 'IT',
+            conclusion: 'conclusion',
+            status: 'Oui',
+        });
+        await repo.create({
+            name: `Filtered Corp Non ${suffix}`,
+            siret: `${suffix}2222222222`.slice(0, 14),
+            address: 'Place',
+            sector: 'IT',
+            conclusion: 'conclusion',
+            status: 'Non',
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($filters: CompanyFiltersInput) { companies(filters: $filters) { edges { node { company { id } } } totalCount } }`,
+                variables: { filters: { status: ['Oui'] } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.companies.totalCount).toBe(1);
     });
 
     it('returns all sale persons', async () => {
