@@ -1306,8 +1306,8 @@ export const MATCH_OFFER = gql`
 `
 
 export const CREATE_MATCH_SESSION = gql`
-  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!) {
-    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates)
+  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!, $templateId: String) {
+    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates, templateId: $templateId)
   }
 `
 
@@ -1917,5 +1917,20 @@ export const ADD_OFFER_HISTORY_ENTRY = gql`
 export const DELETE_OFFER_HISTORY_ENTRY = gql`
   mutation DeleteOfferHistoryEntry($id: String!) {
     deleteOfferHistoryEntry(id: $id)
+  }
+`
+
+export const NEEDS_ANALYSES_FOR_DASHBOARD = gql`
+  query NeedsAnalysesForDashboard($limit: Int) {
+    needsAnalysesForDashboard(limit: $limit) {
+      items {
+        id
+        companyName
+        positionsCount
+        createdAt
+        status
+      }
+      totalCount
+    }
   }
 `

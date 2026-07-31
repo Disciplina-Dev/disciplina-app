@@ -1,5 +1,5 @@
 import { NeedsAnalysisModel } from '../../db/mongo/schemas/needsAnalysis.schema';
-import { NeedsAnalysis } from '../../types/needsAnalysisNoSql.types';
+import { NeedsAnalysis, NeedsAnalysisStatus } from '../../types/needsAnalysisNoSql.types';
 import { decodeCursor } from '../../services/pagination';
 
 /**
@@ -75,5 +75,24 @@ export class NeedsAnalysisRepository {
 
     async delete(id: string): Promise<boolean> {
         return (await NeedsAnalysisModel.deleteOne({ _id: id })).deletedCount > 0;
+    }
+
+    async findByStatusNotBrouillon(limit: number = 10, regions?: string[]): Promise<NeedsAnalysis[]> {
+        const filter: Record<string, any> = { status: { $ne: NeedsAnalysisStatus.BROUILLON } };
+        if (regions?.length) {
+            filter['company_infos.sector'] = { $in: regions };
+        }
+        return NeedsAnalysisModel.find(filter)
+            .sort({ created_at: -1 })
+            .limit(limit)
+            .lean();
+    }
+
+    async countByStatusNotBrouillon(regions?: string[]): Promise<number> {
+        const filter: Record<string, any> = { status: { $ne: NeedsAnalysisStatus.BROUILLON } };
+        if (regions?.length) {
+            filter['company_infos.sector'] = { $in: regions };
+        }
+        return NeedsAnalysisModel.countDocuments(filter);
     }
 }

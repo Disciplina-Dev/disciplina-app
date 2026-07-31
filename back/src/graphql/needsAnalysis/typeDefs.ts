@@ -276,10 +276,24 @@ export const typeDefs = gql`
         localisations: [String!]
     }
 
+    type NeedsAnalysisDashboardItem {
+        id: ID!
+        companyName: String
+        positionsCount: Int!
+        createdAt: String
+        status: NeedsAnalysisStatus!
+    }
+
+    type NeedsAnalysisDashboard {
+        items: [NeedsAnalysisDashboardItem!]!
+        totalCount: Int!
+    }
+
     type Query {
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
         needsAnalysesPage(first: Int, after: String, filter: OfferFilterInput): NeedsAnalysisConnection!
+        needsAnalysesForDashboard(limit: Int): NeedsAnalysisDashboard!
         abDriveConfig: AbDriveConfig!
     }
 
