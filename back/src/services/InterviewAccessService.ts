@@ -5,6 +5,7 @@ import { generateSignature, generateNumericCode, timingSafeEqualString } from '.
 import { issueInterviewToken } from './interviewToken';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { CandidateHistoryType } from '../types/candidate.types';
+import { OfferHistoryService } from './OfferHistoryService';
 import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './signedAccess';
 
 export type { AuthResult };
@@ -40,6 +41,7 @@ export class InterviewAccessService {
         private readonly repository = new InterviewAccessRepository(),
         private readonly offerRepository = new OfferRepository(),
         private readonly candidateHistoryService = new CandidateHistoryService(),
+        private readonly offerHistoryService = new OfferHistoryService(),
     ) {}
 
     async createAccess(
@@ -125,6 +127,7 @@ export class InterviewAccessService {
                 slot,
             )} à ${offer.matching?.interview_location ?? '—'}`,
         );
+        await this.offerHistoryService.recordAuto(row.offer_uuid, `Créneau d'entretien réservé : ${formatFr(slot)}`);
         await this.repository.setStatus(signature, InterviewAccessStatus.COMPLETED);
     }
 
