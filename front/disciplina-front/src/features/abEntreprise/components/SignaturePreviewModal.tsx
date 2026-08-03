@@ -4,6 +4,7 @@ import { Check, FileText, Mail, PenLine, Save, X } from 'lucide-react'
 import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
+import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { cleanHtml } from '@/services/sanitizeHtml'
 
 // Aperçu avant l'envoi en signature : le commercial vérifie les documents
@@ -46,11 +47,16 @@ function renderPreview(body: string, vars: Record<string, string>): string {
 }
 
 export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Props) {
+  const { templates, load: loadTemplates } = useCommercialMailTemplatesStore()
   const [activeTab, setActiveTab] = useState<TabKey>('ab')
   const [pdfUrls, setPdfUrls] = useState<Record<TabKey, string | null>>({ ab: null, mandat: null, catalogue: null })
   const [email, setEmail] = useState<EmailData | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [selectedTemplateName, setSelectedTemplateName] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [baseSubject, setBaseSubject] = useState('')
+  const [baseBody, setBaseBody] = useState('')
   const [showPreview, setShowPreview] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -101,6 +107,49 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
     }
   }, [abId])
 
+  useEffect(() => {
+    loadTemplates()
+  }, [loadTemplates])
+
+  useEffect(() => {
+    if (!email || selectedTemplateId) return
+    const currentTemplate = email.templateId ? templates.find((t) => t.id === email.templateId) : templates[0]
+    if (currentTemplate) {
+      setSelectedTemplateId(currentTemplate.id)
+      setSelectedTemplateName(currentTemplate.name)
+      setSubject(currentTemplate.subject)
+      setBody(currentTemplate.body)
+      setBaseSubject(currentTemplate.subject)
+      setBaseBody(currentTemplate.body)
+      return
+    }
+    setSelectedTemplateId(email.templateId ?? '')
+    setSelectedTemplateName(email.templateName ?? 'Analyse du Besoin à signer')
+    setSubject(email.subject)
+    setBody(email.body)
+    setBaseSubject(email.subject)
+    setBaseBody(email.body)
+  }, [email, templates, selectedTemplateId])
+
+  const currentTemplate = email?.templateId
+    ? { id: email.templateId, name: email.templateName ?? 'Analyse du Besoin à signer', subject: email.subject, body: email.body }
+    : null
+  const availableTemplates = currentTemplate
+    ? [currentTemplate, ...templates.filter((t) => t.id !== currentTemplate.id)]
+    : templates
+
+  function applyTemplate(template: { id: string; name: string; subject: string; body: string }) {
+    setSelectedTemplateId(template.id)
+    setSelectedTemplateName(template.name)
+    setSubject(template.subject)
+    setBody(template.body)
+    setBaseSubject(template.subject)
+    setBaseBody(template.body)
+    setSavedTpl(false)
+    setTplError(null)
+    setShowPreview(false)
+  }
+
   const handleConfirm = async () => {
     setSending(true)
     try {
@@ -110,21 +159,24 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
     }
   }
 
-  // Enregistre le mail édité comme modèle système « AB à signer ».
+  // Enregistre le mail édité dans le modèle commercial sélectionné.
   const handleSaveTemplate = async () => {
-    if (!email?.templateId) return
+    if (!selectedTemplateId) return
     setSavingTpl(true)
     setTplError(null)
     try {
-      const res = await apiFetch(`/api/mail-templates/${email.templateId}`, {
+      const res = await apiFetch(`/api/mail-templates/${selectedTemplateId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: email.templateName ?? 'Analyse du Besoin à signer', subject, body }),
+        body: JSON.stringify({ name: selectedTemplateName || 'Analyse du Besoin à signer', subject, body }),
       })
       if (!res.ok) {
         const b = await res.json().catch(() => null)
         throw new Error(b?.error || `Échec de l'enregistrement (${res.status})`)
       }
+      await loadTemplates(true)
+      setBaseSubject(subject)
+      setBaseBody(body)
       setSavedTpl(true)
       setTimeout(() => setSavedTpl(false), 2500)
     } catch (err) {
@@ -135,7 +187,7 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
   }
 
   const activeUrl = pdfUrls[activeTab]
-  const dirty = !!email && (subject !== email.subject || body !== email.body)
+  const dirty = subject !== baseSubject || body !== baseBody
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -193,6 +245,29 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
               </button>
             </div>
 
+            {availableTemplates.length > 0 && (
+              <div className="mb-3 flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-gray-500">Modèle de mail</label>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => {
+                    const template = availableTemplates.find((t) => t.id === e.target.value)
+                    if (template) applyTemplate(template)
+                  }}
+                  className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue"
+                >
+                  {availableTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.id === email?.templateId ? `${t.name} (par défaut)` : t.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400">
+                  Le modèle actuel reste sélectionné par défaut. Les commerciaux peuvent choisir un autre modèle personnel.
+                </p>
+              </div>
+            )}
+
             {/* Objet */}
             <label className="mb-1 block text-xs font-medium text-gray-500">Objet</label>
             <input
@@ -223,12 +298,12 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
             </p>
 
             {/* Enregistrer comme modèle */}
-            {email?.templateId && (
+            {selectedTemplateId && (
               <div className="mt-3 flex items-center gap-3 border-t border-gray-200 pt-3">
                 <button
                   type="button"
                   onClick={handleSaveTemplate}
-                  disabled={savingTpl || !dirty}
+                  disabled={savingTpl || !dirty || !selectedTemplateId}
                   className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-blue hover:text-blue disabled:opacity-40">
                   {savedTpl ? <Check size={13} /> : <Save size={13} />}
                   {savedTpl ? 'Modèle enregistré' : 'Enregistrer comme modèle'}
