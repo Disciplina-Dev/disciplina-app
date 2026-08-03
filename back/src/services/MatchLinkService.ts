@@ -7,6 +7,7 @@ import { generateSignature, generateNumericCode, generateIdentifier, timingSafeE
 import { issueMatchToken } from './matchToken';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { CandidateHistoryType } from '../types/candidate.types';
+import { OfferHistoryService } from './OfferHistoryService';
 import { InterviewAccessService } from './InterviewAccessService';
 import { InterviewMailService } from './InterviewMailService';
 import { TodoService } from './TodoService';
@@ -84,6 +85,7 @@ export class MatchLinkService {
         private readonly interviewMailService = new InterviewMailService(),
         private readonly todoService = new TodoService(),
         private readonly userRepository = new UserRepository(),
+        private readonly offerHistoryService = new OfferHistoryService(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -99,6 +101,12 @@ export class MatchLinkService {
                 `Le CV du candidat a été envoyé à ${offer.company_infos?.name ?? ''} en attente de réponse`,
             );
         }
+        const count = proposed.length;
+        const plural = count > 1 ? 's' : '';
+        await this.offerHistoryService.recordAuto(
+            input.offerId,
+            `Session de sélection créée : ${count} candidat${plural} proposé${plural} à l’entreprise`,
+        );
 
         const credentials = this.generateCredentials(input);
         await this.matchLinkRepository.create({
@@ -212,6 +220,13 @@ export class MatchLinkService {
                 CandidateHistoryType.COMPANY,
                 this.buildProposedAnswerLabel(answer.status),
             );
+            const candidate = offer?.matching?.candidates?.find((c: MatchingCandidate) => c.id === answer.candidateId);
+            await this.offerHistoryService.recordAuto(
+                row.offer_uuid,
+                `Réponse de l’entreprise pour ${candidate?.full_name ?? 'un candidat'} : ${this.buildOfferAnswerLabel(
+                    answer.status,
+                )}`,
+            );
             if (answer.status === MatchedCandidateStatus.REFUSED && answer.comment) {
                 await this.candidateHistoryService.recordAuto(
                     answer.candidateId,
@@ -235,6 +250,7 @@ export class MatchLinkService {
             }
         }
         await this.matchLinkRepository.setStatus(signature, MatchLinkStatus.COMPLETED);
+        await this.offerHistoryService.recordAuto(row.offer_uuid, 'Session de sélection complétée par l’entreprise');
     }
 
     // L'entreprise a fini son matching pour ce candidat : To-Do RH pour organiser
@@ -289,6 +305,17 @@ export class MatchLinkService {
                 return "Le candidat est le coup de cœur de l'entreprise";
             default:
                 return "L'entreprise garde le candidat pour un entretien";
+        }
+    }
+
+    private buildOfferAnswerLabel(status: MatchedCandidateStatus): string {
+        switch (status) {
+            case MatchedCandidateStatus.REFUSED:
+                return 'candidat refusé';
+            case MatchedCandidateStatus.IMMERSING:
+                return 'coup de cœur (immersion proposée)';
+            default:
+                return 'candidat retenu pour un entretien';
         }
     }
 
