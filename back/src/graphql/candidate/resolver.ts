@@ -10,6 +10,7 @@ import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { camelToSnakeCase, candidateToGql, offerToMatchedOfferGql } from '../../services/mappers/candidate.mapper';
 import { logger } from '../../external/logger';
+import { decryptSsn } from '../../external/crypto/ssn-cipher';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
@@ -201,7 +202,10 @@ export const resolvers = {
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(candidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
+            return {
+                ...candidateToGql(candidate),
+                matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)),
+            };
         },
         candidateHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -212,6 +216,13 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const config = await driveFolderConfigService.getConfig();
             return driveFolderConfigToGql(config);
+        },
+        unmaskCandidateSsn: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const candidate = await candidateService.findById(id);
+            const ssn = candidate?.identity?.social_security_number;
+            if (!ssn) return null;
+            return decryptSsn(ssn);
         },
     },
     Mutation: {
@@ -298,7 +309,10 @@ export const resolvers = {
             }
 
             const matchedOffers = await candidateService.matchOffers(id);
-            return { ...candidateToGql(newCandidate), matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)) };
+            return {
+                ...candidateToGql(newCandidate),
+                matchedOffers: matchedOffers.map((o) => offerToMatchedOfferGql(o, id)),
+            };
         },
 
         updateCandidate: async (

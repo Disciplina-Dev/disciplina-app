@@ -152,6 +152,16 @@ function assertConsent(candidate: Candidate, type: keyof CandidateConsentments) 
 ### Constat
 Aucun fichier `PRIVACY.md`, route `/privacy` ou mention légale trouvée dans le projet.
 
+> **Traité (août 2026)** — un corpus légal a été rédigé et publié : CGU (socle
+> commun + annexes candidat / entreprise / utilisateur interne), mentions légales,
+> politique de confidentialité et politique de cookies. Sources Markdown dans
+> `front/disciplina-front/src/content/legal/`, rendues aux routes `/legal/*`
+> (voir `rgpd/README.md`).
+>
+> **Reste à faire avant publication** : renseigner les placeholders `[[...]]`
+> (identité de l'organisme, SIRET, hébergeur, contact DPO, médiateur de la
+> consommation) et faire relire le corpus par un conseil juridique.
+
 ### Correction
 
 **Créer une page front-end `/public/privacy` accessible sans auth :**
@@ -940,6 +950,15 @@ export function auditAccess(
 ### Constat
 Les portails accessibles aux candidats et entreprises via lien signé (`/public/match`, `/public/interview`, `/public/external`) ne contiennent aucune mention légale ni lien vers la politique de confidentialité.
 
+> **Partiellement traité (août 2026)** — un pied de page légal
+> (`components/legal/PublicLegalFooter.tsx`) est monté sur tous les portails via
+> une route de layout (`PublicPortalLayout`), couvrant `/public/match`,
+> `/public/interview`, `/public/cv-import` et `/booking/:slug`. Les liens morts du
+> `Footer` applicatif pointent désormais vers les pages `/legal/*`.
+>
+> **Reste ouvert** : les templates d'emails sortants (`MatchMailService`, etc.) ne
+> comportent toujours aucun bloc légal.
+
 ### Correction
 
 **Ajouter un footer RGPD à tous les portails publics :**
@@ -1007,12 +1026,12 @@ const html = `
 ### Priorité critique (faire dans le mois)
 
 - [ ] **F1** Ajouter le consentement explicite des candidats (checkbox + stockage)
-- [ ] **F2** Créer et publier la politique de confidentialité (`/privacy`)
+- [x] **F2** Créer et publier la politique de confidentialité (`/privacy`) — *corpus rédigé et publié ; placeholders et relecture juridique en attente*
 - [ ] **F3** Créer le registre des traitements
 - [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification
 - [ ] **F5** Chiffrer le numéro de sécurité sociale en base
 - [ ] **F11** Nettoyer les secrets du dépôt Git + `.gitignore`
-- [ ] **F15** Ajouter mentions légales + footer RGPD sur les portails publics
+- [ ] **F15** Ajouter mentions légales + footer RGPD sur les portails publics — *fait côté portails et footer applicatif ; reste les templates d'emails*
 
 ### Priorité haute (faire dans le trimestre)
 

@@ -1,4 +1,4 @@
-import { randomBytes, createCipheriv, scryptSync } from 'crypto';
+import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from 'crypto';
 import { env } from '../../config/env';
 import { EncryptedSsn } from '../../types/candidate.types';
 
@@ -16,4 +16,11 @@ export function encryptSsn(plain: string): EncryptedSsn {
     const encrypted = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
     return { encrypted: encrypted.toString('hex'), iv: iv.toString('hex'), tag: tag.toString('hex') };
+}
+
+export function decryptSsn(enc: EncryptedSsn): string {
+    const decipher = createDecipheriv(ALGO, key, Buffer.from(enc.iv, 'hex'));
+    decipher.setAuthTag(Buffer.from(enc.tag, 'hex'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(enc.encrypted, 'hex')), decipher.final()]);
+    return decrypted.toString('utf8');
 }

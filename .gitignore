@@ -21,3 +21,4 @@ scripts/resource
 ollama-data
 .vercel
 docs
+.playwright-mcp
