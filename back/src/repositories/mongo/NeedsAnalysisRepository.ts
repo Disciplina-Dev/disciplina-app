@@ -123,4 +123,22 @@ export class NeedsAnalysisRepository {
         }
         return NeedsAnalysisModel.countDocuments(filter);
     }
+
+    /**
+     * AB envoyées en signature, toujours non signées après `delayMs`, et qui
+     * n'ont pas encore reçu de relance automatique. Exige un lien de signature
+     * conservé (`signature_url`) pour pouvoir reconstruire le bouton.
+     */
+    async findDueSignatureRelance(now: Date, delayMs: number): Promise<NeedsAnalysis[]> {
+        const cutoff = new Date(now.getTime() - delayMs);
+        return NeedsAnalysisModel.find({
+            status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
+            is_deleted: { $ne: true },
+            signature_sent_at: { $lte: cutoff, $ne: null },
+            last_relance_at: null,
+            signature_url: { $exists: true, $ne: null },
+        })
+            .sort({ signature_sent_at: 1 })
+            .lean();
+    }
 }
