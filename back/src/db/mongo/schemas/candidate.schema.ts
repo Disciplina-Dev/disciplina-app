@@ -8,6 +8,7 @@ import {
     SkillLevel,
     DiscoverySource,
     Identity,
+    EncryptedSsn,
     Education,
     Support,
     ProfessionalExperience,
@@ -44,10 +45,19 @@ const emergencyContactSchema = new Schema<EmergencyContact>(
     { _id: false },
 );
 
+const encryptedSsnSchema = new Schema<EncryptedSsn>(
+    {
+        encrypted: { type: String, required: true },
+        iv: { type: String, required: true },
+        tag: { type: String, required: true },
+    },
+    { _id: false },
+);
+
 const identitySchema = new Schema<Identity>(
     {
         full_name: { type: String, required: true },
-        social_security_number: { type: String },
+        social_security_number: { type: encryptedSsnSchema },
         date_of_birth: { type: Date },
         place_of_birth: { type: String },
         department_of_birth: { type: String },
