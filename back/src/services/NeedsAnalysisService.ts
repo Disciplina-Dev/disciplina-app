@@ -322,6 +322,11 @@ export class NeedsAnalysisService {
         await this.repository.update(id, {
             status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
             signature_request_id: submissionId,
+            // Point de départ de la relance auto : une re-sélection manuelle
+            // repart de zéro (la relance ne doit intervenir que 2 semaines après
+            // le dernier envoi). last_relance_at est conservé tel quel.
+            signature_sent_at: new Date(),
+            signature_url: signUrl,
         });
 
         // Archivage Drive du PDF non signé, dans le dossier du secteur du commercial.

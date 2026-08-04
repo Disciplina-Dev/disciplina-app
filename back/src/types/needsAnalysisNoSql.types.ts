@@ -144,6 +144,12 @@ export interface NeedsAnalysis {
     immersion_period?: ImmersionPeriod;
     training_days?: string;
     signature_request_id?: string | null;
+    /** Date du dernier envoi en signature (mail « AB à signer ») → point de départ de la relance auto. */
+    signature_sent_at?: Date | null;
+    /** Lien DocuSeal de signature, conservé pour générer le bouton des relances. */
+    signature_url?: string | null;
+    /** Date de la dernière relance de signature envoyée automatiquement (null = jamais). */
+    last_relance_at?: Date | null;
     status?: NeedsAnalysisStatus;
     tags?: string[];
     // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu

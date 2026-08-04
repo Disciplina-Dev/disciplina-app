@@ -37,6 +37,7 @@ import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
+import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -190,6 +191,9 @@ export async function startServer(): Promise<http.Server> {
         .seedAbSignatureDefault()
         .catch((err) => logger.error({ err }, 'ab-signature: seed du modèle système échoué'));
     mailTemplateService
+        .seedAbRelanceDefault()
+        .catch((err) => logger.error({ err }, 'ab-relance: seed du modèle système échoué'));
+    mailTemplateService
         .seedCvImportDefault()
         .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
     mailTemplateService
@@ -198,6 +202,7 @@ export async function startServer(): Promise<http.Server> {
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();
+    startAbSignatureRelanceScheduler();
     return server;
 }
 
