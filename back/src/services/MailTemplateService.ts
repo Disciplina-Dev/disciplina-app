@@ -10,6 +10,7 @@ import {
 } from '../types/mailTemplate.types';
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
+import { AB_RELANCE_SUBJECT, AB_RELANCE_BODY } from './abRelanceTemplate';
 import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
 import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
@@ -48,6 +49,9 @@ export const PEDA_TEMPLATES_SEEDED_KEY = 'peda_templates_seeded';
 
 /** Clé app_settings : le modèle système « AB à signer » a déjà été semé une fois. */
 export const AB_SIGNATURE_SEEDED_KEY = 'ab_signature_template_seeded';
+
+/** Clé app_settings : le modèle système « Relance AB à signer » a déjà été semé une fois. */
+export const AB_RELANCE_SEEDED_KEY = 'ab_relance_template_seeded';
 
 /** Clé app_settings : le modèle « Import CV » par défaut a déjà été semé une fois. */
 export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
@@ -273,6 +277,36 @@ export class MailTemplateService {
             logger.info('ab-signature: modèle système semé');
         }
         await settings.set(AB_SIGNATURE_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Relance d'Analyse du Besoin à signer » (scope
+     * commercial, kind `ab_relance`) au premier démarrage. Idempotent via flag
+     * app_settings ET vérification d'existence, pour ne pas dupliquer si un
+     * modèle a déjà ce kind.
+     */
+    async seedAbRelanceDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(AB_RELANCE_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'commercial', kind: 'ab_relance' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_COMMERCIAL_USER_ID,
+                scope: 'commercial',
+                name: 'Relance AB à signer',
+                subject: AB_RELANCE_SUBJECT,
+                body: AB_RELANCE_BODY,
+                peda_level: null,
+                kind: 'ab_relance',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('ab-relance: modèle système semé');
+        }
+        await settings.set(AB_RELANCE_SEEDED_KEY, '1');
     }
 
     /**

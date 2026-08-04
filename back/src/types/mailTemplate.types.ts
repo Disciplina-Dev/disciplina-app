@@ -16,9 +16,10 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
  * Modèles « système » : uniques, semés par défaut, non supprimables, partagés
  * par tous les utilisateurs du scope. Repérés par ce champ (et non par leur nom).
  * `ab_signature` = mail d'invitation à signer l'Analyse du Besoin (scope commercial).
+ * `ab_relance`   = relance automatique d'une AB non signée après 2 semaines (scope commercial).
  * `proposition_candidat` = mail d'invitation à la sélection de candidats (scope rh).
  */
-export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'proposition_candidat'] as const;
+export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'ab_relance', 'proposition_candidat'] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
 
 /** Libellés affichés (front + logs). */
