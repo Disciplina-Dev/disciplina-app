@@ -1,6 +1,7 @@
 import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { Offer } from '../../types/offer.types';
 import { FilizStudentInfos } from '../../external/filiz/type';
+import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
 
 export function camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -57,7 +58,12 @@ export function candidateToGql(candidate: Candidate): any {
         contractStartDate: candidate.contract_start_date?.toISOString() ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
-        identity: candidate.identity ? snakeToCamelCase(candidate.identity) : null,
+        identity: candidate.identity
+            ? {
+                  ...snakeToCamelCase(candidate.identity),
+                  socialSecurityNumber: candidate.identity.social_security_number ? MASKED_SSN : undefined,
+              }
+            : null,
         emergencyContact: candidate.emergency_contact ? snakeToCamelCase(candidate.emergency_contact) : null,
         education: candidate.education ? snakeToCamelCase(candidate.education) : null,
         support: candidate.support ? snakeToCamelCase(candidate.support) : null,

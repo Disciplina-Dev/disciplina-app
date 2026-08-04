@@ -6,6 +6,8 @@ const ALGO = 'aes-256-gcm';
 const IV_LEN = 16;
 const SCRYPT_SALT = 'ssn-salt';
 
+export const MASKED_SSN = '[chiffré]';
+
 const key = scryptSync(env.SSN_ENCRYPTION_KEY, SCRYPT_SALT, 32);
 
 export function encryptSsn(plain: string): EncryptedSsn {
