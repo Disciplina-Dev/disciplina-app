@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
+import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
+import { OfferStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
@@ -319,6 +322,116 @@ describe('GraphQL candidate mutations', () => {
             const vjson = await verify.json();
             expect(vjson.data.candidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
             expect(vjson.data.candidate.contractStartDate).toContain('2026-10-01');
+        });
+
+        it('syncs linked offer status to CONTRACT when moving to CONTRACT', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+            const offerRepo = new OfferRepository();
+
+            const candidateId = `update-contract-sync-${suffix}`;
+            const seeded = await repo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Fiona ${suffix}`,
+                    email: `fiona-${suffix}@test.local`,
+                    phone: '0100000011',
+                },
+            });
+
+            const offerId = `offer-contract-sync-${suffix}`;
+            await seedOffer({ _id: offerId, status: OfferStatus.MATCHED });
+            await offerRepo.addMatchedCandidate(offerId, {
+                id: candidateId,
+                full_name: `Fiona ${suffix}`,
+                age: 25,
+                email: `fiona-${suffix}@test.local`,
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) { id status }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: { status: 'CONTRACT', contractOfferId: offerId },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('CONTRACT');
+
+            const offer = await offerRepo.findById(offerId);
+            expect(offer?.matching?.status).toBe(OfferStatus.CONTRACT);
+        });
+
+        it('does not sync linked offer status when moving to a non-contract status', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+            const offerRepo = new OfferRepository();
+
+            const candidateId = `update-not-contract-${suffix}`;
+            const seeded = await repo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `George ${suffix}`,
+                    email: `george-${suffix}@test.local`,
+                    phone: '0100000012',
+                },
+            });
+
+            const offerId = `offer-not-contract-${suffix}`;
+            await seedOffer({ _id: offerId, status: OfferStatus.MATCHED });
+            await offerRepo.addMatchedCandidate(offerId, {
+                id: candidateId,
+                full_name: `George ${suffix}`,
+                age: 25,
+                email: `george-${suffix}@test.local`,
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) { id status }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: { status: 'IMMERSING' },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('IMMERSING');
+
+            const offer = await offerRepo.findById(offerId);
+            expect(offer?.matching?.status).toBe(OfferStatus.MATCHED);
         });
 
         it('updates nested identity fields', async () => {
