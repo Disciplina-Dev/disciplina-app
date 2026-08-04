@@ -57,9 +57,15 @@ export enum DiscoverySource {
     OTHER = 'OTHER',
 }
 
+export interface EncryptedSsn {
+    encrypted: string;
+    iv: string;
+    tag: string;
+}
+
 export interface Identity {
     full_name: string;
-    social_security_number?: string;
+    social_security_number?: EncryptedSsn;
     date_of_birth?: Date;
     place_of_birth?: string;
     department_of_birth?: string;

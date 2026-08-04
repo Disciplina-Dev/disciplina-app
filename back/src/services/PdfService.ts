@@ -5,6 +5,7 @@ import path from 'path';
 import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
+import { MASKED_SSN } from '../external/crypto/ssn-cipher';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // On utilise le Chromium natif du système (installé dans l'image Docker via apt)
@@ -738,7 +739,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Identité & contact');
     kv(tpTypes.length > 1 ? 'Titres professionnels' : 'Titre professionnel', tpTypesLabel);
     kv('Statut', STATUS_LABELS[c.status] ?? c.status);
-    kv('Numéro de sécurité sociale', id.social_security_number);
+    kv('Numéro de sécurité sociale', id.social_security_number ? MASKED_SSN : undefined);
     kv('Email', id.email);
     kv('Téléphone', id.phone);
     kv('Date de naissance', fmtDate(id.date_of_birth));
@@ -770,7 +771,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Parcours & prérequis');
     kv(
         'Niveau de formation',
-        c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level : '',
+        c.education?.school_level ? (SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level) : '',
     );
     kv('Justificatif', c.education?.justification);
     kv('Dernier diplôme obtenu', c.background?.last_diploma);
@@ -860,7 +861,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv(
         'Comment a connu Disciplina',
         c.job_info?.discovery_source
-            ? DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source
+            ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source)
             : '',
     );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);
