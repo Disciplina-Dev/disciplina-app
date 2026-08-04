@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, X, Loader2 } from 'lucide-react'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATES_PAGE } from '@/graphql/queries'
+import TpFilterDropdown from './TpFilterDropdown'
 
 interface AddAcceptedCandidateModalProps {
   job: {
@@ -14,6 +15,8 @@ interface AddAcceptedCandidateModalProps {
 }
 
 export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: AddAcceptedCandidateModalProps) {
+  const offerTps = (job.desiredTp ?? []).map(tp => tp.tpType).filter(Boolean) as string[]
+  const [selectedTps, setSelectedTps] = useState<string[]>(offerTps)
   const [candidateSearch, setCandidateSearch] = useState('')
   const [selectedCandidate, setSelectedCandidate] = useState<{ id: string; fullName: string } | null>(null)
   const [candidates, setCandidates] = useState<Array<{ id: string; fullName?: string; tpType: string }>>([])
@@ -35,8 +38,7 @@ export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: Ad
     setIsSearching(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const tps = (job.desiredTp ?? []).map((tp) => tp.tpType).filter(Boolean)
-        const filters = tps.length ? { tpType: tps } : undefined
+        const filters = selectedTps.length ? { tpType: selectedTps } : undefined
         const result = await candidateGraphqlClient
           .query(GET_CANDIDATES_PAGE, { first: 20, search: candidateSearch, filters })
           .toPromise()
@@ -66,7 +68,7 @@ export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: Ad
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [candidateSearch, job.desiredTp, job.matchedCandidate])
+  }, [candidateSearch, selectedTps, job.matchedCandidate])
 
   const handleSubmit = () => {
     if (!selectedCandidate) return
@@ -84,6 +86,11 @@ export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: Ad
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          <div className="mb-4">
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Type de TP</label>
+            <TpFilterDropdown value={selectedTps} onChange={setSelectedTps} />
+          </div>
+
           <div className="mb-4 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
             <Search size={16} className="text-gray-400" />
             <input
@@ -94,15 +101,6 @@ export default function AddAcceptedCandidateModal({ job, onSubmit, onClose }: Ad
               className="flex-1 bg-transparent outline-none text-sm"
             />
           </div>
-
-          {(job.desiredTp ?? []).length > 0 && (
-            <p className="mb-3 text-xs text-gray-400">
-              Candidats filtrés par type de TP :{' '}
-              <span className="font-semibold">
-                {(job.desiredTp ?? []).map((tp) => tp.tpType).filter(Boolean).join(', ')}
-              </span>
-            </p>
-          )}
 
           {searchError && <p className="mb-3 text-xs text-danger">{searchError}</p>}
 
