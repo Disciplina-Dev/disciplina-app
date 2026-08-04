@@ -2,6 +2,7 @@ import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
+import { OfferStatus } from '../types/matching.types';
 import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
@@ -199,7 +200,27 @@ export class CandidateService {
         }
         encryptIdentitySsn(data.identity);
         const updated = await this.repository.update(id, data);
+        if (updated) {
+            // Passage en contrat : l'offre liée bascule elle aussi en contrat.
+            if (data.status === CandidateStatus.CONTRACT && existing?.status !== CandidateStatus.CONTRACT) {
+                await this.syncOffersToContract(updated);
+            }
+        }
         return updated;
+    }
+
+    // Quand un candidat passe en contrat, toutes les offres qui lui sont liées
+    // (offre du contrat signé + offres où il figure parmi les candidats retenus)
+    // basculent en contrat, pour refléter le placement réel.
+    private async syncOffersToContract(candidate: Candidate): Promise<void> {
+        const offerIds = new Set<string>();
+        if (candidate.contract_offer_id) offerIds.add(candidate.contract_offer_id);
+        const linked = await this.offerRepository.findOfferIdsWithCandidate(candidate._id);
+        for (const offerId of linked) offerIds.add(offerId);
+
+        await Promise.all(
+            Array.from(offerIds).map((offerId) => this.offerRepository.setOfferStatus(offerId, OfferStatus.CONTRACT)),
+        );
     }
 
     async delete(id: string): Promise<boolean> {
