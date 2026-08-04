@@ -6,6 +6,7 @@ import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '../../../types/candidate.types';
 import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
+import { CandidateService } from '../../../services/CandidateService';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -373,6 +374,88 @@ describe('UNAVAILABLE availability transition', () => {
 
         expect(res.status).toBe(200);
         expect(json.data.candidate.status).toBe('UNAVAILABLE');
+    });
+});
+
+describe('unmaskCandidateSsn', () => {
+    it('returns the decrypted social security number for an authorized RH user', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `ssn-${Date.now()}`;
+        const service = new CandidateService();
+        const candidateId = `cand-ssn-${suffix}`;
+        const plainSsn = '123456789012345';
+
+        await service.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Ssn Reveal ${suffix}`,
+                email: `ssn-reveal-${suffix}@test.local`,
+                phone: '0600000000',
+                social_security_number: plainSsn,
+            } as any,
+        } as any);
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { unmaskCandidateSsn(id: $id) }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.unmaskCandidateSsn).toBe(plainSsn);
+    });
+
+    it('returns null when the candidate has no social security number', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `ssn-none-${Date.now()}`;
+        const repo = new CandidateRepository();
+        const candidateId = `cand-${suffix}`;
+
+        await repo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_type: TitleProfessionalType.AD,
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `No Ssn ${suffix}`, email: `${suffix}@test.local`, phone: '0600000000' },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { unmaskCandidateSsn(id: $id) }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.unmaskCandidateSsn).toBeNull();
+    });
+
+    it('rejects unauthenticated requests', async () => {
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: `query($id: String!) { unmaskCandidateSsn(id: $id) }`,
+                variables: { id: 'irrelevant-id' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/unauthorized/i);
     });
 });
 
