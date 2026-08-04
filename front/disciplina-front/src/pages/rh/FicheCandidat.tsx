@@ -4,6 +4,7 @@ import {
   ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
   QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, Download, FileText,
   File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera, HardDriveUpload,
+  Eye, EyeOff,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
@@ -12,8 +13,8 @@ import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
-import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS } from '@/graphql/queries'
+import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN } from '@/graphql/queries'
 import type { MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
@@ -271,10 +272,28 @@ export default function FicheCandidat() {
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
   const [aiSummaryText, setAiSummaryText] = useState('')
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null)
+  const [revealedSsn, setRevealedSsn] = useState<string | null>(null)
+  const [revealingSsn, setRevealingSsn] = useState(false)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
   }, [candidate])
+
+  // Ne jamais laisser le SSN en clair d'une fiche fuiter sur une autre.
+  useEffect(() => {
+    setRevealedSsn(null)
+  }, [id])
+
+  const handleRevealSsn = async () => {
+    if (!formData) return
+    setRevealingSsn(true)
+    try {
+      const result = await candidateGraphqlClient.query(UNMASK_SSN, { id: formData._id }).toPromise()
+      setRevealedSsn(result.data?.unmaskCandidateSsn ?? null)
+    } finally {
+      setRevealingSsn(false)
+    }
+  }
 
   const fetchDriveFiles = async (candidateId: string) => {
     setLoadingFiles(true)
@@ -924,7 +943,27 @@ export default function FicheCandidat() {
                 {isEditing ? (
                   <input className={inputCls} value={formData.identity.social_security_number ?? ''}
                     onChange={e => updateIdentity('social_security_number', e.target.value)} />
-                ) : <p className={valueCls}>{formData.identity.social_security_number || '—'}</p>}
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
+                    {formData.identity.social_security_number && (
+                      <button
+                        type="button"
+                        disabled={revealingSsn}
+                        onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                        {revealingSsn ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : revealedSsn ? (
+                          <EyeOff size={12} />
+                        ) : (
+                          <Eye size={12} />
+                        )}
+                        {revealedSsn ? 'Masquer' : 'Afficher'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Email">

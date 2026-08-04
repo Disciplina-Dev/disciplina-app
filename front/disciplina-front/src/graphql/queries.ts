@@ -570,6 +570,12 @@ export const CHECK_CANDIDATE_EMAIL = gql`
   }
 `
 
+export const UNMASK_SSN = gql`
+  query UnmaskCandidateSsn($id: String!) {
+    unmaskCandidateSsn(id: $id)
+  }
+`
+
 export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {
