@@ -555,6 +555,7 @@ export const typeDefs = gql`
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
         driveFolderConfig: DriveFolderConfig!
+        unmaskCandidateSsn(id: String!): String
     }
 
     type Mutation {
