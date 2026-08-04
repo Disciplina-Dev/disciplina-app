@@ -10,6 +10,13 @@ import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
+import { encryptSsn } from '../external/crypto/ssn-cipher';
+
+function encryptIdentitySsn(identity?: Candidate['identity']): void {
+    if (identity && typeof identity.social_security_number === 'string') {
+        identity.social_security_number = encryptSsn(identity.social_security_number);
+    }
+}
 
 export class CandidateService {
     private repository = new CandidateRepository();
@@ -144,6 +151,7 @@ export class CandidateService {
         if (data.identity && !data.identity.description) {
             data.identity.description = buildCandidateSummary(data as Candidate);
         }
+        encryptIdentitySsn(data.identity);
         return this.repository.create(data);
     }
 
@@ -186,6 +194,7 @@ export class CandidateService {
                 } as Candidate['identity'];
             }
         }
+        encryptIdentitySsn(data.identity);
         const updated = await this.repository.update(id, data);
         return updated;
     }
