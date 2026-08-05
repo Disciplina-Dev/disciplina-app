@@ -1,5 +1,6 @@
 import { Briefcase, Users, GraduationCap, ClipboardList, Calendar, Hash } from 'lucide-react'
 import { formatTrainingDays } from '@/utils/trainingDays'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 export const AB_STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -9,7 +10,7 @@ export const AB_STATUS_BADGE: Record<string, { bg: string; text: string; label: 
 }
 
 const LABELS: Record<string, Record<string, string>> = {
-  localisation:       { NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud' },
+  localisation:       { ...SECTEUR_LABELS },
   trainingDomain:     { SECRETARIAT: 'Secrétariat', VENTE: 'Vente' },
   educationLevel:     { BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3' },
   drivingLicense:     { OUI: 'Oui', OPTIONNEL: 'Optionnel' },

@@ -34,7 +34,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const candidateTpTypes = candidate.tp_types?.length ? candidate.tp_types : [candidate.tp_type]
+  const candidateTpTypes = candidate.tp_types ?? []
 
   const handleAbCreated = async (needsAnalysisId: string) => {
     setLoading(true)

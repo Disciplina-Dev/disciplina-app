@@ -20,6 +20,7 @@ import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
@@ -61,9 +62,9 @@ const getStatusLabel = (status: CandidateStatus): string => CANDIDATE_STATUS_LAB
 const getStatusColor = (status: CandidateStatus): string => CANDIDATE_STATUS_BADGE_CLASS[status]
 
 const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
-  [TrainingSite.NORD_SAINTE_MARIE]: 'Nord – Sainte-Marie',
-  [TrainingSite.OUEST_SAINT_PAUL]:  'Ouest – Saint-Paul',
-  [TrainingSite.SUD_SAINT_PIERRE]:  'Sud – Saint-Pierre',
+  [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} – Sainte-Marie`,
+  [TrainingSite.OUEST_SAINT_PAUL]:  `${SECTEUR_LABELS.OUEST} – Saint-Paul`,
+  [TrainingSite.SUD_SAINT_PIERRE]:  `${SECTEUR_LABELS.SUD} – Saint-Pierre`,
 }
 
 // Met en forme un enum SCREAMING_SNAKE en libellé lisible ("SAINT_DENIS" → "Saint Denis").
@@ -78,7 +79,7 @@ function buildCandidateSummary(c: Candidate): string {
 
   // Profil : nom, âge, ville, titre(s) visé(s), niveau d'études.
   const age = computeAge(c.identity.date_of_birth) ?? c.identity.age
-  const tps = (c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : []).join(', ')
+  const tps = (c.tp_types ?? []).join(', ')
   const profil = [
     c.identity.full_name,
     age != null ? `${age} ans` : null,
@@ -735,7 +736,7 @@ export default function FicheCandidat() {
                       {getStatusLabel(formData.status)}
                     </span>
                   </div>
-                  {(formData.tp_types?.length ? formData.tp_types : [formData.tp_type]).map(t => (
+                  {(formData.tp_types ?? []).map(t => (
                     <span key={t} className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[t]}`}>
                       {t}
                     </span>
@@ -925,7 +926,7 @@ export default function FicheCandidat() {
             <MatchedJobsList
               candidateId={id ?? ''}
               confirmedJobIds={confirmedJobIds}
-              candidateTpTypes={formData.tp_types?.length ? formData.tp_types : [formData.tp_type]}
+              candidateTpTypes={formData.tp_types ?? []}
             />
           </div>
 
@@ -1855,7 +1856,7 @@ export default function FicheCandidat() {
           onClose={() => setShowClassMarker(false)}
           firstName={first}
           lastName={last}
-          tpType={formData.tp_type}
+          tpTypes={formData.tp_types ?? []}
           candidateId={formData._id}
         />
       )}

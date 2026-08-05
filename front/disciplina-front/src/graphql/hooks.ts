@@ -379,7 +379,6 @@ function fromGql(c: any): Candidate {
     owner: c.owner
       ? { user_id: c.owner.userId, name: c.owner.name, sector: c.owner.sector ?? undefined }
       : undefined,
-    tp_type: mapTpType(c.tpType),
     tp_types: (c.tpTypes?.length ? c.tpTypes : c.tpType ? [c.tpType] : []).map(mapTpType),
     status: c.status as CandidateStatus,
     training_site: c.trainingSite,
@@ -528,7 +527,6 @@ function fromGql(c: any): Candidate {
 /** Maps frontend Candidate (snake_case) → GraphQL UpdateCandidateInput (camelCase) for mutation */
 function toGqlUpdateInput(c: Candidate): any {
   return {
-    tpType: c.tp_type,
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
@@ -704,7 +702,7 @@ export function useUpdateCandidate() {
 }
 
 interface CreateCandidateInput {
-  tpType: string
+  tpTypes: string[]
   status: string
   identity: { fullName: string; email: string; phone: string; [key: string]: any }
   education?: { schoolLevel?: string | null; [key: string]: any } | null

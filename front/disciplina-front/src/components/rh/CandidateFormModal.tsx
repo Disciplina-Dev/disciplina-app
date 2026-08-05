@@ -205,7 +205,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
 
 /** Pré-remplit le formulaire à partir d'un candidat existant (mode édition). */
 function candidateToForm(c: Candidate): ABForm {
-  const tpTypes = c.tp_types?.length ? c.tp_types : [c.tp_type];
+  const tpTypes = c.tp_types?.length ? c.tp_types : [TitleProfessionalType.CC];
   const skills = c.skills_assessment && c.skills_assessment.length > 0
     ? c.skills_assessment.map(s => ({ competence: s.competence, level: s.level }))
     : defaultSkillsForTps(tpTypes);
@@ -299,7 +299,7 @@ function toServerInput(f: ABForm) {
   const qualities = [f.quality1, f.quality2, f.quality3].filter(Boolean);
   const defects = [f.defect1, f.defect2, f.defect3].filter(Boolean);
   return {
-    tpType: f.tpTypes[0], tpTypes: f.tpTypes, status: f.status,
+    tpTypes: f.tpTypes, status: f.status,
     trainingSites: f.trainingSites,
     immersionAgreement: pb(f.immersionAgreement),
     desiredSectors: f.desiredSectors,
@@ -545,7 +545,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       return;
     }
     setForm(prev => ({ ...prev, skills: reconcileSkills(prev.skills, prev.tpTypes) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [tpKey]);
 
   // Vérifie en direct (débounce 400 ms) si une fiche existe déjà pour cet email.

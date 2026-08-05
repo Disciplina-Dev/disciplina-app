@@ -522,7 +522,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
                     const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
                     const folder = await driveService.createFolder(
                         folderName,
-                        await driveParentFolderForTp(candidate.tp_type, candidate.training_site),
+                        await driveParentFolderForTp(candidate.tp_types?.[0], candidate.training_site),
                     );
                     folderId = folder.id;
                     driveUpdate.drive_folder_id = folder.id;
@@ -687,7 +687,7 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         if (i.driving_license_b) parts.push('Permis B : oui');
         if (i.has_vehicle) parts.push('Véhicule : oui');
 
-        const tps = (candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).join(', ');
+        const tps = (candidate.tp_types ?? []).join(', ');
         if (tps) parts.push(`Titres visés : ${tps}`);
 
         if (candidate.education?.school_level) parts.push(`Niveau d'études : ${candidate.education.school_level}`);
@@ -713,7 +713,8 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         if (pp?.apprenticeship_motivation) parts.push(`Motivation : ${pp.apprenticeship_motivation}`);
 
         const j = candidate.job_info;
-        if (j?.availability_date) parts.push(`Disponible le : ${new Date(j.availability_date).toLocaleDateString('fr-FR')}`);
+        if (j?.availability_date)
+            parts.push(`Disponible le : ${new Date(j.availability_date).toLocaleDateString('fr-FR')}`);
         if (j?.geographic_mobility?.length) {
             const mob = j.geographic_mobility.join(', ');
             parts.push(`Mobilité : ${mob}`);
@@ -735,7 +736,9 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
                         // PDF uniquement (les CV importés sont en PDF)
                         if (meta.mimeType === 'application/pdf') {
                             const { buffer } = await driveService.downloadFile(fileId);
-                            const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
+                            const pdfParse: (
+                                buf: Buffer,
+                            ) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
                             const parsed = await pdfParse(buffer);
                             cvText = parsed.text?.trim() || null;
                         }
@@ -785,13 +788,17 @@ router.post('/quick-create', express.json(), authenticate, async (req: AuthReque
         return;
     }
 
-    const { first_name, last_name, tp_type } = req.body ?? {};
+    const { first_name, last_name, tp_types } = req.body ?? {};
     if (!first_name?.trim() || !last_name?.trim()) {
         res.status(400).json({ error: 'first_name and last_name are required' });
         return;
     }
-    if (!Object.values(TitleProfessionalType).includes(tp_type)) {
-        res.status(400).json({ error: 'Invalid tp_type' });
+    if (
+        !Array.isArray(tp_types) ||
+        !tp_types.length ||
+        !tp_types.every((tp) => Object.values(TitleProfessionalType).includes(tp))
+    ) {
+        res.status(400).json({ error: 'Invalid tp_types' });
         return;
     }
     const fullName = `${first_name.trim()} ${last_name.trim()}`;
@@ -809,7 +816,7 @@ router.post('/quick-create', express.json(), authenticate, async (req: AuthReque
         const created = await candidateService.create({
             _id: id,
             candidate_id: id,
-            tp_type,
+            tp_types,
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: fullName,

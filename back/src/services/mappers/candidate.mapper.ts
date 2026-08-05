@@ -43,8 +43,7 @@ export function candidateToGql(candidate: Candidate): any {
         // Rétro-compat : le statut "MATCHED" a été retiré ; les fiches legacy le portant
         // sont ramenées à "SEEKING" à la lecture (l'enum GraphQL ne l'accepte plus).
         status: (candidate.status as string) === 'MATCHED' ? CandidateStatus.SEEKING : candidate.status,
-        tpType: candidate.tp_type,
-        tpTypes: candidate.tp_types ?? (candidate.tp_type ? [candidate.tp_type] : []),
+        tpTypes: candidate.tp_types ?? [],
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,

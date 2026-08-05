@@ -231,7 +231,7 @@ describe('GraphQL candidate query', () => {
         const seeded = await new CandidateRepository().create({
             identity: { full_name: `Jane ${Date.now()}`, email: 'jane@test.local', phone: '0600000000' },
             status: 'SEEKING',
-            tp_type: 'AD',
+            tp_types: ['AD'],
         });
 
         // Act

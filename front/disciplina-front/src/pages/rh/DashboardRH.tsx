@@ -29,6 +29,7 @@ import { useCandidateStats, useNeedsAnalysesForDashboard, type StatBucket, type 
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
+import { SECTEUR_LABELS, SECTEUR_VALUES } from '@/constants/secteurs';
 
 // --- Charte graphique (cf. index.css) ---
 const COLORS = {
@@ -62,12 +63,12 @@ const TP_COLORS: Record<string, string> = {
 const TP_ORDER = Object.values(TitleProfessionalType) as string[];
 
 // Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
-const CANON_SECTORS = ['Nord-Est', 'Ouest', 'Sud'];
+const CANON_SECTORS: string[] = SECTEUR_VALUES;
 
 const SITE_LABELS: Record<string, string> = {
-  [TrainingSite.NORD_SAINTE_MARIE]: 'Nord · Sainte-Marie',
-  [TrainingSite.OUEST_SAINT_PAUL]: 'Ouest · Saint-Paul',
-  [TrainingSite.SUD_SAINT_PIERRE]: 'Sud · Saint-Pierre',
+  [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} · Sainte-Marie`,
+  [TrainingSite.OUEST_SAINT_PAUL]: `${SECTEUR_LABELS.OUEST} · Saint-Paul`,
+  [TrainingSite.SUD_SAINT_PIERRE]: `${SECTEUR_LABELS.SUD} · Saint-Pierre`,
 };
 
 const DISMISSED_AB_KEY = 'disciplina:dismissed-ab-ids';

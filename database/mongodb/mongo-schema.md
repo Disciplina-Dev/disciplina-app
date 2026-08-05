@@ -14,7 +14,7 @@ Stores complete candidate profiles including identity, education, support system
 |-------|------|----------|-------|
 | _id | string | yes | Auto-generated UUID |
 | candidate_id | string | yes | Unique candidate identifier |
-| tp_type | string | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, SA) |
+| tp_types | string[] | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, SA), multi-select |
 | identity | object | yes | Candidate personal information (see below) |
 | status | string | yes | enum: CandidateStatus |
 | formation_type | string | — | enum: VENTE, SECRETARIAT |

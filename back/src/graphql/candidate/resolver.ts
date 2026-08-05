@@ -83,7 +83,7 @@ async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
 
 interface CreateCandidateInput {
     status: CandidateStatus;
-    tpType: TitleProfessionalType;
+    tpTypes: TitleProfessionalType[];
     identity: { fullName: string; email: string; phone: string; [key: string]: any };
     [key: string]: any;
 }
@@ -247,13 +247,8 @@ export const resolvers = {
             if (Array.isArray(snakeInput.training_sites)) {
                 snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
             }
-            // Multi-TP : garde le single legacy tp_type = 1er titre (Drive/stats/templates).
-            if (Array.isArray(snakeInput.tp_types) && snakeInput.tp_types.length) {
-                snakeInput.tp_type = snakeInput.tp_types[0];
-            }
-
             if (!snakeInput.skills_assessment || snakeInput.skills_assessment.length === 0) {
-                const template = CANDIDATE_TEMPLATES[input.tpType];
+                const template = CANDIDATE_TEMPLATES[input.tpTypes[0]];
                 if (template) {
                     snakeInput.skills_assessment = template.default_skills_assessment;
                 }
@@ -294,7 +289,7 @@ export const resolvers = {
                     const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                         folderName,
                         await driveParentFolderForTp(
-                            newCandidate.tp_type,
+                            newCandidate.tp_types?.[0],
                             newCandidate.training_site,
                             regionFromSector(ownerSector),
                         ),
@@ -325,10 +320,6 @@ export const resolvers = {
             // Multi-sites : garde le single legacy training_site = 1er site choisi.
             if (Array.isArray(snakeInput.training_sites)) {
                 snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
-            }
-            // Multi-TP : garde le single legacy tp_type = 1er titre choisi.
-            if (Array.isArray(snakeInput.tp_types) && snakeInput.tp_types.length) {
-                snakeInput.tp_type = snakeInput.tp_types[0];
             }
             // État avant mise à jour : statut (transitions KPI) + interviewer (crédit
             // entretien une seule fois). On ne relit le dossier que si l'un des deux change.
@@ -386,7 +377,11 @@ export const resolvers = {
             const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
             const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                 folderName,
-                await driveParentFolderForTp(candidate.tp_type, candidate.training_site, regionFromSector(ownerSector)),
+                await driveParentFolderForTp(
+                    candidate.tp_types?.[0],
+                    candidate.training_site,
+                    regionFromSector(ownerSector),
+                ),
             );
 
             // Backfill / rafraîchit l'owner (utile pour les candidats créés avant la feature secteurs).

@@ -24,7 +24,7 @@ export function buildCandidateSummary(c: Candidate): string {
     const parts: string[] = [];
 
     const age = computeAge(c.identity.date_of_birth) ?? c.identity.age;
-    const tps = (c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : []).join(', ');
+    const tps = (c.tp_types ?? []).join(', ');
     const profil = [c.identity.full_name, age != null ? `${age} ans` : null, c.identity.city || null]
         .filter(Boolean)
         .join(', ');
