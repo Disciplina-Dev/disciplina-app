@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Send, CheckCircle, XCircle, Mail, Users, Clock, MapPin } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useCandidates } from '@/graphql/hooks'
-import { CandidateStatus, TrainingSite, TitleProfessionalType } from '@/types/candidate'
+import { CandidateStatus, TitleProfessionalType } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
 import { apiJson } from '@/api/httpClient'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus'
 import { cleanHtml } from '@/services/sanitizeHtml'
+import { SECTEUR_LABELS, secteurKeyOfTrainingSite } from '@/constants/secteurs'
 
 interface SendResult {
   sent: number
@@ -22,23 +23,12 @@ const AVAILABILITY = 'availability'
 type ZoneKey = 'NORD' | 'OUEST' | 'SUD' | 'AUTRE'
 
 const ZONE_LABEL: Record<ZoneKey, string> = {
-  NORD: 'Nord',
-  OUEST: 'Ouest',
-  SUD: 'Sud',
+  ...SECTEUR_LABELS,
   AUTRE: 'Non renseigné',
 }
 
 function zoneOf(candidate: Candidate): ZoneKey {
-  switch (candidate.training_site) {
-    case TrainingSite.NORD_SAINTE_MARIE:
-      return 'NORD'
-    case TrainingSite.OUEST_SAINT_PAUL:
-      return 'OUEST'
-    case TrainingSite.SUD_SAINT_PIERRE:
-      return 'SUD'
-    default:
-      return 'AUTRE'
-  }
+  return secteurKeyOfTrainingSite(candidate.training_site) ?? 'AUTRE'
 }
 
 // Libellés + couleurs des titres professionnels (types métier).

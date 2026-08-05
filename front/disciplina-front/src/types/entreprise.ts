@@ -2,11 +2,11 @@ export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir' | 'Relance' | 'R
 
 export const STATUS_VALUES: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']
 
-export type Secteur = 'Nord-Est' | 'Ouest' | 'Sud'
+import { SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/constants/secteurs'
+import type { Secteur } from '@/constants/secteurs'
 
-export const SECTEUR_VALUES: Secteur[] = ['Nord-Est', 'Ouest', 'Sud']
-
-export const DEFAULT_SECTEUR: Secteur = 'Nord-Est'
+export { SECTEUR_VALUES, DEFAULT_SECTEUR }
+export type { Secteur }
 export type RelanceFilter = 'today' | 'past' | 'future'
 
 const saleUserData = [

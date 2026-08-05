@@ -3,6 +3,8 @@ import './instrumentation'; // OpenTelemetry SDK (must be before any module that
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from './graphql/server';
+import { expressMiddleware } from '@as-integrations/express4';
+import { jwtContext } from './graphql/context';
 import { connectMySQL } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
@@ -147,20 +149,22 @@ export async function createApp(): Promise<express.Express> {
         next();
     });
 
-    // cors: false — Apollo sinon installe son propre middleware CORS par
-    // défaut (Access-Control-Allow-Origin: *), qui écrase la config globale
-    // ci-dessus et casse les requêtes avec cookies (credentials: 'include').
+    // Express 4 middleware d'Apollo : pas de CORS installé (contrairement à
+    // applyMiddleware en v3) → la config globale ci-dessus (cors + credentials)
+    // s'applique sans être écrasée. Le parsing du corps JSON est aussi à notre
+    // charge, d'où l'express.json() ci-dessous.
     await CompanyAPI.start();
-    CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies', cors: false });
+    app.use('/api/graphql', express.json());
+    app.use('/api/graphql/companies', expressMiddleware(CompanyAPI, { context: jwtContext }));
 
     await CandidateAPI.start();
-    CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates', cors: false });
+    app.use('/api/graphql/candidates', expressMiddleware(CandidateAPI, { context: jwtContext }));
 
     await OfferAPI.start();
-    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers', cors: false });
+    app.use('/api/graphql/offers', expressMiddleware(OfferAPI, { context: jwtContext }));
 
     await NeedsAnalysisAPI.start();
-    NeedsAnalysisAPI.applyMiddleware({ app, path: '/api/graphql/needs-analysis', cors: false });
+    app.use('/api/graphql/needs-analysis', expressMiddleware(NeedsAnalysisAPI, { context: jwtContext }));
 
     return app;
 }
