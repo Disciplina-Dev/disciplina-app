@@ -3,9 +3,10 @@ import { FolderCog, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { needsAnalysisGraphqlClient } from '@/graphql/client'
 import { GET_AB_DRIVE_CONFIG, UPDATE_AB_DRIVE_CONFIG } from '@/graphql/queries'
+import { SECTEUR_VALUES } from '@/constants/secteurs'
 
 // Secteurs métier Disciplina (valeurs canoniques côté back : utils/sector.ts).
-const SECTORS = ['Nord-Est', 'Ouest', 'Sud']
+const SECTORS = SECTEUR_VALUES
 const KINDS = ['UNSIGNED', 'SIGNED'] as const
 const KIND_LABELS: Record<string, string> = { UNSIGNED: 'Non signé', SIGNED: 'Signé' }
 

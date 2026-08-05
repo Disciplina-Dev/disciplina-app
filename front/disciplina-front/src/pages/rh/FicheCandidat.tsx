@@ -20,6 +20,7 @@ import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
@@ -61,9 +62,9 @@ const getStatusLabel = (status: CandidateStatus): string => CANDIDATE_STATUS_LAB
 const getStatusColor = (status: CandidateStatus): string => CANDIDATE_STATUS_BADGE_CLASS[status]
 
 const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
-  [TrainingSite.NORD_SAINTE_MARIE]: 'Nord – Sainte-Marie',
-  [TrainingSite.OUEST_SAINT_PAUL]:  'Ouest – Saint-Paul',
-  [TrainingSite.SUD_SAINT_PIERRE]:  'Sud – Saint-Pierre',
+  [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} – Sainte-Marie`,
+  [TrainingSite.OUEST_SAINT_PAUL]:  `${SECTEUR_LABELS.OUEST} – Saint-Paul`,
+  [TrainingSite.SUD_SAINT_PIERRE]:  `${SECTEUR_LABELS.SUD} – Saint-Pierre`,
 }
 
 // Met en forme un enum SCREAMING_SNAKE en libellé lisible ("SAINT_DENIS" → "Saint Denis").

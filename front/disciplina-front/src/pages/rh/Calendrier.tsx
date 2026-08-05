@@ -15,6 +15,7 @@ import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
 import { SECTEUR_VALUES } from '@/types/entreprise'
+import { DEFAULT_SECTEUR } from '@/constants/secteurs'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -665,7 +666,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
         setLoaded(true)
         // Défaut : lieu du secteur de l'utilisateur, sinon Nord-Est ; rien si non configuré.
         if (autoDefault && !value.trim()) {
-          const sector = selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)) ?? 'Nord-Est'
+          const sector = selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)) ?? DEFAULT_SECTEUR
           const match = withLocation.find((s) => s.sector === sector)
           if (match) onChange(match.location)
         }
