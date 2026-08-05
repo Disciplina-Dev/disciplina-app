@@ -485,6 +485,100 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.identity.transportMeans).toBe('Car');
         });
 
+        it('rejects update when the new email is already used by another candidate', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const taken = await repo.create({
+                _id: `update-email-taken-${suffix}`,
+                candidate_id: `update-email-taken-${suffix}`,
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Holly ${suffix}`, email: `holly-${suffix}@test.local`, phone: '0100000013' },
+            });
+            const seeded = await repo.create({
+                _id: `update-email-mover-${suffix}`,
+                candidate_id: `update-email-mover-${suffix}`,
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Ivan ${suffix}`, email: `ivan-${suffix}@test.local`, phone: '0100000014' },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) { id }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            identity: { fullName: `Ivan ${suffix}`, email: taken.identity.email, phone: '0100000014' },
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeDefined();
+            expect(json.errors[0].message).toMatch(/existe déjà/i);
+        });
+
+        it('allows updating a candidate while keeping its own email unchanged', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-email-self-${suffix}`,
+                candidate_id: `update-email-self-${suffix}`,
+                tp_type: TitleProfessionalType.AD,
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Jane ${suffix}`, email: `jane-${suffix}@test.local`, phone: '0100000015' },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) { id identity { city } }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            identity: {
+                                fullName: `Jane ${suffix}`,
+                                email: seeded.identity.email,
+                                phone: '0100000015',
+                                city: 'Saint Denis',
+                            },
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.identity.city).toBe('Saint Denis');
+        });
+
         it('returns an error when updating a non-existent candidate', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
