@@ -81,6 +81,27 @@ const identitySchema = new Schema<Identity>(
     { _id: false },
 );
 
+// Unicité applicative de l'email : la base contient encore des doublons
+// historiques (cf. database/mongodb/mongo-init.js), donc pas d'index unique
+// Mongo pour l'instant — juste ce garde-fou côté Mongoose.
+identitySchema.path('email').validate({
+    async validator(this: mongoose.Query<unknown, unknown> | Document, email: string) {
+        if (!email) return true;
+        const normalized = email.trim();
+        const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const selfId =
+            this instanceof mongoose.Query
+                ? this.getQuery()._id
+                : (this as unknown as { $parent: () => { _id?: string } }).$parent()?._id;
+        const existing = await CandidateModel.findOne({
+            _id: { $ne: selfId },
+            'identity.email': { $regex: `^${escaped}$`, $options: 'i' },
+        }).lean();
+        return !existing;
+    },
+    message: (props) => `Un candidat existe déjà avec l'email ${props.value}`,
+});
+
 const educationSchema = new Schema<Education>(
     {
         school_level: { type: String, enum: Object.values(SchoolLevel) },
