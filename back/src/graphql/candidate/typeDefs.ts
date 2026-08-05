@@ -234,7 +234,6 @@ export const typeDefs = gql`
         id: String!
         owner: CandidateOwner
         status: CandidateStatus!
-        tpType: TitleProfessionalType!
         tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
         emergencyContact: CandidateEmergencyContact
@@ -388,8 +387,7 @@ export const typeDefs = gql`
 
     input CreateCandidateInput {
         status: CandidateStatus!
-        tpType: TitleProfessionalType!
-        tpTypes: [TitleProfessionalType!]
+        tpTypes: [TitleProfessionalType!]!
         identity: IdentityInput!
         emergencyContact: EmergencyContactInput
         trainingSite: TrainingSite
@@ -417,7 +415,6 @@ export const typeDefs = gql`
 
     input UpdateCandidateInput {
         status: CandidateStatus
-        tpType: TitleProfessionalType
         tpTypes: [TitleProfessionalType!]
         identity: IdentityInput
         emergencyContact: EmergencyContactInput

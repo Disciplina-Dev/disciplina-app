@@ -222,7 +222,6 @@ export interface Candidate {
     _id: string;
     candidate_id: string;
     owner?: CandidateOwner;
-    tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;

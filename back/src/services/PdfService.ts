@@ -728,9 +728,9 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
 
     const trainingSites = c.training_sites?.length ? c.training_sites : c.training_site ? [c.training_site] : [];
     const trainingSitesLabel = trainingSites.map((s) => TRAINING_SITE_LABELS[s] ?? s).join(' · ');
-    const tpTypes = c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : [];
+    const tpTypes = c.tp_types ?? [];
     const tpTypesLabel = tpTypes.map((t) => TP_LABELS[t] ?? t).join(' · ');
-    const badges = [tpTypesLabel || (TP_LABELS[c.tp_type] ?? c.tp_type), STATUS_LABELS[c.status] ?? c.status];
+    const badges = [tpTypesLabel, STATUS_LABELS[c.status] ?? c.status];
     if (trainingSitesLabel) badges.push(trainingSitesLabel);
     doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text(badges.join('      |      '), left, doc.y);
     doc.fillColor('#000000');

@@ -148,7 +148,7 @@ describe('GraphQL job queries', () => {
         await candidateRepo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Jane ${suffix}`,

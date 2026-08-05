@@ -14,7 +14,7 @@ describe('CandidateService SSN encryption', () => {
         await service.create({
             _id: id,
             candidate_id: id,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Ssn Create ${suffix}`,
@@ -41,7 +41,7 @@ describe('CandidateService SSN encryption', () => {
         await service.create({
             _id: id,
             candidate_id: id,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Ssn Noop ${suffix}`,
@@ -67,7 +67,7 @@ describe('CandidateService SSN encryption', () => {
         await service.create({
             _id: id,
             candidate_id: id,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Ssn Update ${suffix}`,
@@ -95,7 +95,7 @@ describe('CandidateService SSN encryption', () => {
         await service.create({
             _id: id,
             candidate_id: id,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Ssn Masked ${suffix}`,

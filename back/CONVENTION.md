@@ -287,9 +287,9 @@ export default function ...  // ❌
 |---------|-----------|---------|------|
 | MySQL rows (raw) | snake_case | `user_id`, `oauth_token` | `types/db-rows.types.ts` |
 | MySQL domain types | camelCase — converted **at the repository** | `userID`, `oauthToken` | `types/company.types.ts`, `user.types.ts` |
-| MongoDB documents | snake_case | `full_name`, `tp_type` | `db/mongo/schemas/` |
-| MongoDB domain types | snake_case — **mirror the document**, no conversion here | `full_name`, `tp_type`, `training_site` | `types/candidate.types.ts`, `needsAnalysisNoSql.types.ts` |
-| GraphQL schema & responses (both DBs) | camelCase — converted **at the resolver** | `fullName`, `tpType` | `graphql/*/typeDefs.ts` |
+| MongoDB documents | snake_case | `full_name`, `tp_types` | `db/mongo/schemas/` |
+| MongoDB domain types | snake_case — **mirror the document**, no conversion here | `full_name`, `tp_types`, `training_site` | `types/candidate.types.ts`, `needsAnalysisNoSql.types.ts` |
+| GraphQL schema & responses (both DBs) | camelCase — converted **at the resolver** | `fullName`, `tpTypes` | `graphql/*/typeDefs.ts` |
 
 The two paths differ by **where** snake_case turns into camelCase:
 

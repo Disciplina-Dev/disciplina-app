@@ -58,7 +58,7 @@ async function seedJobWithImmersionCandidate(suffix: number): Promise<{ offerId:
     await candidateRepo.create({
         _id: candidateId,
         candidate_id: candidateId,
-        tp_type: TitleProfessionalType.AD,
+        tp_types: [TitleProfessionalType.AD],
         status: CandidateStatus.IMMERSING,
         identity: {
             full_name: `Lea ${suffix}`,
@@ -98,7 +98,7 @@ describe('GraphQL setImmersionConclusion', () => {
         await candidateRepo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `Tom ${suffix}`, email: `tom-${suffix}@test.local`, phone: '0600000000', age: 25 },
         });

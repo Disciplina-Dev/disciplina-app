@@ -79,7 +79,7 @@ function buildCandidateSummary(c: Candidate): string {
 
   // Profil : nom, âge, ville, titre(s) visé(s), niveau d'études.
   const age = computeAge(c.identity.date_of_birth) ?? c.identity.age
-  const tps = (c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : []).join(', ')
+  const tps = (c.tp_types ?? []).join(', ')
   const profil = [
     c.identity.full_name,
     age != null ? `${age} ans` : null,
@@ -736,7 +736,7 @@ export default function FicheCandidat() {
                       {getStatusLabel(formData.status)}
                     </span>
                   </div>
-                  {(formData.tp_types?.length ? formData.tp_types : [formData.tp_type]).map(t => (
+                  {(formData.tp_types ?? []).map(t => (
                     <span key={t} className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[t]}`}>
                       {t}
                     </span>
@@ -926,7 +926,7 @@ export default function FicheCandidat() {
             <MatchedJobsList
               candidateId={id ?? ''}
               confirmedJobIds={confirmedJobIds}
-              candidateTpTypes={formData.tp_types?.length ? formData.tp_types : [formData.tp_type]}
+              candidateTpTypes={formData.tp_types ?? []}
             />
           </div>
 
@@ -1856,7 +1856,7 @@ export default function FicheCandidat() {
           onClose={() => setShowClassMarker(false)}
           firstName={first}
           lastName={last}
-          tpType={formData.tp_type}
+          tpTypes={formData.tp_types ?? []}
           candidateId={formData._id}
         />
       )}

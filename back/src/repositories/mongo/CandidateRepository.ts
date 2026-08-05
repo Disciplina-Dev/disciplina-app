@@ -118,7 +118,13 @@ export class CandidateRepository {
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
-        if (filters?.tpType?.length) conditions.push({ tp_types: { $in: filters.tpType } });
+        // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
+        // scripts/cleanup_candidate_tp_type.py) : $or transitoire, à retirer une fois
+        // la migration terminée et le script de nettoyage passé.
+        if (filters?.tpType?.length)
+            conditions.push({
+                $or: [{ tp_types: { $in: filters.tpType } }, { tp_type: { $in: filters.tpType } }],
+            });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
         if (filters?.geographicMobility?.length)
@@ -276,15 +282,36 @@ export class CandidateRepository {
     async stats(sectors?: string[]): Promise<CandidateStats> {
         // Filtre optionnel par secteur du créateur du dossier (owner.sector).
         const match = sectors && sectors.length > 0 ? [{ $match: { 'owner.sector': { $in: sectors } } }] : [];
+        // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
+        // scripts/cleanup_candidate_tp_type.py) : fallback vers [tp_type] tant que
+        // tp_types est absent. Un candidat multi-TP compte dans chacun de ses buckets
+        // (changement de cardinalité assumé par rapport à l'ancien group-by single-value).
+        const withTpTypes = [
+            {
+                $addFields: {
+                    _tp_types: {
+                        $cond: [
+                            { $gt: [{ $size: { $ifNull: ['$tp_types', []] } }, 0] },
+                            '$tp_types',
+                            { $cond: [{ $ifNull: ['$tp_type', false] }, ['$tp_type'], []] },
+                        ],
+                    },
+                },
+            },
+            { $unwind: '$_tp_types' },
+        ];
         const [result] = await CandidateModel.aggregate<RawStats>([
             ...match,
             {
                 $facet: {
                     total: [{ $count: 'count' }],
                     byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
-                    byTpType: [{ $group: { _id: '$tp_type', count: { $sum: 1 } } }],
+                    byTpType: [...withTpTypes, { $group: { _id: '$_tp_types', count: { $sum: 1 } } }],
                     byTrainingSite: [{ $group: { _id: '$training_site', count: { $sum: 1 } } }],
-                    byTpAndStatus: [{ $group: { _id: { tpType: '$tp_type', status: '$status' }, count: { $sum: 1 } } }],
+                    byTpAndStatus: [
+                        ...withTpTypes,
+                        { $group: { _id: { tpType: '$_tp_types', status: '$status' }, count: { $sum: 1 } } },
+                    ],
                 },
             },
         ]);
@@ -361,7 +388,7 @@ export class CandidateRepository {
         return CandidateModel.findOneAndUpdate(
             { _id: id },
             { $set: flattenObject(data) },
-            { returnDocument: 'after' },
+            { returnDocument: 'after', runValidators: true, context: 'query' },
         ).lean();
     }
 
