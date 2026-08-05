@@ -13,6 +13,7 @@ import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHO
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
 import { SECTOR_LABELS } from '@/data/sectors';
+import { secteurLabelOfTrainingSite } from '@/constants/secteurs';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
@@ -48,10 +49,7 @@ const getTpTypeColors = (tpType: TitleProfessionalType) => {
 
 const formatTrainingSite = (site?: TrainingSite) => {
   if (!site) return 'Non renseigné';
-  if (site === TrainingSite.NORD_SAINTE_MARIE) return 'Nord';
-  if (site === TrainingSite.OUEST_SAINT_PAUL) return 'Ouest';
-  if (site === TrainingSite.SUD_SAINT_PIERRE) return 'Sud';
-  return site;
+  return secteurLabelOfTrainingSite(site) ?? site;
 };
 
 // --- Tabs ---
