@@ -361,7 +361,7 @@ export class CandidateRepository {
         return CandidateModel.findOneAndUpdate(
             { _id: id },
             { $set: flattenObject(data) },
-            { returnDocument: 'after' },
+            { returnDocument: 'after', runValidators: true, context: 'query' },
         ).lean();
     }
 
