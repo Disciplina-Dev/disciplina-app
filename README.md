@@ -95,6 +95,26 @@ docker compose exec -T nosql-db mongorestore \
   --authenticationDatabase admin --archive < backups/backup_mongo_<DATE>.archive
 ```
 
+### Automatisation (Mac mini)
+
+`scripts/backup-db.sh` wraps the two commands above and adds rotation (deletes dumps older than `RETENTION_DAYS`, default 7). On the deployment Mac mini it's scheduled with **launchd** (not cron — survives sleep/reboot, standard on macOS):
+
+```bash
+# Install
+cp scripts/launchd/com.disciplina.backup.plist ~/Library/LaunchAgents/
+# Edit the copy: set the absolute path to scripts/backup-db.sh and your $HOME in StandardOutPath/StandardErrorPath
+launchctl load ~/Library/LaunchAgents/com.disciplina.backup.plist
+
+# Trigger a run immediately (without waiting for 03:00) to test
+launchctl start com.disciplina.backup
+tail -f ~/Library/Logs/disciplina-backup.log
+
+# Uninstall
+launchctl unload ~/Library/LaunchAgents/com.disciplina.backup.plist
+```
+
+Runs daily at 03:00, dumps land in `./backups/`, retention is 7 days **on this machine only** — off-machine storage is not implemented yet (tracked as `DB-5` in `BACKLOG.md`).
+
 ## Project Architecture
 
 ```
