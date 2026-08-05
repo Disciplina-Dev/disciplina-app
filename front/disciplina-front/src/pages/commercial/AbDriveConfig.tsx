@@ -82,8 +82,8 @@ export default function AbDriveConfig() {
           <h1 className="text-xl font-semibold text-gray-900">Dossiers Drive analyses de besoin</h1>
           <p className="text-sm text-gray-500">
             Deux dossiers Drive par secteur : un pour les AB non signées (à l'envoi en signature) et un pour
-            les AB signées (au retour DocuSeal). Chaque AB est archivée dans le dossier du secteur de son
-            commercial créateur.
+            les AB signées (au retour DocuSeal). Chaque AB est archivée dans le dossier du secteur de l'entreprise
+            (région de l'AB), pas celui du commercial créateur.
           </p>
         </div>
       </div>

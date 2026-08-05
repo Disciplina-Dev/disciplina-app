@@ -329,13 +329,15 @@ export class NeedsAnalysisService {
             signature_url: signUrl,
         });
 
-        // Archivage Drive du PDF non signé, dans le dossier du secteur du commercial.
+        // Archivage Drive du PDF non signé, dans le dossier du secteur de l'AB
+        // (région de l'entreprise), pas celui du commercial.
         // Best-effort : n'échoue pas l'envoi en signature.
         await abDriveConfigService.archiveAbPdf(
-            analysis.salerInfo?.id ?? undefined,
+            analysis.companyInfos?.sector,
             'UNSIGNED',
             buffer,
             filename,
+            analysis.salerInfo?.id ?? undefined,
             actingUserId,
         );
 
