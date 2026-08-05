@@ -281,7 +281,7 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 
 ## Key dependencies
 
-- `apollo-server-express` ^3.13 — GraphQL
+- `@apollo/server` ^4 — GraphQL
 - `express` ^4.18 — HTTP framework
 - `mysql2` ^3.9 — MySQL driver
 - `mongoose` ^9.5 — MongoDB ODM
