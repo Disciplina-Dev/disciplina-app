@@ -63,6 +63,38 @@ docker compose -f docker-compose.test.yml up --build --force-recreate --abort-on
 
 CI runs automatically on every push and pull request via GitHub Actions (`.github/workflows/ci.yml`). Failing tests appear as inline annotations on the PR diff.
 
+## Backups
+
+There is no automated backup job yet (tracked as `DB-5` in `BACKLOG.md`). For now, backups are manual — run these against the running `sql-db`/`nosql-db` services with the root `.env` loaded:
+
+```bash
+mkdir -p backups
+
+# MySQL
+DATE=$(date +%Y-%m-%d_%H%M%S)
+docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" disciplina > "backups/backup_mysql_${DATE}.sql"
+
+# MongoDB
+DATE=$(date +%Y-%m-%d_%H%M%S)
+docker compose exec -T nosql-db mongodump \
+  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  --authenticationDatabase admin --db human_ressources --archive > "backups/backup_mongo_${DATE}.archive"
+```
+
+Dumps land in `./backups/` (gitignored) as `backup_mysql_<DATE>.sql` and `backup_mongo_<DATE>.archive`.
+
+To restore a dump:
+
+```bash
+# MySQL
+docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina < backups/backup_mysql_<DATE>.sql
+
+# MongoDB
+docker compose exec -T nosql-db mongorestore \
+  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  --authenticationDatabase admin --archive < backups/backup_mongo_<DATE>.archive
+```
+
 ## Project Architecture
 
 ```
