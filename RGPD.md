@@ -291,6 +291,14 @@ function GdprPortal() {
 ### Constat
 Le champ `social_security_number` est stocké en clair dans MongoDB (`candidate.identity.social_security_number`). Le N° de sécurité sociale est une **donnée sensible** au sens de l'Article 9 RGPD car il permet d'identifier de manière unique une personne et peut révéler des informations médicales.
 
+> **Traité (commit `d5e09719`, « 504 fix security social (#529) »)** — le SSN est
+> désormais chiffré en AES-256-GCM avant toute écriture. `CandidateService.ts` appelle
+> `encryptSsn` (`external/crypto/ssn-cipher.ts`) en amont de `CandidateRepository.create`/
+> `update`, et le document stocké ne contient plus que `{ encrypted, iv, tag }` (schéma
+> `encryptedSsnSchema`, `candidate.schema.ts`). L'affichage masqué utilise `MASKED_SSN` ;
+> le déchiffrement n'a lieu qu'à la demande explicite (résolveur `unmaskCandidateSsn`).
+> Le code ci-dessous (Option A) correspond à l'implémentation réellement en place.
+
 ### Correction
 
 **Option A — Chiffrement symétrique (recommandé) :**
@@ -1029,7 +1037,7 @@ const html = `
 - [x] **F2** Créer et publier la politique de confidentialité (`/privacy`) — *corpus rédigé et publié ; placeholders et relecture juridique en attente*
 - [ ] **F3** Créer le registre des traitements
 - [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification
-- [ ] **F5** Chiffrer le numéro de sécurité sociale en base
+- [x] **F5** Chiffrer le numéro de sécurité sociale en base — *AES-256-GCM, cf. `external/crypto/ssn-cipher.ts`*
 - [ ] **F11** Nettoyer les secrets du dépôt Git + `.gitignore`
 - [ ] **F15** Ajouter mentions légales + footer RGPD sur les portails publics — *fait côté portails et footer applicatif ; reste les templates d'emails*
 

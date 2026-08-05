@@ -238,7 +238,6 @@ const candidateSchema = new Schema<Candidate & Document>(
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
         owner: { type: ownerSchema },
-        tp_type: { type: String, enum: Object.values(TitleProfessionalType), required: true },
         tp_types: { type: [String], enum: Object.values(TitleProfessionalType), default: undefined },
         identity: { type: identitySchema, required: true },
         emergency_contact: { type: emergencyContactSchema },

@@ -251,7 +251,7 @@ export class CandidateService {
 
     private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {
         const offerTps = offerTpCodes(offer);
-        const candidateTps = candidate.tp_types?.length ? candidate.tp_types : [candidate.tp_type];
+        const candidateTps = candidate.tp_types ?? [];
         if (offerTps.length && !offerTps.some((tp) => candidateTps.includes(tp))) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
 

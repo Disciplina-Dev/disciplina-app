@@ -411,7 +411,6 @@ const CANDIDATE_FIELDS = gql`
       sector
     }
     status
-    tpType
     tpTypes
     trainingSite
     trainingSites
@@ -586,7 +585,6 @@ export const GET_CANDIDATE_BY_ID = gql`
         sector
       }
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -721,7 +719,6 @@ export const UPDATE_CANDIDATE = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -846,7 +843,6 @@ export const CREATE_CANDIDATE = gql`
     createCandidate(input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -902,7 +898,6 @@ export const GET_CANDIDATE_FULL = gql`
         sector
       }
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -1038,7 +1033,6 @@ export const UPDATE_CANDIDATE_FULL = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites

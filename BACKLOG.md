@@ -96,10 +96,9 @@ Sur les 10 tâches marquées KO : **4 sont en fait faites** (KPI RH, statut inli
 - **Piège** : en mode recherche, `findPage` ignore `first` et renvoie **tous** les résultats fusionnés `$text` + `$regex` (`CandidateRepository.ts:187-224`) et le front masque la pagination (`ListeCandidats.tsx:284`) — le total n'a alors pas la même sémantique. Traiter les deux branches explicitement.
 - **Done** : le total est stable quand on pagine, et cohérent entre mode filtré et mode recherche.
 
-### REL-3 — Fix filtre TP multi-select · S
-- **Constat** : `CandidateRepository.ts:121` filtre `{ tp_type: { $in: ... } }`. Or le champ canonique est le tableau `tp_types` (`back/src/types/candidate.types.ts:219`) et `tp_type` n'est que `tp_types[0]` (`back/src/graphql/candidate/resolver.ts:238`). Un candidat `tp_types: ["AD","CC"]` est **invisible** quand on filtre sur CC.
-- **Action** : reprendre le pattern déjà correct de `back/src/services/OfferService.ts:189` : `$or: [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }]`.
-- **Done** : un candidat à TP secondaire remonte sur le filtre correspondant. Test de non-régression sur un candidat multi-TP.
+### REL-3 — Fix filtre TP multi-select · S — ✅ Résolu
+- **Constat** : `CandidateRepository.ts:121` filtrait `{ tp_type: { $in: ... } }`. Or le champ canonique est le tableau `tp_types` et `tp_type` n'était que `tp_types[0]`. Un candidat `tp_types: ["AD","CC"]` était **invisible** quand on filtrait sur CC.
+- **Résolu** : `tp_type` (legacy) a été entièrement retiré du schéma candidat, de la couche GraphQL et de tout le code applicatif (backend, front, scripts CSV) au profit du seul `tp_types`. Le filtre `CandidateRepository.ts:121` matche désormais `tp_types` (avec un `$or` transitoire sur l'ancien `tp_type` le temps que `scripts/cleanup_candidate_tp_type.py` nettoie les documents legacy).
 
 ### REL-4 — Fix filtre Statut sur les onglets ≠ « Tous » · S
 - **Constat** : `statusIn` (issu de l'onglet) écrase `status` (issu du select). `back/src/graphql/candidate/resolver.ts:130` met `status: undefined` dès que `statusIn` est présent, et `CandidateRepository.ts:116-117` est un `else if`. Résultat : sur Actif / Archivé / Inactif, choisir un statut ne fait **rien** — sans aucun retour visuel. `handleTabChange` ne nettoie `filters.status` qu'en quittant « Tous » (`ListeCandidats.tsx:163-168`).

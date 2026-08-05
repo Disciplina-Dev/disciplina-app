@@ -67,10 +67,9 @@ function tpColors(tp: TitleProfessionalType): string {
   }
 }
 
-/** Les titres professionnels d'un candidat (multi, avec repli sur le legacy). */
+/** Les titres professionnels d'un candidat (multi). */
 function tpsOf(candidate: Candidate): TitleProfessionalType[] {
-  if (candidate.tp_types?.length) return candidate.tp_types
-  return candidate.tp_type ? [candidate.tp_type] : []
+  return candidate.tp_types ?? []
 }
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })

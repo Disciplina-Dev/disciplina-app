@@ -21,7 +21,7 @@ describe('GraphQL candidate queries', () => {
                 Cookie: auth.cookieHeader,
                 'x-csrf-token': auth.csrfHeader,
             },
-            body: JSON.stringify({ query: '{ candidates { id status tpType } }' }),
+            body: JSON.stringify({ query: '{ candidates { id status tpTypes } }' }),
         });
         const json = await res.json();
 
@@ -38,14 +38,14 @@ describe('GraphQL candidate queries', () => {
         const c1 = await repo.create({
             _id: `id-${suffix}-1`,
             candidate_id: `id-${suffix}-1`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `Alice ${suffix}`, email: `alice-${suffix}@test.local`, phone: '0100000001' },
         });
         const c2 = await repo.create({
             _id: `id-${suffix}-2`,
             candidate_id: `id-${suffix}-2`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.CONTRACT,
             identity: { full_name: `Bob ${suffix}`, email: `bob-${suffix}@test.local`, phone: '0100000002' },
         });
@@ -58,7 +58,7 @@ describe('GraphQL candidate queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: `{ candidates { id status tpType identity { fullName email } } }`,
+                query: `{ candidates { id status tpTypes identity { fullName email } } }`,
             }),
         });
         const json = await res.json();
@@ -68,10 +68,10 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidates).toHaveLength(2);
         expect(json.data.candidates[0].id).toBe(c1._id);
         expect(json.data.candidates[0].identity.fullName).toBe(`Alice ${suffix}`);
-        expect(json.data.candidates[0].tpType).toBe('AD');
+        expect(json.data.candidates[0].tpTypes).toEqual(['AD']);
         expect(json.data.candidates[1].id).toBe(c2._id);
         expect(json.data.candidates[1].identity.fullName).toBe(`Bob ${suffix}`);
-        expect(json.data.candidates[1].tpType).toBe('CC');
+        expect(json.data.candidates[1].tpTypes).toEqual(['CC']);
     });
 
     it('paginates candidates with cursors via candidatesPage', async () => {
@@ -85,7 +85,7 @@ describe('GraphQL candidate queries', () => {
                 repo.create({
                     _id: id,
                     candidate_id: id,
-                    tp_type: TitleProfessionalType.AD,
+                    tp_types: [TitleProfessionalType.AD],
                     status: CandidateStatus.SEEKING,
                     identity: { full_name: `Candidate ${id}`, email: `${id}@test.local`, phone: '0100000000' },
                 }),
@@ -130,7 +130,7 @@ describe('GraphQL candidate queries', () => {
         const seeded = await repo.create({
             _id: `find-by-id-${suffix}`,
             candidate_id: `find-by-id-${suffix}`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `Target ${suffix}`, email: `target-${suffix}@test.local`, phone: '0600000000' },
             desired_sectors: ['RESTAURATION', 'COMMERCIAL'],
@@ -144,7 +144,7 @@ describe('GraphQL candidate queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: `query($id: String!) { candidate(id: $id) { id status tpType identity { fullName email } desiredSectors } }`,
+                query: `query($id: String!) { candidate(id: $id) { id status tpTypes identity { fullName email } desiredSectors } }`,
                 variables: { id: seeded._id },
             }),
         });
@@ -202,7 +202,7 @@ describe('candidateStats', () => {
         await repo.create({
             _id: `${suffix}-1`,
             candidate_id: `${suffix}-1`,
-            tp_type: TitleProfessionalType.REM,
+            tp_types: [TitleProfessionalType.REM],
             status: CandidateStatus.SEEKING,
             training_site: TrainingSite.SUD_SAINT_PIERRE,
             identity: { full_name: `Stats A ${suffix}`, email: `sa-${suffix}@test.local`, phone: '0600000000' },
@@ -210,7 +210,7 @@ describe('candidateStats', () => {
         await repo.create({
             _id: `${suffix}-2`,
             candidate_id: `${suffix}-2`,
-            tp_type: TitleProfessionalType.REM,
+            tp_types: [TitleProfessionalType.REM],
             status: CandidateStatus.CONTRACT,
             training_site: TrainingSite.SUD_SAINT_PIERRE,
             identity: { full_name: `Stats B ${suffix}`, email: `sb-${suffix}@test.local`, phone: '0600000001' },
@@ -248,7 +248,7 @@ describe('matchCandidate', () => {
         await candidateRepo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.NTC,
+            tp_types: [TitleProfessionalType.NTC],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Match Me ${suffix}`,
@@ -322,7 +322,7 @@ describe('UNAVAILABLE availability transition', () => {
         await repo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.UNAVAILABLE,
             identity: { full_name: `Unavail ${suffix}`, email: `${suffix}@test.local`, phone: '0600000000' },
             job_info: { availability_date: new Date('2020-01-01') },
@@ -356,7 +356,7 @@ describe('UNAVAILABLE availability transition', () => {
         await repo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.UNAVAILABLE,
             identity: { full_name: `Still ${suffix}`, email: `${suffix}@test.local`, phone: '0600000001' },
             job_info: { availability_date: future },
@@ -388,7 +388,7 @@ describe('unmaskCandidateSsn', () => {
         await service.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Ssn Reveal ${suffix}`,
@@ -422,7 +422,7 @@ describe('unmaskCandidateSsn', () => {
         await repo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `No Ssn ${suffix}`, email: `${suffix}@test.local`, phone: '0600000000' },
         });
@@ -468,21 +468,21 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-rem-1`,
             candidate_id: `${suffix}-rem-1`,
-            tp_type: TitleProfessionalType.SA,
+            tp_types: [TitleProfessionalType.SA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} A`, email: `ftp-a-${suffix}@test.local`, phone: '0600000000' },
         });
         await repo.create({
             _id: `${suffix}-rem-2`,
             candidate_id: `${suffix}-rem-2`,
-            tp_type: TitleProfessionalType.SA,
+            tp_types: [TitleProfessionalType.SA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} B`, email: `ftp-b-${suffix}@test.local`, phone: '0600000001' },
         });
         await repo.create({
             _id: `${suffix}-other`,
             candidate_id: `${suffix}-other`,
-            tp_type: TitleProfessionalType.NTC,
+            tp_types: [TitleProfessionalType.NTC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} C`, email: `ftp-c-${suffix}@test.local`, phone: '0600000002' },
         });
@@ -493,7 +493,7 @@ describe('candidatesPage with filters', () => {
             body: JSON.stringify({
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
-                        edges { node { id tpType } }
+                        edges { node { id tpTypes } }
                         totalCount
                     }
                 }`,
@@ -507,7 +507,7 @@ describe('candidatesPage with filters', () => {
         const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
         expect(nodes).toHaveLength(2);
         expect(json.data.candidatesPage.totalCount).toBe(2);
-        expect(nodes.every((n: any) => n.tpType === 'SA')).toBe(true);
+        expect(nodes.every((n: any) => n.tpTypes.includes('SA'))).toBe(true);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-1`);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-2`);
     });
@@ -520,14 +520,14 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-seeking`,
             candidate_id: `${suffix}-seeking`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-ST-${suffix} SEEK`, email: `fst-s-${suffix}@test.local`, phone: '0600000000' },
         });
         await repo.create({
             _id: `${suffix}-matched`,
             candidate_id: `${suffix}-matched`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.CONTRACT,
             identity: { full_name: `FLT-ST-${suffix} MATCH`, email: `fst-m-${suffix}@test.local`, phone: '0600000001' },
         });
@@ -562,7 +562,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-with`,
             candidate_id: `${suffix}-with`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `FLT-DL-${suffix} YES`,
@@ -574,7 +574,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-without`,
             candidate_id: `${suffix}-without`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `FLT-DL-${suffix} NO`,
@@ -614,7 +614,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-paul`,
             candidate_id: `${suffix}-paul`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-GM-${suffix} PAUL`, email: `fgm-p-${suffix}@test.local`, phone: '0600000000' },
             job_info: { geographic_mobility: ['SAINT_PAUL', 'LE_PORT'] },
@@ -622,7 +622,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-denis`,
             candidate_id: `${suffix}-denis`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-GM-${suffix} DENIS`, email: `fgm-d-${suffix}@test.local`, phone: '0600000001' },
             job_info: { geographic_mobility: ['SAINT_DENIS'] },
@@ -657,7 +657,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-boul`,
             candidate_id: `${suffix}-boul`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-DS-${suffix} BOUL`, email: `fds-b-${suffix}@test.local`, phone: '0600000000' },
             desired_sectors: ['Boulangerie', 'Restauration'],
@@ -665,7 +665,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-auto`,
             candidate_id: `${suffix}-auto`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-DS-${suffix} AUTO`, email: `fds-a-${suffix}@test.local`, phone: '0600000001' },
             desired_sectors: ['Automobile'],
@@ -702,7 +702,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-jean`,
             candidate_id: `${suffix}-jean`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `${suffix}Jean`,
@@ -742,7 +742,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-a`,
             candidate_id: `${suffix}-a`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Alpha ${suffix}`,
@@ -754,7 +754,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-b`,
             candidate_id: `${suffix}-b`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Beta ${suffix}`,
@@ -792,7 +792,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-both`,
             candidate_id: `${suffix}-both`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Jean${suffix} Dupont${suffix}`,
@@ -804,7 +804,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-partial`,
             candidate_id: `${suffix}-partial`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Jean${suffix} Martin${suffix}`,
@@ -842,7 +842,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-dup`,
             candidate_id: `${suffix}-dup`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Dup ${suffix}`,
