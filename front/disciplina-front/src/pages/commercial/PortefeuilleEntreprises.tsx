@@ -23,7 +23,7 @@ import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 import { formatErrorMessage } from '@/utils/companyErrors'
 import type { Entreprise } from '@/types/entreprise'
-import { SECTEUR_VALUES } from '@/types/entreprise'
+import { SECTEUR_VALUES, STATUS_VALUES } from '@/types/entreprise'
 
 const PAGE_SIZE = 20
 
@@ -73,7 +73,10 @@ export default function PortefeuilleEntreprises() {
     cursorHistory,
     loadNextPage,
     loadPrevPage,
-  } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS)
+  } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS, {
+    status: STATUS_VALUES,
+    relance: ['', 'today', 'past', 'future'],
+  })
 
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
