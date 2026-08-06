@@ -9,6 +9,7 @@ const CLEARED_TABLES = [
     'companies_blacklist',
     'match_link',
     'interview_access',
+    'rh_kpi',
     'users',
     'refresh_tokens',
 ];
