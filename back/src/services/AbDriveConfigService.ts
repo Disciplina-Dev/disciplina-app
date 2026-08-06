@@ -2,22 +2,10 @@ import { AbDriveConfig, AbDriveConfigRepository } from '../repositories/mongo/Ab
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
-import { SECTORS, Sector, primarySector } from '../utils/sector';
+import { SECTORS, sectorFromRegion } from '../utils/sector';
 import { JobRole, User } from '../types/user.types';
 import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
 import { logger } from '../external/logger';
-
-// Région de l'AB (NORD/OUEST/SUD) → secteur métier du dossier Drive. Le dossier
-// d'archivage suit le secteur de l'AB elle-même, pas celui du commercial créateur.
-const AB_REGION_TO_SECTOR: Record<CompanyRegion, Sector> = {
-    [CompanyRegion.NORD]: 'Nord-Est',
-    [CompanyRegion.OUEST]: 'Ouest',
-    [CompanyRegion.SUD]: 'Sud',
-};
-
-function sectorFromAbRegion(region: CompanyRegion | undefined | null): Sector | undefined {
-    return region ? AB_REGION_TO_SECTOR[region] : undefined;
-}
 
 /** Type de dossier d'archivage d'une AB : signé ou non signé. */
 export type AbFolderKind = 'SIGNED' | 'UNSIGNED';
@@ -76,9 +64,8 @@ export class AbDriveConfigService {
         actingUserId?: number,
     ): Promise<string | null> {
         try {
-            // Secteur de l'AB d'abord ; si absent, Nord-Est par défaut
-            // créateur avant d'abandonner l'archivage.
-            const sector = sectorFromAbRegion(region) ?? 'Nord-Est';
+            // Secteur de l'AB d'abord ; si absent, Nord-Est par défaut.
+            const sector = sectorFromRegion(region) ?? 'Nord-Est';
             const creator = creatorId ? await this.userService.findById(creatorId) : null;
             const actingUser =
                 actingUserId && actingUserId !== creatorId ? await this.userService.findById(actingUserId) : null;

@@ -2,21 +2,39 @@ import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepo
 import { toNeedsAnalysis } from './mappers/needsAnalysis.mapper';
 import { NeedsAnalysisStatus } from '../types/needsAnalysisNoSql.types';
 import { UserRepository } from '../repositories/mysql/UserRepository';
+import { UserService } from './UserService';
+import { NotificationService } from './NotificationService';
 import { CompaniesService } from './CompaniesService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { GoogleGmailService } from '../external/google/gmail.service';
 import { MailTemplateService } from './MailTemplateService';
+import { sectorFromRegion } from '../utils/sector';
+import { JobRole } from '../types/user.types';
 import { logger } from '../external/logger';
 
 import { notifyUser } from '../rest/yousign/sse';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();
 const userRepo = new UserRepository();
+const userService = new UserService();
+const notificationService = new NotificationService();
 const companiesService = new CompaniesService();
 const docusealService = new DocuSealService();
 const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
+
+/** Slug front d'une fiche entreprise (`/commercial/portefeuille/<slug>`), miroir de toSlug côté front. */
+function companySlug(name: string): string {
+    return name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+}
 
 /**
  * Traitement commun quand une Analyse du Besoin est signée :
@@ -53,6 +71,35 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
     const commercial = analysis.salerInfo?.id ? await userRepo.findById(analysis.salerInfo.id) : null;
     const company = analysis.companyInfos?.id ? await companiesService.findById(analysis.companyInfos.id) : null;
     const companyName = company?.name || 'Entreprise';
+
+    // Notification in-app aux commerciaux du secteur de l'AB (tous, pas seulement
+    // le créateur). Best-effort : un échec ne doit pas bloquer l'envoi de l'email.
+    try {
+        const sector = sectorFromRegion(analysis.companyInfos?.sector);
+        if (sector) {
+            const commercials = await userService.findByJobRole(JobRole.COMMERCIAL);
+            const recipients = commercials.filter((user) => !user.sectors?.length || user.sectors.includes(sector));
+            if (recipients.length > 0) {
+                await Promise.all(
+                    recipients.map((recipient) =>
+                        notificationService.create({
+                            userId: recipient.id,
+                            type: 'ab_signed',
+                            category: 'company',
+                            level: 'success',
+                            title: 'AB signée',
+                            message: `L'analyse du besoin pour ${companyName}${
+                                analysis.positions?.[0]?.title ? ` (${analysis.positions[0].title})` : ''
+                            } a été signée.`,
+                            link: `/commercial/portefeuille/${companySlug(companyName)}`,
+                        }),
+                    ),
+                );
+            }
+        }
+    } catch (err) {
+        logger.error({ err, abId: analysis.id }, 'Failed to notify sector commercials of signed AB');
+    }
 
     // Archivage Drive du/des PDF signé(s) dans le dossier "signé" du secteur de l'AB
     // (région de l'entreprise), pas celui du commercial.
@@ -124,8 +171,6 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
     };
 
     const persistRefreshedTokens = (uid: number) => async (refreshed: any) => {
-        const userServiceModule = require('./UserService');
-        const userService = new userServiceModule.UserService();
         await userService.updateGoogleTokens(uid, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
     };
 
