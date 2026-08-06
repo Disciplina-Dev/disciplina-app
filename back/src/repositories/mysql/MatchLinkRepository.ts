@@ -38,4 +38,10 @@ export class MatchLinkRepository {
             [code, identifier, expiresAt, signature],
         );
     }
+
+    /** Purge les liens expirés depuis plus de `graceDays` jours. Cf. InterviewAccessRepository. */
+    async deleteExpired(graceDays: number): Promise<number> {
+        const result = await query('DELETE FROM match_link WHERE expires_at < NOW() - INTERVAL ? DAY', [graceDays]);
+        return (result as unknown as { affectedRows: number }).affectedRows;
+    }
 }

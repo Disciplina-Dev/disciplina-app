@@ -18,7 +18,10 @@ const pool: Pool =
               host: env.MYSQL_HOST,
               port: env.MYSQL_PORT,
               user: env.MYSQL_USER,
-              password: env.MYSQL_ROOT_PASSWORD,
+              // Compte applicatif non-root dès que MYSQL_PASSWORD est fourni ; sinon on
+              // retombe sur le mot de passe root pour ne pas casser les installations
+              // antérieures à la création de `disciplina_app`.
+              password: env.MYSQL_PASSWORD ?? env.MYSQL_ROOT_PASSWORD,
               database: env.MYSQL_DATABASE,
               waitForConnections: true,
               connectionLimit: 10,

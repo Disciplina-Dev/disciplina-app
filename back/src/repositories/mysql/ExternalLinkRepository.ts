@@ -39,4 +39,10 @@ export class ExternalLinkRepository {
     async setStatus(signature: string, status: ExternalLinkRow['status']): Promise<void> {
         await query('UPDATE external_link SET status = ? WHERE signature = ?', [status, signature]);
     }
+
+    /** Purge les liens expirés depuis plus de `graceDays` jours. Cf. InterviewAccessRepository. */
+    async deleteExpired(graceDays: number): Promise<number> {
+        const result = await query('DELETE FROM external_link WHERE expires_at < NOW() - INTERVAL ? DAY', [graceDays]);
+        return (result as unknown as { affectedRows: number }).affectedRows;
+    }
 }
