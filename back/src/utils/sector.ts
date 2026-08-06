@@ -1,4 +1,5 @@
 import { DriveRegion } from '../services/DriveFolderConfigService';
+import { Permission } from '../types/user.types';
 
 /**
  * Secteurs géographiques Disciplina. Valeurs canoniques côté métier
@@ -39,4 +40,12 @@ export function regionFromSector(sector?: string | null): DriveRegion | undefine
 export function shareSector(a?: string[] | null, b?: string[] | null): boolean {
     const sectorsB = new Set(sanitizeSectors(b));
     return sanitizeSectors(a).some((sector) => sectorsB.has(sector));
+}
+
+/**
+ * ADMIN/RESPONSABLE ont un accès multi-secteurs (tous les secteurs visibles) ;
+ * les autres niveaux (EMPLOYEE) sont restreints à leurs propres secteurs.
+ */
+export function canAccessAllSectors(permission?: string | null): boolean {
+    return permission === Permission.ADMIN || permission === Permission.RESPONSABLE;
 }
