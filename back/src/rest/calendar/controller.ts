@@ -215,6 +215,12 @@ export async function getEvents(req: AuthRequest, res: Response): Promise<void> 
             res.status(403).json({ error: 'Agenda non consultable' });
             return;
         }
+        // EMPLOYEE ne lit que les agendas partageant au moins un secteur ; RESPONSABLE+/ADMIN lisent tout.
+        const self = await userService.findById(Number(req.user.id));
+        if (self && !hasMinPermission(self, Permission.RESPONSABLE) && !shareSector(self.sectors, target.sectors)) {
+            res.status(403).json({ error: 'Agenda non consultable' });
+            return;
+        }
         if (!target.oauthToken) {
             res.status(409).json({ error: 'Agenda non connecté' });
             return;
