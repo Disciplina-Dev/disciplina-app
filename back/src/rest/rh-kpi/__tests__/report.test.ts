@@ -33,7 +33,6 @@ describe('GET /api/rh-kpi/report sector scoping', () => {
 
     beforeEach(async () => {
         await truncateMysql();
-        await pool.query('TRUNCATE TABLE rh_kpi');
     });
 
     it('restricts a plain RH to their own rows', async () => {

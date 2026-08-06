@@ -158,6 +158,9 @@ privilege set is deliberate — a query needing a privilege the app doesn't have
 than in production. The explicit `AUTO_INCREMENT = 1` restores what `TRUNCATE` used to do for free;
 several tests assume ids restart at 1.
 
+A test needing a table cleared adds it to `CLEARED_TABLES` (children before parents) rather than
+issuing its own `TRUNCATE` in a `beforeEach` — that shortcut fails in CI on the missing `DROP`.
+
 **Connection limit**: vitest isolates the module registry per test file, so every file re-imports
 `src/db/mysql/connection.ts` and creates its own `mysql2` pool (10 connections) without closing the
 previous ones. With ~40 files this blows past MySQL's default `max_connections` of 151, which is why
