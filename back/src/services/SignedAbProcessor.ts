@@ -54,13 +54,20 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
     const company = analysis.companyInfos?.id ? await companiesService.findById(analysis.companyInfos.id) : null;
     const companyName = company?.name || 'Entreprise';
 
-    // Archivage Drive du/des PDF signé(s) dans le dossier "signé" du secteur du commercial.
+    // Archivage Drive du/des PDF signé(s) dans le dossier "signé" du secteur de l'AB
+    // (région de l'entreprise), pas celui du commercial.
     // Best-effort : n'empêche pas l'envoi de l'email ci-dessous.
     const safeName = companyName.replace(/\s+/g, '_');
     for (const signedDoc of signedDocuments) {
         const isMandat = /mandat/i.test(signedDoc.name);
         const fname = isMandat ? `Mandat_Publication_${safeName}_Signe.pdf` : `Analyse_Besoin_${safeName}_Signee.pdf`;
-        await abDriveConfigService.archiveAbPdf(analysis.salerInfo?.id ?? undefined, 'SIGNED', signedDoc.buffer, fname);
+        await abDriveConfigService.archiveAbPdf(
+            analysis.companyInfos?.sector,
+            'SIGNED',
+            signedDoc.buffer,
+            fname,
+            analysis.salerInfo?.id ?? undefined,
+        );
     }
 
     // Trouver un compte avec des credentials Google valides pour envoyer l'email.
