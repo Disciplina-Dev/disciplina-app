@@ -1,4 +1,5 @@
 import { DriveRegion } from '../services/DriveFolderConfigService';
+import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
 import { Permission } from '../types/user.types';
 
 /**
@@ -34,6 +35,18 @@ export function primarySector(sectors?: string[] | null): Sector | undefined {
 /** Région Drive déduite d'un secteur métier. */
 export function regionFromSector(sector?: string | null): DriveRegion | undefined {
     return isSector(sector) ? SECTOR_TO_REGION[sector] : undefined;
+}
+
+// Région de l'AB (NORD/OUEST/SUD) → secteur métier (Nord-Est/Ouest/Sud).
+const REGION_TO_SECTOR: Record<CompanyRegion, Sector> = {
+    [CompanyRegion.NORD]: 'Nord-Est',
+    [CompanyRegion.OUEST]: 'Ouest',
+    [CompanyRegion.SUD]: 'Sud',
+};
+
+/** Secteur métier d'une AB, déduit de la région de l'entreprise. */
+export function sectorFromRegion(region?: CompanyRegion | null): Sector | undefined {
+    return region ? REGION_TO_SECTOR[region] : undefined;
 }
 
 /** Vrai si les deux listes de secteurs ont au moins un secteur en commun. */
