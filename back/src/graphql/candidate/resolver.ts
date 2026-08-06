@@ -36,12 +36,30 @@ function parseFilterDate(iso: string | undefined, endOfDay: boolean): Date | und
     if (endOfDay) d.setHours(23, 59, 59, 999);
     return d;
 }
-import { primarySector, regionFromSector } from '../../utils/sector';
+import { canAccessAllSectors, primarySector, regionFromSector, sanitizeSectors } from '../../utils/sector';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
 const rhKpiService = new RhKpiService();
 const candidateHistoryService = new CandidateHistoryService();
+
+/**
+ * Secteurs effectivement visibles pour les stats agrégées : ADMIN/RESPONSABLE
+ * voient tout (filtre client respecté) ; sinon on re-fetch le user (le JWT ne
+ * porte pas les secteurs) et on borne la demande à ses secteurs. Un user sans
+ * secteur assigné n'est pas restreint (convention historique).
+ */
+async function statsSectors(context: any, requested?: string[]): Promise<string[] | undefined> {
+    if (canAccessAllSectors(context.user.permission)) return requested;
+    const user = await userService.findById(Number(context.user.id));
+    const own = sanitizeSectors(user?.sectors);
+    if (own.length === 0) return requested;
+    const ownSet = new Set<string>(own);
+    const clamped = requested?.filter((s) => ownSet.has(s));
+    // Demande hors périmètre → on ignore la sur-filtrer et on reste sur ses secteurs
+    // (jamais de tableau vide : `stats([])` signifierait « tous » côté repository).
+    return clamped && clamped.length > 0 ? clamped : own;
+}
 
 function candidateHistoryToGql(entry: CandidateHistoryEntry): object {
     return {
@@ -167,7 +185,7 @@ export const resolvers = {
         },
         candidateStats: async (_: unknown, { sectors }: { sectors?: string[] }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            return candidateService.stats(sectors);
+            return candidateService.stats(await statsSectors(context, sectors));
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);

@@ -103,6 +103,12 @@ const data = {
         process.env.NODE_ENV === 'production'
             ? (optionalString('MYSQL_ROOT_PASSWORD') ?? '')
             : requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
+    // Mot de passe du compte applicatif non-root (`disciplina_app`). Retombe sur
+    // MYSQL_ROOT_PASSWORD tant que MYSQL_USER vaut root : les installations existantes,
+    // dont le compte applicatif n'a pas été créé (mysql-init.sql ne rejoue pas sur un
+    // volume existant, cf. database/mysql/migrations/2026-08-06-app-user.sql), continuent
+    // de démarrer sans modifier leur .env.
+    MYSQL_PASSWORD: optionalString('MYSQL_PASSWORD'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
     MYSQL_URI: optionalString('MYSQL_URI'),
 

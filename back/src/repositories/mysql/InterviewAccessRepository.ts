@@ -33,4 +33,15 @@ export class InterviewAccessRepository {
     async setStatus(signature: string, status: InterviewAccessRow['status']): Promise<void> {
         await query('UPDATE interview_access SET status = ? WHERE signature = ?', [status, signature]);
     }
+
+    /**
+     * Purge les accès dont l'expiration remonte à plus de `graceDays` jours. Le délai
+     * de grâce laisse au support le temps d'investiguer un lien périmé signalé par un RH.
+     */
+    async deleteExpired(graceDays: number): Promise<number> {
+        const result = await query('DELETE FROM interview_access WHERE expires_at < NOW() - INTERVAL ? DAY', [
+            graceDays,
+        ]);
+        return (result as unknown as { affectedRows: number }).affectedRows;
+    }
 }

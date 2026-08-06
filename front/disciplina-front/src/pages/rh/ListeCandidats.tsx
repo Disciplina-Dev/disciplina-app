@@ -153,7 +153,20 @@ export default function ListeCandidats() {
     cursorHistory,
     loadNextPage,
     loadPrevPage,
-  } = usePersistedListView<CandidateFilterState>('disciplina:list-view:candidats', EMPTY_CANDIDATE_FILTERS);
+  } = usePersistedListView<CandidateFilterState>(
+    'disciplina:list-view:candidats',
+    EMPTY_CANDIDATE_FILTERS,
+    {
+      trainingSite: [...Object.values(TrainingSite), ''],
+      status: [...Object.values(CandidateStatus), ''],
+      schoolLevel: [...Object.values(SchoolLevel), ''],
+      permis: ['all', 'yes', 'no'],
+      tpType: Object.values(TitleProfessionalType),
+      geographicMobility: Object.values(Localisation),
+      dateMode: ['any', 'before', 'after', 'between', 'none'],
+    },
+    ['ageMin', 'ageMax'],
+  );
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);

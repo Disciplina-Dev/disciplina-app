@@ -9,6 +9,7 @@ import { JobFilters } from '@/features/matching/components/JobFilters'
 import { CompanySearchModal } from '@/features/matching/components/CompanySearchModal'
 import { EMPTY_JOB_FILTERS, toOfferFilterInput } from '@/features/matching/services/jobFilters'
 import type { JobFilters as JobFiltersType, AbTab } from '@/features/matching/services/jobFilters'
+import { TitleProfessionalType } from '@/types/candidate'
 import Matching from '@/pages/rh/Matching'
 
 const PAGE_SIZE = 25
@@ -47,7 +48,10 @@ function AbListView() {
     cursorHistory,
     loadNextPage,
     loadPrevPage,
-  } = usePersistedListView<JobFiltersType>('disciplina:list-view:ab', EMPTY_JOB_FILTERS)
+  } = usePersistedListView<JobFiltersType>('disciplina:list-view:ab', EMPTY_JOB_FILTERS, {
+    desiredTPs: Object.values(TitleProfessionalType),
+    tab: ['ALL', 'ACTIVE', 'ARCHIVED', 'INACTIVE'],
+  })
 
   const offerFilter = toOfferFilterInput(filters, debouncedSearch)
   const { items, pageInfo, loading, error } = useNeedsAnalysesPage(PAGE_SIZE, afterCursor, offerFilter)

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
+import { truncateMysql } from '../../../../test/helpers/db';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
@@ -7,6 +8,7 @@ import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '../../../types/candidate.types';
 import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
 import { CandidateService } from '../../../services/CandidateService';
+import pool from '../../../db/mysql/connection';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -235,6 +237,121 @@ describe('candidateStats', () => {
         expect(s.byTrainingSite.find((b: any) => b.key === 'SUD_SAINT_PIERRE')?.count).toBeGreaterThanOrEqual(2);
         const tpStatus = s.byTpAndStatus.find((b: any) => b.tpType === 'REM' && b.status === 'SEEKING');
         expect(tpStatus?.count).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe('candidateStats sector scoping', () => {
+    const suffix = `sector-${Date.now()}`;
+    let repo: CandidateRepository;
+
+    /** Crée un user RH en base, secteurs géographiques + permission fournis. */
+    async function seedUser(sectors: string[], permissionId: number): Promise<number> {
+        const conn = await pool.getConnection();
+        try {
+            const email = `${suffix}-${Math.random().toString(36).slice(2)}@test.local`;
+            const [result] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, sectors) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [
+                    email,
+                    'Sector',
+                    'Test',
+                    `pwd-${suffix}`,
+                    2,
+                    permissionId,
+                    sectors.length > 0 ? JSON.stringify(sectors) : null,
+                ],
+            );
+            return (result as any).insertId;
+        } finally {
+            conn.release();
+        }
+    }
+
+    async function seedCandidate(id: string, sector: string): Promise<void> {
+        await repo.create({
+            _id: id,
+            candidate_id: id,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            owner: { user_id: 1, name: 'Owner', sector },
+            identity: { full_name: `Cand ${id}`, email: `${id}@test.local`, phone: '0600000000' },
+        });
+    }
+
+    async function statsFor(auth: { cookieHeader: string; csrfHeader: string }, sectors?: string[]): Promise<any> {
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($s: [String!]) { candidateStats(sectors: $s) { total } }`,
+                variables: { s: sectors },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        return json.data.candidateStats;
+    }
+
+    beforeEach(async () => {
+        await truncateMysql();
+        repo = new CandidateRepository();
+    });
+
+    it('clamps a plain RH to their own sectors even when all sectors are requested', async () => {
+        const rhId = await seedUser(['Nord-Est'], 1);
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const auth = mintAuthCookies({
+            id: rhId,
+            email: `rh-${suffix}@test.local`,
+            role: 'RH',
+            permission: 'EMPLOYEE',
+        });
+
+        const all = await statsFor(auth, ['Nord-Est', 'Ouest']);
+        expect(all.total).toBe(1); // uniquement son secteur
+        expect(all.total).not.toBe(2);
+    });
+
+    it('ignores a request for a sector the RH does not belong to', async () => {
+        const rhId = await seedUser(['Nord-Est'], 1);
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const auth = mintAuthCookies({
+            id: rhId,
+            email: `rh-${suffix}@test.local`,
+            role: 'RH',
+            permission: 'EMPLOYEE',
+        });
+
+        const ouestOnly = await statsFor(auth, ['Ouest']);
+        // « Ouest » est hors périmètre → on reste sur ses propres secteurs (jamais « tous »).
+        expect(ouestOnly.total).toBe(1);
+    });
+
+    it('lets ADMIN/RESPONSABLE request any sector', async () => {
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const admin = mintAuthCookies({ id: 1, email: `admin-${suffix}@test.local`, role: 'RH', permission: 'ADMIN' });
+
+        const all = await statsFor(admin, ['Nord-Est', 'Ouest']);
+        expect(all.total).toBe(2);
+    });
+
+    it('keeps a RH with no sector assigned unrestricted', async () => {
+        const rhId = await seedUser([], 1);
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const auth = mintAuthCookies({
+            id: rhId,
+            email: `rh-${suffix}@test.local`,
+            role: 'RH',
+            permission: 'EMPLOYEE',
+        });
+
+        const all = await statsFor(auth, ['Nord-Est', 'Ouest']);
+        expect(all.total).toBe(2);
     });
 });
 
