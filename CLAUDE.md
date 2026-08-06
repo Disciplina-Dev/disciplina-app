@@ -34,6 +34,7 @@ Frontend (`front/disciplina-front/`):
 ## Local setup
 
 - `cp .env.example .env` (root, DB creds) — a second env file `back/.env.back.example` → `back/.env` holds app secrets (JWT_SECRET, MCP_API_KEY must be ≥32 chars, OAuth, DOCUSEAL, etc.)
+- `MYSQL_PASSWORD` is **required** in the root `.env` — the app runs as `disciplina_app`, not `root`. On a database created before that account existed, either apply `database/mysql/migrations/2026-08-06-app-user.sql` or set `MYSQL_USER=root`. See `back/CONVENTION.md` → *Least-privilege account* for the grant set and the two queries it forbids.
 - `docker compose up` — services: sql-db (MySQL), nosql-db (MongoDB), ollama (pulls `qwen2.5:3b`, slow first boot), backend, startup-script (idempotent CSV seed), frontend
 - Backend tests require live Dockerized DBs: `docker compose up -d sql-db nosql-db` first
 - **MySQL port gotcha**: three different ports depending on context — `sql-db:3306` inside the compose network, `3307` in `docker-compose.test.yml`/CI, `5001` for local host dev per `.env.back.example`. Mismatched ports are the most common cause of `npm test` failing in `back/`.

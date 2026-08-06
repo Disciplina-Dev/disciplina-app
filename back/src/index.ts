@@ -40,6 +40,7 @@ import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
 import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
+import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -207,6 +208,7 @@ export async function startServer(): Promise<http.Server> {
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();
     startAbSignatureRelanceScheduler();
+    startExpiredAccessScheduler();
     return server;
 }
 

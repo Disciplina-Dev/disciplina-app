@@ -9,6 +9,15 @@
         <string>/bin/bash</string>
         <string>/ABSOLUTE/PATH/TO/disciplina-app/scripts/backup-db.sh</string>
     </array>
+    <!-- launchd starts agents with a bare PATH (/usr/bin:/bin:/usr/sbin:/sbin), which does
+         not contain the Docker CLI. Without this key, backup-db.sh fails with
+         "docker: command not found" when launchd fires it, while running fine by hand.
+         /usr/local/bin covers Docker Desktop on Intel, /opt/homebrew/bin on Apple Silicon. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>

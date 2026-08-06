@@ -4,6 +4,11 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD}
+      # Crée le compte applicatif non-root sur un volume vierge. mysql-init.sql resserre
+      # ensuite ses droits (l'image accorde ALL PRIVILEGES, DROP compris).
+      - MYSQL_USER=disciplina_app
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD}
+      - MYSQL_DATABASE=disciplina
     volumes:
       - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/mysql/mysql-seed-dev.sql:/docker-entrypoint-initdb.d/99-seed-dev.sql
@@ -110,7 +115,11 @@ services:
     env_file:
       - ./.env
     environment:
-      MYSQL_USER: root
+      # Compte applicatif à droits limités. Sur une base ANTÉRIEURE à sa création,
+      # mettre MYSQL_USER=root dans le .env le temps d'appliquer
+      # database/mysql/migrations/2026-08-06-app-user.sql.
+      MYSQL_USER: ${MYSQL_USER:-disciplina_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD}
       MYSQL_DATABASE: disciplina
       # Inside the compose network the databases answer on their service name and
       # their container port. MYSQL_PORT/MONGO_PORT are the host-side published
