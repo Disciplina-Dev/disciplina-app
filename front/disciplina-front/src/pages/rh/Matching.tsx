@@ -38,7 +38,6 @@ import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useCurrentUser, Permission } from '@/store/authStore'
 import { apiFetch } from '@/api/httpClient'
-import { CSRF_HEADER, getCsrfCookie } from '@/lib/csrf'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
 import AddPreselectedCandidateModal from '@/features/matching/components/AddPreselectedCandidateModal'
@@ -2400,10 +2399,6 @@ export default function Matching() {
     pause: !needsAnalysisId,
     context: {
       url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
-      fetchOptions: {
-        credentials: 'include' as const,
-        headers: getCsrfCookie() ? { [CSRF_HEADER]: getCsrfCookie() as string } : {},
-      },
     },
   })
 
