@@ -158,7 +158,7 @@ export class MailTemplateService {
 
     /** Le niveau n'a de sens que pour le scope `peda` ; il est ignoré ailleurs. */
     private pedaLevelFor(scope: MailTemplateScope, level: PedaLevel | null | undefined): PedaLevel | null {
-        return scope === 'peda' ? (level ?? null) : null;
+        return scope === 'peda' ? level ?? null : null;
     }
 
     /** Refuse deux modèles Peda sur le même niveau : la résolution serait ambiguë. */

@@ -269,6 +269,14 @@ export const router = createBrowserRouter([
   { path: "/privacy", element: <Navigate to="/legal/confidentialite" replace /> },
   { path: "/cgu", element: <Navigate to="/legal/cgu" replace /> },
   {
+    path: "/public/cv-import",
+    element: <CvImportGate />,
+  },
+  {
+    path: "/public/cv-import/:signature",
+    element: <CvImportUpload />,
+  },
+  {
     path: "*",
     element: <NotFound />,
   },

@@ -167,6 +167,18 @@ export const resolvers = {
             return { ...buildConnection(groups, (g) => g.siren, pageSize), totalCount };
         },
 
+        companiesBySiren: async (
+            _: unknown,
+            { first, after, filters: filtersInput }: PaginationArgs & { filters?: Record<string, unknown> },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const filters = toCompanyFilters(filtersInput);
+            const groups = await companiesService.findGroupedBySiren(pageSize, after, filters);
+            return buildConnection(groups, (g) => g.siren, pageSize);
+        },
+
         // Liste légère (id + nom) pour les sélecteurs d'entreprise côté RH
         // (ex. choix de l'entreprise d'immersion sur la fiche candidat).
         companyOptions: async (_: unknown, __: unknown, context: any) => {
