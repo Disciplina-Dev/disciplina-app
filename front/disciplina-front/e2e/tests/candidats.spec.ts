@@ -61,4 +61,28 @@ test.describe('3.3 Candidats', () => {
         await expect(page.getByRole('heading', { name: /Modifier la fiche candidat/ })).toBeVisible();
         await expect(page.getByLabel('Nom et prénom *')).not.toHaveValue('');
     });
+
+    // Passage en CONTRAT : ouvre le ContractModal (recherche d'offre puis, à défaut,
+    // création d'entreprise/AB). Rendu uniquement — aucune offre n'est confirmée, donc
+    // ni le statut ni les données de contrat ne sont persistés en base.
+    test.describe('passage en contrat', () => {
+        test('ouvre la recherche d’offre puis bascule sur la création d’entreprise', async ({ page }) => {
+            await page.goto('/rh/candidats');
+            const firstCard = page.locator('main .grid > div').first();
+            test.skip((await firstCard.count()) === 0, 'aucun candidat seedé');
+            await firstCard.click();
+            await expect(page).toHaveURL(/\/rh\/candidats\/[^/]+$/);
+
+            await page.getByRole('combobox').first().selectOption({ label: 'En contrat' });
+
+            await expect(page.getByRole('heading', { name: 'Rechercher une offre' })).toBeVisible();
+            await expect(page.getByRole('button', { name: /Offre introuvable/ })).toBeVisible();
+
+            await page.getByRole('button', { name: /Offre introuvable/ }).click();
+            await expect(page.getByRole('heading', { name: 'Ajouter une entreprise' })).toBeVisible();
+
+            // Ferme sans rien soumettre : la fiche candidat reste inchangée.
+            await page.keyboard.press('Escape');
+        });
+    });
 });

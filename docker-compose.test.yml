@@ -3,14 +3,30 @@ name: disciplina-test
 services:
   test-sql-db:
     image: mysql:8.4.8
+    # Vitest isole le registre de modules par fichier de test : chaque fichier réimporte
+    # src/db/mysql/connection.ts et crée donc son propre pool mysql2 (10 connexions), sans
+    # que les pools des fichiers précédents soient fermés. Avec ~40 fichiers on dépasse
+    # largement le max_connections de 151 par défaut, d'où des « Too many connections »
+    # sur les derniers fichiers exécutés.
+    command: ["--max-connections=1000"]
     environment:
       MYSQL_ROOT_PASSWORD: test-root-password
+      # Requis : mysql-init.sql resserre les droits de ce compte et échouerait s'il
+      # n'existait pas. Cf. database/mysql/mysql-init.sql.
+      MYSQL_USER: disciplina_app
+      MYSQL_PASSWORD: test-app-password
+      MYSQL_DATABASE: disciplina
     volumes:
       - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "3307:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest-root-password"]
+      # 127.0.0.1 et non localhost : `localhost` passe par la socket Unix, sur laquelle
+      # le serveur TEMPORAIRE de la phase d'init répond déjà. Le conteneur était donc
+      # déclaré sain avant la fin de l'init, le backend se connectait, puis MySQL
+      # redémarrait et coupait la connexion (PROTOCOL_CONNECTION_LOST). En TCP, seul le
+      # serveur définitif répond.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-ptest-root-password"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -54,7 +70,8 @@ services:
       SESSION_SECRET: test-session-secret
       JWT_SECRET: test-jwt-secret
       JWT_REFRESH_SECRET: test-jwt-refresh-secret
-      MYSQL_USER: root
+      MYSQL_USER: disciplina_app
+      MYSQL_PASSWORD: test-app-password
       MYSQL_DATABASE: disciplina
       GOOGLE_CLIENT_ID: test
       GOOGLE_CLIENT_SECRET: test
@@ -75,6 +92,7 @@ services:
       FILIZ_AUTH_URI: http://localhost
       INSEE_API_KEY: test-api-key
       OAUTH_ENCRYPTION_KEY: 5D539695AC72E55098D81BA3F2DDCA68
+      SSN_ENCRYPTION_KEY: ca8b3584e39e348284771bb25ff0bff6fe6bd3d645ff83d6a66899a01244203f
       CI: true
       RELANCE_HMAC_SECRET: Super-secret-hmac-relance
     user: root

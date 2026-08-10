@@ -23,7 +23,7 @@ import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 import { formatErrorMessage } from '@/utils/companyErrors'
 import type { Entreprise } from '@/types/entreprise'
-import { SECTEUR_VALUES } from '@/types/entreprise'
+import { SECTEUR_VALUES, STATUS_VALUES } from '@/types/entreprise'
 
 const PAGE_SIZE = 20
 
@@ -73,7 +73,10 @@ export default function PortefeuilleEntreprises() {
     cursorHistory,
     loadNextPage,
     loadPrevPage,
-  } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS)
+  } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS, {
+    status: STATUS_VALUES,
+    relance: ['', 'today', 'past', 'future'],
+  })
 
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
@@ -132,9 +135,13 @@ export default function PortefeuilleEntreprises() {
 
   const hidePagination = debouncedSearch || isRelanceMode
 
-  const totalCount = isFlatMode
+  // « X trouvés sur Y » : X = entrées affichées sur la page, Y = total correspondant
+  // à la recherche + filtres actifs (calculé côté serveur).
+  const shownCompanies = isFlatMode
     ? companies.length
     : sirenGroups.reduce((sum, g) => sum + g.entreprises.length, 0)
+  const shownSirens = isFlatMode ? 0 : sirenGroups.length
+  const totalCount = isFlatMode ? flat.totalCount : grouped.totalCount
 
   if (loading && isEmpty) {
     return (
@@ -163,10 +170,17 @@ export default function PortefeuilleEntreprises() {
                 Portefeuille entreprises
               </h1>
               <p className="mt-1.5 text-[13px] text-gray-400">
-                {totalCount.toLocaleString('fr-FR')}{' '}
-                entreprise{totalCount !== 1 ? 's' : ''}
-                {!isFlatMode && sirenGroups.length > 0 && (
-                  <span className="text-gray-400"> — {sirenGroups.length.toLocaleString('fr-FR')} SIREN</span>
+                {isFlatMode ? (
+                  <>
+                    {shownCompanies.toLocaleString('fr-FR')} entreprise{shownCompanies !== 1 ? 's' : ''} trouvée{shownCompanies !== 1 ? 's' : ''} sur {totalCount.toLocaleString('fr-FR')}
+                  </>
+                ) : (
+                  <>
+                    {shownSirens.toLocaleString('fr-FR')} SIREN trouvé{shownSirens !== 1 ? 's' : ''} sur {totalCount.toLocaleString('fr-FR')}
+                    {shownCompanies > 0 && (
+                      <span className="text-gray-400"> — {shownCompanies.toLocaleString('fr-FR')} entreprise{shownCompanies !== 1 ? 's' : ''}</span>
+                    )}
+                  </>
                 )}
                 {activeFilterCount > 0 && (
                   <span className="ml-1 text-blue font-medium">— vue filtrée</span>

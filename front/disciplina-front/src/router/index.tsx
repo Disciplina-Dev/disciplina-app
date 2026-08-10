@@ -52,6 +52,12 @@ import GestionApprentis from "@/pages/entreprise/GestionApprentis";
 import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
 
+import PublicPortalLayout from "@/components/legal/PublicPortalLayout";
+import CguPage from "@/pages/legal/CguPage";
+import MentionsLegalesPage from "@/pages/legal/MentionsLegalesPage";
+import ConfidentialitePage from "@/pages/legal/ConfidentialitePage";
+import CookiesPage from "@/pages/legal/CookiesPage";
+
 import TodoPage from "@/features/todos/TodoPage";
 import ProfilePage from "@/pages/profile/ProfilePage";
 
@@ -203,26 +209,65 @@ export const router = createBrowserRouter([
       { path: "profils", element: <ProfilsMatches />, handle: { crumb: "Profils" } },
     ],
   },
+  // Portails accessibles par lien signé — encadrés par les mentions légales
   {
-    path: "/booking/:slug",
-    element: <PublicBooking />,
+    element: <PublicPortalLayout />,
+    children: [
+      {
+        path: "/booking/:slug",
+        element: <PublicBooking />,
+      },
+      {
+        path: "/public/match",
+        element: <MatchGate />,
+      },
+      {
+        path: "/public/match/:signature",
+        element: <MatchComparator />,
+      },
+      {
+        path: "/public/interview",
+        element: <InterviewGate />,
+      },
+      {
+        path: "/public/interview/:signature",
+        element: <InterviewSlotPicker />,
+      },
+      {
+        path: "/public/cv-import",
+        element: <CvImportGate />,
+      },
+      {
+        path: "/public/cv-import/:signature",
+        element: <CvImportUpload />,
+      },
+    ],
+  },
+  // Pages légales — accessibles sans authentification
+  {
+    path: "/legal/cgu",
+    element: <CguPage />,
   },
   {
-    path: "/public/match",
-    element: <MatchGate />,
+    path: "/legal/cgu/:audience",
+    element: <CguPage />,
   },
   {
-    path: "/public/match/:signature",
-    element: <MatchComparator />,
+    path: "/legal/mentions",
+    element: <MentionsLegalesPage />,
   },
   {
-    path: "/public/interview",
-    element: <InterviewGate />,
+    path: "/legal/confidentialite",
+    element: <ConfidentialitePage />,
   },
   {
-    path: "/public/interview/:signature",
-    element: <InterviewSlotPicker />,
+    path: "/legal/cookies",
+    element: <CookiesPage />,
   },
+  // Redirections rétro-compatibles vers l'espace légal
+  { path: "/legal", element: <Navigate to="/legal/mentions" replace /> },
+  { path: "/privacy", element: <Navigate to="/legal/confidentialite" replace /> },
+  { path: "/cgu", element: <Navigate to="/legal/cgu" replace /> },
   {
     path: "/public/cv-import",
     element: <CvImportGate />,

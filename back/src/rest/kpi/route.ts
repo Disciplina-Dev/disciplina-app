@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
-import { requireRoles } from '../middleware/roleGuard';
+import { requireRolesOrManager } from '../middleware/roleGuard';
 import {
     getYears,
     getAnnualSummary,
@@ -22,9 +22,11 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-const kpiAccess = [authenticate, requireRoles('AD', 'GESTION')];
+// ADMIN/RESPONSABLE (toute permission de niveau manager, ex. RH responsable sur le
+// dashboard commercial) voient tous les secteurs ; les autres passent par le rôle métier.
+const kpiAccess = [authenticate, requireRolesOrManager('AD', 'GESTION')];
 // Lecture scopée : un COMMERCIAL n'obtient que ses propres chiffres (contrôle dans le controller).
-const kpiReadAccess = [authenticate, requireRoles('AD', 'GESTION', 'COMMERCIAL')];
+const kpiReadAccess = [authenticate, requireRolesOrManager('AD', 'GESTION', 'COMMERCIAL')];
 
 export const router: Router = Router();
 

@@ -496,7 +496,7 @@ interface Props {
   entreprise: Entreprise
   currentUser: AppUser
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (needsAnalysisId: string) => void
   initialData?: NeedsAnalysis | null
   // Duplication : `initialData` sert uniquement à préremplir le formulaire, mais on
   // crée une NOUVELLE AB (pas de mise à jour de l'existante).
@@ -835,7 +835,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       // intent 'save' : rien de plus, on ferme.
     }
 
-    onSuccess()
+    onSuccess(savedId ?? '')
     onClose()
   } catch (error) {
     console.error('[NeedsAnalysisModal] onSubmit error:', error)
@@ -847,7 +847,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const handleConfirmSignature = async (email: { subject: string; body: string }) => {
     if (previewId == null) return
     await sendForSignature(previewId, email)
-    onSuccess()
+    onSuccess(previewId)
     onClose()
   }
 
@@ -888,7 +888,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           onCancel={() => {
             // AB déjà créée en BROUILLON : on ne l'envoie pas, on referme.
             setPreviewId(null)
-            onSuccess()
+            onSuccess(previewId)
             onClose()
           }}
         />

@@ -234,7 +234,6 @@ export const typeDefs = gql`
         id: String!
         owner: CandidateOwner
         status: CandidateStatus!
-        tpType: TitleProfessionalType!
         tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
         emergencyContact: CandidateEmergencyContact
@@ -245,6 +244,10 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        contractOfferId: String
+        contractCompanyId: Int
+        contractCompanyName: String
+        contractStartDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -384,8 +387,7 @@ export const typeDefs = gql`
 
     input CreateCandidateInput {
         status: CandidateStatus!
-        tpType: TitleProfessionalType!
-        tpTypes: [TitleProfessionalType!]
+        tpTypes: [TitleProfessionalType!]!
         identity: IdentityInput!
         emergencyContact: EmergencyContactInput
         trainingSite: TrainingSite
@@ -395,6 +397,10 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        contractOfferId: String
+        contractCompanyId: Int
+        contractCompanyName: String
+        contractStartDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -409,7 +415,6 @@ export const typeDefs = gql`
 
     input UpdateCandidateInput {
         status: CandidateStatus
-        tpType: TitleProfessionalType
         tpTypes: [TitleProfessionalType!]
         identity: IdentityInput
         emergencyContact: EmergencyContactInput
@@ -420,6 +425,10 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        contractOfferId: String
+        contractCompanyId: Int
+        contractCompanyName: String
+        contractStartDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -447,6 +456,7 @@ export const typeDefs = gql`
     type CandidateConnection {
         edges: [CandidateEdge!]!
         pageInfo: PageInfo!
+        totalCount: Int!
     }
 
     input CandidateFiltersInput {
@@ -542,6 +552,7 @@ export const typeDefs = gql`
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
         driveFolderConfig: DriveFolderConfig!
+        unmaskCandidateSsn(id: String!): String
     }
 
     type Mutation {

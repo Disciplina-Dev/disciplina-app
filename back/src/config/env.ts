@@ -101,19 +101,25 @@ const data = {
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
     MYSQL_ROOT_PASSWORD:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MYSQL_ROOT_PASSWORD') ?? ''
+            ? (optionalString('MYSQL_ROOT_PASSWORD') ?? '')
             : requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
+    // Mot de passe du compte applicatif non-root (`disciplina_app`). Retombe sur
+    // MYSQL_ROOT_PASSWORD tant que MYSQL_USER vaut root : les installations existantes,
+    // dont le compte applicatif n'a pas été créé (mysql-init.sql ne rejoue pas sur un
+    // volume existant, cf. database/mysql/migrations/2026-08-06-app-user.sql), continuent
+    // de démarrer sans modifier leur .env.
+    MYSQL_PASSWORD: optionalString('MYSQL_PASSWORD'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
     MYSQL_URI: optionalString('MYSQL_URI'),
 
     MONGO_URI: optionalString('MONGO_URI'),
     MONGO_ROOT_USERNAME:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MONGO_ROOT_USERNAME') ?? ''
+            ? (optionalString('MONGO_ROOT_USERNAME') ?? '')
             : requireString('MONGO_ROOT_USERNAME'),
     MONGO_ROOT_PASSWORD:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MONGO_ROOT_PASSWORD') ?? ''
+            ? (optionalString('MONGO_ROOT_PASSWORD') ?? '')
             : requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
     MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),
@@ -165,6 +171,7 @@ const data = {
     DRIVE_TEMPLATES_FOLDER_ID: optionalString('DRIVE_TEMPLATES_FOLDER_ID'),
 
     OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
+    SSN_ENCRYPTION_KEY: requireString('SSN_ENCRYPTION_KEY'),
 
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
@@ -211,6 +218,11 @@ if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
 
 if (INSECURE_DEFAULTS.has(data.OAUTH_ENCRYPTION_KEY)) {
     console.error('OAUTH_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.SSN_ENCRYPTION_KEY)) {
+    console.error('SSN_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 

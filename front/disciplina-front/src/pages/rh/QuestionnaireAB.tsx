@@ -27,7 +27,6 @@ interface PedaReco {
 }
 
 interface FormState {
-  tp_type: TitleProfessionalType
   tp_types: TitleProfessionalType[]
   // identité
   full_name: string; email: string; phone: string
@@ -76,14 +75,14 @@ interface FormState {
 }
 
 function initForm(c: Candidate): FormState {
-  const template = CANDIDATE_TEMPLATES[c.tp_type]
+  const tpTypes = c.tp_types?.length ? c.tp_types : []
+  const template = CANDIDATE_TEMPLATES[tpTypes[0] ?? TitleProfessionalType.CC]
   const skills = c.skills_assessment && c.skills_assessment.length > 0
     ? c.skills_assessment.map(s => ({ competence: s.competence, level: s.level }))
     : template.defaultSkillsAssessment.map(s => ({ competence: s.competence, level: s.level }))
 
   return {
-    tp_type: c.tp_type,
-    tp_types: c.tp_types?.length ? c.tp_types : (c.tp_type ? [c.tp_type] : []),
+    tp_types: tpTypes,
     full_name: c.identity.full_name ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
@@ -168,7 +167,7 @@ function toGqlInput(f: FormState) {
   const digitalSkills = f.digital_skills ? f.digital_skills.split(',').map(s => s.trim()).filter(Boolean) : []
 
   return {
-    tpType: f.tp_type,
+    tpType: f.tp_types[0],
     tpTypes: f.tp_types.length ? f.tp_types : undefined,
     trainingSites: f.training_sites,
     immersionAgreement: parseBool(f.immersion_agreement),
@@ -340,14 +339,13 @@ export default function QuestionnaireAB() {
     if (candidate) setForm(initForm(candidate))
   }, [candidate])
 
-  const template = form ? CANDIDATE_TEMPLATES[form.tp_type] : null
+  const template = form ? CANDIDATE_TEMPLATES[form.tp_types[0] ?? TitleProfessionalType.CC] : null
 
   // Secteurs proposés : ceux de tous les TP du candidat, plus ceux déjà cochés
   // même s'ils ne sont plus au référentiel (aucune perte sur les fiches saisies).
   const sectorOptions: string[] = form
     ? Array.from(new Set([
-        ...(form.tp_types.length ? form.tp_types : [form.tp_type])
-          .flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? []),
+        ...form.tp_types.flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? []),
         ...form.desired_sectors,
       ]))
     : []
@@ -460,7 +458,7 @@ export default function QuestionnaireAB() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Analyse du besoin – {form.full_name}</h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            {(form.tp_types.length ? form.tp_types : [form.tp_type]).map(t => TP_TYPE_LABELS[t]).join(' · ')}
+            {form.tp_types.map(t => TP_TYPE_LABELS[t]).join(' · ')}
           </p>
         </div>
       </div>

@@ -19,7 +19,7 @@ async function patchCandidatesValidator(): Promise<void> {
         validator: {
             $jsonSchema: {
                 bsonType: 'object',
-                required: ['status', 'tp_type'],
+                required: ['status'],
                 properties: {
                     _id: { bsonType: 'string' },
                     candidate_id: { bsonType: 'string' },
@@ -38,7 +38,6 @@ async function patchCandidatesValidator(): Promise<void> {
                             'TEST_FAILED',
                         ],
                     },
-                    tp_type: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] },
                     tp_types: { bsonType: 'array', items: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] } },
                     training_site: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },
                     training_sites: {

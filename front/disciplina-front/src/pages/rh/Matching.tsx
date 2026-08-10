@@ -38,7 +38,6 @@ import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useCurrentUser, Permission } from '@/store/authStore'
 import { apiFetch } from '@/api/httpClient'
-import { CSRF_HEADER, getCsrfCookie } from '@/lib/csrf'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
 import AddPreselectedCandidateModal from '@/features/matching/components/AddPreselectedCandidateModal'
@@ -2322,6 +2321,15 @@ function AbHeader({
             {info?.activities && info.activities.length > 0 && (
               <span>{info.activities.map((a: string) => SECTOR_LABELS[a] ?? a).join(' · ')}</span>
             )}
+            {ab?.tags && ab.tags.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1">
+                {ab.tags.map((tag: string) => (
+                  <span key={tag} className="rounded-full bg-blue-light px-2 py-0.5 text-[11px] font-medium text-blue">
+                    {tag}
+                  </span>
+                ))}
+              </span>
+            )}
             {legalReferent?.name && (
               <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {legalReferent.name}</span>
             )}
@@ -2391,10 +2399,6 @@ export default function Matching() {
     pause: !needsAnalysisId,
     context: {
       url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
-      fetchOptions: {
-        credentials: 'include' as const,
-        headers: getCsrfCookie() ? { [CSRF_HEADER]: getCsrfCookie() as string } : {},
-      },
     },
   })
 

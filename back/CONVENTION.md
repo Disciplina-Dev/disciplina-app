@@ -287,9 +287,9 @@ export default function ...  // ❌
 |---------|-----------|---------|------|
 | MySQL rows (raw) | snake_case | `user_id`, `oauth_token` | `types/db-rows.types.ts` |
 | MySQL domain types | camelCase — converted **at the repository** | `userID`, `oauthToken` | `types/company.types.ts`, `user.types.ts` |
-| MongoDB documents | snake_case | `full_name`, `tp_type` | `db/mongo/schemas/` |
-| MongoDB domain types | snake_case — **mirror the document**, no conversion here | `full_name`, `tp_type`, `training_site` | `types/candidate.types.ts`, `needsAnalysisNoSql.types.ts` |
-| GraphQL schema & responses (both DBs) | camelCase — converted **at the resolver** | `fullName`, `tpType` | `graphql/*/typeDefs.ts` |
+| MongoDB documents | snake_case | `full_name`, `tp_types` | `db/mongo/schemas/` |
+| MongoDB domain types | snake_case — **mirror the document**, no conversion here | `full_name`, `tp_types`, `training_site` | `types/candidate.types.ts`, `needsAnalysisNoSql.types.ts` |
+| GraphQL schema & responses (both DBs) | camelCase — converted **at the resolver** | `fullName`, `tpTypes` | `graphql/*/typeDefs.ts` |
 
 The two paths differ by **where** snake_case turns into camelCase:
 
@@ -348,6 +348,24 @@ try {
 - Manual connection handling (`getConnection()` + `conn.release()`) for create/update
 - JSON stored as stringified text (e.g., `sectors` in `users` table)
 
+#### Least-privilege account
+
+The app connects as `disciplina_app`, never as `root`. `mysql-init.sql` narrows its grants to
+`SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES` on
+`disciplina.*` — `DROP` and every global privilege are withheld, so `DROP DATABASE`, `DROP TABLE`
+and reads of `mysql.user` are all refused. `CREATE`/`ALTER` are granted because
+`runMysqlMigrations()` evolves the schema at boot; `CREATE TEMPORARY TABLES` because the KPI
+queries use CTEs that MySQL materialises.
+
+**Convention:** any new query must work under this grant set. Two known traps — `TRUNCATE`
+requires `DROP` (use `DELETE`), and a `WITH` CTE requires `CREATE TEMPORARY TABLES`. The test
+suite runs under the same account, so a violation fails in CI rather than in production.
+
+`mysql-init.sql` only runs on a fresh volume: existing databases need
+`database/mysql/migrations/2026-08-06-app-user.sql` applied once, otherwise keep `MYSQL_USER=root`
+in `.env`. Credentials come from `MYSQL_USER` / `MYSQL_PASSWORD`; `MYSQL_PASSWORD` is unset means
+falling back to the root password (backwards compatibility, see `config/env.ts`).
+
 ### MongoDB
 
 - Mongoose ODM with explicit `collection` names
@@ -369,6 +387,11 @@ column doesn't exist yet, logging each addition via `logger.info`.
 `mysql-init.sql` (fresh installs) **and** `REQUIRED_COLUMNS` in `db/mysql/migrations.ts` (existing
 installs). Table/column identifiers in `REQUIRED_COLUMNS` are hardcoded constants, never
 user input, so the string-built `ALTER TABLE` is safe.
+
+The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table goes in **both**
+`mysql-init.sql` and `REQUIRED_TABLES`, otherwise fresh volumes and existing databases drift apart.
+`users`, `roles`, `permissions`, `filiz`, `companies` and `company_history` live only in
+`mysql-init.sql` — they predate the mechanism and are handled by ad-hoc migrations.
 
 ## Authentication & authorization
 

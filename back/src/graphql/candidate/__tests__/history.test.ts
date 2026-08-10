@@ -50,7 +50,7 @@ async function seedCandidate(suffix: string) {
     return repo.create({
         _id: id,
         candidate_id: id,
-        tp_type: TitleProfessionalType.AD,
+        tp_types: [TitleProfessionalType.AD],
         status: CandidateStatus.SEEKING,
         identity: { full_name: `History ${suffix}`, email: `history-${suffix}@test.local`, phone: '0600000000' },
     });

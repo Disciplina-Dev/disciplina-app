@@ -1,6 +1,7 @@
 import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { Offer } from '../../types/offer.types';
 import { FilizStudentInfos } from '../../external/filiz/type';
+import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
 
 export function camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -42,8 +43,7 @@ export function candidateToGql(candidate: Candidate): any {
         // Rétro-compat : le statut "MATCHED" a été retiré ; les fiches legacy le portant
         // sont ramenées à "SEEKING" à la lecture (l'enum GraphQL ne l'accepte plus).
         status: (candidate.status as string) === 'MATCHED' ? CandidateStatus.SEEKING : candidate.status,
-        tpType: candidate.tp_type,
-        tpTypes: candidate.tp_types ?? (candidate.tp_type ? [candidate.tp_type] : []),
+        tpTypes: candidate.tp_types ?? [],
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,
@@ -51,9 +51,18 @@ export function candidateToGql(candidate: Candidate): any {
         immersionEndDate: candidate.immersion_end_date?.toISOString() ?? null,
         immersionCompanyId: candidate.immersion_company_id ?? null,
         immersionCompanyName: candidate.immersion_company_name ?? null,
+        contractOfferId: candidate.contract_offer_id ?? null,
+        contractCompanyId: candidate.contract_company_id ?? null,
+        contractCompanyName: candidate.contract_company_name ?? null,
+        contractStartDate: candidate.contract_start_date?.toISOString() ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
-        identity: candidate.identity ? snakeToCamelCase(candidate.identity) : null,
+        identity: candidate.identity
+            ? {
+                  ...snakeToCamelCase(candidate.identity),
+                  socialSecurityNumber: candidate.identity.social_security_number ? MASKED_SSN : undefined,
+              }
+            : null,
         emergencyContact: candidate.emergency_contact ? snakeToCamelCase(candidate.emergency_contact) : null,
         education: candidate.education ? snakeToCamelCase(candidate.education) : null,
         support: candidate.support ? snakeToCamelCase(candidate.support) : null,

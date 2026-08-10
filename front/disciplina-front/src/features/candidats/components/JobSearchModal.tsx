@@ -9,6 +9,8 @@ import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
 interface JobSearchModalProps {
   excludedJobIds: Set<string>
   candidateTpTypes?: TitleProfessionalType[]
+  singleSelect?: boolean
+  footerAction?: { label: string; onClick: () => void }
   onConfirm: (jobs: MatchedOffer[]) => void
   onClose: () => void
 }
@@ -18,7 +20,7 @@ function formatSector(raw?: string): string {
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onConfirm, onClose }: JobSearchModalProps) {
+export default function JobSearchModal({ excludedJobIds, candidateTpTypes, singleSelect, footerAction, onConfirm, onClose }: JobSearchModalProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedOffer[]>([])
@@ -57,6 +59,10 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
   })
 
   const toggleJob = (offerId: string) => {
+    if (singleSelect) {
+      setSelectedJobIds((prev) => (prev.has(offerId) ? new Set() : new Set([offerId])))
+      return
+    }
     setSelectedJobIds((prev) => {
       const next = new Set(prev)
       if (next.has(offerId)) next.delete(offerId)
@@ -123,7 +129,7 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
                   }`}
                 >
                   <input
-                    type="checkbox"
+                    type={singleSelect ? 'radio' : 'checkbox'}
                     checked={selectedJobIds.has(job.id)}
                     onChange={() => toggleJob(job.id)}
                     className="h-4 w-4 shrink-0 accent-blue"
@@ -167,13 +173,21 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
           )}
         </div>
 
-        <div className="flex justify-between gap-2 border-t border-gray-100 p-4">
+        <div className="flex items-center justify-between gap-2 border-t border-gray-100 p-4">
           <button
             onClick={onClose}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
           >
             Annuler
           </button>
+          {footerAction && (
+            <button
+              onClick={footerAction.onClick}
+              className="text-sm font-semibold text-blue hover:text-blue-600"
+            >
+              {footerAction.label}
+            </button>
+          )}
           <button
             onClick={handleConfirm}
             disabled={selectedJobIds.size === 0}

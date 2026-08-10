@@ -5,6 +5,7 @@ import path from 'path';
 import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
+import { MASKED_SSN } from '../external/crypto/ssn-cipher';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // On utilise le Chromium natif du système (installé dans l'image Docker via apt)
@@ -727,9 +728,9 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
 
     const trainingSites = c.training_sites?.length ? c.training_sites : c.training_site ? [c.training_site] : [];
     const trainingSitesLabel = trainingSites.map((s) => TRAINING_SITE_LABELS[s] ?? s).join(' · ');
-    const tpTypes = c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : [];
+    const tpTypes = c.tp_types ?? [];
     const tpTypesLabel = tpTypes.map((t) => TP_LABELS[t] ?? t).join(' · ');
-    const badges = [tpTypesLabel || (TP_LABELS[c.tp_type] ?? c.tp_type), STATUS_LABELS[c.status] ?? c.status];
+    const badges = [tpTypesLabel, STATUS_LABELS[c.status] ?? c.status];
     if (trainingSitesLabel) badges.push(trainingSitesLabel);
     doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text(badges.join('      |      '), left, doc.y);
     doc.fillColor('#000000');
@@ -738,7 +739,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Identité & contact');
     kv(tpTypes.length > 1 ? 'Titres professionnels' : 'Titre professionnel', tpTypesLabel);
     kv('Statut', STATUS_LABELS[c.status] ?? c.status);
-    kv('Numéro de sécurité sociale', id.social_security_number);
+    kv('Numéro de sécurité sociale', id.social_security_number ? MASKED_SSN : undefined);
     kv('Email', id.email);
     kv('Téléphone', id.phone);
     kv('Date de naissance', fmtDate(id.date_of_birth));
@@ -770,7 +771,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Parcours & prérequis');
     kv(
         'Niveau de formation',
-        c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level : '',
+        c.education?.school_level ? (SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level) : '',
     );
     kv('Justificatif', c.education?.justification);
     kv('Dernier diplôme obtenu', c.background?.last_diploma);
@@ -860,7 +861,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv(
         'Comment a connu Disciplina',
         c.job_info?.discovery_source
-            ? DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source
+            ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source)
             : '',
     );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);

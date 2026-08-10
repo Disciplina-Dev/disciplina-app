@@ -210,10 +210,16 @@ export interface MatchedOfferTp {
     descriptionMissions?: string[];
 }
 
+export interface MatchedOfferCompanyInfos {
+    id?: number;
+    name?: string;
+}
+
 export interface MatchedOffer {
     id: string;
     needsAnalysisId?: string;
     companyName?: string;
+    companyInfos?: MatchedOfferCompanyInfos;
     sector?: string;
     localisation?: Localisation[];
     desiredTp?: MatchedOfferTp[];
@@ -240,7 +246,6 @@ export interface EmergencyContact {
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
-    tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;
@@ -252,6 +257,10 @@ export interface Candidate {
     immersion_end_date?: string;
     immersion_company_id?: number;
     immersion_company_name?: string;
+    contract_offer_id?: string;
+    contract_company_id?: number;
+    contract_company_name?: string;
+    contract_start_date?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

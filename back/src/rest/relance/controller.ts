@@ -78,9 +78,10 @@ export async function sendCompanyMailRelance(req: AuthRequest, res: Response): P
     }
 
     try {
+        const signatureHtml = await mailTemplateService.getSignatureHtml(user.id, 'commercial').catch(() => '');
         await gmailService.sendEmail(
             { access_token: user.oauthToken, refresh_token: user.refreshToken },
-            { to, subject, html: html ?? '', text: text ?? '', attachments },
+            { to, subject, html: (html ?? '') + signatureHtml, text: text ?? '', attachments },
             userService.googleTokenPersister(user.id),
         );
     } catch (err) {
@@ -189,6 +190,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     // Signature personnelle du RH, récupérée une seule fois pour tout le lot.
     const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
 
+    // pied de page
+    const noReplyFootnote = `<p style="font-size:12px;color:#6b7280;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px;">Ceci est un message envoyé automatiquement par DISCIPLINA. Merci de ne pas répondre à cet e-mail.</p>`;
+
     // NB : pas de header List-Unsubscribe ici. Ce mail vise une réponse individuelle
     // (Oui/Non) ; l'ajouter le fait classer « bulk » par Gmail et bascule en spam.
 
@@ -207,14 +211,15 @@ export async function sendRelance(req: AuthRequest, res: Response) {
   <p>Nous faisons le point sur votre recherche d'alternance et souhaitons mettre votre dossier à jour.</p>
   <p>Êtes-vous toujours en recherche d'une alternance ?</p>
   <p>
-    <a href="${ouiUrl}" style="color: #60207E;">Oui, je suis toujours en recherche</a><br>
-    <a href="${nonUrl}" style="color: #60207E;">Non, je ne recherche plus</a>
+    <a href="${ouiUrl}" style="display:inline-block;background:#60207E;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:8px;">Oui, je suis toujours en recherche</a>
+    <a href="${nonUrl}" style="display:inline-block;background:#ffffff;color:#60207E;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;border:1px solid #60207E;">Non, je ne recherche plus</a>
   </p>
   <p>Un simple clic suffit, votre dossier sera mis à jour automatiquement.</p>
   <p>Cordialement,<br>L'équipe DISCIPLINA${signatureHtml}</p>
+  ${noReplyFootnote}
 </div>`;
 
-        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA`;
+        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA\n\n---\nCeci est un message envoyé automatiquement par DISCIPLINA. Merci de ne pas répondre à cet e-mail.`;
 
         try {
             await gmailService.sendEmail(

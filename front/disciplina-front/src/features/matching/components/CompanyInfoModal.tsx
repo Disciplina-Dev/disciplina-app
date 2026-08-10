@@ -6,6 +6,7 @@ import { GET_OFFER_COMPANY_INFO } from '@/graphql/queries'
 import { useNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 interface CompanyInfoModalProps {
   offerId: string
@@ -37,7 +38,7 @@ interface JobCompanyInfo {
 
 const ENUM_LABELS: Record<string, string> = {
   SECRETARIAT: 'Secrétariat', VENTE: 'Vente',
-  NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud',
+  ...SECTEUR_LABELS,
   OUI: 'Oui', NON: 'Non', OPTIONNEL: 'Optionnel', A_DISCUTER: 'À discuter',
   DEBUTANT: 'Débutant', OBLIGATOIRE: 'Obligatoire',
   BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3',

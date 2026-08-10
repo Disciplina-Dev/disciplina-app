@@ -8,10 +8,12 @@ import {
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateAvatar from '@/components/rh/CandidateAvatar';
 import CandidateFormModal from '@/components/rh/CandidateFormModal';
+import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
 import { SECTOR_LABELS } from '@/data/sectors';
+import { secteurLabelOfTrainingSite } from '@/constants/secteurs';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
@@ -47,10 +49,7 @@ const getTpTypeColors = (tpType: TitleProfessionalType) => {
 
 const formatTrainingSite = (site?: TrainingSite) => {
   if (!site) return 'Non renseigné';
-  if (site === TrainingSite.NORD_SAINTE_MARIE) return 'Nord';
-  if (site === TrainingSite.OUEST_SAINT_PAUL) return 'Ouest';
-  if (site === TrainingSite.SUD_SAINT_PIERRE) return 'Sud';
-  return site;
+  return secteurLabelOfTrainingSite(site) ?? site;
 };
 
 // --- Tabs ---
@@ -154,7 +153,20 @@ export default function ListeCandidats() {
     cursorHistory,
     loadNextPage,
     loadPrevPage,
-  } = usePersistedListView<CandidateFilterState>('disciplina:list-view:candidats', EMPTY_CANDIDATE_FILTERS);
+  } = usePersistedListView<CandidateFilterState>(
+    'disciplina:list-view:candidats',
+    EMPTY_CANDIDATE_FILTERS,
+    {
+      trainingSite: [...Object.values(TrainingSite), ''],
+      status: [...Object.values(CandidateStatus), ''],
+      schoolLevel: [...Object.values(SchoolLevel), ''],
+      permis: ['all', 'yes', 'no'],
+      tpType: Object.values(TitleProfessionalType),
+      geographicMobility: Object.values(Localisation),
+      dateMode: ['any', 'before', 'after', 'between', 'none'],
+    },
+    ['ageMin', 'ageMax'],
+  );
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -193,7 +205,7 @@ export default function ListeCandidats() {
 
   const serverFilters = useMemo(() => toServerFilters(filters, activeTab), [filters, activeTab]);
 
-  const { candidates, pageInfo, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
+  const { candidates, pageInfo, totalCount, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
 
   // Sync server candidates into local state (enables optimistic edits)
@@ -210,6 +222,9 @@ export default function ListeCandidats() {
   const [unavailableModal, setUnavailableModal] = useState<{ id: string; candidate: Candidate } | null>(null);
   const [availabilityDate, setAvailabilityDate] = useState('');
 
+  // Modal state for CONTRACT
+  const [contractModal, setContractModal] = useState<{ id: string; candidate: Candidate } | null>(null);
+
   const handleUpdateStatus = async (id: string, newStatus: CandidateStatus) => {
     const candidate = localCandidates.find(c => c._id === id);
     if (!candidate) return;
@@ -224,6 +239,11 @@ export default function ListeCandidats() {
     if (newStatus === CandidateStatus.UNAVAILABLE) {
       setAvailabilityDate(candidate.job_info?.availability_date?.slice(0, 10) ?? '');
       setUnavailableModal({ id, candidate });
+      return;
+    }
+
+    if (newStatus === CandidateStatus.CONTRACT) {
+      setContractModal({ id, candidate });
       return;
     }
 
@@ -323,7 +343,7 @@ export default function ListeCandidats() {
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Candidats</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {localCandidates.length} candidat{localCandidates.length !== 1 ? 's' : ''} trouvé{localCandidates.length !== 1 ? 's' : ''}
+            {localCandidates.length} candidat{localCandidates.length !== 1 ? 's' : ''} trouvé{localCandidates.length !== 1 ? 's' : ''} sur {totalCount}
           </p>
         </div>
 
@@ -584,6 +604,14 @@ export default function ListeCandidats() {
               </select>
               {CANDIDATE_STATUS_LABELS[candidate.status]}
             </div>
+            {candidate.status === CandidateStatus.CONTRACT && candidate.contract_company_name && (
+              <div
+                className="absolute top-8 right-0 px-4 py-0.5 text-[10px] font-medium text-gray-500 text-right max-w-[60%] truncate z-10"
+                title={candidate.contract_company_name}
+              >
+                {candidate.contract_company_name}
+              </div>
+            )}
 
             {/* Card Header: Avatar */}
             <div className="mb-4 mt-2">
@@ -619,7 +647,7 @@ export default function ListeCandidats() {
                 {candidate.identity.full_name}
               </h3>
               <div className="mb-4 mt-1 flex gap-2 flex-wrap">
-                {(candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).map(tp => (
+                {(candidate.tp_types ?? []).map(tp => (
                   <span key={tp} className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ring-1 inset-ring ${getTpTypeColors(tp)}`}>
                     {tp}
                   </span>
@@ -817,6 +845,18 @@ export default function ListeCandidats() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Contract modal */}
+      {contractModal && (
+        <ContractModal
+          candidate={contractModal.candidate}
+          onSuccess={(updated) => {
+            setLocalCandidates(prev => prev.map(c => c._id === updated._id ? updated : c));
+            setContractModal(null);
+          }}
+          onClose={() => setContractModal(null)}
+        />
       )}
 
     </div>

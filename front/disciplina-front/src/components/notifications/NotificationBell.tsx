@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Check, CheckCheck } from 'lucide-react'
 import { useNotifications, type AppNotification, type NotificationLevel, type NotificationCategory } from '@/hooks/useNotifications'
+import { useChangeLog } from '@/hooks/useChangeLog'
+import { type ChangeLogRelease } from '@/lib/changelog'
+import ChangeLogModal from '@/components/notifications/ChangeLogModal'
 
 const LEVEL_DOT: Record<NotificationLevel, string> = {
   info: 'bg-blue-500',
@@ -29,9 +32,24 @@ const CATEGORIES: { key: NotificationCategory | null; label: string }[] = [
 
 export default function NotificationBell({ accent = '#60207E' }: { accent?: string }) {
   const { filteredNotifications, unreadCount, unreadByCategory, selectedCategory, setSelectedCategory, markRead, markAllRead } = useNotifications()
+  const changeLog = useChangeLog()
   const [open, setOpen] = useState(false)
+  const [changeLogOpen, setChangeLogOpen] = useState(false)
+  const [changeLogReleases, setChangeLogReleases] = useState<ChangeLogRelease[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+
+  const badgeCount = unreadCount + (changeLog.hasNew ? 1 : 0)
+
+  const openChangeLog = () => {
+    setChangeLogReleases(changeLog.newReleases)
+    setChangeLogOpen(true)
+  }
+
+  const closeChangeLog = () => {
+    setChangeLogOpen(false)
+    changeLog.markSeen()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -59,9 +77,9 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
         aria-label="Notifications"
       >
         <Bell size={19} />
-        {unreadCount > 0 && (
+        {badgeCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {badgeCount > 9 ? '9+' : badgeCount}
           </span>
         )}
       </button>
@@ -111,43 +129,63 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {filteredNotifications.length === 0 ? (
+            {filteredNotifications.length === 0 && !changeLog.hasNew ? (
               <div className="px-4 py-10 text-center text-sm text-gray-400">Aucune notification</div>
             ) : (
-              filteredNotifications.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => handleClick(n)}
-                  className={[
-                    'flex w-full items-start gap-3 px-4 py-3 text-left border-b border-gray-50 transition-colors hover:bg-gray-50',
-                    n.read ? 'bg-white' : 'bg-blue-50/60',
-                  ].join(' ')}
-                >
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${LEVEL_DOT[n.level] ?? LEVEL_DOT.info}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className={`truncate text-[13px] ${n.read ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
-                      {n.title}
-                    </p>
-                    {n.message && <p className="mt-0.5 line-clamp-2 text-[12px] text-gray-500">{n.message}</p>}
-                    <p className="mt-1 text-[11px] text-gray-400">{timeAgo(n.createdAt)}</p>
-                  </div>
-                  {!n.read && (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void markRead(n.id)
-                      }}
-                      className="mt-0.5 shrink-0 rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600"
-                      title="Marquer comme lu"
-                    >
-                      <Check size={14} />
-                    </span>
-                  )}
-                </button>
-              ))
+              <>
+                {changeLog.hasNew && (
+                  <button
+                    onClick={openChangeLog}
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left border-b border-gray-50 transition-colors hover:bg-gray-50 bg-gray-50/60"
+                  >
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-bold text-gray-900">Nouveautés</p>
+                      <p className="mt-0.5 line-clamp-2 text-[12px] text-gray-500">
+                        Découvrez les changements depuis votre dernière visite
+                      </p>
+                    </div>
+                  </button>
+                )}
+                {filteredNotifications.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleClick(n)}
+                    className={[
+                      'flex w-full items-start gap-3 px-4 py-3 text-left border-b border-gray-50 transition-colors hover:bg-gray-50',
+                      n.read ? 'bg-white' : 'bg-blue-50/60',
+                    ].join(' ')}
+                  >
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${LEVEL_DOT[n.level] ?? LEVEL_DOT.info}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate text-[13px] ${n.read ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
+                        {n.title}
+                      </p>
+                      {n.message && <p className="mt-0.5 line-clamp-2 text-[12px] text-gray-500">{n.message}</p>}
+                      <p className="mt-1 text-[11px] text-gray-400">{timeAgo(n.createdAt)}</p>
+                    </div>
+                    {!n.read && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void markRead(n.id)
+                        }}
+                        className="mt-0.5 shrink-0 rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600"
+                        title="Marquer comme lu"
+                      >
+                        <Check size={14} />
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </>
             )}
           </div>
         </div>
+      )}
+
+      {changeLogOpen && (
+        <ChangeLogModal releases={changeLogReleases} accent={accent} onClose={closeChangeLog} />
       )}
     </div>
   )

@@ -1,12 +1,9 @@
 import type { KpiMetricColumn, KpiMetrics, KpiSite } from '@/api/kpi';
 import { KPI_METRIC_COLUMNS } from '@/api/kpi';
+import { SECTEUR_LABELS } from '@/constants/secteurs';
 
 /** Libellés secteurs affichés (valeurs ENUM DB inchangées : NORD/OUEST/SUD). */
-export const SITE_LABELS: Record<KpiSite, string> = {
-  NORD: 'Nord-Est',
-  OUEST: 'Ouest',
-  SUD: 'Sud',
-};
+export const SITE_LABELS: Record<KpiSite, string> = SECTEUR_LABELS;
 
 export interface KpiMetricDef {
   key: KpiMetricColumn;

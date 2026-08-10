@@ -6,7 +6,7 @@ import { regionFromSector } from '../../utils/sector';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
-import { OfferAbFilter } from '../../types/offer.types';
+import { OfferAbFilter, AbStatus } from '../../types/offer.types';
 import {
     abDriveConfigService,
     abDriveConfigToGql,
@@ -20,6 +20,7 @@ interface OfferFilterInput {
     desiredTp?: string[];
     sectors?: string[];
     localisations?: string[];
+    abStatus?: AbStatus;
 }
 
 function toOfferAbFilter(filter?: OfferFilterInput): OfferAbFilter | undefined {
@@ -77,15 +78,15 @@ export const resolvers = {
     },
     Mutation: {
         createNeedsAnalysis: async (_: unknown, { input }: { input: any }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
             const ownedInput = {
                 ...input,
-                userID: context.user.role === JobRole.COMMERCIAL ? context.user.id : input.userID ?? context.user.id,
+                userID: context.user.role === JobRole.COMMERCIAL ? context.user.id : (input.userID ?? context.user.id),
             };
             return needsAnalysisService.create(ownedInput);
         },
         updateNeedsAnalysis: async (_: unknown, { id, input }: { id: string; input: any }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
             if (context.user.role === JobRole.COMMERCIAL) {
                 const existing = await needsAnalysisService.findById(id);
                 if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
@@ -113,6 +114,10 @@ export const resolvers = {
             }
             const updated = await abDriveConfigService.updateConfig({ sectorFolders });
             return abDriveConfigToGql(updated);
+        },
+        markNeedsAnalysisSigned: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.markSigned(id);
         },
     },
 };

@@ -56,5 +56,6 @@ export function useInitializePortfolioBySiren(first?: number, after?: string, fi
     loading: groupsResult.fetching || salePersonsResult.fetching,
     error: groupsResult.error?.message || salePersonsResult.error?.message,
     pageInfo: groupsResult.data?.companiesBySiren?.pageInfo,
+    totalCount: groupsResult.data?.companiesBySiren?.totalCount ?? 0,
   }
 }

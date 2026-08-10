@@ -8,6 +8,7 @@ import {
     SkillLevel,
     DiscoverySource,
     Identity,
+    EncryptedSsn,
     Education,
     Support,
     ProfessionalExperience,
@@ -44,10 +45,19 @@ const emergencyContactSchema = new Schema<EmergencyContact>(
     { _id: false },
 );
 
+const encryptedSsnSchema = new Schema<EncryptedSsn>(
+    {
+        encrypted: { type: String, required: true },
+        iv: { type: String, required: true },
+        tag: { type: String, required: true },
+    },
+    { _id: false },
+);
+
 const identitySchema = new Schema<Identity>(
     {
         full_name: { type: String, required: true },
-        social_security_number: { type: String },
+        social_security_number: { type: encryptedSsnSchema },
         date_of_birth: { type: Date },
         place_of_birth: { type: String },
         department_of_birth: { type: String },
@@ -70,6 +80,27 @@ const identitySchema = new Schema<Identity>(
     },
     { _id: false },
 );
+
+// Unicité applicative de l'email : la base contient encore des doublons
+// historiques (cf. database/mongodb/mongo-init.js), donc pas d'index unique
+// Mongo pour l'instant — juste ce garde-fou côté Mongoose.
+identitySchema.path('email').validate({
+    async validator(this: mongoose.Query<unknown, unknown> | Document, email: string) {
+        if (!email) return true;
+        const normalized = email.trim();
+        const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const selfId =
+            this instanceof mongoose.Query
+                ? this.getQuery()._id
+                : (this as unknown as { $parent: () => { _id?: string } }).$parent()?._id;
+        const existing = await CandidateModel.findOne({
+            _id: { $ne: selfId },
+            'identity.email': { $regex: `^${escaped}$`, $options: 'i' },
+        }).lean();
+        return !existing;
+    },
+    message: (props) => `Un candidat existe déjà avec l'email ${props.value}`,
+});
 
 const educationSchema = new Schema<Education>(
     {
@@ -207,7 +238,6 @@ const candidateSchema = new Schema<Candidate & Document>(
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
         owner: { type: ownerSchema },
-        tp_type: { type: String, enum: Object.values(TitleProfessionalType), required: true },
         tp_types: { type: [String], enum: Object.values(TitleProfessionalType), default: undefined },
         identity: { type: identitySchema, required: true },
         emergency_contact: { type: emergencyContactSchema },
@@ -222,6 +252,10 @@ const candidateSchema = new Schema<Candidate & Document>(
         // Horodatage de l'envoi de la notification « immersion terminée » : évite
         // de re-notifier chaque jour une fois la date de fin passée (dédup scheduler).
         immersion_end_notified_at: { type: Date },
+        contract_offer_id: { type: String },
+        contract_company_id: { type: Number },
+        contract_company_name: { type: String },
+        contract_start_date: { type: Date },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
         education: { type: educationSchema },
@@ -236,6 +270,7 @@ const candidateSchema = new Schema<Candidate & Document>(
         cv_link: { type: String },
         drive_folder_id: { type: String },
         drive_folder_link: { type: String },
+        filiz_folder_id: { type: String },
         photo_link: { type: String },
         classmarker: { type: classMarkerResultSchema },
         created_at: { type: Date },

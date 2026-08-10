@@ -160,6 +160,31 @@ export class CompanyRepository {
         );
     }
 
+    /** Compte les entreprises correspondant à la recherche + filtres (même logique que findAll). */
+    async countAll(search?: string, filters?: CompanyFilters): Promise<number> {
+        if (search?.trim()) {
+            const pattern = `%${search.trim()}%`;
+            const rows = await query<{ n: number }[]>(
+                'SELECT COUNT(*) AS n FROM companies WHERE name LIKE ? OR siret LIKE ?',
+                [pattern, pattern],
+            );
+            return Number(rows[0]?.n ?? 0);
+        }
+
+        const { conditions, params } = this.buildFilterClauses(filters);
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const rows = await query<{ n: number }[]>(`SELECT COUNT(*) AS n FROM companies ${where}`, params);
+        return Number(rows[0]?.n ?? 0);
+    }
+
+    /** Compte les SIREN distincts correspondant aux filtres (même logique que findGroupedBySiren). */
+    async countGroupedBySiren(filters?: CompanyFilters): Promise<number> {
+        const { conditions, params } = this.buildFilterClauses(filters);
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const rows = await query<{ n: number }[]>(`SELECT COUNT(DISTINCT siren) AS n FROM companies ${where}`, params);
+        return Number(rows[0]?.n ?? 0);
+    }
+
     async countByPeriod(year: number, userID?: number | null): Promise<PeriodStatusCountRow[]> {
         const conditions = ['created_at IS NOT NULL', 'YEAR(created_at) = ?'];
         const params: unknown[] = [year];

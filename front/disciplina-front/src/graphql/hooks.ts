@@ -379,7 +379,6 @@ function fromGql(c: any): Candidate {
     owner: c.owner
       ? { user_id: c.owner.userId, name: c.owner.name, sector: c.owner.sector ?? undefined }
       : undefined,
-    tp_type: mapTpType(c.tpType),
     tp_types: (c.tpTypes?.length ? c.tpTypes : c.tpType ? [c.tpType] : []).map(mapTpType),
     status: c.status as CandidateStatus,
     training_site: c.trainingSite,
@@ -389,6 +388,10 @@ function fromGql(c: any): Candidate {
     immersion_end_date: c.immersionEndDate ?? undefined,
     immersion_company_id: c.immersionCompanyId ?? undefined,
     immersion_company_name: c.immersionCompanyName ?? undefined,
+    contract_offer_id: c.contractOfferId ?? undefined,
+    contract_company_id: c.contractCompanyId ?? undefined,
+    contract_company_name: c.contractCompanyName ?? undefined,
+    contract_start_date: c.contractStartDate ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -524,7 +527,6 @@ function fromGql(c: any): Candidate {
 /** Maps frontend Candidate (snake_case) → GraphQL UpdateCandidateInput (camelCase) for mutation */
 function toGqlUpdateInput(c: Candidate): any {
   return {
-    tpType: c.tp_type,
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
@@ -532,6 +534,10 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
     ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
     ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
+    ...(c.contract_offer_id !== undefined && { contractOfferId: c.contract_offer_id }),
+    ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
+    ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
+    ...(c.contract_start_date !== undefined && { contractStartDate: c.contract_start_date }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
@@ -659,7 +665,7 @@ export function useCandidates() {
 
 /**
  * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
- * Returns { candidates, pageInfo, loading, error, refetch }.
+ * Returns { candidates, pageInfo, totalCount, loading, error, refetch }.
  */
 export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters) {
   const [result, reexecuteQuery] = useQuery({
@@ -671,10 +677,12 @@ export function useCandidatesPage(first?: number, after?: string, search?: strin
 
   const candidates: Candidate[] = (result.data?.candidatesPage?.edges ?? []).map((edge: { node: Record<string, unknown> }) => fromGql(edge.node))
   const pageInfo: PageInfo | undefined = result.data?.candidatesPage?.pageInfo
+  const totalCount: number = result.data?.candidatesPage?.totalCount ?? 0
 
   return {
     candidates,
     pageInfo,
+    totalCount,
     loading: result.fetching,
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
@@ -694,7 +702,7 @@ export function useUpdateCandidate() {
 }
 
 interface CreateCandidateInput {
-  tpType: string
+  tpTypes: string[]
   status: string
   identity: { fullName: string; email: string; phone: string; [key: string]: any }
   education?: { schoolLevel?: string | null; [key: string]: any } | null
