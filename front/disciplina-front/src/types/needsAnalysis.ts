@@ -76,6 +76,7 @@ export interface NeedsAnalysis {
   trainingDays?: string | null
   yousignSignatureRequestID?: string | null
   status?: string | null
+  tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null
 }

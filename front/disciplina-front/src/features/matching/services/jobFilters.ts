@@ -1,11 +1,17 @@
 import type { Job } from '../types'
 
+// Statut d'une AB dérivé de ses offres (onglets de la liste matching RH).
+export type AbStatus = 'ACTIVE' | 'ARCHIVED' | 'INACTIVE'
+
+export type AbTab = 'ALL' | AbStatus
+
 export interface JobFilters {
   search: string
   statuses: string[]
   desiredTPs: string[]
   sectors: string[]
   localisations: string[]
+  tab: AbTab
 }
 
 export const EMPTY_JOB_FILTERS: JobFilters = {
@@ -14,6 +20,7 @@ export const EMPTY_JOB_FILTERS: JobFilters = {
   desiredTPs: [],
   sectors: [],
   localisations: [],
+  tab: 'ALL',
 }
 
 export interface OfferFilterInput {
@@ -22,15 +29,18 @@ export interface OfferFilterInput {
   desiredTp?: string[]
   sectors?: string[]
   localisations?: string[]
+  abStatus?: AbStatus
 }
 
 export function toOfferFilterInput(filters: JobFilters, search: string): OfferFilterInput | undefined {
+  const abStatus = filters.tab === 'ALL' ? undefined : filters.tab
   const hasFilter =
     Boolean(search) ||
     filters.statuses.length > 0 ||
     filters.desiredTPs.length > 0 ||
     filters.sectors.length > 0 ||
-    filters.localisations.length > 0
+    filters.localisations.length > 0 ||
+    Boolean(abStatus)
   if (!hasFilter) return undefined
   return {
     search: search || undefined,
@@ -38,6 +48,7 @@ export function toOfferFilterInput(filters: JobFilters, search: string): OfferFi
     desiredTp: filters.desiredTPs.length > 0 ? filters.desiredTPs : undefined,
     sectors: filters.sectors.length > 0 ? filters.sectors : undefined,
     localisations: filters.localisations.length > 0 ? filters.localisations : undefined,
+    abStatus,
   }
 }
 

@@ -46,6 +46,18 @@ const IMMERSION_CONCLUSION_TO_CANDIDATE_STATUS: Record<ImmersionConclusion, Cand
     [ImmersionConclusion.CONTRACT]: CandidateStatus.CONTRACT,
 };
 
+const MATCHED_STATUS_LABELS: Partial<Record<MatchedCandidateStatus, string>> = {
+    [MatchedCandidateStatus.PRE_SELECTED]: 'pré-sélectionné',
+    [MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND]: 'proposition envoyée au candidat',
+    [MatchedCandidateStatus.DECLINED]: 'proposition déclinée par le candidat',
+    [MatchedCandidateStatus.ACCEPTED]: 'proposition acceptée par le candidat',
+    [MatchedCandidateStatus.SEND]: 'CV transmis à l’entreprise',
+    [MatchedCandidateStatus.REFUSED]: 'refusé par l’entreprise',
+    [MatchedCandidateStatus.INTERVIEW]: 'retenu pour un entretien',
+    [MatchedCandidateStatus.IMMERSING]: 'en immersion',
+    [MatchedCandidateStatus.CONTRACT]: 'embauché',
+};
+
 function matchingCandidateToGql(mc: MatchingCandidate): object {
     return {
         id: mc.id,
@@ -302,7 +314,7 @@ export class OfferService {
     async unmatchAll(offerId: string): Promise<object | null> {
         const offer = await this.offerRepository.clearMatchedCandidates(offerId);
         if (offer) {
-            await this.offerHistoryService.recordAuto(offerId, 'Offre réinitialisée (tous les candidats retirés)');
+            await this.offerHistoryService.recordAuto(offerId, "Tous les candidats ont été retirés de l'offre");
         }
         return offer ? toGql(offer) : null;
     }
@@ -350,7 +362,7 @@ export class OfferService {
             companyName: hit.offer.company_infos?.name ?? null,
             kind,
             since,
-            immersionEndDate: kind === 'IMMERSING' ? hit.pc.immersion_end_date ?? null : null,
+            immersionEndDate: kind === 'IMMERSING' ? (hit.pc.immersion_end_date ?? null) : null,
         };
     }
 
@@ -369,13 +381,10 @@ export class OfferService {
         if (entry) await this.candidateHistoryService.recordAuto(candidateId, entry.type, entry.description);
 
         const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
-        await this.offerHistoryService.recordAuto(
-            offerId,
-            `Statut de ${candidate?.full_name ?? candidateId} passé à ${status}`,
-        );
+        const statusLabel = MATCHED_STATUS_LABELS[status as MatchedCandidateStatus] ?? status;
+        await this.offerHistoryService.recordAuto(offerId, `${candidate?.full_name ?? candidateId} : ${statusLabel}`);
 
         if (status === MatchedCandidateStatus.ACCEPTED || status === MatchedCandidateStatus.DECLINED) {
-            const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
             await this.notifyRhCandidateAnswer(
                 status as MatchedCandidateStatus,
                 offerId,
@@ -486,7 +495,7 @@ export class OfferService {
 
         await this.offerHistoryService.recordAuto(
             offerId,
-            `Proposition manuelle de ${candidate.identity.full_name} pour entretien le ${interviewDate}`,
+            `Entretien programmé pour ${candidate.identity.full_name} le ${interviewDate}`,
         );
 
         return toGql(updated);
@@ -529,7 +538,7 @@ export class OfferService {
 
         await this.offerHistoryService.recordAuto(
             offerId,
-            `Proposition manuelle de ${candidate.identity.full_name} pour immersion du ${immersionStartDate} au ${immersionEndDate}`,
+            `Immersion programmée pour ${candidate.identity.full_name} du ${immersionStartDate} au ${immersionEndDate}`,
         );
 
         return toGql(updated);
@@ -588,7 +597,15 @@ export class OfferService {
         );
         await this.candidateHistoryService.recordManual(candidateId, description, ownerEmail);
 
-        await this.offerHistoryService.recordAuto(offerId, `Entretien de ${proposed.full_name} conclu : ${conclusion}`);
+        await this.offerHistoryService.recordAuto(
+            offerId,
+            this.buildInterviewConclusionOfferHistoryEntry(
+                conclusion,
+                proposed.full_name,
+                immersionStartDate,
+                immersionEndDate,
+            ),
+        );
 
         if (conclusion === InterviewConclusion.CONTRACT) {
             await this.notifyContractSigned(
@@ -644,7 +661,7 @@ export class OfferService {
 
         await this.offerHistoryService.recordAuto(
             offerId,
-            `Immersion de ${proposed.full_name} conclue : ${conclusion}`,
+            this.buildImmersionConclusionOfferHistoryEntry(conclusion, proposed.full_name),
         );
 
         if (conclusion === ImmersionConclusion.CONTRACT) {
@@ -670,6 +687,31 @@ export class OfferService {
                 return `L'immersion c'est soldée par un rejet entre ${candidateName} et ${companyName}`;
             case ImmersionConclusion.CONTRACT:
                 return `L'immersion c'est soldée par un contrat avec ${companyName}`;
+        }
+    }
+
+    private buildImmersionConclusionOfferHistoryEntry(conclusion: ImmersionConclusion, candidateName?: string): string {
+        switch (conclusion) {
+            case ImmersionConclusion.REJECTED:
+                return `Immersion de ${candidateName} conclue : candidat non retenu`;
+            case ImmersionConclusion.CONTRACT:
+                return `Immersion de ${candidateName} conclue : embauche`;
+        }
+    }
+
+    private buildInterviewConclusionOfferHistoryEntry(
+        conclusion: InterviewConclusion,
+        candidateName?: string,
+        immersionStartDate?: string,
+        immersionEndDate?: string,
+    ): string {
+        switch (conclusion) {
+            case InterviewConclusion.REJECTED:
+                return `Entretien de ${candidateName} conclu : candidat non retenu`;
+            case InterviewConclusion.IMMERSING:
+                return `Entretien de ${candidateName} conclu : immersion du ${immersionStartDate} au ${immersionEndDate}`;
+            case InterviewConclusion.CONTRACT:
+                return `Entretien de ${candidateName} conclu : embauche`;
         }
     }
 

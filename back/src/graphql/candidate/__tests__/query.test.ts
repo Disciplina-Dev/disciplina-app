@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
+import { truncateMysql } from '../../../../test/helpers/db';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '../../../types/candidate.types';
 import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
+import { CandidateService } from '../../../services/CandidateService';
+import pool from '../../../db/mysql/connection';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -20,7 +23,7 @@ describe('GraphQL candidate queries', () => {
                 Cookie: auth.cookieHeader,
                 'x-csrf-token': auth.csrfHeader,
             },
-            body: JSON.stringify({ query: '{ candidates { id status tpType } }' }),
+            body: JSON.stringify({ query: '{ candidates { id status tpTypes } }' }),
         });
         const json = await res.json();
 
@@ -37,14 +40,14 @@ describe('GraphQL candidate queries', () => {
         const c1 = await repo.create({
             _id: `id-${suffix}-1`,
             candidate_id: `id-${suffix}-1`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `Alice ${suffix}`, email: `alice-${suffix}@test.local`, phone: '0100000001' },
         });
         const c2 = await repo.create({
             _id: `id-${suffix}-2`,
             candidate_id: `id-${suffix}-2`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.CONTRACT,
             identity: { full_name: `Bob ${suffix}`, email: `bob-${suffix}@test.local`, phone: '0100000002' },
         });
@@ -57,7 +60,7 @@ describe('GraphQL candidate queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: `{ candidates { id status tpType identity { fullName email } } }`,
+                query: `{ candidates { id status tpTypes identity { fullName email } } }`,
             }),
         });
         const json = await res.json();
@@ -67,10 +70,10 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidates).toHaveLength(2);
         expect(json.data.candidates[0].id).toBe(c1._id);
         expect(json.data.candidates[0].identity.fullName).toBe(`Alice ${suffix}`);
-        expect(json.data.candidates[0].tpType).toBe('AD');
+        expect(json.data.candidates[0].tpTypes).toEqual(['AD']);
         expect(json.data.candidates[1].id).toBe(c2._id);
         expect(json.data.candidates[1].identity.fullName).toBe(`Bob ${suffix}`);
-        expect(json.data.candidates[1].tpType).toBe('CC');
+        expect(json.data.candidates[1].tpTypes).toEqual(['CC']);
     });
 
     it('paginates candidates with cursors via candidatesPage', async () => {
@@ -84,7 +87,7 @@ describe('GraphQL candidate queries', () => {
                 repo.create({
                     _id: id,
                     candidate_id: id,
-                    tp_type: TitleProfessionalType.AD,
+                    tp_types: [TitleProfessionalType.AD],
                     status: CandidateStatus.SEEKING,
                     identity: { full_name: `Candidate ${id}`, email: `${id}@test.local`, phone: '0100000000' },
                 }),
@@ -95,6 +98,7 @@ describe('GraphQL candidate queries', () => {
             candidatesPage(first: $first, after: $after) {
                 edges { cursor node { id } }
                 pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                totalCount
             }
         }`;
 
@@ -107,6 +111,7 @@ describe('GraphQL candidate queries', () => {
 
         expect(firstPage.edges).toHaveLength(2);
         expect(firstPage.pageInfo.hasNextPage).toBe(true);
+        expect(firstPage.totalCount).toBe(3);
 
         const secondPageRes = await fetch(ENDPOINT, {
             method: 'POST',
@@ -127,7 +132,7 @@ describe('GraphQL candidate queries', () => {
         const seeded = await repo.create({
             _id: `find-by-id-${suffix}`,
             candidate_id: `find-by-id-${suffix}`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `Target ${suffix}`, email: `target-${suffix}@test.local`, phone: '0600000000' },
             desired_sectors: ['RESTAURATION', 'COMMERCIAL'],
@@ -141,7 +146,7 @@ describe('GraphQL candidate queries', () => {
                 'x-csrf-token': auth.csrfHeader,
             },
             body: JSON.stringify({
-                query: `query($id: String!) { candidate(id: $id) { id status tpType identity { fullName email } desiredSectors } }`,
+                query: `query($id: String!) { candidate(id: $id) { id status tpTypes identity { fullName email } desiredSectors } }`,
                 variables: { id: seeded._id },
             }),
         });
@@ -199,7 +204,7 @@ describe('candidateStats', () => {
         await repo.create({
             _id: `${suffix}-1`,
             candidate_id: `${suffix}-1`,
-            tp_type: TitleProfessionalType.REM,
+            tp_types: [TitleProfessionalType.REM],
             status: CandidateStatus.SEEKING,
             training_site: TrainingSite.SUD_SAINT_PIERRE,
             identity: { full_name: `Stats A ${suffix}`, email: `sa-${suffix}@test.local`, phone: '0600000000' },
@@ -207,7 +212,7 @@ describe('candidateStats', () => {
         await repo.create({
             _id: `${suffix}-2`,
             candidate_id: `${suffix}-2`,
-            tp_type: TitleProfessionalType.REM,
+            tp_types: [TitleProfessionalType.REM],
             status: CandidateStatus.CONTRACT,
             training_site: TrainingSite.SUD_SAINT_PIERRE,
             identity: { full_name: `Stats B ${suffix}`, email: `sb-${suffix}@test.local`, phone: '0600000001' },
@@ -235,6 +240,121 @@ describe('candidateStats', () => {
     });
 });
 
+describe('candidateStats sector scoping', () => {
+    const suffix = `sector-${Date.now()}`;
+    let repo: CandidateRepository;
+
+    /** Crée un user RH en base, secteurs géographiques + permission fournis. */
+    async function seedUser(sectors: string[], permissionId: number): Promise<number> {
+        const conn = await pool.getConnection();
+        try {
+            const email = `${suffix}-${Math.random().toString(36).slice(2)}@test.local`;
+            const [result] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, sectors) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [
+                    email,
+                    'Sector',
+                    'Test',
+                    `pwd-${suffix}`,
+                    2,
+                    permissionId,
+                    sectors.length > 0 ? JSON.stringify(sectors) : null,
+                ],
+            );
+            return (result as any).insertId;
+        } finally {
+            conn.release();
+        }
+    }
+
+    async function seedCandidate(id: string, sector: string): Promise<void> {
+        await repo.create({
+            _id: id,
+            candidate_id: id,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            owner: { user_id: 1, name: 'Owner', sector },
+            identity: { full_name: `Cand ${id}`, email: `${id}@test.local`, phone: '0600000000' },
+        });
+    }
+
+    async function statsFor(auth: { cookieHeader: string; csrfHeader: string }, sectors?: string[]): Promise<any> {
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($s: [String!]) { candidateStats(sectors: $s) { total } }`,
+                variables: { s: sectors },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        return json.data.candidateStats;
+    }
+
+    beforeEach(async () => {
+        await truncateMysql();
+        repo = new CandidateRepository();
+    });
+
+    it('clamps a plain RH to their own sectors even when all sectors are requested', async () => {
+        const rhId = await seedUser(['Nord-Est'], 1);
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const auth = mintAuthCookies({
+            id: rhId,
+            email: `rh-${suffix}@test.local`,
+            role: 'RH',
+            permission: 'EMPLOYEE',
+        });
+
+        const all = await statsFor(auth, ['Nord-Est', 'Ouest']);
+        expect(all.total).toBe(1); // uniquement son secteur
+        expect(all.total).not.toBe(2);
+    });
+
+    it('ignores a request for a sector the RH does not belong to', async () => {
+        const rhId = await seedUser(['Nord-Est'], 1);
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const auth = mintAuthCookies({
+            id: rhId,
+            email: `rh-${suffix}@test.local`,
+            role: 'RH',
+            permission: 'EMPLOYEE',
+        });
+
+        const ouestOnly = await statsFor(auth, ['Ouest']);
+        // « Ouest » est hors périmètre → on reste sur ses propres secteurs (jamais « tous »).
+        expect(ouestOnly.total).toBe(1);
+    });
+
+    it('lets ADMIN/RESPONSABLE request any sector', async () => {
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const admin = mintAuthCookies({ id: 1, email: `admin-${suffix}@test.local`, role: 'RH', permission: 'ADMIN' });
+
+        const all = await statsFor(admin, ['Nord-Est', 'Ouest']);
+        expect(all.total).toBe(2);
+    });
+
+    it('keeps a RH with no sector assigned unrestricted', async () => {
+        const rhId = await seedUser([], 1);
+        await seedCandidate(`${suffix}-nord`, 'Nord-Est');
+        await seedCandidate(`${suffix}-ouest`, 'Ouest');
+        const auth = mintAuthCookies({
+            id: rhId,
+            email: `rh-${suffix}@test.local`,
+            role: 'RH',
+            permission: 'EMPLOYEE',
+        });
+
+        const all = await statsFor(auth, ['Nord-Est', 'Ouest']);
+        expect(all.total).toBe(2);
+    });
+});
+
 describe('matchCandidate', () => {
     it('returns matched jobs for a compatible candidate', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
@@ -245,7 +365,7 @@ describe('matchCandidate', () => {
         await candidateRepo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.NTC,
+            tp_types: [TitleProfessionalType.NTC],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Match Me ${suffix}`,
@@ -319,7 +439,7 @@ describe('UNAVAILABLE availability transition', () => {
         await repo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.UNAVAILABLE,
             identity: { full_name: `Unavail ${suffix}`, email: `${suffix}@test.local`, phone: '0600000000' },
             job_info: { availability_date: new Date('2020-01-01') },
@@ -353,7 +473,7 @@ describe('UNAVAILABLE availability transition', () => {
         await repo.create({
             _id: candidateId,
             candidate_id: candidateId,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.UNAVAILABLE,
             identity: { full_name: `Still ${suffix}`, email: `${suffix}@test.local`, phone: '0600000001' },
             job_info: { availability_date: future },
@@ -374,6 +494,88 @@ describe('UNAVAILABLE availability transition', () => {
     });
 });
 
+describe('unmaskCandidateSsn', () => {
+    it('returns the decrypted social security number for an authorized RH user', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `ssn-${Date.now()}`;
+        const service = new CandidateService();
+        const candidateId = `cand-ssn-${suffix}`;
+        const plainSsn = '123456789012345';
+
+        await service.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Ssn Reveal ${suffix}`,
+                email: `ssn-reveal-${suffix}@test.local`,
+                phone: '0600000000',
+                social_security_number: plainSsn,
+            } as any,
+        } as any);
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { unmaskCandidateSsn(id: $id) }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.unmaskCandidateSsn).toBe(plainSsn);
+    });
+
+    it('returns null when the candidate has no social security number', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `ssn-none-${Date.now()}`;
+        const repo = new CandidateRepository();
+        const candidateId = `cand-${suffix}`;
+
+        await repo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `No Ssn ${suffix}`, email: `${suffix}@test.local`, phone: '0600000000' },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { unmaskCandidateSsn(id: $id) }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.unmaskCandidateSsn).toBeNull();
+    });
+
+    it('rejects unauthenticated requests', async () => {
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: `query($id: String!) { unmaskCandidateSsn(id: $id) }`,
+                variables: { id: 'irrelevant-id' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/unauthorized/i);
+    });
+});
+
 describe('candidatesPage with filters', () => {
     it('filters by tpType', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
@@ -383,21 +585,21 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-rem-1`,
             candidate_id: `${suffix}-rem-1`,
-            tp_type: TitleProfessionalType.SA,
+            tp_types: [TitleProfessionalType.SA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} A`, email: `ftp-a-${suffix}@test.local`, phone: '0600000000' },
         });
         await repo.create({
             _id: `${suffix}-rem-2`,
             candidate_id: `${suffix}-rem-2`,
-            tp_type: TitleProfessionalType.SA,
+            tp_types: [TitleProfessionalType.SA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} B`, email: `ftp-b-${suffix}@test.local`, phone: '0600000001' },
         });
         await repo.create({
             _id: `${suffix}-other`,
             candidate_id: `${suffix}-other`,
-            tp_type: TitleProfessionalType.NTC,
+            tp_types: [TitleProfessionalType.NTC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} C`, email: `ftp-c-${suffix}@test.local`, phone: '0600000002' },
         });
@@ -408,7 +610,8 @@ describe('candidatesPage with filters', () => {
             body: JSON.stringify({
                 query: `query($search: String!, $filters: CandidateFiltersInput) {
                     candidatesPage(first: 10, search: $search, filters: $filters) {
-                        edges { node { id tpType } }
+                        edges { node { id tpTypes } }
+                        totalCount
                     }
                 }`,
                 variables: { search: `FLT-TP-${suffix}`, filters: { tpType: 'SA' } },
@@ -420,7 +623,8 @@ describe('candidatesPage with filters', () => {
         expect(json.errors).toBeUndefined();
         const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
         expect(nodes).toHaveLength(2);
-        expect(nodes.every((n: any) => n.tpType === 'SA')).toBe(true);
+        expect(json.data.candidatesPage.totalCount).toBe(2);
+        expect(nodes.every((n: any) => n.tpTypes.includes('SA'))).toBe(true);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-1`);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-2`);
     });
@@ -433,14 +637,14 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-seeking`,
             candidate_id: `${suffix}-seeking`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-ST-${suffix} SEEK`, email: `fst-s-${suffix}@test.local`, phone: '0600000000' },
         });
         await repo.create({
             _id: `${suffix}-matched`,
             candidate_id: `${suffix}-matched`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.CONTRACT,
             identity: { full_name: `FLT-ST-${suffix} MATCH`, email: `fst-m-${suffix}@test.local`, phone: '0600000001' },
         });
@@ -475,7 +679,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-with`,
             candidate_id: `${suffix}-with`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `FLT-DL-${suffix} YES`,
@@ -487,7 +691,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-without`,
             candidate_id: `${suffix}-without`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `FLT-DL-${suffix} NO`,
@@ -527,7 +731,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-paul`,
             candidate_id: `${suffix}-paul`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-GM-${suffix} PAUL`, email: `fgm-p-${suffix}@test.local`, phone: '0600000000' },
             job_info: { geographic_mobility: ['SAINT_PAUL', 'LE_PORT'] },
@@ -535,7 +739,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-denis`,
             candidate_id: `${suffix}-denis`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-GM-${suffix} DENIS`, email: `fgm-d-${suffix}@test.local`, phone: '0600000001' },
             job_info: { geographic_mobility: ['SAINT_DENIS'] },
@@ -570,7 +774,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-boul`,
             candidate_id: `${suffix}-boul`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-DS-${suffix} BOUL`, email: `fds-b-${suffix}@test.local`, phone: '0600000000' },
             desired_sectors: ['Boulangerie', 'Restauration'],
@@ -578,7 +782,7 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-auto`,
             candidate_id: `${suffix}-auto`,
-            tp_type: TitleProfessionalType.CC,
+            tp_types: [TitleProfessionalType.CC],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-DS-${suffix} AUTO`, email: `fds-a-${suffix}@test.local`, phone: '0600000001' },
             desired_sectors: ['Automobile'],
@@ -615,7 +819,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-jean`,
             candidate_id: `${suffix}-jean`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `${suffix}Jean`,
@@ -655,7 +859,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-a`,
             candidate_id: `${suffix}-a`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Alpha ${suffix}`,
@@ -667,7 +871,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-b`,
             candidate_id: `${suffix}-b`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Beta ${suffix}`,
@@ -705,7 +909,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-both`,
             candidate_id: `${suffix}-both`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Jean${suffix} Dupont${suffix}`,
@@ -717,7 +921,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-partial`,
             candidate_id: `${suffix}-partial`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Jean${suffix} Martin${suffix}`,
@@ -755,7 +959,7 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         await repo.create({
             _id: `${suffix}-dup`,
             candidate_id: `${suffix}-dup`,
-            tp_type: TitleProfessionalType.AD,
+            tp_types: [TitleProfessionalType.AD],
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: `Dup ${suffix}`,

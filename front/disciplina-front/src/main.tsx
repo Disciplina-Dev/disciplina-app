@@ -8,6 +8,7 @@ import { router } from '@/router'
 import { graphqlClient } from '@/graphql/client'
 import { installSessionGuard } from '@/lib/sessionGuard'
 import { AuthBootstrap } from '@/components/AuthBootstrap'
+import CookieBanner from '@/components/legal/CookieBanner'
 
 Sentry.init({
     // TODO: supprimer le fallback et ne garder que VITE_SENTRY_DSN dans .env en production
@@ -46,6 +47,7 @@ createRoot(document.getElementById('root')!).render(
       <UrqlProvider value={graphqlClient}>
         <AuthBootstrap>
           <RouterProvider router={router} />
+          <CookieBanner />
         </AuthBootstrap>
       </UrqlProvider>
   </StrictMode>,

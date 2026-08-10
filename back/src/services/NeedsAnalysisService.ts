@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { OfferAbFilter } from '../types/offer.types';
+import { OfferAbFilter, AbStatus } from '../types/offer.types';
 import {
     NeedsAnalysis as NeedsAnalysisNoSql,
     NeedsAnalysisWriteInput,
@@ -35,10 +35,10 @@ import { PDFDocument } from 'pdf-lib';
 function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
     return Boolean(
         filter.search ||
-            filter.statuses?.length ||
-            filter.desiredTp?.length ||
-            filter.sectors?.length ||
-            filter.localisations?.length,
+        filter.statuses?.length ||
+        filter.desiredTp?.length ||
+        filter.sectors?.length ||
+        filter.localisations?.length,
     );
 }
 
@@ -110,12 +110,63 @@ export class NeedsAnalysisService {
     }
 
     async findPage(first: number, after?: string, filter?: OfferAbFilter): Promise<NeedsAnalysisNoSql[]> {
-        if (!filter || !hasActiveOfferFilter(filter)) {
+        const hasOfferFilter = Boolean(filter && hasActiveOfferFilter(filter));
+        const abStatus = filter?.abStatus;
+
+        // Aucune contrainte : liste brute (la liste « Tous » inclut les AB inactives).
+        if (!hasOfferFilter && !abStatus) {
             return this.repository.findPage(first, after);
         }
-        const ids = await this.offerRepository.findNeedsAnalysisIdsByFilter(filter);
-        if (ids.length === 0) return [];
-        return this.repository.findPage(first, after, ids);
+
+        // Contrainte par offres (statut, TP, secteur, localisation, recherche…).
+        let offerIds: string[] | undefined;
+        if (hasOfferFilter) {
+            offerIds = await this.offerRepository.findNeedsAnalysisIdsByFilter(filter!);
+            if (offerIds.length === 0) return [];
+        }
+
+        // Contrainte par statut d'AB dérivé (onglets Actif / Archivé / Inactif).
+        let statusIds: string[] | undefined;
+        if (abStatus) {
+            statusIds = await this.resolveAbStatusIds(abStatus);
+            if (statusIds.length === 0) return [];
+        }
+
+        // Intersection des deux contraintes, sinon celle présente seule.
+        let restrictIds: string[] | undefined;
+        if (offerIds && statusIds) {
+            const statusSet = new Set(statusIds);
+            restrictIds = offerIds.filter((id) => statusSet.has(id));
+        } else {
+            restrictIds = offerIds ?? statusIds;
+        }
+        if (restrictIds && restrictIds.length === 0) return [];
+
+        return this.repository.findPage(first, after, restrictIds);
+    }
+
+    /** Ids des AB correspondant à l'onglet choisi, hors AB supprimées pour Actif/Archivé. */
+    private async resolveAbStatusIds(abStatus: AbStatus): Promise<string[]> {
+        if (abStatus === 'INACTIVE') {
+            return this.repository.findDeletedIds();
+        }
+
+        const deletedIds = await this.repository.findDeletedIds();
+        const deletedSet = new Set(deletedIds);
+
+        if (abStatus === 'ARCHIVED') {
+            const ids = await this.offerRepository.findNeedsAnalysisIdsByAbStatus('ARCHIVED');
+            return ids.filter((id) => !deletedSet.has(id));
+        }
+
+        // ACTIVE : au moins une offre pas encore en contrat, ou aucune offre du tout
+        // (AB en cours de création non encore envoyée en signature).
+        const [withOffers, withoutOffers] = await Promise.all([
+            this.offerRepository.findNeedsAnalysisIdsByAbStatus('ACTIVE'),
+            this.repository.findIdsWithoutOffers(),
+        ]);
+        const unique = [...new Set([...withOffers, ...withoutOffers])];
+        return unique.filter((id) => !deletedSet.has(id));
     }
 
     async findById(id: string): Promise<NeedsAnalysisGql | null> {
@@ -128,8 +179,17 @@ export class NeedsAnalysisService {
         return docs.map(toNeedsAnalysis);
     }
 
-    async findForDashboard(limit: number, regions?: string[]): Promise<{
-        items: { id: string; companyName: string | null; positionsCount: number; createdAt: string | null; status: string }[];
+    async findForDashboard(
+        limit: number,
+        regions?: string[],
+    ): Promise<{
+        items: {
+            id: string;
+            companyName: string | null;
+            positionsCount: number;
+            createdAt: string | null;
+            status: string;
+        }[];
         totalCount: number;
     }> {
         const [docs, totalCount] = await Promise.all([
@@ -262,15 +322,22 @@ export class NeedsAnalysisService {
         await this.repository.update(id, {
             status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
             signature_request_id: submissionId,
+            // Point de départ de la relance auto : une re-sélection manuelle
+            // repart de zéro (la relance ne doit intervenir que 2 semaines après
+            // le dernier envoi). last_relance_at est conservé tel quel.
+            signature_sent_at: new Date(),
+            signature_url: signUrl,
         });
 
-        // Archivage Drive du PDF non signé, dans le dossier du secteur du commercial.
+        // Archivage Drive du PDF non signé, dans le dossier du secteur de l'AB
+        // (région de l'entreprise), pas celui du commercial.
         // Best-effort : n'échoue pas l'envoi en signature.
         await abDriveConfigService.archiveAbPdf(
-            analysis.salerInfo?.id ?? undefined,
+            analysis.companyInfos?.sector,
             'UNSIGNED',
             buffer,
             filename,
+            analysis.salerInfo?.id ?? undefined,
             actingUserId,
         );
 
@@ -397,9 +464,7 @@ export class NeedsAnalysisService {
 
         // Notifier par email uniquement les RH du secteur de l'AB
         const region = doc.company_infos?.sector;
-        const emailRecipients = onlyRhUsers.filter(
-            (user) => user.email && userBelongsToSector(user, region),
-        );
+        const emailRecipients = onlyRhUsers.filter((user) => user.email && userBelongsToSector(user, region));
         const positionsHtml = `${offerCount} poste${offerCount > 1 ? 's' : ''}`;
         await Promise.all(
             emailRecipients.map((user) => {
@@ -522,6 +587,32 @@ export class NeedsAnalysisService {
         ]);
     }
 
+    /**
+     * Marque une AB comme signée sans passer par le flux Yousign : cas du candidat
+     * ayant trouvé son contrat hors sourcing Disciplina. Crée les offres de matching
+     * si elles n'existent pas encore (normalement générées au premier envoi en
+     * signature), sans notifier les RH puisque le poste est déjà pourvu.
+     */
+    async markSigned(id: string): Promise<NeedsAnalysisGql> {
+        const doc = await this.repository.findById(id);
+        if (!doc) {
+            throw new Error('Needs analysis not found');
+        }
+
+        const existingOffers = await this.offerRepository.findByNeedsAnalysisId(id);
+        if (existingOffers.length === 0) {
+            await this.offerRepository.createMany(buildOffers(doc));
+        }
+
+        await this.repository.update(id, { status: NeedsAnalysisStatus.SIGNE });
+
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        return toNeedsAnalysis(updated);
+    }
+
     async delete(id: string): Promise<boolean> {
         if (!id) {
             throw new Error('Valid needs analysis ID is required');
@@ -536,7 +627,7 @@ export class NeedsAnalysisService {
         }
 
         // Supprime les offres de matching de cette AB.
-        // Hors du chemin critique : un échec ne doit pas empêcher la suppression de l'AB.
+        // Hors du chemin critique : un échec ne doit pas empêcher la mise en inactif de l'AB.
         try {
             const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
             logger.info({ id, removed }, '[NeedsAnalysis] offers cleared for AB');
@@ -554,7 +645,9 @@ export class NeedsAnalysisService {
             }
         }
 
-        return this.repository.delete(id);
+        // Soft delete : l'AB devient inactive (is_deleted) au lieu d'être retirée.
+        // Elle reste visible dans l'onglet « Inactif » de la liste matching RH.
+        return this.repository.markDeleted(id);
     }
 
     private validateData(data: Partial<NeedsAnalysisWriteInput>): void {

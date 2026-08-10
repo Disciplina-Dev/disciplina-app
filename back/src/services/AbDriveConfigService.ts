@@ -2,8 +2,9 @@ import { AbDriveConfig, AbDriveConfigRepository } from '../repositories/mongo/Ab
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
-import { SECTORS, Sector, primarySector } from '../utils/sector';
+import { SECTORS, sectorFromRegion } from '../utils/sector';
 import { JobRole, User } from '../types/user.types';
+import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
 import { logger } from '../external/logger';
 
 /** Type de dossier d'archivage d'une AB : signé ou non signé. */
@@ -33,7 +34,7 @@ export class AbDriveConfigService {
         return this.repo.save({ sectorFolders });
     }
 
-    /** Dossier Drive cible pour une AB, selon le secteur du commercial et le type (signé / non signé). */
+    /** Dossier Drive cible pour une AB, selon le secteur de l'AB et le type (signé / non signé). */
     async resolveFolder(sector: string | undefined, kind: AbFolderKind): Promise<string | undefined> {
         if (!sector) return undefined;
         const config = await this.repo.get();
@@ -41,26 +42,33 @@ export class AbDriveConfigService {
     }
 
     /**
-     * Archive un PDF d'AB dans le Drive, dans le dossier du secteur du créateur.
+     * Archive un PDF d'AB dans le Drive, dans le dossier du secteur de l'AB
+     * (région de l'entreprise), pas celui du commercial créateur.
      * Best-effort : ne jette jamais (hors chemin critique signature/envoi). Renvoie
      * le lien Drive en cas de succès, sinon null.
      *
-     * @param creatorId     id du commercial créateur de l'AB (source du secteur).
+     * @param region        secteur (région) de l'AB : NORD/OUEST/SUD. À défaut, repli
+     *                      sur le secteur du commercial créateur.
+     * @param kind          type de dossier (signé / non signé).
+     * @param buffer        contenu du PDF.
+     * @param filename      nom du fichier uploadé.
+     * @param creatorId     id du commercial créateur de l'AB (source des jetons Google).
      * @param actingUserId  id de l'utilisateur à l'origine de l'action (source prioritaire des jetons Google).
      */
     async archiveAbPdf(
-        creatorId: number | undefined,
+        region: CompanyRegion | undefined | null,
         kind: AbFolderKind,
         buffer: Buffer,
         filename: string,
+        creatorId?: number,
         actingUserId?: number,
     ): Promise<string | null> {
         try {
+            // Secteur de l'AB d'abord ; si absent, Nord-Est par défaut.
+            const sector = sectorFromRegion(region) ?? 'Nord-Est';
             const creator = creatorId ? await this.userService.findById(creatorId) : null;
             const actingUser =
                 actingUserId && actingUserId !== creatorId ? await this.userService.findById(actingUserId) : null;
-            // Créateur sans secteur : rattaché au Nord (Nord-Est) par défaut.
-            const sector: Sector = primarySector(creator?.sectors) ?? 'Nord-Est';
 
             const folderId = await this.resolveFolder(sector, kind);
             if (!folderId) {

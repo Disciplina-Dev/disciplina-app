@@ -1,7 +1,7 @@
 import { ACCESS_TOKEN_COOKIE, verifyAccessToken } from '../rest/middleware/tokenAuth';
 import { isCsrfValid } from '../rest/middleware/csrf';
 
-export function jwtContext({ req }: { req: any }) {
+export async function jwtContext({ req }: { req: any }) {
     const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
     if (!token) return { user: null };
 

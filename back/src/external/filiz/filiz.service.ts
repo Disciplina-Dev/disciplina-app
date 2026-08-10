@@ -18,9 +18,9 @@ export class FilizService {
                 method: 'GET',
                 redirect: 'follow',
             });
-            const json = await response.json();
+            const json = (await response.json()) as { error?: string; degrees?: string[] };
             if (json?.error) return null;
-            return json.degrees;
+            return json.degrees ?? null;
         } catch (error) {
             logger.error({ err: error }, 'FilizService: getDegreeIDs failed');
             return null;
@@ -58,7 +58,7 @@ export class FilizService {
 
         if (!token) return null;
         try {
-            const classes = await (
+            const classes = (await (
                 await fetch(`${env.FILIZ_BASE_URI}/api/class?degreeId=${degreeId}`, {
                     headers: {
                         authorization: `Bearer ${token}`,
@@ -66,7 +66,7 @@ export class FilizService {
                     method: 'GET',
                     redirect: 'follow',
                 })
-            ).json();
+            ).json()) as FilizClass[];
 
             return classes;
         } catch (error) {
@@ -88,7 +88,7 @@ export class FilizService {
                 },
                 body: JSON.stringify(payload),
             });
-            const json = await response.json();
+            const json = (await response.json()) as { error?: string; degreeId?: string };
             if (json?.error) return null;
             return json.degreeId ?? null;
         } catch (error) {
@@ -110,7 +110,7 @@ export class FilizService {
                 },
                 body: JSON.stringify(payload),
             });
-            const json = await response.json();
+            const json = (await response.json()) as { error?: string; classId?: string };
             if (json?.error) return null;
             return json.classId ?? null;
         } catch (error) {
@@ -132,7 +132,7 @@ export class FilizService {
                 },
                 body: JSON.stringify(payload),
             });
-            const json = await response.json();
+            const json = (await response.json()) as { error?: string; folderId?: string };
             if (json?.error) return null;
             return json.folderId ?? null;
         } catch (error) {

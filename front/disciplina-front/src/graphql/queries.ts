@@ -85,6 +85,7 @@ export const GET_COMPANIES = gql`
         startCursor
         endCursor
       }
+      totalCount
     }
   }
 `
@@ -128,6 +129,7 @@ export const GET_COMPANIES_BY_SIREN = gql`
         startCursor
         endCursor
       }
+      totalCount
     }
   }
 `
@@ -409,7 +411,6 @@ const CANDIDATE_FIELDS = gql`
       sector
     }
     status
-    tpType
     tpTypes
     trainingSite
     trainingSites
@@ -492,6 +493,7 @@ export const GET_CANDIDATES_PAGE = gql`
         startCursor
         endCursor
       }
+      totalCount
     }
   }
   ${CANDIDATE_FIELDS}
@@ -567,6 +569,12 @@ export const CHECK_CANDIDATE_EMAIL = gql`
   }
 `
 
+export const UNMASK_SSN = gql`
+  query UnmaskCandidateSsn($id: String!) {
+    unmaskCandidateSsn(id: $id)
+  }
+`
+
 export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {
@@ -577,7 +585,6 @@ export const GET_CANDIDATE_BY_ID = gql`
         sector
       }
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -586,6 +593,10 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -708,7 +719,6 @@ export const UPDATE_CANDIDATE = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -717,6 +727,10 @@ export const UPDATE_CANDIDATE = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -829,7 +843,6 @@ export const CREATE_CANDIDATE = gql`
     createCandidate(input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -885,7 +898,6 @@ export const GET_CANDIDATE_FULL = gql`
         sector
       }
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -894,6 +906,10 @@ export const GET_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1017,7 +1033,6 @@ export const UPDATE_CANDIDATE_FULL = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -1026,6 +1041,10 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1824,6 +1843,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      tags
       createdAt
       updatedAt
     }
@@ -1884,6 +1904,15 @@ export const UPDATE_NEEDS_ANALYSIS = gql`
       id
       status
       updatedAt
+    }
+  }
+`
+
+export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
+  mutation MarkNeedsAnalysisSigned($id: ID!) {
+    markNeedsAnalysisSigned(id: $id) {
+      id
+      status
     }
   }
 `

@@ -203,6 +203,7 @@ CREATE TABLE IF NOT EXISTS `company_history` (
   `status` varchar(50) NOT NULL,
   `previous_status` varchar(50) DEFAULT NULL,
   `modified_by` int DEFAULT NULL,
+  `changes` json DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_company_history_company_id` (`company_id`),
   CONSTRAINT `fk_company_history_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -305,6 +306,19 @@ CREATE TABLE IF NOT EXISTS `peda_draft_history` (
   CONSTRAINT `fk_peda_draft_history_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `refresh_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `token_hash` varchar(64) NOT NULL,
+  `expires_at` timestamp NOT NULL,
+  `revoked_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_refresh_user` (`user_id`),
+  KEY `idx_refresh_hash` (`token_hash`),
+  CONSTRAINT `fk_refresh_tokens_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `relance_history` (
   `id` int NOT NULL AUTO_INCREMENT,
   `company_id` int NOT NULL,
@@ -366,6 +380,24 @@ CREATE TABLE IF NOT EXISTS `todos` (
   KEY `idx_user_position` (`user_id`,`position`),
   CONSTRAINT `fk_todos_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Compte applicatif : le backend ne se connecte pas en `root`. Une injection SQL ou une
+-- fuite de .env ne doit pas donner DROP DATABASE, GRANT, ni la lecture de `mysql.user`.
+--
+-- Le compte lui-même est créé par l'image mysql à partir de MYSQL_USER / MYSQL_PASSWORD
+-- (le mot de passe ne transite donc pas par ce fichier versionné), mais avec ALL PRIVILEGES
+-- sur la base — dont DROP. On resserre ici : CREATE/ALTER/INDEX/REFERENCES restent
+-- nécessaires car back/src/db/mysql/migrations.ts fait évoluer le schéma au boot, et
+-- CREATE TEMPORARY TABLES car les requêtes KPI utilisent des CTE (WITH ...) que MySQL
+-- matérialise en tables temporaires. DROP et tout privilège global sont retirés :
+-- sans DROP, `DROP DATABASE disciplina` est refusé.
+--
+-- ATTENTION : ce fichier n'est joué que sur un volume vierge. Sur une base existante,
+-- appliquer database/mysql/migrations/2026-08-06-app-user.sql.
+REVOKE ALL PRIVILEGES ON `disciplina`.* FROM 'disciplina_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES
+    ON `disciplina`.* TO 'disciplina_app'@'%';
+FLUSH PRIVILEGES;
 
 INSERT IGNORE INTO sector_settings (sector, location) VALUES
     ('Nord-Est', 'Disciplina Nord-Est — Sainte-Marie'),

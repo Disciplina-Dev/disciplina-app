@@ -10,7 +10,7 @@ cd "$ROOT"
 CHANGED=$(git status --porcelain --untracked-files=all | awk '{print $2}')
 
 BACK_SRC=$(echo "$CHANGED" | grep -E '^back/src/(services|graphql|rest|repositories)/.*\.ts$' | grep -vE '\.(test|spec)\.ts$' || true)
-BACK_TEST=$(echo "$CHANGED" | grep -E '^back/test/' || true)
+BACK_TEST=$(echo "$CHANGED" | grep -E '^back/test/|^back/src/.*/__tests__/.*\.(test|spec)\.ts$' || true)
 
 FRONT_SRC=$(echo "$CHANGED" | grep -E '^front/disciplina-front/src/(features|store)/.*\.(ts|tsx)$' | grep -vE '\.(test|spec)\.(ts|tsx)$' || true)
 FRONT_TEST=$(echo "$CHANGED" | grep -E '^front/disciplina-front/e2e/' || true)
@@ -18,7 +18,7 @@ FRONT_TEST=$(echo "$CHANGED" | grep -E '^front/disciplina-front/e2e/' || true)
 MISSING=""
 if [ -n "$BACK_SRC" ] && [ -z "$BACK_TEST" ]; then
   MISSING="${MISSING}
-Backend (aucun fichier sous back/test/ modifié) :
+Backend (aucun fichier sous back/test/ ou back/src/**/__tests__/ modifié) :
 ${BACK_SRC}"
 fi
 if [ -n "$FRONT_SRC" ] && [ -z "$FRONT_TEST" ]; then

@@ -77,5 +77,6 @@ export function useInitializePortfolio(first?: number, after?: string, search?: 
     loading: companiesResult.fetching || salePersonsResult.fetching,
     error: companiesResult.error?.message || salePersonsResult.error?.message,
     pageInfo: companiesResult.data?.companies?.pageInfo,
+    totalCount: companiesResult.data?.companies?.totalCount ?? 0,
   }
 }

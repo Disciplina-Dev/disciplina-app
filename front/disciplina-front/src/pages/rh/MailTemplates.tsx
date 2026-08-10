@@ -62,6 +62,11 @@ const AB_SIGNATURE_VARS: typeof TEMPLATE_VARS = [
   { token: 'signature', label: 'Votre signature mail', example: 'votre image de signature' },
 ]
 
+// Variables du modèle système « Relance AB à signer » (kind ab_relance), envoyé
+// automatiquement 2 semaines après l'envoi si l'AB n'est toujours pas signée
+// (cf. back AbSignatureRelanceService.buildRelanceEmail).
+const AB_RELANCE_VARS: typeof TEMPLATE_VARS = AB_SIGNATURE_VARS
+
 // Variables du modèle système « Proposition de candidats » (kind proposition_candidat),
 // remplacées à l'envoi (cf. back MatchMailService.sendInvitation).
 const PROPOSITION_CANDIDAT_VARS: typeof TEMPLATE_VARS = [
@@ -86,11 +91,13 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const templateVars =
     editingKind === 'ab_signature'
       ? AB_SIGNATURE_VARS
-      : editingKind === 'proposition_candidat'
-        ? PROPOSITION_CANDIDAT_VARS
-        : scope === 'peda'
-          ? PEDA_TEMPLATE_VARS
-          : TEMPLATE_VARS
+      : editingKind === 'ab_relance'
+        ? AB_RELANCE_VARS
+        : editingKind === 'proposition_candidat'
+          ? PROPOSITION_CANDIDAT_VARS
+          : scope === 'peda'
+            ? PEDA_TEMPLATE_VARS
+            : TEMPLATE_VARS
 
   useEffect(() => { load() }, [load])
 
@@ -361,6 +368,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                       {t.kind === 'ab_signature' && (
                         <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue">
                           Signature AB
+                        </span>
+                      )}
+                      {t.kind === 'ab_relance' && (
+                        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+                          Relance signature
                         </span>
                       )}
                       {t.kind === 'proposition_candidat' && (

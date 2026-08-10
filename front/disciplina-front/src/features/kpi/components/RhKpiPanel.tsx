@@ -9,6 +9,7 @@ import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
   type RhKpiColumn, type RhKpiMetrics, type RhKpiReport,
 } from '@/api/rhKpi'
+import { SECTEUR_VALUES } from '@/constants/secteurs'
 
 // Charte graphique (cf. index.css).
 const COLORS = {
@@ -18,14 +19,14 @@ const COLORS = {
 
 /** Carte/colonne KPI. `derived` = calculée (pas une colonne stockée). */
 type CardDef =
-  | { key: RhKpiColumn; derived?: false; label: string; icon: typeof CalendarPlus; color: string }
-  | { key: 'upcoming'; derived: true; label: string; icon: typeof CalendarPlus; color: string }
+  | { key: RhKpiColumn; derived?: false; label: string; icon: typeof CalendarPlus; color: string; aggregateOnly?: boolean }
+  | { key: 'upcoming'; derived: true; label: string; icon: typeof CalendarPlus; color: string; aggregateOnly?: boolean }
 
 const CARDS: CardDef[] = [
   { key: 'interviews_placed', label: 'Entretiens placés', icon: CalendarPlus, color: COLORS.blue },
   { key: 'upcoming', derived: true, label: 'À venir', icon: CalendarClock, color: COLORS.slate },
-  { key: 'interviews_attended', label: 'Venus', icon: UserCheck, color: COLORS.success },
-  { key: 'interviews_noshow', label: 'Pas venus', icon: UserX, color: COLORS.danger },
+  { key: 'interviews_attended', label: 'Venus', icon: UserCheck, color: COLORS.success, aggregateOnly: true },
+  { key: 'interviews_noshow', label: 'Pas venus', icon: UserX, color: COLORS.danger, aggregateOnly: true },
   { key: 'immersions', label: 'Immersions', icon: Briefcase, color: COLORS.pink },
   { key: 'contracts', label: 'Contrats', icon: FileSignature, color: COLORS.purple },
   { key: 'ruptures', label: 'Ruptures', icon: Unlink, color: COLORS.warning },
@@ -42,7 +43,7 @@ const MONTHS = [
 ]
 
 // Secteurs canoniques toujours proposés (même sans données), comme les sites commerciaux.
-const CANON_SECTORS = ['Nord-Est', 'Ouest', 'Sud']
+const CANON_SECTORS = SECTEUR_VALUES
 
 type Granularity = 'week' | 'month' | 'year'
 
@@ -68,6 +69,12 @@ export default function RhKpiPanel({
 }: { sectors?: string[] | null; hideSelector?: boolean } = {}) {
   const permission = useAuthStore((s) => s.user?.permission)
   const isAggregate = permission === Permission.ADMIN || permission === Permission.RESPONSABLE
+  // En vue individuelle (RH connecté), on affiche les métriques qui le concernent :
+  // Venus / Pas venus / Ruptures ne concernent que la vue globale agrégée.
+  const visibleCards = useMemo(() =>
+    CARDS.filter((c) => !c.aggregateOnly || isAggregate),
+    [isAggregate],
+  )
   const navigate = useNavigate()
 
   const now = useMemo(() => new Date(), [])
@@ -257,7 +264,7 @@ export default function RhKpiPanel({
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {CARDS.map((m) => (
+            {visibleCards.map((m) => (
               <div key={m.key} className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
                   style={{ backgroundColor: `${m.color}14`, color: m.color }}>
@@ -294,7 +301,7 @@ export default function RhKpiPanel({
                 <thead>
                   <tr className="border-b border-gray-100 text-[11px] font-bold uppercase tracking-wider text-gray-400">
                     <th className="px-4 py-3">RH</th>
-                    {CARDS.map((m) => <th key={m.key} className="px-3 py-3 text-right">{m.label}</th>)}
+                    {visibleCards.map((m) => <th key={m.key} className="px-3 py-3 text-right">{m.label}</th>)}
                     <th className="px-3 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -302,7 +309,7 @@ export default function RhKpiPanel({
                   {filteredPerUser.map((u) => (
                     <tr key={u.userId} className="border-b border-gray-50 last:border-0">
                       <td className="px-4 py-2.5 font-semibold text-gray-700">{u.name}</td>
-                      {CARDS.map((m) => (
+                      {visibleCards.map((m) => (
                         <td key={m.key} className="px-3 py-2.5 text-right tabular-nums text-gray-600">{cardValue(m, u.metrics)}</td>
                       ))}
                       <td className="px-3 py-2.5 text-right">

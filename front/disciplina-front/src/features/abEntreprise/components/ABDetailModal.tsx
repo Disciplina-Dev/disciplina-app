@@ -6,6 +6,7 @@ import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -15,7 +16,7 @@ const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> 
 }
 
 const LABELS: Record<string, Record<string, string>> = {
-  localisation:       { NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud' },
+  localisation:       { ...SECTEUR_LABELS },
   trainingDomain:     { SECRETARIAT: 'Secrétariat', VENTE: 'Vente' },
   educationLevel:     { BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3' },
   recruitmentMethod:  { ALL_CV: 'Tous les CV', PRESELECTION: 'Présélection', PRE_INTERVIEW: 'Pré-entretien' },
