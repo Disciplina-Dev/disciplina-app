@@ -26,6 +26,11 @@ services:
     environment:
       - NODE_ENV=production
       - OLLAMA_BASE_URL=http://ollama:11434
+      # TLS obligatoire en production : la base est le MySQL auto-hébergé ci-dessous,
+      # dont le certificat auto-signé n'est vérifiable qu'avec sa propre CA.
+      - MYSQL_SSL_CA=/run/secrets/mysql-ca.pem
+    volumes:
+      - ./database/mysql/mysql-data/ca.pem:/run/secrets/mysql-ca.pem:ro
     develop: !reset null
     # Caddy (hôte) proxy vers la boucle locale ; pas d'exposition publique directe.
     ports: !override
