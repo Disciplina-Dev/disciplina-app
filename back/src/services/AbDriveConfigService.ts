@@ -79,16 +79,21 @@ export class AbDriveConfigService {
                 return null;
             }
 
-            // Jetons Google : ceux de l'utilisateur courant en priorité, puis du créateur
-            // de l'AB, sinon repli sur un commercial connecté.
-            let driveUser: User | null = actingUser?.oauthToken ? actingUser : creator;
-            if (!driveUser?.oauthToken) {
-                driveUser = await this.userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
-                if (driveUser) {
-                    logger.warn(
-                        { creatorId, actingUserId, fallbackUserId: driveUser.id },
-                        '[AbDrive] Repli sur un autre commercial connecté pour uploader sur le Drive',
-                    );
+            // Jetons Google : on privilégie un compte rafraîchissable, puis un
+            // access_token seul, avec repli sur un autre commercial connecté si besoin.
+            const candidates = [actingUser, creator].filter((user): user is User => !!user?.oauthToken);
+            let driveUser: User | null = candidates.find((user) => user.refreshToken) ?? candidates[0] ?? null;
+
+            if (!driveUser?.refreshToken) {
+                const fallback = await this.userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
+                if (fallback?.refreshToken || (!driveUser && fallback)) {
+                    if (driveUser) {
+                        logger.warn(
+                            { creatorId, actingUserId, fallbackUserId: fallback.id },
+                            '[AbDrive] Jetons non rafraîchissables, repli sur un autre commercial connecté',
+                        );
+                    }
+                    driveUser = fallback;
                 }
             }
             if (!driveUser?.oauthToken) {
@@ -103,8 +108,19 @@ export class AbDriveConfigService {
             const uploaded = await drive.uploadFile(filename, 'application/pdf', buffer, folderId);
             logger.info({ sector, kind, fileId: uploaded.id }, '[AbDrive] AB archivée sur le Drive');
             return uploaded.webViewLink;
-        } catch (err) {
-            logger.error({ err, creatorId, kind }, '[AbDrive] Échec archivage AB sur le Drive');
+        } catch (err: any) {
+            logger.error(
+                {
+                    err,
+                    creatorId,
+                    actingUserId,
+                    kind,
+                    filename,
+                    status: err?.code ?? err?.response?.status,
+                    googleError: err?.response?.data?.error,
+                },
+                '[AbDrive] Échec archivage AB sur le Drive',
+            );
             return null;
         }
     }
