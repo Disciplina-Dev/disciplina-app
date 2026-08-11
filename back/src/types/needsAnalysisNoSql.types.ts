@@ -152,6 +152,11 @@ export interface NeedsAnalysis {
     last_relance_at?: Date | null;
     status?: NeedsAnalysisStatus;
     tags?: string[];
+    /**
+     * Statut d'onglet (liste matching RH) forcé manuellement. À défaut, le statut
+     * est dérivé des offres (ACTIVE/ARCHIVED) ou du soft delete (INACTIVE).
+     */
+    ab_status?: 'ACTIVE' | 'ARCHIVED' | 'INACTIVE' | null;
     // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
     // d'être retirée — on conserve le document pour l'historique.
     is_deleted?: boolean;

@@ -32,6 +32,12 @@ const needsAnalysisService = new NeedsAnalysisService();
 const userService = new UserService();
 
 export const resolvers = {
+    NeedsAnalysis: {
+        abStatus: async (parent: any, _: unknown, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            return needsAnalysisService.getAbStatus(parent.id);
+        },
+    },
     Query: {
         needsAnalysis: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
@@ -118,6 +124,14 @@ export const resolvers = {
         markNeedsAnalysisSigned: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
             return needsAnalysisService.markSigned(id);
+        },
+        updateNeedsAnalysisAbStatus: async (
+            _: unknown,
+            { id, abStatus }: { id: string; abStatus?: AbStatus | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.setAbStatus(id, abStatus ?? null);
         },
     },
 };

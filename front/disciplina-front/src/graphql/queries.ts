@@ -1843,6 +1843,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      abStatus
       tags
       createdAt
       updatedAt
@@ -1913,6 +1914,15 @@ export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
     markNeedsAnalysisSigned(id: $id) {
       id
       status
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
+  mutation UpdateNeedsAnalysisAbStatus($id: ID!, $abStatus: AbStatus) {
+    updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
+      id
+      abStatus
     }
   }
 `
