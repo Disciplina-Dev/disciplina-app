@@ -145,18 +145,28 @@ export class NeedsAnalysisService {
         return this.repository.findPage(first, after, restrictIds);
     }
 
-    /** Ids des AB correspondant à l'onglet choisi, hors AB supprimées pour Actif/Archivé. */
+    /**
+     * Ids des AB correspondant à l'onglet choisi, hors AB supprimées pour Actif/Archivé.
+     * Le statut d'onglet peut être forcé manuellement (`ab_status`) : il prime alors
+     * sur le calcul dérivé des offres. Les AB à statut manuel sont exclues du calcul
+     * dérivé pour ne jamais apparaître dans deux onglets à la fois.
+     */
     private async resolveAbStatusIds(abStatus: AbStatus): Promise<string[]> {
-        if (abStatus === 'INACTIVE') {
-            return this.repository.findDeletedIds();
-        }
-
         const deletedIds = await this.repository.findDeletedIds();
         const deletedSet = new Set(deletedIds);
 
+        if (abStatus === 'INACTIVE') {
+            const manualInactive = await this.repository.findIdsByManualStatus('INACTIVE');
+            return [...new Set([...manualInactive, ...deletedIds])];
+        }
+
+        const manualIds = (await this.repository.findIdsByManualStatus(abStatus)).filter((id) => !deletedSet.has(id));
+        const manualSet = new Set(await this.repository.findIdsWithManualStatus());
+
         if (abStatus === 'ARCHIVED') {
             const ids = await this.offerRepository.findNeedsAnalysisIdsByAbStatus('ARCHIVED');
-            return ids.filter((id) => !deletedSet.has(id));
+            const derived = ids.filter((id) => !deletedSet.has(id) && !manualSet.has(id));
+            return [...new Set([...manualIds, ...derived])];
         }
 
         // ACTIVE : au moins une offre pas encore en contrat, ou aucune offre du tout
@@ -166,7 +176,41 @@ export class NeedsAnalysisService {
             this.repository.findIdsWithoutOffers(),
         ]);
         const unique = [...new Set([...withOffers, ...withoutOffers])];
-        return unique.filter((id) => !deletedSet.has(id));
+        const derived = unique.filter((id) => !deletedSet.has(id) && !manualSet.has(id));
+        return [...new Set([...manualIds, ...derived])];
+    }
+
+    /**
+     * Statut d'onglet effectif d'une AB : INACTIVE si soft-deletée, sinon manuel
+     * (`ab_status`) s'il est posé, sinon dérivé des offres (ACTIVE/ARCHIVED).
+     */
+    async getAbStatus(id: string): Promise<AbStatus> {
+        const doc = await this.repository.findById(id);
+        if (!doc) {
+            throw new Error('Needs analysis not found');
+        }
+        if (doc.is_deleted) return 'INACTIVE';
+        if (doc.ab_status) return doc.ab_status;
+        return this.offerRepository.findDerivedAbStatus(id);
+    }
+
+    /**
+     * Force le statut d'onglet d'une AB (onglets de la liste matching RH). `null`
+     * réinitialise le calcul automatique (dérivé des offres / soft delete).
+     */
+    async setAbStatus(id: string, abStatus: AbStatus | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        const updated = await this.repository.update(id, { ab_status: abStatus ?? null });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        return toNeedsAnalysis(updated);
     }
 
     async findById(id: string): Promise<NeedsAnalysisGql | null> {

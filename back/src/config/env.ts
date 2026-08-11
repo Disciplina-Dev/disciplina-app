@@ -111,6 +111,11 @@ const data = {
     MYSQL_PASSWORD: optionalString('MYSQL_PASSWORD'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
     MYSQL_URI: optionalString('MYSQL_URI'),
+    // Chemin d'une autorité de certification à utiliser pour le TLS MySQL en production.
+    // Nécessaire quand la base est un MySQL auto-hébergé : son certificat auto-signé,
+    // généré à l'init du serveur, n'est pas vérifiable via les CA système.
+    // Vide (défaut) = vérification classique contre les CA système (TiDB Cloud & co).
+    MYSQL_SSL_CA: optionalString('MYSQL_SSL_CA'),
 
     MONGO_URI: optionalString('MONGO_URI'),
     MONGO_ROOT_USERNAME:

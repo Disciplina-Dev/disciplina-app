@@ -76,6 +76,8 @@ export interface NeedsAnalysis {
   trainingDays?: string | null
   yousignSignatureRequestID?: string | null
   status?: string | null
+  /** Statut d'onglet (liste matching RH) : forcé manuellement ou dérivé des offres. */
+  abStatus?: string | null
   tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null

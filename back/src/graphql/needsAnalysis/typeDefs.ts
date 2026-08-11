@@ -209,6 +209,7 @@ export const typeDefs = gql`
         trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
+        abStatus: AbStatus!
         tags: [String!]
         createdAt: String
         updatedAt: String
@@ -312,5 +313,8 @@ export const typeDefs = gql`
         # Marque une AB comme signée sans passer par le flux Yousign : réservé au cas où le
         # contrat a été trouvé hors sourcing Disciplina (candidat ayant trouvé sa propre entreprise).
         markNeedsAnalysisSigned(id: ID!): NeedsAnalysis!
+        # Force le statut d'onglet d'une AB (Actif/Archivé/Inactif) ; abStatus à null le
+        # réinitialise au calcul automatique dérivé des offres.
+        updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
     }
 `;

@@ -1602,6 +1602,44 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
   }
 `
 
+export const DELETE_OFFER = gql`
+  mutation DeleteOffer($id: String!) {
+    deleteOffer(id: $id)
+  }
+`
+
+export const DELETE_OFFERS_BY_NEEDS_ANALYSIS = gql`
+  mutation DeleteOffersByNeedsAnalysis($needsAnalysisId: String!) {
+    deleteOffersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId)
+  }
+`
+
+export const OFFERS_BY_NEEDS_ANALYSIS = gql`
+  query OffersByNeedsAnalysis($needsAnalysisId: String!) {
+    offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) {
+      id
+      needsAnalysisId
+      companyInfos { id name activities }
+      companyName
+      ageRange
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
+      desiredSex
+      drivingLicencseB
+      professionalExperience
+      status
+      localisation
+      sector
+      title
+    }
+  }
+`
+
 export const GET_CANDIDATE_MATCHED_OFFER_IDS = gql`
   query GetCandidateMatchedOfferIds($candidateId: String!) {
     candidateMatchedOfferIds(candidateId: $candidateId)
@@ -1843,6 +1881,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      abStatus
       tags
       createdAt
       updatedAt
@@ -1913,6 +1952,15 @@ export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
     markNeedsAnalysisSigned(id: $id) {
       id
       status
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
+  mutation UpdateNeedsAnalysisAbStatus($id: ID!, $abStatus: AbStatus) {
+    updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
+      id
+      abStatus
     }
   }
 `
