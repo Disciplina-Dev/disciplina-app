@@ -1602,44 +1602,6 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
   }
 `
 
-export const DELETE_OFFER = gql`
-  mutation DeleteOffer($id: String!) {
-    deleteOffer(id: $id)
-  }
-`
-
-export const DELETE_OFFERS_BY_NEEDS_ANALYSIS = gql`
-  mutation DeleteOffersByNeedsAnalysis($needsAnalysisId: String!) {
-    deleteOffersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId)
-  }
-`
-
-export const OFFERS_BY_NEEDS_ANALYSIS = gql`
-  query OffersByNeedsAnalysis($needsAnalysisId: String!) {
-    offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) {
-      id
-      needsAnalysisId
-      companyInfos { id name activities }
-      companyName
-      ageRange
-      desiredTp {
-        tpType
-        missions
-        descriptionMissions
-        otherDescriptionMissions
-        otherMissions
-      }
-      desiredSex
-      drivingLicencseB
-      professionalExperience
-      status
-      localisation
-      sector
-      title
-    }
-  }
-`
-
 export const GET_CANDIDATE_MATCHED_OFFER_IDS = gql`
   query GetCandidateMatchedOfferIds($candidateId: String!) {
     candidateMatchedOfferIds(candidateId: $candidateId)
