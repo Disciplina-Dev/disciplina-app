@@ -4,6 +4,7 @@ import { NeedsAnalysisModel } from '../../src/db/mongo/schemas/needsAnalysis.sch
 import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 
 const CLEARED_TABLES = [
+    'external_link',
     'company_history',
     'companies',
     'companies_blacklist',

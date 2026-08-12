@@ -36,6 +36,8 @@ export interface CandidateFilters {
     statusIn?: string[];
     schoolLevel?: string;
     drivingLicenseB?: boolean;
+    /** Sexe du candidat (FILLE / GARCON), exclusif. */
+    sex?: string;
     ageMin?: number;
     ageMax?: number;
     /** Titres professionnels visés (OR). */
@@ -118,6 +120,7 @@ export class CandidateRepository {
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
+        if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
         // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
         // scripts/cleanup_candidate_tp_type.py) : $or transitoire, à retirer une fois
         // la migration terminée et le script de nettoyage passé.
@@ -271,6 +274,11 @@ export class CandidateRepository {
 
     async findById(id: string): Promise<Candidate | null> {
         return CandidateModel.findById(id).lean();
+    }
+
+    /** Documents candidats (uniquement le lien CV) pour les ids demandés. */
+    async findCvLinksByIds(ids: string[]): Promise<Array<{ _id: string; cv_link?: string }>> {
+        return CandidateModel.find({ _id: { $in: ids } }).select({ cv_link: 1, _id: 1 }).lean();
     }
 
     /**

@@ -1280,6 +1280,7 @@ export const MATCH_OFFER = gql`
         identityDescription
         comment
         cvWebview
+        hasCv
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1296,6 +1297,7 @@ export const MATCH_OFFER = gql`
         city
         email
         phone
+        hasCv
       }
       interviewSlots
       interviewLocation
@@ -1347,6 +1349,7 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         description
         identityDescription
         cvWebview
+        hasCv
       }
     }
   }
@@ -1843,6 +1846,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      abStatus
       tags
       createdAt
       updatedAt
@@ -1913,6 +1917,15 @@ export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
     markNeedsAnalysisSigned(id: $id) {
       id
       status
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
+  mutation UpdateNeedsAnalysisAbStatus($id: ID!, $abStatus: AbStatus) {
+    updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
+      id
+      abStatus
     }
   }
 `

@@ -83,6 +83,7 @@ function ABSelectField({ id, label, value, onChange, children }: { id: string; l
 type ABForm = {
   // identité
   dateOfBirth: string; placeOfBirth: string; departmentOfBirth: string; age: string;
+  sex: string;
   fullName: string; socialSecurityNumber: string; email: string; phone: string;
   address: string; postalCode: string; city: string;
   drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
@@ -171,6 +172,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
+    sex: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '',
@@ -216,6 +218,7 @@ function candidateToForm(c: Candidate): ABForm {
   return {
     fullName: c.identity.full_name ?? '',
     socialSecurityNumber: c.identity.social_security_number ?? '',
+    sex: c.identity.sex ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
     description: c.identity.description ?? '',
@@ -306,6 +309,7 @@ function toServerInput(f: ABForm) {
     expectedCompanySkills: f.expectedCompanySkills,
     identity: {
       fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
+      sex: f.sex || undefined,
       description: f.description || undefined,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
@@ -758,6 +762,11 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Identité */}
           <ABSectionTitle title="Identité du candidat" />
           <InputField id="cn-fullname" label="Nom et prénom *" placeholder="Ex: Jean Dupont" required value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+          <ABSelectField id="cn-sex" label="Sexe" value={form.sex} onChange={v => set('sex', v)}>
+            <option value="">Non renseigné</option>
+            <option value="FILLE">Femme</option>
+            <option value="GARCON">Homme</option>
+          </ABSelectField>
           <InputField id="cn-ssn" label="Numéro de sécurité sociale" placeholder="Ex: 1 85 12 75 116 001 23" value={form.socialSecurityNumber} onChange={e => set('socialSecurityNumber', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
             <div>
