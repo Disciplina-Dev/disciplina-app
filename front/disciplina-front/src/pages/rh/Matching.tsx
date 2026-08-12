@@ -68,6 +68,7 @@ interface MatchedCandidate {
   identityDescription?: string | null
   comment?: string | null
   cvWebview?: string | null
+  hasCv?: boolean
   interviewLocation?: string
   bookedInterviewSlot?: string | null
   interviewConclusion?: InterviewConclusion | null

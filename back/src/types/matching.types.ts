@@ -112,6 +112,7 @@ export interface MatchingCandidate {
     description?: string;
     identity_description?: string;
     cv_webview?: string;
+    has_cv?: boolean;
     interview_location?: string;
     booked_interview_slot?: string;
     comment?: string;
