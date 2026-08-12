@@ -241,7 +241,14 @@ export const resolvers = {
             const candidate = await candidateService.findById(id);
             const ssn = candidate?.identity?.social_security_number;
             if (!ssn) return null;
-            return decryptSsn(ssn);
+            try {
+                return decryptSsn(ssn);
+            } catch (err) {
+                logger.error({ err, candidateId: id }, 'SSN unmask failed');
+                throw new Error(
+                    'Le numéro de sécurité sociale de cette fiche est illisible : il a été enregistré avant la mise en place du chiffrement, ou avec une autre clé. Une migration est nécessaire.',
+                );
+            }
         },
     },
     Mutation: {
