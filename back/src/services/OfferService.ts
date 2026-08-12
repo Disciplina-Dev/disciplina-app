@@ -58,7 +58,7 @@ const MATCHED_STATUS_LABELS: Partial<Record<MatchedCandidateStatus, string>> = {
     [MatchedCandidateStatus.CONTRACT]: 'embauché',
 };
 
-function matchingCandidateToGql(mc: MatchingCandidate): object {
+function matchingCandidateToGql(mc: MatchingCandidate, cvById?: Record<string, boolean>): object {
     return {
         id: mc.id,
         fullName: mc.full_name,
@@ -72,6 +72,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         identityDescription: mc.identity_description,
         comment: mc.comment,
         cvWebview: mc.cv_webview,
+        hasCv: cvById?.[mc.id ?? ''] ?? Boolean(mc.has_cv),
         interviewLocation: mc.interview_location,
         bookedInterviewSlot: mc.booked_interview_slot,
         interviewConclusion: mc.interview_conclusion,
@@ -82,9 +83,9 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
     };
 }
 
-function proposedCandidateToGql(pc: MatchingCandidate): object {
+function proposedCandidateToGql(pc: MatchingCandidate, cvById?: Record<string, boolean>): object {
     return {
-        ...matchingCandidateToGql(pc),
+        ...matchingCandidateToGql(pc, cvById),
         description: pc.description,
         comment: pc.comment,
         interviewLocation: pc.interview_location,
@@ -97,7 +98,7 @@ function proposedCandidateToGql(pc: MatchingCandidate): object {
     };
 }
 
-function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object {
+function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?: Record<string, boolean>): object {
     const ageMin = offer.criteria?.age_min;
     const ageMax = offer.criteria?.age_max;
     const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
@@ -116,11 +117,11 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
         localisation: offer.localisation,
         sector: null,
         matched: false,
-        matchedCandidate: candidates.map(matchingCandidateToGql),
-        suggestedCandidates: suggestedCandidates?.map(matchingCandidateToGql),
+        matchedCandidate: candidates.map((mc) => matchingCandidateToGql(mc, cvById)),
+        suggestedCandidates: suggestedCandidates?.map((mc) => matchingCandidateToGql(mc, cvById)),
         proposedCandidate: candidates
             .filter((c) => c.status && PROPOSED_STATUSES.includes(c.status))
-            .map(proposedCandidateToGql),
+            .map((pc) => proposedCandidateToGql(pc, cvById)),
         interviewSlots: offer.matching?.interview_slots,
         interviewLocation: offer.matching?.interview_location,
         salerInfo: offer.saler_info,
@@ -151,6 +152,7 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
         sex: c.identity.sex as Sex,
         status: MatchedCandidateStatus.PRE_SELECTED,
         identity_description: c.identity.description,
+        has_cv: Boolean(c.cv_link),
     };
 }
 
@@ -243,7 +245,13 @@ export class OfferService {
         const candidates = await this.candidateRepository.findByfilter(filter);
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
 
-        const result = toGql(offer, suggestedCandidates) as Record<string, unknown>;
+        // Statut CV en direct (source de vérité = fiche candidat) pour les
+        // candidats déjà retenus, même si le snapshot de matching est plus ancien.
+        const matchedIds = (offer.matching?.candidates ?? []).map((c) => c.id).filter(Boolean);
+        const cvDocs = matchedIds.length ? await this.candidateRepository.findCvLinksByIds(matchedIds) : [];
+        const cvById = Object.fromEntries(cvDocs.map((d) => [String(d._id), Boolean(d.cv_link)]));
+
+        const result = toGql(offer, suggestedCandidates, cvById) as Record<string, unknown>;
 
         const companyId = offer.company_infos?.id;
         if (companyId) {

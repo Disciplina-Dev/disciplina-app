@@ -39,6 +39,7 @@ export const matchingCandidateSchema = new Schema<MatchingCandidate>(
         description: { type: String },
         identity_description: { type: String },
         cv_webview: { type: String },
+        has_cv: { type: Boolean },
         comment: { type: String },
         interview_location: { type: String },
         booked_interview_slot: { type: String },

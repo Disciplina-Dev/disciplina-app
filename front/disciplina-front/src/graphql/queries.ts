@@ -1280,6 +1280,7 @@ export const MATCH_OFFER = gql`
         identityDescription
         comment
         cvWebview
+        hasCv
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1296,6 +1297,7 @@ export const MATCH_OFFER = gql`
         city
         email
         phone
+        hasCv
       }
       interviewSlots
       interviewLocation
@@ -1347,6 +1349,7 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         description
         identityDescription
         cvWebview
+        hasCv
       }
     }
   }
