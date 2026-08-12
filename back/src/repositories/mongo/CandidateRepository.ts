@@ -276,6 +276,11 @@ export class CandidateRepository {
         return CandidateModel.findById(id).lean();
     }
 
+    /** Documents candidats (uniquement le lien CV) pour les ids demandés. */
+    async findCvLinksByIds(ids: string[]): Promise<Array<{ _id: string; cv_link?: string }>> {
+        return CandidateModel.find({ _id: { $in: ids } }).select({ cv_link: 1, _id: 1 }).lean();
+    }
+
     /**
      * Statistiques agrégées des candidats, calculées côté MongoDB via un seul
      * pipeline `$facet` (aucun document n'est rapatrié dans Node). Renvoie les

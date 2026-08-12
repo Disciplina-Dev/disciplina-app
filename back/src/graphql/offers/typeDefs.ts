@@ -115,6 +115,7 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -137,6 +138,7 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
