@@ -57,6 +57,8 @@ export interface CandidateServerFilters {
   statusIn?: CandidateStatus[]
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
+  /** Sexe du candidat (FILLE / GARCON), exclusif. */
+  sex?: string
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType[]
