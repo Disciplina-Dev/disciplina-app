@@ -80,6 +80,7 @@ interface CandidateFilterState {
   status: CandidateStatus | '';
   schoolLevel: SchoolLevel | '';
   permis: 'all' | 'yes' | 'no';
+  sex: 'FILLE' | 'GARCON' | '';
   ageMin: number | '';
   ageMax: number | '';
   tpType: TitleProfessionalType[];
@@ -96,6 +97,7 @@ const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   status: '',
   schoolLevel: '',
   permis: 'all',
+  sex: '',
   ageMin: '',
   ageMax: '',
   tpType: [],
@@ -125,6 +127,7 @@ function toServerFilters(filters: CandidateFilterState, activeTab: CandidateTab)
     statusIn: activeTab !== 'all' ? TAB_STATUS_MAP[activeTab] : undefined,
     schoolLevel: filters.schoolLevel || undefined,
     drivingLicenseB: filters.permis === 'all' ? undefined : filters.permis === 'yes',
+    sex: filters.sex || undefined,
     ageMin: filters.ageMin || undefined,
     ageMax: filters.ageMax || undefined,
     tpType: filters.tpType?.length ? filters.tpType : undefined,
@@ -161,6 +164,7 @@ export default function ListeCandidats() {
       status: [...Object.values(CandidateStatus), ''],
       schoolLevel: [...Object.values(SchoolLevel), ''],
       permis: ['all', 'yes', 'no'],
+      sex: ['FILLE', 'GARCON', ''],
       tpType: Object.values(TitleProfessionalType),
       geographicMobility: Object.values(Localisation),
       dateMode: ['any', 'before', 'after', 'between', 'none'],
@@ -300,7 +304,7 @@ export default function ListeCandidats() {
     (filters.dateMode === 'before' && !!filters.dateTo) ||
     (filters.dateMode === 'between' && (!!filters.dateFrom || !!filters.dateTo))
   );
-  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.tpType?.length ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
+  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (filters.sex ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.tpType?.length ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
@@ -435,6 +439,16 @@ export default function ListeCandidats() {
                 <option value="all">Indifférent</option>
                 <option value="yes">Oui</option>
                 <option value="no">Non</option>
+              </select>
+            </div>
+
+            {/* Sexe */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Sexe</label>
+              <select value={filters.sex} onChange={e => setFilters({ ...filters, sex: e.target.value as 'FILLE' | 'GARCON' | '' })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+                <option value="">Tous les sexes</option>
+                <option value="FILLE">Femme</option>
+                <option value="GARCON">Homme</option>
               </select>
             </div>
 
