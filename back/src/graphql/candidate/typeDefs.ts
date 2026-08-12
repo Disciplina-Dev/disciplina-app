@@ -465,6 +465,8 @@ export const typeDefs = gql`
         statusIn: [CandidateStatus!]
         schoolLevel: SchoolLevel
         drivingLicenseB: Boolean
+        "Sexe du candidat (FILLE / GARCON), exclusif"
+        sex: String
         ageMin: Int
         ageMax: Int
         tpType: [TitleProfessionalType!]

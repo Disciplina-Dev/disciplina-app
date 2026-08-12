@@ -723,6 +723,69 @@ describe('candidatesPage with filters', () => {
         expect(nodes[0].identity.drivingLicenseB).toBe(true);
     });
 
+    it('filters by sex (exclusif)', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `flt-sx-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-fille`,
+            candidate_id: `${suffix}-fille`,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-SX-${suffix} FILLE`,
+                email: `fsx-f-${suffix}@test.local`,
+                phone: '0600000000',
+                sex: 'FILLE',
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-garcon`,
+            candidate_id: `${suffix}-garcon`,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-SX-${suffix} GARCON`,
+                email: `fsx-g-${suffix}@test.local`,
+                phone: '0600000001',
+                sex: 'GARCON',
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-unknown`,
+            candidate_id: `${suffix}-unknown`,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-SX-${suffix} UNKNOWN`,
+                email: `fsx-u-${suffix}@test.local`,
+                phone: '0600000002',
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id identity { sex } } }
+                    }
+                }`,
+                variables: { search: `FLT-SX-${suffix}`, filters: { sex: 'FILLE' } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].id).toBe(`${suffix}-fille`);
+        expect(nodes[0].identity.sex).toBe('FILLE');
+    });
+
     it('filters by geographicMobility (OR sur les villes souhaitées)', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `flt-gm-${Date.now()}`;
