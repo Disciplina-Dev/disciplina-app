@@ -178,7 +178,7 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs text-amber-700">
-                Ce lien expire dans 24h. L'entreprise pourra se connecter avec l'identifiant et le code reçus par email.
+                Ce lien expire dans 72h. L'entreprise pourra se connecter avec l'identifiant et le code reçus par email.
               </p>
             </div>
           </div>

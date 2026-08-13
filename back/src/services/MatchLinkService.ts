@@ -17,7 +17,7 @@ import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './
 
 export type { AuthResult };
 
-const LINK_TTL_MS = 24 * 60 * 60 * 1000;
+const LINK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 // Réponses possibles de l'entreprise sur le lien externe : refuser, garder pour
 // entretien, ou coup de cœur (fast-track immersion).

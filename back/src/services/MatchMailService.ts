@@ -9,7 +9,7 @@ import { escapeHtml } from './html';
 import { env } from '../config/env';
 import { logger } from '../external/logger';
 
-const EXPIRATION_LABEL = '24 heures';
+const EXPIRATION_LABEL = '72 heures';
 
 function lockAlertHtml(): string {
     return `
