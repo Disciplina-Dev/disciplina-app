@@ -10,7 +10,7 @@ import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './
 
 export type { AuthResult };
 
-const LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000; // candidate gets longer than the company's 24h
+const LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000; // candidate gets longer than the company's 72h
 
 export interface SlotView {
     slot: string;
