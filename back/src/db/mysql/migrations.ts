@@ -336,6 +336,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         ddl: `CREATE TABLE IF NOT EXISTS todos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
+            assigned_by INT DEFAULT NULL,
             title VARCHAR(255) NOT NULL,
             description TEXT DEFAULT NULL,
             deadline DATE DEFAULT NULL,
@@ -347,6 +348,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
             INDEX idx_todos_user (user_id)
         )`,
     },
@@ -511,6 +513,35 @@ export async function runMysqlMigrations(): Promise<void> {
         const placeholders = INTERVIEWER_EMAILS.map(() => '?').join(', ');
         await query(`UPDATE users SET is_interviewer = 1 WHERE email IN (${placeholders})`, INTERVIEWER_EMAILS);
         logger.info('MySQL migration: added users.is_interviewer and seeded the AB interviewer list');
+    }
+
+    // Todos : auteur de l'assignation (2026-08-13). user_id reste le destinataire
+    // de la tâche ; assigned_by = l'utilisateur qui l'a créée/assignée (NULL pour
+    // les todos SYSTEM). Les lignes existantes étaient toutes auto-assignées :
+    // backfill assigned_by = user_id à la création de la colonne.
+    const assignedByCol = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND COLUMN_NAME = 'assigned_by'",
+    );
+    if (Number(assignedByCol[0]?.count) === 0) {
+        await query('ALTER TABLE todos ADD COLUMN assigned_by INT DEFAULT NULL AFTER user_id');
+        await query('UPDATE todos SET assigned_by = user_id WHERE assigned_by IS NULL');
+        await query('ALTER TABLE todos ADD KEY idx_todos_assigned_by (assigned_by)');
+        logger.info('MySQL migration: added todos.assigned_by and backfilled it to user_id');
+    }
+
+    // Le FK ci-dessous refuserait des todos orphelins (assignataire supprimé hors
+    // FOREIGN_KEY_CHECKS, cf. seed de dev) : purge préalable, idempotente. Étape
+    // séparée du backfill pour survivre à une application partielle.
+    await query('DELETE t FROM todos t LEFT JOIN users u ON u.id = t.user_id WHERE u.id IS NULL');
+
+    const assignedByFk = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND CONSTRAINT_NAME = 'fk_todos_assigned_by'",
+    );
+    if (Number(assignedByFk[0]?.count) === 0) {
+        await query(
+            'ALTER TABLE todos ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE',
+        );
+        logger.info('MySQL migration: added todos FK fk_todos_assigned_by');
     }
 
     // RBAC : séparation rôles métier / permissions (2026-07-20). On crée les tables
