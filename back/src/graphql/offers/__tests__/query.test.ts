@@ -183,6 +183,112 @@ describe('GraphQL job queries', () => {
         expect(json.data.matchOffer.suggestedCandidates[0].fullName).toBe(`Jane ${suffix}`);
     });
 
+    it('relaxes the activity-sector matching criterion when only custom sectors are set', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        // L'offre ne porte que des secteurs libres (saisis à la main dans l'AB),
+        // inconnus du référentiel des candidats : aucun candidat ne pourra matcher
+        // `desired_sectors`. Le critère de secteur doit alors être relâché.
+        const offerId = `job-custom-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Custom Sector Corp ${suffix}`,
+            desired_tp: 'AD',
+            status: OfferStatus.NOT_MATCHED,
+            activities: ['Avocats', 'Cabinets de conseil'],
+        });
+
+        const candidateId = `cand-custom-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Claire ${suffix}`,
+                email: `claire-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 30,
+            },
+            desired_sectors: ['BTP'],
+            job_info: {},
+        });
+
+        const query = `query($id: String!) { matchOffer(id: $id) { id relaxedCriteria suggestedCandidates { id } } }`;
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(true);
+        expect(json.data.matchOffer.relaxedCriteria).toEqual(['sector']);
+    });
+
+    it('relaxes the activity-sector matching criterion when the flagged sectors yield no candidate', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        // Même comportement pour des secteurs référencés pour lesquels aucune fiche
+        // candidat n'existe actuellement : la liste ne doit pas être vide à cause du secteur.
+        const offerId = `job-flagged-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Flagged Sector Corp ${suffix}`,
+            desired_tp: 'AD',
+            status: OfferStatus.NOT_MATCHED,
+            activities: ['BOULANGERIE'],
+        });
+
+        const candidateId = `cand-flagged-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Marc ${suffix}`,
+                email: `marc-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 32,
+            },
+            desired_sectors: ['RESTAURATION'],
+            job_info: {},
+        });
+
+        const query = `query($id: String!) { matchOffer(id: $id) { id relaxedCriteria suggestedCandidates { id } } }`;
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(true);
+        expect(json.data.matchOffer.relaxedCriteria).toEqual(['sector']);
+    });
+
     it('errors when job not found', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
