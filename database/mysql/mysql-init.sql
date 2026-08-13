@@ -365,6 +365,7 @@ CREATE TABLE IF NOT EXISTS `sector_settings` (
 CREATE TABLE IF NOT EXISTS `todos` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
+  `assigned_by` int DEFAULT NULL,
   `title` varchar(500) NOT NULL,
   `description` text DEFAULT NULL,
   `deadline` date DEFAULT NULL,
@@ -378,7 +379,9 @@ CREATE TABLE IF NOT EXISTS `todos` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_user_deadline` (`user_id`,`deadline`),
   KEY `idx_user_position` (`user_id`,`position`),
-  CONSTRAINT `fk_todos_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  KEY `idx_todos_assigned_by` (`assigned_by`),
+  CONSTRAINT `fk_todos_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_todos_assigned_by` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- Compte applicatif : le backend ne se connecte pas en `root`. Une injection SQL ou une

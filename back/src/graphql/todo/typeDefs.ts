@@ -15,6 +15,7 @@ export const todoTypeDefs = gql`
     type Todo {
         id: Int!
         userId: Int!
+        assignedBy: Int
         title: String!
         description: String
         deadline: String
@@ -31,6 +32,7 @@ export const todoTypeDefs = gql`
         description: String
         deadline: String
         status: TodoStatus
+        assignedTo: Int
     }
 
     input UpdateTodoInput {
