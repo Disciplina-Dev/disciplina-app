@@ -113,6 +113,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
             'SIGNED',
             signedDoc.buffer,
             fname,
+            companyName,
             analysis.salerInfo?.id ?? undefined,
         );
     }
