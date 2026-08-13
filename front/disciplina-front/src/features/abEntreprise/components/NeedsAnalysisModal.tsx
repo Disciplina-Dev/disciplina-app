@@ -622,6 +622,15 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const companySectors         = watch('companySectors') ?? []
   const companyPostalCode      = watch('companyPostalCode')
 
+  // Secteurs libres (saisis via « Autre secteur d'activité ») déjà enregistrés sur
+  // l'AB : ils ne figurent pas dans la liste de cases à cocher et doivent pouvoir
+  // être retirés, sinon ils resteraient invisiblement attachés à l'AB.
+  const customSectors = companySectors.filter((s) => !SECTEURS.includes(s as (typeof SECTEURS)[number]))
+
+  const removeCustomSector = (sector: string) => {
+    setValue('companySectors', companySectors.filter((s) => s !== sector))
+  }
+
   // Code postal valide (5 chiffres) → renseigne automatiquement la commune via
   // l'API geo.gouv (gratuite, sans clé). Un CP peut couvrir plusieurs communes :
   // on prend la première. Annulé si le composant se démonte / le CP change.
@@ -999,9 +1008,29 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   renderLabel={(s) => SECTOR_LABELS[s] ?? s}
                 />
 
-                <InputField id="companySectorOther" label="Autre secteur d'activité (optionnel)"
-                  placeholder="Précisez un autre secteur…"
-                  {...register('companySectorOther')} />
+                <div className="flex flex-col gap-2">
+                  <InputField id="companySectorOther" label="Autre secteur d'activité (optionnel)"
+                    placeholder="Précisez un autre secteur…"
+                    {...register('companySectorOther')} />
+                  {customSectors.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {customSectors.map((sector) => (
+                        <span key={sector}
+                          className="inline-flex items-center gap-2 rounded-full border border-blue-light bg-blue-light/30 px-3 py-1 text-sm text-blue">
+                          {sector}
+                          <button
+                            type="button"
+                            onClick={() => removeCustomSector(sector)}
+                            className="flex h-4 w-4 items-center justify-center rounded-full text-blue transition-colors hover:bg-blue hover:text-white"
+                            aria-label={`Retirer le secteur ${sector}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="opco" className="text-sm font-medium text-gray-700">

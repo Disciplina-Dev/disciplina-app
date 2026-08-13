@@ -1303,6 +1303,7 @@ export const MATCH_OFFER = gql`
       interviewLocation
       title
       jobRole
+      relaxedCriteria
       salerInfo {
         id
         email

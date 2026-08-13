@@ -215,6 +215,7 @@ export const typeDefs = gql`
         title: String
         jobRole: String
         softSkills: String
+        relaxedCriteria: [String!]
     }
 
     input MatchingCandidateInput {
