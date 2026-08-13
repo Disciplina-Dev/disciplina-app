@@ -381,6 +381,7 @@ export class NeedsAnalysisService {
             'UNSIGNED',
             buffer,
             filename,
+            company.name || 'Entreprise',
             analysis.salerInfo?.id ?? undefined,
             actingUserId,
         );
