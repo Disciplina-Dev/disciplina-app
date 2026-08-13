@@ -105,4 +105,41 @@ describe('GraphQL todos', () => {
         const json = await res.json();
         expect(json.errors).toBeDefined();
     });
+
+    it('notifies the assignee when a task is assigned to them', async () => {
+        const meId = await insertUser('notif-assigner');
+        const otherId = await insertUser('notif-assignee');
+        const auth = mintAuthCookies({ id: meId, email: `todo-notif-assigner@test.local`, role: 'COMMERCIAL', permission: 'EMPLOYEE' });
+        const otherAuth = mintAuthCookies({ id: otherId, email: `todo-notif-assignee@test.local`, role: 'COMMERCIAL', permission: 'EMPLOYEE' });
+
+        const res = await post(
+            auth.cookieHeader,
+            auth.csrfHeader,
+            `mutation($input: CreateTodoInput!) { createTodo(input: $input) { id userId assignedBy } }`,
+            { input: { title: 'Tâche notifiée', assignedTo: otherId } },
+        );
+        const json = await res.json();
+        expect(json.errors).toBeUndefined();
+
+        const notifRes = await fetch(`http://localhost:${env.API_PORT}/api/notifications`, {
+            headers: { Cookie: otherAuth.cookieHeader },
+        });
+        expect(notifRes.status).toBe(200);
+        const notifJson = await notifRes.json();
+        const todoNotif = notifJson.notifications.find(
+            (n: { type: string }) => n.type === 'todo_assigned',
+        );
+        expect(todoNotif).toBeDefined();
+        expect(todoNotif.message).toContain('Tâche notifiée');
+        expect(todoNotif.link).toBe('/commercial/todos');
+
+        // Notifier n'est pas crédité : l'auteur ne reçoit pas de notification pour une tâche à lui.
+        const mineRes = await fetch(`http://localhost:${env.API_PORT}/api/notifications`, {
+            headers: { Cookie: auth.cookieHeader },
+        });
+        const mineJson = await mineRes.json();
+        expect(mineJson.notifications).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({ type: 'todo_assigned' })]),
+        );
+    });
 });
