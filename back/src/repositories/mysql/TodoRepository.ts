@@ -32,17 +32,33 @@ export class TodoRepository {
         );
     }
 
-    async create(userId: number, input: CreateTodoInput, source: TodoSource = 'MANUAL', sourceRef?: string): Promise<number> {
+    async create(
+        assigneeId: number,
+        input: CreateTodoInput,
+        source: TodoSource = 'MANUAL',
+        sourceRef?: string,
+        assignedBy?: number,
+    ): Promise<number> {
         const maxPos = await query<{ maxPos: number | null }[]>(
             'SELECT MAX(position) as maxPos FROM todos WHERE user_id = ?',
-            [userId],
+            [assigneeId],
         );
         const position = (maxPos[0]?.maxPos ?? -1) + 1;
 
         const result = await query<any>(
-            `INSERT INTO todos (user_id, title, description, deadline, position, status, source, source_ref)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [userId, input.title, input.description ?? null, input.deadline ?? null, position, input.status ?? 'TODO', source, sourceRef ?? null],
+            `INSERT INTO todos (user_id, assigned_by, title, description, deadline, position, status, source, source_ref)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                assigneeId,
+                assignedBy ?? null,
+                input.title,
+                input.description ?? null,
+                input.deadline ?? null,
+                position,
+                input.status ?? 'TODO',
+                source,
+                sourceRef ?? null,
+            ],
         );
         return result.insertId as number;
     }

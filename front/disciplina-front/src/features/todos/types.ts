@@ -4,6 +4,7 @@ export type TodoSource = 'MANUAL' | 'SYSTEM'
 export interface Todo {
   id: number
   userId: number
+  assignedBy: number | null
   title: string
   description: string | null
   deadline: string | null

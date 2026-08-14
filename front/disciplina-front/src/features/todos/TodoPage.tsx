@@ -19,9 +19,10 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Plus, GripVertical, Trash2, Pencil, X, Calendar, Bot,
-  ChevronDown, ChevronUp, Circle, Clock, CheckCircle2,
+  ChevronDown, ChevronUp, Circle, Clock, CheckCircle2, UserRound,
 } from 'lucide-react'
-import { useAuthStore, UserRole, Permission } from '@/store/authStore'
+import { useAuthStore, fullName, UserRole, Permission } from '@/store/authStore'
+import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import type { Todo, TodoStatus } from './types'
 import {
   MY_TODOS_QUERY,
@@ -66,7 +67,7 @@ const COLUMNS: { status: TodoStatus; label: string; icon: React.ReactNode; bg: s
 interface FormModalProps {
   initial?: Pick<Todo, 'title' | 'description' | 'deadline'>
   accent: string
-  onSubmit: (title: string, description: string, deadline: string) => void
+  onSubmit: (title: string, description: string, deadline: string, assigneeId: string) => void
   onClose: () => void
 }
 
@@ -74,11 +75,17 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [deadline, setDeadline] = useState(initial?.deadline ?? '')
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const { directory } = useStaffDirectory()
+  const staffMembers = Object.values(directory).sort((a, b) =>
+    fullName(a).localeCompare(fullName(b)),
+  )
+  const [assigneeId, setAssigneeId] = useState(currentUserId ?? '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    onSubmit(title.trim(), description.trim(), deadline)
+    onSubmit(title.trim(), description.trim(), deadline, assigneeId)
   }
 
   return (
@@ -124,6 +131,27 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2"
             />
           </div>
+          {!initial && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <span className="flex items-center gap-1"><UserRound size={12} /> Assigné à</span>
+              </label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2"
+              >
+                {!directory[assigneeId] && (
+                  <option value={assigneeId}>
+                    {assigneeId === currentUserId ? 'Moi' : '— Sélectionner —'}
+                  </option>
+                )}
+                {staffMembers.map((m) => (
+                  <option key={m.id} value={m.id}>{fullName(m)}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               Annuler
@@ -430,8 +458,16 @@ export default function TodoPage() {
     [colOrder, originalCol, todoMap, updateTodo, reorderTodos, refetch],
   )
 
-  const handleCreate = async (title: string, description: string, deadline: string) => {
-    await createTodo({ input: { title, description: description || null, deadline: deadline || null, status: defaultStatus } })
+  const handleCreate = async (title: string, description: string, deadline: string, assigneeId: string) => {
+    await createTodo({
+      input: {
+        title,
+        description: description || null,
+        deadline: deadline || null,
+        status: defaultStatus,
+        assignedTo: assigneeId ? Number(assigneeId) : null,
+      },
+    })
     setShowForm(false)
     refetch({ requestPolicy: 'network-only' })
   }

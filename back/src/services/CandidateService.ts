@@ -1,5 +1,5 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
+import { CandidateRepository, CandidateFilters, CandidateSearchField, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
@@ -34,13 +34,19 @@ export class CandidateService {
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
-    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
-        const candidates = await this.repository.findPage(first, after, search, filters);
+    async findPage(
+        first: number,
+        after?: string,
+        search?: string,
+        filters?: CandidateFilters,
+        searchField?: CandidateSearchField,
+    ): Promise<Candidate[]> {
+        const candidates = await this.repository.findPage(first, after, search, filters, searchField);
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
-    async countPage(search?: string, filters?: CandidateFilters): Promise<number> {
-        return this.repository.countPage(search, filters);
+    async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
+        return this.repository.countPage(search, filters, searchField);
     }
 
     async findById(id: string): Promise<Candidate | null> {
