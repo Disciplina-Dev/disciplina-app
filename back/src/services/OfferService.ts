@@ -198,7 +198,7 @@ export class OfferService {
 
         const buildFilter = async (includeSectors: boolean): Promise<Record<string, any>> => {
             const filter: Record<string, any> = {};
-            filter['status'] = { $ne: CandidateStatus.CONTRACT };
+            filter['status'] = CandidateStatus.SEEKING;
 
             const tps = offerTpCodes(offer);
             if (tps.length) filter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
