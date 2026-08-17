@@ -236,7 +236,7 @@ export class CandidateService {
     async matchOffers(id: string): Promise<Offer[]> {
         const candidate = await this.repository.findById(id);
         if (!candidate) return [];
-        if (candidate.status === CandidateStatus.CONTRACT) return [];
+        if (candidate.status !== CandidateStatus.SEEKING) return [];
 
         const [allOffers, assignedOffers] = await Promise.all([
             this.offerRepository.listMatchingOffers(),
