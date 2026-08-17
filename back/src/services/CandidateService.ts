@@ -85,8 +85,8 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.IMMERSING) {
             const endDate = candidate.immersion_end_date;
             if (!endDate || !this.immersionEnded(endDate)) return candidate;
-            const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
-            return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
+            const updated = await this.update(candidate._id, { status: CandidateStatus.SEEKING });
+            return updated ?? { ...candidate, status: CandidateStatus.SEEKING, immersion_agreement: false };
         }
 
         return candidate;
@@ -182,6 +182,16 @@ export class CandidateService {
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
         const existing = await this.repository.findById(id);
+        // L'accord immersion suit le statut : coché à l'entrée en immersion, décoché
+        // dès qu'on en sort (fin, rejet, contrat, retour en recherche). Évite qu'un
+        // candidat en recherche arbore encore le badge « Convention immersion signée ».
+        if (existing) {
+            if (data.status === CandidateStatus.IMMERSING && existing.status !== CandidateStatus.IMMERSING) {
+                data.immersion_agreement = true;
+            } else if (existing.status === CandidateStatus.IMMERSING && data.status && data.status !== CandidateStatus.IMMERSING) {
+                data.immersion_agreement = false;
+            }
+        }
         if (existing) {
             const merged: Candidate = {
                 ...existing,
