@@ -622,6 +622,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -760,6 +761,7 @@ export const UPDATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -863,6 +865,7 @@ export const CREATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
       }
@@ -936,6 +939,7 @@ export const GET_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education { schoolLevel justification }
       support {
         franceTravailRegistered
@@ -1070,6 +1074,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
