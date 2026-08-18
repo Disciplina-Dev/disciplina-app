@@ -38,7 +38,6 @@ import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useCurrentUser, Permission } from '@/store/authStore'
 import { apiFetch } from '@/api/httpClient'
-import { CSRF_HEADER, getCsrfCookie } from '@/lib/csrf'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
 import AddPreselectedCandidateModal from '@/features/matching/components/AddPreselectedCandidateModal'
@@ -50,7 +49,7 @@ import SendToCompanyModal from '@/features/matching/components/SendToCompanyModa
 import HistoryModal from '@/features/matching/components/HistoryModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
-import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
 
@@ -69,6 +68,7 @@ interface MatchedCandidate {
   identityDescription?: string | null
   comment?: string | null
   cvWebview?: string | null
+  hasCv?: boolean
   interviewLocation?: string
   bookedInterviewSlot?: string | null
   interviewConclusion?: InterviewConclusion | null
@@ -2298,7 +2298,20 @@ function AbHeader({
   const canEdit = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
   const navigate = useNavigate()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [abStatusSaving, setAbStatusSaving] = useState(false)
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
+  const { updateAbStatus } = useUpdateNeedsAnalysisAbStatus()
+
+  const handleAbStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    setAbStatusSaving(true)
+    try {
+      const res = await updateAbStatus(needsAnalysisId, value === 'AUTO' ? null : value)
+      if (!res.error) abResult.refetch()
+    } finally {
+      setAbStatusSaving(false)
+    }
+  }
 
   const handleDelete = async () => {
     await deleteNeedsAnalysis(needsAnalysisId)
@@ -2343,42 +2356,60 @@ function AbHeader({
           </div>
         </div>
       </div>
-      {ab && canEdit && (
+      {ab && (
         <div className="flex items-center gap-2">
-          {confirmDelete ? (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-              <span className="text-xs font-medium text-red-700">Supprimer cette AB ?</span>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteResult.fetching}
-                className="rounded-lg bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
-              >
-                {deleteResult.fetching ? 'Suppression…' : 'Confirmer'}
-              </button>
-            </div>
-          ) : (
+          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm" title="Changer le statut de l'analyse de besoin — onglet de la liste matching">
+            <span className="text-xs font-medium text-gray-500">Statut</span>
+            <select
+              value={ab.abStatus ?? 'AUTO'}
+              onChange={handleAbStatusChange}
+              disabled={abStatusSaving}
+              className="cursor-pointer bg-transparent text-sm font-semibold text-gray-800 outline-none disabled:opacity-50"
+            >
+              <option value="AUTO">Automatique</option>
+              <option value="ACTIVE">Actif</option>
+              <option value="ARCHIVED">Archivé</option>
+              <option value="INACTIVE">Inactif</option>
+            </select>
+          </div>
+          {canEdit && (
             <>
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 md:px-4"
-                title="Supprimer l'analyse du besoin"
-              >
-                <Trash2 size={16} />
-                <span className="hidden md:inline">Supprimer</span>
-              </button>
-              <EditNeedsAnalysisButton
-                needsAnalysisData={ab}
-                currentUser={currentUser!}
-                companyId={info?.id ?? fallbackCompanyId}
-                companyName={info?.name ?? fallbackName}
-                onSuccess={onEdited}
-              />
+              {confirmDelete ? (
+                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                  <span className="text-xs font-medium text-red-700">Supprimer cette AB ?</span>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleteResult.fetching}
+                    className="rounded-lg bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                  >
+                    {deleteResult.fetching ? 'Suppression…' : 'Confirmer'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 md:px-4"
+                    title="Supprimer l'analyse du besoin"
+                  >
+                    <Trash2 size={16} />
+                    <span className="hidden md:inline">Supprimer</span>
+                  </button>
+                  <EditNeedsAnalysisButton
+                    needsAnalysisData={ab}
+                    currentUser={currentUser!}
+                    companyId={info?.id ?? fallbackCompanyId}
+                    companyName={info?.name ?? fallbackName}
+                    onSuccess={onEdited}
+                  />
+                </>
+              )}
             </>
           )}
         </div>
@@ -2400,10 +2431,6 @@ export default function Matching() {
     pause: !needsAnalysisId,
     context: {
       url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
-      fetchOptions: {
-        credentials: 'include' as const,
-        headers: getCsrfCookie() ? { [CSRF_HEADER]: getCsrfCookie() as string } : {},
-      },
     },
   })
 

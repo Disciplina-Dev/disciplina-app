@@ -1,6 +1,7 @@
 import { NeedsAnalysisModel } from '../../db/mongo/schemas/needsAnalysis.schema';
 import { OfferModel } from '../../db/mongo/schemas/offer.schema';
 import { NeedsAnalysis, NeedsAnalysisStatus } from '../../types/needsAnalysisNoSql.types';
+import { AbStatus } from '../../types/offer.types';
 import { decodeCursor } from '../../services/pagination';
 
 /**
@@ -87,6 +88,16 @@ export class NeedsAnalysisRepository {
     /** Ids des AB supprimées (inactives). */
     async findDeletedIds(): Promise<string[]> {
         return NeedsAnalysisModel.distinct('_id', { is_deleted: true });
+    }
+
+    /** Ids des AB dont le statut d'onglet (matching) est forcé manuellement à `status`. */
+    async findIdsByManualStatus(status: AbStatus): Promise<string[]> {
+        return NeedsAnalysisModel.distinct('_id', { ab_status: status });
+    }
+
+    /** Ids des AB ayant un statut manuel (quel qu'il soit) — exclues du calcul dérivé. */
+    async findIdsWithManualStatus(): Promise<string[]> {
+        return NeedsAnalysisModel.distinct('_id', { ab_status: { $exists: true, $ne: null } });
     }
 
     /** Ids des AB non supprimées qui n'ont aucune offre de matching. */

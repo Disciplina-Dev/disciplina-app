@@ -106,6 +106,20 @@ export class OfferRepository {
         return OfferModel.findOne({ _id: offerId }).lean();
     }
 
+    /** Statut dérivé d'une AB à partir de ses offres (miroir de findNeedsAnalysisIdsByAbStatus). */
+    async findDerivedAbStatus(needsAnalysisId: string): Promise<AbStatus> {
+        const offers = await OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
+        if (offers.length === 0) return 'ACTIVE';
+        const contractStatus = OfferStatus.CONTRACT;
+        const contractCandidate = MatchedCandidateStatus.CONTRACT;
+        const allContracted = offers.every(
+            (offer) =>
+                offer.matching?.status === contractStatus ||
+                (offer.matching?.candidates ?? []).some((c: MatchingCandidate) => c.status === contractCandidate),
+        );
+        return allContracted ? 'ARCHIVED' : 'ACTIVE';
+    }
+
     async findByNeedsAnalysisId(needsAnalysisId: string): Promise<Offer[]> {
         return OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
     }

@@ -14,9 +14,12 @@ import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { BulkRelanceService } from '../../services/BulkRelanceService';
+import { ExternalLinkService } from '../../services/ExternalLinkService';
+import { renderTemplate, usesVariable } from '../../services/renderTemplate';
 
 const mailTemplateService = new MailTemplateService();
 const bulkRelanceService = new BulkRelanceService();
+const externalLinkService = new ExternalLinkService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
@@ -247,9 +250,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 }
 
 /**
- * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Contrairement
- * à `sendRelance` (relance de disponibilité codée en dur avec liens Oui/Non), le
- * corps provient d'un modèle RH partagé et part tel quel à chaque destinataire.
+ * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Les variables
+ * {{prenom}}/{{nom}}/{{code}}/{{lien_import}} du modèle sont remplacées pour chaque
+ * destinataire ; les clés inconnues sont retirées (cf. booking/service.ts).
  */
 export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<void> {
     const user = await userService.findById(req.user.id);
@@ -286,8 +289,11 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
 
     // Désabonnement pointant vers la boîte du RH émetteur (Gmail bulk sender rules).
     const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
-    // Version texte dérivée du modèle HTML : évite un mail HTML-only (signal spam).
-    const bodyText = htmlToText(template.body);
+
+    // Un lien d'import CV n'est généré que si le modèle le référence, pour ne pas
+    // créer de session externe (et son code) sur des relances qui n'en ont pas besoin.
+    const templateText = `${template.subject}${template.body}`;
+    const needsImportLink = usesVariable(templateText, 'code') || usesVariable(templateText, 'lien_import');
 
     const candidates = await candidateService.findAll();
     const recipients = candidates.filter((c) => c.identity?.email && ids.includes(c._id));
@@ -295,14 +301,40 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
     let sent = 0;
     let errors = 0;
     for (const candidate of recipients) {
+        const fullName = candidate.identity.full_name ?? '';
+        const spaceIdx = fullName.indexOf(' ');
+        const firstName = spaceIdx > 0 ? fullName.slice(0, spaceIdx) : fullName;
+        const lastName = spaceIdx > 0 ? fullName.slice(spaceIdx + 1) : '';
+
+        const vars: Record<string, string> = { prenom: firstName, nom: lastName };
+
+        if (needsImportLink && user.email) {
+            try {
+                const link = await externalLinkService.createLink({
+                    externalEmail: candidate.identity.email!,
+                    rhEmail: user.email,
+                    guestType: 'CANDIDATE',
+                    externalUuid: candidate._id,
+                });
+                vars.code = link.code;
+                vars.lien_import = `${env.FRONTEND_BASE_URL}/public/cv-import?sig=${link.signature}`;
+            } catch (err) {
+                logger.error({ err, id: candidate._id }, '[relance] import link creation failed');
+            }
+        }
+
+        const resolvedSubject = renderTemplate(template.subject, vars);
+        // Version texte dérivée du HTML résolu : évite un mail HTML-only (signal spam).
+        const resolvedBody = renderTemplate(template.body, vars);
+
         try {
             await gmailService.sendEmail(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken },
                 {
                     to: candidate.identity.email!,
-                    subject: template.subject,
-                    html: `${template.body}${signatureHtml}`,
-                    text: bodyText,
+                    subject: resolvedSubject,
+                    html: `${resolvedBody}${signatureHtml}`,
+                    text: htmlToText(resolvedBody),
                     listUnsubscribe,
                     attachments,
                 },

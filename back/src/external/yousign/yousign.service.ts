@@ -53,7 +53,7 @@ export class YousignService {
                 throw new Error(`Failed to create signature request: ${createReqRes.status} ${errText}`);
             }
 
-            const signatureRequest = await createReqRes.json();
+            const signatureRequest = (await createReqRes.json()) as { id: string };
             const signatureRequestId = signatureRequest.id;
             logger.info(`Signature request created successfully with ID: ${signatureRequestId}`);
 
@@ -75,7 +75,7 @@ export class YousignService {
                 throw new Error(`Failed to upload document: ${uploadRes.status} ${errText}`);
             }
 
-            const documentObj = await uploadRes.json();
+            const documentObj = (await uploadRes.json()) as { id: string };
             const documentId = documentObj.id;
             logger.info(`Document uploaded successfully with ID: ${documentId}`);
 
@@ -113,7 +113,7 @@ export class YousignService {
                 throw new Error(`Failed to add signer: ${signerRes.status} ${errText}`);
             }
 
-            const signerObj = await signerRes.json();
+            const signerObj = (await signerRes.json()) as { id: string };
             logger.info(`Signer added successfully with ID: ${signerObj.id}`);
 
             // 4. Activate Signature Request
@@ -165,7 +165,7 @@ export class YousignService {
                 throw new Error(`Failed to list documents: ${docsRes.status}`);
             }
 
-            const docs = await docsRes.json();
+            const docs = (await docsRes.json()) as Array<{ id: string; nature: string }>;
             const signableDoc = docs.find((d: any) => d.nature === 'signable_document');
             if (!signableDoc) {
                 throw new Error('No signable document found in signature request');

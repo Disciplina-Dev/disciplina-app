@@ -31,6 +31,7 @@ import {
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
+  UPDATE_NEEDS_ANALYSIS_AB_STATUS,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
@@ -56,6 +57,8 @@ export interface CandidateServerFilters {
   statusIn?: CandidateStatus[]
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
+  /** Sexe du candidat (FILLE / GARCON), exclusif. */
+  sex?: string
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType[]
@@ -937,13 +940,23 @@ export function useCreateContactLog() {
 }
 
 export function useNeedsAnalysis(id: string | null) {
-  const [result] = useQuery({
+  const [result, reexecuteQuery] = useQuery({
     query: GET_NEEDS_ANALYSIS,
     variables: { id: id ?? 0 },
     pause: id === null,
     context: { url: NEEDS_ANALYSIS_URL },
   })
-  return result
+  return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useUpdateNeedsAnalysisAbStatus() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_AB_STATUS)
+
+  const updateAbStatus = (id: string, abStatus: string | null) => {
+    return executeMutation({ id, abStatus }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateAbStatus, result }
 }
 
 export function useDeleteNeedsAnalysis() {
