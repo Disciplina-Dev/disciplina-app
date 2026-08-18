@@ -18,6 +18,7 @@ export interface SeedOfferInput {
     status?: OfferStatus;
     localisation?: Localisation[];
     sector?: Sector;
+    activities?: string[];
     candidates?: MatchingCandidate[];
     interview_slots?: string[];
     interview_location?: string;
@@ -35,7 +36,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
     const offer: Offer = {
         _id: offerId,
         needs_analysis_id: `ab-${offerId}`,
-        company_infos: input.company_name ? { name: input.company_name } : undefined,
+        company_infos: input.company_name ? { name: input.company_name, activities: input.activities } : undefined,
         localisation: input.localisation ?? [],
         desired_tp: input.desired_tp ? [{ tp_type: input.desired_tp as TitleProfessionalType, missions: [], description_missions: [] }] : [],
         criteria: {

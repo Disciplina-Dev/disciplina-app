@@ -14,7 +14,7 @@ import { decryptSsn } from '../../external/crypto/ssn-cipher';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { CandidateFilters, encodeCandidateCursor } from '../../repositories/mongo/CandidateRepository';
+import { CandidateFilters, CandidateSearchField, encodeCandidateCursor } from '../../repositories/mongo/CandidateRepository';
 
 /** Filtres reçus côté GraphQL : dates au format ISO (string), converties ensuite. */
 type CandidateFiltersInput = Omit<CandidateFilters, 'createdAfter' | 'createdBefore'> & {
@@ -137,12 +137,14 @@ export const resolvers = {
                 first,
                 after,
                 search,
+                searchField,
                 filters: filtersInput,
-            }: PaginationArgs & { search?: string; filters?: CandidateFiltersInput },
+            }: PaginationArgs & { search?: string; searchField?: CandidateSearchField; filters?: CandidateFiltersInput },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const searchFieldValue: CandidateSearchField | undefined = searchField ?? undefined;
             const filters: CandidateFilters | undefined = filtersInput
                 ? {
                       trainingSite: filtersInput.trainingSite,
@@ -171,8 +173,8 @@ export const resolvers = {
                       interviewedBy: filtersInput.interviewedBy?.trim() || undefined,
                   }
                 : undefined;
-            const candidates = await candidateService.findPage(pageSize, after, search, filters);
-            const totalCount = await candidateService.countPage(search, filters);
+            const candidates = await candidateService.findPage(pageSize, after, search, filters, searchFieldValue);
+            const totalCount = await candidateService.countPage(search, filters, searchFieldValue);
             const conn = buildConnection(
                 candidates,
                 encodeCandidateCursor,
@@ -241,7 +243,14 @@ export const resolvers = {
             const candidate = await candidateService.findById(id);
             const ssn = candidate?.identity?.social_security_number;
             if (!ssn) return null;
-            return decryptSsn(ssn);
+            try {
+                return decryptSsn(ssn);
+            } catch (err) {
+                logger.error({ err, candidateId: id }, 'SSN unmask failed');
+                throw new Error(
+                    'Le numéro de sécurité sociale de cette fiche est illisible : il a été enregistré avant la mise en place du chiffrement, ou avec une autre clé. Une migration est nécessaire.',
+                );
+            }
         },
     },
     Mutation: {

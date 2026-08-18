@@ -1051,4 +1051,183 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
         expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-dup`]);
     });
+
+    it('searches by phone number when searchField is PHONE', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-phone-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-target`,
+            candidate_id: `${suffix}-target`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice-${suffix}@test.local`,
+                phone: `0692${suffix.slice(-4)}1234`,
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-other`,
+            candidate_id: `${suffix}-other`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Bob ${suffix}`,
+                email: `bob-${suffix}@test.local`,
+                phone: '0600000001',
+                description: `Bob ${suffix}, boulanger.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $searchField: CandidateSearchField) {
+                    candidatesPage(first: 10, search: $search, searchField: $searchField) {
+                        edges { node { id } }
+                    }
+                }`,
+                // Suffixe partiel du numéro ciblé : seule la fiche Alice doit ressortir.
+                variables: { search: `${suffix.slice(-4)}1234`, searchField: 'PHONE' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-target`]);
+    });
+
+    it('does not match a phone number when searching by name (default searchField)', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-phone-neg-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-a`,
+            candidate_id: `${suffix}-a`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice-${suffix}@test.local`,
+                phone: `0692${suffix.slice(-4)}7777`,
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: `0692${suffix.slice(-4)}` },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.length).toBe(0);
+    });
+
+    it('searches by email when searchField is EMAIL', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-mail-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-target`,
+            candidate_id: `${suffix}-target`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice-${suffix.slice(-4)}@test.local`,
+                phone: '0600000000',
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-other`,
+            candidate_id: `${suffix}-other`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Bob ${suffix}`,
+                email: `bob-${suffix.slice(-4)}@test.local`,
+                phone: '0600000001',
+                description: `Bob ${suffix}, boulanger.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $searchField: CandidateSearchField) {
+                    candidatesPage(first: 10, search: $search, searchField: $searchField) {
+                        edges { node { id } }
+                    }
+                }`,
+                // Le préfixe local (avant le @) est unique à la fiche ciblée ; le match
+                // doit rester restreint au champ email et non s'étendre au nom.
+                variables: { search: `alice-${suffix.slice(-4)}@`, searchField: 'EMAIL' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-target`]);
+    });
+
+    it('does not match an email, phone or ID by default name search', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-mail-neg-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-a`,
+            candidate_id: `${suffix}-a`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice${suffix}@test.local`,
+                phone: '0600000000',
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: 'alice@' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.length).toBe(0);
+    });
 });

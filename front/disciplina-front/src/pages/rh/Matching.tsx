@@ -122,6 +122,7 @@ interface Job {
   referents?: Referents | null
   title?: string | null
   jobRole?: string | null
+  relaxedCriteria?: string[] | null
 }
 
 interface MatchJobResult extends Job {
@@ -1315,6 +1316,7 @@ function MatchingSection({
   matchError,
   hasLaunched,
   savingIds,
+  relaxedCriteria,
   onLaunch,
   onAccept,
   onDismiss,
@@ -1330,6 +1332,7 @@ function MatchingSection({
   matchError: string | null
   hasLaunched: boolean
   savingIds: Set<string>
+  relaxedCriteria?: string[] | null
   onLaunch: () => void
   onAccept: (id: string) => void
   onDismiss: (id: string) => void
@@ -1357,6 +1360,16 @@ function MatchingSection({
           </span>
         )}
       </div>
+
+      {hasLaunched && !isMatching && relaxedCriteria?.includes('sector') && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
+          <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+          <span>
+            Aucun candidat ne correspond au(x) secteur(s) d'activité de cette offre&nbsp;: ce critère a été ignoré
+            pour afficher des résultats.
+          </span>
+        </div>
+      )}
 
       {!hasLaunched && (
         <div className="flex flex-col items-center gap-3 py-6">
@@ -2021,6 +2034,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         matchError={matchError}
         hasLaunched={hasLaunched}
         savingIds={savingIds}
+        relaxedCriteria={jobData?.relaxedCriteria}
         onLaunch={() => runMatch(selectedJob)}
         onAccept={(id) => setDecisions((p) => ({ ...p, [id]: 'accepted' }))}
         onDismiss={(id) => setDecisions((p) => ({ ...p, [id]: 'dismissed' }))}
