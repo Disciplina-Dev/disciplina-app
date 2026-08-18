@@ -122,11 +122,11 @@ export class CompanyRepository {
         filters?: CompanyFilters,
     ): Promise<CompaniesRow[]> {
         if (search?.trim()) {
-            const pattern = `%${search.trim()}%`;
-            return query<CompaniesRow[]>('SELECT * FROM companies WHERE name LIKE ? OR siret LIKE ? ORDER BY id', [
-                pattern,
-                pattern,
-            ]);
+            const pattern = `%${search.trim().toLowerCase()}%`;
+            return query<CompaniesRow[]>(
+                'SELECT * FROM companies WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ? ORDER BY id',
+                [pattern, pattern],
+            );
         }
 
         const { conditions, params } = this.buildFilterClauses(filters);
@@ -163,9 +163,9 @@ export class CompanyRepository {
     /** Compte les entreprises correspondant à la recherche + filtres (même logique que findAll). */
     async countAll(search?: string, filters?: CompanyFilters): Promise<number> {
         if (search?.trim()) {
-            const pattern = `%${search.trim()}%`;
+            const pattern = `%${search.trim().toLowerCase()}%`;
             const rows = await query<{ n: number }[]>(
-                'SELECT COUNT(*) AS n FROM companies WHERE name LIKE ? OR siret LIKE ?',
+                'SELECT COUNT(*) AS n FROM companies WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ?',
                 [pattern, pattern],
             );
             return Number(rows[0]?.n ?? 0);

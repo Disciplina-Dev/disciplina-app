@@ -804,7 +804,7 @@ export default function FicheCandidat() {
                       </span>
                     ) : null
                   })()}
-                  {formData.immersion_agreement && (
+                  {formData.status === CandidateStatus.IMMERSING && formData.immersion_agreement && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 ring-1 ring-green-200">
                       Convention immersion signée
                     </span>
