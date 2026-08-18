@@ -218,6 +218,15 @@ export interface EmergencyContact {
     email?: string;
 }
 
+export interface CandidateConsentments {
+    data_processing: boolean; // traitement général — obligatoire (base légale de la collecte)
+    data_sharing: boolean; // partage avec les entreprises partenaires
+    ai_processing: boolean; // résumé de profil via IA locale (Ollama)
+    photo_processing: boolean; // stockage de la photo/avatar
+    consent_date: Date;
+    consent_version: string; // version du corpus légal au moment du consentement
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -225,6 +234,7 @@ export interface Candidate {
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;
+    consentments?: CandidateConsentments;
     status: CandidateStatus;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
