@@ -31,6 +31,17 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Consentement RGPD à la création d'une fiche candidat : 4 cases à cocher
+  distinctes (traitement des données — obligatoire, partage avec les
+  entreprises partenaires, traitement par IA locale pour le résumé de profil,
+  stockage de la photo/avatar). Objectif : établir une base légale explicite
+  pour la collecte des données du candidat, dès la création de sa fiche et non
+  plus seulement via la signature en fin de document.
+- Script de rétro-consentement (`back/scripts/migrate-candidate-consentments.ts`)
+  pour les fiches candidat créées avant l'introduction de ce champ.
+
 ## [1.0.0] - 2026-08-05
 
 ### Added
