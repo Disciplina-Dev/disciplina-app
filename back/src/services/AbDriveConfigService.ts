@@ -41,6 +41,23 @@ export class AbDriveConfigService {
         return config.sectorFolders[abFolderKey(sector, kind)] || undefined;
     }
 
+    private async resolveCompanyFolder(
+        drive: GoogleDriveService,
+        parentFolderId: string,
+        companyName: string,
+    ): Promise<string> {
+        const folderName = companyName.trim() || 'Entreprise';
+        const existing = await drive.findFolder(folderName, parentFolderId);
+        if (existing) return existing.id;
+
+        const created = await drive.createFolder(folderName, parentFolderId);
+        logger.info(
+            { parentFolderId, folderName, folderId: created.id },
+            '[AbDrive] Sous-dossier entreprise créé sur le Drive',
+        );
+        return created.id;
+    }
+
     /**
      * Archive un PDF d'AB dans le Drive, dans le dossier du secteur de l'AB
      * (région de l'entreprise), pas celui du commercial créateur.
@@ -52,6 +69,7 @@ export class AbDriveConfigService {
      * @param kind          type de dossier (signé / non signé).
      * @param buffer        contenu du PDF.
      * @param filename      nom du fichier uploadé.
+     * @param companyName   nom de l'entreprise, utilisé pour regrouper les PDF signés dans un sous-dossier.
      * @param creatorId     id du commercial créateur de l'AB (source des jetons Google).
      * @param actingUserId  id de l'utilisateur à l'origine de l'action (source prioritaire des jetons Google).
      */
@@ -60,6 +78,7 @@ export class AbDriveConfigService {
         kind: AbFolderKind,
         buffer: Buffer,
         filename: string,
+        companyName?: string,
         creatorId?: number,
         actingUserId?: number,
     ): Promise<string | null> {
@@ -105,7 +124,11 @@ export class AbDriveConfigService {
                 { access_token: driveUser.oauthToken, refresh_token: driveUser.refreshToken ?? undefined },
                 this.persistRefreshedTokens(driveUser.id),
             );
-            const uploaded = await drive.uploadFile(filename, 'application/pdf', buffer, folderId);
+            const targetFolderId =
+                kind === 'SIGNED' && companyName?.trim()
+                    ? await this.resolveCompanyFolder(drive, folderId, companyName)
+                    : folderId;
+            const uploaded = await drive.uploadFile(filename, 'application/pdf', buffer, targetFolderId);
             logger.info({ sector, kind, fileId: uploaded.id }, '[AbDrive] AB archivée sur le Drive');
             return uploaded.webViewLink;
         } catch (err: any) {

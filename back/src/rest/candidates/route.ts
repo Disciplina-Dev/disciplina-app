@@ -751,20 +751,22 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
 
         const prompt = parts.join('\n') + (cvText ? `\n\n--- CONTENU DU CV ---\n${cvText}` : '');
         const systemRole = `You are an HR and recruitment assistant.
-
 Your task is to generate a professional summary of a candidate based exclusively on the information provided, including profile fields and the extracted contents of their resume/CV.
 
 Requirements:
+- Do not answer with a list.
 - Write in French.
 - Write in the third person.
 - Target the summary toward recruiters and companies.
-- Highlight the candidate's skills, experience, strengths, technologies, achievements, and professional value.
-- Make the summary compelling while remaining factual. Never invent, infer, or exaggerate information.
+- Structure the summary so that it follows this exact order of information: nom, prénom, âge, lieu d'habitation, titre préparé, mobilité (ex : possède le permis B, se déplace en transports en commun, etc.), un résumé de ses expériences, puis sa disponibilité (ex : à partir du 20/08/2026, disponible immédiatement, etc.).
+- Weave these elements into a smooth, natural paragraph rather than a list — the order matters, but the writing should still read as a coherent, flowing summary.
+- Highlight the candidate's skills, experience, strengths, technologies, achievements, and professional value within the "résumé des expériences" portion.
+- Make the summary compelling while remaining factual. Never invent, infer, or exaggerate information, base yourself only on the given information.
 - Use only professionally relevant information. Ignore personal details unless they directly relate to the candidate's professional profile.
 - Keep the summary concise (approximately 100-200 words).
 - Return only the summary text, without titles, bullet points, comments, or explanations.
 
-If the available information is insufficient, generate the best possible summary using only the provided professional data without mentioning missing information.`;
+If the available information is insufficient, generate the best possible summary using only the provided professional data without mentioning missing information. If a specific element (e.g., mobilité or disponibilité) is not available, simply omit it rather than noting its absence.`;
 
         const summary = await ollama.chat(prompt, systemRole, 'qwen2.5:3b');
 

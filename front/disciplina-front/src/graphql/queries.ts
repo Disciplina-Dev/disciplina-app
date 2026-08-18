@@ -479,8 +479,8 @@ export const GET_CANDIDATES = gql`
 `
 
 export const GET_CANDIDATES_PAGE = gql`
-  query GetCandidatesPage($first: Int, $after: String, $search: String, $filters: CandidateFiltersInput) {
-    candidatesPage(first: $first, after: $after, search: $search, filters: $filters) {
+  query GetCandidatesPage($first: Int, $after: String, $search: String, $searchField: CandidateSearchField, $filters: CandidateFiltersInput) {
+    candidatesPage(first: $first, after: $after, search: $search, searchField: $searchField, filters: $filters) {
       edges {
         cursor
         node {
@@ -1303,6 +1303,7 @@ export const MATCH_OFFER = gql`
       interviewLocation
       title
       jobRole
+      relaxedCriteria
       salerInfo {
         id
         email

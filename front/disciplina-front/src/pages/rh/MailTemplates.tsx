@@ -74,7 +74,7 @@ const PROPOSITION_CANDIDAT_VARS: typeof TEMPLATE_VARS = [
   { token: 'link', label: 'Lien de la session de matching', example: 'https://app.disciplina.re/public/match?sig=xxx' },
   { token: 'id', label: 'Identifiant de connexion', example: 'DISCIPLINA-4F8A' },
   { token: 'code', label: 'Code de connexion', example: '483291' },
-  { token: 'expiration time', label: 'Durée de validité du lien', example: '24 heures' },
+  { token: 'expiration time', label: 'Durée de validité du lien', example: '72 heures' },
   { token: 'hr_signature', label: 'Votre signature mail', example: 'votre image de signature' },
 ]
 

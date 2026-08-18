@@ -459,6 +459,13 @@ export const typeDefs = gql`
         totalCount: Int!
     }
 
+    "Champ ciblé par la recherche libre du répertoire candidats (défaut : NAME)"
+    enum CandidateSearchField {
+        NAME
+        PHONE
+        EMAIL
+    }
+
     input CandidateFiltersInput {
         trainingSite: TrainingSite
         status: CandidateStatus
@@ -548,7 +555,7 @@ export const typeDefs = gql`
     type Query {
         candidateStats(sectors: [String!]): CandidateStats!
         candidates: [Candidate!]!
-        candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
+        candidatesPage(first: Int, after: String, search: String, searchField: CandidateSearchField, filters: CandidateFiltersInput): CandidateConnection!
         candidate(id: String!): Candidate
         candidateByEmail(email: String!): CandidateEmailCheck!
         matchCandidate(id: String!): Candidate!

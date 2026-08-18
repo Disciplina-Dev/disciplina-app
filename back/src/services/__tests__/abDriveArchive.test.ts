@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// @ts-nocheck
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { truncateMysql, dropMongo } from '../../../test/helpers/db';
 import { AbDriveConfigModel, AB_DRIVE_CONFIG_ID } from '../../db/mongo/schemas/abDriveConfig.schema';
 import { GoogleDriveService } from '../../external/google/drive.service';
@@ -8,8 +9,16 @@ import { CompanyRegion } from '../../types/needsAnalysisNoSql.types';
 
 describe('AB Drive archive', () => {
     const service = new AbDriveConfigService();
-    let uploadFile: ReturnType<typeof vi.fn>;
-    let fromTokensSpy: ReturnType<typeof vi.spyOn>;
+    const googleDriveServiceAny: any = GoogleDriveService;
+    let uploadFile: any;
+    let findFolder: any;
+    let createFolder: any;
+    let originalFromTokens: any;
+    let fromTokensArgs: any[] | null;
+    let uploadFileCalls: any[][];
+    let findFolderCalls: any[][];
+    let createFolderCalls: any[][];
+    let findFolderResult: { id: string; webViewLink: string } | null;
 
     async function createCommercial(label: string, oauthToken: string | null, refreshToken: string | null): Promise<number> {
         return new UserRepository().create({
@@ -29,10 +38,33 @@ describe('AB Drive archive', () => {
         await truncateMysql();
         await dropMongo();
 
-        uploadFile = vi.fn().mockResolvedValue({ id: 'drive-file-id', webViewLink: 'https://drive.test/file' });
-        fromTokensSpy = vi.spyOn(GoogleDriveService, 'fromTokens').mockImplementation(((creds: any) => ({
-            uploadFile,
-        }) as any) as typeof GoogleDriveService.fromTokens);
+        uploadFileCalls = [];
+        findFolderCalls = [];
+        createFolderCalls = [];
+        findFolderResult = null;
+        uploadFile = async (...args: any[]) => {
+            uploadFileCalls.push(args);
+            return { id: 'drive-file-id', webViewLink: 'https://drive.test/file' };
+        };
+        findFolder = async (...args: any[]) => {
+            findFolderCalls.push(args);
+            return findFolderResult;
+        };
+        createFolder = async (...args: any[]) => {
+            createFolderCalls.push(args);
+            return { id: 'company-folder-id', webViewLink: 'https://drive.test/folder' };
+        };
+        originalFromTokens = googleDriveServiceAny.fromTokens;
+        fromTokensArgs = null;
+        // @ts-ignore manual test double for GoogleDriveService.fromTokens
+        googleDriveServiceAny.fromTokens = ((creds: any) => {
+            fromTokensArgs = [creds];
+            return {
+                findFolder,
+                createFolder,
+                uploadFile,
+            } as any;
+        }) as any;
 
         await AbDriveConfigModel.findByIdAndUpdate(
             AB_DRIVE_CONFIG_ID,
@@ -46,7 +78,8 @@ describe('AB Drive archive', () => {
     });
 
     afterEach(() => {
-        vi.restoreAllMocks();
+        // @ts-ignore manual test double restore
+        googleDriveServiceAny.fromTokens = originalFromTokens;
     });
 
     it('prefers a refreshable Google account when the acting user and creator have no refresh token', async () => {
@@ -59,16 +92,48 @@ describe('AB Drive archive', () => {
             'SIGNED',
             Buffer.from('pdf'),
             'signed.pdf',
+            'ACME',
             creatorId,
             actingUserId,
         );
 
         expect(link).toBe('https://drive.test/file');
-        expect(uploadFile).toHaveBeenCalledTimes(1);
-        expect(fromTokensSpy).toHaveBeenCalled();
-        const [creds] = fromTokensSpy.mock.calls[0];
+        expect(uploadFileCalls).toHaveLength(1);
+        expect(findFolderCalls[0]).toEqual(['ACME', 'folder-sud-signed']);
+        expect(createFolderCalls[0]).toEqual(['ACME', 'folder-sud-signed']);
+        expect(uploadFileCalls[0][0]).toBe('signed.pdf');
+        expect(uploadFileCalls[0][1]).toBe('application/pdf');
+        expect(uploadFileCalls[0][2]).toEqual(expect.any(Buffer));
+        expect(uploadFileCalls[0][3]).toBe('company-folder-id');
+        expect(fromTokensArgs).not.toBeNull();
+        const creds = fromTokensArgs?.[0] as any;
         expect(creds.access_token).toBe('tok-backup');
         expect(creds.refresh_token).toBe('refresh-backup');
+    });
+
+    it('reuses an existing company folder for signed PDFs', async () => {
+        findFolderResult = { id: 'existing-company-folder', webViewLink: 'https://drive.test/existing-folder' };
+
+        const actingUserId = await createCommercial('acting', 'tok-acting', 'refresh-acting');
+        const creatorId = await createCommercial('creator', 'tok-creator', 'refresh-creator');
+
+        const link = await service.archiveAbPdf(
+            CompanyRegion.SUD,
+            'SIGNED',
+            Buffer.from('pdf'),
+            'signed.pdf',
+            'ACME',
+            creatorId,
+            actingUserId,
+        );
+
+        expect(link).toBe('https://drive.test/file');
+        expect(findFolderCalls[0]).toEqual(['ACME', 'folder-sud-signed']);
+        expect(createFolderCalls).toHaveLength(0);
+        expect(uploadFileCalls[0][0]).toBe('signed.pdf');
+        expect(uploadFileCalls[0][1]).toBe('application/pdf');
+        expect(uploadFileCalls[0][2]).toEqual(expect.any(Buffer));
+        expect(uploadFileCalls[0][3]).toBe('existing-company-folder');
     });
 
     it('skips the upload when no SIGNED folder is configured for the sector', async () => {
@@ -81,9 +146,17 @@ describe('AB Drive archive', () => {
         const actingUserId = await createCommercial('acting', 'tok-acting', 'refresh-acting');
         const creatorId = await createCommercial('creator', 'tok-creator', 'refresh-creator');
 
-        const link = await service.archiveAbPdf(CompanyRegion.SUD, 'SIGNED', Buffer.from('pdf'), 'signed.pdf', creatorId, actingUserId);
+        const link = await service.archiveAbPdf(
+            CompanyRegion.SUD,
+            'SIGNED',
+            Buffer.from('pdf'),
+            'signed.pdf',
+            'ACME',
+            creatorId,
+            actingUserId,
+        );
 
         expect(link).toBeNull();
-        expect(uploadFile).not.toHaveBeenCalled();
+        expect(uploadFileCalls).toHaveLength(0);
     });
 });

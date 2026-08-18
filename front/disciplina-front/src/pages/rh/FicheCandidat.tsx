@@ -275,6 +275,7 @@ export default function FicheCandidat() {
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null)
   const [revealedSsn, setRevealedSsn] = useState<string | null>(null)
   const [revealingSsn, setRevealingSsn] = useState(false)
+  const [ssnError, setSsnError] = useState<string | null>(null)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -283,14 +284,29 @@ export default function FicheCandidat() {
   // Ne jamais laisser le SSN en clair d'une fiche fuiter sur une autre.
   useEffect(() => {
     setRevealedSsn(null)
+    setSsnError(null)
   }, [id])
 
   const handleRevealSsn = async () => {
     if (!formData) return
     setRevealingSsn(true)
+    setSsnError(null)
     try {
       const result = await candidateGraphqlClient.query(UNMASK_SSN, { id: formData._id }).toPromise()
-      setRevealedSsn(result.data?.unmaskCandidateSsn ?? null)
+      // Sans ce contrôle, une erreur serveur laissait le champ sur "[chiffré]" sans
+      // aucun signal, ni en console, ni à l'écran.
+      if (result.error) {
+        setSsnError(result.error.graphQLErrors[0]?.message ?? 'Échec du déchiffrement du numéro de sécurité sociale.')
+        return
+      }
+      const ssn = result.data?.unmaskCandidateSsn ?? null
+      if (!ssn) {
+        setSsnError('Aucun numéro de sécurité sociale déchiffrable pour cette fiche.')
+        return
+      }
+      setRevealedSsn(ssn)
+    } catch (err) {
+      setSsnError(err instanceof Error ? err.message : 'Échec du déchiffrement du numéro de sécurité sociale.')
     } finally {
       setRevealingSsn(false)
     }
@@ -788,7 +804,7 @@ export default function FicheCandidat() {
                       </span>
                     ) : null
                   })()}
-                  {formData.immersion_agreement && (
+                  {formData.status === CandidateStatus.IMMERSING && formData.immersion_agreement && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 ring-1 ring-green-200">
                       Convention immersion signée
                     </span>
@@ -945,24 +961,27 @@ export default function FicheCandidat() {
                   <input className={inputCls} value={formData.identity.social_security_number ?? ''}
                     onChange={e => updateIdentity('social_security_number', e.target.value)} />
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
-                    {formData.identity.social_security_number && (
-                      <button
-                        type="button"
-                        disabled={revealingSsn}
-                        onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
-                        {revealingSsn ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : revealedSsn ? (
-                          <EyeOff size={12} />
-                        ) : (
-                          <Eye size={12} />
-                        )}
-                        {revealedSsn ? 'Masquer' : 'Afficher'}
-                      </button>
-                    )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
+                      {formData.identity.social_security_number && (
+                        <button
+                          type="button"
+                          disabled={revealingSsn}
+                          onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                          {revealingSsn ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : revealedSsn ? (
+                            <EyeOff size={12} />
+                          ) : (
+                            <Eye size={12} />
+                          )}
+                          {revealedSsn ? 'Masquer' : 'Afficher'}
+                        </button>
+                      )}
+                    </div>
+                    {ssnError && <p className="mt-1 text-xs text-red-500">{ssnError}</p>}
                   </div>
                 )}
               </Field>

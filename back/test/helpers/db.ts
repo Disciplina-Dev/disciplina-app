@@ -11,6 +11,7 @@ const CLEARED_TABLES = [
     'match_link',
     'interview_access',
     'rh_kpi',
+    'todos',
     'users',
     'refresh_tokens',
 ];

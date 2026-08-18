@@ -1,5 +1,5 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
+import { CandidateRepository, CandidateFilters, CandidateSearchField, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
@@ -34,13 +34,19 @@ export class CandidateService {
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
-    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
-        const candidates = await this.repository.findPage(first, after, search, filters);
+    async findPage(
+        first: number,
+        after?: string,
+        search?: string,
+        filters?: CandidateFilters,
+        searchField?: CandidateSearchField,
+    ): Promise<Candidate[]> {
+        const candidates = await this.repository.findPage(first, after, search, filters, searchField);
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
-    async countPage(search?: string, filters?: CandidateFilters): Promise<number> {
-        return this.repository.countPage(search, filters);
+    async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
+        return this.repository.countPage(search, filters, searchField);
     }
 
     async findById(id: string): Promise<Candidate | null> {
@@ -79,8 +85,8 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.IMMERSING) {
             const endDate = candidate.immersion_end_date;
             if (!endDate || !this.immersionEnded(endDate)) return candidate;
-            const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
-            return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
+            const updated = await this.update(candidate._id, { status: CandidateStatus.SEEKING });
+            return updated ?? { ...candidate, status: CandidateStatus.SEEKING, immersion_agreement: false };
         }
 
         return candidate;
@@ -176,6 +182,16 @@ export class CandidateService {
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
         const existing = await this.repository.findById(id);
+        // L'accord immersion suit le statut : coché à l'entrée en immersion, décoché
+        // dès qu'on en sort (fin, rejet, contrat, retour en recherche). Évite qu'un
+        // candidat en recherche arbore encore le badge « Convention immersion signée ».
+        if (existing) {
+            if (data.status === CandidateStatus.IMMERSING && existing.status !== CandidateStatus.IMMERSING) {
+                data.immersion_agreement = true;
+            } else if (existing.status === CandidateStatus.IMMERSING && data.status && data.status !== CandidateStatus.IMMERSING) {
+                data.immersion_agreement = false;
+            }
+        }
         if (existing) {
             const merged: Candidate = {
                 ...existing,
@@ -230,7 +246,7 @@ export class CandidateService {
     async matchOffers(id: string): Promise<Offer[]> {
         const candidate = await this.repository.findById(id);
         if (!candidate) return [];
-        if (candidate.status === CandidateStatus.CONTRACT) return [];
+        if (candidate.status !== CandidateStatus.SEEKING) return [];
 
         const [allOffers, assignedOffers] = await Promise.all([
             this.offerRepository.listMatchingOffers(),
