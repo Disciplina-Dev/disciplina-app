@@ -3,6 +3,7 @@ import { MatchGuestRequest } from './guard';
 import { MatchLinkService, AnswerInput } from '../../services/MatchLinkService';
 import { MatchMailService } from '../../services/MatchMailService';
 import { CandidateService } from '../../services/CandidateService';
+import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
 import { UserService } from '../../services/UserService';
 import { NotificationService } from '../../services/NotificationService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
@@ -11,10 +12,12 @@ import { MatchingCandidate } from '../../types/matching.types';
 import { logger } from '../../external/logger';
 import { GeocodageService } from '../../external/insee/geocodage.service';
 import { buildMatchingLink } from '../../utils/matchingLink';
+import { assertConsent, hasConsent, ConsentType } from '../../services/consentGuard';
 
 const matchLinkService = new MatchLinkService();
 const matchMailService = new MatchMailService();
 const candidateService = new CandidateService();
+const candidateRepository = new CandidateRepository();
 const userService = new UserService();
 const notificationService = new NotificationService();
 const geocodageService = new GeocodageService();
@@ -81,7 +84,20 @@ async function notifyLock(signature: string): Promise<void> {
 
 export async function getCandidates(req: MatchGuestRequest, res: Response): Promise<void> {
     const candidates = await matchLinkService.getProposedCandidates(req.params.signature);
-    res.json(candidates.map(proposedCandidateToPublic));
+    const ids = candidates.map((c) => c.id);
+    const consentDocs = ids.length ? await candidateRepository.findConsentmentsByIds(ids) : [];
+    const consentById = new Map(consentDocs.map((doc) => [doc._id, doc]));
+
+    const consenting = candidates.filter((c) => {
+        const doc = consentById.get(c.id);
+        if (!doc || !hasConsent(doc, [ConsentType.DATA_SHARING])) {
+            logger.warn({ candidateId: c.id }, 'Candidate missing data_sharing consent, excluded from company view');
+            return false;
+        }
+        return true;
+    });
+
+    res.json(consenting.map(proposedCandidateToPublic));
 }
 
 export async function getCv(req: MatchGuestRequest, res: Response): Promise<void> {
@@ -101,6 +117,9 @@ export async function getCv(req: MatchGuestRequest, res: Response): Promise<void
 async function streamCandidateCv(candidateId: string, rhEmail: string, res: Response): Promise<void> {
     try {
         const candidate = await candidateService.findById(candidateId);
+        if (candidate) {
+            assertConsent(candidate, [ConsentType.DATA_SHARING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+        }
         const fileId = candidate?.cv_link ? extractDriveFileId(candidate.cv_link) : null;
         const rh = await userService.findByEmail(rhEmail);
         if (!fileId || !rh?.oauthToken) {
