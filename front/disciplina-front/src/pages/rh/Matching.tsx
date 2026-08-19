@@ -1157,8 +1157,13 @@ function buildOfferMailBody(
   nonUrl: string,
 ): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const companyName = job.companyInfos?.name ?? job.companyName
+  const offerTitle = job.jobRole || job.title
   const segments: string[] = []
 
+  if (offerTitle) {
+    segments.push(`<div class="job-title"><strong>Role</strong></br> ${offerTitle}</div>`)
+  }
   if (job.sector && job.sector !== 'NONE') {
     segments.push(`<div class="field"><div class="field-label">Secteur</div><div class="field-value">${formatEnumLabel(job.sector)}</div></div>`)
   }
@@ -1168,21 +1173,23 @@ function buildOfferMailBody(
       .filter(Boolean)
       .join(', ')
     if (locs) {
-      segments.push(`<div class="field"><div class="field-label">Localisation</div><div class="field-value">${locs}</div></div>`)
+      segments.push(`<div class="field"><div class="field-label"><strong>Localisation</strong></div><div class="field-value">${locs}</div></div>`)
     }
   }
   for (const tp of job.desiredTp) {
     if (tp.missions.length === 0) continue
     const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label">Missions — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+    segments.push(`<div class="field"><div class="field-label"><strong>Missions</strong> — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
     const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
-    segments.push(`<div class="field"><div class="field-label">Activités de l'entreprise</div><div>${tags}</div></div>`)
+    segments.push(`<div class="field"><div class="field-label"><strong>Activités de l'entreprise</strong></div><div>${tags}</div></div>`)
   }
   const offerCard = segments.length > 0
     ? `<div class="offer-card">${segments.join('')}</div>`
     : ''
+
+  const introCompany = companyName ? ` chez <strong>${companyName}</strong>` : ''
 
   return `<!DOCTYPE html>
 <html>
@@ -1195,6 +1202,8 @@ function buildOfferMailBody(
   .field { margin-bottom: 10px; }
   .field-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: #9ca3af; letter-spacing: 0.5px; }
   .field-value { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 2px; }
+  .company { font-size: 17px; font-weight: 800; color: #60207E; margin-bottom: 4px; }
+  .job-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
   .mission-list { list-style: none; padding: 0; margin: 4px 0 0; }
   .mission-list li { padding: 3px 0; font-size: 13px; color: #374151; position: relative; padding-left: 16px; }
   .mission-list li::before { content: "•"; position: absolute; left: 0; color: #60207E; }
@@ -1214,7 +1223,7 @@ function buildOfferMailBody(
 <body>
   <div class="logo">DISCIPLINA</div>
   <p>Bonjour ${name},</p>
-  <p>Nous avons sélectionné pour vous une offre en alternance qui correspond à votre profil :</p>
+  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil :</p>
   ${offerCard}
   <div class="benefits">
     <h4>Pourquoi postuler ?</h4>
