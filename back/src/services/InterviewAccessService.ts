@@ -7,10 +7,19 @@ import { CandidateHistoryService } from './CandidateHistoryService';
 import { CandidateHistoryType } from '../types/candidate.types';
 import { OfferHistoryService } from './OfferHistoryService';
 import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './signedAccess';
+import { UserService } from './UserService';
+import { GoogleCalendarService, BusyInterval } from '../external/google/calendar.service';
+import { GoogleTokens } from '../external/google/types';
+import { User } from '../types/user.types';
+import { logger } from '../external/logger';
 
 export type { AuthResult };
 
 const LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000; // candidate gets longer than the company's 72h
+
+/** Marge de part et d'autre de la plage des créneaux pour la requête freebusy
+ *  (couvre notamment les events journée entière aux bornes du fuseau de l'agenda). */
+const FREEBUSY_PAD_MS = 60 * 60 * 1000;
 
 export interface SlotView {
     slot: string;
@@ -24,6 +33,15 @@ export interface SlotsView {
 }
 
 export class SlotUnavailableError extends Error {}
+
+/** Vrai si l'instant `slotMs` tombe dans un des intervalles occupés de l'agenda RH. */
+function slotOverlapsBusy(slotMs: number, busy: BusyInterval[]): boolean {
+    return busy.some((b) => {
+        const bs = Date.parse(b.start);
+        const be = Date.parse(b.end);
+        return bs <= slotMs && slotMs < be;
+    });
+}
 
 function formatFr(iso: string): string {
     return new Date(iso).toLocaleString('fr-FR', {
@@ -42,6 +60,7 @@ export class InterviewAccessService {
         private readonly offerRepository = new OfferRepository(),
         private readonly candidateHistoryService = new CandidateHistoryService(),
         private readonly offerHistoryService = new OfferHistoryService(),
+        private readonly userService = new UserService(),
     ) {}
 
     async createAccess(
@@ -101,13 +120,50 @@ export class InterviewAccessService {
         };
     }
 
+    /**
+     * Intervalles occupés de l'agenda du RH référent (résolu via `interview_access.rh_email`).
+     * Best-effort : renvoie [] si le RH n'a pas d'agenda Google connecté ou si l'appel échoue,
+     * pour ne jamais bloquer la réservation faute d'un calendrier lisible.
+     */
+    private async rhBusyIntervals(rhEmail: string, slots: string[]): Promise<BusyInterval[]> {
+        const times = slots.map((s) => Date.parse(s)).filter((t) => !Number.isNaN(t));
+        if (times.length === 0) return [];
+        const timeMin = new Date(Math.min(...times) - FREEBUSY_PAD_MS).toISOString();
+        const timeMax = new Date(Math.max(...times) + FREEBUSY_PAD_MS).toISOString();
+        const rh = await this.userService.findByEmail(rhEmail);
+        if (!rh?.oauthToken) return [];
+        try {
+            return await this.calendarForUser(rh).freeBusy(timeMin, timeMax);
+        } catch (err) {
+            logger.warn({ err }, '[interview] freebusy check failed, calendar validation skipped');
+            return [];
+        }
+    }
+
+    private calendarForUser(user: User): GoogleCalendarService {
+        return GoogleCalendarService.fromTokens(
+            { access_token: user.oauthToken ?? undefined, refresh_token: user.refreshToken ?? undefined },
+            (refreshed: GoogleTokens) =>
+                this.userService.updateGoogleTokens(
+                    user.id,
+                    refreshed.access_token ?? null,
+                    refreshed.refresh_token ?? null,
+                ),
+        );
+    }
+
     async getSlots(signature: string, candidateId: string): Promise<SlotsView> {
         const row = await this.repository.findBySignature(signature);
         if (!row) throw new Error('Session not found');
         const offer = await this.offerRepository.findById(row.offer_uuid);
         const candidates = offer?.matching?.candidates ?? [];
         const taken = new Set(candidates.map((c) => c.booked_interview_slot).filter(Boolean));
-        const slots = (offer?.matching?.interview_slots ?? []).map((slot) => ({ slot, taken: taken.has(slot) }));
+        const interviewSlots = offer?.matching?.interview_slots ?? [];
+        const busy = await this.rhBusyIntervals(row.rh_email, interviewSlots);
+        const slots = interviewSlots.map((slot) => ({
+            slot,
+            taken: taken.has(slot) || slotOverlapsBusy(Date.parse(slot), busy),
+        }));
         const bookedSlot = candidates.find((c) => c.id === candidateId)?.booked_interview_slot;
         return { location: offer?.matching?.interview_location, slots, bookedSlot };
     }
@@ -116,6 +172,13 @@ export class InterviewAccessService {
         const row = await this.repository.findBySignature(signature);
         if (!row) throw new Error('Session not found');
         if (row.status === InterviewAccessStatus.COMPLETED) throw new Error('Session already completed');
+
+        // Revérifie côté serveur que le créneau n'est pas sur une période occupée de l'agenda
+        // du RH (anti double-réservation avec des events posés après l'affichage des créneaux).
+        const busy = await this.rhBusyIntervals(row.rh_email, [slot]);
+        if (slotOverlapsBusy(Date.parse(slot), busy)) {
+            throw new SlotUnavailableError("Ce créneau n'est plus disponible");
+        }
 
         const offer = await this.offerRepository.bookInterviewSlot(row.offer_uuid, candidateId, slot);
         if (!offer) throw new SlotUnavailableError("Ce créneau n'est plus disponible");

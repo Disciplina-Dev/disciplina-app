@@ -23,6 +23,7 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 import { regionFromSector } from '../utils/sector';
 import { ZONE_TO_COMMUNES } from './mappers/abToOffer';
 import { offerTpCodes, positionTpToGql } from './mappers/offer.mapper';
+import { toScheduleSlotGql } from './mappers/needsAnalysis.mapper';
 import type { DriveRegion } from './DriveFolderConfigService';
 import { buildMatchingLink } from '../utils/matchingLink';
 
@@ -133,6 +134,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?:
               }
             : undefined,
         softSkills: offer.criteria?.soft_skills,
+        schedule: (offer.criteria?.schedule_options ?? []).map(toScheduleSlotGql),
         companyInfos: offer.company_infos
             ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
             : null,

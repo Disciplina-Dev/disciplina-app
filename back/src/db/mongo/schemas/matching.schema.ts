@@ -1,5 +1,5 @@
 import { Schema } from 'mongoose';
-import { OfferCriteria, EducationLevel, TrainingDomain } from '../../../types/needsAnalysisNoSql.types';
+import { OfferCriteria, EducationLevel, TrainingDomain, ScheduleSlot } from '../../../types/needsAnalysisNoSql.types';
 import {
     Matching,
     MatchingCandidate,
@@ -8,6 +8,15 @@ import {
     InterviewConclusion,
     ImmersionConclusion,
 } from '../../../types/matching.types';
+
+const scheduleSlotSchema = new Schema<ScheduleSlot>(
+    {
+        day: { type: String, default: null },
+        start_hour: { type: String, default: null },
+        end_hour: { type: String, default: null },
+    },
+    { _id: false },
+);
 
 export const criteriaSchema = new Schema<OfferCriteria>(
     {
@@ -19,7 +28,7 @@ export const criteriaSchema = new Schema<OfferCriteria>(
         age_max: { type: Number, default: null },
         desired_sex: { type: String, default: null },
         soft_skills: { type: String, default: null },
-        schedule_options: { type: [String], default: [] },
+        schedule_options: { type: [scheduleSlotSchema], default: [] },
         conditions: { type: String, default: null },
         additional_comments: { type: String, default: null },
     },

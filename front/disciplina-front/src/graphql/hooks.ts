@@ -524,6 +524,16 @@ function fromGql(c: any): Candidate {
           email: c.emergencyContact.email ?? undefined,
         }
       : undefined,
+    consentments: c.consentments
+      ? {
+          data_processing: c.consentments.dataProcessing,
+          data_sharing: c.consentments.dataSharing,
+          ai_processing: c.consentments.aiProcessing,
+          photo_processing: c.consentments.photoProcessing,
+          consent_date: c.consentments.consentDate,
+          consent_version: c.consentments.consentVersion,
+        }
+      : undefined,
   }
 }
 

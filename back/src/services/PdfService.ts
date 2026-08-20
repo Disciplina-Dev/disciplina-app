@@ -263,7 +263,12 @@ ${tpBlocks}`;
                           .filter(Boolean)
                           .join(' ')
                     : '';
-            const conditions = c.conditions ?? (c.scheduleOptions ?? []).join(', ');
+            const scheduleOptions = (c.scheduleOptions ?? []).map((s: any) =>
+                typeof s === 'string'
+                    ? s
+                    : [s.day || null, [s.startHour, s.endHour].filter(Boolean).join('-')].filter(Boolean).join(' : '),
+            );
+            const conditions = c.conditions ?? (scheduleOptions.length ? scheduleOptions.join(', ') : null);
             const commentaires = c.additionalComments ?? '';
             return `
 ${sh(title)}

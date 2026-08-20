@@ -284,7 +284,7 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | age_min | int | — | Minimum age |
 | age_max | int | — | Maximum age |
 | soft_skills | string | — | Expected soft skills |
-| schedule_options | string[] | — | Schedule options |
+| schedule_options | object[] | — | Schedule slots: `{ day, start_hour, end_hour }` |
 | conditions | string | — | Work conditions |
 | additional_comments | string | — | Additional comments |
 

@@ -303,7 +303,18 @@ export class CandidateRepository {
 
     /** Documents candidats (uniquement le lien CV) pour les ids demandés. */
     async findCvLinksByIds(ids: string[]): Promise<Array<{ _id: string; cv_link?: string }>> {
-        return CandidateModel.find({ _id: { $in: ids } }).select({ cv_link: 1, _id: 1 }).lean();
+        return CandidateModel.find({ _id: { $in: ids } })
+            .select({ cv_link: 1, _id: 1 })
+            .lean();
+    }
+
+    /** Documents candidats (uniquement le consentement) pour les ids demandés. */
+    async findConsentmentsByIds(
+        ids: string[],
+    ): Promise<Array<{ _id: string; consentments?: Candidate['consentments'] }>> {
+        return CandidateModel.find({ _id: { $in: ids } })
+            .select({ consentments: 1, _id: 1 })
+            .lean();
     }
 
     /**

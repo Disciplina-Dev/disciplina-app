@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { env } from '../../../config/env';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
@@ -6,12 +6,13 @@ import { UserRepository } from '../../../repositories/mysql/UserRepository';
 import { InterviewAccessRepository } from '../../../repositories/mysql/InterviewAccessRepository';
 import { CandidateHistoryRepository } from '../../../repositories/mongo/CandidateHistoryRepository';
 import { NotificationRepository } from '../../../repositories/mongo/NotificationRepository';
+import { GoogleCalendarService } from '../../../external/google/calendar.service';
 import { OfferStatus, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateHistoryType } from '../../../types/candidate.types';
 
 const BASE = `http://localhost:${env.API_PORT}/api/interview`;
 
-async function createRhUser(suffix: number): Promise<{ id: number; email: string }> {
+async function createRhUser(suffix: number, oauth = false): Promise<{ id: number; email: string }> {
     const repo = new UserRepository();
     const email = `rh-interview-${suffix}@test.local`;
     const id = await repo.create({
@@ -22,8 +23,8 @@ async function createRhUser(suffix: number): Promise<{ id: number; email: string
         role_id: 2,
         permission_id: 1,
         sectors: null,
-        oauth_token: null,
-        refresh_token: null,
+        oauth_token: oauth ? 'oauth-access-token' : null,
+        refresh_token: oauth ? 'oauth-refresh-token' : null,
     });
     return { id, email };
 }
@@ -52,6 +53,16 @@ async function addProposedCandidate(offerId: string, candidateId: string, email:
 }
 
 describe('Interview access flow', () => {
+    let freeBusySpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        freeBusySpy = vi.spyOn(GoogleCalendarService.prototype, 'freeBusy').mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+        freeBusySpy.mockRestore();
+    });
+
     describe('GET /:signature/inspect', () => {
         it('reports a non-existent session', async () => {
             const res = await fetch(`${BASE}/does-not-exist/inspect`);
@@ -184,6 +195,82 @@ describe('Interview access flow', () => {
             );
             expect(json.bookedSlot).toBeUndefined();
         });
+
+        it('marks slots overlapping an RH busy period (all-day event) as taken', async () => {
+            const suffix = Date.now() + 20;
+            const rh = await createRhUser(suffix, true);
+            const slotA = '2030-06-01T09:00:00.000Z'; // pendant l'évènement journée entière
+            const slotB = '2030-06-05T09:00:00.000Z'; // jour suivant, libre
+            const offerId = await seedJobWithSlots(suffix, [slotA, slotB]);
+
+            const candidateId = `cand-cal-${suffix}`;
+            await addProposedCandidate(offerId, candidateId, `cal-${suffix}@test.local`);
+
+            const accessRepo = new InterviewAccessRepository();
+            const signature = `sig-cal-${suffix}`.padEnd(64, '0');
+            const code = '101010';
+            await accessRepo.create({
+                signature,
+                code,
+                offer_uuid: offerId,
+                candidate_id: candidateId,
+                rh_email: rh.email,
+                expires_at: new Date(Date.now() + 60 * 60 * 1000),
+            });
+
+            // Le RH est occupé toute la journée du 2030-06-01 → seul le créneau A est pris.
+            freeBusySpy.mockResolvedValue([{ start: '2030-06-01T00:00:00.000Z', end: '2030-06-02T00:00:00.000Z' }]);
+
+            const authRes = await fetch(`${BASE}/${signature}/authenticate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+            });
+            const { token } = await authRes.json();
+
+            const res = await fetch(`${BASE}/${signature}/slots`, { headers: { Authorization: `Bearer ${token}` } });
+            const json = await res.json();
+            expect(json.slots).toEqual(
+                expect.arrayContaining([
+                    { slot: slotA, taken: true },
+                    { slot: slotB, taken: false },
+                ]),
+            );
+        });
+
+        it('does not mark slots taken when the RH calendar is not connected', async () => {
+            const suffix = Date.now() + 21;
+            const rh = await createRhUser(suffix, false);
+            const slotA = '2030-06-15T09:00:00.000Z';
+            const offerId = await seedJobWithSlots(suffix, [slotA]);
+
+            const candidateId = `cand-nocal-${suffix}`;
+            await addProposedCandidate(offerId, candidateId, `nocal-${suffix}@test.local`);
+
+            const accessRepo = new InterviewAccessRepository();
+            const signature = `sig-nocal-${suffix}`.padEnd(64, '0');
+            const code = '202020';
+            await accessRepo.create({
+                signature,
+                code,
+                offer_uuid: offerId,
+                candidate_id: candidateId,
+                rh_email: rh.email,
+                expires_at: new Date(Date.now() + 60 * 60 * 1000),
+            });
+
+            const authRes = await fetch(`${BASE}/${signature}/authenticate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+            });
+            const { token } = await authRes.json();
+
+            const res = await fetch(`${BASE}/${signature}/slots`, { headers: { Authorization: `Bearer ${token}` } });
+            const json = await res.json();
+            expect(json.slots).toEqual([{ slot: slotA, taken: false }]);
+            expect(freeBusySpy).not.toHaveBeenCalled();
+        });
     });
 
     describe('POST /:signature/book', () => {
@@ -297,6 +384,92 @@ describe('Interview access flow', () => {
 
             const statuses = [resA.status, resB.status].sort();
             expect(statuses).toEqual([200, 409]);
+        });
+
+        it('rejects booking a slot overlapping an RH busy period with 409', async () => {
+            const suffix = Date.now() + 22;
+            const rh = await createRhUser(suffix, true);
+            const slot = '2030-07-01T09:00:00.000Z';
+            const offerId = await seedJobWithSlots(suffix, [slot]);
+
+            const candidateId = `cand-calbook-${suffix}`;
+            await addProposedCandidate(offerId, candidateId, `calbook-${suffix}@test.local`);
+
+            const accessRepo = new InterviewAccessRepository();
+            const signature = `sig-calbook-${suffix}`.padEnd(64, '0');
+            const code = '303030';
+            await accessRepo.create({
+                signature,
+                code,
+                offer_uuid: offerId,
+                candidate_id: candidateId,
+                rh_email: rh.email,
+                expires_at: new Date(Date.now() + 60 * 60 * 1000),
+            });
+
+            const authRes = await fetch(`${BASE}/${signature}/authenticate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+            });
+            const { token } = await authRes.json();
+
+            // Le RH est occupé toute la journée du 2030-07-01.
+            freeBusySpy.mockResolvedValue([{ start: '2030-07-01T00:00:00.000Z', end: '2030-07-02T00:00:00.000Z' }]);
+
+            const bookRes = await fetch(`${BASE}/${signature}/book`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ slot }),
+            });
+            expect(bookRes.status).toBe(409);
+
+            const jobRepo = new OfferRepository();
+            const ctx = await jobRepo.findById(offerId);
+            const candidate = ctx?.matching?.candidates?.find((c) => c.id === candidateId);
+            expect(candidate?.booked_interview_slot).toBeUndefined();
+        });
+
+        it('books a slot when the RH has no busy period (freeBusy empty)', async () => {
+            const suffix = Date.now() + 23;
+            const rh = await createRhUser(suffix, true);
+            const slot = '2030-07-15T09:00:00.000Z';
+            const offerId = await seedJobWithSlots(suffix, [slot]);
+
+            const candidateId = `cand-calfree-${suffix}`;
+            await addProposedCandidate(offerId, candidateId, `calfree-${suffix}@test.local`);
+
+            const accessRepo = new InterviewAccessRepository();
+            const signature = `sig-calfree-${suffix}`.padEnd(64, '0');
+            const code = '404040';
+            await accessRepo.create({
+                signature,
+                code,
+                offer_uuid: offerId,
+                candidate_id: candidateId,
+                rh_email: rh.email,
+                expires_at: new Date(Date.now() + 60 * 60 * 1000),
+            });
+
+            const authRes = await fetch(`${BASE}/${signature}/authenticate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+            });
+            const { token } = await authRes.json();
+
+            const bookRes = await fetch(`${BASE}/${signature}/book`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ slot }),
+            });
+            expect(bookRes.status).toBe(200);
+            expect(freeBusySpy).toHaveBeenCalled();
+
+            const jobRepo = new OfferRepository();
+            const ctx = await jobRepo.findById(offerId);
+            const candidate = ctx?.matching?.candidates?.find((c) => c.id === candidateId);
+            expect(candidate?.booked_interview_slot).toBe(slot);
         });
     });
 });

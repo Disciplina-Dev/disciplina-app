@@ -22,6 +22,8 @@ export interface SeedOfferInput {
     candidates?: MatchingCandidate[];
     interview_slots?: string[];
     interview_location?: string;
+    /** Champs criteria bruts (ex. schedule_options legacy `string[]` ou slots structurés). */
+    criteria?: Record<string, unknown>;
 }
 
 function parseAgeRange(range?: string): { min: number | null; max: number | null } {
@@ -45,6 +47,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
             driving_license: input.driving_license_b ?? false,
             experience_required: input.professional_experience ?? false,
             desired_sex: input.desired_sex ?? null,
+            ...input.criteria,
         },
         matching: {
             status: input.status ?? OfferStatus.NOT_MATCHED,

@@ -136,7 +136,14 @@ type ABForm = {
   candidateSignature: string;
   // RH ayant mené l'entretien (nom complet)
   interviewedBy: string;
+  // consentements RGPD
+  consentDataProcessing: boolean; consentDataSharing: boolean;
+  consentAiProcessing: boolean; consentPhotoProcessing: boolean;
 };
+
+// Version du corpus légal au moment du consentement — garder cohérent avec
+// [[VERSION_DOC]] dans src/content/legal/_placeholders.md.
+const CONSENT_VERSION = '2026-08-v1';
 
 // Union des compétences des templates de plusieurs TP (dédupliquée par nom).
 function defaultSkillsForTps(tps: TitleProfessionalType[]): { competence: string; level: SkillLevel }[] {
@@ -202,6 +209,8 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     importantNote: '',
     candidateSignature: '',
     interviewedBy: '',
+    consentDataProcessing: false, consentDataSharing: false,
+    consentAiProcessing: false, consentPhotoProcessing: false,
   };
 }
 
@@ -294,19 +303,39 @@ function candidateToForm(c: Candidate): ABForm {
     importantNote: c.synthesis?.important_note ?? '',
     candidateSignature: c.synthesis?.candidate_signature ?? '',
     interviewedBy: c.synthesis?.interviewed_by ?? '',
+    consentDataProcessing: c.consentments?.data_processing ?? false,
+    consentDataSharing: c.consentments?.data_sharing ?? false,
+    consentAiProcessing: c.consentments?.ai_processing ?? false,
+    consentPhotoProcessing: c.consentments?.photo_processing ?? false,
   };
 }
 
-function toServerInput(f: ABForm) {
+function toServerInput(f: ABForm, original?: Candidate | null) {
   const pb = (v: string) => v === 'true' ? true : v === 'false' ? false : undefined;
   const qualities = [f.quality1, f.quality2, f.quality3].filter(Boolean);
   const defects = [f.defect1, f.defect2, f.defect3].filter(Boolean);
+  // Ne réémet consentDate/consentVersion que si un des choix a changé, pour ne
+  // pas écraser la date de consentement d'origine à chaque édition non liée.
+  const prevConsent = original?.consentments;
+  const consentUnchanged = prevConsent
+    && prevConsent.data_processing === f.consentDataProcessing
+    && prevConsent.data_sharing === f.consentDataSharing
+    && prevConsent.ai_processing === f.consentAiProcessing
+    && prevConsent.photo_processing === f.consentPhotoProcessing;
   return {
     tpTypes: f.tpTypes, status: f.status,
     trainingSites: f.trainingSites,
     immersionAgreement: pb(f.immersionAgreement),
     desiredSectors: f.desiredSectors,
     expectedCompanySkills: f.expectedCompanySkills,
+    consentments: {
+      dataProcessing: f.consentDataProcessing,
+      dataSharing: f.consentDataSharing,
+      aiProcessing: f.consentAiProcessing,
+      photoProcessing: f.consentPhotoProcessing,
+      consentDate: consentUnchanged ? prevConsent!.consent_date : new Date().toISOString(),
+      consentVersion: consentUnchanged ? prevConsent!.consent_version : CONSENT_VERSION,
+    },
     identity: {
       fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
       sex: f.sex || undefined,
@@ -644,7 +673,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const input = toServerInput(form);
+    const input = toServerInput(form, candidate);
     try {
       const result = isEdit
         ? await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate!._id, input })
@@ -1043,6 +1072,51 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <option value={form.interviewedBy}>{form.interviewedBy}</option>
             )}
           </ABSelectField>
+
+          {/* Consentements RGPD */}
+          <ABSectionTitle title="Consentements RGPD" />
+          <p className="text-sm text-gray-500">
+            En tant que centre de formation, nous traitons ces données pour accompagner le candidat dans sa recherche d'alternance.
+          </p>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                required
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentDataProcessing}
+                onChange={() => set('consentDataProcessing', !form.consentDataProcessing)}
+              />
+              Le candidat consent au traitement de ses données personnelles dans le cadre de son accompagnement (obligatoire).
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentDataSharing}
+                onChange={() => set('consentDataSharing', !form.consentDataSharing)}
+              />
+              Le candidat accepte que ses données soient partagées avec des entreprises partenaires dans le cadre de la recherche d'alternance.
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentAiProcessing}
+                onChange={() => set('consentAiProcessing', !form.consentAiProcessing)}
+              />
+              Le candidat accepte le traitement de ses données par intelligence artificielle locale pour générer un résumé de profil.
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentPhotoProcessing}
+                onChange={() => set('consentPhotoProcessing', !form.consentPhotoProcessing)}
+              />
+              Le candidat accepte le stockage de sa photo d'identité.
+            </label>
+          </div>
 
           {/* Signature de l'apprenti — toute fin */}
           <ABSectionTitle title="Signature de l'apprenti" />
