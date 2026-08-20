@@ -133,6 +133,11 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?:
               }
             : undefined,
         softSkills: offer.criteria?.soft_skills,
+        schedule: (offer.criteria?.schedule_options ?? []).map((slot) => ({
+            day: slot.day ?? null,
+            startHour: slot.start_hour ?? null,
+            endHour: slot.end_hour ?? null,
+        })),
         companyInfos: offer.company_infos
             ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
             : null,

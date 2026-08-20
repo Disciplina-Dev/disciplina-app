@@ -52,6 +52,7 @@ import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/Edit
 import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
+import { formatScheduleSlots } from '@/utils/schedule'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,11 +105,18 @@ interface OfferTp {
   otherMissions?: string | null
 }
 
+interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 interface Job {
   id: string
   needsAnalysisId?: string | null
   companyInfos?: { id?: number; name?: string; address?: string | null; email?: string | null; activities?: string[] | null } | null
   softSkills?: string | null
+  schedule?: (ScheduleSlot | string)[] | null
   companyName: string
   ageRange: string
   desiredTp: OfferTp[]
@@ -564,6 +572,16 @@ function JobCard({
         </div>
       )}
 
+      {formatScheduleSlots(job.schedule).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {formatScheduleSlots(job.schedule).slice(0, 3).map((s) => (
+            <span key={s} className="rounded-md bg-gray-50 px-2 py-0.5 text-[10px] text-gray-500 border border-gray-100">
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-3">
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
           {chip.label}
@@ -741,6 +759,26 @@ function JobDetailsSection({
                     <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
                       <span className="text-gray-300 mt-0.5 shrink-0">•</span>
                       {skill.trim()}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+          {formatScheduleSlots(job.schedule).length > 0 && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    Horaires
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {formatScheduleSlots(job.schedule).map((s, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {s}
                     </p>
                   ))}
                 </div>
@@ -1180,6 +1218,11 @@ function buildOfferMailBody(
     if (tp.missions.length === 0) continue
     const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
     segments.push(`<div class="field"><div class="field-label"><strong>Missions</strong> — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+  }
+  const schedule = formatScheduleSlots(job.schedule)
+  if (schedule.length > 0) {
+    const items = schedule.map((s) => `<li>${s}</li>`).join('')
+    segments.push(`<div class="field"><div class="field-label"><strong>Horaires</strong></div><ul class="mission-list">${items}</ul></div>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
     const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')

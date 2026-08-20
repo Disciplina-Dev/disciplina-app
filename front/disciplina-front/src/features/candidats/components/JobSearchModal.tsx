@@ -5,6 +5,7 @@ import { GET_OFFERS } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
+import { formatScheduleSlots } from '@/utils/schedule'
 
 interface JobSearchModalProps {
   excludedJobIds: Set<string>
@@ -173,6 +174,14 @@ export default function JobSearchModal({
                           className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-blue-light text-blue"
                         >
                           {LOCALISATION_LABELS[loc]}
+                        </span>
+                      ))}
+                      {formatScheduleSlots(job.schedule).map((s) => (
+                        <span
+                          key={s}
+                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                        >
+                          {s}
                         </span>
                       ))}
                     </div>

@@ -6,6 +6,7 @@ import {
     Position,
     PositionTp,
     OfferCriteria,
+    ScheduleSlot,
     CompanyRegion,
     NeedsAnalysisStatus,
 } from '../../types/needsAnalysisNoSql.types';
@@ -27,6 +28,27 @@ for (const [zone, communes] of Object.entries(ZONE_TO_COMMUNES)) {
 export function zoneFromCommunes(communes: string[] | undefined, fallback: Zone): Zone {
     const first = communes?.[0];
     return (first && COMMUNE_TO_ZONE.get(first)) || fallback;
+}
+
+// Créneaux horaires saisis dans le formulaire (camelCase GraphQL) → forme Mongo (snake_case).
+// Un slot hérité en chaîne brute (ancien format `string[]`) est conservé tel quel.
+function toScheduleSlot(slot: any): ScheduleSlot {
+    if (typeof slot === 'string') return slot as unknown as ScheduleSlot;
+    return {
+        day: slot.day ?? null,
+        start_hour: slot.start_hour ?? slot.startHour ?? null,
+        end_hour: slot.end_hour ?? slot.endHour ?? null,
+    };
+}
+
+// Forme Mongo → camelCase GraphQL pour la lecture (gère l'héritage `string[]`).
+function toScheduleSlotGql(slot: any) {
+    if (typeof slot === 'string') return { day: null, startHour: slot, endHour: null };
+    return {
+        day: slot?.day ?? null,
+        startHour: slot?.start_hour ?? null,
+        endHour: slot?.end_hour ?? null,
+    };
 }
 
 function buildPositionTp(tp: any): PositionTp {
@@ -56,7 +78,7 @@ function buildPosition(position: Position): Position {
         age_max: c.age_max ?? (c as any).ageMax ?? null,
         desired_sex: c.desired_sex ?? (c as any).desiredSex ?? null,
         soft_skills: c.soft_skills ?? (c as any).softSkills ?? null,
-        schedule_options: c.schedule_options ?? (c as any).scheduleOptions ?? [],
+        schedule_options: (c.schedule_options ?? (c as any).scheduleOptions ?? []).map(toScheduleSlot),
         conditions: c.conditions ?? null,
         additional_comments: c.additional_comments ?? (c as any).additionalComments ?? null,
     };
@@ -163,7 +185,7 @@ function toGqlPosition(p: Position) {
                   ageMax: c.age_max ?? null,
                   desiredSex: c.desired_sex ?? null,
                   softSkills: c.soft_skills ?? null,
-                  scheduleOptions: c.schedule_options ?? [],
+                  scheduleOptions: (c.schedule_options ?? []).map(toScheduleSlotGql),
                   conditions: c.conditions ?? null,
                   additionalComments: c.additional_comments ?? null,
               }
