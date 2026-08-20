@@ -192,6 +192,12 @@ export const typeDefs = gql`
         otherDescriptionMissions: String
     }
 
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
     type Offer {
         needsAnalysisId: String
         id: String!
@@ -215,6 +221,7 @@ export const typeDefs = gql`
         title: String
         jobRole: String
         softSkills: String
+        schedule: [ScheduleSlot]
         relaxedCriteria: [String!]
     }
 

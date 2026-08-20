@@ -1,3 +1,5 @@
+import type { ScheduleSlot } from './needsAnalysis'
+
 export enum TitleProfessionalType {
     AD = "AD",       // Assistante de Direction
     CC = "CC",       // Conseiller Commercial
@@ -227,6 +229,7 @@ export interface MatchedOffer {
     status?: string;
     title?: string;
     jobRole?: string;
+    schedule?: ScheduleSlot[];
 }
 
 export interface CandidateOwner {

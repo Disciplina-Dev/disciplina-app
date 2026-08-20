@@ -30,6 +30,8 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-20
+
 ### Added
 
 - Consentement RGPD à la création d'une fiche candidat : 4 cases à cocher
@@ -40,6 +42,50 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
   plus seulement via la signature en fin de document.
 - Script de rétro-consentement (`back/scripts/migrate-candidate-consentments.ts`)
   pour les fiches candidat créées avant l'introduction de ce champ.
+- Notification lors de la signature d'une AB (alternance bout en main).
+- Logique de secteur appliquée au back-end (KPI, calendrier).
+- Champ et filtre « genre » pour les candidats.
+- Indicateur « a un CV » et option « ne pas envoyer » dans la modale de
+  proposition.
+- Sauvegarde automatique des bases de données.
+- Les AB signées sont rangées dans des sous-dossiers pour faciliter le tri.
+- Les tâches peuvent être assignées à d'autres utilisateurs (avec notification
+  lors de l'assignation).
+- Boutons « venu / pas venu » pour les événements créés hors de l'application
+  (KPI).
+- Nouveaux champs de recherche de candidats (téléphone, e-mail).
+- Filtre de statut « sans emploi » appliqué au matching.
+- À l'assignation d'un contrat, toute entreprise peut être recherchée, sans
+  restriction de TP.
+- Recherche d'entreprise insensible à la casse.
+
+### Changed
+
+- Le statut des AB (`AB_STATUS`) est désormais un champ persistant, modifiable
+  manuellement.
+- Les AB signées donnent la priorité aux comptes « rechargeables », avec repli
+  sur un autre commercial connecté.
+- Refonte du remplacement des variables dans les templates de mail (plus de
+  templates utilisent des variables).
+- Expiration des liens de matching portée de 24 h à 72 h.
+- Amélioration du prompt de génération de description IA.
+
+### Fixed
+
+- Sanitisation des filtres persistés (`persistedListView`).
+- Les AB sont enregistrées dans le drive de leur secteur, au lieu de celui du
+  commercial.
+- Exclusion des secteurs d'activité personnalisés sur les AB ; le matching
+  recherche désormais aussi hors de ces secteurs.
+- Correction de la logique de calcul du chiffre d'affaires (MySQL).
+- Migration et chiffrement du SSN (NIR) en production.
+- Nettoyage du tag immersion après un changement de statut.
+- Correction de la logique de quarantaine.
+
+### Security
+
+- Correctif CSRF Apollo.
+- Validation renforcée du webhook Docuseal (schéma/HMAC invalide).
 
 ## [1.0.0] - 2026-08-05
 

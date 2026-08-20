@@ -1222,6 +1222,7 @@ export const GET_OFFERS = gql`
       status
       localisation
       sector
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1272,6 +1273,7 @@ export const MATCH_OFFER = gql`
       localisation
       sector
       softSkills
+      schedule { day startHour endHour }
       matchedCandidate {
         id
         fullName
@@ -1607,6 +1609,7 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
       localisation
       sector
       title
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1842,7 +1845,7 @@ export const GET_NEEDS_ANALYSIS = gql`
           ageMax
           desiredSex
           softSkills
-          scheduleOptions
+          scheduleOptions { day startHour endHour }
           conditions
           additionalComments
         }
