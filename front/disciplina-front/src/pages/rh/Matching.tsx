@@ -1219,6 +1219,11 @@ function buildOfferMailBody(
     const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
     segments.push(`<div class="field"><div class="field-label"><strong>Missions</strong> — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
   }
+  const schedule = formatScheduleSlots(job.schedule)
+  if (schedule.length > 0) {
+    const items = schedule.map((s) => `<li>${s}</li>`).join('')
+    segments.push(`<div class="field"><div class="field-label"><strong>Horaires</strong></div><ul class="mission-list">${items}</ul></div>`)
+  }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
     const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
     segments.push(`<div class="field"><div class="field-label"><strong>Activités de l'entreprise</strong></div><div>${tags}</div></div>`)
