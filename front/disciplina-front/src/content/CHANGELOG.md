@@ -31,6 +31,8 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-20
+
 ### Added
 
 - Consentement RGPD à la création d'une fiche candidat : 4 cases à cocher
