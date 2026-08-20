@@ -42,7 +42,7 @@ function toScheduleSlot(slot: any): ScheduleSlot {
 }
 
 // Forme Mongo → camelCase GraphQL pour la lecture (gère l'héritage `string[]`).
-function toScheduleSlotGql(slot: any) {
+export function toScheduleSlotGql(slot: any) {
     if (typeof slot === 'string') return { day: null, startHour: slot, endHour: null };
     return {
         day: slot?.day ?? null,
