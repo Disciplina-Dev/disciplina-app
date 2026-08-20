@@ -524,6 +524,16 @@ function fromGql(c: any): Candidate {
           email: c.emergencyContact.email ?? undefined,
         }
       : undefined,
+    consentments: c.consentments
+      ? {
+          data_processing: c.consentments.dataProcessing,
+          data_sharing: c.consentments.dataSharing,
+          ai_processing: c.consentments.aiProcessing,
+          photo_processing: c.consentments.photoProcessing,
+          consent_date: c.consentments.consentDate,
+          consent_version: c.consentments.consentVersion,
+        }
+      : undefined,
   }
 }
 
@@ -666,14 +676,16 @@ export function useCandidates() {
   }
 }
 
+export type CandidateSearchField = 'NAME' | 'PHONE' | 'EMAIL';
+
 /**
  * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
  * Returns { candidates, pageInfo, totalCount, loading, error, refetch }.
  */
-export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters) {
+export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters, searchField?: CandidateSearchField) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATES_PAGE,
-    variables: { first, after, search, filters },
+    variables: { first, after, search, searchField, filters },
     context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
     requestPolicy: 'network-only',
   })

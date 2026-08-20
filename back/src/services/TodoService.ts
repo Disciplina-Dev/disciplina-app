@@ -1,6 +1,9 @@
 import { TodoRepository } from '../repositories/mysql/TodoRepository';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
+import { UserRepository } from '../repositories/mysql/UserRepository';
 import { Todo, TodoRow, CreateTodoInput, UpdateTodoInput } from '../types/todo.types';
+import { NotificationService } from './NotificationService';
+import { logger } from '../external/logger';
 
 const RELANCE_REF_PREFIX = 'relance:';
 
@@ -8,6 +11,7 @@ function toTodo(row: TodoRow): Todo {
     return {
         id: row.id,
         userId: row.user_id,
+        assignedBy: row.assigned_by ?? null,
         title: row.title,
         description: row.description,
         deadline: row.deadline,
@@ -23,6 +27,8 @@ function toTodo(row: TodoRow): Todo {
 export class TodoService {
     private repo = new TodoRepository();
     private companyRepo = new CompanyRepository();
+    private userRepo = new UserRepository();
+    private notificationService = new NotificationService();
 
     async listForUser(userId: number): Promise<Todo[]> {
         await this.syncRelanceTodos(userId);
@@ -50,11 +56,45 @@ export class TodoService {
         }
     }
 
-    async create(userId: number, input: CreateTodoInput): Promise<Todo> {
-        const id = await this.repo.create(userId, input, 'MANUAL');
-        const row = await this.repo.findById(id, userId);
+    async create(assignerId: number, input: CreateTodoInput): Promise<Todo> {
+        const assigneeId = input.assignedTo ?? assignerId;
+        if (assigneeId !== assignerId) {
+            const assignee = await this.userRepo.findById(assigneeId);
+            if (!assignee) throw new Error('Assigned user not found');
+            await this.notifyAssigned(assignerId, assigneeId, input.title);
+        }
+        const id = await this.repo.create(assigneeId, input, 'MANUAL', undefined, assignerId);
+        const row = await this.repo.findById(id, assigneeId);
         if (!row) throw new Error('Failed to retrieve created todo');
         return toTodo(row);
+    }
+
+    /** Notifie le destinataire qu'une tâche lui a été assignée (persistée + push SSE). */
+    private async notifyAssigned(assignerId: number, assigneeId: number, title: string): Promise<void> {
+        try {
+            const [assigner, assignee] = await Promise.all([
+                this.userRepo.findById(assignerId),
+                this.userRepo.findById(assigneeId),
+            ]);
+            const assignerName = assigner ? `${assigner.first_name} ${assigner.last_name}` : undefined;
+            const link =
+                assignee?.role_name === 'COMMERCIAL'
+                    ? '/commercial/todos'
+                    : assignee?.role_name === 'RH'
+                      ? '/rh/todos'
+                      : undefined;
+            await this.notificationService.create({
+                userId: assigneeId,
+                type: 'todo_assigned',
+                category: 'company',
+                level: 'info',
+                title: 'Nouvelle tâche',
+                message: assignerName ? `« ${title} » assignée par ${assignerName}` : `« ${title} » a été ajoutée à vos tâches`,
+                link,
+            });
+        } catch (err) {
+            logger.error({ err }, 'Failed to notify task assignee');
+        }
     }
 
     /** Called by system processes (e.g. AB signed). Never exposed via public mutation. */

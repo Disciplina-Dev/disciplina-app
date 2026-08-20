@@ -4,6 +4,7 @@ export type TodoSource = 'MANUAL' | 'SYSTEM';
 export interface Todo {
     id: number;
     userId: number;
+    assignedBy: number | null;
     title: string;
     description: string | null;
     deadline: string | null;
@@ -18,6 +19,7 @@ export interface Todo {
 export interface TodoRow {
     id: number;
     user_id: number;
+    assigned_by: number | null;
     title: string;
     description: string | null;
     deadline: string | null;
@@ -35,6 +37,7 @@ export interface CreateTodoInput {
     description?: string | null;
     deadline?: string | null;
     status?: TodoStatus;
+    assignedTo?: number | null;
 }
 
 export interface UpdateTodoInput {

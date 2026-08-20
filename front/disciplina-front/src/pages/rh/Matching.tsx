@@ -52,6 +52,7 @@ import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/Edit
 import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
+import { formatScheduleSlots } from '@/utils/schedule'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,11 +105,18 @@ interface OfferTp {
   otherMissions?: string | null
 }
 
+interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 interface Job {
   id: string
   needsAnalysisId?: string | null
   companyInfos?: { id?: number; name?: string; address?: string | null; email?: string | null; activities?: string[] | null } | null
   softSkills?: string | null
+  schedule?: (ScheduleSlot | string)[] | null
   companyName: string
   ageRange: string
   desiredTp: OfferTp[]
@@ -122,6 +130,7 @@ interface Job {
   referents?: Referents | null
   title?: string | null
   jobRole?: string | null
+  relaxedCriteria?: string[] | null
 }
 
 interface MatchJobResult extends Job {
@@ -563,6 +572,16 @@ function JobCard({
         </div>
       )}
 
+      {formatScheduleSlots(job.schedule).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {formatScheduleSlots(job.schedule).slice(0, 3).map((s) => (
+            <span key={s} className="rounded-md bg-gray-50 px-2 py-0.5 text-[10px] text-gray-500 border border-gray-100">
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-3">
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
           {chip.label}
@@ -740,6 +759,26 @@ function JobDetailsSection({
                     <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
                       <span className="text-gray-300 mt-0.5 shrink-0">•</span>
                       {skill.trim()}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+          {formatScheduleSlots(job.schedule).length > 0 && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    Horaires
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {formatScheduleSlots(job.schedule).map((s, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {s}
                     </p>
                   ))}
                 </div>
@@ -1156,8 +1195,13 @@ function buildOfferMailBody(
   nonUrl: string,
 ): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const companyName = job.companyInfos?.name ?? job.companyName
+  const offerTitle = job.jobRole || job.title
   const segments: string[] = []
 
+  if (offerTitle) {
+    segments.push(`<div class="job-title"><strong>Role</strong></br> ${offerTitle}</div>`)
+  }
   if (job.sector && job.sector !== 'NONE') {
     segments.push(`<div class="field"><div class="field-label">Secteur</div><div class="field-value">${formatEnumLabel(job.sector)}</div></div>`)
   }
@@ -1167,21 +1211,28 @@ function buildOfferMailBody(
       .filter(Boolean)
       .join(', ')
     if (locs) {
-      segments.push(`<div class="field"><div class="field-label">Localisation</div><div class="field-value">${locs}</div></div>`)
+      segments.push(`<div class="field"><div class="field-label"><strong>Localisation</strong></div><div class="field-value">${locs}</div></div>`)
     }
   }
   for (const tp of job.desiredTp) {
     if (tp.missions.length === 0) continue
     const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label">Missions — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+    segments.push(`<div class="field"><div class="field-label"><strong>Missions</strong> — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+  }
+  const schedule = formatScheduleSlots(job.schedule)
+  if (schedule.length > 0) {
+    const items = schedule.map((s) => `<li>${s}</li>`).join('')
+    segments.push(`<div class="field"><div class="field-label"><strong>Horaires</strong></div><ul class="mission-list">${items}</ul></div>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
     const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
-    segments.push(`<div class="field"><div class="field-label">Activités de l'entreprise</div><div>${tags}</div></div>`)
+    segments.push(`<div class="field"><div class="field-label"><strong>Activités de l'entreprise</strong></div><div>${tags}</div></div>`)
   }
   const offerCard = segments.length > 0
     ? `<div class="offer-card">${segments.join('')}</div>`
     : ''
+
+  const introCompany = companyName ? ` chez <strong>${companyName}</strong>` : ''
 
   return `<!DOCTYPE html>
 <html>
@@ -1194,6 +1245,8 @@ function buildOfferMailBody(
   .field { margin-bottom: 10px; }
   .field-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: #9ca3af; letter-spacing: 0.5px; }
   .field-value { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 2px; }
+  .company { font-size: 17px; font-weight: 800; color: #60207E; margin-bottom: 4px; }
+  .job-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
   .mission-list { list-style: none; padding: 0; margin: 4px 0 0; }
   .mission-list li { padding: 3px 0; font-size: 13px; color: #374151; position: relative; padding-left: 16px; }
   .mission-list li::before { content: "•"; position: absolute; left: 0; color: #60207E; }
@@ -1213,7 +1266,7 @@ function buildOfferMailBody(
 <body>
   <div class="logo">DISCIPLINA</div>
   <p>Bonjour ${name},</p>
-  <p>Nous avons sélectionné pour vous une offre en alternance qui correspond à votre profil :</p>
+  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil :</p>
   ${offerCard}
   <div class="benefits">
     <h4>Pourquoi postuler ?</h4>
@@ -1315,6 +1368,7 @@ function MatchingSection({
   matchError,
   hasLaunched,
   savingIds,
+  relaxedCriteria,
   onLaunch,
   onAccept,
   onDismiss,
@@ -1330,6 +1384,7 @@ function MatchingSection({
   matchError: string | null
   hasLaunched: boolean
   savingIds: Set<string>
+  relaxedCriteria?: string[] | null
   onLaunch: () => void
   onAccept: (id: string) => void
   onDismiss: (id: string) => void
@@ -1357,6 +1412,16 @@ function MatchingSection({
           </span>
         )}
       </div>
+
+      {hasLaunched && !isMatching && relaxedCriteria?.includes('sector') && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
+          <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+          <span>
+            Aucun candidat ne correspond au(x) secteur(s) d'activité de cette offre&nbsp;: ce critère a été ignoré
+            pour afficher des résultats.
+          </span>
+        </div>
+      )}
 
       {!hasLaunched && (
         <div className="flex flex-col items-center gap-3 py-6">
@@ -2021,6 +2086,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         matchError={matchError}
         hasLaunched={hasLaunched}
         savingIds={savingIds}
+        relaxedCriteria={jobData?.relaxedCriteria}
         onLaunch={() => runMatch(selectedJob)}
         onAccept={(id) => setDecisions((p) => ({ ...p, [id]: 'accepted' }))}
         onDismiss={(id) => setDecisions((p) => ({ ...p, [id]: 'dismissed' }))}

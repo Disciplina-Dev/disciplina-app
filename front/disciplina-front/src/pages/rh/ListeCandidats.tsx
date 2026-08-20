@@ -17,7 +17,7 @@ import { secteurLabelOfTrainingSite } from '@/constants/secteurs';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
-import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters } from '@/graphql/hooks';
+import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters, type CandidateSearchField } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
 import { graphqlClient } from '@/graphql/client';
@@ -74,6 +74,14 @@ const TAB_LABELS: Record<CandidateTab, string> = {
 const PAGE_SIZE = 20;
 
 type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
+
+const SEARCH_FIELD_LABELS: Record<CandidateSearchField, string> = {
+  NAME: 'Nom',
+  PHONE: 'Tél.',
+  EMAIL: 'Mail',
+};
+
+const SEARCH_FIELD_OPTIONS: CandidateSearchField[] = ['NAME', 'PHONE', 'EMAIL'];
 
 interface CandidateFilterState {
   trainingSite: TrainingSite | '';
@@ -174,6 +182,7 @@ export default function ListeCandidats() {
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [searchField, setSearchField] = useState<CandidateSearchField>('NAME');
   const [activeTab, setActiveTab] = useState<CandidateTab>('all');
 
   const handleTabChange = (tab: CandidateTab) => {
@@ -209,7 +218,7 @@ export default function ListeCandidats() {
 
   const serverFilters = useMemo(() => toServerFilters(filters, activeTab), [filters, activeTab]);
 
-  const { candidates, pageInfo, totalCount, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
+  const { candidates, pageInfo, totalCount, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters, searchField);
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
 
   // Sync server candidates into local state (enables optimistic edits)
@@ -352,15 +361,27 @@ export default function ListeCandidats() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Rechercher (nom, ville, métier visé...)"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"
-            />
+          <div className="relative flex items-stretch">
+            <select
+              id="candidate-search-field"
+              value={searchField}
+              onChange={(e) => setSearchField(e.target.value as CandidateSearchField)}
+              className="border border-r-0 border-gray-100 bg-white rounded-l-xl pl-3 pr-7 py-2.5 text-sm font-medium text-gray-600 focus:outline-none focus:border-purple focus:ring-2 focus:ring-purple/20 shadow-sm transition-all cursor-pointer"
+            >
+              {SEARCH_FIELD_OPTIONS.map(f => (
+                <option key={f} value={f}>{SEARCH_FIELD_LABELS[f]}</option>
+              ))}
+            </select>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Rechercher…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-r-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"
+              />
+            </div>
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}

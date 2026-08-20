@@ -230,6 +230,15 @@ export const typeDefs = gql`
         email: String
     }
 
+    type CandidateConsentments {
+        dataProcessing: Boolean!
+        dataSharing: Boolean!
+        aiProcessing: Boolean!
+        photoProcessing: Boolean!
+        consentDate: String!
+        consentVersion: String!
+    }
+
     type Candidate {
         id: String!
         owner: CandidateOwner
@@ -237,6 +246,7 @@ export const typeDefs = gql`
         tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
         emergencyContact: CandidateEmergencyContact
+        consentments: CandidateConsentments
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -349,6 +359,15 @@ export const typeDefs = gql`
         email: String
     }
 
+    input ConsentmentsInput {
+        dataProcessing: Boolean!
+        dataSharing: Boolean!
+        aiProcessing: Boolean!
+        photoProcessing: Boolean!
+        consentDate: String!
+        consentVersion: String!
+    }
+
     input JobInfoInput {
         domainMotivation: String
         questionsConcerns: String
@@ -390,6 +409,7 @@ export const typeDefs = gql`
         tpTypes: [TitleProfessionalType!]!
         identity: IdentityInput!
         emergencyContact: EmergencyContactInput
+        consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -418,6 +438,7 @@ export const typeDefs = gql`
         tpTypes: [TitleProfessionalType!]
         identity: IdentityInput
         emergencyContact: EmergencyContactInput
+        consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -457,6 +478,13 @@ export const typeDefs = gql`
         edges: [CandidateEdge!]!
         pageInfo: PageInfo!
         totalCount: Int!
+    }
+
+    "Champ ciblé par la recherche libre du répertoire candidats (défaut : NAME)"
+    enum CandidateSearchField {
+        NAME
+        PHONE
+        EMAIL
     }
 
     input CandidateFiltersInput {
@@ -548,7 +576,13 @@ export const typeDefs = gql`
     type Query {
         candidateStats(sectors: [String!]): CandidateStats!
         candidates: [Candidate!]!
-        candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
+        candidatesPage(
+            first: Int
+            after: String
+            search: String
+            searchField: CandidateSearchField
+            filters: CandidateFiltersInput
+        ): CandidateConnection!
         candidate(id: String!): Candidate
         candidateByEmail(email: String!): CandidateEmailCheck!
         matchCandidate(id: String!): Candidate!

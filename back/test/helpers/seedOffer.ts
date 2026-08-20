@@ -18,9 +18,12 @@ export interface SeedOfferInput {
     status?: OfferStatus;
     localisation?: Localisation[];
     sector?: Sector;
+    activities?: string[];
     candidates?: MatchingCandidate[];
     interview_slots?: string[];
     interview_location?: string;
+    /** Champs criteria bruts (ex. schedule_options legacy `string[]` ou slots structurés). */
+    criteria?: Record<string, unknown>;
 }
 
 function parseAgeRange(range?: string): { min: number | null; max: number | null } {
@@ -35,7 +38,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
     const offer: Offer = {
         _id: offerId,
         needs_analysis_id: `ab-${offerId}`,
-        company_infos: input.company_name ? { name: input.company_name } : undefined,
+        company_infos: input.company_name ? { name: input.company_name, activities: input.activities } : undefined,
         localisation: input.localisation ?? [],
         desired_tp: input.desired_tp ? [{ tp_type: input.desired_tp as TitleProfessionalType, missions: [], description_missions: [] }] : [],
         criteria: {
@@ -44,6 +47,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
             driving_license: input.driving_license_b ?? false,
             experience_required: input.professional_experience ?? false,
             desired_sex: input.desired_sex ?? null,
+            ...input.criteria,
         },
         matching: {
             status: input.status ?? OfferStatus.NOT_MATCHED,

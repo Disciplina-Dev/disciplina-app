@@ -30,6 +30,9 @@ interface RawStats {
     byTpAndStatus: { _id: { tpType: unknown; status: unknown }; count: number }[];
 }
 
+/** Champ ciblé par la recherche libre (candidatesPage → search + searchField). */
+export type CandidateSearchField = 'NAME' | 'PHONE' | 'EMAIL';
+
 export interface CandidateFilters {
     trainingSite?: string;
     status?: string;
@@ -168,7 +171,57 @@ export class CandidateRepository {
         return conditions;
     }
 
-    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
+    /**
+     * Construit le filtre de recherche libre pour un champ ciblé (NAME / PHONE /
+     * EMAIL). Pour NAME, on conserve la double branche historique `$text` ∪
+     * `$regex` (description + nom) ; pour PHONE / EMAIL on ne cible que le champ
+     * correspondant via `$regex` (les emails/téléphones ne figurent pas dans
+     * l'index full-text `identity.description`).
+     */
+    private buildSearchFilter(
+        trimmedSearch: string,
+        conditions: Record<string, any>[],
+        searchField?: CandidateSearchField,
+    ): { textFilter?: Record<string, any>; regexFilter: Record<string, any> } {
+        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
+
+        if (searchField === 'PHONE') {
+            return {
+                regexFilter: { $and: [...conditions, { 'identity.phone': { $regex: regexPattern, $options: 'i' } }] },
+            };
+        }
+
+        if (searchField === 'EMAIL') {
+            return {
+                regexFilter: { $and: [...conditions, { 'identity.email': { $regex: regexPattern, $options: 'i' } }] },
+            };
+        }
+
+        // Recherche par défaut / nom : combinaison historique `$text` ∪ `$regex`.
+        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
+        return {
+            textFilter: { $and: [...conditions, { $text: { $search: quotedPhrase } }] },
+            regexFilter: {
+                $and: [
+                    ...conditions,
+                    {
+                        $or: [
+                            { 'identity.description': { $regex: regexPattern, $options: 'i' } },
+                            { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
+                        ],
+                    },
+                ],
+            },
+        };
+    }
+
+    async findPage(
+        first: number,
+        after?: string,
+        search?: string,
+        filters?: CandidateFilters,
+        searchField?: CandidateSearchField,
+    ): Promise<Candidate[]> {
         const conditions = this.buildConditions(filters);
 
         const trimmedSearch = search?.trim();
@@ -199,31 +252,16 @@ export class CandidateRepository {
                 .lean();
         }
 
+        const { textFilter, regexFilter } = this.buildSearchFilter(trimmedSearch, conditions, searchField);
+
         // `$text` ne matche que des tokens entiers (avec stemming), pas de sous-chaîne.
         // On combine une requête `$text` (pertinence, portée élargie à identity.description)
         // et une requête `$regex` (préserve la recherche par préfixe/sous-chaîne, ex. "jea" → "Jean"),
         // exécutées en parallèle puis fusionnées par _id (un `$text` ne peut pas être imbriqué
         // dans le même `$or` qu'un autre opérateur au niveau racine).
-        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
-        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase } }] };
-        // `identity.description` peut être absent (fiches héritées créées avant son introduction,
-        // ou écrites hors du flux CandidateService qui le génère) : on garde `full_name` en repli
-        // pour ne jamais régresser sur la recherche par nom.
-        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
-        const regexFilter = {
-            $and: [
-                ...conditions,
-                {
-                    $or: [
-                        { 'identity.description': { $regex: regexPattern, $options: 'i' } },
-                        { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
-                    ],
-                },
-            ],
-        };
         const sort = { created_at: -1 as const, _id: 1 as const };
         const [textResults, regexResults] = await Promise.all([
-            CandidateModel.find(textFilter).sort(sort).lean(),
+            textFilter ? CandidateModel.find(textFilter).sort(sort).lean() : Promise.resolve([]),
             CandidateModel.find(regexFilter).sort(sort).lean(),
         ]);
 
@@ -240,7 +278,7 @@ export class CandidateRepository {
     }
 
     /** Compte les candidats correspondant à la recherche + filtres (même logique que findPage). */
-    async countPage(search?: string, filters?: CandidateFilters): Promise<number> {
+    async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
         const conditions = this.buildConditions(filters);
         const trimmedSearch = search?.trim();
 
@@ -249,24 +287,11 @@ export class CandidateRepository {
             return CandidateModel.countDocuments(filter);
         }
 
-        // Même combinaison `$text` ∪ `$regex` que findPage : on déduplique par _id.
-        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
-        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase } }] };
-        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
-        const regexFilter = {
-            $and: [
-                ...conditions,
-                {
-                    $or: [
-                        { 'identity.description': { $regex: regexPattern, $options: 'i' } },
-                        { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
-                    ],
-                },
-            ],
-        };
+        const { textFilter, regexFilter } = this.buildSearchFilter(trimmedSearch, conditions, searchField);
 
+        // Même combinaison `$text` ∪ `$regex` que findPage : on déduplique par _id.
         const [textIds, regexIds] = await Promise.all([
-            CandidateModel.distinct('_id', textFilter),
+            textFilter ? CandidateModel.distinct('_id', textFilter) : Promise.resolve([]),
             CandidateModel.distinct('_id', regexFilter),
         ]);
         return new Set([...textIds.map(String), ...regexIds.map(String)]).size;
@@ -278,7 +303,18 @@ export class CandidateRepository {
 
     /** Documents candidats (uniquement le lien CV) pour les ids demandés. */
     async findCvLinksByIds(ids: string[]): Promise<Array<{ _id: string; cv_link?: string }>> {
-        return CandidateModel.find({ _id: { $in: ids } }).select({ cv_link: 1, _id: 1 }).lean();
+        return CandidateModel.find({ _id: { $in: ids } })
+            .select({ cv_link: 1, _id: 1 })
+            .lean();
+    }
+
+    /** Documents candidats (uniquement le consentement) pour les ids demandés. */
+    async findConsentmentsByIds(
+        ids: string[],
+    ): Promise<Array<{ _id: string; consentments?: Candidate['consentments'] }>> {
+        return CandidateModel.find({ _id: { $in: ids } })
+            .select({ consentments: 1, _id: 1 })
+            .lean();
     }
 
     /**

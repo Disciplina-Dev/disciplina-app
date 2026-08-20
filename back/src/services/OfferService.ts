@@ -23,6 +23,7 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 import { regionFromSector } from '../utils/sector';
 import { ZONE_TO_COMMUNES } from './mappers/abToOffer';
 import { offerTpCodes, positionTpToGql } from './mappers/offer.mapper';
+import { toScheduleSlotGql } from './mappers/needsAnalysis.mapper';
 import type { DriveRegion } from './DriveFolderConfigService';
 import { buildMatchingLink } from '../utils/matchingLink';
 
@@ -133,6 +134,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?:
               }
             : undefined,
         softSkills: offer.criteria?.soft_skills,
+        schedule: (offer.criteria?.schedule_options ?? []).map(toScheduleSlotGql),
         companyInfos: offer.company_infos
             ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
             : null,
@@ -196,53 +198,71 @@ export class OfferService {
         const offer = await this.offerRepository.findById(id);
         if (!offer) return null;
 
-        const filter: Record<string, any> = {};
-        filter['status'] = { $ne: CandidateStatus.CONTRACT };
+        const buildFilter = async (includeSectors: boolean): Promise<Record<string, any>> => {
+            const filter: Record<string, any> = {};
+            filter['status'] = CandidateStatus.SEEKING;
 
-        const tps = offerTpCodes(offer);
-        if (tps.length) filter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
-        if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
+            const tps = offerTpCodes(offer);
+            if (tps.length) filter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
+            if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
 
-        if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
-            filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
-        }
+            if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
+                filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
+            }
 
-        if (offer.company_infos?.activities?.length) {
-            filter['desired_sectors'] = { $in: offer.company_infos.activities };
-        }
+            // Le secteur d'activité est un critère de matching relâchable : si les
+            // seuls secteurs portés par l'offre sont des secteurs libres (saisis à
+            // la main dans l'AB, donc inconnus du référentiel candidat), aucun
+            // candidat ne peut correspondre. Dans ce cas on relance la recherche
+            // sans ce critère plutôt que de renvoyer une liste vide.
+            if (includeSectors && offer.company_infos?.activities?.length) {
+                filter['desired_sectors'] = { $in: offer.company_infos.activities };
+            }
 
-        let geoFilter: Localisation[] = [];
-        if (offer.localisation?.length) geoFilter = [...offer.localisation];
+            let geoFilter: Localisation[] = [];
+            if (offer.localisation?.length) geoFilter = [...offer.localisation];
 
-        if (userId) {
-            const user = await this.userRepository.findById(userId);
-            const userSectors = user?.sectors ?? null;
-            const sectors =
-                typeof userSectors === 'string'
-                    ? (() => {
-                          try {
-                              return JSON.parse(userSectors);
-                          } catch {
-                              return [];
-                          }
-                      })()
-                    : userSectors;
-            if (sectors?.length) {
-                const userCommunes = (sectors as string[])
-                    .map((s) => regionFromSector(s))
-                    .filter((r): r is DriveRegion => r !== undefined)
-                    .flatMap((r: DriveRegion) => ZONE_TO_COMMUNES[r]);
-                if (userCommunes.length) {
-                    geoFilter = geoFilter.length ? geoFilter.filter((c) => userCommunes.includes(c)) : userCommunes;
+            if (userId) {
+                const user = await this.userRepository.findById(userId);
+                const userSectors = user?.sectors ?? null;
+                const sectors =
+                    typeof userSectors === 'string'
+                        ? (() => {
+                              try {
+                                  return JSON.parse(userSectors);
+                              } catch {
+                                  return [];
+                              }
+                          })()
+                        : userSectors;
+                if (sectors?.length) {
+                    const userCommunes = (sectors as string[])
+                        .map((s) => regionFromSector(s))
+                        .filter((r): r is DriveRegion => r !== undefined)
+                        .flatMap((r: DriveRegion) => ZONE_TO_COMMUNES[r]);
+                    if (userCommunes.length) {
+                        geoFilter = geoFilter.length ? geoFilter.filter((c) => userCommunes.includes(c)) : userCommunes;
+                    }
                 }
             }
+
+            if (geoFilter.length) {
+                filter['job_info.geographic_mobility'] = { $in: geoFilter };
+            }
+            return filter;
+        };
+
+        const hasSectors = Boolean(offer.company_infos?.activities?.length);
+        let sectorRelaxed = false;
+        let candidates = await this.candidateRepository.findByfilter(await buildFilter(true));
+
+        // Secteurs portés par l'offre mais sans aucun candidat correspondant
+        // (typiquement des secteurs libres non référencés) → on relâche le critère.
+        if (hasSectors && candidates.length === 0) {
+            candidates = await this.candidateRepository.findByfilter(await buildFilter(false));
+            sectorRelaxed = true;
         }
 
-        if (geoFilter.length) {
-            filter['job_info.geographic_mobility'] = { $in: geoFilter };
-        }
-
-        const candidates = await this.candidateRepository.findByfilter(filter);
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
 
         // Statut CV en direct (source de vérité = fiche candidat) pour les
@@ -252,6 +272,7 @@ export class OfferService {
         const cvById = Object.fromEntries(cvDocs.map((d) => [String(d._id), Boolean(d.cv_link)]));
 
         const result = toGql(offer, suggestedCandidates, cvById) as Record<string, unknown>;
+        result.relaxedCriteria = sectorRelaxed ? ['sector'] : [];
 
         const companyId = offer.company_infos?.id;
         if (companyId) {

@@ -5,11 +5,13 @@ import { GET_OFFERS } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
+import { formatScheduleSlots } from '@/utils/schedule'
 
 interface JobSearchModalProps {
   excludedJobIds: Set<string>
   candidateTpTypes?: TitleProfessionalType[]
   singleSelect?: boolean
+  allowAnyTpOnSearch?: boolean
   footerAction?: { label: string; onClick: () => void }
   onConfirm: (jobs: MatchedOffer[]) => void
   onClose: () => void
@@ -20,7 +22,15 @@ function formatSector(raw?: string): string {
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export default function JobSearchModal({ excludedJobIds, candidateTpTypes, singleSelect, footerAction, onConfirm, onClose }: JobSearchModalProps) {
+export default function JobSearchModal({
+  excludedJobIds,
+  candidateTpTypes,
+  singleSelect,
+  allowAnyTpOnSearch,
+  footerAction,
+  onConfirm,
+  onClose,
+}: JobSearchModalProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedOffer[]>([])
@@ -50,6 +60,7 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, singl
   const visibleJobs = jobs.filter((job) => {
     if (excludedJobIds.has(job.id)) return false
     if (
+      !(allowAnyTpOnSearch && search.trim()) &&
       candidateTpTypes?.length &&
       !(job.desiredTp ?? []).some((tp) => tp.tpType && candidateTpTypes.includes(tp.tpType))
     )
@@ -163,6 +174,14 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, singl
                           className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-blue-light text-blue"
                         >
                           {LOCALISATION_LABELS[loc]}
+                        </span>
+                      ))}
+                      {formatScheduleSlots(job.schedule).map((s) => (
+                        <span
+                          key={s}
+                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                        >
+                          {s}
                         </span>
                       ))}
                     </div>

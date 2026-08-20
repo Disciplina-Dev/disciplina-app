@@ -3,7 +3,7 @@ import { gql } from 'urql'
 export const MY_TODOS_QUERY = gql`
   query MyTodos {
     myTodos {
-      id userId title description deadline position status source sourceRef createdAt updatedAt
+      id userId assignedBy title description deadline position status source sourceRef createdAt updatedAt
     }
   }
 `
@@ -11,7 +11,7 @@ export const MY_TODOS_QUERY = gql`
 export const CREATE_TODO_MUTATION = gql`
   mutation CreateTodo($input: CreateTodoInput!) {
     createTodo(input: $input) {
-      id userId title description deadline position status source sourceRef createdAt updatedAt
+      id userId assignedBy title description deadline position status source sourceRef createdAt updatedAt
     }
   }
 `
@@ -19,7 +19,7 @@ export const CREATE_TODO_MUTATION = gql`
 export const UPDATE_TODO_MUTATION = gql`
   mutation UpdateTodo($id: Int!, $input: UpdateTodoInput!) {
     updateTodo(id: $id, input: $input) {
-      id userId title description deadline position status source sourceRef createdAt updatedAt
+      id userId assignedBy title description deadline position status source sourceRef createdAt updatedAt
     }
   }
 `

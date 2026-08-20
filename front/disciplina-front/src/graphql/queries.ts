@@ -479,8 +479,8 @@ export const GET_CANDIDATES = gql`
 `
 
 export const GET_CANDIDATES_PAGE = gql`
-  query GetCandidatesPage($first: Int, $after: String, $search: String, $filters: CandidateFiltersInput) {
-    candidatesPage(first: $first, after: $after, search: $search, filters: $filters) {
+  query GetCandidatesPage($first: Int, $after: String, $search: String, $searchField: CandidateSearchField, $filters: CandidateFiltersInput) {
+    candidatesPage(first: $first, after: $after, search: $search, searchField: $searchField, filters: $filters) {
       edges {
         cursor
         node {
@@ -622,6 +622,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -760,6 +761,7 @@ export const UPDATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -863,6 +865,7 @@ export const CREATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
       }
@@ -936,6 +939,7 @@ export const GET_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education { schoolLevel justification }
       support {
         franceTravailRegistered
@@ -1070,6 +1074,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -1217,6 +1222,7 @@ export const GET_OFFERS = gql`
       status
       localisation
       sector
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1267,6 +1273,7 @@ export const MATCH_OFFER = gql`
       localisation
       sector
       softSkills
+      schedule { day startHour endHour }
       matchedCandidate {
         id
         fullName
@@ -1303,6 +1310,7 @@ export const MATCH_OFFER = gql`
       interviewLocation
       title
       jobRole
+      relaxedCriteria
       salerInfo {
         id
         email
@@ -1601,6 +1609,7 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
       localisation
       sector
       title
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1836,7 +1845,7 @@ export const GET_NEEDS_ANALYSIS = gql`
           ageMax
           desiredSex
           softSkills
-          scheduleOptions
+          scheduleOptions { day startHour endHour }
           conditions
           additionalComments
         }

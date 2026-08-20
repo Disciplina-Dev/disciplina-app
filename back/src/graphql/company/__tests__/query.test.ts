@@ -761,4 +761,54 @@ describe('blacklistedCompanies', () => {
         expect(json.data.blacklistedCompanies.edges).toHaveLength(1);
         expect(json.data.blacklistedCompanies.edges[0].node.name).toBe(`SearchMe-${suffix}`);
     });
+
+    it('portfolio search matches company names and SIRETs ignoring case', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CompanyRepository();
+
+        await repo.create({
+            name: `CaseCheck Corp ${suffix}`,
+            siret: `${suffix}1010101010`.slice(0, 14),
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+        await repo.create({
+            name: `NoMatch-${suffix}`,
+            siret: `${suffix}2020202020`.slice(0, 14),
+            address: 'X',
+            sector: 'IT',
+            conclusion: 'X',
+        });
+
+        const nameRes = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String) { companies(search: $search) { edges { node { company { name } } } totalCount } }`,
+                variables: { search: `casecheck` },
+            }),
+        });
+        const nameJson = await nameRes.json();
+        expect(nameRes.status).toBe(200);
+        expect(nameJson.errors).toBeUndefined();
+        expect(nameJson.data.companies.edges).toHaveLength(1);
+        expect(nameJson.data.companies.edges[0].node.company.name).toBe(`CaseCheck Corp ${suffix}`);
+        expect(nameJson.data.companies.totalCount).toBe(1);
+
+        const siretRes = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String) { companies(search: $search) { edges { node { company { name } } } } }`,
+                variables: { search: `${suffix}1010101010`.slice(0, 14).toLowerCase() },
+            }),
+        });
+        const siretJson = await siretRes.json();
+        expect(siretRes.status).toBe(200);
+        expect(siretJson.errors).toBeUndefined();
+        expect(siretJson.data.companies.edges).toHaveLength(1);
+        expect(siretJson.data.companies.edges[0].node.company.name).toBe(`CaseCheck Corp ${suffix}`);
+    });
 });

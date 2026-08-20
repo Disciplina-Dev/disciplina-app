@@ -97,6 +97,13 @@ export interface Referents {
     recruitment_referents?: ReferentDetails;
 }
 
+// Créneau horaire d'un jour de travail du poste (optionnel, saisi par jour dans l'AB).
+export interface ScheduleSlot {
+    day?: string | null;
+    start_hour?: string | null;
+    end_hour?: string | null;
+}
+
 export interface OfferCriteria {
     education_level?: EducationLevel | null;
     driving_license?: boolean;
@@ -106,7 +113,7 @@ export interface OfferCriteria {
     age_max?: number | null;
     desired_sex?: string | null;
     soft_skills?: string | null;
-    schedule_options?: string[];
+    schedule_options?: ScheduleSlot[];
     conditions?: string | null;
     additional_comments?: string | null;
 }

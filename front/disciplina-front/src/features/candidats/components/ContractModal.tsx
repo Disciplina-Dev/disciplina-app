@@ -10,6 +10,7 @@ import {
 } from '@/graphql/queries'
 import { MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { OfferStatus } from '@/features/matching/constants/jobEnums'
+import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import { CompanySearchModal } from '@/features/matching/components/CompanySearchModal'
 import { useCurrentUser } from '@/store/authStore'
 import { useUpdateCandidate } from '@/graphql/hooks'
@@ -94,6 +95,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
         excludedJobIds={new Set()}
         candidateTpTypes={candidateTpTypes}
         singleSelect
+        allowAnyTpOnSearch
         footerAction={{ label: 'Offre introuvable ? Créer une entreprise', onClick: () => setStep('company') }}
         onConfirm={(jobs) => {
           if (jobs[0]) {
@@ -141,6 +143,19 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
                 <p className="text-sm font-semibold text-gray-900">
                   {selectedOffer?.companyInfos?.name ?? selectedOffer?.companyName ?? 'Entreprise'}
                 </p>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {(selectedOffer?.desiredTp ?? []).map(
+                    (tp) =>
+                      tp.tpType && (
+                        <span
+                          key={tp.tpType}
+                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                        >
+                          {TP_TYPE_LABELS[tp.tpType]}
+                        </span>
+                      ),
+                  )}
+                </div>
               </div>
 
               <div>
