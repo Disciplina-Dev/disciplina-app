@@ -33,8 +33,15 @@ export async function truncateMysql(): Promise<void> {
     try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
         for (const table of CLEARED_TABLES) {
-            await conn.query(`DELETE FROM ${table}`);
-            await conn.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+            try {
+                await conn.query(`DELETE FROM ${table}`);
+                await conn.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+            } catch (e: unknown) {
+                const msg = String((e as any)?.message ?? '');
+                // Table may not exist yet before migrations (e.g. todo_groups on old DB)
+                if (msg.includes("doesn't exist") || msg.includes('Unknown table') || msg.includes('ER_NO_SUCH_TABLE')) continue;
+                throw e;
+            }
         }
         await conn.query('SET FOREIGN_KEY_CHECKS = 1');
     } finally {
