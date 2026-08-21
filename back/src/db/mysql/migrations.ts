@@ -329,6 +329,23 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Groupes de tâches par utilisateur. Un même nom peut exister chez deux
+        // utilisateurs différents (unique sur (user_id, name)), mais un todo ne peut
+        // appartenir qu'à un groupe de son owner (vérifié en service).
+        // Déclaré avant `todos` car ce dernier référence cette table via FK.
+        table: 'todo_groups',
+        ddl: `CREATE TABLE IF NOT EXISTS todo_groups (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            name VARCHAR(100) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_group_user_name (user_id, name),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            INDEX idx_todo_groups_user (user_id)
+        )`,
+    },
+    {
         // Todo list personnelle (une ligne = un todo d'un user). source=SYSTEM pour
         // les todos créés automatiquement (AB signé, relance échue) avec source_ref
         // comme clé de déduplication ; deleted=1 = soft delete (ne pas recréer).
@@ -344,12 +361,15 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             status ENUM('TODO', 'IN_PROGRESS', 'DONE') NOT NULL DEFAULT 'TODO',
             source ENUM('MANUAL', 'SYSTEM') NOT NULL DEFAULT 'MANUAL',
             source_ref VARCHAR(255) DEFAULT NULL,
+            group_id INT DEFAULT NULL,
             deleted TINYINT(1) NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-            INDEX idx_todos_user (user_id)
+            FOREIGN KEY (group_id) REFERENCES todo_groups(id) ON DELETE SET NULL ON UPDATE CASCADE,
+            INDEX idx_todos_user (user_id),
+            INDEX idx_todos_group (group_id)
         )`,
     },
     {
@@ -542,6 +562,35 @@ export async function runMysqlMigrations(): Promise<void> {
             'ALTER TABLE todos ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE',
         );
         logger.info('MySQL migration: added todos FK fk_todos_assigned_by');
+    }
+
+    // Groupes de tâches : colonne group_id et table todo_groups (2026-08-21)
+    const groupIdCol = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND COLUMN_NAME = 'group_id'",
+    );
+    if (Number(groupIdCol[0]?.count) === 0) {
+        await query('ALTER TABLE todos ADD COLUMN group_id INT DEFAULT NULL AFTER assigned_by');
+        await query('ALTER TABLE todos ADD KEY idx_todos_group (group_id)');
+        logger.info('MySQL migration: added todos.group_id');
+    }
+
+    const todoGroupsFk = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND CONSTRAINT_NAME = 'fk_todos_group_id'",
+    );
+    if (Number(todoGroupsFk[0]?.count) === 0) {
+        // Ensure orphan group_ids are cleared before adding FK (old rows created before groups existed)
+        await query('UPDATE todos SET group_id = NULL WHERE group_id IS NOT NULL AND group_id NOT IN (SELECT id FROM todo_groups)');
+        // MySQL requires the column to be indexed for FK; already added above.
+        try {
+            await query(
+                'ALTER TABLE todos ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES todo_groups(id) ON DELETE SET NULL ON UPDATE CASCADE',
+            );
+            logger.info('MySQL migration: added todos FK fk_todos_group_id');
+        } catch (e: unknown) {
+            // FK may fail on TiDB if todo_groups doesn't exist yet due to REQUIRED_TABLES loop ordering;
+            // the REQUIRED_TABLES creation above is idempotent and will have created it.
+            logger.warn({ err: e }, 'MySQL migration: failed to add fk_todos_group_id');
+        }
     }
 
     // RBAC : séparation rôles métier / permissions (2026-07-20). On crée les tables

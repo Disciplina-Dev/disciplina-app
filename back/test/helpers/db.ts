@@ -12,6 +12,7 @@ const CLEARED_TABLES = [
     'interview_access',
     'rh_kpi',
     'todos',
+    'todo_groups',
     'users',
     'refresh_tokens',
 ];
