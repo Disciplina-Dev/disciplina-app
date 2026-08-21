@@ -31,10 +31,18 @@ db['candidates'].createIndex({
 db['candidates'].createIndex({
   "candidate_id": 1
 });
-// Recherche full-text (candidatesPage → search) sur le résumé auto-généré du candidat.
-db['candidates'].createIndex({
-  "identity.description": "text"
-});
+// Recherche full-text (candidatesPage → search) : pondération nom 10× + stemming français.
+db['candidates'].createIndex(
+  {
+    "identity.description": "text",
+    "identity.full_name": "text"
+  },
+  {
+    default_language: "french",
+    weights: { "identity.full_name": 10, "identity.description": 1 },
+    name: "candidate_text_search"
+  }
+);
 
 db.createCollection('drive_folder_config');
 
