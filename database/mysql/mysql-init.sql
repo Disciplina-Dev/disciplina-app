@@ -362,10 +362,23 @@ CREATE TABLE IF NOT EXISTS `sector_settings` (
   PRIMARY KEY (`sector`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `todo_groups` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `unique_group_user_name` (`user_id`, `name`),
+  KEY `idx_todo_groups_user` (`user_id`),
+  CONSTRAINT `fk_todo_groups_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `todos` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
   `assigned_by` int DEFAULT NULL,
+  `group_id` int DEFAULT NULL,
   `title` varchar(500) NOT NULL,
   `description` text DEFAULT NULL,
   `deadline` date DEFAULT NULL,
@@ -380,8 +393,10 @@ CREATE TABLE IF NOT EXISTS `todos` (
   KEY `idx_user_deadline` (`user_id`,`deadline`),
   KEY `idx_user_position` (`user_id`,`position`),
   KEY `idx_todos_assigned_by` (`assigned_by`),
+  KEY `idx_todos_group` (`group_id`),
   CONSTRAINT `fk_todos_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_todos_assigned_by` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_todos_assigned_by` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_todos_group_id` FOREIGN KEY (`group_id`) REFERENCES `todo_groups` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- Compte applicatif : le backend ne se connecte pas en `root`. Une injection SQL ou une
