@@ -159,6 +159,54 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidate.desiredSectors).toEqual(['RESTAURATION', 'COMMERCIAL']);
     });
 
+    it('exposes the stored consentments on a candidate', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CandidateRepository();
+        const consentDate = new Date('2026-08-01T10:00:00.000Z');
+
+        const seeded = await repo.create({
+            _id: `consent-${suffix}`,
+            candidate_id: `consent-${suffix}`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `Consent ${suffix}`, email: `consent-${suffix}@test.local`, phone: '0600000001' },
+            consentments: {
+                data_processing: true,
+                data_sharing: true,
+                ai_processing: false,
+                photo_processing: true,
+                consent_date: consentDate,
+                consent_version: 'test-v1',
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: String!) { candidate(id: $id) { consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion } } }`,
+                variables: { id: seeded._id },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.candidate.consentments).toEqual({
+            dataProcessing: true,
+            dataSharing: true,
+            aiProcessing: false,
+            photoProcessing: true,
+            consentDate: consentDate.toISOString(),
+            consentVersion: 'test-v1',
+        });
+    });
+
     it('returns null for a non-existent candidate id', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
