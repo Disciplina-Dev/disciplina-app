@@ -10,7 +10,7 @@ import { addClient, removeClient, notifyCandidate } from './sse';
 import { PdfService } from '../../services/PdfService';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
-import { JobRole, Permission } from '../../types/user.types';
+import { JobRole } from '../../types/user.types';
 import { Candidate } from '../../types/candidate.types';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 

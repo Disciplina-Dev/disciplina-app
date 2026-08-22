@@ -8,7 +8,6 @@ import { YousignService } from '../../external/yousign/yousign.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { logger } from '../../external/logger';
-import { JobRole } from '../../types/user.types';
 import { notifyUser } from './sse';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();

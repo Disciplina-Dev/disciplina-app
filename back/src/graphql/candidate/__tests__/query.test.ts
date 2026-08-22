@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '../../../types/candidate.types';

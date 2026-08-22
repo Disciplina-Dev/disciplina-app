@@ -1,6 +1,5 @@
 import { query } from '../../db/mysql/connection';
 import { UserRow, UserRowJoined } from '../../types/db-rows.types';
-import { JobRole } from '../../types/user.types';
 
 const USER_SELECT_COLUMNS = [
     'u.id',

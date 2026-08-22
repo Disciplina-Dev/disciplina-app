@@ -1,7 +1,6 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
-import { after } from 'cheerio/dist/commonjs/api/manipulation';
 
 export interface StatBucket {
     key: string;

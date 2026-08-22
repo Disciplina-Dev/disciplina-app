@@ -388,6 +388,10 @@ column doesn't exist yet, logging each addition via `logger.info`.
 installs). Table/column identifiers in `REQUIRED_COLUMNS` are hardcoded constants, never
 user input, so the string-built `ALTER TABLE` is safe.
 
+`REQUIRED_COLUMNS` ne porte que des colonnes : un **index** (ou une colonne générée indexée, comme
+`companies.siren` / `idx_companies_siren`) doit être rattrapé par un bloc dédié dans
+`runMysqlMigrations()`, gardé par un `SELECT ... FROM INFORMATION_SCHEMA.STATISTICS`.
+
 The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table goes in **both**
 `mysql-init.sql` and `REQUIRED_TABLES`, otherwise fresh volumes and existing databases drift apart.
 `users`, `roles`, `permissions`, `filiz`, `companies` and `company_history` live only in
