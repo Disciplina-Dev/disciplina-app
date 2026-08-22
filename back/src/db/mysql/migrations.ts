@@ -36,6 +36,14 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     // Quarantaine : liste (JSON) des commerciaux candidats pour les conflits
     // multiple_commercials_same_siren, pour ne proposer que ceux-ci en résolution.
     { table: 'company_conflict', column: 'candidate_user_ids', definition: 'TEXT DEFAULT NULL' },
+    // Colonne générée : siren = 9 premiers chiffres du siret, utilisée par le
+    // regroupement d'entreprises (companiesBySiren). Déclarée dans mysql-init.sql,
+    // donc absente des bases créées avant son introduction.
+    {
+        table: 'companies',
+        column: 'siren',
+        definition: 'CHAR(9) GENERATED ALWAYS AS (SUBSTRING(`siret`, 1, 9)) STORED',
+    },
 ];
 
 /**
@@ -421,6 +429,16 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info(`MySQL migration: added column ${table}.${column}`);
     }
 
+    // Index sur la colonne générée siren (déclaré dans mysql-init.sql) : il doit
+    // suivre la colonne backfillée ci-dessus sur les bases existantes.
+    const sirenIndex = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'companies' AND INDEX_NAME = 'idx_companies_siren'",
+    );
+    if (Number(sirenIndex[0]?.count) === 0) {
+        await query('CREATE INDEX idx_companies_siren ON companies (siren)');
+        logger.info('MySQL migration: created index idx_companies_siren');
+    }
+
     // commercial_kpi created before weekly granularity: add week column and
     // widen the unique key (week = 0 means "monthly aggregate row").
     const weekColumn = await query<{ count: number }[]>(
@@ -579,7 +597,9 @@ export async function runMysqlMigrations(): Promise<void> {
     );
     if (Number(todoGroupsFk[0]?.count) === 0) {
         // Ensure orphan group_ids are cleared before adding FK (old rows created before groups existed)
-        await query('UPDATE todos SET group_id = NULL WHERE group_id IS NOT NULL AND group_id NOT IN (SELECT id FROM todo_groups)');
+        await query(
+            'UPDATE todos SET group_id = NULL WHERE group_id IS NOT NULL AND group_id NOT IN (SELECT id FROM todo_groups)',
+        );
         // MySQL requires the column to be indexed for FK; already added above.
         try {
             await query(

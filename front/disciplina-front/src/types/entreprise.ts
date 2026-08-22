@@ -9,16 +9,6 @@ export { SECTEUR_VALUES, DEFAULT_SECTEUR }
 export type { Secteur }
 export type RelanceFilter = 'today' | 'past' | 'future'
 
-const saleUserData = [
-  { id: 1, name: 'Pas de commerciaux' },
-  { id: 2, name: 'Amanda' },
-  { id: 3, name: 'Emile' },
-  { id: 4, name: 'Brandon' },
-  { id: 5, name: 'Lorenzo' }
-] as const;
-
-export type UserId = typeof saleUserData[number]['name'];
-
 export interface SalePerson {
   id: number
   email: string
@@ -110,7 +100,7 @@ export interface EntrepriseBlacklistee extends Entreprise {
   all_blacklist: boolean
 }
 
-export interface EntrepriseConflit extends Entreprise {}
+export type EntrepriseConflit = Entreprise
 
 export type EntrepriseFilters = {
   siret: string
