@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   `oauth_token` text DEFAULT NULL,
   `refresh_token` text DEFAULT NULL,
   `is_interviewer` tinyint(1) NOT NULL DEFAULT '0',
+  -- Soft delete : un user « supprimé » garde sa ligne pour l'historique
+  -- (contact_logs, candidate_history, etc.) mais est exclu de tous les workflows.
+  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+  `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `email` (`email`),
   KEY `idx_users_role_id` (`role_id`),
