@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".claude/rules/backend-graphql.md",
+    ".claude/rules/frontend-components.md",
+    ".claude/rules/frontend-state.md"
+  ]
+}

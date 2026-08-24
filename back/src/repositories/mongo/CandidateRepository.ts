@@ -1,7 +1,6 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
 import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
-import { after } from 'cheerio/dist/commonjs/api/manipulation';
 
 export interface StatBucket {
     key: string;
@@ -77,6 +76,57 @@ function parseCandidateCursor(raw: string): { createdAt: Date | null; id: string
 
 function escapeRegexSpecialChars(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Limites défensives pour la recherche libre (évite `$regex` démesuré / ReDoS). */
+const MAX_SEARCH_LENGTH = 100;
+const MAX_SEARCH_TOKENS = 10;
+
+/** Normalise l'entrée utilisateur : trim, collapse whitespace, tronque. */
+function normalizeSearchInput(raw: string): string {
+    return raw.trim().replace(/\s+/g, ' ').slice(0, MAX_SEARCH_LENGTH);
+}
+
+/** Découpe une recherche déjà normalisée en tokens (max `MAX_SEARCH_TOKENS`). */
+function tokenizeSearch(normalized: string): string[] {
+    if (!normalized) return [];
+    return normalized.split(' ').filter(Boolean).slice(0, MAX_SEARCH_TOKENS);
+}
+
+/** Collation insensible à la casse et aux accents (français, strength 1). */
+const SEARCH_COLLATION = { locale: 'fr', strength: 1 } as const;
+
+/** Classes insensibles aux accents pour le `$regex` (symétrique : « Solene » ↔ « Solène »).
+ *  Chaque voyelle/consonne accentuée est ramenée à sa base puis élargie à un bracket
+ *  qui matche toutes les variantes. Sans cela, collation seule est asymétrique selon
+ *  que le pattern porte l'accent ou non (« Solène » trouvait les deux, « Solene »
+ *  ne trouvait que « Solene »). */
+const ACCENT_CLASSES: Record<string, string> = {
+    a: '[aàáâãäåæ]',
+    e: '[eèéêë]',
+    i: '[iìíîï]',
+    o: '[oòóôõöø]',
+    u: '[uùúûü]',
+    c: '[cç]',
+    n: '[nñ]',
+    y: '[yÿ]',
+};
+
+function diacriticInsensitivePattern(token: string): string {
+    let out = '';
+    for (const ch of token) {
+        if (/[.*+?^${}()|[\]\\]/.test(ch)) {
+            out += `\\${ch}`;
+            continue;
+        }
+        const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        if (ACCENT_CLASSES[base]) {
+            out += ACCENT_CLASSES[base];
+        } else {
+            out += escapeRegexSpecialChars(ch);
+        }
+    }
+    return out;
 }
 
 /** Date à laquelle un candidat né aurait exactement `years` ans aujourd'hui. */
@@ -176,42 +226,70 @@ export class CandidateRepository {
      * EMAIL). Pour NAME, on conserve la double branche historique `$text` ∪
      * `$regex` (description + nom) ; pour PHONE / EMAIL on ne cible que le champ
      * correspondant via `$regex` (les emails/téléphones ne figurent pas dans
-     * l'index full-text `identity.description`).
+     * l'index full-text). La branche `$regex` est désormais tokenisée (AND
+     * ordonné-indépendant) pour que « Test Example » matche « Example Test »,
+     * préserve le préfixe/sous-chaîne par token (ex. « jea » → « Jean ») et reste
+     * insensible à la casse/aux accents via collation `fr` strength 1.
      */
     private buildSearchFilter(
         trimmedSearch: string,
         conditions: Record<string, any>[],
         searchField?: CandidateSearchField,
     ): { textFilter?: Record<string, any>; regexFilter: Record<string, any> } {
-        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
+        const normalized = normalizeSearchInput(trimmedSearch);
+        const tokens = tokenizeSearch(normalized);
 
         if (searchField === 'PHONE') {
+            const regexPattern = escapeRegexSpecialChars(normalized);
             return {
                 regexFilter: { $and: [...conditions, { 'identity.phone': { $regex: regexPattern, $options: 'i' } }] },
             };
         }
 
         if (searchField === 'EMAIL') {
+            const regexPattern = escapeRegexSpecialChars(normalized);
             return {
                 regexFilter: { $and: [...conditions, { 'identity.email': { $regex: regexPattern, $options: 'i' } }] },
             };
         }
 
-        // Recherche par défaut / nom : combinaison historique `$text` ∪ `$regex`.
-        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
+        // Recherche par défaut / nom : combinaison `$text` (français, stemming) ∪ `$regex` tokenisé.
+        const quotedPhrase = `"${normalized.replace(/"/g, "'")}"`;
+        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase, $language: 'french' } }] };
+
+        // Tokenisation : chaque token doit apparaître (AND) dans `full_name` OU `description`
+        // (par token), indépendamment de l'ordre — corrige « Test Example » vs « Example Test ».
+        // Les patterns sont insensibles aux accents dans les deux sens (Solene ↔ Solène)
+        // via `diacriticInsensitivePattern`, car la collation seule est asymétrique.
+        if (tokens.length <= 1) {
+            const singlePattern = diacriticInsensitivePattern(tokens[0] ?? normalized);
+            return {
+                textFilter,
+                regexFilter: {
+                    $and: [
+                        ...conditions,
+                        {
+                            $or: [
+                                { 'identity.description': { $regex: singlePattern, $options: 'i' } },
+                                { 'identity.full_name': { $regex: singlePattern, $options: 'i' } },
+                            ],
+                        },
+                    ],
+                },
+            };
+        }
+
+        const diacriticTokens = tokens.map(diacriticInsensitivePattern);
+        const tokenClauses = diacriticTokens.map((t) => ({
+            $or: [
+                { 'identity.description': { $regex: t, $options: 'i' } },
+                { 'identity.full_name': { $regex: t, $options: 'i' } },
+            ],
+        }));
+
         return {
-            textFilter: { $and: [...conditions, { $text: { $search: quotedPhrase } }] },
-            regexFilter: {
-                $and: [
-                    ...conditions,
-                    {
-                        $or: [
-                            { 'identity.description': { $regex: regexPattern, $options: 'i' } },
-                            { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
-                        ],
-                    },
-                ],
-            },
+            textFilter,
+            regexFilter: { $and: [...conditions, ...tokenClauses] },
         };
     }
 
@@ -224,7 +302,8 @@ export class CandidateRepository {
     ): Promise<Candidate[]> {
         const conditions = this.buildConditions(filters);
 
-        const trimmedSearch = search?.trim();
+        const normalizedSearch = search ? normalizeSearchInput(search) : '';
+        const trimmedSearch = normalizedSearch || undefined;
         // Keyset sur (created_at DESC, _id ASC) : les fiches datées les plus récentes
         // d'abord, les non datées (created_at absent) en dernier.
         if (after && !trimmedSearch) {
@@ -261,8 +340,10 @@ export class CandidateRepository {
         // dans le même `$or` qu'un autre opérateur au niveau racine).
         const sort = { created_at: -1 as const, _id: 1 as const };
         const [textResults, regexResults] = await Promise.all([
-            textFilter ? CandidateModel.find(textFilter).sort(sort).lean() : Promise.resolve([]),
-            CandidateModel.find(regexFilter).sort(sort).lean(),
+            textFilter
+                ? CandidateModel.find(textFilter).collation(SEARCH_COLLATION).sort(sort).lean()
+                : Promise.resolve([]),
+            CandidateModel.find(regexFilter).collation(SEARCH_COLLATION).sort(sort).lean(),
         ]);
 
         const uniqueById = new Map<string, Candidate>();
@@ -280,7 +361,8 @@ export class CandidateRepository {
     /** Compte les candidats correspondant à la recherche + filtres (même logique que findPage). */
     async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
         const conditions = this.buildConditions(filters);
-        const trimmedSearch = search?.trim();
+        const normalizedSearch = search ? normalizeSearchInput(search) : '';
+        const trimmedSearch = normalizedSearch || undefined;
 
         if (!trimmedSearch) {
             const filter = conditions.length ? { $and: conditions } : {};
@@ -289,10 +371,12 @@ export class CandidateRepository {
 
         const { textFilter, regexFilter } = this.buildSearchFilter(trimmedSearch, conditions, searchField);
 
-        // Même combinaison `$text` ∪ `$regex` que findPage : on déduplique par _id.
+        // Même combinaison `$text` ∪ `$regex` que findPage : on déduplique par _id (collation fr strength 1).
         const [textIds, regexIds] = await Promise.all([
-            textFilter ? CandidateModel.distinct('_id', textFilter) : Promise.resolve([]),
-            CandidateModel.distinct('_id', regexFilter),
+            textFilter
+                ? CandidateModel.distinct('_id', textFilter, { collation: SEARCH_COLLATION } as any)
+                : Promise.resolve([]),
+            CandidateModel.distinct('_id', regexFilter, { collation: SEARCH_COLLATION } as any),
         ]);
         return new Set([...textIds.map(String), ...regexIds.map(String)]).size;
     }

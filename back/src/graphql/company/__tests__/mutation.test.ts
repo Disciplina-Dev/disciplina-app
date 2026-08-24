@@ -4,7 +4,6 @@ import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
-import { JobRole, Permission } from '../../../types/user.types';
 import { SireneService } from '../../../external/insee/sirene.service';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
