@@ -95,6 +95,9 @@ export const typeDefs = gql`
         REJECTED
         IMMERSING
         CONTRACT
+        PRESENT
+        ABSENT
+        APPOINTMENT_CANCELLED
     }
 
     enum ImmersionConclusion {
