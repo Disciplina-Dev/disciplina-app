@@ -18,7 +18,8 @@ import { SirenGroupCard } from '@/features/portefeuille/components/SirenGroupCar
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
-import { useCreateCompany } from '@/graphql/hooks'
+import { useCreateCompany, useDeleteCompany } from '@/graphql/hooks'
+import DeleteCompanyModal from '@/features/portefeuille/components/DeleteCompanyModal'
 import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 import { formatErrorMessage } from '@/utils/companyErrors'
@@ -61,6 +62,7 @@ export default function PortefeuilleEntreprises() {
   const sirenGroups = usePortefeuilleStore((s) => s.sirenGroups)
   const salePersons = usePortefeuilleStore((s) => s.salePersons)
   const { createCompany } = useCreateCompany()
+  const { deleteCompany, result: deleteResult } = useDeleteCompany()
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
 
   const {
@@ -81,6 +83,8 @@ export default function PortefeuilleEntreprises() {
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
   const [createError, setCreateError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Entreprise | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const serverFilters = useMemo(() => toServerFilters(filters), [filters])
   const isRelanceMode = !!filters.relance
@@ -121,6 +125,22 @@ export default function PortefeuilleEntreprises() {
     setCreateOpen(true)
   }
 
+  const handleDeleteRequest = (entreprise: Entreprise) => {
+    setDeleteTarget(entreprise)
+    setDeleteError(null)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleteError(null)
+    const response = await deleteCompany(Number(deleteTarget.id))
+    if (response.error) {
+      setDeleteError(response.error.message)
+      return
+    }
+    setDeleteTarget(null)
+  }
+
   const renderCard = (e: Entreprise) => (
     <EntrepriseCard
       key={e.id}
@@ -128,6 +148,7 @@ export default function PortefeuilleEntreprises() {
       currentUser={currentUser!}
       onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
       onClaim={() => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
+      onDelete={handleDeleteRequest}
     />
   )
 
@@ -280,6 +301,7 @@ export default function PortefeuilleEntreprises() {
                 currentUser={currentUser!}
                 onOpen={(e) => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
                 onClaim={(e) => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
+                onDelete={handleDeleteRequest}
               />
             ))}
           </div>
@@ -317,6 +339,15 @@ export default function PortefeuilleEntreprises() {
           onSave={handleCreate}
           submitError={createError}
           onClose={() => { setCreateOpen(false); setPrefillSiret(undefined); setCreateError(null) }}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteCompanyModal
+          entreprise={deleteTarget}
+          onClose={() => { setDeleteTarget(null); setDeleteError(null) }}
+          onConfirm={handleDeleteConfirm}
+          loading={deleteResult.fetching}
+          error={deleteError}
         />
       )}
     </div>

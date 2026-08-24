@@ -10,10 +10,12 @@ import {
   Hash,
   Bell,
   MapPin,
+  Trash2,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
+import { Permission } from '@/store/authStore'
 import { STATUS_CONFIG } from './statusConfig'
 
 interface Props {
@@ -21,10 +23,15 @@ interface Props {
   currentUser: AppUser
   onClick: () => void
   onClaim: () => void
+  onDelete?: (entreprise: Entreprise) => void
 }
 
-export default function EntrepriseCard({ entreprise, currentUser, onClick, onClaim }: Props) {
+export default function EntrepriseCard({ entreprise, currentUser, onClick, onClaim, onDelete }: Props) {
   const [copied, setCopied] = useState(false)
+
+  const canDelete =
+    (currentUser.permission === Permission.RESPONSABLE || currentUser.permission === Permission.ADMIN) &&
+    !!onDelete
 
   const s = STATUS_CONFIG[entreprise.status] ?? STATUS_CONFIG['Non']
   const isUnassigned = !entreprise.proprietaire_id
@@ -66,6 +73,11 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
     onClaim()
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDelete?.(entreprise)
+  }
+
   return (
     <article
       onClick={onClick}
@@ -92,13 +104,26 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
             )}
           </div>
 
-          {/* Status badge — discreet, top-right */}
-          <span
-            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${s.pill} ${s.ring}`}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-            {s.label}
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Status badge */}
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${s.pill} ${s.ring}`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+              {s.label}
+            </span>
+            {/* Delete action — visible to Responsable/Admin */}
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                title="Supprimer l'entreprise"
+                aria-label="Supprimer l'entreprise"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-300 hover:bg-danger-bg hover:text-danger transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Commercial ── */}
