@@ -7,15 +7,18 @@ import { toBlacklistedCompany, toCompanyConflict, toCompanies } from '../../serv
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
 import { CompaniesRow, CompanyConflictRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
+import { NotificationService } from '../../services/NotificationService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
+import { logger } from '../../external/logger';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
 const companyConflictService = new CompanyConflictService();
 const contactLogService = new ContactLogService();
 const userService = new UserService();
+const notificationService = new NotificationService();
 
 interface CompanyInput {
     userID?: number | null;
@@ -290,14 +293,41 @@ export const resolvers = {
             };
         },
         deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
-            if (context.user.role === JobRole.COMMERCIAL) {
-                const existing = await companiesService.findById(id);
-                if (existing?.userID && existing.userID !== context.user.id) {
-                    throw new Error('Forbidden: You can only delete your own companies');
+            authGuard(context.user, Permission.RESPONSABLE);
+            const existing = await companiesService.findById(id);
+            if (!existing) {
+                throw new Error('Company not found');
+            }
+            const deleted = await companiesService.delete(id);
+            if (deleted) {
+                const actorId = Number(context.user.id);
+                const actorName =
+                    [context.user.firstName, context.user.lastName].filter(Boolean).join(' ').trim() ||
+                    context.user.email ||
+                    `Utilisateur #${actorId}`;
+                const companyLabel = existing.name?.trim() || `Entreprise #${id}`;
+                const siretLabel = existing.siret?.trim() ? ` (SIRET ${existing.siret.trim()})` : '';
+                try {
+                    const responsables = await userService.findByPermissions([Permission.RESPONSABLE, Permission.ADMIN]);
+                    const recipients = responsables.filter((u) => u.id !== actorId);
+                    await Promise.all(
+                        recipients.map((user) =>
+                            notificationService.create({
+                                userId: user.id,
+                                type: 'company_deleted',
+                                category: 'company',
+                                level: 'warning',
+                                title: 'Entreprise supprimée',
+                                message: `${companyLabel}${siretLabel} a été supprimée par ${actorName}.`,
+                                link: '/commercial/portefeuille',
+                            }),
+                        ),
+                    );
+                } catch (err) {
+                    logger.error({ err, companyId: id }, 'Failed to notify responsables after company deletion');
                 }
             }
-            return companiesService.delete(id);
+            return deleted;
         },
         blacklistCompany: async (
             _: unknown,
