@@ -28,6 +28,22 @@ import { SECTEUR_VALUES, STATUS_VALUES } from '@/types/entreprise'
 
 const PAGE_SIZE = 20
 
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+type CompanyTab = 'all' | 'oui' | 'aRelancer' | 'ferme'
+
+const TAB_STATUS_MAP: Record<Exclude<CompanyTab, 'all'>, string[]> = {
+  oui: ['Oui', 'Oui OF'],
+  aRelancer: ['Non', 'À Réfléchir', 'Relance', 'Réponds pas'],
+  ferme: ['Fermé'],
+}
+
+const TAB_LABELS: Record<CompanyTab, string> = {
+  all: 'Tous',
+  oui: 'Oui',
+  aRelancer: 'À Relancer',
+  ferme: 'Fermé',
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function countActiveFilters(f: EntrepriseFilters): number {
   let n = 0
@@ -41,10 +57,13 @@ function countActiveFilters(f: EntrepriseFilters): number {
   return n
 }
 
-function toServerFilters(f: EntrepriseFilters): ServerFilters | undefined {
-  if (countActiveFilters(f) === 0) return undefined
+function toServerFilters(f: EntrepriseFilters, tab: CompanyTab): ServerFilters | undefined {
+  const status = tab !== 'all'
+    ? TAB_STATUS_MAP[tab]
+    : f.status.length > 0 ? f.status : undefined
+  if (!status && countActiveFilters(f) === 0) return undefined
   return {
-    status: f.status.length > 0 ? f.status : undefined,
+    status,
     userID: f.commercial_id ?? undefined,
     sector: f.secteur || undefined,
     relance: f.relance || undefined,
@@ -85,8 +104,31 @@ export default function PortefeuilleEntreprises() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entreprise | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<CompanyTab>('all')
 
-  const serverFilters = useMemo(() => toServerFilters(filters), [filters])
+  // Un seul filtre de statut actif à la fois : un onglet écrase la sélection
+  // manuelle, une sélection manuelle ramène sur « Tous ».
+  const handleTabChange = (tab: CompanyTab) => {
+    setActiveTab(tab)
+    if (tab !== 'all' && filters.status.length > 0) {
+      setFilters({ ...filters, status: [] })
+    }
+  }
+
+  const handlePanelChange = (next: EntrepriseFilters) => {
+    const statusChanged =
+      next.status.length !== filters.status.length ||
+      next.status.some((s) => !filters.status.includes(s))
+    if (statusChanged) setActiveTab('all')
+    setFilters(next)
+  }
+
+  const resetAll = () => {
+    setActiveTab('all')
+    setFilters(EMPTY_FILTERS)
+  }
+
+  const serverFilters = useMemo(() => toServerFilters(filters, activeTab), [filters, activeTab])
   const isRelanceMode = !!filters.relance
 
   // Vue à plat en recherche/relance (la query groupée ne les gère pas), sinon groupée par SIREN.
@@ -255,11 +297,26 @@ export default function PortefeuilleEntreprises() {
               filters={filters}
               secteurs={secteurs}
               salePersons={salePersons}
-              onChange={setFilters}
-              onReset={() => setFilters(EMPTY_FILTERS)}
+              onChange={handlePanelChange}
+              onReset={resetAll}
               activeCount={activeFilterCount}
             />
           </div>
+        </div>
+
+        {/* ─── Status tabs ─────────────────────────────────────────── */}
+        <div className="mb-6 flex gap-1 rounded-xl bg-white border border-gray-100 p-1 shadow-sm">
+          {(Object.keys(TAB_LABELS) as CompanyTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                activeTab === tab ? 'bg-blue text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
         </div>
 
         {/* ─── Cards grid ──────────────────────────────────────────── */}
@@ -279,8 +336,12 @@ export default function PortefeuilleEntreprises() {
               </p>
             </div>
             {activeFilterCount > 0 ? (
-              <Button variant="secondary" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
+              <Button variant="secondary" size="sm" onClick={resetAll}>
                 Effacer les filtres
+              </Button>
+            ) : activeTab !== 'all' ? (
+              <Button variant="secondary" size="sm" onClick={() => handleTabChange('all')}>
+                Voir toutes les entreprises
               </Button>
             ) : (
               <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => openCreate()}>

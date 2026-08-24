@@ -1,4 +1,7 @@
-export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir' | 'Relance' | 'Réponds pas' | 'Fermé'
+// « Oui OF » existe en base (flux KPI) mais reste volontairement hors de
+// STATUS_VALUES : il ne doit pas apparaître dans les selects/multi-selects,
+// car le resolver backend ne l'accepte pas à la sauvegarde.
+export type EntrepriseStatus = 'Oui' | 'Oui OF' | 'Non' | 'À Réfléchir' | 'Relance' | 'Réponds pas' | 'Fermé'
 
 export const STATUS_VALUES: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']
 
