@@ -4,7 +4,6 @@ import {
     NO_REPLY_ADDRESS,
     NO_REPLY_FOOTER_HTML,
     NO_REPLY_FOOTER_TEXT,
-    isNoReplyEnabled,
     withNoReply,
 } from '../no-reply';
 
@@ -28,20 +27,9 @@ const BASE_OPTIONS = {
     text: 'Corps texte',
 };
 
-describe('isNoReplyEnabled', () => {
-    it('est actif uniquement en NODE_ENV=test', () => {
-        setNodeEnv('test');
-        expect(isNoReplyEnabled()).toBe(true);
-        setNodeEnv('production');
-        expect(isNoReplyEnabled()).toBe(false);
-        setNodeEnv('development');
-        expect(isNoReplyEnabled()).toBe(false);
-    });
-});
 
 describe('withNoReply', () => {
     it('ajoute replyTo et le pied de page quand la fonctionnalité est active', () => {
-        setNodeEnv('test');
         const result = withNoReply({ ...BASE_OPTIONS, html: '<p>Bonjour</p>' });
 
         expect(result.replyTo).toBe(NO_REPLY_ADDRESS);
@@ -51,18 +39,7 @@ describe('withNoReply', () => {
         expect(result.subject).toBe(BASE_OPTIONS.subject);
     });
 
-    it('ne modifie rien quand la fonctionnalité est inactive', () => {
-        setNodeEnv('production');
-        const options = { ...BASE_OPTIONS, html: '<p>Bonjour</p>' };
-        const result = withNoReply(options);
-
-        expect(result.replyTo).toBeUndefined();
-        expect(result.html).toBe(options.html);
-        expect(result.text).toBe(options.text);
-    });
-
     it('ne duplique pas le pied de page déjà présent mais pose tout de même replyTo', () => {
-        setNodeEnv('test');
         const result = withNoReply({
             ...BASE_OPTIONS,
             html: `<p>Bonjour</p>${NO_REPLY_FOOTER_HTML}`,
