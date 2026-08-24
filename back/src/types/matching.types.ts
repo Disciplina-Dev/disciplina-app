@@ -22,6 +22,9 @@ export enum InterviewConclusion {
     REJECTED = 'REJECTED',
     IMMERSING = 'IMMERSING',
     CONTRACT = 'CONTRACT',
+    PRESENT = 'PRESENT',
+    ABSENT = 'ABSENT',
+    APPOINTMENT_CANCELLED = 'APPOINTMENT_CANCELLED',
 }
 
 export enum ImmersionConclusion {

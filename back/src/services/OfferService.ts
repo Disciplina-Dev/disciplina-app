@@ -40,6 +40,9 @@ const INTERVIEW_CONCLUSION_TO_CANDIDATE_STATUS: Record<InterviewConclusion, Cand
     [InterviewConclusion.REJECTED]: CandidateStatus.SEEKING,
     [InterviewConclusion.IMMERSING]: CandidateStatus.IMMERSING,
     [InterviewConclusion.CONTRACT]: CandidateStatus.CONTRACT,
+    [InterviewConclusion.PRESENT]: CandidateStatus.SEEKING,
+    [InterviewConclusion.ABSENT]: CandidateStatus.SEEKING,
+    [InterviewConclusion.APPOINTMENT_CANCELLED]: CandidateStatus.SEEKING,
 };
 
 const IMMERSION_CONCLUSION_TO_CANDIDATE_STATUS: Record<ImmersionConclusion, CandidateStatus> = {
@@ -602,7 +605,11 @@ export class OfferService {
                   ? MatchedCandidateStatus.REFUSED
                   : conclusion === InterviewConclusion.CONTRACT
                     ? MatchedCandidateStatus.CONTRACT
-                    : undefined;
+                    : conclusion === InterviewConclusion.ABSENT
+                      ? MatchedCandidateStatus.REFUSED
+                      : conclusion === InterviewConclusion.APPOINTMENT_CANCELLED
+                        ? MatchedCandidateStatus.REFUSED
+                        : undefined;
         const updated = await this.offerRepository.setProposedCandidateConclusion(
             offerId,
             candidateId,
@@ -741,6 +748,12 @@ export class OfferService {
                 return `Entretien de ${candidateName} conclu : immersion du ${immersionStartDate} au ${immersionEndDate}`;
             case InterviewConclusion.CONTRACT:
                 return `Entretien de ${candidateName} conclu : embauche`;
+            case InterviewConclusion.PRESENT:
+                return `Entretien de ${candidateName} conclu : présent`;
+            case InterviewConclusion.ABSENT:
+                return `Entretien de ${candidateName} conclu : absent`;
+            case InterviewConclusion.APPOINTMENT_CANCELLED:
+                return `Entretien de ${candidateName} conclu : rendez-vous annulé`;
         }
     }
 
@@ -758,6 +771,12 @@ export class OfferService {
                 return `L'entretien c'est soldé par une immersion du ${immersionStartDate} au ${immersionEndDate} avec ${companyName}`;
             case InterviewConclusion.CONTRACT:
                 return `L'entretien c'est soldé par un contrat avec ${companyName}`;
+            case InterviewConclusion.PRESENT:
+                return `L'entretien s'est soldé par une présence de ${candidateName} chez ${companyName}`;
+            case InterviewConclusion.ABSENT:
+                return `L'entretien s'est soldé par une absence de ${candidateName} chez ${companyName}`;
+            case InterviewConclusion.APPOINTMENT_CANCELLED:
+                return `Le rendez-vous d'entretien entre ${candidateName} et ${companyName} a été annulé`;
         }
     }
 
