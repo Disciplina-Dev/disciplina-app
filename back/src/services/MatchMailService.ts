@@ -1,4 +1,5 @@
 import { GoogleGmailService } from '../external/google/gmail.service';
+import { withNoReply } from '../external/google/no-reply';
 import { GoogleTokens } from '../external/google/types';
 import { UserService } from './UserService';
 import { SessionCredentials } from './MatchLinkService';
@@ -86,6 +87,6 @@ export class MatchMailService {
         const creds: GoogleTokens = { access_token: rh.oauthToken, refresh_token: rh.refreshToken };
         const persist = (refreshed: GoogleTokens) =>
             this.userService.updateGoogleTokens(rh.id, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
-        await this.gmailService.sendEmail(creds, options, persist);
+        await this.gmailService.sendEmail(creds, withNoReply(options), persist);
     }
 }
