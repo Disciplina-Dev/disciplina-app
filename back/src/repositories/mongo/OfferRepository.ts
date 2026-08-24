@@ -329,4 +329,17 @@ export class OfferRepository {
     async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
         return (await OfferModel.deleteMany({ needs_analysis_id: needsAnalysisId })).deletedCount;
     }
+
+    /**
+     * Réassigne (ou détache) le commercial porteur de toutes les offres liées à
+     * un user supprimé. `saler = null` détache l'offre (elle vit sans commercial).
+     * Renvoie le nombre d'offres modifiées.
+     */
+    async reassignSaler(fromUserId: number, saler: { id: number; email: string } | null): Promise<number> {
+        const update = saler
+            ? { $set: { saler_info: { id: saler.id, email: saler.email } } }
+            : { $unset: { saler_info: '' } };
+        const res = await OfferModel.updateMany({ 'saler_info.id': fromUserId }, update);
+        return res.modifiedCount;
+    }
 }

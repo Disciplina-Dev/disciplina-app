@@ -44,6 +44,10 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
         column: 'siren',
         definition: 'CHAR(9) GENERATED ALWAYS AS (SUBSTRING(`siret`, 1, 9)) STORED',
     },
+    // Soft delete des users : la ligne reste (historiques FK) mais sort de tous
+    // les workflows (login, listes, directory). Cf. UserRepository.markDeleted.
+    { table: 'users', column: 'is_deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+    { table: 'users', column: 'deleted_at', definition: 'TIMESTAMP NULL DEFAULT NULL' },
 ];
 
 /**

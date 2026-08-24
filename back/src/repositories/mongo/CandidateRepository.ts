@@ -1,5 +1,5 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
-import { Candidate, CandidateStatus } from '../../types/candidate.types';
+import { Candidate, CandidateOwner, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 
 export interface StatBucket {
@@ -522,5 +522,16 @@ export class CandidateRepository {
 
     async delete(id: string): Promise<boolean> {
         return (await CandidateModel.deleteOne({ _id: id })).deletedCount > 0;
+    }
+
+    /**
+     * Réassigne (ou détache) le RH propriétaire des dossiers candidat d'un user
+     * supprimé. `owner = null` détache les dossiers (ils vivent sans propriétaire).
+     * Renvoie le nombre de dossiers modifiés.
+     */
+    async reassignOwner(fromUserId: number, owner: CandidateOwner | null): Promise<number> {
+        const update = owner ? { $set: { owner } } : { $unset: { owner: '' } };
+        const res = await CandidateModel.updateMany({ 'owner.user_id': fromUserId }, update);
+        return res.modifiedCount;
     }
 }
