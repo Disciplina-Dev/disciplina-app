@@ -2,6 +2,7 @@ import pool from '../../src/db/mysql/connection';
 import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
 import { NeedsAnalysisModel } from '../../src/db/mongo/schemas/needsAnalysis.schema';
 import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
+import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
 
 const CLEARED_TABLES = [
     'external_link',
@@ -10,7 +11,8 @@ const CLEARED_TABLES = [
     'companies_blacklist',
     'match_link',
     'interview_access',
-    'rh_kpi',
+    // rh_kpi / commercial_kpi : supprimées (#513), les buckets vivent dans
+    // Mongo `kpis`, vidés via dropMongo().
     'todos',
     'todo_groups',
     'users',
@@ -53,4 +55,7 @@ export async function dropMongo(): Promise<void> {
     await CandidateModel.deleteMany({});
     await NeedsAnalysisModel.deleteMany({});
     await OfferModel.deleteMany({});
+    // Buckets KPI (ex-tables MySQL commercial_kpi / rh_kpi) : vidés comme elles
+    // l'étaient pour isoler chaque test.
+    await KpiModel.deleteMany({});
 }

@@ -46,6 +46,21 @@ db['candidates'].createIndex(
 
 db.createCollection('drive_folder_config');
 
+db.createCollection('kpis');
+// Fusion des ex-tables MySQL commercial_kpi / rh_kpi (#513) : kind discrimine
+// les metrics (site pour commercial, sector pour rh). Clé de bucket unique ;
+// le filtre partiel exclut les user_id null (orphelins hérités) car un index
+// unique Mongo, contrairement à MySQL, rejette les doublons de null.
+db['kpis'].createIndex({
+  "kind": 1,
+  "user_id": 1,
+  "site": 1,
+  "sector": 1,
+  "year": 1,
+  "month": 1,
+  "week": 1
+}, { unique: true, partialFilterExpression: { user_id: { $type: "number" } } });
+
 db.createCollection('mail_signatures');
 db['mail_signatures'].createIndex({
   "user_id": 1
