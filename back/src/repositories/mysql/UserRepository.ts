@@ -125,6 +125,16 @@ export class UserRepository {
         return result.insertId;
     }
 
+    /** Lookup batché pour enrichir des lignes KPI avec les noms d'affichage. */
+    async findByIds(ids: number[]): Promise<UserRowJoined[]> {
+        if (ids.length === 0) return [];
+        const placeholders = ids.map(() => '?').join(', ');
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id IN (${placeholders}) AND ${USER_ACTIVE}`,
+            ids,
+        );
+    }
+
     async findAll(): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE ${USER_ACTIVE} ORDER BY u.role_id, u.first_name, u.last_name`,

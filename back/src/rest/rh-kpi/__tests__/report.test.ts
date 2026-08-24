@@ -55,6 +55,9 @@ describe('GET /api/rh-kpi/report sector scoping', () => {
         expect(json.scope).toBe('self');
         const userIds = new Set<number>(json.weeks.flatMap((w: any) => w.users).map((u: any) => u.userId));
         expect(userIds).toEqual(new Set([alice]));
+        // Le nom d'affichage est résolu depuis MySQL (les users n'ont pas migré).
+        const names = json.weeks.flatMap((w: any) => w.users).map((u: any) => u.userName);
+        expect(names).toEqual(['Kpi User']);
     });
 
     it('lets ADMIN/RESPONSABLE see every RH row', async () => {

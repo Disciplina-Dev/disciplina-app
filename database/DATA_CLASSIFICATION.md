@@ -51,10 +51,10 @@ distincte de celle des collaborateurs.
 
 ### Indicateurs nominatifs
 
-| Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
+| Table / collection | Sens. | Colonnes sensibles | Domaine backend | Rétention |
 |---|---|---|---|---|
-| `commercial_kpi` | S1 (+S2) | `user_name` (nom dénormalisé) | `KpiRepository`, `rest/kpi/` | Anonymisation au-delà de N années |
-| `rh_kpi` | S1 | `user_id` | `RhKpiRepository`, `rest/rh-kpi/` | Idem |
+| Mongo `kpis` (`kind: commercial`) | S1 (+S2) | `user_name` (nom dénormalisé) | `KpiRepository` (mongo), `rest/kpi/` | Anonymisation au-delà de N années |
+| Mongo `kpis` (`kind: rh`) | S1 | `user_id` | `RhKpiRepository` (mongo), `rest/rh-kpi/` | Idem |
 
 Données d'évaluation de la performance individuelle : catégorie à part en droit du travail,
 accès à restreindre.
@@ -103,10 +103,11 @@ lignes.
 
 ## 4. Points d'arbitrage ouverts
 
-1. **`commercial_kpi.user_name`** — nom dénormalisé, donnée personnelle dupliquée depuis
-   `users`. La supprimer imposerait une jointure sur `users` et ferait perdre l'historique
-   des utilisateurs supprimés (`user_id` est `ON DELETE SET NULL`) — c'est précisément la
-   raison d'être de la colonne. Statut : conservée, documentée.
+1. **`kpis.user_name` (Mongo, `kind: commercial`)** — nom dénormalisé, donnée personnelle
+   dupliquée depuis `users`, snapshot écrit à l'upsert. Le supprimer imposerait une
+   résolution sur `users` et ferait perdre l'historique des utilisateurs supprimés
+   (`user_id` null = orphelines d'imports Excel) — c'est précisément sa raison d'être.
+   Statut : conservé, documenté.
 2. **`peda_draft_history.recipient`** — email destinataire en clair, alors qu'il ne sert
    qu'à la déduplication d'envois. Pourrait n'être qu'un hash. Statut : à trancher.
 

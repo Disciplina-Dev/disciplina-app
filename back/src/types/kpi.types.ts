@@ -3,7 +3,6 @@ export type KpiSite = 'NORD' | 'OUEST' | 'SUD';
 export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
 
 export interface KpiRow {
-    id: number;
     user_id: number | null;
     user_name: string;
     year: number;
