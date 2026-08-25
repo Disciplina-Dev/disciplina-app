@@ -7,6 +7,7 @@ import { NeedsAnalysisModel } from '../db/mongo/schemas/needsAnalysis.schema';
 import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
+import { offerZones, candidateZones } from '../utils/zone';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
@@ -282,9 +283,18 @@ export class CandidateService {
             if (candidateAge < offer.criteria.age_min || candidateAge > offer.criteria.age_max) return false;
         }
 
-        if (offer.localisation?.length) {
-            const mobility = candidate.job_info?.geographic_mobility ?? [];
-            if (!offer.localisation.every((loc) => mobility.includes(loc))) return false;
+        const offerZoneSet = offerZones(offer);
+        const offerCommunes = offer.localisation ?? [];
+        const hasGeoConstraint = offerZoneSet.size > 0 || offerCommunes.length > 0;
+        if (hasGeoConstraint) {
+            const mobility = (candidate.job_info?.geographic_mobility ?? []) as string[];
+            const hasMutualCommune = offerCommunes.length > 0 && offerCommunes.some((c) => mobility.includes(c));
+            if (hasMutualCommune) return true;
+            const cZones = candidateZones(candidate as any);
+            for (const z of offerZoneSet) {
+                if (cZones.has(z)) return true;
+            }
+            return false;
         }
 
         return true;
