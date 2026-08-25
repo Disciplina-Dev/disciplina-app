@@ -122,6 +122,7 @@ interface Job {
   desiredTp: OfferTp[]
   desiredSex: string | null
   drivingLicencseB: boolean | null
+  hasVehicle: boolean | null
   professionalExperience: boolean | null
   status: string | null
   localisation: string[] | null
@@ -549,6 +550,12 @@ function JobCard({
             <span>Permis B requis</span>
           </div>
         )}
+        {job.hasVehicle === true && (
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 ml-3 pl-3 border-l border-gray-200">
+            <Car size={11} className="text-gray-300 shrink-0" />
+            <span>Véhiculé requis</span>
+          </div>
+        )}
         {job.sector && job.sector !== 'NONE' && (
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <Building2 size={11} className="text-gray-300 shrink-0" />
@@ -813,6 +820,15 @@ function JobDetailsSection({
             <div>
               <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Permis B</p>
               <p className="text-xs font-medium text-gray-800 mt-0.5">Requis</p>
+            </div>
+          </div>
+        )}
+        {job.hasVehicle != null && (
+          <div className="flex items-start gap-2 ml-3 pl-3 border-l border-gray-200">
+            <Car size={13} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Véhiculé</p>
+              <p className="text-xs font-medium text-gray-800 mt-0.5">{job.hasVehicle ? 'Oui' : 'Non'}</p>
             </div>
           </div>
         )}

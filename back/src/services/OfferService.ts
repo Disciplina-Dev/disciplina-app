@@ -116,6 +116,7 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?:
         desiredTp: (offer.desired_tp ?? []).map(positionTpToGql),
         desiredSex: offer.criteria?.desired_sex ?? 'MIXTE',
         drivingLicencseB: offer.criteria?.driving_license ?? false,
+        hasVehicle: offer.criteria?.has_vehicle ?? false,
         professionalExperience: offer.criteria?.experience_required ?? false,
         status: offer.matching?.status ?? OfferStatus.NOT_MATCHED,
         localisation: offer.localisation,
@@ -208,6 +209,7 @@ export class OfferService {
             const tps = offerTpCodes(offer);
             if (tps.length) filter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
             if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
+            if (offer.criteria?.has_vehicle) filter['identity.has_vehicle'] = true;
 
             if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
                 filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };

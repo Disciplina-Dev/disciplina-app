@@ -72,6 +72,7 @@ function buildPosition(position: Position): Position {
     const criteria: OfferCriteria = {
         education_level: c.education_level ?? (c as any).educationLevel ?? null,
         driving_license: c.driving_license ?? (c as any).drivingLicense ?? false,
+        has_vehicle: c.has_vehicle ?? (c as any).hasVehicle ?? false,
         experience_required: c.experience_required ?? (c as any).experienceRequired ?? false,
         training_domain: trainingDomain,
         age_min: c.age_min ?? (c as any).ageMin ?? null,
@@ -179,6 +180,7 @@ function toGqlPosition(p: Position) {
             ? {
                   educationLevel: c.education_level ?? null,
                   drivingLicense: c.driving_license ?? false,
+                  hasVehicle: (c as any).has_vehicle ?? (c as any).hasVehicle ?? false,
                   experienceRequired: c.experience_required ?? false,
                   trainingDomain: c.training_domain ?? null,
                   ageMin: c.age_min ?? null,

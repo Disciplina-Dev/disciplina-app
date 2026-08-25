@@ -209,6 +209,7 @@ export const typeDefs = gql`
         desiredTp: [OfferTp!]!
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
@@ -245,6 +246,7 @@ export const typeDefs = gql`
         ageRange: String
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
