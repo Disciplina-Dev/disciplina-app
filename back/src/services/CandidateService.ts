@@ -3,6 +3,7 @@ import { CandidateRepository, CandidateFilters, CandidateSearchField, CandidateS
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
+import { NeedsAnalysisModel } from '../db/mongo/schemas/needsAnalysis.schema';
 import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
@@ -248,15 +249,19 @@ export class CandidateService {
         if (!candidate) return [];
         if (candidate.status !== CandidateStatus.SEEKING) return [];
 
-        const [allOffers, assignedOffers] = await Promise.all([
+        const [allOffers, assignedOffers, inactiveIds] = await Promise.all([
             this.offerRepository.listMatchingOffers(),
             this.offerRepository.findWithCandidate(id),
+            NeedsAnalysisModel.distinct('_id', { $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }] }),
         ]);
+
+        const inactiveSet = new Set<string>(inactiveIds.map(String));
+        const activeAssigned = assignedOffers.filter((offer) => !inactiveSet.has(String(offer.needs_analysis_id)));
 
         const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
         const matchedIds = new Set(matched.map((o) => String(o._id)));
 
-        for (const o of assignedOffers) {
+        for (const o of activeAssigned) {
             if (!matchedIds.has(String(o._id))) {
                 matched.push(o);
             }
