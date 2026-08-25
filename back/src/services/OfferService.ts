@@ -565,7 +565,7 @@ export class OfferService {
         const proposed: MatchingCandidate = {
             ...candidateToMatchingCandidate(candidate),
             status: MatchedCandidateStatus.INTERVIEW,
-            booked_interview_slot: new Date(`${interviewDate}T${interviewHour}`).toISOString(),
+            booked_interview_slot: new Date(`${interviewDate}T${interviewHour}:00+04:00`).toISOString(),
             interview_location: interviewLocation,
         };
 

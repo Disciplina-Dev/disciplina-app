@@ -1324,7 +1324,7 @@ function buildOfferMailBody(
 
 function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
+  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1357,8 +1357,8 @@ function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: stri
 
 function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
+  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1537,7 +1537,7 @@ function MatchingSection({
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
 function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
 }
 
 
@@ -1784,7 +1784,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           candidateName,
           type: 'interview',
           interviewLocation: location,
-          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}`).toISOString(),
+          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}:00+04:00`).toISOString(),
         })
       } else {
         const result = await offerGraphqlClient
