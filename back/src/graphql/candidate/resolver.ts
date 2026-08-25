@@ -160,6 +160,7 @@ export const resolvers = {
                       statusIn: filtersInput.statusIn?.length ? filtersInput.statusIn : undefined,
                       schoolLevel: filtersInput.schoolLevel,
                       drivingLicenseB: filtersInput.drivingLicenseB,
+                      hasVehicle: filtersInput.hasVehicle,
                       sex: filtersInput.sex?.trim() || undefined,
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,

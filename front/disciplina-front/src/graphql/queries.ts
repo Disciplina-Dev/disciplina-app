@@ -1218,6 +1218,7 @@ export const GET_OFFERS = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
@@ -1268,6 +1269,7 @@ export const MATCH_OFFER = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
@@ -1518,6 +1520,7 @@ export const UNMATCH_OFFER = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
@@ -1604,6 +1607,7 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
@@ -1839,6 +1843,7 @@ export const GET_NEEDS_ANALYSIS = gql`
         criteria {
           educationLevel
           drivingLicense
+          hasVehicle
           experienceRequired
           trainingDomain
           ageMin

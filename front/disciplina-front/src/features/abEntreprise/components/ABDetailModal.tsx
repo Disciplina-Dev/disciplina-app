@@ -225,6 +225,9 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                     <Row label="Niveau d'études" value={LABELS.educationLevel[c.educationLevel]} />
                   )}
                   <Row label="Permis B"   value={c.drivingLicense == null ? null : c.drivingLicense ? 'Oui' : 'Optionnel'} />
+                  <div className="ml-3 pl-4 border-l-2 border-gray-100">
+                    <Row label="Véhiculé"   value={c.hasVehicle == null ? null : c.hasVehicle ? 'Oui' : 'Non'} />
+                  </div>
                   <Row label="Expérience" value={c.experienceRequired == null ? null : c.experienceRequired ? 'Expérience obligatoire' : 'Débutant accepté'} />
                   {(c.ageMin || c.ageMax) && (
                     <Row label="Âge" value={[c.ageMin ? `de ${c.ageMin} ans` : null, c.ageMax ? `à ${c.ageMax} ans` : null].filter(Boolean).join(' ')} />

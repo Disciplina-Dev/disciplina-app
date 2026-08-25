@@ -38,6 +38,7 @@ export interface CandidateFilters {
     statusIn?: string[];
     schoolLevel?: string;
     drivingLicenseB?: boolean;
+    hasVehicle?: boolean;
     /** Sexe du candidat (FILLE / GARCON), exclusif. */
     sex?: string;
     ageMin?: number;
@@ -173,6 +174,7 @@ export class CandidateRepository {
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
+        if (filters?.hasVehicle !== undefined) conditions.push({ 'identity.has_vehicle': filters.hasVehicle });
         if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
         // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
         // scripts/cleanup_candidate_tp_type.py) : $or transitoire, à retirer une fois

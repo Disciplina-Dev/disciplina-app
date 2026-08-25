@@ -270,6 +270,7 @@ export class CandidateService {
         const candidateTps = candidate.tp_types ?? [];
         if (offerTps.length && !offerTps.some((tp) => candidateTps.includes(tp))) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
+        if (offer.criteria?.has_vehicle && !candidate.identity.has_vehicle) return false;
 
         const candidateAge = computeAge(candidate.identity.date_of_birth) ?? candidate.identity.age;
         if (offer.criteria?.age_min != null && offer.criteria?.age_max != null && candidateAge != null) {
