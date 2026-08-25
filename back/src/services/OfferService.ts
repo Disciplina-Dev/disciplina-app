@@ -130,11 +130,24 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?:
         interviewLocation: offer.matching?.interview_location,
         salerInfo: offer.saler_info,
         referents: offer.referents
-            ? {
-                  isSame: offer.referents.is_same,
-                  legalReferents: offer.referents.legal_referents,
-                  recruitmentReferents: offer.referents.recruitment_referents,
-              }
+            ? (() => {
+                  const legal = offer.referents.legal_referents as any
+                  const recruit = offer.referents.recruitment_referents as any
+                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
+                  const actuallySame = !hasRecruit || (
+                      (recruit?.name ?? null) === (legal?.name ?? null) &&
+                      (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+                      (recruit?.email ?? null) === (legal?.email ?? null) &&
+                      (recruit?.function ?? null) === (legal?.function ?? null)
+                  )
+                  // Override stale is_same flag: if actual contact data differs, treat as distinct so both are shown.
+                  const isSame = actuallySame ? (offer.referents.is_same ?? true) : false
+                  return {
+                      isSame,
+                      legalReferents: legal,
+                      recruitmentReferents: recruit,
+                  }
+              })()
             : undefined,
         softSkills: offer.criteria?.soft_skills,
         schedule: (offer.criteria?.schedule_options ?? []).map(toScheduleSlotGql),
