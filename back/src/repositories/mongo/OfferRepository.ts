@@ -1,4 +1,5 @@
 import { OfferModel } from '../../db/mongo/schemas/offer.schema';
+import { NeedsAnalysisModel } from '../../db/mongo/schemas/needsAnalysis.schema';
 import { Offer, OfferAbFilter, AbStatus } from '../../types/offer.types';
 import {
     ImmersionConclusion,
@@ -124,14 +125,21 @@ export class OfferRepository {
         return OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
     }
 
-    /** Toutes les offres à matcher (hors offres déjà contractualisées). */
+    /** Toutes les offres à matcher (hors offres déjà contractualisées et hors AB inactives). */
     async listMatchingOffers(): Promise<Offer[]> {
-        return OfferModel.find({
+        const inactiveIds: string[] = await NeedsAnalysisModel.distinct('_id', {
+            $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }],
+        });
+        const filter: Record<string, unknown> = {
             $nor: [
                 { 'matching.status': OfferStatus.CONTRACT },
                 { 'matching.candidates': { $elemMatch: { status: MatchedCandidateStatus.CONTRACT } } },
             ],
-        }).lean();
+        };
+        if (inactiveIds.length) {
+            (filter as Record<string, unknown>)['needs_analysis_id'] = { $nin: inactiveIds };
+        }
+        return OfferModel.find(filter).lean();
     }
 
     /** Remplace le contenu (poste, entreprise, référents, saler) d'une offre sans toucher à `matching`. */
