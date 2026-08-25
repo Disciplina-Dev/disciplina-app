@@ -208,54 +208,35 @@ CREATE TABLE IF NOT EXISTS `filiz` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE IF NOT EXISTS `interview_access` (
-  `signature` char(64) NOT NULL,
-  `code` char(6) NOT NULL,
-  `offer_uuid` varchar(64) NOT NULL,
-  `candidate_id` varchar(64) NOT NULL,
-  `rh_email` varchar(255) NOT NULL,
-  `status` enum('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-  `attempts` tinyint NOT NULL DEFAULT '0',
-  `expires_at` timestamp NOT NULL,
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY `idx_interview_access_job` (`offer_uuid`),
-  KEY `idx_interview_access_candidate` (`candidate_id`),
-  PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */
+CREATE TABLE IF NOT EXISTS `external_references` (
+  `id`   int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE IF NOT EXISTS `match_link` (
-  `signature` char(64) NOT NULL,
-  `code` char(6) NOT NULL,
-  `identifier` varchar(32) NOT NULL,
-  `rh_email` varchar(255) NOT NULL,
-  `company_email` varchar(255) NOT NULL,
-  `offer_uuid` varchar(64) NOT NULL,
-  `status` enum('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-  `attempts` tinyint NOT NULL DEFAULT '0',
-  `expires_at` timestamp NOT NULL,
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+INSERT IGNORE INTO `external_references` (`id`, `name`) VALUES
+  (1, 'IMPORT_MAIL'),
+  (2, 'MATCHING'),
+  (3, 'INTERVIEW_SLOTS');
 
-CREATE TABLE IF NOT EXISTS `external_link` (
-  `id`             int           NOT NULL AUTO_INCREMENT,
+CREATE TABLE IF NOT EXISTS `external_access` (
   `signature`      char(128)    NOT NULL,
-  `code`           char(6)      NOT NULL,
-  `external_email` varchar(255) NOT NULL,
-  `rh_email`       varchar(255) NOT NULL,
-  `guest_type`     enum('COMPANY','CANDIDATE') NOT NULL,
-  `external_uuid`  varchar(64)  NOT NULL,
+  `code`           char(6)      NULL,
+  `user_id`        int          NOT NULL,
+  `external_id`    varchar(64)  NOT NULL,
+  `external_type`  enum('COMPANY','CANDIDATE') NOT NULL,
+  `reference_id`   int          NOT NULL,
+  `reference_key`  varchar(255) NOT NULL,
   `status`         enum('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
   `attempts`       tinyint      NOT NULL DEFAULT '0',
   `expires_at`     timestamp    NOT NULL,
   `created_at`     timestamp    DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  UNIQUE KEY `uk_signature` (`signature`),
-  KEY `idx_external_uuid` (`external_uuid`),
-  KEY `idx_guest_type` (`guest_type`)
+  PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_ext_access_reference` (`reference_id`, `reference_key`),
+  KEY `idx_ext_access_external` (`external_id`, `external_type`),
+  CONSTRAINT `fk_ext_access_reference` FOREIGN KEY (`reference_id`) REFERENCES `external_references` (`id`),
+  CONSTRAINT `fk_ext_access_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- La table `needs_analysis` a été retirée le 2026-07-17 : l'entité vit désormais dans

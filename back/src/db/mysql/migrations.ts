@@ -149,61 +149,35 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
-        // Session de portail entreprise (acceptation interactive des candidats).
-        // Une ligne = un lien envoyé à une entreprise pour répondre aux candidats proposés d'un job.
-        table: 'match_link',
-        ddl: `CREATE TABLE IF NOT EXISTS match_link (
-            signature CHAR(64) PRIMARY KEY,
-            code CHAR(6) NOT NULL,
-            identifier VARCHAR(32) NOT NULL,
-            rh_email VARCHAR(255) NOT NULL,
-            company_email VARCHAR(255) NOT NULL,
-            offer_uuid VARCHAR(64) NOT NULL,
-            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-            attempts TINYINT NOT NULL DEFAULT 0,
-            expires_at TIMESTAMP NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )`,
-    },
-    {
-        // Lien d'accès externe unifié (entreprises et candidats). Remplace progressivement
-        // match_link et interview_access. Signature 128 chars (512 bits) + code 6 chiffres.
-        table: 'external_link',
-        ddl: `CREATE TABLE IF NOT EXISTS external_link (
+        // Table de lookup pour les types d'accès externe (IMPORT_MAIL, MATCHING, INTERVIEW_SLOTS).
+        table: 'external_references',
+        ddl: `CREATE TABLE IF NOT EXISTS external_references (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            signature CHAR(128) NOT NULL UNIQUE KEY,
-            code CHAR(6) NOT NULL,
-            external_email VARCHAR(255) NOT NULL,
-            rh_email VARCHAR(255) NOT NULL,
-            guest_type ENUM('COMPANY','CANDIDATE') NOT NULL,
-            external_uuid VARCHAR(64) NOT NULL,
-            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-            attempts TINYINT NOT NULL DEFAULT 0,
-            expires_at TIMESTAMP NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_external_uuid (external_uuid),
-            INDEX idx_guest_type (guest_type)
+            name VARCHAR(255) NOT NULL
         )`,
     },
     {
-        // Choix de créneau d'entretien par le candidat (portail public, code d'accès simple).
-        // Une ligne = un lien envoyé à un candidat proposé pour choisir un créneau parmi le pool du job.
-        table: 'interview_access',
-        ddl: `CREATE TABLE IF NOT EXISTS interview_access (
-            signature CHAR(64) PRIMARY KEY,
-            code CHAR(6) NOT NULL,
-            offer_uuid VARCHAR(64) NOT NULL,
-            candidate_id VARCHAR(64) NOT NULL,
-            rh_email VARCHAR(255) NOT NULL,
+        // Table unifiée des liens signés remplaçant interview_access, match_link et external_link.
+        // Chaque ligne représente un lien envoyé à un guest (candidat ou entreprise) avec
+        // signature 128 chars (512 bits) + code 6 chiffres optionnel.
+        table: 'external_access',
+        ddl: `CREATE TABLE IF NOT EXISTS external_access (
+            signature CHAR(128) PRIMARY KEY,
+            code CHAR(6) NULL,
+            user_id INT NOT NULL,
+            external_id VARCHAR(64) NOT NULL,
+            external_type ENUM('COMPANY','CANDIDATE') NOT NULL,
+            reference_id INT NOT NULL,
+            reference_key VARCHAR(255) NOT NULL,
             status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
             attempts TINYINT NOT NULL DEFAULT 0,
             expires_at TIMESTAMP NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_interview_access_offer (offer_uuid),
-            INDEX idx_interview_access_candidate (candidate_id)
+            INDEX idx_ext_access_reference (reference_id, reference_key),
+            INDEX idx_ext_access_external (external_id, external_type),
+            CONSTRAINT fk_ext_access_reference FOREIGN KEY (reference_id) REFERENCES external_references (id),
+            CONSTRAINT fk_ext_access_user FOREIGN KEY (user_id) REFERENCES users (id)
         )`,
     },
     {
@@ -393,20 +367,6 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info('MySQL migration: created index idx_companies_siren');
     }
 
-
-    // Renommage job_uuid → offer_uuid (unification jobs → offers d'AB). Sur les
-    // tables de session déjà créées avec l'ancienne colonne, on la renomme ;
-    // idempotent : gardé sur la présence de la colonne legacy.
-    for (const table of ['match_link', 'interview_access']) {
-        const legacyColumn = await query<{ count: number }[]>(
-            "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'job_uuid'",
-            [table],
-        );
-        if (Number(legacyColumn[0]?.count) === 0) continue;
-        // Identifiers come from the hardcoded list above, never from user input
-        await query(`ALTER TABLE ${table} CHANGE COLUMN job_uuid offer_uuid VARCHAR(64) NOT NULL`);
-        logger.info(`MySQL migration: renamed ${table}.job_uuid to offer_uuid`);
-    }
 
     // Rôle PEDA (2026-07-08) : élargit l'ENUM users.role. mysql-init.sql ne
     // tourne que sur un volume neuf, les bases existantes sont migrées ici.
