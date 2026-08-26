@@ -1,0 +1,113 @@
+import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
+import { OfferRepository } from '../repositories/mongo/OfferRepository';
+import { ExternalAccessRow } from '../types/db-rows.types';
+import { generateNumericCode } from '../external/crypto';
+import { renderTemplate } from './renderTemplate';
+import { ExternalMailService } from './ExternalMailService';
+import { MailTemplateService } from './MailTemplateService';
+import { CandidateService } from './CandidateService';
+import { UserService } from './UserService';
+import { EXTERNAL_ACCESS_SUBJECT, EXTERNAL_ACCESS_BODY } from './externalAccessDefaultTemplate';
+import { withNoReply } from '../external/google/no-reply';
+import { logger } from '../external/logger';
+
+type SendCodeResult =
+    | { status: 'NOT_FOUND'; httpCode: 404; message: string }
+    | { status: 'COMPLETED'; httpCode: 200; message: string }
+    | { status: 'BLOCKED'; httpCode: 200; message: string }
+    | { status: 'OK'; httpCode: 200; message: string };
+
+export class ExternalAccessService {
+    constructor(
+        private readonly repository = new ExternalAccessRepository(),
+        private readonly externalMailService = new ExternalMailService(),
+        private readonly candidateService = new CandidateService(),
+        private readonly offerRepository = new OfferRepository(),
+        private readonly userService = new UserService(),
+        private readonly mailTemplateService = new MailTemplateService(),
+    ) {}
+
+    async sendCode(signature: string): Promise<SendCodeResult> {
+        const row = await this.repository.findBySignature(signature);
+
+        if (!row) {
+            return { status: 'NOT_FOUND', httpCode: 404, message: "KO signature doesn't exist" };
+        }
+
+        if (row.status === 'COMPLETED') {
+            return { status: 'COMPLETED', httpCode: 200, message: 'KO signature already completed' };
+        }
+
+        if (row.status === 'EXPIRED' || row.status === 'LOCKED') {
+            return { status: 'BLOCKED', httpCode: 200, message: 'KO signature expired or locked' };
+        }
+
+        const recipientEmail = await this.resolveRecipientEmail(row);
+        if (!recipientEmail) {
+            logger.warn({ signature, referenceId: row.reference_id }, '[external-access] could not resolve recipient email');
+            return { status: 'OK', httpCode: 200, message: 'OK signature exists' };
+        }
+
+        const code = generateNumericCode(6);
+        const firstName = await this.resolveRecipientFirstName(row);
+
+        const template = await this.mailTemplateService.findRhTemplateByKind('external_access');
+        const subject = template?.subject ?? EXTERNAL_ACCESS_SUBJECT;
+        const body = template?.body ?? EXTERNAL_ACCESS_BODY;
+        const html = renderTemplate(body, { prenom: firstName, code });
+        const rh = await this.userService.findById(row.user_id);
+
+        if (rh) {
+            const text = html.replace(/<[^>]*>/g, '');
+            await this.externalMailService.sendMail(
+                rh.email,
+                withNoReply({
+                    to: recipientEmail,
+                    subject,
+                    html,
+                    text,
+                }),
+            );
+        }
+
+        await this.repository.setStatus(signature, 'PENDING');
+
+        return { status: 'OK', httpCode: 200, message: 'OK signature exists' };
+    }
+
+    private async resolveRecipientEmail(row: ExternalAccessRow): Promise<string | null> {
+        try {
+            if (row.reference_id === 1 || row.reference_id === 3) {
+                const candidate = await this.candidateService.findById(row.reference_key);
+                return candidate?.identity?.email ?? null;
+            }
+
+            if (row.reference_id === 2) {
+                const offer = await this.offerRepository.findById(row.reference_key);
+                return offer?.referents?.recruitment_referents?.email ?? null;
+            }
+        } catch (err) {
+            logger.error({ err, signature: row.signature }, '[external-access] failed to resolve recipient email');
+        }
+        return null;
+    }
+
+    private async resolveRecipientFirstName(row: ExternalAccessRow): Promise<string> {
+        try {
+            if (row.reference_id === 1 || row.reference_id === 3) {
+                const candidate = await this.candidateService.findById(row.reference_key);
+                const fullName = candidate?.identity?.full_name ?? '';
+                return fullName.split(' ')[0] || 'Client';
+            }
+
+            if (row.reference_id === 2) {
+                const offer = await this.offerRepository.findById(row.reference_key);
+                const name = offer?.referents?.recruitment_referents?.name ?? '';
+                return name.split(' ')[0] || 'Client';
+            }
+        } catch {
+            // fall through
+        }
+        return 'Client';
+    }
+}

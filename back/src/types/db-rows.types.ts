@@ -161,6 +161,21 @@ export interface RefreshTokenRow {
     created_at?: string | Date;
 }
 
+export interface ExternalAccessRow {
+    signature: string;
+    code: string | null;
+    user_id: number;
+    external_id: string;
+    external_type: 'COMPANY' | 'CANDIDATE';
+    reference_id: number;
+    reference_key: string;
+    status: 'SENDING' | 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
+    expires_at: string | Date | null;
+    created_at?: string | Date;
+    updated_at?: string | Date;
+}
+
 export interface FilizRow {
     token: string;
     created_at: Date;

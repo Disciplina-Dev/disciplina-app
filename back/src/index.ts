@@ -221,6 +221,9 @@ export async function startServer(): Promise<http.Server> {
     mailTemplateService
         .seedpropositionCandidatsDefault()
         .catch((err) => logger.error({ err }, 'match-invitation: seed du modèle système échoué'));
+    mailTemplateService
+        .seedExternalAccessDefault()
+        .catch((err) => logger.error({ err }, 'external-access: seed du modèle système échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();

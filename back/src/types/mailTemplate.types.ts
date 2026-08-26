@@ -19,7 +19,7 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
  * `ab_relance`   = relance automatique d'une AB non signée après 2 semaines (scope commercial).
  * `proposition_candidat` = mail d'invitation à la sélection de candidats (scope rh).
  */
-export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'ab_relance', 'proposition_candidat'] as const;
+export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'ab_relance', 'proposition_candidat', 'external_access'] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
 
 /** Libellés affichés (front + logs). */

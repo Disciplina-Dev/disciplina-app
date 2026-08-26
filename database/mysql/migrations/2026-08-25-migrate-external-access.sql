@@ -2,7 +2,7 @@
 -- Idempotent: uses INSERT IGNORE to skip already-migrated rows (keyed on signature).
 --
 -- Prerequisites:
---   - external_references table must exist with seed rows (1=IMPORT_MAIL, 2=MATCHING, 3=INTERVIEW_SLOTS)
+--   - external_references table must exist with seed rows (1=IMPORT_CV, 2=MATCHING, 3=INTERVIEW_SLOTS)
 --   - external_access table must exist
 --   - Old tables must still exist (interview_access, match_link, external_link)
 --
@@ -21,7 +21,7 @@ SELECT
     ia.candidate_id,
     'CANDIDATE',
     3,
-    ia.offer_uuid,
+    ia.candidate_id,
     ia.status,
     ia.attempts,
     ia.expires_at,
@@ -31,7 +31,7 @@ FROM interview_access ia
 JOIN users u ON u.email = ia.rh_email;
 
 -- ──────────────────────────────────────────────────────────────────────────────
--- 2. external_link → external_access (reference_id = 1, IMPORT_MAIL)
+-- 2. external_link → external_access (reference_id = 1, IMPORT_CV)
 -- ──────────────────────────────────────────────────────────────────────────────
 INSERT IGNORE INTO external_access
     (signature, code, user_id, external_id, external_type, reference_id, reference_key, status, attempts, expires_at, created_at, updated_at)
