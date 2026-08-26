@@ -73,3 +73,15 @@ export async function regenerate(req: AuthRequest, res: Response): Promise<void>
     const result = await externalAccessService.regenerate(signature, userId);
     res.status(result.success ? 201 : 400).json(result);
 }
+
+export async function inspectCode(req: Request, res: Response): Promise<void> {
+    const { signature, code } = req.body;
+
+    if (!signature || !code) {
+        res.status(400).json({ success: false, error: 'signature et code requis' });
+        return;
+    }
+
+    const result = await externalAccessService.inspect(signature, code);
+    res.status(result.success ? 200 : 400).json(result);
+}

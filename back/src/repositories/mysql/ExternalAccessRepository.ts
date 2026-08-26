@@ -47,4 +47,16 @@ export class ExternalAccessRepository {
     async delete(signature: string): Promise<void> {
         await query('DELETE FROM external_access WHERE signature = ?', [signature]);
     }
+
+    async incrementAttempts(signature: string): Promise<number> {
+        await query(
+            'UPDATE external_access SET attempts = attempts + 1 WHERE signature = ?',
+            [signature],
+        );
+        const rows = await query<ExternalAccessRow[]>(
+            'SELECT attempts FROM external_access WHERE signature = ?',
+            [signature],
+        );
+        return rows.length > 0 ? rows[0].attempts : 0;
+    }
 }

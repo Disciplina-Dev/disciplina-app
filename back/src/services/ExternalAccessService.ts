@@ -11,6 +11,7 @@ import { sendSystemEmail } from '../external/google/system-mail';
 import { withNoReply } from '../external/google/no-reply';
 import { logger } from '../external/logger';
 import { env } from '../config/env';
+import { MAX_ATTEMPTS } from './signedAccess';
 
 type SendCodeResult =
     | { status: 'NOT_FOUND'; httpCode: 404; message: string }
@@ -146,6 +147,31 @@ export class ExternalAccessService {
         await this.repository.setStatus(signature, 'PENDING');
 
         return { status: 'OK', httpCode: 200, message: 'OK signature exists' };
+    }
+
+    async inspect(signature: string, code: string): Promise<GenerateResult> {
+        const row = await this.repository.findBySignature(signature);
+
+        if (!row) {
+            return { success: false, error: "KO signature doesn't exist" };
+        }
+
+        if (row.status === 'LOCKED') {
+            return { success: false, error: 'KO Max attemps external link locked' };
+        }
+
+        if (row.code === code) {
+            return { success: true };
+        }
+
+        const attempts = await this.repository.incrementAttempts(signature);
+
+        if (attempts >= MAX_ATTEMPTS) {
+            await this.repository.setStatus(signature, 'LOCKED');
+            return { success: false, error: 'KO Max attemps external link locked' };
+        }
+
+        return { success: false, error: `KO Wrong code ${attempts} attempts` };
     }
 
     private async fallbackEmail(row: ExternalAccessRow): Promise<string | null> {

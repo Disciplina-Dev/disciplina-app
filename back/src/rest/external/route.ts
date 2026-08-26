@@ -3,7 +3,7 @@ import { externalRateLimiter } from '../middleware/rateLimiter';
 import { requireExternalGuest } from './guard';
 import { inspect, getProfile } from './controller';
 import { sendCvImportMail, uploadCv } from './cvImport.controller';
-import { sendCode, generate, regenerate } from './externalAccess.controller';
+import { sendCode, generate, regenerate, inspectCode } from './externalAccess.controller';
 import { authenticate as authenticateStaff } from '../middleware/auth';
 
 export const router: Router = express.Router();
@@ -11,6 +11,7 @@ export const router: Router = express.Router();
 router.use(express.json());
 
 router.post('/generate', authenticateStaff, generate);
+router.post('/inspect', externalRateLimiter, inspectCode);
 
 router.get('/:signature/inspect', externalRateLimiter, inspect);
 router.post('/:signature/authenticate', externalRateLimiter, sendCode);
