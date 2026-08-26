@@ -14,6 +14,7 @@ import { AB_RELANCE_SUBJECT, AB_RELANCE_BODY } from './abRelanceTemplate';
 import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
 import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
 import { EXTERNAL_ACCESS_SUBJECT, EXTERNAL_ACCESS_BODY } from './externalAccessDefaultTemplate';
+import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
 import { UserService } from './UserService';
@@ -61,6 +62,7 @@ export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
 export const PROPOSITION_CANDIDAT_SEEDED_KEY = 'proposition_candidat_template_seeded';
 
 export const EXTERNAL_ACCESS_SEEDED_KEY = 'external_access_template_seeded';
+export const EXTERNAL_LINK_SEEDED_KEY = 'external_link_template_seeded';
 
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
@@ -395,6 +397,35 @@ export class MailTemplateService {
             logger.info('external-access: modèle système semé');
         }
         await settings.set(EXTERNAL_ACCESS_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Lien d'accès externe » (scope rh,
+     * kind `external_link`) au premier démarrage. Idempotent via flag app_settings
+     * ET vérification d'existence.
+     */
+    async seedExternalLinkDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(EXTERNAL_LINK_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'external_link' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Lien d\'accès externe',
+                subject: EXTERNAL_LINK_SUBJECT,
+                body: EXTERNAL_LINK_BODY,
+                peda_level: null,
+                kind: 'external_link',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('external-link: modèle système semé');
+        }
+        await settings.set(EXTERNAL_LINK_SEEDED_KEY, '1');
     }
 
     async remove(userId: number, id: string): Promise<void> {

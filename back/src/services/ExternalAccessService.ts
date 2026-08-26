@@ -1,20 +1,36 @@
 import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { ExternalAccessRow } from '../types/db-rows.types';
-import { generateNumericCode } from '../external/crypto';
+import { generateExternalSignature, generateNumericCode } from '../external/crypto';
 import { renderTemplate } from './renderTemplate';
 import { MailTemplateService } from './MailTemplateService';
 import { CandidateService } from './CandidateService';
 import { EXTERNAL_ACCESS_SUBJECT, EXTERNAL_ACCESS_BODY } from './externalAccessDefaultTemplate';
+import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { sendSystemEmail } from '../external/google/system-mail';
 import { withNoReply } from '../external/google/no-reply';
 import { logger } from '../external/logger';
+import { env } from '../config/env';
 
 type SendCodeResult =
     | { status: 'NOT_FOUND'; httpCode: 404; message: string }
     | { status: 'COMPLETED'; httpCode: 200; message: string }
     | { status: 'BLOCKED'; httpCode: 200; message: string }
     | { status: 'OK'; httpCode: 200; message: string };
+
+export interface GenerateInput {
+    userId: number;
+    externalId: string;
+    externalType: 'COMPANY' | 'CANDIDATE';
+    externalEmail: string;
+    externalFirstName: string;
+    referenceId: number;
+    referenceKey: string;
+}
+
+export type GenerateResult =
+    | { success: true }
+    | { success: false; error: string };
 
 export class ExternalAccessService {
     constructor(
@@ -23,6 +39,41 @@ export class ExternalAccessService {
         private readonly offerRepository = new OfferRepository(),
         private readonly mailTemplateService = new MailTemplateService(),
     ) {}
+
+    async generate(input: GenerateInput): Promise<GenerateResult> {
+        const signature = generateExternalSignature();
+
+        await this.repository.create({
+            signature,
+            code: null,
+            user_id: input.userId,
+            external_id: input.externalId,
+            external_type: input.externalType,
+            external_email: input.externalEmail,
+            external_first_name: input.externalFirstName,
+            reference_id: input.referenceId,
+            reference_key: input.referenceKey,
+            status: 'SENDING',
+            attempts: 0,
+            expires_at: null,
+        });
+
+        const link = `${env.FRONTEND_BASE_URL}/external/authenticate?sig=${signature}`;
+
+        const template = await this.mailTemplateService.findRhTemplateByKind('external_link');
+        const subject = template?.subject ?? EXTERNAL_LINK_SUBJECT;
+        const body = template?.body ?? EXTERNAL_LINK_BODY;
+        const html = renderTemplate(body, { prenom: input.externalFirstName, link });
+        const text = html.replace(/<[^>]*>/g, '');
+
+        try {
+            await sendSystemEmail(withNoReply({ to: input.externalEmail, subject, html, text }));
+        } catch (err) {
+            logger.error({ err, signature }, '[external-access] failed to send link email');
+        }
+
+        return { success: true };
+    }
 
     async sendCode(signature: string): Promise<SendCodeResult> {
         const row = await this.repository.findBySignature(signature);
