@@ -3,7 +3,7 @@
 --
 -- Prerequisites:
 --   - external_references table must exist with seed rows (1=IMPORT_CV, 2=MATCHING, 3=INTERVIEW_SLOTS)
---   - external_access table must exist
+--   - external_access table must exist with external_email / external_first_name columns
 --   - Old tables must still exist (interview_access, match_link, external_link)
 --
 -- Usage:
@@ -11,15 +11,18 @@
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- 1. interview_access → external_access (reference_id = 3, INTERVIEW_SLOTS)
+--    email not available in MySQL → falls back to MongoDB at runtime
 -- ──────────────────────────────────────────────────────────────────────────────
 INSERT IGNORE INTO external_access
-    (signature, code, user_id, external_id, external_type, reference_id, reference_key, status, attempts, expires_at, created_at, updated_at)
+    (signature, code, user_id, external_id, external_type, external_email, external_first_name, reference_id, reference_key, status, attempts, expires_at, created_at, updated_at)
 SELECT
     ia.signature,
     ia.code,
     u.id,
     ia.candidate_id,
     'CANDIDATE',
+    NULL,
+    NULL,
     3,
     ia.candidate_id,
     ia.status,
@@ -32,15 +35,18 @@ JOIN users u ON u.email = ia.rh_email;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- 2. external_link → external_access (reference_id = 1, IMPORT_CV)
+--    external_email available directly; first_name needs MongoDB at runtime
 -- ──────────────────────────────────────────────────────────────────────────────
 INSERT IGNORE INTO external_access
-    (signature, code, user_id, external_id, external_type, reference_id, reference_key, status, attempts, expires_at, created_at, updated_at)
+    (signature, code, user_id, external_id, external_type, external_email, external_first_name, reference_id, reference_key, status, attempts, expires_at, created_at, updated_at)
 SELECT
     el.signature,
     el.code,
     u.id,
     el.external_uuid,
     el.guest_type,
+    el.external_email,
+    NULL,
     1,
     el.external_uuid,
     el.status,
@@ -53,16 +59,18 @@ JOIN users u ON u.email = el.rh_email;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- 3. match_link → external_access (reference_id = 2, MATCHING)
---    external_id = company MySQL id (cast to string), guest = COMPANY
+--    company_email = recipient email; first_name needs MongoDB at runtime
 -- ──────────────────────────────────────────────────────────────────────────────
 INSERT IGNORE INTO external_access
-    (signature, code, user_id, external_id, external_type, reference_id, reference_key, status, attempts, expires_at, created_at, updated_at)
+    (signature, code, user_id, external_id, external_type, external_email, external_first_name, reference_id, reference_key, status, attempts, expires_at, created_at, updated_at)
 SELECT
     ml.signature,
     ml.code,
     u.id,
     CAST(c.id AS CHAR),
     'COMPANY',
+    ml.company_email,
+    NULL,
     2,
     ml.offer_uuid,
     ml.status,

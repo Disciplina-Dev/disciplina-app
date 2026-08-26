@@ -225,6 +225,8 @@ CREATE TABLE IF NOT EXISTS `external_access` (
   `user_id`        int          NOT NULL,
   `external_id`    varchar(64)  NOT NULL,
   `external_type`  enum('COMPANY','CANDIDATE') NOT NULL,
+  `external_email` varchar(255) NULL,
+  `external_first_name` varchar(255) NULL,
   `reference_id`   int          NOT NULL,
   `reference_key`  varchar(255) NOT NULL,
   `status`         enum('SENDING','PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'SENDING',

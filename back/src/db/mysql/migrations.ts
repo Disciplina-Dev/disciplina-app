@@ -48,6 +48,8 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     // les workflows (login, listes, directory). Cf. UserRepository.markDeleted.
     { table: 'users', column: 'is_deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
     { table: 'users', column: 'deleted_at', definition: 'TIMESTAMP NULL DEFAULT NULL' },
+    { table: 'external_access', column: 'external_email', definition: 'VARCHAR(255) NULL' },
+    { table: 'external_access', column: 'external_first_name', definition: 'VARCHAR(255) NULL' },
 ];
 
 /**
@@ -167,6 +169,8 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             user_id INT NOT NULL,
             external_id VARCHAR(64) NOT NULL,
             external_type ENUM('COMPANY','CANDIDATE') NOT NULL,
+            external_email VARCHAR(255) NULL,
+            external_first_name VARCHAR(255) NULL,
             reference_id INT NOT NULL,
             reference_key VARCHAR(255) NOT NULL,
             status ENUM('SENDING','PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'SENDING',
