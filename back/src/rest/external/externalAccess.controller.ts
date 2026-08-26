@@ -56,3 +56,20 @@ export async function generate(req: AuthRequest, res: Response): Promise<void> {
 
     res.status(result.success ? 201 : 400).json(result);
 }
+
+export async function regenerate(req: AuthRequest, res: Response): Promise<void> {
+    const userId = req.user?.id;
+    if (!userId) {
+        res.status(401).json({ success: false, error: 'Non authentifié' });
+        return;
+    }
+
+    const { signature } = req.params;
+    if (!signature) {
+        res.status(400).json({ success: false, error: 'Signature requise' });
+        return;
+    }
+
+    const result = await externalAccessService.regenerate(signature, userId);
+    res.status(result.success ? 201 : 400).json(result);
+}

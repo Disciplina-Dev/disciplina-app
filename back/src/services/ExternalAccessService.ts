@@ -75,6 +75,42 @@ export class ExternalAccessService {
         return { success: true };
     }
 
+    async regenerate(signature: string, userId: number): Promise<GenerateResult> {
+        const row = await this.repository.findBySignature(signature);
+
+        if (!row) {
+            return { success: false, error: 'Signature introuvable' };
+        }
+
+        if (row.status !== 'EXPIRED' && row.status !== 'LOCKED') {
+            return {
+                success: false,
+                error: 'Seules les signatures expirées ou bloquées peuvent être régénérées',
+            };
+        }
+
+        const email = row.external_email ?? (await this.fallbackEmail(row));
+        if (!email) {
+            return { success: false, error: 'Aucun email associé à cette signature' };
+        }
+
+        const firstName = row.external_first_name ?? (await this.fallbackFirstName(row));
+
+        const input: GenerateInput = {
+            userId,
+            externalId: row.external_id,
+            externalType: row.external_type,
+            externalEmail: email,
+            externalFirstName: firstName,
+            referenceId: row.reference_id,
+            referenceKey: row.reference_key,
+        };
+
+        await this.repository.delete(signature);
+
+        return this.generate(input);
+    }
+
     async sendCode(signature: string): Promise<SendCodeResult> {
         const row = await this.repository.findBySignature(signature);
 

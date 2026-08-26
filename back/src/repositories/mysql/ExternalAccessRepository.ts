@@ -43,4 +43,8 @@ export class ExternalAccessRepository {
             signature,
         ]);
     }
+
+    async delete(signature: string): Promise<void> {
+        await query('DELETE FROM external_access WHERE signature = ?', [signature]);
+    }
 }
