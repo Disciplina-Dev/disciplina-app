@@ -30,7 +30,7 @@ export interface GenerateInput {
 }
 
 export type GenerateResult =
-    | { success: true }
+    | { success: true; referenceId?: number; referenceKey?: string }
     | { success: false; error: string };
 
 export class ExternalAccessService {
@@ -160,8 +160,13 @@ export class ExternalAccessService {
             return { success: false, error: 'KO Max attemps external link locked' };
         }
 
+        if (row.status === 'AUTHENTICATED') {
+            return { success: false, error: 'KO signature already authenticated' };
+        }
+
         if (row.code === code) {
-            return { success: true };
+            await this.repository.setStatus(signature, 'AUTHENTICATED');
+            return { success: true, referenceId: row.reference_id, referenceKey: row.reference_key };
         }
 
         const attempts = await this.repository.incrementAttempts(signature);
