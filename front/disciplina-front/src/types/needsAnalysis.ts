@@ -32,16 +32,23 @@ export interface Referents {
   recruitmentReferents?: ReferentDetails | null
 }
 
+export interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 export interface OfferCriteria {
   educationLevel?: string | null
   drivingLicense?: boolean | null
+  hasVehicle?: boolean | null
   experienceRequired?: boolean | null
   trainingDomain?: string | null
   ageMin?: number | null
   ageMax?: number | null
   desiredSex?: string | null
   softSkills?: string | null
-  scheduleOptions?: string[] | null
+  scheduleOptions?: ScheduleSlot[] | null
   conditions?: string | null
   additionalComments?: string | null
 }

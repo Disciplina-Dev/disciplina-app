@@ -1,5 +1,5 @@
 import { Schema } from 'mongoose';
-import { OfferCriteria, EducationLevel, TrainingDomain } from '../../../types/needsAnalysisNoSql.types';
+import { OfferCriteria, EducationLevel, TrainingDomain, ScheduleSlot } from '../../../types/needsAnalysisNoSql.types';
 import {
     Matching,
     MatchingCandidate,
@@ -9,17 +9,27 @@ import {
     ImmersionConclusion,
 } from '../../../types/matching.types';
 
+const scheduleSlotSchema = new Schema<ScheduleSlot>(
+    {
+        day: { type: String, default: null },
+        start_hour: { type: String, default: null },
+        end_hour: { type: String, default: null },
+    },
+    { _id: false },
+);
+
 export const criteriaSchema = new Schema<OfferCriteria>(
     {
         education_level: { type: String, enum: Object.values(EducationLevel), default: null },
         driving_license: { type: Boolean, default: false },
+        has_vehicle: { type: Boolean, default: false },
         experience_required: { type: Boolean, default: false },
         training_domain: { type: String, enum: Object.values(TrainingDomain), default: null },
         age_min: { type: Number, default: null },
         age_max: { type: Number, default: null },
         desired_sex: { type: String, default: null },
         soft_skills: { type: String, default: null },
-        schedule_options: { type: [String], default: [] },
+        schedule_options: { type: [scheduleSlotSchema], default: [] },
         conditions: { type: String, default: null },
         additional_comments: { type: String, default: null },
     },

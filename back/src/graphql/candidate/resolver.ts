@@ -1,4 +1,4 @@
-import { authGuard, authGuardRole } from '../authGuard';
+import { authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
@@ -14,7 +14,11 @@ import { decryptSsn } from '../../external/crypto/ssn-cipher';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { CandidateFilters, CandidateSearchField, encodeCandidateCursor } from '../../repositories/mongo/CandidateRepository';
+import {
+    CandidateFilters,
+    CandidateSearchField,
+    encodeCandidateCursor,
+} from '../../repositories/mongo/CandidateRepository';
 
 /** Filtres reçus côté GraphQL : dates au format ISO (string), converties ensuite. */
 type CandidateFiltersInput = Omit<CandidateFilters, 'createdAfter' | 'createdBefore'> & {
@@ -139,7 +143,11 @@ export const resolvers = {
                 search,
                 searchField,
                 filters: filtersInput,
-            }: PaginationArgs & { search?: string; searchField?: CandidateSearchField; filters?: CandidateFiltersInput },
+            }: PaginationArgs & {
+                search?: string;
+                searchField?: CandidateSearchField;
+                filters?: CandidateFiltersInput;
+            },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -152,6 +160,7 @@ export const resolvers = {
                       statusIn: filtersInput.statusIn?.length ? filtersInput.statusIn : undefined,
                       schoolLevel: filtersInput.schoolLevel,
                       drivingLicenseB: filtersInput.drivingLicenseB,
+                      hasVehicle: filtersInput.hasVehicle,
                       sex: filtersInput.sex?.trim() || undefined,
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,
@@ -266,6 +275,10 @@ export const resolvers = {
                         `Une fiche candidat est déjà enregistrée pour l'adresse ${email} (${existing.identity.full_name}).`,
                     );
                 }
+            }
+
+            if (!input.consentments?.dataProcessing) {
+                throw new Error('Le consentement au traitement des données est obligatoire.');
             }
 
             const id = randomUUID();

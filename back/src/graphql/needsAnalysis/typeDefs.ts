@@ -137,26 +137,40 @@ export const typeDefs = gql`
     type OfferCriteria {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         trainingDomain: TrainingDomain
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]!
+        scheduleOptions: [ScheduleSlot!]!
         conditions: String
         additionalComments: String
+    }
+
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
+    input ScheduleSlotInput {
+        day: String
+        startHour: String
+        endHour: String
     }
 
     input OfferCriteriaInput {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]
+        scheduleOptions: [ScheduleSlotInput!]
         conditions: String
         additionalComments: String
     }

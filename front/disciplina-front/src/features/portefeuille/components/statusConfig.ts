@@ -16,6 +16,13 @@ export const STATUS_CONFIG: Record<EntrepriseStatus, StatusStyle> = {
     pill: 'bg-success-bg text-success',
     ring: 'ring-success/20',
   },
+  'Oui OF': {
+    label: 'Oui OF',
+    dot: 'bg-success',
+    text: 'text-success',
+    pill: 'bg-success-bg text-success',
+    ring: 'ring-success/20',
+  },
   Non: {
     label: 'Non',
     dot: 'bg-danger',

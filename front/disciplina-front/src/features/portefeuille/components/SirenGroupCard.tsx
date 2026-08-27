@@ -1,6 +1,7 @@
-import { Building2, ChevronRight, UserPlus } from 'lucide-react'
+import { Building2, ChevronRight, Trash2, UserPlus } from 'lucide-react'
 import type { Entreprise, SirenGroup } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
+import { Permission } from '@/store/authStore'
 import { formatSiren } from '@/types/sourcing'
 import { STATUS_CONFIG } from './statusConfig'
 
@@ -9,6 +10,7 @@ interface Props {
   currentUser: AppUser
   onOpen: (entreprise: Entreprise) => void
   onClaim: (entreprise: Entreprise) => void
+  onDelete?: (entreprise: Entreprise) => void
 }
 
 interface RowProps {
@@ -16,6 +18,7 @@ interface RowProps {
   currentUser: AppUser
   onOpen: (entreprise: Entreprise) => void
   onClaim: (entreprise: Entreprise) => void
+  onDelete?: (entreprise: Entreprise) => void
 }
 
 function canClaimEntreprise(entreprise: Entreprise, currentUser: AppUser): boolean {
@@ -24,13 +27,21 @@ function canClaimEntreprise(entreprise: Entreprise, currentUser: AppUser): boole
   return role === 'COMMERCIAL' || role === 'RESPONSABLE' || role === 'ADMIN'
 }
 
-function EstablishmentRow({ entreprise, currentUser, onOpen, onClaim }: RowProps) {
+function EstablishmentRow({ entreprise, currentUser, onOpen, onClaim, onDelete }: RowProps) {
   const status = STATUS_CONFIG[entreprise.status] ?? STATUS_CONFIG['Non']
   const showClaim = canClaimEntreprise(entreprise, currentUser)
+  const canDelete =
+    (currentUser.permission === Permission.RESPONSABLE || currentUser.permission === Permission.ADMIN) &&
+    !!onDelete
 
   const handleClaim = (e: React.MouseEvent) => {
     e.stopPropagation()
     onClaim(entreprise)
+  }
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDelete?.(entreprise)
   }
 
   return (
@@ -71,11 +82,21 @@ function EstablishmentRow({ entreprise, currentUser, onOpen, onClaim }: RowProps
       ) : (
         <ChevronRight className="shrink-0 h-4 w-4 text-gray-300 group-hover/row:text-blue" />
       )}
+      {canDelete && (
+        <button
+          onClick={handleDelete}
+          title="Supprimer l'entreprise"
+          aria-label="Supprimer l'entreprise"
+          className="shrink-0 flex h-6 w-6 items-center justify-center rounded-md text-gray-300 hover:bg-danger-bg hover:text-danger transition-colors"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   )
 }
 
-export function SirenGroupCard({ group, currentUser, onOpen, onClaim }: Props) {
+export function SirenGroupCard({ group, currentUser, onOpen, onClaim, onDelete }: Props) {
   const raisonSociale = group.entreprises[0]?.nom_commercial ?? '—'
 
   return (
@@ -99,6 +120,7 @@ export function SirenGroupCard({ group, currentUser, onOpen, onClaim }: Props) {
             currentUser={currentUser}
             onOpen={onOpen}
             onClaim={onClaim}
+            onDelete={onDelete}
           />
         ))}
       </div>

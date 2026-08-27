@@ -10,9 +10,6 @@ const MAX_EMAIL_FIELD = 50_000;
 
 const needsAnalysisService = new NeedsAnalysisService();
 
-const SIGNATURE_PERMISSIONS: Permission[] = [Permission.RESPONSABLE, Permission.ADMIN];
-const SIGNATURE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
-
 export async function downloadPdf(req: AuthRequest, res: Response): Promise<void> {
     const role = req.user?.role;
     const permission = req.user?.permission;

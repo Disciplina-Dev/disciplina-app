@@ -1,14 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
+import { truncateMysql } from '../../../../test/helpers/db';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
 import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
+import { OfferModel } from '../../../db/mongo/schemas/offer.schema';
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 describe('GraphQL job queries', () => {
+    // Le matching filtre les candidats sur les secteurs de l'utilisateur appelant :
+    // un user id=1 laissé par un autre fichier de test (avec des secteurs) réduirait
+    // la mobilité géographique attendue ici. On repart d'une base MySQL vide.
+    beforeEach(async () => {
+        await truncateMysql();
+    });
+
     it('returns an empty list when no jobs exist', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
@@ -321,6 +330,118 @@ describe('GraphQL job queries', () => {
         expect(res.status).toBe(200);
         expect(json.errors).toBeDefined();
         expect(json.errors[0].message).toMatch(/unauthorized/i);
+    });
+
+    describe('schedule backward compatibility', () => {
+        const scheduleSelection = `schedule { day startHour endHour }`;
+
+        async function queryOffer(
+            query: string,
+            variables: Record<string, unknown>,
+            auth: ReturnType<typeof mintAuthCookies>,
+        ) {
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query, variables }),
+            });
+            return { status: res.status, json: await res.json() };
+        }
+
+        it('returns an empty schedule when the offer has no schedule field', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const seeded = await seedOffer({ _id: `job-no-sched-${suffix}`, company_name: `No Sched Corp ${suffix}` });
+
+            const { status, json } = await queryOffer(
+                `query($id: String!) { matchOffer(id: $id) { id ${scheduleSelection} } }`,
+                { id: seeded._id },
+                auth,
+            );
+
+            expect(status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.matchOffer.id).toBe(seeded._id);
+            expect(json.data.matchOffer.schedule).toEqual([]);
+        });
+
+        it('preserves legacy string[] schedule_options as ScheduleSlot objects', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const offerId = `job-legacy-sched-${suffix}`;
+
+            // Insertion brute (hors Mongoose) : simule une offre créée avant le passage
+            // aux créneaux structurés, dont `criteria.schedule_options` est un `string[]`.
+            await OfferModel.collection.insertOne({
+                _id: offerId,
+                needs_analysis_id: `ab-legacy-${suffix}`,
+                company_infos: { name: `Legacy Corp ${suffix}` },
+                localisation: [],
+                desired_tp: [],
+                criteria: {
+                    age_min: null,
+                    age_max: null,
+                    driving_license: false,
+                    experience_required: false,
+                    desired_sex: null,
+                    schedule_options: ['Lundi : 8h-12h', 'Vendredi : toute la journée'],
+                },
+                matching: { status: 'NOT_MATCHED', candidates: [], interview_slots: [] },
+            });
+
+            const { status, json } = await queryOffer(
+                `query($id: String!) { matchOffer(id: $id) { id ${scheduleSelection} } }`,
+                { id: offerId },
+                auth,
+            );
+
+            expect(status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.matchOffer.schedule).toEqual([
+                { day: null, startHour: 'Lundi : 8h-12h', endHour: null },
+                { day: null, startHour: 'Vendredi : toute la journée', endHour: null },
+            ]);
+        });
+
+        it('maps structured schedule_options slots to camelCase ScheduleSlot objects', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            await seedOffer({
+                _id: `job-structured-sched-${suffix}`,
+                company_name: `Structured Corp ${suffix}`,
+                criteria: {
+                    schedule_options: [
+                        { day: 'LUNDI', start_hour: '08:00', end_hour: '12:00' },
+                        { day: 'MERCREDI', start_hour: '14:00', end_hour: '17:00' },
+                    ],
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `{ offers { id ${scheduleSelection} } }`,
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.offers).toHaveLength(1);
+            expect(json.data.offers[0].schedule).toEqual([
+                { day: 'LUNDI', startHour: '08:00', endHour: '12:00' },
+                { day: 'MERCREDI', startHour: '14:00', endHour: '17:00' },
+            ]);
+        });
     });
 
     describe('candidateMatchedOfferIds', () => {

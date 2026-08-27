@@ -12,7 +12,7 @@ import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCreateNeedsAnalysis, useUpdateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
 import { Localisation } from '@/types/candidate'
-import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import type { NeedsAnalysis, ScheduleSlot } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
 import { ALL_SECTORS, SECTOR_LABELS } from '@/data/sectors'
 import SignaturePreviewModal from './SignaturePreviewModal'
@@ -46,11 +46,13 @@ interface TrainingDaysState {
 
 interface PosteCriteria {
   drivingLicense: 'OUI' | 'OPTIONNEL' | undefined
+  hasVehicle: 'OUI' | 'NON' | undefined
   experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE' | undefined
   ageMin: string
   ageMax: string
   softSkills: string[]
   softSkillsOther: string
+  scheduleOptions: ScheduleSlot[]
   conditions: string
   additionalComments: string
 }
@@ -261,11 +263,13 @@ const EMPTY_POSTE: Poste = {
   localisation: [],
   criteria: {
     drivingLicense: undefined,
+    hasVehicle: undefined,
     experienceRequired: undefined,
     ageMin: '',
     ageMax: '',
     softSkills: [],
     softSkillsOther: '',
+    scheduleOptions: [],
     conditions: '',
     additionalComments: '',
   },
@@ -490,6 +494,86 @@ function TextareaField({
   )
 }
 
+// Sélecteur de jours et horaires de travail du poste : chaque jour est activable
+// et porte un créneau début/fin facultatif. Seuls les jours activés sont persistés.
+function ScheduleDaysEditor({ value, onChange }: {
+  value: ScheduleSlot[]
+  onChange: (slots: ScheduleSlot[]) => void
+}) {
+  const slotFor = (label: string) => value.find((s) => s.day === label)
+  const setHour = (label: string, field: 'startHour' | 'endHour', hour: string) => {
+    onChange(value.map((s) => (s.day === label ? { ...s, [field]: hour } : s)))
+  }
+
+  const timeInput = (
+    field: 'startHour' | 'endHour',
+    label: string,
+    enabled: boolean,
+    hour?: string | null,
+  ) => (
+    <input
+      type="time"
+      disabled={!enabled}
+      value={hour ?? ''}
+      onChange={(e) => setHour(label, field, e.target.value)}
+      className="w-32 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 outline-none transition-colors focus:border-blue disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+    />
+  )
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium text-gray-700">
+        Jours et horaires de travail <span className="text-gray-400">(optionnel)</span>
+      </p>
+      <div className="overflow-x-auto rounded-lg border border-gray-100">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50">
+              <th className="w-40 px-4 py-2.5 text-left font-medium text-gray-500">Jour</th>
+              <th className="px-3 py-2.5 text-left font-medium text-gray-500">Début</th>
+              <th className="px-3 py-2.5 text-left font-medium text-gray-500">Fin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DAYS.map((d) => {
+              const slot = slotFor(d.label)
+              const enabled = !!slot
+              const setEnabled = (on: boolean) => {
+                const others = value.filter((s) => s.day !== d.label)
+                onChange(on ? [...others, { day: d.label, startHour: '08:00', endHour: '17:00' }] : others)
+              }
+              return (
+                <tr key={d.key} className="border-b border-gray-100 last:border-0">
+                  <td className="px-4 py-2.5">
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setEnabled(!enabled)}
+                        className={[
+                          'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors',
+                          enabled ? 'border-blue bg-blue' : 'border-gray-300 bg-white',
+                        ].join(' ')}
+                        aria-label={`${enabled ? 'Désactiver' : 'Activer'} ${d.label}`}
+                      >
+                        {enabled && <Check size={12} className="text-white" strokeWidth={3} />}
+                      </button>
+                      <span className={enabled ? 'text-sm font-medium text-gray-900' : 'text-sm text-gray-400'}>
+                        {d.label}
+                      </span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-2.5">{timeInput('startHour', d.label, enabled, slot?.startHour)}</td>
+                  <td className="px-3 py-2.5">{timeInput('endHour', d.label, enabled, slot?.endHour)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -550,11 +634,13 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         localisation: (p.localisation ?? []) as Localisation[],
         criteria: {
           drivingLicense: p.criteria?.drivingLicense == null ? undefined : p.criteria.drivingLicense ? 'OUI' : 'OPTIONNEL',
+          hasVehicle: p.criteria?.hasVehicle == null ? undefined : p.criteria.hasVehicle ? 'OUI' : 'NON',
           experienceRequired: p.criteria?.experienceRequired == null ? undefined : p.criteria.experienceRequired ? 'OBLIGATOIRE' : 'DEBUTANT',
           ageMin: p.criteria?.ageMin != null ? String(p.criteria.ageMin) : '',
           ageMax: p.criteria?.ageMax != null ? String(p.criteria.ageMax) : '',
           softSkills: parseSoftSkills(p.criteria?.softSkills),
           softSkillsOther: '',
+          scheduleOptions: p.criteria?.scheduleOptions ?? [],
           conditions: p.criteria?.conditions ?? '',
           additionalComments: p.criteria?.additionalComments ?? '',
         },
@@ -707,6 +793,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         return 'Sélectionnez au moins une mission par titre professionnel.'
       if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
       if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
+      if (!p.criteria.hasVehicle) return 'Sélectionnez si le véhicule est requis.'
       if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
       return ''
     })
@@ -803,11 +890,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         criteria: {
           educationLevel:     null,
           drivingLicense:     p.criteria.drivingLicense === 'OUI',
+          hasVehicle:         p.criteria.hasVehicle === 'OUI',
           experienceRequired: p.criteria.experienceRequired === 'OBLIGATOIRE',
           ageMin:             p.criteria.ageMin ? Number(p.criteria.ageMin) : null,
           ageMax:             p.criteria.ageMax ? Number(p.criteria.ageMax) : null,
           softSkills:         [...p.criteria.softSkills, ...(p.criteria.softSkillsOther ? [p.criteria.softSkillsOther] : [])].join(', ') || null,
-          scheduleOptions:    [],
+          scheduleOptions:    p.criteria.scheduleOptions,
           conditions:         p.criteria.conditions || null,
           additionalComments: p.criteria.additionalComments || null,
         },
@@ -1150,6 +1238,11 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       value={poste.criteria.softSkillsOther}
                       onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, softSkillsOther: e.target.value } })} />
 
+                    <ScheduleDaysEditor
+                      value={poste.criteria.scheduleOptions}
+                      onChange={(slots) => updatePoste(index, { criteria: { ...poste.criteria, scheduleOptions: slots } })}
+                    />
+
                     <TextareaField id={`conditions-${index}`} label="Conditions du poste" optional rows={3}
                       placeholder="Horaires, télétravail, avantages, véhicule…"
                       value={poste.criteria.conditions}
@@ -1165,6 +1258,14 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       value={poste.criteria.drivingLicense}
                       onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, drivingLicense: v } })}
                       required />
+
+                    <div className="ml-3 pl-4 border-l-2 border-gray-100">
+                      <RadioGroup label="Véhiculé *"
+                        options={[{ value: 'OUI' as const, label: 'Oui' }, { value: 'NON' as const, label: 'Non' }]}
+                        value={poste.criteria.hasVehicle}
+                        onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, hasVehicle: v } })}
+                        required />
+                    </div>
 
                     <RadioGroup label="Expérience requise *"
                       options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}

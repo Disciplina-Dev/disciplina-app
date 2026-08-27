@@ -160,8 +160,6 @@ export function useCreateCompany() {
 
   const createCompany = (input: any) => {
     return executeMutation({ input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
@@ -204,8 +202,6 @@ export function useUpdateCompany() {
 
   const update = async (id: number, input: any) => {
     return executeMutation({ id, input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.updateCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.updateCompany.userID);
@@ -522,6 +518,16 @@ function fromGql(c: any): Candidate {
           relationship: c.emergencyContact.relationship ?? undefined,
           phone: c.emergencyContact.phone ?? undefined,
           email: c.emergencyContact.email ?? undefined,
+        }
+      : undefined,
+    consentments: c.consentments
+      ? {
+          data_processing: c.consentments.dataProcessing,
+          data_sharing: c.consentments.dataSharing,
+          ai_processing: c.consentments.aiProcessing,
+          photo_processing: c.consentments.photoProcessing,
+          consent_date: c.consentments.consentDate,
+          consent_version: c.consentments.consentVersion,
         }
       : undefined,
   }

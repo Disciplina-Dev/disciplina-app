@@ -86,7 +86,7 @@ type ABForm = {
   sex: string;
   fullName: string; socialSecurityNumber: string; email: string; phone: string;
   address: string; postalCode: string; city: string;
-  drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
+  drivingLicenseB: string; hasVehicle: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
   apprenticeshipContractDetails: string;
   description: string;
@@ -136,7 +136,14 @@ type ABForm = {
   candidateSignature: string;
   // RH ayant mené l'entretien (nom complet)
   interviewedBy: string;
+  // consentements RGPD
+  consentDataProcessing: boolean; consentDataSharing: boolean;
+  consentAiProcessing: boolean; consentPhotoProcessing: boolean;
 };
+
+// Version du corpus légal au moment du consentement — garder cohérent avec
+// [[VERSION_DOC]] dans src/content/legal/_placeholders.md.
+const CONSENT_VERSION = '2026-08-v1';
 
 // Union des compétences des templates de plusieurs TP (dédupliquée par nom).
 function defaultSkillsForTps(tps: TitleProfessionalType[]): { competence: string; level: SkillLevel }[] {
@@ -174,7 +181,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
     sex: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
-    drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
+    drivingLicenseB: '', hasVehicle: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '',
     ecLastName: '', ecFirstName: '', ecRelationship: '', ecPhone: '', ecEmail: '',
     tpTypes: [tpType], status: 'SEEKING',
@@ -202,6 +209,8 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     importantNote: '',
     candidateSignature: '',
     interviewedBy: '',
+    consentDataProcessing: false, consentDataSharing: false,
+    consentAiProcessing: false, consentPhotoProcessing: false,
   };
 }
 
@@ -230,6 +239,7 @@ function candidateToForm(c: Candidate): ABForm {
     postalCode: c.identity.postal_code ?? '',
     city: c.identity.city ?? '',
     drivingLicenseB: bs(c.identity.driving_license_b),
+    hasVehicle: bs(c.identity.has_vehicle),
     transportMeans: c.identity.transport_means ?? '',
     pshReferralRequest: bs(c.identity.psh_referral_request),
     hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
@@ -294,19 +304,39 @@ function candidateToForm(c: Candidate): ABForm {
     importantNote: c.synthesis?.important_note ?? '',
     candidateSignature: c.synthesis?.candidate_signature ?? '',
     interviewedBy: c.synthesis?.interviewed_by ?? '',
+    consentDataProcessing: c.consentments?.data_processing ?? false,
+    consentDataSharing: c.consentments?.data_sharing ?? false,
+    consentAiProcessing: c.consentments?.ai_processing ?? false,
+    consentPhotoProcessing: c.consentments?.photo_processing ?? false,
   };
 }
 
-function toServerInput(f: ABForm) {
+function toServerInput(f: ABForm, original?: Candidate | null) {
   const pb = (v: string) => v === 'true' ? true : v === 'false' ? false : undefined;
   const qualities = [f.quality1, f.quality2, f.quality3].filter(Boolean);
   const defects = [f.defect1, f.defect2, f.defect3].filter(Boolean);
+  // Ne réémet consentDate/consentVersion que si un des choix a changé, pour ne
+  // pas écraser la date de consentement d'origine à chaque édition non liée.
+  const prevConsent = original?.consentments;
+  const consentUnchanged = prevConsent
+    && prevConsent.data_processing === f.consentDataProcessing
+    && prevConsent.data_sharing === f.consentDataSharing
+    && prevConsent.ai_processing === f.consentAiProcessing
+    && prevConsent.photo_processing === f.consentPhotoProcessing;
   return {
     tpTypes: f.tpTypes, status: f.status,
     trainingSites: f.trainingSites,
     immersionAgreement: pb(f.immersionAgreement),
     desiredSectors: f.desiredSectors,
     expectedCompanySkills: f.expectedCompanySkills,
+    consentments: {
+      dataProcessing: f.consentDataProcessing,
+      dataSharing: f.consentDataSharing,
+      aiProcessing: f.consentAiProcessing,
+      photoProcessing: f.consentPhotoProcessing,
+      consentDate: consentUnchanged ? prevConsent!.consent_date : new Date().toISOString(),
+      consentVersion: consentUnchanged ? prevConsent!.consent_version : CONSENT_VERSION,
+    },
     identity: {
       fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
       sex: f.sex || undefined,
@@ -319,6 +349,7 @@ function toServerInput(f: ABForm) {
       postalCode: f.postalCode || undefined,
       city: f.city || undefined,
       drivingLicenseB: pb(f.drivingLicenseB),
+      hasVehicle: pb(f.hasVehicle),
       transportMeans: f.transportMeans || undefined,
       pshReferralRequest: pb(f.pshReferralRequest),
       hadApprenticeshipContract: pb(f.hadApprenticeshipContract),
@@ -644,7 +675,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const input = toServerInput(form);
+    const input = toServerInput(form, candidate);
     try {
       const result = isEdit
         ? await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate!._id, input })
@@ -806,6 +837,9 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Situation personnelle" />
           <ABRadio label="Permis B" name="driv" value={form.drivingLicenseB} onChange={v => set('drivingLicenseB', v)}
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]} />
+          <div className="ml-2 pl-4 border-l-2 border-gray-100">
+            <ABRadio label="Véhiculé" name="vehicule" value={form.hasVehicle} onChange={v => set('hasVehicle', v)} options={boolOpts} />
+          </div>
           <InputField id="cn-transport" label="Moyen de transport" value={form.transportMeans} onChange={e => set('transportMeans', e.target.value)} />
           <ABRadio label="Souhait de mise en relation avec le Référent PSH ?" name="psh" value={form.pshReferralRequest} onChange={v => set('pshReferralRequest', v)} options={boolOpts} />
           <ABRadio label="A déjà eu un contrat d'apprentissage ?" name="appr" value={form.hadApprenticeshipContract} onChange={v => set('hadApprenticeshipContract', v)} options={boolOpts} />
@@ -1043,6 +1077,51 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <option value={form.interviewedBy}>{form.interviewedBy}</option>
             )}
           </ABSelectField>
+
+          {/* Consentements RGPD */}
+          <ABSectionTitle title="Consentements RGPD" />
+          <p className="text-sm text-gray-500">
+            En tant que centre de formation, nous traitons ces données pour accompagner le candidat dans sa recherche d'alternance.
+          </p>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                required
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentDataProcessing}
+                onChange={() => set('consentDataProcessing', !form.consentDataProcessing)}
+              />
+              Le candidat consent au traitement de ses données personnelles dans le cadre de son accompagnement (obligatoire).
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentDataSharing}
+                onChange={() => set('consentDataSharing', !form.consentDataSharing)}
+              />
+              Le candidat accepte que ses données soient partagées avec des entreprises partenaires dans le cadre de la recherche d'alternance.
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentAiProcessing}
+                onChange={() => set('consentAiProcessing', !form.consentAiProcessing)}
+              />
+              Le candidat accepte le traitement de ses données par intelligence artificielle locale pour générer un résumé de profil.
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentPhotoProcessing}
+                onChange={() => set('consentPhotoProcessing', !form.consentPhotoProcessing)}
+              />
+              Le candidat accepte le stockage de sa photo d'identité.
+            </label>
+          </div>
 
           {/* Signature de l'apprenti — toute fin */}
           <ABSectionTitle title="Signature de l'apprenti" />

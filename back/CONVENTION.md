@@ -388,6 +388,10 @@ column doesn't exist yet, logging each addition via `logger.info`.
 installs). Table/column identifiers in `REQUIRED_COLUMNS` are hardcoded constants, never
 user input, so the string-built `ALTER TABLE` is safe.
 
+`REQUIRED_COLUMNS` ne porte que des colonnes : un **index** (ou une colonne générée indexée, comme
+`companies.siren` / `idx_companies_siren`) doit être rattrapé par un bloc dédié dans
+`runMysqlMigrations()`, gardé par un `SELECT ... FROM INFORMATION_SCHEMA.STATISTICS`.
+
 The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table goes in **both**
 `mysql-init.sql` and `REQUIRED_TABLES`, otherwise fresh volumes and existing databases drift apart.
 `users`, `roles`, `permissions`, `filiz`, `companies` and `company_history` live only in
@@ -404,6 +408,26 @@ The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table 
   the `requireRoles(...roles)` middleware from `rest/middleware/roleGuard.ts` chained after
   `authenticate` (e.g. `[authenticate, requireRoles('ADMIN', 'RESPONSABLE')]` — see
   `rest/kpi/route.ts`)
+
+### Candidate consent checks
+
+- `services/consentGuard.ts` — `assertConsent(candidate, [ConsentType.X], { mode: 'block' | 'warn' })`,
+  same shape as `authGuard()` (plain `Error` thrown, checked manually at the call site — no
+  middleware/directive wiring exists for this yet). `mode: 'warn'` logs and allows instead of
+  throwing, used as a temporary grace period for candidates recorded before a given consent check
+  existed; flip to `'block'` per call site once backfill/re-consent is confirmed.
+- Call sites (all currently `warn` mode — flip to `block` per site once backfill/re-consent is
+  confirmed):
+  - `rest/candidates/route.ts` `POST /:id/generate-summary` — `ConsentType.AI_PROCESSING`
+  - `rest/candidates/route.ts` `POST /:id/avatar`, `GET /:id/avatar-file`, public `GET /:id/avatar`,
+    and the Drive photo auto-detect side effect in `GET /:id/drive-files` — `ConsentType.PHOTO_PROCESSING`
+  - `rest/filiz/controller.ts` `createFolder` — `ConsentType.DATA_SHARING`
+  - `rest/match/controller.ts` `getCv`/`streamCandidateCv` — `ConsentType.DATA_SHARING`
+- Exception to the block/warn pattern: `rest/match/controller.ts` `getCandidates` (list of candidates
+  shown to an external company) **filters** non-consenting candidates out of the response instead of
+  throwing — a per-item decision, not a temporary grace period, since blocking the whole list over one
+  non-consenting candidate would break the company's session. Backed by
+  `CandidateRepository.findConsentmentsByIds()` to avoid N+1 queries.
 
 ### Google OAuth code patterns
 

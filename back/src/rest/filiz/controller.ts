@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { FilizService } from '../../external/filiz/filiz.service';
 import { CandidateService } from '../../services/CandidateService';
 import { mapCandidateToFilizStudent } from '../../services/mappers/candidate.mapper';
+import { assertConsent, ConsentType } from '../../services/consentGuard';
 import { logger } from '../../external/logger';
 
 const filizService = new FilizService();
@@ -59,6 +60,7 @@ export async function createFolder(req: AuthRequest, res: Response): Promise<voi
             res.json({ folderId: candidate.filiz_folder_id });
             return;
         }
+        assertConsent(candidate, [ConsentType.DATA_SHARING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
         const folderId = await filizService.createFolder({
             studentInfos: mapCandidateToFilizStudent(candidate),
             fileManagerInfos: {

@@ -263,7 +263,12 @@ ${tpBlocks}`;
                           .filter(Boolean)
                           .join(' ')
                     : '';
-            const conditions = c.conditions ?? (c.scheduleOptions ?? []).join(', ');
+            const scheduleOptions = (c.scheduleOptions ?? []).map((s: any) =>
+                typeof s === 'string'
+                    ? s
+                    : [s.day || null, [s.startHour, s.endHour].filter(Boolean).join('-')].filter(Boolean).join(' : '),
+            );
+            const conditions = c.conditions ?? (scheduleOptions.length ? scheduleOptions.join(', ') : null);
             const commentaires = c.additionalComments ?? '';
             return `
 ${sh(title)}
@@ -271,6 +276,12 @@ ${sh(title)}
     <span class="field-label">Permis :</span><br/>
     <div class="option-block">${chk(c.drivingLicense === true)}&nbsp;Oui</div>
     <div class="option-block">${chk(c.drivingLicense === false)}&nbsp;Optionnel</div>
+</div>
+
+<div class="field-row">
+    <span class="field-label">Véhiculé :</span><br/>
+    <div class="option-block">${chk((c as any).hasVehicle === true)}&nbsp;Oui</div>
+    <div class="option-block">${chk((c as any).hasVehicle === false)}&nbsp;Non</div>
 </div>
 
 <div class="field-row">
@@ -750,6 +761,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv('Ville', id.city);
     kv('Code postal', id.postal_code);
     if (id.driving_license_b != null) kv('Permis B', yn(id.driving_license_b));
+    if (id.has_vehicle != null) kv('Véhiculé', yn(id.has_vehicle));
     kv('Moyen de transport', id.transport_means);
     if (id.psh_referral_request != null) kv('Accompagnement PSH', yn(id.psh_referral_request));
     if (id.had_apprenticeship_contract != null)

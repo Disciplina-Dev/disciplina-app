@@ -5,6 +5,7 @@ import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
+import { formatScheduleSlots } from '@/utils/schedule'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
 
@@ -224,12 +225,18 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                     <Row label="Niveau d'études" value={LABELS.educationLevel[c.educationLevel]} />
                   )}
                   <Row label="Permis B"   value={c.drivingLicense == null ? null : c.drivingLicense ? 'Oui' : 'Optionnel'} />
+                  <div className="ml-3 pl-4 border-l-2 border-gray-100">
+                    <Row label="Véhiculé"   value={c.hasVehicle == null ? null : c.hasVehicle ? 'Oui' : 'Non'} />
+                  </div>
                   <Row label="Expérience" value={c.experienceRequired == null ? null : c.experienceRequired ? 'Expérience obligatoire' : 'Débutant accepté'} />
                   {(c.ageMin || c.ageMax) && (
                     <Row label="Âge" value={[c.ageMin ? `de ${c.ageMin} ans` : null, c.ageMax ? `à ${c.ageMax} ans` : null].filter(Boolean).join(' ')} />
                   )}
                   <Row label="Soft skills" value={c.softSkills} />
-                  <Row label="Conditions" value={c.conditions ?? (c.scheduleOptions?.length > 0 ? c.scheduleOptions.join(', ') : null)} />
+                  {formatScheduleSlots(c.scheduleOptions).length > 0 && (
+                    <Row label="Horaires" value={formatScheduleSlots(c.scheduleOptions).join(', ')} />
+                  )}
+                  <Row label="Conditions" value={c.conditions} />
                   <Row label="Commentaires" value={c.additionalComments} />
                 </Section>
               )

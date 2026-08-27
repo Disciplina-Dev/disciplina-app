@@ -95,6 +95,9 @@ export const typeDefs = gql`
         REJECTED
         IMMERSING
         CONTRACT
+        PRESENT
+        ABSENT
+        APPOINTMENT_CANCELLED
     }
 
     enum ImmersionConclusion {
@@ -192,6 +195,12 @@ export const typeDefs = gql`
         otherDescriptionMissions: String
     }
 
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
     type Offer {
         needsAnalysisId: String
         id: String!
@@ -200,6 +209,7 @@ export const typeDefs = gql`
         desiredTp: [OfferTp!]!
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
@@ -215,6 +225,7 @@ export const typeDefs = gql`
         title: String
         jobRole: String
         softSkills: String
+        schedule: [ScheduleSlot]
         relaxedCriteria: [String!]
     }
 
@@ -235,6 +246,7 @@ export const typeDefs = gql`
         ageRange: String
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]

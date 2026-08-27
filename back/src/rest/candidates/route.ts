@@ -7,13 +7,13 @@ import { CandidateService } from '../../services/CandidateService';
 import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
 import { PdfService } from '../../services/PdfService';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
+import { assertConsent, hasConsent, ConsentType } from '../../services/consentGuard';
 import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
 import { OllamaService } from '../../external/ollama/ollama.service';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
-import { file } from 'pdfkit';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -297,7 +297,11 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         // en base), on cherche un fichier "Photo_*" dans le dossier Drive et on
         // le met en cache comme avatar.
         const hasStoredAvatar = await CandidateAvatarModel.exists({ candidate_id: id });
-        if (!hasStoredAvatar && !candidate.identity.drive_avatar_file_id) {
+        if (
+            !hasStoredAvatar &&
+            !candidate.identity.drive_avatar_file_id &&
+            hasConsent(candidate, [ConsentType.PHOTO_PROCESSING])
+        ) {
             const photoFile = files.find((f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name));
             if (photoFile) {
                 try {
@@ -496,6 +500,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
             res.status(404).json({ error: 'Candidate not found' });
             return;
         }
+        assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
 
         const now = new Date();
 
@@ -566,6 +571,13 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
 
     const { id } = req.params;
     try {
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).end();
+            return;
+        }
+        assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+
         const cached = await CandidateAvatarModel.findOne({ candidate_id: id }).lean();
         if (cached) {
             const raw = cached.data as unknown as { buffer?: Buffer };
@@ -574,12 +586,6 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
             res.setHeader('Content-Length', buf.length);
             res.setHeader('Cache-Control', 'private, max-age=3600');
             res.end(buf);
-            return;
-        }
-
-        const candidate = await candidateService.findById(id);
-        if (!candidate) {
-            res.status(404).end();
             return;
         }
 
@@ -639,6 +645,13 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
 // Public: serve candidate avatar as an <img> source (no auth so it can be hot-linked).
 router.get('/:id/avatar', async (req, res: Response) => {
     try {
+        const candidate = await candidateService.findById(req.params.id);
+        if (!candidate) {
+            res.status(404).end();
+            return;
+        }
+        assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+
         const avatar = await CandidateAvatarModel.findOne({ candidate_id: req.params.id }).lean();
         if (!avatar) {
             res.status(404).end();
@@ -674,6 +687,13 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         const candidate = await candidateService.findById(id);
         if (!candidate) {
             res.status(404).json({ error: 'Candidate not found' });
+            return;
+        }
+
+        try {
+            assertConsent(candidate, [ConsentType.AI_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+        } catch (err) {
+            res.status(403).json({ error: (err as Error).message });
             return;
         }
 
