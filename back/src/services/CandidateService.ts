@@ -3,9 +3,11 @@ import { CandidateRepository, CandidateFilters, CandidateSearchField, CandidateS
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
+import { NeedsAnalysisModel } from '../db/mongo/schemas/needsAnalysis.schema';
 import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
+import { offerZones, candidateZones } from '../utils/zone';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
@@ -248,15 +250,19 @@ export class CandidateService {
         if (!candidate) return [];
         if (candidate.status !== CandidateStatus.SEEKING) return [];
 
-        const [allOffers, assignedOffers] = await Promise.all([
+        const [allOffers, assignedOffers, inactiveIds] = await Promise.all([
             this.offerRepository.listMatchingOffers(),
             this.offerRepository.findWithCandidate(id),
+            NeedsAnalysisModel.distinct('_id', { $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }] }),
         ]);
+
+        const inactiveSet = new Set<string>(inactiveIds.map(String));
+        const activeAssigned = assignedOffers.filter((offer) => !inactiveSet.has(String(offer.needs_analysis_id)));
 
         const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
         const matchedIds = new Set(matched.map((o) => String(o._id)));
 
-        for (const o of assignedOffers) {
+        for (const o of activeAssigned) {
             if (!matchedIds.has(String(o._id))) {
                 matched.push(o);
             }
@@ -270,15 +276,25 @@ export class CandidateService {
         const candidateTps = candidate.tp_types ?? [];
         if (offerTps.length && !offerTps.some((tp) => candidateTps.includes(tp))) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
+        if (offer.criteria?.has_vehicle && !candidate.identity.has_vehicle) return false;
 
         const candidateAge = computeAge(candidate.identity.date_of_birth) ?? candidate.identity.age;
         if (offer.criteria?.age_min != null && offer.criteria?.age_max != null && candidateAge != null) {
             if (candidateAge < offer.criteria.age_min || candidateAge > offer.criteria.age_max) return false;
         }
 
-        if (offer.localisation?.length) {
-            const mobility = candidate.job_info?.geographic_mobility ?? [];
-            if (!offer.localisation.every((loc) => mobility.includes(loc))) return false;
+        const offerZoneSet = offerZones(offer);
+        const offerCommunes = offer.localisation ?? [];
+        const hasGeoConstraint = offerZoneSet.size > 0 || offerCommunes.length > 0;
+        if (hasGeoConstraint) {
+            const mobility = (candidate.job_info?.geographic_mobility ?? []) as string[];
+            const hasMutualCommune = offerCommunes.length > 0 && offerCommunes.some((c) => mobility.includes(c));
+            if (hasMutualCommune) return true;
+            const cZones = candidateZones(candidate as any);
+            for (const z of offerZoneSet) {
+                if (cZones.has(z)) return true;
+            }
+            return false;
         }
 
         return true;

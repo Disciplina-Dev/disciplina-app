@@ -7,7 +7,6 @@ import { CandidateHistoryRepository } from '../../../repositories/mongo/Candidat
 import { env } from '../../../config/env';
 import { InterviewConclusion, OfferStatus, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
-import { unzipSync } from 'zlib';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 

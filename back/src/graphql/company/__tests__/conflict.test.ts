@@ -171,48 +171,120 @@ describe('GraphQL company conflict resolution', () => {
         expect(json.errors[0].message).toMatch(/SIRET est invalide/i);
     });
 
-    it('still blocks resolution when the SIREN is already split between several commercials', async () => {
-        const suffix = Date.now();
-        const siret1 = `${suffix}6666666666`.slice(0, 14);
-        const siret2 = `${suffix}7777777777`.slice(0, 14);
+    /** Deux fiches du même SIREN sur deux commerciaux différents + l'entrée en quarantaine. */
+    async function seedSplitSiren(suffix: number, conflictUserId: number | null) {
+        const siren = `${suffix}`.slice(0, 9);
         const repo = new CompanyRepository();
-        await repo.create({
+        const first = await repo.create({
             name: `Split One ${suffix}`,
-            siret: siret1,
+            siret: `${siren}66666`,
             user_id: 1,
             address: 'Address one',
             sector: 'Nord-Est',
             conclusion: '',
         });
-        await repo.create({
+        const second = await repo.create({
             name: `Split Two ${suffix}`,
-            siret: siret2,
+            siret: `${siren}77777`,
             user_id: 2,
             address: 'Address two',
             sector: 'Nord-Est',
             conclusion: '',
         });
-
-        const siret3 = `${suffix}8888888888`.slice(0, 14);
         const conflictId = await insertConflict({
-            user_id: 2,
+            user_id: conflictUserId,
             name: `Split Three ${suffix}`,
-            siret: siret3,
+            siret: `${siren}88888`,
             conclusion: 'Conflit : multiple_commercials_same_siren',
         });
+        return { siren, first, second, conflictId };
+    }
 
+    async function resolve(conflictId: number) {
         const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: headers(),
             body: JSON.stringify({
-                query: `mutation($id: Int!) { resolveCompanyConflict(id: $id) { id } }`,
+                query: `mutation($id: Int!) { resolveCompanyConflict(id: $id) { id siret userID } }`,
                 variables: { id: conflictId },
             }),
         });
-        const json = await res.json();
+        return { status: res.status, json: await res.json() };
+    }
 
-        expect(res.status).toBe(200);
+    it('resolves a split-SIREN conflict once a commercial has been chosen, and realigns the whole SIREN', async () => {
+        const { siren, first, second, conflictId } = await seedSplitSiren(Date.now(), 2);
+
+        const { status, json } = await resolve(conflictId);
+
+        expect(status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.resolveCompanyConflict.userID).toBe(2);
+
+        const conn = await pool.getConnection();
+        try {
+            const [conflictRows] = await conn.execute('SELECT id FROM company_conflict WHERE id = ?', [conflictId]);
+            expect((conflictRows as any[]).length).toBe(0);
+
+            // Tout le SIREN est rattaché au commercial arbitré, y compris la fiche qui était sur 1.
+            const [companyRows] = await conn.execute<{ id: number; user_id: number }[]>(
+                'SELECT id, user_id FROM companies WHERE siren = ?',
+                [siren],
+            );
+            expect(companyRows.length).toBe(3);
+            expect(companyRows.every((r) => r.user_id === 2)).toBe(true);
+            expect(companyRows.map((r) => r.id)).toEqual(expect.arrayContaining([first, second]));
+        } finally {
+            conn.release();
+        }
+    });
+
+    it('still blocks a split-SIREN conflict that has no chosen commercial', async () => {
+        const { siren, conflictId } = await seedSplitSiren(Date.now() - 1, null);
+
+        const { status, json } = await resolve(conflictId);
+
+        expect(status).toBe(200);
         expect(json.errors).toBeDefined();
         expect(json.errors[0].message).toMatch(/Plusieurs commerciaux/i);
+
+        // Aucun réalignement : le SIREN reste éclaté et l'entrée reste en quarantaine.
+        const conn = await pool.getConnection();
+        try {
+            const [rows] = await conn.execute<{ user_id: number }[]>(
+                'SELECT user_id FROM companies WHERE siren = ?',
+                [siren],
+            );
+            expect(new Set(rows.map((r) => r.user_id)).size).toBe(2);
+            const [conflictRows] = await conn.execute('SELECT id FROM company_conflict WHERE id = ?', [conflictId]);
+            expect((conflictRows as any[]).length).toBe(1);
+        } finally {
+            conn.release();
+        }
+    });
+
+    it('reports success when saving a conflict without changing any value', async () => {
+        const conflictId = await insertConflict({
+            user_id: 2,
+            name: 'Unchanged Corp',
+            siret: '12345678900011',
+            conclusion: 'Conflit : multiple_commercials_same_siren',
+        });
+
+        // MySQL ne compte que les lignes modifiées : la seconde sauvegarde à l'identique
+        // renvoyait « Company conflict entry not found » sur une entrée bien présente.
+        const body = JSON.stringify({
+            query: `mutation($id: Int!, $input: CompanyConflictInput!) {
+                updateCompanyConflict(id: $id, input: $input) { id name }
+            }`,
+            variables: { id: conflictId, input: { name: 'Unchanged Corp' } },
+        });
+
+        for (const attempt of [1, 2]) {
+            const res = await fetch(ENDPOINT, { method: 'POST', headers: headers(), body });
+            const json = await res.json();
+            expect(json.errors, `attempt ${attempt}`).toBeUndefined();
+            expect(json.data.updateCompanyConflict.name).toBe('Unchanged Corp');
+        }
     });
 });

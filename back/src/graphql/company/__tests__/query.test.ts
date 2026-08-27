@@ -5,7 +5,6 @@ import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../../../repositories/mysql/CompanyBlacklistRepository';
 import pool from '../../../db/mysql/connection';
-import { JobRole, Permission } from '../../../types/user.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
 

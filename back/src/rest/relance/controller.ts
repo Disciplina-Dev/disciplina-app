@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { NO_REPLY_FOOTER_HTML, NO_REPLY_FOOTER_TEXT, withNoReply } from '../../external/google/no-reply';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CompaniesService } from '../../services/CompaniesService';
@@ -25,8 +26,6 @@ const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const companiesService = new CompaniesService();
 const relanceHistoryRepo = new RelanceHistoryRepository();
-
-const RELANCE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
 
 /**
  * Vérifie l'accès à l'entreprise pour une action de relance. Renvoie l'entreprise
@@ -194,7 +193,7 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
 
     // pied de page
-    const noReplyFootnote = `<p style="font-size:12px;color:#6b7280;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px;">Ceci est un message envoyé automatiquement par DISCIPLINA. Merci de ne pas répondre à cet e-mail.</p>`;
+    const noReplyFootnote = NO_REPLY_FOOTER_HTML;
 
     // NB : pas de header List-Unsubscribe ici. Ce mail vise une réponse individuelle
     // (Oui/Non) ; l'ajouter le fait classer « bulk » par Gmail et bascule en spam.
@@ -222,17 +221,17 @@ export async function sendRelance(req: AuthRequest, res: Response) {
   ${noReplyFootnote}
 </div>`;
 
-        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA\n\n---\nCeci est un message envoyé automatiquement par DISCIPLINA. Merci de ne pas répondre à cet e-mail.`;
+        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA${NO_REPLY_FOOTER_TEXT}`;
 
         try {
             await gmailService.sendEmail(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken },
-                {
+                withNoReply({
                     to: candidate.identity.email!,
                     subject: `${name}, êtes-vous toujours en recherche d'une alternance ?`,
                     html,
                     text,
-                },
+                }),
                 userService.googleTokenPersister(user.id),
             );
             // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;

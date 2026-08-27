@@ -64,6 +64,16 @@ export function candidateToGql(candidate: Candidate): any {
               }
             : null,
         emergencyContact: candidate.emergency_contact ? snakeToCamelCase(candidate.emergency_contact) : null,
+        consentments: candidate.consentments
+            ? {
+                  ...snakeToCamelCase(candidate.consentments),
+                  // fiches legacy sans date/version : les champs GraphQL sont non-null
+                  consentDate: candidate.consentments.consent_date
+                      ? new Date(candidate.consentments.consent_date).toISOString()
+                      : '',
+                  consentVersion: candidate.consentments.consent_version ?? '',
+              }
+            : null,
         education: candidate.education ? snakeToCamelCase(candidate.education) : null,
         support: candidate.support ? snakeToCamelCase(candidate.support) : null,
         background: candidate.background ? snakeToCamelCase(candidate.background) : null,
