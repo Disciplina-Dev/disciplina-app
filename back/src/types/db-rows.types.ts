@@ -169,6 +169,7 @@ export interface ExternalAccessRow {
     external_type: 'COMPANY' | 'CANDIDATE';
     external_email: string | null;
     external_first_name: string | null;
+    token: string | null;
     reference_id: number;
     reference_key: string;
     status: 'SENDING' | 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';

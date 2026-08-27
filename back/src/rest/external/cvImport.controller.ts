@@ -7,11 +7,13 @@ import { ExternalMailService } from '../../services/ExternalMailService';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
 import { env } from '../../config/env';
+import { ExternalAccessRepository } from '../../repositories/mysql/ExternalAccessRepository';
 import { logger } from '../../external/logger';
 
 const candidateService = new CandidateService();
 const externalLinkService = new ExternalLinkService();
 const externalMailService = new ExternalMailService();
+const externalAccessRepository = new ExternalAccessRepository();
 
 export const CV_MIME_EXT: Record<string, string> = {
     'application/pdf': 'pdf',
@@ -86,6 +88,10 @@ export async function sendCvImportMail(req: AuthRequest, res: Response): Promise
 export async function uploadCv(req: ExternalGuestRequest, res: Response): Promise<void> {
     const { signature } = req.params;
     const externalUuid = req.guest!.externalUuid;
+    if (!externalUuid) {
+        res.status(401).json({ error: 'Session invalide' });
+        return;
+    }
 
     const candidate = await candidateService.findById(externalUuid);
     if (!candidate) {
@@ -110,14 +116,14 @@ export async function uploadCv(req: ExternalGuestRequest, res: Response): Promis
         return;
     }
 
-    const context = await externalLinkService.getContext(signature);
-    if (!context) {
+    const row = await externalAccessRepository.findBySignature(signature);
+    if (!row) {
         res.status(404).json({ error: 'Session introuvable' });
         return;
     }
 
     const userService = new UserService();
-    const rh = await userService.findByEmail(context.rhEmail);
+    const rh = await userService.findById(row.user_id);
     if (!rh || !rh.oauthToken) {
         res.status(502).json({ error: 'Drive du RH non connecté' });
         return;

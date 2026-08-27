@@ -12,6 +12,8 @@ import { withNoReply } from '../external/google/no-reply';
 import { logger } from '../external/logger';
 import { env } from '../config/env';
 import { MAX_ATTEMPTS } from './signedAccess';
+import { signAccessToken } from '../rest/middleware/tokenAuth';
+import { Permission, GuestRole } from '../types/user.types';
 
 type SendCodeResult =
     | { status: 'NOT_FOUND'; httpCode: 404; message: string }
@@ -30,7 +32,7 @@ export interface GenerateInput {
 }
 
 export type GenerateResult =
-    | { success: true; referenceId?: number; referenceKey?: string }
+    | { success: true; token?: string; referenceId?: number; referenceKey?: string }
     | { success: false; error: string };
 
 export class ExternalAccessService {
@@ -47,6 +49,7 @@ export class ExternalAccessService {
         await this.repository.create({
             signature,
             code: null,
+            token: null,
             user_id: input.userId,
             external_id: input.externalId,
             external_type: input.externalType,
@@ -165,8 +168,15 @@ export class ExternalAccessService {
         }
 
         if (row.code === code) {
+            const token = signAccessToken({
+                role: GuestRole.EXTERNAL_GUEST,
+                permission: Permission.GUEST,
+                signature,
+                referenceId: row.reference_id,
+            });
+            await this.repository.setToken(signature, token);
             await this.repository.setStatus(signature, 'AUTHENTICATED');
-            return { success: true, referenceId: row.reference_id, referenceKey: row.reference_key };
+            return { success: true, token, referenceId: row.reference_id, referenceKey: row.reference_key };
         }
 
         const attempts = await this.repository.incrementAttempts(signature);

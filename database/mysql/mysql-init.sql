@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS `permissions` (
 INSERT IGNORE INTO `permissions` (`id`, `name`) VALUES
   (1, 'EMPLOYEE'),
   (2, 'RESPONSABLE'),
-  (3, 'ADMIN');
+  (3, 'ADMIN'),
+  (4, 'GUEST');
 
 CREATE TABLE IF NOT EXISTS `roles` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -34,7 +35,8 @@ INSERT IGNORE INTO `roles` (`id`, `name`) VALUES
   (2, 'RH'),
   (3, 'PEDA'),
   (4, 'AD'),
-  (5, 'GESTION');
+  (5, 'GESTION'),
+  (6, 'EXTERNAL_GUEST');
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -227,6 +229,7 @@ CREATE TABLE IF NOT EXISTS `external_access` (
   `external_type`  enum('COMPANY','CANDIDATE') NOT NULL,
   `external_email` varchar(255) NULL,
   `external_first_name` varchar(255) NULL,
+  `token`          varchar(512) NULL,
   `reference_id`   int          NOT NULL,
   `reference_key`  varchar(255) NOT NULL,
   `status`         enum('SENDING','PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'SENDING',

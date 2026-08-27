@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { ExternalAccessService } from '../../services/ExternalAccessService';
+import { setGuestCookies } from '../middleware/cookies';
+import { issueCsrfCookie } from '../middleware/csrf';
 import type { AuthRequest } from '../middleware/auth';
 
 const externalAccessService = new ExternalAccessService();
@@ -83,5 +85,22 @@ export async function inspectCode(req: Request, res: Response): Promise<void> {
     }
 
     const result = await externalAccessService.inspect(signature, code);
-    res.status(result.success ? 200 : 400).json(result);
+
+    if (!result.success) {
+        res.status(400).json(result);
+        return;
+    }
+
+    if (result.token) {
+        setGuestCookies(res, result.token, issueCsrfCookie());
+    }
+
+    res.status(200).json({
+        success: true,
+        user: {
+            role: 'EXTERNAL_GUEST',
+            permission: 'GUEST',
+            referenceId: result.referenceId,
+        },
+    });
 }

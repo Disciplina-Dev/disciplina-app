@@ -50,6 +50,7 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'users', column: 'deleted_at', definition: 'TIMESTAMP NULL DEFAULT NULL' },
     { table: 'external_access', column: 'external_email', definition: 'VARCHAR(255) NULL' },
     { table: 'external_access', column: 'external_first_name', definition: 'VARCHAR(255) NULL' },
+    { table: 'external_access', column: 'token', definition: 'VARCHAR(512) NULL' },
 ];
 
 /**
@@ -171,6 +172,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             external_type ENUM('COMPANY','CANDIDATE') NOT NULL,
             external_email VARCHAR(255) NULL,
             external_first_name VARCHAR(255) NULL,
+            token VARCHAR(512) NULL,
             reference_id INT NOT NULL,
             reference_key VARCHAR(255) NOT NULL,
             status ENUM('SENDING','PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'SENDING',
@@ -494,6 +496,13 @@ export async function runMysqlMigrations(): Promise<void> {
         );
         logger.info('MySQL migration: created roles table');
     }
+
+    // Permission guest (2026-08-27) : niveau 0, aucun accès staff. Ajout
+    // idempotent pour les bases où la table permissions existe déjà.
+    await query("INSERT IGNORE INTO permissions (id, name) VALUES (4, 'GUEST')");
+
+    // Rôle guest JWT (2026-08-27) : identifie les sessions externes signées.
+    await query("INSERT IGNORE INTO roles (id, name) VALUES (6, 'EXTERNAL_GUEST')");
 
     // Ajout des colonnes role_id / permission_id si absentes.
     const roleIdCol = await query<{ count: number }[]>(

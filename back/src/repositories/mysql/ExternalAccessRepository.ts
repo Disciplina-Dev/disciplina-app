@@ -44,6 +44,13 @@ export class ExternalAccessRepository {
         ]);
     }
 
+    async setToken(signature: string, token: string): Promise<void> {
+        await query('UPDATE external_access SET token = ? WHERE signature = ?', [
+            token,
+            signature,
+        ]);
+    }
+
     async delete(signature: string): Promise<void> {
         await query('DELETE FROM external_access WHERE signature = ?', [signature]);
     }
