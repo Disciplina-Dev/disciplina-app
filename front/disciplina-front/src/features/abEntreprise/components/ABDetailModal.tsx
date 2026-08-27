@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { X, Briefcase, Users, ClipboardList, Calendar, Hash } from 'lucide-react'
+import { X, Briefcase, Users, ClipboardList, Calendar, Hash, BellOff, Bell } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useSetAbRelanceDisabled } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
 import { formatScheduleSlots } from '@/utils/schedule'
@@ -58,6 +58,7 @@ interface Props {
 export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplicate }: Props) {
   const result = useNeedsAnalysis(id)
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
+  const { setAbRelanceDisabled, result: relanceResult } = useSetAbRelanceDisabled()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const ab = result.data?.needsAnalysis
   const badge = ab ? (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']) : null
@@ -67,6 +68,13 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
     await deleteNeedsAnalysis(id)
     onDelete?.()
     onClose()
+  }
+
+  const handleToggleRelance = async () => {
+    if (!ab) return
+    const disabled = !ab.isRelanceDisabled
+    const res = await setAbRelanceDisabled(id, disabled)
+    if (!res.error) result.refetch()
   }
 
   return (
@@ -89,6 +97,11 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                   {badge && (
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.bg} ${badge.text}`}>
                       {badge.label}
+                    </span>
+                  )}
+                  {ab.isRelanceDisabled && ab.status === 'EN_ATTENTE_SIGNATURE' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                      <BellOff className="h-3 w-3" /> Relance désactivée
                     </span>
                   )}
                   {ab.createdAt && (
@@ -117,6 +130,17 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                 className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-blue hover:text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
               >
                 Dupliquer
+              </button>
+            )}
+            {ab && !confirmDelete && ab.status === 'EN_ATTENTE_SIGNATURE' && (
+              <button
+                type="button"
+                onClick={handleToggleRelance}
+                disabled={relanceResult.fetching}
+                className={`rounded-lg border bg-white px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 ${ab.isRelanceDisabled ? 'border-blue-200 text-blue-700 hover:bg-blue-50 focus-visible:ring-blue' : 'border-amber-200 text-amber-700 hover:bg-amber-50 focus-visible:ring-amber-500'}`}
+                title={ab.isRelanceDisabled ? 'Réactiver la relance automatique' : 'Désactiver la relance automatique'}
+              >
+                {ab.isRelanceDisabled ? <><Bell className="inline h-3.5 w-3.5 mr-1" />Réactiver relance</> : <><BellOff className="inline h-3.5 w-3.5 mr-1" />Désactiver relance</>}
               </button>
             )}
             {ab && !confirmDelete && (
@@ -251,6 +275,17 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
             {ab.yousignSignatureRequestID && (
               <Section icon={<Hash className="h-3.5 w-3.5" />} title="Signature électronique">
                 <Row label="Référence" value={ab.yousignSignatureRequestID} />
+              </Section>
+            )}
+
+            {ab.status === 'EN_ATTENTE_SIGNATURE' && (
+              <Section icon={<Bell className="h-3.5 w-3.5" />} title="Relance automatique">
+                <Row label="État" value={ab.isRelanceDisabled ? 'Désactivée — aucun mail ne sera envoyé' : 'Activée — relance prévue 14 jours après envoi'} />
+                <p className="text-xs text-gray-500 mt-1">
+                  {ab.isRelanceDisabled
+                    ? 'La relance est désactivée pour cette AB. Vous pouvez la réactiver ci-dessus sans supprimer l’AB.'
+                    : 'Un mail de rappel sera envoyé automatiquement au responsable recrutement si l’AB n’est pas signée. Désactivez-la pour l’empêcher sans supprimer l’AB.'}
+                </p>
               </Section>
             )}
           </div>

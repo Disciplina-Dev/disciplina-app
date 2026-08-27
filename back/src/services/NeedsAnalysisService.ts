@@ -698,6 +698,30 @@ export class NeedsAnalysisService {
         return this.repository.markDeleted(id);
     }
 
+    /**
+     * Active/désactive la relance automatique de signature pour une AB.
+     * Non destructif : l'AB reste visible et ses offres conservées.
+     */
+    async setRelanceDisabled(id: string, disabled: boolean): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (existing.is_deleted) {
+            throw new Error('Cannot change relance on a deleted needs analysis');
+        }
+        await this.repository.update(id, { is_relance_disabled: disabled } as any);
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, disabled }, '[NeedsAnalysis] relance disabled toggled');
+        return toNeedsAnalysis(updated);
+    }
+
     private validateData(data: Partial<NeedsAnalysisWriteInput>): void {
         if (!data.companyID) {
             throw new Error('Company ID is required');
