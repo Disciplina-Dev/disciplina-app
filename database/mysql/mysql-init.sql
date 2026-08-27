@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   `oauth_token` text DEFAULT NULL,
   `refresh_token` text DEFAULT NULL,
   `is_interviewer` tinyint(1) NOT NULL DEFAULT '0',
+  -- Soft delete : un user « supprimé » garde sa ligne pour l'historique
+  -- (contact_logs, candidate_history, etc.) mais est exclu de tous les workflows.
+  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+  `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `email` (`email`),
   KEY `idx_users_role_id` (`role_id`),
@@ -82,32 +86,6 @@ CREATE TABLE IF NOT EXISTS `booking_settings` (
   CONSTRAINT `fk_booking_settings_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE IF NOT EXISTS `commercial_kpi` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int DEFAULT NULL,
-  `user_name` varchar(255) NOT NULL,
-  `year` year(4) NOT NULL,
-  `month` tinyint NOT NULL,
-  `week` tinyint NOT NULL DEFAULT '0',
-  `site` enum('NORD','OUEST','SUD') NOT NULL DEFAULT 'NORD',
-  `count_oui` int NOT NULL DEFAULT '0',
-  `count_oui_of` int NOT NULL DEFAULT '0',
-  `count_non` int NOT NULL DEFAULT '0',
-  `count_ne_repond_pas` int NOT NULL DEFAULT '0',
-  `count_a_reflechir` int NOT NULL DEFAULT '0',
-  `count_relance` int NOT NULL DEFAULT '0',
-  `total_appels` int NOT NULL DEFAULT '0',
-  `total_trie` int NOT NULL DEFAULT '0',
-  `nbre_ent_ferme` int NOT NULL DEFAULT '0',
-  `nbre_ent_ouvert` int NOT NULL DEFAULT '0',
-  `visites_terrain` int NOT NULL DEFAULT '0',
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
---   KEY `idx_commercial_kpi_user_id` (`user_id`),
-  UNIQUE KEY `unique_kpi` (`user_id`,`year`,`month`,`week`,`site`),
-  CONSTRAINT `fk_commercial_kpi_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `companies` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -335,25 +313,6 @@ CREATE TABLE IF NOT EXISTS `relance_history` (
   CONSTRAINT `fk_relance_history_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE IF NOT EXISTS `rh_kpi` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int NOT NULL,
-  `sector` varchar(64) NOT NULL DEFAULT '',
-  `year` smallint NOT NULL,
-  `month` tinyint NOT NULL,
-  `week` tinyint NOT NULL,
-  `interviews_placed` int NOT NULL DEFAULT '0',
-  `interviews_attended` int NOT NULL DEFAULT '0',
-  `interviews_noshow` int NOT NULL DEFAULT '0',
-  `immersions` int NOT NULL DEFAULT '0',
-  `contracts` int NOT NULL DEFAULT '0',
-  `ruptures` int NOT NULL DEFAULT '0',
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  UNIQUE KEY `unique_rh_kpi_sector` (`user_id`,`sector`,`year`,`month`,`week`),
-  CONSTRAINT `fk_rh_kpi_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `sector_settings` (
   `sector` varchar(64) NOT NULL,

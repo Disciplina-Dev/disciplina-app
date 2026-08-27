@@ -44,6 +44,10 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
         column: 'siren',
         definition: 'CHAR(9) GENERATED ALWAYS AS (SUBSTRING(`siret`, 1, 9)) STORED',
     },
+    // Soft delete des users : la ligne reste (historiques FK) mais sort de tous
+    // les workflows (login, listes, directory). Cf. UserRepository.markDeleted.
+    { table: 'users', column: 'is_deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+    { table: 'users', column: 'deleted_at', definition: 'TIMESTAMP NULL DEFAULT NULL' },
 ];
 
 /**
@@ -83,56 +87,6 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
             INDEX idx_contact_company (company_id),
             INDEX idx_contact_user (user_id)
-        )`,
-    },
-    {
-        // KPI RH agrégés par utilisateur (RH) et par bucket (année ISO / mois / semaine ISO).
-        // Une ligne = un (user, year, month, week) ; les compteurs sont incrémentés au fil des actions.
-        table: 'rh_kpi',
-        ddl: `CREATE TABLE IF NOT EXISTS rh_kpi (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            sector VARCHAR(64) NOT NULL DEFAULT '',
-            year SMALLINT NOT NULL,
-            month TINYINT NOT NULL,
-            week TINYINT NOT NULL,
-            interviews_placed INT NOT NULL DEFAULT 0,
-            interviews_attended INT NOT NULL DEFAULT 0,
-            interviews_noshow INT NOT NULL DEFAULT 0,
-            immersions INT NOT NULL DEFAULT 0,
-            contracts INT NOT NULL DEFAULT 0,
-            ruptures INT NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_rh_kpi (user_id, sector, year, month, week),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
-        )`,
-    },
-    {
-        table: 'commercial_kpi',
-        ddl: `CREATE TABLE IF NOT EXISTS commercial_kpi (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT,
-            user_name VARCHAR(255) NOT NULL,
-            year YEAR NOT NULL,
-            month TINYINT NOT NULL,
-            week TINYINT NOT NULL DEFAULT 0,
-            site ENUM('NORD', 'OUEST', 'SUD') NOT NULL DEFAULT 'NORD',
-            count_oui INT NOT NULL DEFAULT 0,
-            count_oui_of INT NOT NULL DEFAULT 0,
-            count_non INT NOT NULL DEFAULT 0,
-            count_ne_repond_pas INT NOT NULL DEFAULT 0,
-            count_a_reflechir INT NOT NULL DEFAULT 0,
-            count_relance INT NOT NULL DEFAULT 0,
-            total_appels INT NOT NULL DEFAULT 0,
-            total_trie INT NOT NULL DEFAULT 0,
-            nbre_ent_ferme INT NOT NULL DEFAULT 0,
-            nbre_ent_ouvert INT NOT NULL DEFAULT 0,
-            visites_terrain INT NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_kpi (user_id, year, month, week, site),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
         )`,
     },
     {
@@ -439,73 +393,6 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info('MySQL migration: created index idx_companies_siren');
     }
 
-    // commercial_kpi created before weekly granularity: add week column and
-    // widen the unique key (week = 0 means "monthly aggregate row").
-    const weekColumn = await query<{ count: number }[]>(
-        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'commercial_kpi' AND COLUMN_NAME = 'week'",
-    );
-    if (Number(weekColumn[0]?.count) === 0) {
-        await query('ALTER TABLE commercial_kpi ADD COLUMN week TINYINT NOT NULL DEFAULT 0 AFTER month');
-        // Split DROP + ADD into two statements: TiDB rejects a combined
-        // "DROP INDEX x, ADD ... x" ALTER with "Duplicate key name".
-        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi');
-        await query('ALTER TABLE commercial_kpi ADD UNIQUE KEY unique_kpi (user_name, year, month, week, site)');
-        logger.info('MySQL migration: added commercial_kpi.week and widened unique_kpi');
-    }
-
-    // commercial_kpi identity moved from user_name to user_id (2026-06-29): KPI
-    // rows are now tied to a real user; user_name kept only as a display snapshot.
-    // Rebuild unique_kpi on (user_id, …). Legacy rows with user_id NULL keep
-    // surviving user deletion (MySQL treats NULLs as distinct in unique keys).
-    const uniqueKpiCols = await query<{ COLUMN_NAME: string }[]>(
-        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'commercial_kpi' AND INDEX_NAME = 'unique_kpi'",
-    );
-    if (uniqueKpiCols.some((c) => c.COLUMN_NAME === 'user_name')) {
-        // Drop rows that would collide on the new key (same user_id+période), keeping the newest.
-        await query(`
-            DELETE c1 FROM commercial_kpi c1
-            JOIN commercial_kpi c2
-              ON c1.user_id = c2.user_id AND c1.year = c2.year AND c1.month = c2.month
-             AND c1.week = c2.week AND c1.site = c2.site AND c1.id < c2.id
-            WHERE c1.user_id IS NOT NULL
-        `);
-        // Split DROP + ADD: TiDB rejects the combined form with "Duplicate key name".
-        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi');
-        await query('ALTER TABLE commercial_kpi ADD UNIQUE KEY unique_kpi (user_id, year, month, week, site)');
-        logger.info('MySQL migration: commercial_kpi unique_kpi rebuilt on user_id');
-    }
-
-    // rh_kpi gained a `sector` dimension (2026-06-30): add the column and widen
-    // the unique key to (user_id, sector, year, month, week). Existing rows keep
-    // sector = '' (= "secteur inconnu / global").
-    const rhKpiSectorCol = await query<{ count: number }[]>(
-        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND COLUMN_NAME = 'sector'",
-    );
-    if (Number(rhKpiSectorCol[0]?.count) === 0) {
-        await query("ALTER TABLE rh_kpi ADD COLUMN sector VARCHAR(64) NOT NULL DEFAULT '' AFTER user_id");
-        logger.info('MySQL migration: added rh_kpi.sector');
-    }
-    // Widen unique_rh_kpi to include `sector`. The FK on user_id relies on this
-    // index, so MySQL refuses a direct DROP: create the widened index first
-    // (it also covers user_id for the FK), then drop the old one. Idempotent:
-    // keyed on whether the current unique_rh_kpi already includes `sector`.
-    const rhKpiUniqueCols = await query<{ COLUMN_NAME: string }[]>(
-        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND INDEX_NAME = 'unique_rh_kpi'",
-    );
-    if (rhKpiUniqueCols.length > 0 && !rhKpiUniqueCols.some((c) => c.COLUMN_NAME === 'sector')) {
-        // Idempotent step-by-step: a crash between the ADD and the DROP leaves
-        // unique_rh_kpi_sector already present, so guard each statement on the
-        // actual index state instead of re-issuing a blind ADD (which throws
-        // "Duplicate key name 'unique_rh_kpi_sector'").
-        const sectorIdx = await query<{ count: number }[]>(
-            "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND INDEX_NAME = 'unique_rh_kpi_sector'",
-        );
-        if (Number(sectorIdx[0]?.count) === 0) {
-            await query('ALTER TABLE rh_kpi ADD UNIQUE KEY unique_rh_kpi_sector (user_id, sector, year, month, week)');
-        }
-        await query('ALTER TABLE rh_kpi DROP INDEX unique_rh_kpi');
-        logger.info('MySQL migration: widened rh_kpi unique key to include sector');
-    }
 
     // Renommage job_uuid → offer_uuid (unification jobs → offers d'AB). Sur les
     // tables de session déjà créées avec l'ancienne colonne, on la renomme ;

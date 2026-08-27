@@ -14,6 +14,7 @@ const LABELS: Record<string, Record<string, string>> = {
   trainingDomain:     { SECRETARIAT: 'Secrétariat', VENTE: 'Vente' },
   educationLevel:     { BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3' },
   drivingLicense:     { OUI: 'Oui', OPTIONNEL: 'Optionnel' },
+  hasVehicle:         { OUI: 'Oui', NON: 'Non' },
   experienceRequired: { DEBUTANT: 'Débutant accepté', OBLIGATOIRE: 'Expérience obligatoire' },
   recruitmentMethod:  { ALL_CV: 'Tous les CV', PRESELECTION: 'Présélection', PRE_INTERVIEW: 'Pré-entretien' },
   immersionPeriod:    { OUI: 'Oui', NON: 'Non', A_DISCUTER: 'À discuter' },
@@ -75,6 +76,7 @@ export interface AbDetail {
   additionalComments?: string | null
   educationLevel?: string
   drivingLicense?: string
+  hasVehicle?: string
   experienceRequired?: string
   ageRequirements?: string[]
   ageMin?: number | null
@@ -163,6 +165,9 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
       <Section icon={<GraduationCap className="h-3.5 w-3.5" />} title="Profil apprenti">
         <Row label="Niveau d'études" value={lbl(LABELS.educationLevel, ab.educationLevel)} />
         <Row label="Permis B"        value={lbl(LABELS.drivingLicense, ab.drivingLicense)} />
+        <div className="ml-3 pl-4 border-l-2 border-gray-100">
+          <Row label="Véhiculé"        value={lbl(LABELS.hasVehicle, ab.hasVehicle)} />
+        </div>
         <Row label="Expérience"      value={lbl(LABELS.experienceRequired, ab.experienceRequired)} />
         {(ab.ageMin || ab.ageMax) ? (
           <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin} ans` : null, ab.ageMax ? `à ${ab.ageMax} ans` : null].filter(Boolean).join(' ')} />

@@ -1,5 +1,5 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
-import { Candidate, CandidateStatus } from '../../types/candidate.types';
+import { Candidate, CandidateOwner, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 
 export interface StatBucket {
@@ -38,6 +38,7 @@ export interface CandidateFilters {
     statusIn?: string[];
     schoolLevel?: string;
     drivingLicenseB?: boolean;
+    hasVehicle?: boolean;
     /** Sexe du candidat (FILLE / GARCON), exclusif. */
     sex?: string;
     ageMin?: number;
@@ -173,6 +174,7 @@ export class CandidateRepository {
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
+        if (filters?.hasVehicle !== undefined) conditions.push({ 'identity.has_vehicle': filters.hasVehicle });
         if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
         // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
         // scripts/cleanup_candidate_tp_type.py) : $or transitoire, à retirer une fois
@@ -522,5 +524,16 @@ export class CandidateRepository {
 
     async delete(id: string): Promise<boolean> {
         return (await CandidateModel.deleteOne({ _id: id })).deletedCount > 0;
+    }
+
+    /**
+     * Réassigne (ou détache) le RH propriétaire des dossiers candidat d'un user
+     * supprimé. `owner = null` détache les dossiers (ils vivent sans propriétaire).
+     * Renvoie le nombre de dossiers modifiés.
+     */
+    async reassignOwner(fromUserId: number, owner: CandidateOwner | null): Promise<number> {
+        const update = owner ? { $set: { owner } } : { $unset: { owner: '' } };
+        const res = await CandidateModel.updateMany({ 'owner.user_id': fromUserId }, update);
+        return res.modifiedCount;
     }
 }

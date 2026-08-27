@@ -8,6 +8,7 @@ import { CompaniesService } from './CompaniesService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { GoogleGmailService } from '../external/google/gmail.service';
+import { withNoReply } from '../external/google/no-reply';
 import { MailTemplateService } from './MailTemplateService';
 import { sectorFromRegion } from '../utils/sector';
 import { JobRole } from '../types/user.types';
@@ -178,7 +179,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
     try {
         await gmailService.sendEmail(
             { access_token: senderUser.oauth_token, refresh_token: senderUser.refresh_token },
-            mailOptions,
+            withNoReply(mailOptions),
             persistRefreshedTokens(senderUser.id),
         );
         logger.info('Signed AB notification email sent successfully.');

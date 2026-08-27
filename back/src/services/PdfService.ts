@@ -279,6 +279,12 @@ ${sh(title)}
 </div>
 
 <div class="field-row">
+    <span class="field-label">Véhiculé :</span><br/>
+    <div class="option-block">${chk((c as any).hasVehicle === true)}&nbsp;Oui</div>
+    <div class="option-block">${chk((c as any).hasVehicle === false)}&nbsp;Non</div>
+</div>
+
+<div class="field-row">
     <span class="field-label">Expérience requis :</span><br/>
     <div class="option-block">${chk(c.experienceRequired === false)}&nbsp;Débutant</div>
     <div class="option-block">${chk(c.experienceRequired === true)}&nbsp;Obligatoire</div>
@@ -755,6 +761,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv('Ville', id.city);
     kv('Code postal', id.postal_code);
     if (id.driving_license_b != null) kv('Permis B', yn(id.driving_license_b));
+    if (id.has_vehicle != null) kv('Véhiculé', yn(id.has_vehicle));
     kv('Moyen de transport', id.transport_means);
     if (id.psh_referral_request != null) kv('Accompagnement PSH', yn(id.psh_referral_request));
     if (id.had_apprenticeship_contract != null)

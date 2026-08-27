@@ -13,6 +13,8 @@ const USER_SELECT_COLUMNS = [
     'u.oauth_token',
     'u.refresh_token',
     'u.is_interviewer',
+    'u.is_deleted',
+    'u.deleted_at',
 ];
 
 const USER_JOIN = `
@@ -23,16 +25,28 @@ const USER_JOIN = `
     LEFT JOIN permissions p ON p.id = u.permission_id
 `;
 
+// Les users soft-deleted (markDeleted) sortent de tous les workflows :
+// login, listes, directory, sélecteurs. Seul findByIdIncludingDeleted les voit.
+const USER_ACTIVE = 'u.is_deleted = 0';
+
 export class UserRepository {
     async findByEmail(email: string): Promise<UserRowJoined | null> {
         const result = await query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.email = ?`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.email = ? AND ${USER_ACTIVE}`,
             [email],
         );
         return result.length > 0 ? result[0] : null;
     }
 
     async findById(id: number): Promise<UserRowJoined | null> {
+        const result = await query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id = ? AND ${USER_ACTIVE}`,
+            [id],
+        );
+        return result.length > 0 ? result[0] : null;
+    }
+
+    async findByIdIncludingDeleted(id: number): Promise<UserRowJoined | null> {
         const result = await query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id = ?`,
             [id],
@@ -41,14 +55,17 @@ export class UserRepository {
     }
 
     async findByRoleId(roleId: number): Promise<UserRowJoined[]> {
-        return query<UserRowJoined[]>(`SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ?`, [
-            roleId,
-        ]);
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ? AND ${USER_ACTIVE}`,
+            [roleId],
+        );
     }
 
     async findByRoleIdAndPermissionId(roleId: number, permissionId: number): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ? AND u.permission_id = ?`,
+            `SELECT ${USER_SELECT_COLUMNS.join(
+                ', ',
+            )}, ${USER_JOIN} WHERE u.role_id = ? AND u.permission_id = ? AND ${USER_ACTIVE}`,
             [roleId, permissionId],
         );
     }
@@ -57,14 +74,14 @@ export class UserRepository {
         if (roleIds.length === 0) return [];
         const placeholders = roleIds.map(() => '?').join(', ');
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id IN (${placeholders})`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id IN (${placeholders}) AND ${USER_ACTIVE}`,
             roleIds,
         );
     }
 
     async findByPermissionId(permissionId: number): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id = ?`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id = ? AND ${USER_ACTIVE}`,
             [permissionId],
         );
     }
@@ -73,7 +90,9 @@ export class UserRepository {
         if (permissionIds.length === 0) return [];
         const placeholders = permissionIds.map(() => '?').join(', ');
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id IN (${placeholders})`,
+            `SELECT ${USER_SELECT_COLUMNS.join(
+                ', ',
+            )}, ${USER_JOIN} WHERE u.permission_id IN (${placeholders}) AND ${USER_ACTIVE}`,
             permissionIds,
         );
     }
@@ -106,10 +125,43 @@ export class UserRepository {
         return result.insertId;
     }
 
+    /** Lookup batché pour enrichir des lignes KPI avec les noms d'affichage. */
+    async findByIds(ids: number[]): Promise<UserRowJoined[]> {
+        if (ids.length === 0) return [];
+        const placeholders = ids.map(() => '?').join(', ');
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id IN (${placeholders}) AND ${USER_ACTIVE}`,
+            ids,
+        );
+    }
+
     async findAll(): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} ORDER BY u.role_id, u.first_name, u.last_name`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE ${USER_ACTIVE} ORDER BY u.role_id, u.first_name, u.last_name`,
         );
+    }
+
+    /**
+     * Soft delete : la ligne reste en base (les historiques FK continuent de
+     * pointer dessus) mais le user sort de tous les workflows. Le mot de passe
+     * est remplacé par une valeur aléatoire invalide et les tokens OAuth sont
+     * purgés en défense supplémentaire.
+     */
+    async markDeleted(id: number, invalidatedPassword: string): Promise<boolean> {
+        const result = await query<any>(
+            'UPDATE users SET is_deleted = 1, deleted_at = NOW(), password = ?, oauth_token = NULL, refresh_token = NULL WHERE id = ? AND is_deleted = 0',
+            [invalidatedPassword, id],
+        );
+        return result.affectedRows > 0;
+    }
+
+    /** Comptes ADMIN encore actifs (pour interdire la suppression du dernier admin). */
+    async countActiveByPermissionId(permissionId: number): Promise<number> {
+        const rows = await query<{ total: number }[]>(
+            `SELECT COUNT(*) AS total FROM users u WHERE u.permission_id = ? AND ${USER_ACTIVE}`,
+            [permissionId],
+        );
+        return rows[0].total;
     }
 
     async updateSectors(id: number, sectors: string[]): Promise<void> {
@@ -119,7 +171,7 @@ export class UserRepository {
 
     /**
      * Met à jour les colonnes éditables d'un user (whitelist stricte des champs).
-     * Aucune suppression possible : pas de méthode delete exposée.
+     * La suppression passe exclusivement par markDeleted (soft delete).
      */
     async updateProfile(
         id: number,

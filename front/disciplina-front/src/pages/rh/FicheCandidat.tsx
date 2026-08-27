@@ -1025,16 +1025,16 @@ export default function FicheCandidat() {
                     onChange={e => updateIdentity('postal_code', e.target.value)} />
                 ) : <p className={valueCls}>{formData.identity.postal_code || '—'}</p>}
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Permis B">
-                  {isEditing ? (
-                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
-                        onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
-                      <span className="text-sm text-gray-700">Oui</span>
-                    </label>
-                  ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
-                </Field>
+              <Field label="Permis B">
+                {isEditing ? (
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
+                      onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
+                    <span className="text-sm text-gray-700">Oui</span>
+                  </label>
+                ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
+              </Field>
+              <div className="ml-3 pl-4 border-l-2 border-gray-100">
                 <Field label="Véhiculé">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">

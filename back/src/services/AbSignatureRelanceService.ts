@@ -2,6 +2,7 @@ import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepo
 import { UserService } from './UserService';
 import { MailTemplateService } from './MailTemplateService';
 import { GoogleGmailService } from '../external/google/gmail.service';
+import { withNoReply } from '../external/google/no-reply';
 import { AB_RELANCE_SUBJECT, AB_RELANCE_BODY } from './abRelanceTemplate';
 import { NeedsAnalysis } from '../types/needsAnalysisNoSql.types';
 import { logger } from '../external/logger';
@@ -75,7 +76,7 @@ export class AbSignatureRelanceService {
 
         await this.gmailService.sendEmail(
             { access_token: saler.oauthToken, refresh_token: saler.refreshToken ?? undefined },
-            { to: signerEmail, subject, html: body, text: body.replace(/<[^>]*>/g, '') },
+            withNoReply({ to: signerEmail, subject, html: body, text: body.replace(/<[^>]*>/g, '') }),
             this.userService.googleTokenPersister(salerId),
         );
 

@@ -41,6 +41,7 @@ export interface ScheduleSlot {
 export interface OfferCriteria {
   educationLevel?: string | null
   drivingLicense?: boolean | null
+  hasVehicle?: boolean | null
   experienceRequired?: boolean | null
   trainingDomain?: string | null
   ageMin?: number | null
