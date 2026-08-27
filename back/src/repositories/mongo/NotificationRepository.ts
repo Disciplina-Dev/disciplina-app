@@ -38,4 +38,9 @@ export class NotificationRepository {
     async markAllRead(userId: number): Promise<void> {
         await NotificationModel.updateMany({ user_id: userId, read: false }, { $set: { read: true } });
     }
+
+    /** Purge définitive des notifications d'un compte (soft-)supprimé. */
+    async deleteAllForUser(userId: number): Promise<number> {
+        return (await NotificationModel.deleteMany({ user_id: userId })).deletedCount;
+    }
 }

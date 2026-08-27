@@ -14,7 +14,6 @@ import { GoogleDriveService, extractDriveFileId } from '../../external/google/dr
 import { OllamaService } from '../../external/ollama/ollama.service';
 import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
-import { file } from 'pdfkit';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 

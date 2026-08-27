@@ -5,6 +5,7 @@ import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import LegalLinks from './LegalLinks'
 import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
@@ -119,6 +120,8 @@ export default function CommercialLayout() {
               </button>
             </div>
           </div>
+
+          <LegalLinks />
         </div>
       </aside>
 

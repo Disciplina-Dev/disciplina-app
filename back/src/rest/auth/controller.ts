@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { UserService, roleToId, permissionToId } from '../../services/UserService';
+import { UserDeletionService, UserDeletionError } from '../../services/UserDeletionService';
 import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
@@ -13,6 +14,7 @@ import { issueCsrfCookie } from '../middleware/csrf';
 import { REFRESH_TOKEN_COOKIE } from '../middleware/tokenAuth';
 
 const userService = new UserService();
+const userDeletionService = new UserDeletionService();
 
 // Gestion des secteurs : réservée à l'admin et au responsable.
 const SECTOR_MANAGER_PERMISSIONS: Permission[] = [Permission.ADMIN, Permission.RESPONSABLE];
@@ -207,6 +209,34 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: updateUser failed');
         res.status(400).json({ error: error.message });
+    }
+}
+
+export async function deleteUser(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        if (req.user?.permission !== Permission.ADMIN) {
+            res.status(403).json({ error: 'Only admins can delete users' });
+            return;
+        }
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            res.status(400).json({ error: 'Invalid user id' });
+            return;
+        }
+        const replacementUserId = req.body?.replacementUserId;
+        if (replacementUserId !== undefined && (!Number.isInteger(replacementUserId) || replacementUserId <= 0)) {
+            res.status(400).json({ error: 'Invalid replacement user id' });
+            return;
+        }
+        const summary = await userDeletionService.deleteUser(req.user.id, id, replacementUserId);
+        res.json({ message: 'User deleted', ...summary });
+    } catch (error: any) {
+        if (error instanceof UserDeletionError) {
+            res.status(error.status).json({ error: error.message });
+            return;
+        }
+        logger.error({ err: error }, 'Auth: deleteUser failed');
+        res.status(500).json({ error: 'Internal error' });
     }
 }
 

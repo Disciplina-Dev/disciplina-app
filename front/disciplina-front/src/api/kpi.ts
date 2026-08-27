@@ -68,7 +68,7 @@ export interface KpiOverview {
  * Source des graphiques/tableaux :
  * - 'combine' : Excel prioritaire, portefeuille en complément (zéro doublon) ;
  * - 'portefeuille' : activité datée du CRM seule ;
- * - 'excel' : table commercial_kpi seule (imports + saisie manuelle).
+ * - 'excel' : collection Mongo `kpis` (kind: commercial — imports + saisie manuelle).
  */
 export type KpiSource = 'combine' | 'portefeuille' | 'excel';
 

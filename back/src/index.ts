@@ -8,6 +8,8 @@ import { jwtContext } from './graphql/context';
 import { connectMySQL } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
+import { migrateLegacyKpiTables } from './db/mongo/legacyKpiImport';
+import { query } from './db/mysql/connection';
 import session from 'express-session';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -141,6 +143,21 @@ export async function createApp(): Promise<express.Express> {
     await connectMySQL();
     await runMysqlMigrations();
     await connectMongoDB();
+
+    // Ex-tables commercial_kpi / rh_kpi (#513) : import vers Mongo `kpis` puis
+    // drop. Best-effort : en cas d'échec les tables sont conservées et le
+    // retry repart au prochain boot ; ne doit jamais bloquer le démarrage.
+    try {
+        const legacy = await migrateLegacyKpiTables({ all: (sql, params) => query(sql as never, params) }, { dropAfter: true });
+        if (legacy.commercial || legacy.rh || legacy.dropped.length > 0) {
+            logger.info(
+                { commercial: legacy.commercial, rh: legacy.rh, dropped: legacy.dropped },
+                'Legacy MySQL KPI tables migrated to MongoDB',
+            );
+        }
+    } catch (err) {
+        logger.error({ err }, 'Legacy KPI migration failed, tables kept for retry');
+    }
 
     app.use('/api/graphql', graphqlRateLimiter);
 

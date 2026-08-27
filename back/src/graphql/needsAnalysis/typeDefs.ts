@@ -137,6 +137,7 @@ export const typeDefs = gql`
     type OfferCriteria {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         trainingDomain: TrainingDomain
         ageMin: Int
@@ -163,6 +164,7 @@ export const typeDefs = gql`
     input OfferCriteriaInput {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         ageMin: Int
         ageMax: Int

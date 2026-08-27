@@ -3,6 +3,7 @@ import { Users, UserPlus, MapPin, LogOut, User, ArrowLeft, Briefcase, Graduation
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import LegalLinks from './LegalLinks'
 import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 function NavItem({
@@ -126,6 +127,8 @@ export default function AdminLayout() {
               <LogOut size={16} />
             </button>
           </div>
+
+          <LegalLinks />
         </div>
       </aside>
 

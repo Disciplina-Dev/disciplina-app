@@ -12,6 +12,15 @@ export interface Todo {
   status: TodoStatus
   source: TodoSource
   sourceRef: string | null
+  groupId: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TodoGroup {
+  id: number
+  userId: number
+  name: string
   createdAt: string
   updatedAt: string
 }

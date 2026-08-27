@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import bcrypt from 'bcrypt';
 import { env } from '../../../config/env';
 import { truncateMysql } from '../../../../test/helpers/db';
@@ -38,6 +38,13 @@ async function login(): Promise<{ cookieHeader: string; csrfToken: string }> {
 
 describe('CSRF double-submit protection', () => {
     beforeEach(async () => {
+        await truncateMysql();
+    });
+
+    // Le dernier test laisse l'utilisateur id=1 avec des secteurs ; d'autres
+    // fichiers (matching d'offres) mintent un token pour id=1 et voient alors
+    // leurs candidats filtrés par zone géographique. On rend la base propre.
+    afterAll(async () => {
         await truncateMysql();
     });
 

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { LEGAL_LINKS } from '@/constants/legalLinks'
 
 const LINK_CLASS = 'text-xs text-gray-500 hover:text-gray-900 transition-colors'
 
@@ -11,18 +12,11 @@ export default function Footer() {
           © {new Date().getFullYear()} Disciplina. Tous droits réservés.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <Link to="/legal/confidentialite" className={LINK_CLASS}>
-            Confidentialité
-          </Link>
-          <Link to="/legal/cgu" className={LINK_CLASS}>
-            Conditions
-          </Link>
-          <Link to="/legal/cookies" className={LINK_CLASS}>
-            Cookies
-          </Link>
-          <Link to="/legal/mentions" className={LINK_CLASS}>
-            Mentions légales
-          </Link>
+          {LEGAL_LINKS.map((link) => (
+            <Link key={link.to} to={link.to} className={LINK_CLASS}>
+              {link.title}
+            </Link>
+          ))}
         </div>
       </div>
     </footer>

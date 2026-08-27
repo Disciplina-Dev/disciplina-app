@@ -22,6 +22,7 @@ export const criteriaSchema = new Schema<OfferCriteria>(
     {
         education_level: { type: String, enum: Object.values(EducationLevel), default: null },
         driving_license: { type: Boolean, default: false },
+        has_vehicle: { type: Boolean, default: false },
         experience_required: { type: Boolean, default: false },
         training_domain: { type: String, enum: Object.values(TrainingDomain), default: null },
         age_min: { type: Number, default: null },

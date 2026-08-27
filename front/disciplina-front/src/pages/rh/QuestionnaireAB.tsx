@@ -33,6 +33,7 @@ interface FormState {
   date_of_birth: string; place_of_birth: string; age: string
   postal_code: string; city: string
   driving_license_b: string // 'true' | 'false' | 'en_cours' | ''
+  has_vehicle: string // 'true' | 'false' | ''
   transport_means: string; psh_referral_request: string // 'true' | 'false' | ''
   // éducation
   school_level: string; school_justification: string
@@ -92,6 +93,7 @@ function initForm(c: Candidate): FormState {
     postal_code: c.identity.postal_code ?? '',
     city: c.identity.city ?? '',
     driving_license_b: c.identity.driving_license_b == null ? '' : String(c.identity.driving_license_b),
+    has_vehicle: c.identity.has_vehicle == null ? '' : String(c.identity.has_vehicle),
     transport_means: c.identity.transport_means ?? '',
     psh_referral_request: c.identity.psh_referral_request == null ? '' : String(c.identity.psh_referral_request),
     school_level: c.education?.school_level ?? '',
@@ -183,6 +185,7 @@ function toGqlInput(f: FormState) {
       postalCode: f.postal_code || undefined,
       city: f.city || undefined,
       drivingLicenseB: parseBool(f.driving_license_b),
+      hasVehicle: parseBool(f.has_vehicle),
       transportMeans: f.transport_means || undefined,
       pshReferralRequest: parseBool(f.psh_referral_request),
     },
@@ -493,6 +496,15 @@ export default function QuestionnaireAB() {
             onChange={v => set('driving_license_b', v)}
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]}
           />
+          <div className="ml-3 pl-4 border-l-2 border-gray-100">
+            <RadioGroup
+              label="Véhiculé"
+              name="has_vehicle"
+              value={form.has_vehicle}
+              onChange={v => set('has_vehicle', v)}
+              options={boolOpts}
+            />
+          </div>
           <InputField id="transport_means" label="Moyen de transport" value={form.transport_means} onChange={e => set('transport_means', e.target.value)} />
           <RadioGroup
             label="Souhaitez-vous être mis en relation avec notre Référent PSH ?"

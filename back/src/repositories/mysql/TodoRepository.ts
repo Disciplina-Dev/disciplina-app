@@ -46,8 +46,8 @@ export class TodoRepository {
         const position = (maxPos[0]?.maxPos ?? -1) + 1;
 
         const result = await query<any>(
-            `INSERT INTO todos (user_id, assigned_by, title, description, deadline, position, status, source, source_ref)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO todos (user_id, assigned_by, title, description, deadline, position, status, source, source_ref, group_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 assigneeId,
                 assignedBy ?? null,
@@ -58,6 +58,7 @@ export class TodoRepository {
                 input.status ?? 'TODO',
                 source,
                 sourceRef ?? null,
+                input.groupId ?? null,
             ],
         );
         return result.insertId as number;
@@ -71,6 +72,7 @@ export class TodoRepository {
         if (input.description !== undefined) { fields.push('description = ?'); values.push(input.description); }
         if (input.deadline !== undefined) { fields.push('deadline = ?'); values.push(input.deadline); }
         if (input.status !== undefined) { fields.push('status = ?'); values.push(input.status); }
+        if (input.groupId !== undefined) { fields.push('group_id = ?'); values.push(input.groupId); }
 
         if (fields.length === 0) return;
         values.push(id, userId);

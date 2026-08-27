@@ -152,4 +152,17 @@ export class NeedsAnalysisRepository {
             .sort({ signature_sent_at: 1 })
             .lean();
     }
+
+    /**
+     * Réassigne (ou détache) le commercial porteur de toutes les AB liées à un
+     * user supprimé. `saler = null` détache la fiche (l'AB vit sans commercial).
+     * Renvoie le nombre de fiches modifiées.
+     */
+    async reassignSaler(fromUserId: number, saler: { id: number; email: string } | null): Promise<number> {
+        const update = saler
+            ? { $set: { saler_info: { id: saler.id, email: saler.email } } }
+            : { $unset: { saler_info: '' } };
+        const res = await NeedsAnalysisModel.updateMany({ 'saler_info.id': fromUserId }, update);
+        return res.modifiedCount;
+    }
 }

@@ -18,6 +18,7 @@ const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 const STATUS_DOT: Record<EntrepriseStatus, string> = {
   Oui: 'bg-success',
+  'Oui OF': 'bg-success',
   Non: 'bg-danger',
   'À Réfléchir': 'bg-warning',
   Relance: 'bg-blue',

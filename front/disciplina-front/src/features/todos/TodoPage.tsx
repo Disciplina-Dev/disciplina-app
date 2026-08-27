@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation } from 'urql'
 import {
   DndContext,
@@ -19,18 +19,20 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Plus, GripVertical, Trash2, Pencil, X, Calendar, Bot,
-  ChevronDown, ChevronUp, Circle, Clock, CheckCircle2, UserRound,
+  ChevronDown, ChevronUp, Circle, Clock, CheckCircle2, UserRound, Folder,
 } from 'lucide-react'
 import { useAuthStore, fullName, UserRole, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
-import type { Todo, TodoStatus } from './types'
+import type { Todo, TodoStatus, TodoGroup } from './types'
 import {
   MY_TODOS_QUERY,
+  MY_TODO_GROUPS_QUERY,
   CREATE_TODO_MUTATION,
   UPDATE_TODO_MUTATION,
   REORDER_TODOS_MUTATION,
   DELETE_TODO_MUTATION,
 } from './todoOperations'
+import GroupSelector from './GroupSelector'
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -65,9 +67,9 @@ const COLUMNS: { status: TodoStatus; label: string; icon: React.ReactNode; bg: s
 // ── Form modal ───────────────────────────────────────────────────────────────
 
 interface FormModalProps {
-  initial?: Pick<Todo, 'title' | 'description' | 'deadline'>
+  initial?: Pick<Todo, 'title' | 'description' | 'deadline' | 'groupId'>
   accent: string
-  onSubmit: (title: string, description: string, deadline: string, assigneeId: string) => void
+  onSubmit: (title: string, description: string, deadline: string, assigneeId: string, groupId: number | null) => void
   onClose: () => void
 }
 
@@ -81,11 +83,26 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
     fullName(a).localeCompare(fullName(b)),
   )
   const [assigneeId, setAssigneeId] = useState(currentUserId ?? '')
+  const [groupId, setGroupId] = useState<number | null>(initial?.groupId ?? null)
+
+  const forUserId = useMemo(() => {
+    // When editing, initial is defined → group belongs to current user (owner)
+    if (initial) return currentUserId ? Number(currentUserId) : null
+    // When creating, group belongs to assignee
+    return assigneeId ? Number(assigneeId) : null
+  }, [initial, assigneeId, currentUserId])
+
+  // Reset group when assignee changes (groups are user-bound)
+  const [prevAssignee, setPrevAssignee] = useState(assigneeId)
+  if (prevAssignee !== assigneeId) {
+    setPrevAssignee(assigneeId)
+    if (!initial) setGroupId(null)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    onSubmit(title.trim(), description.trim(), deadline, assigneeId)
+    onSubmit(title.trim(), description.trim(), deadline, assigneeId, groupId)
   }
 
   return (
@@ -131,6 +148,19 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2"
             />
           </div>
+          {/* Group selector — dropdown with search + + button */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              <span className="flex items-center gap-1"><Folder size={12} /> Groupe</span>
+            </label>
+            <GroupSelector
+              value={groupId}
+              onChange={setGroupId}
+              forUserId={forUserId}
+              accent={accent}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">Optionnel — créez un groupe avec +</p>
+          </div>
           {!initial && (
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -175,12 +205,13 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
 
 interface TodoCardProps {
   todo: Todo
+  groupName?: string | null
   onEdit: () => void
   onDelete: () => void
   overlay?: boolean
 }
 
-function TodoCard({ todo, onEdit, onDelete, overlay = false }: TodoCardProps) {
+function TodoCard({ todo, groupName, onEdit, onDelete, overlay = false }: TodoCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: todo.id })
 
@@ -215,6 +246,11 @@ function TodoCard({ todo, onEdit, onDelete, overlay = false }: TodoCardProps) {
             {todo.source === 'SYSTEM' && (
               <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-600 border border-violet-200 flex-shrink-0">
                 <Bot size={9} /> Auto
+              </span>
+            )}
+            {groupName && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold text-gray-600 border border-gray-200 flex-shrink-0">
+                <Folder size={9} /> {groupName}
               </span>
             )}
           </div>
@@ -264,7 +300,7 @@ function TodoCard({ todo, onEdit, onDelete, overlay = false }: TodoCardProps) {
   )
 }
 
-// ── Kanban column ─────────────────────────────────────────────────────────────
+// ── Kanban column with per-group grouping ────────────────────────────────────
 
 interface KanbanColumnProps {
   status: TodoStatus
@@ -273,18 +309,39 @@ interface KanbanColumnProps {
   bg: string
   accent: string
   todos: Todo[]
+  groupsById: Record<number, TodoGroup>
   onEdit: (t: Todo) => void
   onDelete: (id: number) => void
   onAddInColumn: (status: TodoStatus) => void
 }
 
-function KanbanColumn({ status, label, icon, bg, accent, todos, onEdit, onDelete, onAddInColumn }: KanbanColumnProps) {
+function KanbanColumn({ status, label, icon, bg, accent, todos, groupsById, onEdit, onDelete, onAddInColumn }: KanbanColumnProps) {
   const { setNodeRef } = useDroppable({ id: status })
 
   const columnAccent =
     status === 'DONE' ? '#10b981' :
     status === 'IN_PROGRESS' ? '#f59e0b' :
     accent
+
+  // Group todos by groupId for per-group display
+  const grouped = useMemo(() => {
+    const map = new Map<number | 'ungrouped', Todo[]>()
+    for (const t of todos) {
+      const key = t.groupId ?? 'ungrouped'
+      const arr = map.get(key as any) ?? []
+      arr.push(t)
+      map.set(key as any, arr)
+    }
+    // Sort keys: ungrouped first, then alphabetically by group name
+    const entries = Array.from(map.entries()).sort(([a], [b]) => {
+      if (a === 'ungrouped') return -1
+      if (b === 'ungrouped') return 1
+      const nameA = groupsById[a as number]?.name ?? String(a)
+      const nameB = groupsById[b as number]?.name ?? String(b)
+      return nameA.localeCompare(nameB)
+    })
+    return entries
+  }, [todos, groupsById])
 
   return (
     <div className="flex flex-col flex-1 min-w-0">
@@ -315,15 +372,36 @@ function KanbanColumn({ status, label, icon, bg, accent, todos, onEdit, onDelete
         className={`flex-1 rounded-xl ${bg} border border-gray-100 p-2 min-h-[200px]`}
       >
         <SortableContext items={todos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2">
-            {todos.map((todo) => (
-              <TodoCard
-                key={todo.id}
-                todo={todo}
-                onEdit={() => onEdit(todo)}
-                onDelete={() => onDelete(todo.id)}
-              />
-            ))}
+          <div className="space-y-3">
+            {grouped.map(([groupKey, groupTodos]) => {
+              const groupName = groupKey === 'ungrouped' ? null : (groupsById[groupKey as number]?.name ?? `Groupe #${groupKey}`)
+              return (
+                <div key={String(groupKey)} className="space-y-2">
+                  {groupName ? (
+                    <div className="flex items-center gap-1.5 px-1">
+                      <Folder size={11} className="text-gray-400" />
+                      <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide truncate">{groupName}</span>
+                      <span className="text-[10px] text-gray-400">({groupTodos.length})</span>
+                    </div>
+                  ) : grouped.length > 1 ? (
+                    <div className="flex items-center gap-1.5 px-1">
+                      <span className="w-2 h-2 rounded-full bg-gray-300" />
+                      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Sans groupe</span>
+                      <span className="text-[10px] text-gray-400">({groupTodos.length})</span>
+                    </div>
+                  ) : null}
+                  {groupTodos.map((todo) => (
+                    <TodoCard
+                      key={todo.id}
+                      todo={todo}
+                      groupName={groupName ?? undefined}
+                      onEdit={() => onEdit(todo)}
+                      onDelete={() => onDelete(todo.id)}
+                    />
+                  ))}
+                </div>
+              )
+            })}
             {todos.length === 0 && (
               <div className="flex items-center justify-center h-20 text-xs text-gray-400">
                 Glisser ici
@@ -342,6 +420,7 @@ export default function TodoPage() {
   const accent = useAccentColor()
 
   const [{ data, fetching, error }, refetch] = useQuery({ query: MY_TODOS_QUERY })
+  const [{ data: groupData }, refetchGroups] = useQuery({ query: MY_TODO_GROUPS_QUERY })
   const [, updateTodo] = useMutation(UPDATE_TODO_MUTATION)
   const [, createTodo] = useMutation(CREATE_TODO_MUTATION)
   const [, reorderTodos] = useMutation(REORDER_TODOS_MUTATION)
@@ -357,15 +436,21 @@ export default function TodoPage() {
   const [colOrder, setColOrder] = useState<Record<TodoStatus, number[]>>({ TODO: [], IN_PROGRESS: [], DONE: [] })
 
   const todos: Todo[] = data?.myTodos ?? []
+  const groups: TodoGroup[] = groupData?.myTodoGroups ?? []
+  const groupsById = useMemo(() => {
+    const m: Record<number, TodoGroup> = {}
+    for (const g of groups) m[g.id] = g
+    return m
+  }, [groups])
   const todoMap = Object.fromEntries(todos.map((t) => [t.id, t])) as Record<number, Todo>
 
   // Sync colOrder from server data
   useEffect(() => {
-    const groups: Record<TodoStatus, number[]> = { TODO: [], IN_PROGRESS: [], DONE: [] }
+    const grouped: Record<TodoStatus, number[]> = { TODO: [], IN_PROGRESS: [], DONE: [] }
     ;[...todos]
       .sort((a, b) => a.position - b.position)
-      .forEach((t) => groups[t.status].push(t.id))
-    setColOrder(groups)
+      .forEach((t) => grouped[t.status].push(t.id))
+    setColOrder(grouped)
   }, [data])
 
   const activeTodo = activeId != null ? todoMap[activeId] : null
@@ -454,11 +539,12 @@ export default function TodoPage() {
       }
 
       refetch({ requestPolicy: 'network-only' })
+      refetchGroups({ requestPolicy: 'network-only' } as any)
     },
-    [colOrder, originalCol, todoMap, updateTodo, reorderTodos, refetch],
+    [colOrder, originalCol, todoMap, updateTodo, reorderTodos, refetch, refetchGroups],
   )
 
-  const handleCreate = async (title: string, description: string, deadline: string, assigneeId: string) => {
+  const handleCreate = async (title: string, description: string, deadline: string, assigneeId: string, groupId: number | null) => {
     await createTodo({
       input: {
         title,
@@ -466,22 +552,26 @@ export default function TodoPage() {
         deadline: deadline || null,
         status: defaultStatus,
         assignedTo: assigneeId ? Number(assigneeId) : null,
+        groupId: groupId ?? null,
       },
     })
     setShowForm(false)
     refetch({ requestPolicy: 'network-only' })
+    refetchGroups({ requestPolicy: 'network-only' } as any)
   }
 
-  const handleEdit = async (title: string, description: string, deadline: string) => {
+  const handleEdit = async (title: string, description: string, deadline: string, _assigneeId: string, groupId: number | null) => {
     if (!editingTodo) return
-    await updateTodo({ id: editingTodo.id, input: { title, description: description || null, deadline: deadline || null } })
+    await updateTodo({ id: editingTodo.id, input: { title, description: description || null, deadline: deadline || null, groupId: groupId ?? null } })
     setEditingTodo(null)
     refetch({ requestPolicy: 'network-only' })
+    refetchGroups({ requestPolicy: 'network-only' } as any)
   }
 
   const handleDelete = async (id: number) => {
     await deleteTodo({ id })
     refetch({ requestPolicy: 'network-only' })
+    refetchGroups({ requestPolicy: 'network-only' } as any)
   }
 
   const totalCount = todos.length
@@ -492,7 +582,7 @@ export default function TodoPage() {
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Mes tâches</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{totalCount} tâche{totalCount > 1 ? 's' : ''} au total</p>
+          <p className="text-sm text-gray-500 mt-0.5">{totalCount} tâche{totalCount > 1 ? 's' : ''} au total{groups.length > 0 ? ` · ${groups.length} groupe${groups.length > 1 ? 's' : ''}` : ''}</p>
         </div>
         <button
           onClick={() => { setDefaultStatus('TODO'); setShowForm(true) }}
@@ -526,6 +616,7 @@ export default function TodoPage() {
                 {...col}
                 accent={accent}
                 todos={colOrder[col.status].map((id) => todoMap[id]).filter(Boolean)}
+                groupsById={groupsById}
                 onEdit={setEditingTodo}
                 onDelete={handleDelete}
                 onAddInColumn={(status) => { setDefaultStatus(status); setShowForm(true) }}
@@ -537,6 +628,7 @@ export default function TodoPage() {
             {activeTodo && (
               <TodoCard
                 todo={activeTodo}
+                groupName={activeTodo.groupId ? groupsById[activeTodo.groupId]?.name : undefined}
                 onEdit={() => {}}
                 onDelete={() => {}}
                 overlay

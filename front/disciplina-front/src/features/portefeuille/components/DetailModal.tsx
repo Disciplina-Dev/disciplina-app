@@ -32,6 +32,7 @@ import RelanceHistorySection from '@/features/portefeuille/components/RelanceHis
 
 const STATUS_CONFIG = {
   Oui: { bg: 'bg-success-bg', text: 'text-success', dot: 'bg-success' },
+  'Oui OF': { bg: 'bg-success-bg', text: 'text-success', dot: 'bg-success' },
   Non: { bg: 'bg-danger-bg', text: 'text-danger', dot: 'bg-danger' },
   'À Réfléchir': { bg: 'bg-warning-bg', text: 'text-warning', dot: 'bg-warning' },
   Relance: { bg: 'bg-blue/10', text: 'text-blue', dot: 'bg-blue' },

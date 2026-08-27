@@ -22,6 +22,7 @@ import { TodoService } from './TodoService';
 import { JobRole, Permission } from '../types/user.types';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { sendSystemEmail } from '../external/google/system-mail';
+import { withNoReply } from '../external/google/no-reply';
 import { env } from '../config/env';
 import { logger } from '../external/logger';
 import { PDFDocument } from 'pdf-lib';
@@ -514,10 +515,11 @@ export class NeedsAnalysisService {
         await Promise.all(
             emailRecipients.map((user) => {
                 const recipientName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                return sendSystemEmail({
-                    to: user.email,
-                    subject: `Nouvelle Analyse du Besoin — ${companyName}`,
-                    html: `
+                return sendSystemEmail(
+                    withNoReply({
+                        to: user.email,
+                        subject: `Nouvelle Analyse du Besoin — ${companyName}`,
+                        html: `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                             <p>Bonjour${recipientName ? ` ${recipientName}` : ''},</p>
                             <p>Une nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.</p>
@@ -533,8 +535,9 @@ export class NeedsAnalysisService {
                             <p style="margin-top: 4px; font-weight: bold; color: #1130A7;">L'équipe Disciplina</p>
                         </div>
                     `,
-                    text: `Bonjour${recipientName ? ` ${recipientName}` : ''},\n\nUne nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.\n\n${companyName} — ${positionsHtml} à pourvoir\n\nAccéder au matching : ${env.FRONTEND_BASE_URL}/rh/matching?needsAnalysis=${analysisId}\n\nCordialement,\nL'équipe Disciplina`,
-                });
+                        text: `Bonjour${recipientName ? ` ${recipientName}` : ''},\n\nUne nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.\n\n${companyName} — ${positionsHtml} à pourvoir\n\nAccéder au matching : ${env.FRONTEND_BASE_URL}/rh/matching?needsAnalysis=${analysisId}\n\nCordialement,\nL'équipe Disciplina`,
+                    }),
+                );
             }),
         );
         logger.info({ id: analysisId, recipients: emailRecipients.length }, '[NeedsAnalysis] RH emailed');

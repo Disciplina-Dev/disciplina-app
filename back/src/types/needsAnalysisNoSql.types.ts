@@ -107,6 +107,7 @@ export interface ScheduleSlot {
 export interface OfferCriteria {
     education_level?: EducationLevel | null;
     driving_license?: boolean;
+    has_vehicle?: boolean;
     experience_required?: boolean;
     training_domain?: TrainingDomain | null;
     age_min?: number | null;

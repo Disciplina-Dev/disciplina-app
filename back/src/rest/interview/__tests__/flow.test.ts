@@ -9,6 +9,7 @@ import { NotificationRepository } from '../../../repositories/mongo/Notification
 import { GoogleCalendarService } from '../../../external/google/calendar.service';
 import { OfferStatus, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateHistoryType } from '../../../types/candidate.types';
+import { truncateMysql } from '../../../../test/helpers/db';
 
 const BASE = `http://localhost:${env.API_PORT}/api/interview`;
 
@@ -55,8 +56,9 @@ async function addProposedCandidate(offerId: string, candidateId: string, email:
 describe('Interview access flow', () => {
     let freeBusySpy: ReturnType<typeof vi.spyOn>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         freeBusySpy = vi.spyOn(GoogleCalendarService.prototype, 'freeBusy').mockResolvedValue([]);
+        await truncateMysql();
     });
 
     afterEach(() => {

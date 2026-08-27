@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { InterviewMailService } from '../InterviewMailService';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { NO_REPLY_ADDRESS } from '../../external/google/no-reply';
 import { UserService } from '../UserService';
 import { MailTemplateService } from '../MailTemplateService';
 
@@ -35,5 +36,21 @@ describe('InterviewMailService.sendInvitation', () => {
 
         const [, options] = sendEmail.mock.calls[0];
         expect(options.html).not.toContain('<img');
+    });
+
+    it('marks the invitation as no-reply (active in NODE_ENV=test)', async () => {
+        const rh = { id: 7, email: 'rh@test.local', oauthToken: 'tok', refreshToken: 'rtok' };
+        const sendEmail = vi.fn().mockResolvedValue(undefined);
+        const gmailService = { sendEmail } as unknown as GoogleGmailService;
+        const userService = { findByEmail: vi.fn().mockResolvedValue(rh) } as unknown as UserService;
+        const mailTemplateService = {
+            getSignatureHtml: vi.fn().mockResolvedValue(''),
+        } as unknown as MailTemplateService;
+
+        const service = new InterviewMailService(gmailService, userService, mailTemplateService);
+        await service.sendInvitation(rh.email, 'candidate@test.local', 'Acme', 'sig-value', '123456');
+
+        const [, options] = sendEmail.mock.calls[0];
+        expect(options.replyTo).toBe(NO_REPLY_ADDRESS);
     });
 });

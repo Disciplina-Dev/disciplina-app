@@ -52,6 +52,15 @@ export async function connectMySQL(): Promise<void> {
     logger.info('MySQL connected');
 }
 
+/**
+ * Ferme le pool. Utilisé par les tests : chaque fichier vitest ré-instancie ce
+ * module (registre isolé) donc son propre pool ; sans fermeture, les connexions
+ * s'accumulent jusqu'au `max_connections` de MySQL.
+ */
+export async function closeMySQL(): Promise<void> {
+    await pool.end();
+}
+
 export async function getConnection(): Promise<PoolConnection> {
     return pool.getConnection();
 }

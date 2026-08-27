@@ -4,6 +4,7 @@ import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import LegalLinks from './LegalLinks'
 import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 const ACCENT = '#0F766E'
@@ -104,6 +105,8 @@ export default function PedaLayout() {
               </button>
             </div>
           </div>
+
+          <LegalLinks />
         </div>
       </aside>
 

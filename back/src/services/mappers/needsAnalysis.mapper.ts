@@ -72,6 +72,7 @@ function buildPosition(position: Position): Position {
     const criteria: OfferCriteria = {
         education_level: c.education_level ?? (c as any).educationLevel ?? null,
         driving_license: c.driving_license ?? (c as any).drivingLicense ?? false,
+        has_vehicle: c.has_vehicle ?? (c as any).hasVehicle ?? false,
         experience_required: c.experience_required ?? (c as any).experienceRequired ?? false,
         training_domain: trainingDomain,
         age_min: c.age_min ?? (c as any).ageMin ?? null,
@@ -113,19 +114,34 @@ function buildCompanyInfos(data: NeedsAnalysisWriteInput, company: Companies, re
 }
 
 export function buildReferents(data: NeedsAnalysisWriteInput, company: Companies): Referents {
+    const legalName = company.legalReferent ?? null;
+    const legalPhone = company.phone ?? null;
+    const legalEmail = company.email ?? null;
+    const recName = data.recruitmentResponsibleName ?? null;
+    const recPhone = data.recruitmentResponsiblePhone ?? null;
+    const recEmail = data.recruitmentResponsibleEmail ?? null;
+    const recFunction = data.recruitmentResponsibleFunction ?? null;
+    // is_same true only when every recruitment field is empty or exactly equals the legal referent.
+    // A single differing field (name, phone, email or function) means the recruitment contact is distinct
+    // and both contacts should be displayed on the offer.
+    const isSame =
+        (recName == null || recName === legalName) &&
+        (recPhone == null || recPhone === legalPhone) &&
+        (recEmail == null || recEmail === legalEmail) &&
+        (recFunction == null || recFunction === (data.legalRepFunction ?? null));
     return {
-        is_same: (data.recruitmentResponsibleEmail ?? null) === (company.email ?? null),
+        is_same: isSame,
         legal_referents: {
-            name: company.legalReferent ?? null,
-            phone: company.phone ?? null,
-            email: company.email ?? null,
+            name: legalName,
+            phone: legalPhone,
+            email: legalEmail,
             function: data.legalRepFunction ?? null,
         },
         recruitment_referents: {
-            name: data.recruitmentResponsibleName ?? null,
-            phone: data.recruitmentResponsiblePhone ?? null,
-            email: data.recruitmentResponsibleEmail ?? null,
-            function: data.recruitmentResponsibleFunction ?? null,
+            name: recName,
+            phone: recPhone,
+            email: recEmail,
+            function: recFunction,
         },
     };
 }
@@ -179,6 +195,7 @@ function toGqlPosition(p: Position) {
             ? {
                   educationLevel: c.education_level ?? null,
                   drivingLicense: c.driving_license ?? false,
+                  hasVehicle: (c as any).has_vehicle ?? (c as any).hasVehicle ?? false,
                   experienceRequired: c.experience_required ?? false,
                   trainingDomain: c.training_domain ?? null,
                   ageMin: c.age_min ?? null,
@@ -217,25 +234,37 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
             : null,
         salerInfo: doc.saler_info ? { id: doc.saler_info.id ?? null, email: doc.saler_info.email ?? null } : null,
         referents: doc.referents
-            ? {
-                  isSame: doc.referents.is_same ?? false,
-                  legalReferents: doc.referents.legal_referents
+            ? (() => {
+                  const legal = doc.referents.legal_referents
                       ? {
                             name: doc.referents.legal_referents.name ?? null,
                             phone: doc.referents.legal_referents.phone ?? null,
                             email: doc.referents.legal_referents.email ?? null,
                             function: doc.referents.legal_referents.function ?? null,
                         }
-                      : null,
-                  recruitmentReferents: doc.referents.recruitment_referents
+                      : null
+                  const recruit = doc.referents.recruitment_referents
                       ? {
                             name: doc.referents.recruitment_referents.name ?? null,
                             phone: doc.referents.recruitment_referents.phone ?? null,
                             email: doc.referents.recruitment_referents.email ?? null,
                             function: doc.referents.recruitment_referents.function ?? null,
                         }
-                      : null,
-              }
+                      : null
+                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
+                  const actuallySame = !hasRecruit || (
+                      (recruit?.name ?? null) === (legal?.name ?? null) &&
+                      (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+                      (recruit?.email ?? null) === (legal?.email ?? null) &&
+                      (recruit?.function ?? null) === (legal?.function ?? null)
+                  )
+                  const isSame = actuallySame ? (doc.referents.is_same ?? actuallySame) : false
+                  return {
+                      isSame,
+                      legalReferents: legal,
+                      recruitmentReferents: recruit,
+                  }
+              })()
             : null,
         positionsCount: positions.reduce((sum, p) => sum + (p.count ?? 1), 0),
         positions,

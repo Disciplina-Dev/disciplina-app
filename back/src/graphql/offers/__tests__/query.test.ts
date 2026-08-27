@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
+import { truncateMysql } from '../../../../test/helpers/db';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
@@ -10,6 +11,13 @@ import { OfferModel } from '../../../db/mongo/schemas/offer.schema';
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 describe('GraphQL job queries', () => {
+    // Le matching filtre les candidats sur les secteurs de l'utilisateur appelant :
+    // un user id=1 laissé par un autre fichier de test (avec des secteurs) réduirait
+    // la mobilité géographique attendue ici. On repart d'une base MySQL vide.
+    beforeEach(async () => {
+        await truncateMysql();
+    });
+
     it('returns an empty list when no jobs exist', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
@@ -327,7 +335,11 @@ describe('GraphQL job queries', () => {
     describe('schedule backward compatibility', () => {
         const scheduleSelection = `schedule { day startHour endHour }`;
 
-        async function queryOffer(query: string, variables: Record<string, unknown>, auth: ReturnType<typeof mintAuthCookies>) {
+        async function queryOffer(
+            query: string,
+            variables: Record<string, unknown>,
+            auth: ReturnType<typeof mintAuthCookies>,
+        ) {
             const res = await fetch(ENDPOINT, {
                 method: 'POST',
                 headers: {

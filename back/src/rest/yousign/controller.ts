@@ -6,9 +6,9 @@ import { UserRepository } from '../../repositories/mysql/UserRepository';
 import { CompaniesService } from '../../services/CompaniesService';
 import { YousignService } from '../../external/yousign/yousign.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { withNoReply } from '../../external/google/no-reply';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { logger } from '../../external/logger';
-import { JobRole } from '../../types/user.types';
 import { notifyUser } from './sse';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();
@@ -150,7 +150,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                 logger.info(`Sending signed PDF notification email from ${senderUser.email}...`);
                 await gmailService.sendEmail(
                     { access_token: senderUser.oauth_token, refresh_token: senderUser.refresh_token },
-                    mailOptions,
+                    withNoReply(mailOptions),
                     persistRefreshedTokens(senderUser.id),
                 );
                 logger.info('Notification email sent successfully!');

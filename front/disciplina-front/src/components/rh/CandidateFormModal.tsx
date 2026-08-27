@@ -86,7 +86,7 @@ type ABForm = {
   sex: string;
   fullName: string; socialSecurityNumber: string; email: string; phone: string;
   address: string; postalCode: string; city: string;
-  drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
+  drivingLicenseB: string; hasVehicle: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
   apprenticeshipContractDetails: string;
   description: string;
@@ -181,7 +181,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
     sex: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
-    drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
+    drivingLicenseB: '', hasVehicle: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '',
     ecLastName: '', ecFirstName: '', ecRelationship: '', ecPhone: '', ecEmail: '',
     tpTypes: [tpType], status: 'SEEKING',
@@ -239,6 +239,7 @@ function candidateToForm(c: Candidate): ABForm {
     postalCode: c.identity.postal_code ?? '',
     city: c.identity.city ?? '',
     drivingLicenseB: bs(c.identity.driving_license_b),
+    hasVehicle: bs(c.identity.has_vehicle),
     transportMeans: c.identity.transport_means ?? '',
     pshReferralRequest: bs(c.identity.psh_referral_request),
     hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
@@ -348,6 +349,7 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
       postalCode: f.postalCode || undefined,
       city: f.city || undefined,
       drivingLicenseB: pb(f.drivingLicenseB),
+      hasVehicle: pb(f.hasVehicle),
       transportMeans: f.transportMeans || undefined,
       pshReferralRequest: pb(f.pshReferralRequest),
       hadApprenticeshipContract: pb(f.hadApprenticeshipContract),
@@ -835,6 +837,9 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Situation personnelle" />
           <ABRadio label="Permis B" name="driv" value={form.drivingLicenseB} onChange={v => set('drivingLicenseB', v)}
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]} />
+          <div className="ml-2 pl-4 border-l-2 border-gray-100">
+            <ABRadio label="Véhiculé" name="vehicule" value={form.hasVehicle} onChange={v => set('hasVehicle', v)} options={boolOpts} />
+          </div>
           <InputField id="cn-transport" label="Moyen de transport" value={form.transportMeans} onChange={e => set('transportMeans', e.target.value)} />
           <ABRadio label="Souhait de mise en relation avec le Référent PSH ?" name="psh" value={form.pshReferralRequest} onChange={v => set('pshReferralRequest', v)} options={boolOpts} />
           <ABRadio label="A déjà eu un contrat d'apprentissage ?" name="appr" value={form.hadApprenticeshipContract} onChange={v => set('hadApprenticeshipContract', v)} options={boolOpts} />

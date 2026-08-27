@@ -1,3 +1,4 @@
+import { PoolConnection } from 'mysql2/promise';
 import { query, getConnection } from '../../db/mysql/connection';
 import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesRow } from '../../types/db-rows.types';
@@ -265,8 +266,12 @@ export class CompanyRepository {
         }
     }
 
-    async update(id: number, data: Partial<CompaniesRow>): Promise<boolean> {
-        const conn = await getConnection();
+    /**
+     * `existing` permet de participer à une transaction déjà ouverte par l'appelant
+     * (résolution de quarantaine) : la connexion est alors gérée par celui-ci.
+     */
+    async update(id: number, data: Partial<CompaniesRow>, existing?: PoolConnection): Promise<boolean> {
+        const conn = existing ?? (await getConnection());
         try {
             // `null` est une valeur significative (ex. « aucune relance » vide relance_date) :
             // seuls les champs absents (undefined) sont ignorés.
@@ -279,7 +284,26 @@ export class CompanyRepository {
             const result = await conn.execute(`UPDATE companies SET ${sets} WHERE id = ?`, values);
             return (result[0] as any).affectedRows > 0;
         } finally {
-            conn.release();
+            if (!existing) conn.release();
+        }
+    }
+
+    /**
+     * Rattache tout un SIREN à un seul commercial et renvoie le nombre de fiches déplacées.
+     * Utilisé à la sortie de quarantaine d'un conflit `multiple_commercials_same_siren` :
+     * sans ce réalignement, le SIREN reste éclaté entre plusieurs commerciaux et le prochain
+     * import régénère le même conflit. `siren` est la colonne générée indexée de `companies`.
+     */
+    async reassignBySiren(siren: string, userId: number, existing?: PoolConnection): Promise<number> {
+        const conn = existing ?? (await getConnection());
+        try {
+            const result = await conn.execute(
+                'UPDATE companies SET user_id = ? WHERE siren = ? AND (user_id IS NULL OR user_id <> ?)',
+                [userId, siren, userId],
+            );
+            return (result[0] as any).affectedRows as number;
+        } finally {
+            if (!existing) conn.release();
         }
     }
 

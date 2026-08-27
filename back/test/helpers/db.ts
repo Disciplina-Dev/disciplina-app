@@ -2,6 +2,7 @@ import pool from '../../src/db/mysql/connection';
 import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
 import { NeedsAnalysisModel } from '../../src/db/mongo/schemas/needsAnalysis.schema';
 import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
+import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
 
 const CLEARED_TABLES = [
     'external_link',
@@ -10,8 +11,10 @@ const CLEARED_TABLES = [
     'companies_blacklist',
     'match_link',
     'interview_access',
-    'rh_kpi',
+    // rh_kpi / commercial_kpi : supprimées (#513), les buckets vivent dans
+    // Mongo `kpis`, vidés via dropMongo().
     'todos',
+    'todo_groups',
     'users',
     'refresh_tokens',
 ];
@@ -32,8 +35,15 @@ export async function truncateMysql(): Promise<void> {
     try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
         for (const table of CLEARED_TABLES) {
-            await conn.query(`DELETE FROM ${table}`);
-            await conn.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+            try {
+                await conn.query(`DELETE FROM ${table}`);
+                await conn.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+            } catch (e: unknown) {
+                const msg = String((e as any)?.message ?? '');
+                // Table may not exist yet before migrations (e.g. todo_groups on old DB)
+                if (msg.includes("doesn't exist") || msg.includes('Unknown table') || msg.includes('ER_NO_SUCH_TABLE')) continue;
+                throw e;
+            }
         }
         await conn.query('SET FOREIGN_KEY_CHECKS = 1');
     } finally {
@@ -45,4 +55,7 @@ export async function dropMongo(): Promise<void> {
     await CandidateModel.deleteMany({});
     await NeedsAnalysisModel.deleteMany({});
     await OfferModel.deleteMany({});
+    // Buckets KPI (ex-tables MySQL commercial_kpi / rh_kpi) : vidés comme elles
+    // l'étaient pour isoler chaque test.
+    await KpiModel.deleteMany({});
 }

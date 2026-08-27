@@ -46,6 +46,7 @@ interface TrainingDaysState {
 
 interface PosteCriteria {
   drivingLicense: 'OUI' | 'OPTIONNEL' | undefined
+  hasVehicle: 'OUI' | 'NON' | undefined
   experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE' | undefined
   ageMin: string
   ageMax: string
@@ -262,6 +263,7 @@ const EMPTY_POSTE: Poste = {
   localisation: [],
   criteria: {
     drivingLicense: undefined,
+    hasVehicle: undefined,
     experienceRequired: undefined,
     ageMin: '',
     ageMax: '',
@@ -632,6 +634,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         localisation: (p.localisation ?? []) as Localisation[],
         criteria: {
           drivingLicense: p.criteria?.drivingLicense == null ? undefined : p.criteria.drivingLicense ? 'OUI' : 'OPTIONNEL',
+          hasVehicle: p.criteria?.hasVehicle == null ? undefined : p.criteria.hasVehicle ? 'OUI' : 'NON',
           experienceRequired: p.criteria?.experienceRequired == null ? undefined : p.criteria.experienceRequired ? 'OBLIGATOIRE' : 'DEBUTANT',
           ageMin: p.criteria?.ageMin != null ? String(p.criteria.ageMin) : '',
           ageMax: p.criteria?.ageMax != null ? String(p.criteria.ageMax) : '',
@@ -790,6 +793,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         return 'Sélectionnez au moins une mission par titre professionnel.'
       if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
       if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
+      if (!p.criteria.hasVehicle) return 'Sélectionnez si le véhicule est requis.'
       if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
       return ''
     })
@@ -886,6 +890,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         criteria: {
           educationLevel:     null,
           drivingLicense:     p.criteria.drivingLicense === 'OUI',
+          hasVehicle:         p.criteria.hasVehicle === 'OUI',
           experienceRequired: p.criteria.experienceRequired === 'OBLIGATOIRE',
           ageMin:             p.criteria.ageMin ? Number(p.criteria.ageMin) : null,
           ageMax:             p.criteria.ageMax ? Number(p.criteria.ageMax) : null,
@@ -1253,6 +1258,14 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       value={poste.criteria.drivingLicense}
                       onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, drivingLicense: v } })}
                       required />
+
+                    <div className="ml-3 pl-4 border-l-2 border-gray-100">
+                      <RadioGroup label="Véhiculé *"
+                        options={[{ value: 'OUI' as const, label: 'Oui' }, { value: 'NON' as const, label: 'Non' }]}
+                        value={poste.criteria.hasVehicle}
+                        onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, hasVehicle: v } })}
+                        required />
+                    </div>
 
                     <RadioGroup label="Expérience requise *"
                       options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}

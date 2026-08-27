@@ -43,6 +43,7 @@ export interface Job {
   desiredTp: OfferTp[]
   desiredSex: string | null
   drivingLicencseB: boolean | null
+  hasVehicle: boolean | null
   professionalExperience: boolean | null
   status: string | null
   localisation: string[] | null

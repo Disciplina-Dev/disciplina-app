@@ -45,7 +45,14 @@ export const usePortefeuilleStore = create<PortefeuilleState>((set, get) => ({
   })),
 
   removeCompany: (id) => set((state) => ({
-    companies: state.companies.filter((e) => e.id !== id)
+    companies: state.companies.filter((e) => e.id !== id),
+    sirenGroups: state.sirenGroups
+      .map((g) => ({
+        ...g,
+        count: g.entreprises.filter((e) => e.id !== id).length,
+        entreprises: g.entreprises.filter((e) => e.id !== id),
+      }))
+      .filter((g) => g.entreprises.length > 0),
   })),
 
   getCompanyById: (id) => {

@@ -132,8 +132,16 @@ export default function CompanyInfoModal({ offerId, needsAnalysisId, onClose }: 
               <Row label="Secteur" value={company.sector} />
               <Row label="Activité principale" value={company.mainActivity} />
               <Row label="Représentant légal" value={company.legalReferent} />
-              <Row label="Téléphone" value={company.phone} />
-              <Row label="Email" value={company.email} />
+              <Row label="Téléphone — représentant légal" value={company.phone} />
+              <Row label="Email — représentant légal" value={company.email} />
+              {ab?.referents && !ab.referents.isSame && (ab.referents.recruitmentReferents?.name || ab.referents.recruitmentReferents?.email) && (
+                <>
+                  <Row label="Responsable recrutement (sur l'offre)" value={ab.referents.recruitmentReferents?.name} />
+                  <Row label="Fonction du responsable" value={ab.referents.recruitmentReferents?.function} />
+                  <Row label="Téléphone responsable" value={ab.referents.recruitmentReferents?.phone} />
+                  <Row label="Email responsable" value={ab.referents.recruitmentReferents?.email} />
+                </>
+              )}
               <Row label="Statut" value={company.status} />
               <Row label="Conclusion" value={company.conclusion} />
               <Row label="Notes" value={company.notes} />
@@ -142,11 +150,20 @@ export default function CompanyInfoModal({ offerId, needsAnalysisId, onClose }: 
 
           {ab && (
             <Section title="Analyse du besoin">
+              <Row label="Représentant légal" value={ab.referents?.legalReferents?.name} />
               <Row label="Fonction du représentant légal" value={ab.referents?.legalReferents?.function} />
-              <Row label="Responsable recrutement" value={ab.referents?.recruitmentReferents?.name} />
-              <Row label="Fonction du responsable" value={ab.referents?.recruitmentReferents?.function} />
-              <Row label="Téléphone responsable" value={ab.referents?.recruitmentReferents?.phone} />
-              <Row label="Email responsable" value={ab.referents?.recruitmentReferents?.email} />
+              <Row label="Téléphone — représentant légal" value={ab.referents?.legalReferents?.phone} />
+              <Row label="Email — représentant légal" value={ab.referents?.legalReferents?.email} />
+              {!ab.referents?.isSame && (ab.referents?.recruitmentReferents?.name || ab.referents?.recruitmentReferents?.email) ? (
+                <>
+                  <Row label="Responsable recrutement" value={ab.referents?.recruitmentReferents?.name} />
+                  <Row label="Fonction du responsable" value={ab.referents?.recruitmentReferents?.function} />
+                  <Row label="Téléphone responsable" value={ab.referents?.recruitmentReferents?.phone} />
+                  <Row label="Email responsable" value={ab.referents?.recruitmentReferents?.email} />
+                </>
+              ) : (
+                <Row label="Responsable recrutement" value="Identique au représentant légal" />
+              )}
               <Row label="Secteurs d'activité" value={ab.companyInfos?.activities?.join(', ')} />
               <Row label="Présentation de l'entreprise" value={ab.companyInfos?.description} />
               <Row label="OPCO" value={ab.companyInfos?.opco} />

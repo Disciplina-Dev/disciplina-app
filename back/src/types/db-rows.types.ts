@@ -9,6 +9,8 @@ export interface UserRow {
     sectors: string | string[] | null; // mysql2 v3 returns JSON columns as parsed objects
     oauth_token: string | null;
     refresh_token: string | null;
+    is_deleted?: number;
+    deleted_at?: string | null;
 }
 
 // Jointure avec les tables roles/permissions : le repository enrichit le UserRow
