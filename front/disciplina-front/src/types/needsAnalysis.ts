@@ -85,6 +85,7 @@ export interface NeedsAnalysis {
   status?: string | null
   /** Statut d'onglet (liste matching RH) : forcé manuellement ou dérivé des offres. */
   abStatus?: string | null
+  isRelanceDisabled?: boolean | null
   tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null
