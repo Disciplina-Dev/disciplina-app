@@ -7,8 +7,8 @@ import MatchGate from "@/pages/publicMatch/MatchGate";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
 import InterviewGate from "@/pages/publicInterview/InterviewGate";
 import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
-import CvImportGate from "@/pages/publicCvImport/CvImportGate";
-import CvImportUpload from "@/pages/publicCvImport/CvImportUpload";
+import ExternalAuthenticate from "@/pages/external/ExternalAuthenticate";
+import ExternalCvUpload from "@/pages/external/ExternalCvUpload";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -234,12 +234,12 @@ export const router = createBrowserRouter([
         element: <InterviewSlotPicker />,
       },
       {
-        path: "/public/cv-import",
-        element: <CvImportGate />,
+        path: "/external/authenticate",
+        element: <ExternalAuthenticate />,
       },
       {
-        path: "/public/cv-import/:signature",
-        element: <CvImportUpload />,
+        path: "/external/cv-import/:signature",
+        element: <ExternalCvUpload />,
       },
     ],
   },

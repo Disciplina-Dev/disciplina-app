@@ -219,6 +219,9 @@ export async function startServer(): Promise<http.Server> {
         .seedCvImportDefault()
         .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
     mailTemplateService
+        .refreshCvImportTemplateButton()
+        .catch((err) => logger.error({ err }, 'cv-import: refresh du modèle par défaut échoué'));
+    mailTemplateService
         .seedpropositionCandidatsDefault()
         .catch((err) => logger.error({ err }, 'match-invitation: seed du modèle système échoué'));
     mailTemplateService

@@ -58,6 +58,9 @@ export const AB_RELANCE_SEEDED_KEY = 'ab_relance_template_seeded';
 /** Clé app_settings : le modèle « Import CV » par défaut a déjà été semé une fois. */
 export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
 
+/** Clé app_settings : le modèle « Import CV » a été rafraîchi (bouton, sans code). */
+export const CV_IMPORT_TEMPLATE_V2_KEY = 'cv_import_template_v2';
+
 /** Clé app_settings : le modèle « Invitation sélection candidats » a déjà été semé une fois. */
 export const PROPOSITION_CANDIDAT_SEEDED_KEY = 'proposition_candidat_template_seeded';
 
@@ -339,6 +342,26 @@ export class MailTemplateService {
             logger.info('cv-import: modèle par défaut semé');
         }
         await settings.set(CV_IMPORT_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Rafraîchit une seule fois le modèle « Import CV » déjà présent en base
+     * (semé avant le passage au bouton /external/authenticate et à la
+     * suppression du code en ligne). N'écrase que les corps obsolètes.
+     */
+    async refreshCvImportTemplateButton(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(CV_IMPORT_TEMPLATE_V2_KEY)) return;
+
+        const doc = await MailTemplateModel.findOne({ scope: 'rh', name: 'Import CV' }).lean<MailTemplate>();
+        if (doc && (doc.body.includes('/public/cv-import') || doc.body.includes('{{code}}'))) {
+            await MailTemplateModel.updateOne(
+                { _id: doc._id },
+                { $set: { subject: CV_IMPORT_SUBJECT, body: CV_IMPORT_BODY, updated_at: new Date() } },
+            );
+            logger.info('cv-import: modèle « Import CV » rafraîchi (bouton, sans code)');
+        }
+        await settings.set(CV_IMPORT_TEMPLATE_V2_KEY, '1');
     }
 
     /**

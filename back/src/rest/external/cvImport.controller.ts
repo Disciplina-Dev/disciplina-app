@@ -2,17 +2,16 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { ExternalGuestRequest } from './guard';
 import { CandidateService } from '../../services/CandidateService';
-import { ExternalLinkService } from '../../services/ExternalLinkService';
 import { ExternalMailService } from '../../services/ExternalMailService';
+import { ExternalAccessService } from '../../services/ExternalAccessService';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
-import { env } from '../../config/env';
 import { ExternalAccessRepository } from '../../repositories/mysql/ExternalAccessRepository';
 import { logger } from '../../external/logger';
 
 const candidateService = new CandidateService();
-const externalLinkService = new ExternalLinkService();
 const externalMailService = new ExternalMailService();
+const externalAccessService = new ExternalAccessService();
 const externalAccessRepository = new ExternalAccessRepository();
 
 export const CV_MIME_EXT: Record<string, string> = {
@@ -48,20 +47,28 @@ export async function sendCvImportMail(req: AuthRequest, res: Response): Promise
     const firstName = spaceIdx > 0 ? fullName.slice(0, spaceIdx) : fullName;
     const lastName = spaceIdx > 0 ? fullName.slice(spaceIdx + 1) : '';
 
-    const linkResult = await externalLinkService.createLink({
+    const linkResult = await externalAccessService.createInvite({
+        userId: req.user?.id,
+        externalId: candidateUuid,
+        externalType: 'CANDIDATE',
         externalEmail: candidate.identity.email,
-        rhEmail,
-        guestType: 'CANDIDATE',
-        externalUuid: candidateUuid,
+        externalFirstName: firstName,
+        referenceId: 1,
+        referenceKey: candidateUuid,
     });
+    if (!linkResult.success) {
+        res.status(502).json({ error: "La génération du lien a échoué" });
+        return;
+    }
 
-    const importLink = `${env.FRONTEND_BASE_URL}/public/cv-import?sig=${linkResult.signature}`;
+    const importButton =
+        `<a href="${linkResult.link}" style="display:inline-block;background-color:#60207E;color:#fff;` +
+        `padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Importer mon CV</a>`;
 
     const replacements: Record<string, string> = {
         '{{prenom}}': firstName,
         '{{nom}}': lastName,
-        '{{code}}': linkResult.code,
-        '{{lien_import}}': importLink,
+        '{{lien_import}}': importButton,
     };
 
     let resolvedSubject = subject;
@@ -69,6 +76,16 @@ export async function sendCvImportMail(req: AuthRequest, res: Response): Promise
     for (const [key, value] of Object.entries(replacements)) {
         resolvedSubject = resolvedSubject.replaceAll(key, value);
         resolvedBody = resolvedBody.replaceAll(key, value);
+    }
+    // Le code est généré et envoyé au chargement de la page : on retire du mail
+    // un éventuel {{code}} laissé par un modèle édité.
+    resolvedSubject = resolvedSubject.replaceAll('{{code}}', '');
+    resolvedBody = resolvedBody.replaceAll('{{code}}', '');
+
+    // Sécurité : le candidat doit toujours recevoir le lien, même si le modèle
+    // édité a supprimé {{lien_import}}.
+    if (!resolvedBody.includes(linkResult.link)) {
+        resolvedBody += `<p style="text-align:center;margin:24px 0">${importButton}</p>`;
     }
 
     try {
@@ -93,6 +110,16 @@ export async function uploadCv(req: ExternalGuestRequest, res: Response): Promis
         return;
     }
 
+    const row = await externalAccessRepository.findBySignature(signature);
+    if (!row) {
+        res.status(404).json({ error: 'Session introuvable' });
+        return;
+    }
+    if (row.status === 'COMPLETED') {
+        res.status(409).json({ error: 'CV déjà importé' });
+        return;
+    }
+
     const candidate = await candidateService.findById(externalUuid);
     if (!candidate) {
         res.status(404).json({ error: 'Candidat introuvable' });
@@ -113,12 +140,6 @@ export async function uploadCv(req: ExternalGuestRequest, res: Response): Promis
     const fileBuffer = req.body as Buffer;
     if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
         res.status(400).json({ error: 'Fichier requis' });
-        return;
-    }
-
-    const row = await externalAccessRepository.findBySignature(signature);
-    if (!row) {
-        res.status(404).json({ error: 'Session introuvable' });
         return;
     }
 

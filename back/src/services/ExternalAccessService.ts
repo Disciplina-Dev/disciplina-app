@@ -79,6 +79,36 @@ export class ExternalAccessService {
         return { success: true };
     }
 
+    /**
+     * Crée une session externe sans envoyer de mail — le corps est composé et
+     * envoyé par l'appelant (ex. modèle « Import CV » saisi par le RH). Le code
+     * reste null : il est généré, persisté et envoyé au chargement de la page.
+     */
+    async createInvite(
+        input: GenerateInput,
+    ): Promise<{ success: true; signature: string; link: string } | { success: false; error: string }> {
+        const signature = generateExternalSignature();
+
+        await this.repository.create({
+            signature,
+            code: null,
+            token: null,
+            user_id: input.userId,
+            external_id: input.externalId,
+            external_type: input.externalType,
+            external_email: input.externalEmail,
+            external_first_name: input.externalFirstName,
+            reference_id: input.referenceId,
+            reference_key: input.referenceKey,
+            status: 'SENDING',
+            attempts: 0,
+            expires_at: null,
+        });
+
+        const link = `${env.FRONTEND_BASE_URL}/external/authenticate?sig=${signature}`;
+        return { success: true, signature, link };
+    }
+
     async regenerate(signature: string, userId: number): Promise<GenerateResult> {
         const row = await this.repository.findBySignature(signature);
 
@@ -139,6 +169,8 @@ export class ExternalAccessService {
         const code = generateNumericCode(6);
         const firstName = row.external_first_name ?? (await this.fallbackFirstName(row));
 
+        await this.repository.setCode(signature, code);
+
         const template = await this.mailTemplateService.findRhTemplateByKind('external_access');
         const subject = template?.subject ?? EXTERNAL_ACCESS_SUBJECT;
         const body = template?.body ?? EXTERNAL_ACCESS_BODY;
@@ -187,6 +219,24 @@ export class ExternalAccessService {
         }
 
         return { success: false, error: `KO Wrong code ${attempts} attempts` };
+    }
+
+    /**
+     * Marque une session externe comme COMPLETED (ex. CV importé). Idempotent :
+     * une session déjà COMPLETED reste acceptée sans erreur.
+     */
+    async complete(signature: string): Promise<GenerateResult> {
+        const row = await this.repository.findBySignature(signature);
+
+        if (!row) {
+            return { success: false, error: 'KO signature does not exist' };
+        }
+
+        if (row.status !== 'COMPLETED') {
+            await this.repository.setStatus(signature, 'COMPLETED');
+        }
+
+        return { success: true };
     }
 
     private async fallbackEmail(row: ExternalAccessRow): Promise<string | null> {

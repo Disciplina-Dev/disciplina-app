@@ -6,7 +6,7 @@ import type { SendEmailOptions } from './types';
 const gmailService = new GoogleGmailService();
 const userService = new UserService();
 
-const SYSTEM_EMAIL = 'dev@disciplina.re';
+const SYSTEM_EMAIL = 'hivanhoeq@gmail.com';
 
 export async function sendSystemEmail(options: SendEmailOptions): Promise<void> {
     const user = await userService.findByEmail(SYSTEM_EMAIL);

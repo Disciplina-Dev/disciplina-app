@@ -3,8 +3,25 @@ import { ExternalAccessService } from '../../services/ExternalAccessService';
 import { setGuestCookies } from '../middleware/cookies';
 import { issueCsrfCookie } from '../middleware/csrf';
 import type { AuthRequest } from '../middleware/auth';
+import type { ExternalGuestRequest } from './guard';
 
 const externalAccessService = new ExternalAccessService();
+
+export async function complete(req: ExternalGuestRequest, res: Response): Promise<void> {
+    const { signature } = req.params;
+    if (!signature) {
+        res.status(400).json({ error: 'Signature requise' });
+        return;
+    }
+
+    const result = await externalAccessService.complete(signature);
+    if (!result.success) {
+        res.status(400).json({ success: false, error: result.error });
+        return;
+    }
+
+    res.status(200).json({ success: true });
+}
 
 export async function sendCode(req: Request, res: Response): Promise<void> {
     const { signature } = req.params;
@@ -79,13 +96,15 @@ export async function regenerate(req: AuthRequest, res: Response): Promise<void>
 export async function inspectCode(req: Request, res: Response): Promise<void> {
     const { signature, code } = req.body;
 
+    console.log(req.body);
+    console.log('signature and code', signature, code);
     if (!signature || !code) {
         res.status(400).json({ success: false, error: 'signature et code requis' });
         return;
     }
 
     const result = await externalAccessService.inspect(signature, code);
-
+    console.log('here is result: ', result)
     if (!result.success) {
         res.status(400).json(result);
         return;
