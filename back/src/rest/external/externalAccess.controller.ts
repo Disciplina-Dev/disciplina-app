@@ -4,6 +4,7 @@ import { setGuestCookies } from '../middleware/cookies';
 import { issueCsrfCookie } from '../middleware/csrf';
 import type { AuthRequest } from '../middleware/auth';
 import type { ExternalGuestRequest } from './guard';
+import { notifyLockedMatch } from './match.controller';
 
 const externalAccessService = new ExternalAccessService();
 
@@ -96,16 +97,17 @@ export async function regenerate(req: AuthRequest, res: Response): Promise<void>
 export async function inspectCode(req: Request, res: Response): Promise<void> {
     const { signature, code } = req.body;
 
-    console.log(req.body);
-    console.log('signature and code', signature, code);
     if (!signature || !code) {
         res.status(400).json({ success: false, error: 'signature et code requis' });
         return;
     }
 
     const result = await externalAccessService.inspect(signature, code);
-    console.log('here is result: ', result)
+
     if (!result.success) {
+        if (result.referenceId === 2 && /locked/i.test(result.error ?? '')) {
+            await notifyLockedMatch(signature);
+        }
         res.status(400).json(result);
         return;
     }

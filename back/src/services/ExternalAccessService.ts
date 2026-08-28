@@ -33,7 +33,7 @@ export interface GenerateInput {
 
 export type GenerateResult =
     | { success: true; token?: string; referenceId?: number; referenceKey?: string }
-    | { success: false; error: string };
+    | { success: false; error: string; referenceId?: number };
 
 export class ExternalAccessService {
     constructor(
@@ -192,11 +192,15 @@ export class ExternalAccessService {
         }
 
         if (row.status === 'LOCKED') {
-            return { success: false, error: 'KO Max attemps external link locked' };
+            return { success: false, error: 'KO Max attemps external link locked', referenceId: row.reference_id };
         }
 
         if (row.status === 'AUTHENTICATED') {
-            return { success: false, error: 'KO signature already authenticated' };
+            return {
+                success: false,
+                error: 'KO signature already authenticated',
+                referenceId: row.reference_id,
+            };
         }
 
         if (row.code === code) {
@@ -215,7 +219,7 @@ export class ExternalAccessService {
 
         if (attempts >= MAX_ATTEMPTS) {
             await this.repository.setStatus(signature, 'LOCKED');
-            return { success: false, error: 'KO Max attemps external link locked' };
+            return { success: false, error: 'KO Max attemps external link locked', referenceId: row.reference_id };
         }
 
         return { success: false, error: `KO Wrong code ${attempts} attempts` };

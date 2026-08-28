@@ -13,6 +13,7 @@ import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
 import { AB_RELANCE_SUBJECT, AB_RELANCE_BODY } from './abRelanceTemplate';
 import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
 import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
+import { INTERVIEW_INVITATION_SUBJECT, INTERVIEW_INVITATION_BODY } from './interviewInvitationTemplate';
 import { EXTERNAL_ACCESS_SUBJECT, EXTERNAL_ACCESS_BODY } from './externalAccessDefaultTemplate';
 import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
@@ -63,6 +64,12 @@ export const CV_IMPORT_TEMPLATE_V2_KEY = 'cv_import_template_v2';
 
 /** Clé app_settings : le modèle « Invitation sélection candidats » a déjà été semé une fois. */
 export const PROPOSITION_CANDIDAT_SEEDED_KEY = 'proposition_candidat_template_seeded';
+
+/** Clé app_settings : le modèle « Invitation entretien » a déjà été semé une fois. */
+export const INTERVIEW_INVITATION_SEEDED_KEY = 'interview_invitation_template_seeded';
+
+/** Clé app_settings : les modèles « sans code » (matching + entretien) ont été rafraîchis. */
+export const NO_CODE_RH_TEMPLATES_V2_KEY = 'mails_no_code_rh_templates_v2';
 
 export const EXTERNAL_ACCESS_SEEDED_KEY = 'external_access_template_seeded';
 export const EXTERNAL_LINK_SEEDED_KEY = 'external_link_template_seeded';
@@ -365,6 +372,34 @@ export class MailTemplateService {
     }
 
     /**
+     * Rafraîchit une seule fois les modèles « Proposition de candidats » et
+     * « Invitation entretien » déjà présents en base (semés avant la migration
+     * vers les sessions sans code en ligne). N'écrase que les corps obsolètes
+     * (placeholders {{code}}/{{id}}), laissés par les anciens défauts.
+     */
+    async refreshNoCodeRHTemplates(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(NO_CODE_RH_TEMPLATES_V2_KEY)) return;
+
+        const defaults = [
+            { kind: 'proposition_candidat', subject: PROPOSITION_CANDIDAT_SUBJECT, body: PROPOSITION_CANDIDAT_BODY },
+            { kind: 'interview_invitation', subject: INTERVIEW_INVITATION_SUBJECT, body: INTERVIEW_INVITATION_BODY },
+        ] as const;
+
+        for (const { kind, subject, body } of defaults) {
+            const doc = await MailTemplateModel.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+            if (doc && (doc.body.includes('{{code}}') || doc.body.includes('{{id}}'))) {
+                await MailTemplateModel.updateOne(
+                    { _id: doc._id },
+                    { $set: { subject, body, updated_at: new Date() } },
+                );
+                logger.info(`mail-template: modèle « ${kind} » rafraîchi (bouton, sans code)`);
+            }
+        }
+        await settings.set(NO_CODE_RH_TEMPLATES_V2_KEY, '1');
+    }
+
+    /**
      * Sème le modèle système « Proposition de candidats » (scope rh,
      * kind `proposition_candidat`) au premier démarrage. Idempotent via flag app_settings
      * ET vérification d'existence, pour ne pas dupliquer si un modèle a déjà ce kind.
@@ -391,6 +426,35 @@ export class MailTemplateService {
             logger.info('match-invitation: modèle système semé');
         }
         await settings.set(PROPOSITION_CANDIDAT_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Invitation entretien » (scope rh,
+     * kind `interview_invitation`) au premier démarrage. Idempotent via flag
+     * app_settings ET vérification d'existence.
+     */
+    async seedInterviewInvitationDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(INTERVIEW_INVITATION_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'interview_invitation' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Invitation entretien',
+                subject: INTERVIEW_INVITATION_SUBJECT,
+                body: INTERVIEW_INVITATION_BODY,
+                peda_level: null,
+                kind: 'interview_invitation',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('interview-invitation: modèle système semé');
+        }
+        await settings.set(INTERVIEW_INVITATION_SEEDED_KEY, '1');
     }
 
     /**

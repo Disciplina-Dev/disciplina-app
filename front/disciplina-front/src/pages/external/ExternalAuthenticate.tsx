@@ -10,7 +10,6 @@ type LinkState =
   | 'invalid'
   | 'blocked'
   | 'completed'
-  | 'no-destination'
 
 const STATE_MESSAGES: Record<Exclude<LinkState, 'loading' | 'ready'>, { title: string; text: string }> = {
   invalid: { title: 'Lien inconnu', text: "Cette invitation n'existe pas." },
@@ -19,7 +18,6 @@ const STATE_MESSAGES: Record<Exclude<LinkState, 'loading' | 'ready'>, { title: s
     text: 'Ce lien a expiré ou a été bloqué. Contactez votre conseiller.',
   },
   completed: { title: 'Démarche déjà finalisée', text: 'Vous avez déjà réalisé cette démarche.' },
-  'no-destination': { title: 'Identité vérifiée', text: 'Merci, votre identité a bien été vérifiée.' },
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -47,17 +45,21 @@ export default function ExternalAuthenticate() {
       .catch(() => setLinkState('ready'))
   }, [signature])
 
-  const handleAuthenticated = (referenceId: number) => {
-    if (referenceId === 1) {
-      navigate(`/external/cv-import/${signature}`, { replace: true })
+  const redirectToFlow = (referenceId: number) => {
+    if (referenceId === 2) {
+      navigate(`/external/matching/${signature}`, { replace: true })
       return
     }
-    setLinkState('no-destination')
-  }
-
-  const handleAlreadyAuthenticated = () => {
+    if (referenceId === 3) {
+      navigate(`/external/interview/${signature}`, { replace: true })
+      return
+    }
     navigate(`/external/cv-import/${signature}`, { replace: true })
   }
+
+  const handleAuthenticated = (referenceId: number) => redirectToFlow(referenceId)
+
+  const handleAlreadyAuthenticated = (referenceId?: number) => redirectToFlow(referenceId ?? 1)
 
   const handleLocked = () => setLinkState('blocked')
 
@@ -73,7 +75,7 @@ export default function ExternalAuthenticate() {
           </div>
         )}
 
-        {(linkState === 'invalid' || linkState === 'blocked' || linkState === 'completed' || linkState === 'no-destination') && (
+        {(linkState === 'invalid' || linkState === 'blocked' || linkState === 'completed') && (
           <div className="mt-5 flex flex-col items-center gap-3 text-center">
             <AlertCircle size={32} className="text-danger" />
             <p className="text-[15px] font-bold text-gray-800">{STATE_MESSAGES[linkState].title}</p>

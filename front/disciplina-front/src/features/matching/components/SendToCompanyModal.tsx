@@ -123,7 +123,7 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
   }
 
   const matchLink = success
-    ? `${window.location.origin}/public/match?sig=${success.signature}`
+    ? `${window.location.origin}/external/authenticate?sig=${success.signature}`
     : null
 
   const proposedCount = candidates.filter((c) => !excludedIds.has(c.id)).length

@@ -1,55 +1,53 @@
 import { Request, Response } from 'express';
-import { InterviewGuestRequest } from './guard';
-import { InterviewAccessService, SlotUnavailableError } from '../../services/InterviewAccessService';
+import { ExternalGuestRequest } from './guard';
+import {
+    ExternalInterviewService,
+    SlotUnavailableError,
+    SessionAlreadyCompletedError,
+} from '../../services/ExternalInterviewService';
 import { UserService } from '../../services/UserService';
 import { NotificationService } from '../../services/NotificationService';
 import { logger } from '../../external/logger';
 import { buildMatchingLink } from '../../utils/matchingLink';
 
-const interviewAccessService = new InterviewAccessService();
+const externalInterviewService = new ExternalInterviewService();
 const userService = new UserService();
 const notificationService = new NotificationService();
 
-export async function inspect(req: Request, res: Response): Promise<void> {
-    const result = await interviewAccessService.inspect(req.params.signature);
-    res.json(result);
-}
-
-export async function authenticate(req: Request, res: Response): Promise<void> {
-    const { code } = req.body as { code?: string };
-    if (!code) {
-        res.status(400).json({ error: 'Code requis' });
+/** Vérifie que la session external concernée est bien une session d'entretien (reference 3). */
+export function requireInterviewReference(req: ExternalGuestRequest, res: Response, next: () => void): void {
+    if (req.guest?.referenceId !== 3) {
+        res.status(403).json({ error: 'Session hors périmètre' });
         return;
     }
-    const result = await interviewAccessService.authenticate(req.params.signature, code);
-    if (result.ok) {
-        res.json({ token: result.token });
-        return;
-    }
-    res.status(401).json({ reason: result.reason, remaining: result.remaining });
+    next();
 }
 
-export async function getSlots(req: InterviewGuestRequest, res: Response): Promise<void> {
+export async function getSlots(req: Request, res: Response): Promise<void> {
     try {
-        const slots = await interviewAccessService.getSlots(req.params.signature, req.guest!.candidateId);
+        const slots = await externalInterviewService.getSlots(req.params.signature);
         res.json(slots);
     } catch (err) {
         res.status(404).json({ error: (err as Error).message });
     }
 }
 
-export async function bookSlot(req: InterviewGuestRequest, res: Response): Promise<void> {
+export async function bookSlot(req: Request, res: Response): Promise<void> {
     const { slot } = req.body as { slot?: string };
     if (!slot) {
         res.status(400).json({ error: 'Créneau requis' });
         return;
     }
     try {
-        await interviewAccessService.bookSlot(req.params.signature, req.guest!.candidateId, slot);
+        await externalInterviewService.bookSlot(req.params.signature, slot);
         await notifyBooked(req.params.signature);
         res.json({ ok: true });
     } catch (err) {
         if (err instanceof SlotUnavailableError) {
+            res.status(409).json({ error: err.message });
+            return;
+        }
+        if (err instanceof SessionAlreadyCompletedError) {
             res.status(409).json({ error: err.message });
             return;
         }
@@ -59,8 +57,9 @@ export async function bookSlot(req: InterviewGuestRequest, res: Response): Promi
 
 async function notifyBooked(signature: string): Promise<void> {
     try {
-        const context = await interviewAccessService.getContext(signature);
+        const context = await externalInterviewService.getContext(signature);
         if (!context) return;
+        if (!context.rhEmail) return;
         const rh = await userService.findByEmail(context.rhEmail);
         if (!rh) return;
         await notificationService.create({

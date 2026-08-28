@@ -68,13 +68,21 @@ const AB_SIGNATURE_VARS: typeof TEMPLATE_VARS = [
 const AB_RELANCE_VARS: typeof TEMPLATE_VARS = AB_SIGNATURE_VARS
 
 // Variables du modèle système « Proposition de candidats » (kind proposition_candidat),
-// remplacées à l'envoi (cf. back MatchMailService.sendInvitation).
+// remplacées à l'envoi (cf. back MatchMailService.sendInvitation). Le code de
+// connexion/identifiant n'y figure plus : envoyés séparément au chargement de la page.
 const PROPOSITION_CANDIDAT_VARS: typeof TEMPLATE_VARS = [
   { token: 'hr_name', label: 'Prénom + nom du conseiller RH', example: 'Jean Martin' },
-  { token: 'link', label: 'Lien de la session de matching', example: 'https://app.disciplina.re/public/match?sig=xxx' },
-  { token: 'id', label: 'Identifiant de connexion', example: 'DISCIPLINA-4F8A' },
-  { token: 'code', label: 'Code de connexion', example: '483291' },
+  { token: 'link', label: 'Bouton d’accès à la session de matching (obligatoire)', example: '[ Accéder à la sélection ]' },
   { token: 'expiration time', label: 'Durée de validité du lien', example: '72 heures' },
+  { token: 'hr_signature', label: 'Votre signature mail', example: 'votre image de signature' },
+]
+
+// Variables du modèle système « Invitation entretien » (kind interview_invitation),
+// remplacées à l'envoi (cf. back InterviewMailService.sendInvitation). Le code de
+// connexion n'y figure plus : envoyé séparément au chargement de la page.
+const INTERVIEW_INVITATION_VARS: typeof TEMPLATE_VARS = [
+  { token: 'company_name', label: 'Nom de l’entreprise', example: 'Ma Société SARL' },
+  { token: 'link', label: 'Bouton de réservation (obligatoire)', example: '[ Choisir mon créneau ]' },
   { token: 'hr_signature', label: 'Votre signature mail', example: 'votre image de signature' },
 ]
 
@@ -95,9 +103,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         ? AB_RELANCE_VARS
         : editingKind === 'proposition_candidat'
           ? PROPOSITION_CANDIDAT_VARS
-          : scope === 'peda'
-            ? PEDA_TEMPLATE_VARS
-            : TEMPLATE_VARS
+          : editingKind === 'interview_invitation'
+            ? INTERVIEW_INVITATION_VARS
+            : scope === 'peda'
+              ? PEDA_TEMPLATE_VARS
+              : TEMPLATE_VARS
 
   useEffect(() => { load() }, [load])
 
@@ -378,6 +388,11 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                       {t.kind === 'proposition_candidat' && (
                         <span className="shrink-0 rounded-full bg-purple/10 px-2 py-0.5 text-[11px] font-semibold text-purple">
                           Invitation candidats
+                        </span>
+                      )}
+                      {t.kind === 'interview_invitation' && (
+                        <span className="shrink-0 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-600">
+                          Invitation entretien
                         </span>
                       )}
                     </div>

@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Loader2, AlertCircle, Check, CalendarClock, MapPin } from 'lucide-react'
-import { getInterviewSlots, bookInterviewSlot, SlotUnavailableError, type InterviewSlotsResult } from '@/api/interview'
-import { useGuestInterviewTokenStore } from '@/store/guestInterviewTokenStore'
+import { Loader2, AlertCircle, CalendarClock, MapPin, CircleCheck } from 'lucide-react'
+import {
+  getInterviewSlots,
+  bookInterviewSlot,
+  ExternalAuthError,
+  SlotUnavailableError,
+  SessionCompletedError,
+  type InterviewSlotsResult,
+} from '@/api/externalInterview'
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">{children}</div>
@@ -19,69 +25,67 @@ function formatSlot(iso: string): string {
   })
 }
 
-export default function InterviewSlotPicker() {
+function AlreadyDone() {
+  return (
+    <Centered>
+      <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+        <CircleCheck size={32} className="text-green-500" />
+        <p className="text-[17px] font-extrabold text-gray-900">Démarche déjà finalisée</p>
+        <p className="text-[13px] text-gray-500">Vous avez déjà réservé votre créneau d'entretien.</p>
+      </div>
+    </Centered>
+  )
+}
+
+export default function ExternalInterview() {
   const { signature = '' } = useParams()
   const navigate = useNavigate()
-  const token = useGuestInterviewTokenStore((s) => s.token)
-  const clearToken = useGuestInterviewTokenStore((s) => s.clearToken)
 
   const [data, setData] = useState<InterviewSlotsResult | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [busySlot, setBusySlot] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
   const [bookedSlot, setBookedSlot] = useState<string | null>(null)
 
   const load = () => {
-    if (!token) return
-    getInterviewSlots(signature, token)
+    getInterviewSlots(signature)
       .then(setData)
-      .catch((e) => setLoadError(e instanceof Error ? e.message : 'Erreur'))
+      .catch((e) => {
+        if (e instanceof ExternalAuthError) {
+          navigate(`/external/authenticate?sig=${signature}`, { replace: true })
+          return
+        }
+        setLoadError(e instanceof Error ? e.message : 'Erreur')
+      })
   }
 
   useEffect(() => {
-    if (!token) {
-      navigate(`/public/interview?sig=${signature}`)
+    if (!signature) {
+      navigate('/external/authenticate', { replace: true })
       return
     }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, token, navigate])
+  }, [signature, navigate])
 
   const pickSlot = async (slot: string) => {
-    if (!token) return
     setBusySlot(slot)
     setLoadError(null)
     try {
-      await bookInterviewSlot(signature, token, slot)
-      clearToken()
+      await bookInterviewSlot(signature, slot)
       setBookedSlot(slot)
-      setDone(true)
     } catch (e) {
-      if (e instanceof SlotUnavailableError) {
-        setLoadError(e.message)
-        load()
-      } else {
-        setLoadError(e instanceof Error ? e.message : 'Erreur')
+      if (e instanceof ExternalAuthError) {
+        navigate(`/external/authenticate?sig=${signature}`, { replace: true })
+        return
       }
+      setLoadError(e instanceof Error ? e.message : 'Erreur')
+      if (e instanceof SlotUnavailableError || e instanceof SessionCompletedError) load()
     } finally {
       setBusySlot(null)
     }
   }
 
-  if (done) {
-    return (
-      <Centered>
-        <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-600">
-            <Check size={30} />
-          </div>
-          <p className="text-[17px] font-extrabold text-gray-900">Créneau confirmé</p>
-          {bookedSlot && <p className="text-[13px] text-gray-500">{formatSlot(bookedSlot)}</p>}
-          <p className="text-[13px] text-gray-500">Votre conseiller a été notifié.</p>
-        </div>
-      </Centered>
-    )
-  }
+  if (bookedSlot) return <AlreadyDone />
 
   if (!data) {
     if (loadError) {
@@ -101,19 +105,7 @@ export default function InterviewSlotPicker() {
     )
   }
 
-  if (data.bookedSlot) {
-    return (
-      <Centered>
-        <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-600">
-            <Check size={30} />
-          </div>
-          <p className="text-[17px] font-extrabold text-gray-900">Vous avez déjà choisi un créneau</p>
-          <p className="text-[13px] text-gray-500">{formatSlot(data.bookedSlot)}</p>
-        </div>
-      </Centered>
-    )
-  }
+  if (data.bookedSlot) return <AlreadyDone />
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">

@@ -8,7 +8,7 @@ interface Props {
   signature: string
   onLocked: () => void
   onAuthenticated: (referenceId: number) => void
-  onAlreadyAuthenticated: () => void
+  onAlreadyAuthenticated: (referenceId?: number) => void
 }
 
 export default function ExternalCodeForm({
@@ -47,7 +47,7 @@ export default function ExternalCodeForm({
         return
       }
       if (result.reason === 'already-authenticated') {
-        onAlreadyAuthenticated()
+        onAlreadyAuthenticated(result.referenceId)
         return
       }
       const suffix =

@@ -1,23 +1,18 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { Offer } from '../types/offer.types';
-import { MatchLinkRepository } from '../repositories/mysql/MatchLinkRepository';
-import { MatchLinkStatus } from '../types/matchLink.types';
+import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
+import { ExternalAccessRow } from '../types/db-rows.types';
+import { ExternalAccessService } from './ExternalAccessService';
 import { MatchedCandidateStatus, MatchingCandidate } from '../types/matching.types';
-import { generateSignature, generateNumericCode, generateIdentifier, timingSafeEqualString } from '../external/crypto';
-import { issueMatchToken } from './matchToken';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { CandidateHistoryType } from '../types/candidate.types';
 import { OfferHistoryService } from './OfferHistoryService';
-import { InterviewAccessService } from './InterviewAccessService';
 import { InterviewMailService } from './InterviewMailService';
 import { TodoService } from './TodoService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 
-import { MAX_ATTEMPTS, AuthResult, isSignedAccessExpired as isExpired } from './signedAccess';
-
-export type { AuthResult };
-
-const LINK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+/** Session déjà complétée : toute action de soumission est refusée. */
+export class SessionAlreadyCompletedError extends Error {}
 
 // Réponses possibles de l'entreprise sur le lien externe : refuser, garder pour
 // entretien, ou coup de cœur (fast-track immersion).
@@ -29,15 +24,16 @@ const COMPANY_ANSWER_STATUSES = [
 
 export interface CreateSessionInput {
     offerId: string;
+    rhUserId: number;
     rhEmail: string;
     companyEmail: string;
+    companyName?: string;
     candidates: { id: string; description?: string }[];
 }
 
 export interface SessionCredentials {
     signature: string;
-    code: string;
-    identifier: string;
+    link: string;
     rhEmail: string;
     companyEmail: string;
     offerUuid: string;
@@ -76,16 +72,16 @@ function validateAnswers(answers: AnswerInput[], proposedIds: Set<string>): void
     if (favorites > 1) throw new Error('Only one FAVORITE allowed');
 }
 
-export class MatchLinkService {
+export class MatchAccessService {
     constructor(
-        private readonly matchLinkRepository = new MatchLinkRepository(),
+        private readonly externalAccessRepository = new ExternalAccessRepository(),
+        private readonly externalAccessService = new ExternalAccessService(),
         private readonly offerRepository = new OfferRepository(),
         private readonly candidateHistoryService = new CandidateHistoryService(),
-        private readonly interviewAccessService = new InterviewAccessService(),
+        private readonly offerHistoryService = new OfferHistoryService(),
         private readonly interviewMailService = new InterviewMailService(),
         private readonly todoService = new TodoService(),
         private readonly userRepository = new UserRepository(),
-        private readonly offerHistoryService = new OfferHistoryService(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -108,78 +104,54 @@ export class MatchLinkService {
             `Session de sélection créée : ${count} candidat${plural} proposé${plural} à l’entreprise`,
         );
 
-        const credentials = this.generateCredentials(input);
-        await this.matchLinkRepository.create({
-            signature: credentials.signature,
-            code: credentials.code,
-            identifier: credentials.identifier,
-            rh_email: input.rhEmail,
-            company_email: input.companyEmail,
-            offer_uuid: input.offerId,
-            expires_at: new Date(Date.now() + LINK_TTL_MS),
+        const invite = await this.externalAccessService.createInvite({
+            userId: input.rhUserId,
+            externalId: input.offerId,
+            externalType: 'COMPANY',
+            externalEmail: input.companyEmail,
+            externalFirstName: input.companyName ?? offer.company_infos?.name ?? 'Client',
+            referenceId: 2,
+            referenceKey: input.offerId,
         });
-        return credentials;
-    }
+        if (!invite.success) throw new Error('Session de sélection non créée');
 
-    async inspect(signature: string): Promise<{ exists: boolean; expired: boolean; status: MatchLinkStatus | null }> {
-        const row = await this.matchLinkRepository.findBySignature(signature);
-        if (!row) return { exists: false, expired: false, status: null };
-        return { exists: true, expired: isExpired(row), status: row.status as MatchLinkStatus };
-    }
-
-    async regenerate(signature: string): Promise<SessionCredentials | null> {
-        const row = await this.matchLinkRepository.findBySignature(signature);
-        if (!row) return null;
-
-        const code = generateNumericCode(6);
-        const identifier = generateIdentifier();
-        await this.matchLinkRepository.regenerate(signature, code, identifier, new Date(Date.now() + LINK_TTL_MS));
         return {
-            signature,
-            code,
-            identifier,
-            rhEmail: row.rh_email,
-            companyEmail: row.company_email,
-            offerUuid: row.offer_uuid,
+            signature: invite.signature,
+            link: invite.link,
+            rhEmail: input.rhEmail,
+            companyEmail: input.companyEmail,
+            offerUuid: input.offerId,
         };
     }
 
-    async authenticate(signature: string, code: string, identifier: string): Promise<AuthResult> {
-        const row = await this.matchLinkRepository.findBySignature(signature);
-        if (!row || row.status === MatchLinkStatus.LOCKED) return { ok: false, reason: 'locked' };
-        if (isExpired(row)) return { ok: false, reason: 'expired' };
-
-        const matches = timingSafeEqualString(code, row.code) && timingSafeEqualString(identifier, row.identifier);
-        if (!matches) return this.registerFailedAttempt(signature);
-
-        await this.matchLinkRepository.setStatus(signature, MatchLinkStatus.AUTHENTICATED);
-        const expiresIn = Math.floor((new Date(row.expires_at).getTime() - Date.now()) / 1000);
-        return { ok: true, token: issueMatchToken(signature, row.offer_uuid, expiresIn) };
-    }
-
-    async getContext(signature: string): Promise<{
-        rhEmail: string;
-        companyEmail: string;
+    async getContext(
+        signature: string,
+    ): Promise<{
+        rhEmail: string | null;
+        companyEmail: string | null;
         offerUuid: string;
         needsAnalysisId?: string;
-        status: MatchLinkStatus;
+        status: ExternalAccessRow['status'];
+        referenceId: number;
     } | null> {
-        const row = await this.matchLinkRepository.findBySignature(signature);
+        const row = await this.externalAccessRepository.findBySignature(signature);
         if (!row) return null;
-        const offer = await this.offerRepository.findById(row.offer_uuid);
+        const offer = await this.offerRepository.findById(row.reference_key);
+        const rh = await this.userRepository.findById(row.user_id);
         return {
-            rhEmail: row.rh_email,
-            companyEmail: row.company_email,
-            offerUuid: row.offer_uuid,
+            rhEmail: rh?.email ?? null,
+            companyEmail: row.external_email,
+            offerUuid: row.reference_key,
             needsAnalysisId: offer?.needs_analysis_id,
-            status: row.status as MatchLinkStatus,
+            status: row.status,
+            referenceId: row.reference_id,
         };
     }
 
     async getProposedCandidates(signature: string): Promise<MatchingCandidate[]> {
-        const row = await this.matchLinkRepository.findBySignature(signature);
+        const row = await this.externalAccessRepository.findBySignature(signature);
         if (!row) throw new Error('Session not found');
-        const offer = await this.offerRepository.findById(row.offer_uuid);
+        const offer = await this.offerRepository.findById(row.reference_key);
         return (
             offer?.matching?.candidates?.filter((c: MatchingCandidate) => c.status === MatchedCandidateStatus.SEND) ??
             []
@@ -187,13 +159,15 @@ export class MatchLinkService {
     }
 
     async submitAnswers(signature: string, answers: AnswerInput[]): Promise<void> {
-        const row = await this.matchLinkRepository.findBySignature(signature);
+        const row = await this.externalAccessRepository.findBySignature(signature);
         if (!row) throw new Error('Session not found');
-        if (row.status === MatchLinkStatus.COMPLETED) throw new Error('Session already completed');
+        if (row.status === 'COMPLETED') throw new SessionAlreadyCompletedError('Session already completed');
+        if (row.reference_id !== 2) throw new Error('Session non conforme');
 
-        const offer = await this.offerRepository.findById(row.offer_uuid);
+        const offer = await this.offerRepository.findById(row.reference_key);
+        if (!offer) throw new Error('Offer not found');
         const proposedIds = new Set<string>(
-            (offer?.matching?.candidates ?? [])
+            (offer.matching?.candidates ?? [])
                 .filter((c: MatchingCandidate) => c.status === MatchedCandidateStatus.SEND)
                 .map((c: MatchingCandidate) => c.id),
         );
@@ -202,7 +176,7 @@ export class MatchLinkService {
         const slotsAnswer = answers.find((a) => a.interviewSlots?.length);
         if (slotsAnswer?.interviewSlots) {
             await this.offerRepository.setOfferInterviewSlots(
-                row.offer_uuid,
+                row.reference_key,
                 slotsAnswer.interviewSlots,
                 slotsAnswer.interviewLocation,
             );
@@ -210,7 +184,7 @@ export class MatchLinkService {
 
         for (const answer of answers) {
             await this.offerRepository.setProposedCandidateStatus(
-                row.offer_uuid,
+                row.reference_key,
                 answer.candidateId,
                 answer.status,
                 answer.comment,
@@ -220,9 +194,9 @@ export class MatchLinkService {
                 CandidateHistoryType.COMPANY,
                 this.buildProposedAnswerLabel(answer.status),
             );
-            const candidate = offer?.matching?.candidates?.find((c: MatchingCandidate) => c.id === answer.candidateId);
+            const candidate = offer.matching?.candidates?.find((c: MatchingCandidate) => c.id === answer.candidateId);
             await this.offerHistoryService.recordAuto(
-                row.offer_uuid,
+                row.reference_key,
                 `Réponse de l’entreprise pour ${candidate?.full_name ?? 'un candidat'} : ${this.buildOfferAnswerLabel(
                     answer.status,
                 )}`,
@@ -238,19 +212,19 @@ export class MatchLinkService {
                 answer.status === MatchedCandidateStatus.INTERVIEW ||
                 answer.status === MatchedCandidateStatus.IMMERSING
             ) {
-                await this.notifyRhCandidateKept(row.offer_uuid, answer.candidateId, offer?.company_infos?.name);
+                await this.notifyRhCandidateKept(row.reference_key, answer.candidateId, offer.company_infos?.name);
                 if (slotsAnswer?.interviewSlots?.length) {
                     await this.triggerInterviewAccess(
-                        row.offer_uuid,
+                        row.reference_key,
                         answer.candidateId,
-                        row.rh_email,
-                        offer?.company_infos?.name,
+                        row,
+                        offer.company_infos?.name,
                     );
                 }
             }
         }
-        await this.matchLinkRepository.setStatus(signature, MatchLinkStatus.COMPLETED);
-        await this.offerHistoryService.recordAuto(row.offer_uuid, 'Session de sélection complétée par l’entreprise');
+        await this.externalAccessRepository.setStatus(signature, 'COMPLETED');
+        await this.offerHistoryService.recordAuto(row.reference_key, 'Session de sélection complétée par l’entreprise');
     }
 
     // L'entreprise a fini son matching pour ce candidat : To-Do RH pour organiser
@@ -272,29 +246,32 @@ export class MatchLinkService {
     private async triggerInterviewAccess(
         offerId: string,
         candidateId: string,
-        rhEmail: string,
+        row: ExternalAccessRow,
         companyName?: string,
     ): Promise<void> {
         const offer = await this.offerRepository.findById(offerId);
         const candidate = offer?.matching?.candidates?.find((c: MatchingCandidate) => c.id === candidateId);
         if (!candidate?.email) return;
-        const { signature, code } = await this.interviewAccessService.createAccess(offerId, candidateId, rhEmail);
+
+        const invite = await this.externalAccessService.createInvite({
+            userId: row.user_id,
+            externalId: offerId,
+            externalType: 'CANDIDATE',
+            externalEmail: candidate.email,
+            externalFirstName: candidate.full_name?.trim().split(' ')[0] || 'Candidat',
+            referenceId: 3,
+            referenceKey: candidateId,
+        });
+        if (!invite.success) return;
+
+        const rh = await this.userRepository.findById(row.user_id);
+        if (!rh?.email) return;
         await this.interviewMailService.sendInvitation(
-            rhEmail,
+            rh.email,
             candidate.email,
             companyName ?? "l'entreprise",
-            signature,
-            code,
+            invite.signature,
         );
-    }
-
-    private async registerFailedAttempt(signature: string): Promise<AuthResult> {
-        const attempts = await this.matchLinkRepository.incrementAttempts(signature);
-        if (attempts >= MAX_ATTEMPTS) {
-            await this.matchLinkRepository.setStatus(signature, MatchLinkStatus.LOCKED);
-            return { ok: false, reason: 'locked' };
-        }
-        return { ok: false, reason: 'invalid', remaining: MAX_ATTEMPTS - attempts };
     }
 
     private buildProposedAnswerLabel(status: MatchedCandidateStatus): string {
@@ -317,16 +294,5 @@ export class MatchLinkService {
             default:
                 return 'candidat retenu pour un entretien';
         }
-    }
-
-    private generateCredentials(input: CreateSessionInput): SessionCredentials {
-        return {
-            signature: generateSignature(),
-            code: generateNumericCode(6),
-            identifier: generateIdentifier(),
-            rhEmail: input.rhEmail,
-            companyEmail: input.companyEmail,
-            offerUuid: input.offerId,
-        };
     }
 }

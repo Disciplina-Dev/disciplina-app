@@ -4,13 +4,13 @@ import { InterviewConclusion, ImmersionConclusion } from '../../types/matching.t
 import { OfferService } from '../../services/OfferService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { UserService } from '../../services/UserService';
-import { MatchLinkService } from '../../services/MatchLinkService';
+import { MatchAccessService } from '../../services/MatchAccessService';
 import { MatchMailService } from '../../services/MatchMailService';
 
 const offerService = new OfferService();
 const offerHistoryService = new OfferHistoryService();
 const userService = new UserService();
-const matchLinkService = new MatchLinkService();
+const matchAccessService = new MatchAccessService();
 const matchMailService = new MatchMailService();
 
 export const resolvers = {
@@ -242,14 +242,15 @@ export const resolvers = {
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            const credentials = await matchLinkService.createSession({
+            const invitation = await matchAccessService.createSession({
                 offerId,
+                rhUserId: context.user.id,
                 rhEmail: context.user.email,
                 companyEmail,
                 candidates,
             });
-            await matchMailService.sendInvitation(credentials, templateId ?? undefined);
-            return credentials.signature;
+            await matchMailService.sendInvitation(invitation, templateId ?? undefined);
+            return invitation.signature;
         },
     },
 };

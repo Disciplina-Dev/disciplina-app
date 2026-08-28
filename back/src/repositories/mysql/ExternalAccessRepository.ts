@@ -73,4 +73,11 @@ export class ExternalAccessRepository {
         );
         return rows.length > 0 ? rows[0].attempts : 0;
     }
+
+    async deleteExpired(graceDays: number): Promise<number> {
+        const result = await query('DELETE FROM external_access WHERE expires_at < NOW() - INTERVAL ? DAY', [
+            graceDays,
+        ]);
+        return (result as unknown as { affectedRows: number }).affectedRows;
+    }
 }

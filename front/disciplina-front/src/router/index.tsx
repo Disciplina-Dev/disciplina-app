@@ -3,12 +3,10 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import PublicBooking from "@/pages/booking/PublicBooking";
-import MatchGate from "@/pages/publicMatch/MatchGate";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
-import InterviewGate from "@/pages/publicInterview/InterviewGate";
-import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
 import ExternalAuthenticate from "@/pages/external/ExternalAuthenticate";
 import ExternalCvUpload from "@/pages/external/ExternalCvUpload";
+import ExternalInterview from "@/pages/external/ExternalInterview";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -218,24 +216,16 @@ export const router = createBrowserRouter([
         element: <PublicBooking />,
       },
       {
-        path: "/public/match",
-        element: <MatchGate />,
+        path: "/external/authenticate",
+        element: <ExternalAuthenticate />,
       },
       {
-        path: "/public/match/:signature",
+        path: "/external/matching/:signature",
         element: <MatchComparator />,
       },
       {
-        path: "/public/interview",
-        element: <InterviewGate />,
-      },
-      {
-        path: "/public/interview/:signature",
-        element: <InterviewSlotPicker />,
-      },
-      {
-        path: "/external/authenticate",
-        element: <ExternalAuthenticate />,
+        path: "/external/interview/:signature",
+        element: <ExternalInterview />,
       },
       {
         path: "/external/cv-import/:signature",

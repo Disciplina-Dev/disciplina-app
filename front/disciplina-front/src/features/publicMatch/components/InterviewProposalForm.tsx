@@ -22,14 +22,12 @@ export default function InterviewProposalForm({
   location,
   onLocationChange,
   signature,
-  token,
 }: {
   slots: string[]
   onChange: (slots: string[]) => void
   location: string
   onLocationChange: (location: string) => void
   signature: string
-  token: string
 }) {
   const [locationSearch, setLocationSearch] = useState(location)
   const [locationResults, setLocationResults] = useState<string[]>([])
@@ -50,7 +48,7 @@ export default function InterviewProposalForm({
     setLocationLoading(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const data = await getMatchAddressCompletion(signature, token, locationSearch)
+        const data = await getMatchAddressCompletion(signature, locationSearch)
         if (data.status === 'KO') {
           setLocationKO(true)
           setLocationResults([])
@@ -71,7 +69,7 @@ export default function InterviewProposalForm({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [locationSearch, locationKO, signature, token])
+  }, [locationSearch, locationKO, signature])
 
   const updateSlot = (index: number, localValue: string) => {
     const next = [...slots]

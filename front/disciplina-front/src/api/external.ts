@@ -12,10 +12,9 @@ export class ExternalAuthError extends Error {}
 
 export type InspectExternalResult =
   | { ok: true; referenceId: number }
-  | { ok: false; reason: 'invalid' | 'locked' | 'already-authenticated' | 'wrong-code'; remaining?: number }
+  | { ok: false; reason: 'invalid' | 'locked' | 'already-authenticated' | 'wrong-code'; remaining?: number; referenceId?: number }
 
 export async function inspectExternal(signature: string, code: string): Promise<InspectExternalResult> {
-  console.log('signature: ', signature, ' code: ', code);
   const res = await apiFetch('/api/external/inspect', {
     method: 'POST',
     headers: {
@@ -29,10 +28,10 @@ export async function inspectExternal(signature: string, code: string): Promise<
     return { ok: true, referenceId: body.user.referenceId }
   }
 
-  const body = (await res.json().catch(() => ({}))) as { error?: string }
+  const body = (await res.json().catch(() => ({}))) as { error?: string; referenceId?: number }
   const error = body.error ?? ''
 
-  if (/already authenticated/.test(error)) return { ok: false, reason: 'already-authenticated' }
+  if (/already authenticated/.test(error)) return { ok: false, reason: 'already-authenticated', referenceId: body.referenceId }
   if (/locked/.test(error)) return { ok: false, reason: 'locked' }
   const wrongCode = error.match(/Wrong code (\d+) attempts/)
   if (wrongCode) {
