@@ -84,16 +84,16 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
         className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4 p-6 pb-4 border-b border-gray-100">
-          <div className="min-w-0">
+        {/* Header — responsive: title on top, actions wrap below to avoid overlap */}
+        <div className="flex flex-col gap-3 p-6 pb-4 border-b border-gray-100 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 flex-1">
             {result.fetching && <p className="text-sm text-gray-400">Chargement...</p>}
             {ab && (
               <>
-                <h2 className="text-lg font-bold text-gray-900 truncate">
+                <h2 className="text-lg font-bold text-gray-900 truncate pr-8 sm:pr-0">
                   {ab.positions?.map((p: { title?: string }) => p.title).filter(Boolean).join(' / ') || 'Analyse du besoin'}
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   {badge && (
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.bg} ${badge.text}`}>
                       {badge.label}
@@ -113,7 +113,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               </>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 w-full sm:w-auto">
             {ab && !confirmDelete && onEdit && (
               <button
                 type="button"
@@ -132,17 +132,6 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                 Dupliquer
               </button>
             )}
-            {ab && !confirmDelete && ab.status === 'EN_ATTENTE_SIGNATURE' && (
-              <button
-                type="button"
-                onClick={handleToggleRelance}
-                disabled={relanceResult.fetching}
-                className={`rounded-lg border bg-white px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 ${ab.isRelanceDisabled ? 'border-blue-200 text-blue-700 hover:bg-blue-50 focus-visible:ring-blue' : 'border-amber-200 text-amber-700 hover:bg-amber-50 focus-visible:ring-amber-500'}`}
-                title={ab.isRelanceDisabled ? 'Réactiver la relance automatique' : 'Désactiver la relance automatique'}
-              >
-                {ab.isRelanceDisabled ? <><Bell className="inline h-3.5 w-3.5 mr-1" />Réactiver relance</> : <><BellOff className="inline h-3.5 w-3.5 mr-1" />Désactiver relance</>}
-              </button>
-            )}
             {ab && !confirmDelete && (
               <button
                 type="button"
@@ -156,7 +145,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               type="button"
               onClick={onClose}
               aria-label="Fermer"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2 ml-auto sm:ml-0"
             >
               <X className="h-5 w-5" />
             </button>
@@ -280,12 +269,26 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
 
             {ab.status === 'EN_ATTENTE_SIGNATURE' && (
               <Section icon={<Bell className="h-3.5 w-3.5" />} title="Relance automatique">
-                <Row label="État" value={ab.isRelanceDisabled ? 'Désactivée — aucun mail ne sera envoyé' : 'Activée — relance prévue 14 jours après envoi'} />
-                <p className="text-xs text-gray-500 mt-1">
-                  {ab.isRelanceDisabled
-                    ? 'La relance est désactivée pour cette AB. Vous pouvez la réactiver ci-dessus sans supprimer l’AB.'
-                    : 'Un mail de rappel sera envoyé automatiquement au responsable recrutement si l’AB n’est pas signée. Désactivez-la pour l’empêcher sans supprimer l’AB.'}
-                </p>
+                <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <p className={`text-sm font-medium ${ab.isRelanceDisabled ? 'text-gray-600' : 'text-green-700'}`}>
+                      {ab.isRelanceDisabled ? 'Désactivée — aucun mail ne sera envoyé' : 'Activée — relance prévue 14 jours après envoi'}
+                    </p>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      {ab.isRelanceDisabled
+                        ? 'La relance est désactivée pour cette AB. L’AB et ses offres sont conservées.'
+                        : 'Un mail de rappel sera envoyé automatiquement au responsable recrutement si l’AB n’est pas signée.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleRelance}
+                    disabled={relanceResult.fetching}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 shrink-0 self-start sm:self-center ${ab.isRelanceDisabled ? 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50 focus-visible:ring-blue' : 'border-amber-200 bg-white text-amber-700 hover:bg-amber-50 focus-visible:ring-amber-500'}`}
+                  >
+                    {ab.isRelanceDisabled ? <><Bell className="h-3.5 w-3.5" />Réactiver relance</> : <><BellOff className="h-3.5 w-3.5" />Désactiver relance</>}
+                  </button>
+                </div>
               </Section>
             )}
           </div>
