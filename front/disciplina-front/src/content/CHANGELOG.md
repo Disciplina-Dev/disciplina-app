@@ -31,6 +31,40 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Garde de consentement RGPD (`services/consentGuard.ts`, #639) : vérification du consentement candidat avant génération de résumé IA (`AI_PROCESSING`), affichage/partage d'avatar (`PHOTO_PROCESSING`) et partage avec les entreprises (`DATA_SHARING` — Filiz, matching CV/liste). Mode `warn` transitoire avec log, filtrage silencieux pour la liste externe.
+- Champs de planning sur les offres et l'analyse de besoin (#605) : horaires hebdomadaires persistés (Mongo `needsAnalysis`/`matching`), saisis dans `NeedsAnalysisModal`/`JobSearchModal`, injectés dans le mail d'offre au candidat et le PDF AB.
+- Regroupement des tâches identiques (#628) : `TodoGroupRepository` + `TodoService` groupent les tâches partageant le même intitulé, `GroupSelector` côté front, migrations MySQL associées.
+- Recherche candidat améliorée (#611) : index texte MongoDB v2 avec tokenisation et normalisation, refonte de `CandidateRepository` pour une recherche plus pertinente.
+- Politique d'application compacte dans la sidebar (#524) : composant `LegalLinks` et constantes `legalLinks.ts` affichés dans `AdminLayout`, `CommercialLayout`, `EntrepriseLayout`, `PedaLayout` et `RHLayout`.
+- Statuts de conclusion d'entretien (#627) : nouveaux statuts de résultat d'entretien sur les offres, `InterviewConclusionModal` mis à jour.
+- Suppression d'entreprise avec modale de confirmation et notification (#664) : `DeleteCompanyModal`, `SirenGroupCard`/`EntrepriseCard` et `portefeuilleStore`.
+- Suppression d'utilisateur en soft delete (#662) : colonnes `is_deleted`/`deleted_at` sur `users`, `UserDeletionService` et `DeleteUserModal` côté admin, conservation des références KPI/candidats/entreprises.
+- Filtre global des entreprises (#626) : `FilterPanel`/`statusConfig` et `companyMapper` permettent de filtrer l'ensemble du portefeuille.
+- Unification des KPI dans MongoDB (#513) : collection unique `kpis` (`kind: commercial|rh`), `KpiRepository`/`RhKpiRepository` Mongo, migration automatique au boot (`legacyKpiImport.ts`, `scripts/migrate-kpi-to-mongo.ts`), suppression des DDL MySQL associées.
+- Tag « Véhicule » (`hasVehicle`) sur candidat et AB (#671) : champ conditionnel candidat/AB, affiché dans `CandidateFormModal`, `ABDetailModal`/`ABDetailContent` et le PDF.
+- Toggle d'activation des relances par AB (#681) : champ `shouldRelance` (`needsAnalysis.schema`, `NeedsAnalysisService`, `ABDetailModal` + hooks/queries `useUpdateShouldRelance`).
+
+### Changed
+
+- Contenu du mail d'offre au candidat ajusté (#603) : ajustements mineurs dans `Matching.tsx`.
+- Mails externes : en-tête `Reply-To: noreply@disciplina.re` ajouté à tous les envois Gmail (`mime.builder.ts`, `no-reply.ts`, #601) ; `From` Gmail conservé.
+- KPI : bascule MySQL → MongoDB avec bump atomique via pipeline `$replaceWith` + clamp `$max`, noms résolus via `UserRepository.findByIds` (#513).
+
+### Fixed
+
+- Vérifications des créneaux indisponibles du calendrier (#598) : `InterviewAccessService` et `flow.test.ts`.
+- Planning AB : tests et corrections du schedule (#644).
+- Case à cocher de consentement RGPD (#654) : `candidate.mapper.ts`.
+- Erreurs pré-existantes de lint/tests/e2e (#656).
+- Filtrage par secteur dans le matching (#670) : correction `CandidateService`/`OfferService` + utilitaire `zone.ts`.
+- Offres inactives exclues de la recherche d'offres côté candidat (#672) : `OfferRepository`/`CandidateService`.
+- Affichage du recruteur même si e-mail/téléphone identique au représentant (#678) : `OfferService`/`needsAnalysis.mapper` et `CompanyInfoModal`/`Matching.tsx`.
+- Fuseau horaire des entretiens sur la page de matching (#676) : `InterviewProposalForm`, `InterviewSlotPicker`, `Matching.tsx`.
+- Placement des boutons (chevauchement) (#681).
+- Hooks pré-commit contournables corrigés (#658) : `skip hooks` ne bypass plus les vérifications.
+
 ## [1.1.0] - 2026-08-20
 
 ### Added
