@@ -66,6 +66,11 @@ db['mail_signatures'].createIndex({
   "user_id": 1
 });
 
+db.createCollection('commercial_signatures');
+db['commercial_signatures'].createIndex({
+  "user_id": 1
+});
+
 db.createCollection('mail_templates');
 db['mail_templates'].createIndex({
   "user_id": 1
