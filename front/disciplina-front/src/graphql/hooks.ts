@@ -32,6 +32,7 @@ import {
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS_AB_STATUS,
+  SET_AB_RELANCE_DISABLED,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
@@ -980,6 +981,21 @@ export function useDeleteNeedsAnalysis() {
   }
 
   return { deleteNeedsAnalysis, result }
+}
+
+export function useSetAbRelanceDisabled() {
+  const [result, executeMutation] = useMutation(SET_AB_RELANCE_DISABLED)
+
+  const setAbRelanceDisabled = (id: string, disabled: boolean) => {
+    return executeMutation({ id, disabled }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('setAbRelanceDisabled failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { setAbRelanceDisabled, result }
 }
 
 export function useUpdateNeedsAnalysis() {

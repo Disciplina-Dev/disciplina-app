@@ -13,6 +13,7 @@ function formatSlotPreview(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: 'Indian/Reunion',
   })
 }
 
@@ -73,15 +74,24 @@ export default function InterviewProposalForm({
 
   const updateSlot = (index: number, localValue: string) => {
     const next = [...slots]
-    next[index] = localValue ? new Date(localValue).toISOString() : ''
+    next[index] = localValue ? new Date(`${localValue}:00+04:00`).toISOString() : ''
     onChange(next)
   }
 
   const toLocalInput = (iso: string): string => {
     if (!iso) return ''
-    const d = new Date(iso)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    const parts = new Date(iso).toLocaleString('en-CA', {
+      timeZone: 'Indian/Reunion',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    // en-CA gives "2026-08-20, 10:30"
+    const [datePart, timePart] = parts.split(', ')
+    return `${datePart}T${timePart}`
   }
 
   return (

@@ -888,28 +888,42 @@ function JobDetailsSection({
         </div>
       )}
 
-      {job.referents && (
-        <div className="mt-3 pt-3 border-t border-gray-50">
-          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
-            <User size={10} className="inline mr-1 text-gray-300" />
-            Référents
-          </p>
-          {job.referents.isSame
-            ? (
-              <ReferentBlock
-                label="Référent"
-                details={job.referents.legalReferents ?? job.referents.recruitmentReferents}
-              />
-            )
-            : (
-              <div className="grid grid-cols-2 gap-3">
-                <ReferentBlock label="Référent légal" details={job.referents.legalReferents} />
-                <ReferentBlock label="Référent recrutement" details={job.referents.recruitmentReferents} />
-              </div>
-            )
-          }
-        </div>
-      )}
+      {job.referents && (() => {
+        const legal = job.referents.legalReferents
+        const recruit = job.referents.recruitmentReferents
+        const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
+        // Stale isSame flag from old data may be inaccurate — also compare actual fields.
+        const actuallySame = !hasRecruit || (
+          (recruit?.name ?? null) === (legal?.name ?? null) &&
+          (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+          (recruit?.email ?? null) === (legal?.email ?? null) &&
+          (recruit?.function ?? null) === (legal?.function ?? null)
+        )
+        const shouldShowBoth = !job.referents.isSame || !actuallySame
+        const showBoth = shouldShowBoth && hasRecruit
+        return (
+          <div className="mt-3 pt-3 border-t border-gray-50">
+            <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
+              <User size={10} className="inline mr-1 text-gray-300" />
+              Référents
+            </p>
+            {showBoth
+              ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <ReferentBlock label="Référent légal" details={legal} />
+                  <ReferentBlock label="Référent recrutement" details={recruit} />
+                </div>
+              )
+              : (
+                <ReferentBlock
+                  label="Référent"
+                  details={legal ?? recruit}
+                />
+              )
+            }
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -1310,7 +1324,7 @@ function buildOfferMailBody(
 
 function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
+  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1343,8 +1357,8 @@ function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: stri
 
 function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
+  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1523,7 +1537,7 @@ function MatchingSection({
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
 function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
 }
 
 
@@ -1770,7 +1784,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           candidateName,
           type: 'interview',
           interviewLocation: location,
-          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}`).toISOString(),
+          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}:00+04:00`).toISOString(),
         })
       } else {
         const result = await offerGraphqlClient
@@ -2373,10 +2387,20 @@ function AbHeader({
   onBack: () => void
   onEdited: () => void
 }) {
-  const abResult = useNeedsAnalysis(needsAnalysisId)
+   const abResult = useNeedsAnalysis(needsAnalysisId)
   const ab = abResult.data?.needsAnalysis
   const info = ab?.companyInfos
   const legalReferent = ab?.referents?.legalReferents
+  const recruitmentReferent = ab?.referents?.recruitmentReferents
+  const isSameReferent = ab?.referents?.isSame ?? true
+  const hasRecruitmentHeader = !!(recruitmentReferent?.name || recruitmentReferent?.email || recruitmentReferent?.phone || recruitmentReferent?.function)
+  const actuallySameHeader = !hasRecruitmentHeader || (
+    (recruitmentReferent?.name ?? null) === (legalReferent?.name ?? null) &&
+    (recruitmentReferent?.phone ?? null) === (legalReferent?.phone ?? null) &&
+    (recruitmentReferent?.email ?? null) === (legalReferent?.email ?? null) &&
+    (recruitmentReferent?.function ?? null) === (legalReferent?.function ?? null)
+  )
+  const showRecruitmentInHeader = (!isSameReferent || !actuallySameHeader) && hasRecruitmentHeader
   const canEdit = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
   const navigate = useNavigate()
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -2427,13 +2451,27 @@ function AbHeader({
               </span>
             )}
             {legalReferent?.name && (
-              <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {legalReferent.name}</span>
+              <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {legalReferent.name}{legalReferent.function ? ` (${legalReferent.function})` : ''}</span>
             )}
             {legalReferent?.phone && (
               <span className="flex items-center gap-1"><Phone size={11} className="text-gray-300" /> {legalReferent.phone}</span>
             )}
             {legalReferent?.email && (
               <span className="flex items-center gap-1"><Mail size={11} className="text-gray-300" /> {legalReferent.email}</span>
+            )}
+            {showRecruitmentInHeader && (
+              <>
+                <span className="text-gray-300">|</span>
+                {recruitmentReferent?.name && (
+                  <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {recruitmentReferent.name}{recruitmentReferent.function ? ` (${recruitmentReferent.function})` : ''} <span className="text-[10px] text-gray-400">(recrutement)</span></span>
+                )}
+                {recruitmentReferent?.phone && (
+                  <span className="flex items-center gap-1"><Phone size={11} className="text-gray-300" /> {recruitmentReferent.phone}</span>
+                )}
+                {recruitmentReferent?.email && (
+                  <span className="flex items-center gap-1"><Mail size={11} className="text-gray-300" /> {recruitmentReferent.email}</span>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -9,7 +9,6 @@ import { OfferHistoryService } from './OfferHistoryService';
 import {
     InterviewConclusion,
     ImmersionConclusion,
-    Localisation,
     OfferStatus,
     MatchedCandidateStatus,
     MatchingCandidate,
@@ -21,11 +20,11 @@ import { isInterviewDatePast } from '../utils/interview';
 import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { regionFromSector } from '../utils/sector';
-import { ZONE_TO_COMMUNES } from './mappers/abToOffer';
 import { offerTpCodes, positionTpToGql } from './mappers/offer.mapper';
 import { toScheduleSlotGql } from './mappers/needsAnalysis.mapper';
-import type { DriveRegion } from './DriveFolderConfigService';
 import { buildMatchingLink } from '../utils/matchingLink';
+import { offerZones, communesForZones, ZONE_TO_TRAINING_SITE } from '../utils/zone';
+import type { Zone } from './mappers/abToOffer';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
 const PROPOSED_STATUSES = [
@@ -131,11 +130,24 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?:
         interviewLocation: offer.matching?.interview_location,
         salerInfo: offer.saler_info,
         referents: offer.referents
-            ? {
-                  isSame: offer.referents.is_same,
-                  legalReferents: offer.referents.legal_referents,
-                  recruitmentReferents: offer.referents.recruitment_referents,
-              }
+            ? (() => {
+                  const legal = offer.referents.legal_referents as any
+                  const recruit = offer.referents.recruitment_referents as any
+                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
+                  const actuallySame = !hasRecruit || (
+                      (recruit?.name ?? null) === (legal?.name ?? null) &&
+                      (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+                      (recruit?.email ?? null) === (legal?.email ?? null) &&
+                      (recruit?.function ?? null) === (legal?.function ?? null)
+                  )
+                  // Override stale is_same flag: if actual contact data differs, treat as distinct so both are shown.
+                  const isSame = actuallySame ? (offer.referents.is_same ?? true) : false
+                  return {
+                      isSame,
+                      legalReferents: legal,
+                      recruitmentReferents: recruit,
+                  }
+              })()
             : undefined,
         softSkills: offer.criteria?.soft_skills,
         schedule: (offer.criteria?.schedule_options ?? []).map(toScheduleSlotGql),
@@ -203,16 +215,16 @@ export class OfferService {
         if (!offer) return null;
 
         const buildFilter = async (includeSectors: boolean): Promise<Record<string, any>> => {
-            const filter: Record<string, any> = {};
-            filter['status'] = CandidateStatus.SEEKING;
+            const baseFilter: Record<string, any> = {};
+            baseFilter['status'] = CandidateStatus.SEEKING;
 
             const tps = offerTpCodes(offer);
-            if (tps.length) filter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
-            if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
-            if (offer.criteria?.has_vehicle) filter['identity.has_vehicle'] = true;
+            if (tps.length) baseFilter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
+            if (offer.criteria?.driving_license) baseFilter['identity.driving_license_b'] = true;
+            if (offer.criteria?.has_vehicle) baseFilter['identity.has_vehicle'] = true;
 
             if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
-                filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
+                baseFilter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
             }
 
             // Le secteur d'activité est un critère de matching relâchable : si les
@@ -221,40 +233,81 @@ export class OfferService {
             // candidat ne peut correspondre. Dans ce cas on relance la recherche
             // sans ce critère plutôt que de renvoyer une liste vide.
             if (includeSectors && offer.company_infos?.activities?.length) {
-                filter['desired_sectors'] = { $in: offer.company_infos.activities };
+                baseFilter['desired_sectors'] = { $in: offer.company_infos.activities };
             }
 
-            let geoFilter: Localisation[] = [];
-            if (offer.localisation?.length) geoFilter = [...offer.localisation];
+            // Filtrage géographique : un candidat n'est suggéré que si sa zone
+            // correspond à celle de l'offre ou qu'une commune de sa mobilité
+            // recoupe une commune de l'offre. La zone d'une offre est déduite de
+            // son secteur (NORD/OUEST/SUD) et/ou de ses communes (via
+            // ZONE_TO_COMMUNES) ; celle d'un candidat de ses sites de formation
+            // et/ou de sa mobilité.
+            const offerZoneSet = offerZones(offer);
+            const offerCommunes: string[] = offer.localisation ?? [];
+            const allowedTrainingSites = [...offerZoneSet]
+                .map((z: Zone) => ZONE_TO_TRAINING_SITE[z])
+                .filter(Boolean);
+            const allowedZoneCommunes = communesForZones(offerZoneSet);
 
+            const geoClauses: Record<string, any>[] = [];
+            if (offerZoneSet.size > 0 || offerCommunes.length > 0) {
+                const or: Record<string, any>[] = [];
+                if (offerCommunes.length) or.push({ 'job_info.geographic_mobility': { $in: offerCommunes } });
+                if (allowedTrainingSites.length) {
+                    or.push({ training_site: { $in: allowedTrainingSites } });
+                    or.push({ training_sites: { $in: allowedTrainingSites } });
+                }
+                if (allowedZoneCommunes.length) or.push({ 'job_info.geographic_mobility': { $in: allowedZoneCommunes } });
+                if (or.length === 1) geoClauses.push(or[0]);
+                else if (or.length > 1) geoClauses.push({ $or: or });
+            }
+
+            // Filtre utilisateur : si l'appelant a des secteurs (RH mono-secteur),
+            // le candidat doit aussi appartenir à la zone de l'utilisateur.
+            // Sans cette clause, un RH Nord verrait des candidats Sud pour une offre Nord.
+            // Si les zones offre/utilisateur sont disjointes, le $and rend le résultat vide — c'est voulu.
             if (userId) {
                 const user = await this.userRepository.findById(userId);
-                const userSectors = user?.sectors ?? null;
+                const userSectorsRaw = user?.sectors ?? null;
                 const sectors =
-                    typeof userSectors === 'string'
+                    typeof userSectorsRaw === 'string'
                         ? (() => {
                               try {
-                                  return JSON.parse(userSectors);
+                                  return JSON.parse(userSectorsRaw);
                               } catch {
                                   return [];
                               }
                           })()
-                        : userSectors;
-                if (sectors?.length) {
-                    const userCommunes = (sectors as string[])
-                        .map((s) => regionFromSector(s))
-                        .filter((r): r is DriveRegion => r !== undefined)
-                        .flatMap((r: DriveRegion) => ZONE_TO_COMMUNES[r]);
-                    if (userCommunes.length) {
-                        geoFilter = geoFilter.length ? geoFilter.filter((c) => userCommunes.includes(c)) : userCommunes;
+                        : userSectorsRaw;
+                if (Array.isArray(sectors) && sectors.length) {
+                    const userZones = new Set<Zone>();
+                    for (const s of sectors as string[]) {
+                        const r = regionFromSector(s);
+                        if (r) userZones.add(r as unknown as Zone);
+                    }
+                    if (userZones.size) {
+                        const userTrainingSites = [...userZones]
+                            .map((z: Zone) => ZONE_TO_TRAINING_SITE[z])
+                            .filter(Boolean);
+                        const userZoneCommunes = communesForZones(userZones);
+                        const userOr: Record<string, any>[] = [];
+                        if (userTrainingSites.length) {
+                            userOr.push({ training_site: { $in: userTrainingSites } });
+                            userOr.push({ training_sites: { $in: userTrainingSites } });
+                        }
+                        if (userZoneCommunes.length) userOr.push({ 'job_info.geographic_mobility': { $in: userZoneCommunes } });
+                        if (userOr.length === 1) geoClauses.push(userOr[0]);
+                        else if (userOr.length > 1) geoClauses.push({ $or: userOr });
                     }
                 }
             }
 
-            if (geoFilter.length) {
-                filter['job_info.geographic_mobility'] = { $in: geoFilter };
+            if (!geoClauses.length) return baseFilter;
+            // baseFilter peut déjà contenir un $or (TP) : on combine via $and pour ne pas écraser.
+            if (Object.keys(baseFilter).length === 0) {
+                return geoClauses.length === 1 ? geoClauses[0] : { $and: geoClauses };
             }
-            return filter;
+            return { $and: [baseFilter, ...geoClauses] };
         };
 
         const hasSectors = Boolean(offer.company_infos?.activities?.length);
@@ -512,7 +565,7 @@ export class OfferService {
         const proposed: MatchingCandidate = {
             ...candidateToMatchingCandidate(candidate),
             status: MatchedCandidateStatus.INTERVIEW,
-            booked_interview_slot: new Date(`${interviewDate}T${interviewHour}`).toISOString(),
+            booked_interview_slot: new Date(`${interviewDate}T${interviewHour}:00+04:00`).toISOString(),
             interview_location: interviewLocation,
         };
 
