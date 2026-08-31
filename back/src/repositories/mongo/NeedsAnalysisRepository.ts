@@ -145,6 +145,7 @@ export class NeedsAnalysisRepository {
         return NeedsAnalysisModel.find({
             status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
             is_deleted: { $ne: true },
+            is_relance_disabled: { $ne: true },
             signature_sent_at: { $lte: cutoff, $ne: null },
             last_relance_at: null,
             signature_url: { $exists: true, $ne: null },
