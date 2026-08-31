@@ -13,6 +13,8 @@ import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { MailTemplateService } from './MailTemplateService';
+import { CommercialSignatureService } from './CommercialSignatureService';
+import { DEFAULT_COMMERCIAL_SIGNATURE } from './commercialSignatureTemplate';
 import { UserService } from './UserService';
 import { GoogleGmailService } from '../external/google/gmail.service';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
@@ -86,6 +88,7 @@ export class NeedsAnalysisService {
     private companiesService: CompaniesService;
     private docusealService: DocuSealService;
     private mailTemplateService: MailTemplateService;
+    private commercialSignatureService: CommercialSignatureService;
     private userService: UserService;
     private gmailService: GoogleGmailService;
     private userRepository: UserRepository;
@@ -98,6 +101,7 @@ export class NeedsAnalysisService {
         this.companiesService = new CompaniesService();
         this.docusealService = new DocuSealService();
         this.mailTemplateService = new MailTemplateService();
+        this.commercialSignatureService = new CommercialSignatureService();
         this.userService = new UserService();
         this.gmailService = new GoogleGmailService();
         this.userRepository = new UserRepository();
@@ -406,6 +410,8 @@ export class NeedsAnalysisService {
      * Construit le mail « AB à signer » à partir de l'override (édité dans l'aperçu),
      * sinon du modèle système `ab_signature`, sinon du modèle par défaut. Remplace
      * les variables : {{entreprise}}, {{lien_signature}} (bouton), {{signature}}.
+     * Ajoute la signature commerciale textuelle du commercial (sauvegardée par-user)
+     * à la fin du corps.
      */
     private async buildSignatureEmail(
         userId: number,
@@ -422,6 +428,17 @@ export class NeedsAnalysisService {
             const tpl = await this.mailTemplateService.findCommercialTemplateByKind('ab_signature');
             subject = tpl?.subject ?? AB_SIGNATURE_SUBJECT;
             body = tpl?.body ?? AB_SIGNATURE_BODY;
+        }
+
+        // Signature commerciale textuelle (deuxième section, par commercial).
+        // Ajoutée à la fin du mail avant le remplacement des variables.
+        const commercialSig = await this.commercialSignatureService
+            .getForUser(userId)
+            .catch(() => DEFAULT_COMMERCIAL_SIGNATURE);
+        // Evite le double ajout si le front a déjà concaténé la signature
+        // (cas d'une requête directe avec body déjà complet).
+        if (!body.includes(commercialSig) && commercialSig.trim()) {
+            body = `${body}${commercialSig}`;
         }
 
         const signatureHtml = await this.mailTemplateService.getSignatureHtml(userId, 'commercial').catch(() => '');
