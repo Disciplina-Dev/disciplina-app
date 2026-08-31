@@ -96,7 +96,7 @@ const data = {
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
     CLASSMARKER_WEBHOOK_SECRET: requireStringWithCIFallback('CLASSMARKER_WEBHOOK_SECRET', 'sldllsdkldkls'),
-    MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
+    MYSQL_HOST: stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
     MYSQL_ROOT_PASSWORD:
@@ -127,7 +127,10 @@ const data = {
             ? (optionalString('MONGO_ROOT_PASSWORD') ?? '')
             : requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
-    MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),
+    MONGO_HOST:
+        process.env.NODE_ENV === 'test'
+            ? stringWithDefault('MONGO_HOST', 'localhost')
+            : stringWithDefault('MONGO_HOST', 'nosql-db'),
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
 
     JWT_SECRET: requireStringWithCIFallback('JWT_SECRET', 'ci-jwt-secret'),
