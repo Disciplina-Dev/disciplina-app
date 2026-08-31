@@ -39,7 +39,7 @@ Sources : `front/disciplina-front/src/store/authStore.ts`, `front/disciplina-fro
 | `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, modèles de mail |
 | `AD` / `GESTION` | `/admin` | CRUD utilisateurs, config Drive/secteurs |
 | `ENTREPRISE` | `/entreprise` | Remplir Analyse de Besoin, gérer apprentis, RDV, profils matchés |
-| Public (token/signature) | `/booking/:slug`, `/external/matching/:signature`, `/external/interview/:signature`, `/external/authenticate?sig=…`, `/external/cv-import/:signature` | Parcours invités sans compte |
+| Public (token/signature) | `/booking/:slug`, `/external/matching/:signature`, `/external/interview/:signature`, `/external/authenticate?sig=…`, `/external/cv-import/:signature` — les anciens liens `/public/{match,interview,cv-import}/:signature` (mails pré-migration) sont redirigés vers `/external/authenticate?sig=…` | Parcours invités sans compte |
 
 ---
 

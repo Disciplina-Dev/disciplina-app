@@ -83,7 +83,31 @@ JOIN users u ON u.email = ml.rh_email
 JOIN companies c ON c.email = ml.company_email;
 
 -- ──────────────────────────────────────────────────────────────────────────────
--- 4. Verification: count rows before/after
+-- 4. Normalisation des anciennes sessions AUTHENTICATED → PENDING
+--    Signaux: sous le nouveau flux, l'authentification passe par un cookie posé à
+--    la saisie du code (re-émis au chargement de la page). Une vieille session
+--    AUTHENTICATED n'a pas ce cookie: inspect() la rejetterait ("already
+--    authenticated") → boucle authenticate ↔ flow. On la repasse donc en PENDING
+--    (le code est regénéré + renvoyé à la volée par sendCode), ce qui est sans
+--    risque: les démarches réellement soumises restent COMPLETED côté métier.
+-- ──────────────────────────────────────────────────────────────────────────────
+UPDATE external_access ea
+JOIN match_link ml ON ml.signature = ea.signature
+SET ea.status = 'PENDING', ea.code = NULL
+WHERE ea.status = 'AUTHENTICATED';
+
+UPDATE external_access ea
+JOIN external_link el ON el.signature = ea.signature
+SET ea.status = 'PENDING', ea.code = NULL
+WHERE ea.status = 'AUTHENTICATED';
+
+UPDATE external_access ea
+JOIN interview_access ia ON ia.signature = ea.signature
+SET ea.status = 'PENDING', ea.code = NULL
+WHERE ea.status = 'AUTHENTICATED';
+
+-- ──────────────────────────────────────────────────────────────────────────────
+-- 5. Verification: count rows before/after
 -- ──────────────────────────────────────────────────────────────────────────────
 SELECT 'interview_access' AS source, COUNT(*) AS old_count FROM interview_access
 UNION ALL
