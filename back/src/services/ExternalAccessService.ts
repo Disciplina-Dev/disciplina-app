@@ -1,6 +1,8 @@
 import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
+import { encodeExternalAccessCursor, ExternalAccessFilter, ExternalAccessListRow } from '../repositories/mysql/ExternalAccessRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { ExternalAccessRow } from '../types/db-rows.types';
+import { Connection } from './pagination';
 import { generateExternalSignature, generateNumericCode } from '../external/crypto';
 import { renderTemplate } from './renderTemplate';
 import { MailTemplateService } from './MailTemplateService';
@@ -240,6 +242,40 @@ export class ExternalAccessService {
             await this.repository.setStatus(signature, 'COMPLETED');
         }
 
+        return { success: true };
+    }
+
+    async list(filter: ExternalAccessFilter = {}): Promise<Connection<ExternalAccessListRow>> {
+        const listRows = await this.repository.findAllFiltered(filter);
+        const first = Math.max(1, Math.floor(Number(filter.first ?? 20)));
+        const hasNextPage = listRows.length > first;
+        const rows = hasNextPage ? listRows.slice(0, first) : listRows;
+
+        const edges = rows.map((node) => ({
+            node,
+            cursor: encodeExternalAccessCursor(node.created_at ?? '', node.signature),
+        }));
+
+        return {
+            edges,
+            pageInfo: {
+                hasNextPage,
+                hasPreviousPage: !!filter.after,
+                startCursor: edges[0]?.cursor ?? null,
+                endCursor: edges[edges.length - 1]?.cursor ?? null,
+            },
+        };
+    }
+
+    async revoke(signature: string): Promise<{ success: boolean; error?: string }> {
+        const row = await this.repository.findBySignature(signature);
+        if (!row) {
+            return { success: false, error: 'Signature introuvable' };
+        }
+        if (row.status === 'COMPLETED') {
+            return { success: false, error: 'Les signatures complétées ne peuvent pas être révoquées' };
+        }
+        await this.repository.setStatus(signature, 'LOCKED');
         return { success: true };
     }
 

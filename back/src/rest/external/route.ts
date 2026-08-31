@@ -3,7 +3,7 @@ import { externalRateLimiter } from '../middleware/rateLimiter';
 import { requireExternalGuest } from './guard';
 import { inspect, getProfile } from './controller';
 import { sendCvImportMail, uploadCv } from './cvImport.controller';
-import { sendCode, generate, regenerate, inspectCode, complete } from './externalAccess.controller';
+import { sendCode, generate, regenerate, inspectCode, complete, listAccess, revokeAccess } from './externalAccess.controller';
 import {
     getCandidates,
     getCv,
@@ -20,6 +20,10 @@ router.use(express.json());
 
 router.post('/generate', authenticateStaff, generate);
 router.post('/inspect', externalRateLimiter, inspectCode);
+
+// Gestion staff : lister et révoquer les accès externes.
+router.get('/', authenticateStaff, listAccess);
+router.post('/:signature/revoke', authenticateStaff, revokeAccess);
 
 router.get('/:signature/inspect', externalRateLimiter, inspect);
 router.post('/:signature/authenticate', externalRateLimiter, sendCode);

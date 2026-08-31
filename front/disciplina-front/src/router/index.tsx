@@ -40,6 +40,7 @@ import MailTemplates from "@/pages/rh/MailTemplates";
 import Relance from "@/pages/rh/Relance";
 import DriveConfig from "@/pages/rh/DriveConfig";
 import SectorSettings from "@/pages/rh/SectorSettings";
+import ExternalAccesPage from "@/pages/rh/ExternalAccesPage";
 
 import PedaLayout from "@/components/layout/PedaLayout";
 import SuiviAbsences from "@/pages/peda/SuiviAbsences";
@@ -152,6 +153,7 @@ export const router = createBrowserRouter([
       { path: "candidats/:id", element: <FicheCandidat />, handle: { crumb: "Fiche candidat" } },
       { path: "candidats/:id/questionnaire", element: <QuestionnaireAB />, handle: { crumb: "Questionnaire" } },
       { path: "matching", element: <NeedsAnalysisList />, handle: { crumb: "Matching" } },
+      { path: "external-access", element: <ExternalAccesPage />, handle: { crumb: "Accès externes" } },
       { path: "calendrier", element: <Calendrier />, handle: { crumb: "Calendrier" } },
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },

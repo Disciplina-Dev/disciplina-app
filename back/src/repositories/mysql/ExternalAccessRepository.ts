@@ -1,7 +1,25 @@
 import { query } from '../../db/mysql/connection';
 import { ExternalAccessRow } from '../../types/db-rows.types';
+import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
+
+export const encodeExternalAccessCursor = (createdAt: string | Date, signature: string): string =>
+    Buffer.from(`${new Date(createdAt).toISOString()}|${signature}`).toString('base64');
 
 type CreateExternalAccessRow = Omit<ExternalAccessRow, 'created_at' | 'updated_at'>;
+
+export interface ExternalAccessFilter {
+    first?: number;
+    after?: string | null;
+    search?: string | null;
+    types?: string[];
+    statuses?: string[];
+    userId?: number | null;
+}
+
+export interface ExternalAccessListRow extends ExternalAccessRow {
+    creator_first_name: string;
+    creator_last_name: string;
+}
 
 export class ExternalAccessRepository {
     async findBySignature(signature: string): Promise<ExternalAccessRow | null> {
@@ -79,5 +97,49 @@ export class ExternalAccessRepository {
             graceDays,
         ]);
         return (result as unknown as { affectedRows: number }).affectedRows;
+    }
+
+    async findAllFiltered(filter: ExternalAccessFilter = {}): Promise<ExternalAccessListRow[]> {
+        const conditions: string[] = [];
+        const params: unknown[] = [];
+
+        if (filter.search?.trim()) {
+            conditions.push('LOWER(ea.external_first_name) LIKE ?');
+            params.push(`%${filter.search.trim().toLowerCase()}%`);
+        }
+
+        if (filter.types && filter.types.length > 0) {
+            conditions.push(`ea.external_type IN (${filter.types.map(() => '?').join(', ')})`);
+            params.push(...filter.types);
+        }
+
+        if (filter.statuses && filter.statuses.length > 0) {
+            conditions.push(`ea.status IN (${filter.statuses.map(() => '?').join(', ')})`);
+            params.push(...filter.statuses);
+        }
+
+        if (filter.userId != null) {
+            conditions.push('ea.user_id = ?');
+            params.push(filter.userId);
+        }
+
+        if (filter.after) {
+            const [createdAt, signature] = decodeCursor(filter.after).split('|');
+            conditions.push('(ea.created_at, ea.signature) > (?, ?)');
+            params.push(createdAt, signature);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const limit = Math.max(1, Math.floor(Number(filter.first ?? DEFAULT_PAGE_SIZE)) + 1);
+
+        return query<ExternalAccessListRow[]>(
+            `SELECT ea.*, u.first_name AS creator_first_name, u.last_name AS creator_last_name
+             FROM external_access ea
+             JOIN users u ON u.id = ea.user_id
+             ${where}
+             ORDER BY ea.created_at DESC, ea.signature DESC
+             LIMIT ${limit}`,
+            params,
+        );
     }
 }
