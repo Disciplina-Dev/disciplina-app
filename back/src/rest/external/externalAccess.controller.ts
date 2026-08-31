@@ -8,6 +8,47 @@ import { notifyLockedMatch } from './match.controller';
 
 const externalAccessService = new ExternalAccessService();
 
+export async function listAccess(req: AuthRequest, res: Response): Promise<void> {
+    const first = Number(req.query.first);
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const type = typeof req.query.type === 'string' ? req.query.type : undefined;
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const userId = req.query.userId != null && req.query.userId !== '' ? Number(req.query.userId) : null;
+
+    const after = typeof req.query.after === 'string' && req.query.after ? req.query.after : null;
+
+    const statuses = status
+        ? status.split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined;
+
+    const result = await externalAccessService.list({
+        first: Number.isFinite(first) && first > 0 ? first : undefined,
+        after,
+        search,
+        types: type ? [type] : undefined,
+        statuses,
+        userId: userId != null && Number.isInteger(userId) && userId > 0 ? userId : null,
+    });
+
+    res.status(200).json(result);
+}
+
+export async function revokeAccess(req: AuthRequest, res: Response): Promise<void> {
+    const { signature } = req.params;
+    if (!signature) {
+        res.status(400).json({ success: false, error: 'Signature requise' });
+        return;
+    }
+
+    const result = await externalAccessService.revoke(signature);
+    if (!result.success) {
+        res.status(400).json(result);
+        return;
+    }
+
+    res.status(200).json({ success: true });
+}
+
 export async function complete(req: ExternalGuestRequest, res: Response): Promise<void> {
     const { signature } = req.params;
     if (!signature) {
