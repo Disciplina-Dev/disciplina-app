@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { X, Briefcase, Users, ClipboardList, Calendar, Hash } from 'lucide-react'
+import { X, Briefcase, Users, ClipboardList, Calendar, Hash, BellOff, Bell } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useSetAbRelanceDisabled } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
 import { formatScheduleSlots } from '@/utils/schedule'
@@ -58,6 +58,7 @@ interface Props {
 export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplicate }: Props) {
   const result = useNeedsAnalysis(id)
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
+  const { setAbRelanceDisabled, result: relanceResult } = useSetAbRelanceDisabled()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const ab = result.data?.needsAnalysis
   const badge = ab ? (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']) : null
@@ -69,6 +70,13 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
     onClose()
   }
 
+  const handleToggleRelance = async () => {
+    if (!ab) return
+    const disabled = !ab.isRelanceDisabled
+    const res = await setAbRelanceDisabled(id, disabled)
+    if (!res.error) result.refetch()
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -76,19 +84,24 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
         className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4 p-6 pb-4 border-b border-gray-100">
-          <div className="min-w-0">
+        {/* Header — responsive: title on top, actions wrap below to avoid overlap */}
+        <div className="flex flex-col gap-3 p-6 pb-4 border-b border-gray-100 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 flex-1">
             {result.fetching && <p className="text-sm text-gray-400">Chargement...</p>}
             {ab && (
               <>
-                <h2 className="text-lg font-bold text-gray-900 truncate">
+                <h2 className="text-lg font-bold text-gray-900 truncate pr-8 sm:pr-0">
                   {ab.positions?.map((p: { title?: string }) => p.title).filter(Boolean).join(' / ') || 'Analyse du besoin'}
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   {badge && (
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.bg} ${badge.text}`}>
                       {badge.label}
+                    </span>
+                  )}
+                  {ab.isRelanceDisabled && ab.status === 'EN_ATTENTE_SIGNATURE' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                      <BellOff className="h-3 w-3" /> Relance désactivée
                     </span>
                   )}
                   {ab.createdAt && (
@@ -100,7 +113,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               </>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 w-full sm:w-auto">
             {ab && !confirmDelete && onEdit && (
               <button
                 type="button"
@@ -132,7 +145,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               type="button"
               onClick={onClose}
               aria-label="Fermer"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2 ml-auto sm:ml-0"
             >
               <X className="h-5 w-5" />
             </button>
@@ -251,6 +264,31 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
             {ab.yousignSignatureRequestID && (
               <Section icon={<Hash className="h-3.5 w-3.5" />} title="Signature électronique">
                 <Row label="Référence" value={ab.yousignSignatureRequestID} />
+              </Section>
+            )}
+
+            {ab.status === 'EN_ATTENTE_SIGNATURE' && (
+              <Section icon={<Bell className="h-3.5 w-3.5" />} title="Relance automatique">
+                <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <p className={`text-sm font-medium ${ab.isRelanceDisabled ? 'text-gray-600' : 'text-green-700'}`}>
+                      {ab.isRelanceDisabled ? 'Désactivée — aucun mail ne sera envoyé' : 'Activée — relance prévue 14 jours après envoi'}
+                    </p>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      {ab.isRelanceDisabled
+                        ? 'La relance est désactivée pour cette AB. L’AB et ses offres sont conservées.'
+                        : 'Un mail de rappel sera envoyé automatiquement au responsable recrutement si l’AB n’est pas signée.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleRelance}
+                    disabled={relanceResult.fetching}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 shrink-0 self-start sm:self-center ${ab.isRelanceDisabled ? 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50 focus-visible:ring-blue' : 'border-amber-200 bg-white text-amber-700 hover:bg-amber-50 focus-visible:ring-amber-500'}`}
+                  >
+                    {ab.isRelanceDisabled ? <><Bell className="h-3.5 w-3.5" />Réactiver relance</> : <><BellOff className="h-3.5 w-3.5" />Désactiver relance</>}
+                  </button>
+                </div>
               </Section>
             )}
           </div>

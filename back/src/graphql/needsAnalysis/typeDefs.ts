@@ -224,6 +224,7 @@ export const typeDefs = gql`
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
         abStatus: AbStatus!
+        isRelanceDisabled: Boolean!
         tags: [String!]
         createdAt: String
         updatedAt: String
@@ -330,5 +331,7 @@ export const typeDefs = gql`
         # Force le statut d'onglet d'une AB (Actif/Archivé/Inactif) ; abStatus à null le
         # réinitialise au calcul automatique dérivé des offres.
         updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
+        # Désactive/réactive la relance automatique de signature (non destructif, garde l'AB et ses offres).
+        setAbRelanceDisabled(id: ID!, disabled: Boolean!): NeedsAnalysis!
     }
 `;
