@@ -215,6 +215,7 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
 
     return {
         id: String(doc._id),
+        isRelanceDisabled: !!doc.is_relance_disabled,
         companyInfos: doc.company_infos
             ? {
                   id: doc.company_infos.id ?? null,

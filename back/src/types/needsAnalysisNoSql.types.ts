@@ -158,6 +158,8 @@ export interface NeedsAnalysis {
     signature_url?: string | null;
     /** Date de la dernière relance de signature envoyée automatiquement (null = jamais). */
     last_relance_at?: Date | null;
+    /** Si vrai, la relance automatique de signature est désactivée (toggle commercial). */
+    is_relance_disabled?: boolean;
     status?: NeedsAnalysisStatus;
     tags?: string[];
     /**

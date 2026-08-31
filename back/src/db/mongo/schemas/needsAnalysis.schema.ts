@@ -45,6 +45,7 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
         signature_sent_at: { type: Date, default: null },
         signature_url: { type: String, default: null },
         last_relance_at: { type: Date, default: null },
+        is_relance_disabled: { type: Boolean, default: false },
         status: { type: String, enum: Object.values(NeedsAnalysisStatus), default: NeedsAnalysisStatus.BROUILLON },
         tags: { type: [String], default: [] },
         ab_status: { type: String, enum: ['ACTIVE', 'ARCHIVED', 'INACTIVE'], default: null },

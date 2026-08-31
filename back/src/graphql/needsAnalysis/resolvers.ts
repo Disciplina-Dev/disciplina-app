@@ -133,5 +133,15 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
             return needsAnalysisService.setAbStatus(id, abStatus ?? null);
         },
+        setAbRelanceDisabled: async (_: unknown, { id, disabled }: { id: string; disabled: boolean }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            if (context.user.role === JobRole.COMMERCIAL) {
+                const existing = await needsAnalysisService.findById(id);
+                if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
+                    throw new Error('Forbidden: You can only change relance on your own needs analyses');
+                }
+            }
+            return needsAnalysisService.setRelanceDisabled(id, disabled);
+        },
     },
 };
