@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS `permissions` (
 INSERT IGNORE INTO `permissions` (`id`, `name`) VALUES
   (1, 'EMPLOYEE'),
   (2, 'RESPONSABLE'),
-  (3, 'ADMIN');
+  (3, 'ADMIN'),
+  (4, 'GUEST');
 
 CREATE TABLE IF NOT EXISTS `roles` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -34,7 +35,8 @@ INSERT IGNORE INTO `roles` (`id`, `name`) VALUES
   (2, 'RH'),
   (3, 'PEDA'),
   (4, 'AD'),
-  (5, 'GESTION');
+  (5, 'GESTION'),
+  (6, 'EXTERNAL_GUEST');
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -207,6 +209,46 @@ CREATE TABLE IF NOT EXISTS `filiz` (
   `expires_at` datetime NOT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS `external_references` (
+  `id`   int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT IGNORE INTO `external_references` (`id`, `name`) VALUES
+  (1, 'IMPORT_CV'),
+  (2, 'MATCHING'),
+  (3, 'INTERVIEW_SLOTS');
+
+CREATE TABLE IF NOT EXISTS `external_access` (
+  `signature`      char(128)    NOT NULL,
+  `code`           char(6)      NULL,
+  `user_id`        int          NOT NULL,
+  `external_id`    varchar(64)  NOT NULL,
+  `external_type`  enum('COMPANY','CANDIDATE') NOT NULL,
+  `external_email` varchar(255) NULL,
+  `external_first_name` varchar(255) NULL,
+  `token`          varchar(512) NULL,
+  `reference_id`   int          NOT NULL,
+  `reference_key`  varchar(255) NOT NULL,
+  `status`         enum('SENDING','PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'SENDING',
+  `attempts`       tinyint      NOT NULL DEFAULT '0',
+  `expires_at`     timestamp    NULL DEFAULT NULL,
+  `created_at`     timestamp    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_ext_access_reference` (`reference_id`, `reference_key`),
+  KEY `idx_ext_access_external` (`external_id`, `external_type`),
+  CONSTRAINT `fk_ext_access_reference` FOREIGN KEY (`reference_id`) REFERENCES `external_references` (`id`),
+  CONSTRAINT `fk_ext_access_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- ──────────────────────────────────────────────────────────────────────────────
+-- DÉPRECATED: les trois tables ci-dessous sont remplacées par external_access.
+-- Elles restent ici temporairement pour permettre la migration des données.
+-- À supprimer une fois la migration terminée.
+-- ──────────────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS `interview_access` (
   `signature` char(64) NOT NULL,

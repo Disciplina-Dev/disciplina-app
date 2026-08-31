@@ -63,8 +63,8 @@ src/
     yousign/            Yousign signature webhook + SSE stream for needs-analysis signing
     docuseal/           DocuSeal signature webhook
     kpi/ rh-kpi/        Commercial and RH KPI dashboards — manual entry + Excel import
+    external/           Guest magic-link flows for candidates / companies (cookie `disc_at` + 6-digit code; ref 1 CV import, ref 2 matching, ref 3 interview slots)
     booking/ calendar/  Interview slots and calendar
-    interview/ match/   Guest magic-link access (signed token + 6-digit code)
     matching/           Candidate ↔ offer matching endpoints
     needsAnalysis/      Needs-analysis REST endpoints
     notifications/      SSE notification stream

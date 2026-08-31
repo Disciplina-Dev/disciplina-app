@@ -15,7 +15,7 @@ import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
 import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN } from '@/graphql/queries'
-import type { MailAttachment } from '@/store/mailTemplatesStore'
+import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
@@ -232,6 +232,12 @@ export default function FicheCandidat() {
   const { result: testResult } = useClassMarkerResult(id)
   const testPassed =
     !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
+
+  // Modèles RH (chargés une fois, dédupés par le store) : sert à préremplir le
+  // mail d'import CV avec le modèle « Import CV » par défaut.
+  const { templates: rhTemplates, load: loadRhTemplates } = useMailTemplatesStore('rh')
+  useEffect(() => { loadRhTemplates() }, [loadRhTemplates])
+  const cvImportTemplateId = rhTemplates.find((t) => t.name === 'Import CV')?.id
 
   const [formData, setFormData] = useState<Candidate | null>(null)
   // Édition de la fiche = même formulaire que la création (modal). L'édition inline
@@ -1849,6 +1855,7 @@ export default function FicheCandidat() {
         <MailModal
           defaultTo={formData.identity.email}
           candidateName={formData.identity.full_name}
+          defaultTemplateId={mailMode === 'cv-import' ? cvImportTemplateId : undefined}
           onCustomSend={mailMode === 'cv-import' ? handleSendCvImportMail : undefined}
           onClose={() => setMailMode(null)}
         />

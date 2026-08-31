@@ -3,12 +3,11 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import PublicBooking from "@/pages/booking/PublicBooking";
-import MatchGate from "@/pages/publicMatch/MatchGate";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
-import InterviewGate from "@/pages/publicInterview/InterviewGate";
-import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
-import CvImportGate from "@/pages/publicCvImport/CvImportGate";
-import CvImportUpload from "@/pages/publicCvImport/CvImportUpload";
+import ExternalAuthenticate from "@/pages/external/ExternalAuthenticate";
+import ExternalCvUpload from "@/pages/external/ExternalCvUpload";
+import ExternalInterview from "@/pages/external/ExternalInterview";
+import LegacyExternalRedirect from "@/pages/external/LegacyExternalRedirect";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -218,28 +217,20 @@ export const router = createBrowserRouter([
         element: <PublicBooking />,
       },
       {
-        path: "/public/match",
-        element: <MatchGate />,
+        path: "/external/authenticate",
+        element: <ExternalAuthenticate />,
       },
       {
-        path: "/public/match/:signature",
+        path: "/external/matching/:signature",
         element: <MatchComparator />,
       },
       {
-        path: "/public/interview",
-        element: <InterviewGate />,
+        path: "/external/interview/:signature",
+        element: <ExternalInterview />,
       },
       {
-        path: "/public/interview/:signature",
-        element: <InterviewSlotPicker />,
-      },
-      {
-        path: "/public/cv-import",
-        element: <CvImportGate />,
-      },
-      {
-        path: "/public/cv-import/:signature",
-        element: <CvImportUpload />,
+        path: "/external/cv-import/:signature",
+        element: <ExternalCvUpload />,
       },
     ],
   },
@@ -268,6 +259,10 @@ export const router = createBrowserRouter([
   { path: "/legal", element: <Navigate to="/legal/mentions" replace /> },
   { path: "/privacy", element: <Navigate to="/legal/confidentialite" replace /> },
   { path: "/cgu", element: <Navigate to="/legal/cgu" replace /> },
+  // Liens externes au format pré-migration (emails déjà envoyés) → entrée d'authentification
+  { path: "/public/match/:signature", element: <LegacyExternalRedirect /> },
+  { path: "/public/interview/:signature", element: <LegacyExternalRedirect /> },
+  { path: "/public/cv-import/:signature", element: <LegacyExternalRedirect /> },
   {
     path: "*",
     element: <NotFound />,

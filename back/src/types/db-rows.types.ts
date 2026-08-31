@@ -35,20 +35,6 @@ export interface MatchLinkRow {
     updated_at?: string | Date;
 }
 
-export interface InterviewAccessRow {
-    signature: string;
-    code: string;
-    offer_uuid: string;
-    candidate_id: string;
-    rh_email: string;
-    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
-    attempts: number;
-    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
-    expires_at: string | Date;
-    created_at?: string | Date;
-    updated_at?: string | Date;
-}
-
 export interface ExternalLinkRow {
     id: number;
     signature: string;
@@ -159,6 +145,24 @@ export interface RefreshTokenRow {
     expires_at: string | Date;
     revoked_at: string | Date | null;
     created_at?: string | Date;
+}
+
+export interface ExternalAccessRow {
+    signature: string;
+    code: string | null;
+    user_id: number;
+    external_id: string;
+    external_type: 'COMPANY' | 'CANDIDATE';
+    external_email: string | null;
+    external_first_name: string | null;
+    token: string | null;
+    reference_id: number;
+    reference_key: string;
+    status: 'SENDING' | 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
+    expires_at: string | Date | null;
+    created_at?: string | Date;
+    updated_at?: string | Date;
 }
 
 export interface FilizRow {

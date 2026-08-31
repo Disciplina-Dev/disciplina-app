@@ -32,8 +32,6 @@ import { router as notificationsRouter } from './rest/notifications/route';
 import { router as calendarRouter } from './rest/calendar/route';
 import { router as bookingRouter } from './rest/booking/route';
 import { router as mailTemplatesRouter } from './rest/mailTemplates/route';
-import { router as matchRouter } from './rest/match/route';
-import { router as interviewRouter } from './rest/interview/route';
 import { router as externalRouter } from './rest/external/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
@@ -131,8 +129,6 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/calendar', calendarRouter);
     app.use('/api/booking', bookingRouter);
     app.use('/api/mail-templates', mailTemplatesRouter);
-    app.use('/api/match', matchRouter);
-    app.use('/api/interview', interviewRouter);
     app.use('/api/external', externalRouter);
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
@@ -219,8 +215,23 @@ export async function startServer(): Promise<http.Server> {
         .seedCvImportDefault()
         .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
     mailTemplateService
+        .refreshCvImportTemplateButton()
+        .catch((err) => logger.error({ err }, 'cv-import: refresh du modèle par défaut échoué'));
+    mailTemplateService
         .seedpropositionCandidatsDefault()
         .catch((err) => logger.error({ err }, 'match-invitation: seed du modèle système échoué'));
+    mailTemplateService
+        .seedInterviewInvitationDefault()
+        .catch((err) => logger.error({ err }, 'interview-invitation: seed du modèle système échoué'));
+    mailTemplateService
+        .refreshNoCodeRHTemplates()
+        .catch((err) => logger.error({ err }, 'mail-template: refresh des modèles sans code échoué'));
+    mailTemplateService
+        .seedExternalAccessDefault()
+        .catch((err) => logger.error({ err }, 'external-access: seed du modèle système échoué'));
+    mailTemplateService
+        .seedExternalLinkDefault()
+        .catch((err) => logger.error({ err }, 'external-link: seed du modèle système échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();

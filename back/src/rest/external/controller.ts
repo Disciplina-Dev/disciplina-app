@@ -1,14 +1,16 @@
 import { Request, Response } from 'express';
 import { ExternalGuestRequest } from './guard';
-import { ExternalLinkService } from '../../services/ExternalLinkService';
 import { ExternalMailService } from '../../services/ExternalMailService';
 import { NotificationService } from '../../services/NotificationService';
 import { UserService } from '../../services/UserService';
+import { ExternalAccessRepository } from '../../repositories/mysql/ExternalAccessRepository';
+import { ExternalLinkService } from '../../services/ExternalLinkService';
 
 const externalLinkService = new ExternalLinkService();
 const externalMailService = new ExternalMailService();
 const notificationService = new NotificationService();
 const userService = new UserService();
+const externalAccessRepository = new ExternalAccessRepository();
 
 async function notifyLock(signature: string): Promise<void> {
     const context = await externalLinkService.getContext(signature);
@@ -48,14 +50,14 @@ export async function authenticate(req: Request, res: Response): Promise<void> {
 }
 
 export async function getProfile(req: ExternalGuestRequest, res: Response): Promise<void> {
-    const context = await externalLinkService.getContext(req.params.signature);
-    if (!context) {
+    const row = await externalAccessRepository.findBySignature(req.params.signature);
+    if (!row) {
         res.status(404).json({ error: 'Session introuvable' });
         return;
     }
     res.json({
-        externalEmail: context.externalEmail,
-        guestType: context.guestType,
-        externalUuid: context.externalUuid,
+        externalEmail: row.external_email,
+        guestType: row.external_type,
+        externalUuid: row.external_id,
     });
 }

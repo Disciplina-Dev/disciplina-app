@@ -1,33 +1,46 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyExternalToken, ExternalTokenPayload } from '../../services/externalToken';
-import { ExternalLinkService } from '../../services/ExternalLinkService';
+import { ACCESS_TOKEN_COOKIE, verifyAccessToken } from '../middleware/tokenAuth';
+import { ExternalAccessRepository } from '../../repositories/mysql/ExternalAccessRepository';
+import { GuestRole } from '../../types/user.types';
 
 export interface ExternalGuestRequest extends Request {
-    guest?: ExternalTokenPayload;
+    guest?: {
+        signature?: string;
+        referenceId?: number;
+        externalUuid?: string;
+    };
 }
 
-const externalLinkService = new ExternalLinkService();
+const externalAccessRepository = new ExternalAccessRepository();
 
 export async function requireExternalGuest(
     req: ExternalGuestRequest,
     res: Response,
     next: NextFunction,
 ): Promise<void> {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'Missing or invalid authorization header' });
+    const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
+    if (!token) {
+        res.status(401).json({ error: 'Missing or invalid authentication cookie' });
         return;
     }
-    const payload = verifyExternalToken(header.split(' ')[1]);
-    if (!payload || payload.signature !== req.params.signature) {
+    const payload = verifyAccessToken(token);
+    if (!payload || payload.role !== GuestRole.EXTERNAL_GUEST) {
         res.status(401).json({ error: 'Invalid or expired token' });
         return;
     }
-    const validation = await externalLinkService.validateLink(req.params.signature);
-    if (!validation.valid) {
-        res.status(401).json({ error: `Link is ${validation.reason}` });
+    if (payload.signature !== req.params.signature) {
+        res.status(401).json({ error: 'Invalid or expired token' });
         return;
     }
-    req.guest = payload;
+    const row = await externalAccessRepository.findBySignature(req.params.signature);
+    if (!row || row.status === 'LOCKED') {
+        res.status(401).json({ error: 'Link is locked' });
+        return;
+    }
+    req.guest = {
+        signature: payload.signature,
+        referenceId: payload.referenceId,
+        externalUuid: row.external_id,
+    };
     next();
 }

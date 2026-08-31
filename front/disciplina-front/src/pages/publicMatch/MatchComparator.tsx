@@ -4,12 +4,13 @@ import { Loader2, AlertCircle, ChevronLeft, ChevronRight, Check, Send } from 'lu
 import {
   getMatchCandidates,
   submitMatchAnswers,
+  MatchAuthError,
+  MatchCompletedError,
   PROPOSED_ANSWER_TO_STATUS,
   type ProposedCandidateView,
   type ProposedAnswer,
   type SubmitAnswerPayload,
 } from '@/api/match'
-import { useGuestMatchTokenStore } from '@/store/guestMatchTokenStore'
 import CandidateComparator from '@/features/publicMatch/components/CandidateComparator'
 import AnswerControls from '@/features/publicMatch/components/AnswerControls'
 import InterviewProposalForm from '@/features/publicMatch/components/InterviewProposalForm'
@@ -22,8 +23,6 @@ function Centered({ children }: { children: React.ReactNode }) {
 export default function MatchComparator() {
   const { signature = '' } = useParams()
   const navigate = useNavigate()
-  const token = useGuestMatchTokenStore((s) => s.token)
-  const clearToken = useGuestMatchTokenStore((s) => s.clearToken)
 
   const [candidates, setCandidates] = useState<ProposedCandidateView[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -36,14 +35,16 @@ export default function MatchComparator() {
   const [done, setDone] = useState(false)
 
   useEffect(() => {
-    if (!token) {
-      navigate(`/public/match?sig=${signature}`)
-      return
-    }
-    getMatchCandidates(signature, token)
+    getMatchCandidates(signature)
       .then(setCandidates)
-      .catch((e) => setLoadError(e instanceof Error ? e.message : 'Erreur'))
-  }, [signature, token, navigate])
+      .catch((e) => {
+        if (e instanceof MatchAuthError) {
+          navigate(`/external/authenticate?sig=${signature}`, { replace: true })
+          return
+        }
+        setLoadError(e instanceof Error ? e.message : 'Erreur')
+      })
+  }, [signature, navigate])
 
   const setAnswer = (candidateId: string, answer: ProposedAnswer) => {
     setAnswers((prev) => {
@@ -57,7 +58,7 @@ export default function MatchComparator() {
   }
 
   const submit = async () => {
-    if (!token || !candidates) return
+    if (!candidates) return
     setBusy(true)
     setLoadError(null)
     const cleanSlots = slots.map((s) => s.trim()).filter(Boolean)
@@ -75,10 +76,13 @@ export default function MatchComparator() {
       }
     })
     try {
-      await submitMatchAnswers(signature, token, payload)
-      clearToken()
+      await submitMatchAnswers(signature, payload)
       setDone(true)
     } catch (e) {
+      if (e instanceof MatchCompletedError) {
+        setDone(true)
+        return
+      }
       setLoadError(e instanceof Error ? e.message : 'Erreur')
     } finally {
       setBusy(false)
@@ -157,7 +161,7 @@ export default function MatchComparator() {
           </div>
         </div>
 
-        <CandidateComparator signature={signature} token={token!} candidate={current} />
+        <CandidateComparator signature={signature} candidate={current} />
 
         <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
           <p className="mb-2 text-[13px] font-bold text-gray-800">Votre décision pour {current.fullName ?? 'ce candidat'}</p>
@@ -172,7 +176,6 @@ export default function MatchComparator() {
               location={location}
               onLocationChange={setLocation}
               signature={signature}
-              token={token!}
             />
           </div>
         )}

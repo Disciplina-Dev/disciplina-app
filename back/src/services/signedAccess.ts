@@ -1,5 +1,4 @@
-// Éléments partagés par les deux flux de « lien magique » à usage limité —
-// InterviewAccessService et MatchLinkService — dont les couches sont en miroir.
+// Éléments partagés par les flux de « lien magique » à usage limité.
 // Volontairement limité aux briques sûres (type, constante, fonction pure) :
 // l'unification complète des repositories/guards/tokens reste un chantier dédié
 // (voir docs/AUDIT.md §3.4).
