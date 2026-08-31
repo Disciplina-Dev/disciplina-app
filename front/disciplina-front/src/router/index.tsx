@@ -3,12 +3,11 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import PublicBooking from "@/pages/booking/PublicBooking";
-import MatchGate from "@/pages/publicMatch/MatchGate";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
-import InterviewGate from "@/pages/publicInterview/InterviewGate";
-import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
-import CvImportGate from "@/pages/publicCvImport/CvImportGate";
-import CvImportUpload from "@/pages/publicCvImport/CvImportUpload";
+import ExternalAuthenticate from "@/pages/external/ExternalAuthenticate";
+import ExternalCvUpload from "@/pages/external/ExternalCvUpload";
+import ExternalInterview from "@/pages/external/ExternalInterview";
+import LegacyExternalRedirect from "@/pages/external/LegacyExternalRedirect";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -26,6 +25,7 @@ import EntreprisePage from "@/pages/commercial/EntreprisePage";
 import Sourcing from "@/pages/commercial/sourcing";
 import RelanceCommercial from "@/pages/commercial/RelanceCommercial";
 import ListeNoire from "@/pages/commercial/ListeNoire";
+import QuarantineCompany from "@/pages/commercial/QuarantineCompany";
 import AbDriveConfig from "@/pages/commercial/AbDriveConfig";
 
 import RHLayout from "@/components/layout/RHLayout";
@@ -33,13 +33,14 @@ import DashboardRH from "@/pages/rh/DashboardRH";
 import ListeCandidats from "@/pages/rh/ListeCandidats";
 import FicheCandidat from "@/pages/rh/FicheCandidat";
 import QuestionnaireAB from "@/pages/rh/QuestionnaireAB";
-import Matching from "@/pages/rh/Matching";
+import NeedsAnalysisList from "@/pages/rh/NeedsAnalysisList";
 import Calendrier from "@/pages/rh/Calendrier";
 import ABEntreprisesRecues from "@/pages/rh/ABEntreprisesRecues";
 import MailTemplates from "@/pages/rh/MailTemplates";
 import Relance from "@/pages/rh/Relance";
 import DriveConfig from "@/pages/rh/DriveConfig";
 import SectorSettings from "@/pages/rh/SectorSettings";
+import ExternalAccesPage from "@/pages/rh/ExternalAccesPage";
 
 import PedaLayout from "@/components/layout/PedaLayout";
 import SuiviAbsences from "@/pages/peda/SuiviAbsences";
@@ -51,11 +52,17 @@ import GestionApprentis from "@/pages/entreprise/GestionApprentis";
 import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
 
+import PublicPortalLayout from "@/components/legal/PublicPortalLayout";
+import CguPage from "@/pages/legal/CguPage";
+import MentionsLegalesPage from "@/pages/legal/MentionsLegalesPage";
+import ConfidentialitePage from "@/pages/legal/ConfidentialitePage";
+import CookiesPage from "@/pages/legal/CookiesPage";
+
 import TodoPage from "@/features/todos/TodoPage";
 import ProfilePage from "@/pages/profile/ProfilePage";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { UserRole } from "@/store/authStore";
+import { UserRole, Permission } from "@/store/authStore";
 
 export const router = createBrowserRouter([
   {
@@ -107,6 +114,15 @@ export const router = createBrowserRouter([
         },
       },
       { path: "liste-noire", element: <ListeNoire />, handle: { crumb: "Liste noire" } },
+      {
+        path: "quarantaine",
+        element: (
+          <ProtectedRoute allowedRoles={[UserRole.COMMERCIAL]} minPermission={Permission.RESPONSABLE}>
+            <QuarantineCompany />
+          </ProtectedRoute>
+        ),
+        handle: { crumb: "Quarantaine" },
+      },
       { path: "sourcing", element: <Sourcing />, handle: { crumb: "Sourcing SIRET" } },
       { path: "mail", element: <MailTemplates scope="commercial" />, handle: { crumb: "Modèles mail" } },
       { path: "relance", element: <RelanceCommercial />, handle: { crumb: "Relances" } },
@@ -136,7 +152,8 @@ export const router = createBrowserRouter([
       { path: "candidats", element: <ListeCandidats />, handle: { crumb: "Candidats" } },
       { path: "candidats/:id", element: <FicheCandidat />, handle: { crumb: "Fiche candidat" } },
       { path: "candidats/:id/questionnaire", element: <QuestionnaireAB />, handle: { crumb: "Questionnaire" } },
-      { path: "matching", element: <Matching />, handle: { crumb: "Matching" } },
+      { path: "matching", element: <NeedsAnalysisList />, handle: { crumb: "Matching" } },
+      { path: "external-access", element: <ExternalAccesPage />, handle: { crumb: "Accès externes" } },
       { path: "calendrier", element: <Calendrier />, handle: { crumb: "Calendrier" } },
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
@@ -193,34 +210,61 @@ export const router = createBrowserRouter([
       { path: "profils", element: <ProfilsMatches />, handle: { crumb: "Profils" } },
     ],
   },
+  // Portails accessibles par lien signé — encadrés par les mentions légales
   {
-    path: "/booking/:slug",
-    element: <PublicBooking />,
+    element: <PublicPortalLayout />,
+    children: [
+      {
+        path: "/booking/:slug",
+        element: <PublicBooking />,
+      },
+      {
+        path: "/external/authenticate",
+        element: <ExternalAuthenticate />,
+      },
+      {
+        path: "/external/matching/:signature",
+        element: <MatchComparator />,
+      },
+      {
+        path: "/external/interview/:signature",
+        element: <ExternalInterview />,
+      },
+      {
+        path: "/external/cv-import/:signature",
+        element: <ExternalCvUpload />,
+      },
+    ],
+  },
+  // Pages légales — accessibles sans authentification
+  {
+    path: "/legal/cgu",
+    element: <CguPage />,
   },
   {
-    path: "/public/match",
-    element: <MatchGate />,
+    path: "/legal/cgu/:audience",
+    element: <CguPage />,
   },
   {
-    path: "/public/match/:signature",
-    element: <MatchComparator />,
+    path: "/legal/mentions",
+    element: <MentionsLegalesPage />,
   },
   {
-    path: "/public/interview",
-    element: <InterviewGate />,
+    path: "/legal/confidentialite",
+    element: <ConfidentialitePage />,
   },
   {
-    path: "/public/interview/:signature",
-    element: <InterviewSlotPicker />,
+    path: "/legal/cookies",
+    element: <CookiesPage />,
   },
-  {
-    path: "/public/cv-import",
-    element: <CvImportGate />,
-  },
-  {
-    path: "/public/cv-import/:signature",
-    element: <CvImportUpload />,
-  },
+  // Redirections rétro-compatibles vers l'espace légal
+  { path: "/legal", element: <Navigate to="/legal/mentions" replace /> },
+  { path: "/privacy", element: <Navigate to="/legal/confidentialite" replace /> },
+  { path: "/cgu", element: <Navigate to="/legal/cgu" replace /> },
+  // Liens externes au format pré-migration (emails déjà envoyés) → entrée d'authentification
+  { path: "/public/match/:signature", element: <LegacyExternalRedirect /> },
+  { path: "/public/interview/:signature", element: <LegacyExternalRedirect /> },
+  { path: "/public/cv-import/:signature", element: <LegacyExternalRedirect /> },
   {
     path: "*",
     element: <NotFound />,

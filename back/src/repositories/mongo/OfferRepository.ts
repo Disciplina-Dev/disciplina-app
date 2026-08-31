@@ -1,5 +1,6 @@
 import { OfferModel } from '../../db/mongo/schemas/offer.schema';
-import { Offer } from '../../types/offer.types';
+import { NeedsAnalysisModel } from '../../db/mongo/schemas/needsAnalysis.schema';
+import { Offer, OfferAbFilter, AbStatus } from '../../types/offer.types';
 import {
     ImmersionConclusion,
     InterviewConclusion,
@@ -13,43 +14,137 @@ const PLACEMENT_CONCLUSIONS = [InterviewConclusion.IMMERSING, InterviewConclusio
 // Retire les champs de proposition d'un candidat rebasculé en simple « retenu ».
 function resetProposal(candidate: MatchingCandidate): MatchingCandidate {
     const {
-        description,
-        cv_webview,
-        comment,
-        interview_location,
-        booked_interview_slot,
-        interview_conclusion,
-        immersion_start_date,
-        immersion_end_date,
-        immersion_location,
-        immersion_conclusion,
+        description: _description,
+        cv_webview: _cv_webview,
+        comment: _comment,
+        interview_location: _interview_location,
+        booked_interview_slot: _booked_interview_slot,
+        interview_conclusion: _interview_conclusion,
+        immersion_start_date: _immersion_start_date,
+        immersion_end_date: _immersion_end_date,
+        immersion_location: _immersion_location,
+        immersion_conclusion: _immersion_conclusion,
         ...identity
     } = candidate;
     return { ...identity, status: MatchedCandidateStatus.ACCEPTED };
 }
 
+function buildOfferAbMongoFilter(filter: OfferAbFilter): Record<string, unknown> {
+    const mongo: Record<string, unknown> = {};
+    if (filter.statuses?.length) mongo['matching.status'] = { $in: filter.statuses };
+    if (filter.desiredTp?.length) mongo['desired_tp.tp_type'] = { $in: filter.desiredTp };
+    if (filter.sectors?.length) mongo['company_infos.activities'] = { $in: filter.sectors };
+    if (filter.localisations?.length) mongo['localisation'] = { $in: filter.localisations };
+    if (filter.search) {
+        mongo['company_infos.name'] = { $regex: escapeRegExp(filter.search), $options: 'i' };
+    }
+    return mongo;
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export class OfferRepository {
+    /** Ids des AB dont au moins une offre correspond au filtre. */
+    async findNeedsAnalysisIdsByFilter(filter: OfferAbFilter): Promise<string[]> {
+        const mongoFilter = buildOfferAbMongoFilter(filter);
+        return OfferModel.distinct('needs_analysis_id', mongoFilter);
+    }
+
+    /**
+     * Ids des AB selon leur statut dérivé des offres (hors AB supprimées) :
+     * - ARCHIVED : toutes les offres de l'AB sont en contrat,
+     * - ACTIVE   : au moins une offre n'est pas encore en contrat.
+     * Une offre est « en contrat » quand matching.status = CONTRACT ou qu'un de ses
+     * candidats a un statut CONTRACT (miroir de listMatchingOffers).
+     */
+    async findNeedsAnalysisIdsByAbStatus(abStatus: AbStatus): Promise<string[]> {
+        const contractStatus = OfferStatus.CONTRACT;
+        const contractCandidate = MatchedCandidateStatus.CONTRACT;
+        const contractConditions = [
+            { 'matching.status': contractStatus },
+            { 'matching.candidates.status': contractCandidate },
+        ];
+
+        if (abStatus === 'ARCHIVED') {
+            const rows = await OfferModel.aggregate([
+                { $match: { needs_analysis_id: { $exists: true, $ne: null } } },
+                {
+                    $group: {
+                        _id: '$needs_analysis_id',
+                        total: { $sum: 1 },
+                        contracted: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $or: [
+                                            { $eq: ['$matching.status', contractStatus] },
+                                            { $in: [contractCandidate, { $ifNull: ['$matching.candidates.status', []] }] },
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                    },
+                },
+                { $match: { $expr: { $eq: ['$contracted', '$total'] } } },
+                { $project: { _id: 1 } },
+            ]);
+            return rows.map((row) => String(row._id));
+        }
+
+        // ACTIVE : au moins une offre pas encore en contrat.
+        return OfferModel.distinct('needs_analysis_id', {
+            needs_analysis_id: { $exists: true, $ne: null },
+            $nor: contractConditions,
+        });
+    }
+
     async findById(offerId: string): Promise<Offer | null> {
         return OfferModel.findOne({ _id: offerId }).lean();
+    }
+
+    /** Statut dérivé d'une AB à partir de ses offres (miroir de findNeedsAnalysisIdsByAbStatus). */
+    async findDerivedAbStatus(needsAnalysisId: string): Promise<AbStatus> {
+        const offers = await OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
+        if (offers.length === 0) return 'ACTIVE';
+        const contractStatus = OfferStatus.CONTRACT;
+        const contractCandidate = MatchedCandidateStatus.CONTRACT;
+        const allContracted = offers.every(
+            (offer) =>
+                offer.matching?.status === contractStatus ||
+                (offer.matching?.candidates ?? []).some((c: MatchingCandidate) => c.status === contractCandidate),
+        );
+        return allContracted ? 'ARCHIVED' : 'ACTIVE';
     }
 
     async findByNeedsAnalysisId(needsAnalysisId: string): Promise<Offer[]> {
         return OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
     }
 
-    /** Toutes les offres à matcher (hors offres déjà contractualisées). */
+    /** Toutes les offres à matcher (hors offres déjà contractualisées et hors AB inactives). */
     async listMatchingOffers(): Promise<Offer[]> {
-        return OfferModel.find({
+        const inactiveIds: string[] = await NeedsAnalysisModel.distinct('_id', {
+            $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }],
+        });
+        const filter: Record<string, unknown> = {
             $nor: [
                 { 'matching.status': OfferStatus.CONTRACT },
                 { 'matching.candidates': { $elemMatch: { status: MatchedCandidateStatus.CONTRACT } } },
             ],
-        }).lean();
+        };
+        if (inactiveIds.length) {
+            (filter as Record<string, unknown>)['needs_analysis_id'] = { $nin: inactiveIds };
+        }
+        return OfferModel.find(filter).lean();
     }
 
     /** Remplace le contenu (poste, entreprise, référents, saler) d'une offre sans toucher à `matching`. */
     async updateContent(offerId: string, offer: Partial<Offer>): Promise<Offer | null> {
-        const { _id, matching, ...patch } = offer;
+        const { _id, matching: _matching, ...patch } = offer;
         return OfferModel.findOneAndUpdate({ _id: offerId }, { $set: patch }, { new: true }).lean();
     }
 
@@ -241,5 +336,18 @@ export class OfferRepository {
 
     async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
         return (await OfferModel.deleteMany({ needs_analysis_id: needsAnalysisId })).deletedCount;
+    }
+
+    /**
+     * Réassigne (ou détache) le commercial porteur de toutes les offres liées à
+     * un user supprimé. `saler = null` détache l'offre (elle vit sans commercial).
+     * Renvoie le nombre d'offres modifiées.
+     */
+    async reassignSaler(fromUserId: number, saler: { id: number; email: string } | null): Promise<number> {
+        const update = saler
+            ? { $set: { saler_info: { id: saler.id, email: saler.email } } }
+            : { $unset: { saler_info: '' } };
+        const res = await OfferModel.updateMany({ 'saler_info.id': fromUserId }, update);
+        return res.modifiedCount;
     }
 }

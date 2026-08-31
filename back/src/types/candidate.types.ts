@@ -57,9 +57,15 @@ export enum DiscoverySource {
     OTHER = 'OTHER',
 }
 
+export interface EncryptedSsn {
+    encrypted: string;
+    iv: string;
+    tag: string;
+}
+
 export interface Identity {
     full_name: string;
-    social_security_number?: string;
+    social_security_number?: EncryptedSsn;
     date_of_birth?: Date;
     place_of_birth?: string;
     department_of_birth?: string;
@@ -212,14 +218,23 @@ export interface EmergencyContact {
     email?: string;
 }
 
+export interface CandidateConsentments {
+    data_processing: boolean; // traitement général — obligatoire (base légale de la collecte)
+    data_sharing: boolean; // partage avec les entreprises partenaires
+    ai_processing: boolean; // résumé de profil via IA locale (Ollama)
+    photo_processing: boolean; // stockage de la photo/avatar
+    consent_date: Date;
+    consent_version: string; // version du corpus légal au moment du consentement
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
     owner?: CandidateOwner;
-    tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;
+    consentments?: CandidateConsentments;
     status: CandidateStatus;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
@@ -229,6 +244,10 @@ export interface Candidate {
     immersion_company_id?: number; // entreprise d'immersion (réf MySQL companies)
     immersion_company_name?: string; // snapshot du nom au moment du choix
     immersion_end_notified_at?: Date; // date d'émission de la notif « immersion terminée » (dédup)
+    contract_offer_id?: string; // offre (Mongo offers) liée au contrat signé
+    contract_company_id?: number; // entreprise du contrat (réf MySQL companies)
+    contract_company_name?: string; // snapshot du nom au moment du choix
+    contract_start_date?: Date;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

@@ -4,20 +4,24 @@ import {
   ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
   QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, Download, FileText,
   File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera, HardDriveUpload,
+  Eye, EyeOff,
 } from 'lucide-react'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
+import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
-import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS } from '@/graphql/queries'
-import type { MailAttachment } from '@/store/mailTemplatesStore'
+import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN } from '@/graphql/queries'
+import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
-import type { Candidate, PedagogicalRecommendations } from '@/types/candidate'
+import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
+import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
@@ -58,9 +62,9 @@ const getStatusLabel = (status: CandidateStatus): string => CANDIDATE_STATUS_LAB
 const getStatusColor = (status: CandidateStatus): string => CANDIDATE_STATUS_BADGE_CLASS[status]
 
 const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
-  [TrainingSite.NORD_SAINTE_MARIE]: 'Nord – Sainte-Marie',
-  [TrainingSite.OUEST_SAINT_PAUL]:  'Ouest – Saint-Paul',
-  [TrainingSite.SUD_SAINT_PIERRE]:  'Sud – Saint-Pierre',
+  [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} – Sainte-Marie`,
+  [TrainingSite.OUEST_SAINT_PAUL]:  `${SECTEUR_LABELS.OUEST} – Saint-Paul`,
+  [TrainingSite.SUD_SAINT_PIERRE]:  `${SECTEUR_LABELS.SUD} – Saint-Pierre`,
 }
 
 // Met en forme un enum SCREAMING_SNAKE en libellé lisible ("SAINT_DENIS" → "Saint Denis").
@@ -75,7 +79,7 @@ function buildCandidateSummary(c: Candidate): string {
 
   // Profil : nom, âge, ville, titre(s) visé(s), niveau d'études.
   const age = computeAge(c.identity.date_of_birth) ?? c.identity.age
-  const tps = (c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : []).join(', ')
+  const tps = (c.tp_types ?? []).join(', ')
   const profil = [
     c.identity.full_name,
     age != null ? `${age} ans` : null,
@@ -229,6 +233,12 @@ export default function FicheCandidat() {
   const testPassed =
     !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
 
+  // Modèles RH (chargés une fois, dédupés par le store) : sert à préremplir le
+  // mail d'import CV avec le modèle « Import CV » par défaut.
+  const { templates: rhTemplates, load: loadRhTemplates } = useMailTemplatesStore('rh')
+  useEffect(() => { loadRhTemplates() }, [loadRhTemplates])
+  const cvImportTemplateId = rhTemplates.find((t) => t.name === 'Import CV')?.id
+
   const [formData, setFormData] = useState<Candidate | null>(null)
   // Édition de la fiche = même formulaire que la création (modal). L'édition inline
   // n'est plus déclenchable : isEditing reste false (branches d'affichage uniquement).
@@ -263,11 +273,50 @@ export default function FicheCandidat() {
   const [companyQuery, setCompanyQuery] = useState('')
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
   const [availabilityDate, setAvailabilityDate] = useState('')
+  const [contractModalOpen, setContractModalOpen] = useState(false)
   const [companyListOpen, setCompanyListOpen] = useState(false)
+  const [aiSummaryOpen, setAiSummaryOpen] = useState(false)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
+  const [aiSummaryText, setAiSummaryText] = useState('')
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null)
+  const [revealedSsn, setRevealedSsn] = useState<string | null>(null)
+  const [revealingSsn, setRevealingSsn] = useState(false)
+  const [ssnError, setSsnError] = useState<string | null>(null)
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
   }, [candidate])
+
+  // Ne jamais laisser le SSN en clair d'une fiche fuiter sur une autre.
+  useEffect(() => {
+    setRevealedSsn(null)
+    setSsnError(null)
+  }, [id])
+
+  const handleRevealSsn = async () => {
+    if (!formData) return
+    setRevealingSsn(true)
+    setSsnError(null)
+    try {
+      const result = await candidateGraphqlClient.query(UNMASK_SSN, { id: formData._id }).toPromise()
+      // Sans ce contrôle, une erreur serveur laissait le champ sur "[chiffré]" sans
+      // aucun signal, ni en console, ni à l'écran.
+      if (result.error) {
+        setSsnError(result.error.graphQLErrors[0]?.message ?? 'Échec du déchiffrement du numéro de sécurité sociale.')
+        return
+      }
+      const ssn = result.data?.unmaskCandidateSsn ?? null
+      if (!ssn) {
+        setSsnError('Aucun numéro de sécurité sociale déchiffrable pour cette fiche.')
+        return
+      }
+      setRevealedSsn(ssn)
+    } catch (err) {
+      setSsnError(err instanceof Error ? err.message : 'Échec du déchiffrement du numéro de sécurité sociale.')
+    } finally {
+      setRevealingSsn(false)
+    }
+  }
 
   const fetchDriveFiles = async (candidateId: string) => {
     setLoadingFiles(true)
@@ -454,6 +503,39 @@ export default function FicheCandidat() {
     try { await update(updated._id, updated) } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
   }
 
+  const handleGenerateAiSummary = async () => {
+    if (!formData) return
+    setAiSummaryLoading(true)
+    setAiSummaryError(null)
+    setAiSummaryText('')
+    try {
+      const res = await apiFetch(`/api/candidates/${formData._id}/generate-summary`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }))
+        throw new Error(err.error || `Échec (${res.status})`)
+      }
+      const data = await res.json()
+      setAiSummaryText(data.summary)
+      setAiSummaryOpen(true)
+    } catch (err) {
+      setAiSummaryError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setAiSummaryLoading(false)
+    }
+  }
+
+  const handleSaveAiSummary = async () => {
+    if (!formData || !aiSummaryText.trim()) return
+    const updated = { ...formData, identity: { ...formData.identity, description: aiSummaryText } }
+    setFormData(updated)
+    try {
+      await update(updated._id, updated)
+      setAiSummaryOpen(false)
+    } catch {
+      setAiSummaryError('Erreur lors de l\'enregistrement')
+    }
+  }
+
   const handleStatusChange = async (newStatus: CandidateStatus) => {
     if (!formData) return
     // Passage en immersion : demander les dates de début/fin via un modal avant d'enregistrer.
@@ -476,6 +558,11 @@ export default function FicheCandidat() {
     if (newStatus === CandidateStatus.UNAVAILABLE) {
       setAvailabilityDate(formData.job_info?.availability_date?.slice(0, 10) ?? '')
       setUnavailableModalOpen(true)
+      return
+    }
+    // Passage en contrat : renseigner l'offre (ou l'entreprise trouvée par le candidat) et la date de début.
+    if (newStatus === CandidateStatus.CONTRACT) {
+      setContractModalOpen(true)
       return
     }
     await persistStatus({ ...formData, status: newStatus })
@@ -671,7 +758,7 @@ export default function FicheCandidat() {
                       {getStatusLabel(formData.status)}
                     </span>
                   </div>
-                  {(formData.tp_types?.length ? formData.tp_types : [formData.tp_type]).map(t => (
+                  {(formData.tp_types ?? []).map(t => (
                     <span key={t} className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[t]}`}>
                       {t}
                     </span>
@@ -701,9 +788,14 @@ export default function FicheCandidat() {
                         </>
                       )}
                     </span>
-                  ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_company_name || formData.immersion_start_date || formData.immersion_end_date) && (
+                  ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_company_name || formData.immersion_start_date || formData.immersion_end_date) ? (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       Immersion{formData.immersion_company_name ? ` chez ${formData.immersion_company_name}` : ''} : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
+                    </span>
+                  ) : formData.status === CandidateStatus.CONTRACT && (formData.contract_company_name || formData.contract_start_date) && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
+                      En contrat{formData.contract_company_name ? ` avec ${formData.contract_company_name}` : ''}
+                      {formData.contract_start_date ? ` depuis le ${new Date(formData.contract_start_date).toLocaleDateString('fr-FR')}` : ''}
                     </span>
                   )}
                   {(() => {
@@ -718,6 +810,11 @@ export default function FicheCandidat() {
                       </span>
                     ) : null
                   })()}
+                  {formData.status === CandidateStatus.IMMERSING && formData.immersion_agreement && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 ring-1 ring-green-200">
+                      Convention immersion signée
+                    </span>
+                  )}
                   {formData.owner && (
                     <span className="inline-flex items-center gap-1 text-xs text-gray-400">
                       <User size={12} />
@@ -732,6 +829,16 @@ export default function FicheCandidat() {
                   {formData.created_at && (
                     <span className="text-xs text-gray-400">
                       Créé le {new Date(formData.created_at).toLocaleDateString('fr-FR')}
+                    </span>
+                  )}
+                  {formData.last_relance_at && (
+                    <span className="text-xs text-amber-600">
+                      Dernière relance : {new Date(formData.last_relance_at).toLocaleDateString('fr-FR')}
+                    </span>
+                  )}
+                  {formData.relance_response_at && (
+                    <span className="text-xs text-green-600">
+                      Réponse à la relance : {new Date(formData.relance_response_at).toLocaleDateString('fr-FR')}
                     </span>
                   )}
                 </div>
@@ -841,7 +948,7 @@ export default function FicheCandidat() {
             <MatchedJobsList
               candidateId={id ?? ''}
               confirmedJobIds={confirmedJobIds}
-              candidateTpTypes={formData.tp_types?.length ? formData.tp_types : [formData.tp_type]}
+              candidateTpTypes={formData.tp_types ?? []}
             />
           </div>
 
@@ -859,7 +966,30 @@ export default function FicheCandidat() {
                 {isEditing ? (
                   <input className={inputCls} value={formData.identity.social_security_number ?? ''}
                     onChange={e => updateIdentity('social_security_number', e.target.value)} />
-                ) : <p className={valueCls}>{formData.identity.social_security_number || '—'}</p>}
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
+                      {formData.identity.social_security_number && (
+                        <button
+                          type="button"
+                          disabled={revealingSsn}
+                          onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                          {revealingSsn ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : revealedSsn ? (
+                            <EyeOff size={12} />
+                          ) : (
+                            <Eye size={12} />
+                          )}
+                          {revealedSsn ? 'Masquer' : 'Afficher'}
+                        </button>
+                      )}
+                    </div>
+                    {ssnError && <p className="mt-1 text-xs text-red-500">{ssnError}</p>}
+                  </div>
+                )}
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Email">
@@ -901,16 +1031,16 @@ export default function FicheCandidat() {
                     onChange={e => updateIdentity('postal_code', e.target.value)} />
                 ) : <p className={valueCls}>{formData.identity.postal_code || '—'}</p>}
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Permis B">
-                  {isEditing ? (
-                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
-                        onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
-                      <span className="text-sm text-gray-700">Oui</span>
-                    </label>
-                  ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
-                </Field>
+              <Field label="Permis B">
+                {isEditing ? (
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
+                      onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
+                    <span className="text-sm text-gray-700">Oui</span>
+                  </label>
+                ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
+              </Field>
+              <div className="ml-3 pl-4 border-l-2 border-gray-100">
                 <Field label="Véhiculé">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">
@@ -936,16 +1066,61 @@ export default function FicheCandidat() {
                   </label>
                 ) : <p className={valueCls}>{formData.identity.had_apprenticeship_contract ? 'Oui' : 'Non'}</p>}
               </Field>
+              {formData.identity.had_apprenticeship_contract && (
+                <Field label="Détails du contrat d'apprentissage">
+                  {isEditing ? (
+                    <textarea rows={2} className={inputCls + ' resize-none'}
+                      value={formData.identity.apprenticeship_contract_details ?? ''}
+                      onChange={e => updateIdentity('apprenticeship_contract_details', e.target.value)} />
+                  ) : <p className={valueCls}>{formData.identity.apprenticeship_contract_details || '—'}</p>}
+                </Field>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Lieu de naissance">
+                  {isEditing ? (
+                    <input className={inputCls} value={formData.identity.place_of_birth ?? ''}
+                      onChange={e => updateIdentity('place_of_birth', e.target.value)} />
+                  ) : <p className={valueCls}>{formData.identity.place_of_birth || '—'}</p>}
+                </Field>
+                <Field label="Département de naissance">
+                  {isEditing ? (
+                    <input className={inputCls} value={formData.identity.department_of_birth ?? ''}
+                      onChange={e => updateIdentity('department_of_birth', e.target.value)} />
+                  ) : <p className={valueCls}>{formData.identity.department_of_birth || '—'}</p>}
+                </Field>
+              </div>
+              <Field label="Sexe">
+                {isEditing ? (
+                  <select className={selectCls} value={formData.identity.sex ?? ''}
+                    onChange={e => updateIdentity('sex', e.target.value)}>
+                    <option value="">Non renseigné</option>
+                    <option value="FILLE">Femme</option>
+                    <option value="GARCON">Homme</option>
+                  </select>
+                ) : <p className={valueCls}>{formData.identity.sex === 'FILLE' ? 'Femme' : formData.identity.sex === 'GARCON' ? 'Homme' : '—'}</p>}
+              </Field>
               <div>
                 <div className="flex items-center justify-between">
-                  <span className={labelCls}>Description</span>
-                  <button
-                    type="button"
-                    onClick={handleGenerateDescription}
-                    className="text-[11px] font-semibold text-purple hover:underline">
-                    {formData.identity.description?.trim() ? 'Régénérer' : 'Générer le résumé'}
-                  </button>
-                </div>
+                    <span className={labelCls}>Description</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGenerateDescription}
+                        className="text-[11px] font-semibold text-purple hover:underline">
+                        {formData.identity.description?.trim() ? 'Régénérer' : 'Générer le résumé'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleGenerateAiSummary}
+                        disabled={aiSummaryLoading}
+                        className="text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                        {aiSummaryLoading ? 'IA…' : 'Résumé IA'}
+                      </button>
+                    </div>
+                  </div>
+                {aiSummaryError && (
+                  <p className="mt-1 text-xs text-red-500">{aiSummaryError}</p>
+                )}
                 {isEditing ? (
                   <textarea className={inputCls} rows={4} value={formData.identity.description ?? ''}
                     onChange={e => updateIdentity('description', e.target.value)} />
@@ -971,6 +1146,15 @@ export default function FicheCandidat() {
                     ))}
                   </select>
                 ) : <p className={valueCls}>{formData.education?.school_level ? SCHOOL_LEVEL_LABELS[formData.education.school_level] : '—'}</p>}
+              </Field>
+              <Field label="Justification du niveau">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.education?.justification ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, education: { ...prev.education, justification: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.education?.justification || '—'}</p>}
               </Field>
               <Field label="Dernier diplôme obtenu">
                 {isEditing ? (
@@ -1090,6 +1274,28 @@ export default function FicheCandidat() {
                     value={formData.profile?.strengths_and_improvements ?? ''}
                     onChange={e => updateProfile('strengths_and_improvements', e.target.value)} />
                 ) : <p className={valueCls}>{formData.profile?.strengths_and_improvements || '—'}</p>}
+              </Field>
+              <Field label="Autres langues">
+                {isEditing ? (
+                  <input className={inputCls}
+                    value={(formData.profile?.other_languages ?? []).join(', ')}
+                    onChange={e => updateProfile('other_languages', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} />
+                ) : (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {formData.profile?.other_languages?.length ? formData.profile.other_languages.map((l, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{l}</span>
+                    )) : <p className={valueCls}>—</p>}
+                  </div>
+                )}
+              </Field>
+              <Field label="Prêt à relever des défis">
+                {isEditing ? (
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="rounded" checked={!!formData.profile?.ready_for_challenges}
+                      onChange={e => updateProfile('ready_for_challenges', e.target.checked)} />
+                    <span className="text-sm text-gray-700">Oui</span>
+                  </label>
+                ) : <p className={valueCls}>{formData.profile?.ready_for_challenges ? 'Oui' : 'Non'}</p>}
               </Field>
             </div>
           </Card>
@@ -1255,8 +1461,243 @@ export default function FicheCandidat() {
                     } : prev)} />
                 ) : <p className={valueCls}>{formData.synthesis?.other_recommendations || '—'}</p>}
               </Field>
+              <Field label="Note importante">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.synthesis?.important_note ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, synthesis: { ...prev.synthesis, important_note: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.synthesis?.important_note || '—'}</p>}
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Lieu">
+                  {isEditing ? (
+                    <input className={inputCls} value={formData.synthesis?.location ?? ''}
+                      onChange={e => setFormData(prev => prev ? {
+                        ...prev, synthesis: { ...prev.synthesis, location: e.target.value }
+                      } : prev)} />
+                  ) : <p className={valueCls}>{formData.synthesis?.location || '—'}</p>}
+                </Field>
+                <Field label="Date">
+                  {isEditing ? (
+                    <input type="date" className={inputCls}
+                      value={formData.synthesis?.date?.slice(0, 10) ?? ''}
+                      onChange={e => setFormData(prev => prev ? {
+                        ...prev, synthesis: { ...prev.synthesis, date: e.target.value }
+                      } : prev)} />
+                  ) : <p className={valueCls}>{formData.synthesis?.date ? new Date(formData.synthesis.date).toLocaleDateString('fr-FR') : '—'}</p>}
+                </Field>
+              </div>
+              <Field label="Interviewé par">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.synthesis?.interviewed_by ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, synthesis: { ...prev.synthesis, interviewed_by: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.synthesis?.interviewed_by || '—'}</p>}
+              </Field>
             </div>
           </Card>
+
+          {/* Suivi France Travail / Mission Locale */}
+          <Card>
+            <SectionTitle>Suivi France Travail & Mission Locale</SectionTitle>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Inscrit France Travail">
+                  {isEditing ? (
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" className="rounded" checked={!!formData.support?.france_travail_registered}
+                        onChange={e => setFormData(prev => prev ? {
+                          ...prev, support: { ...prev.support, france_travail_registered: e.target.checked }
+                        } : prev)} />
+                      <span className="text-sm text-gray-700">Oui</span>
+                    </label>
+                  ) : <p className={valueCls}>{formData.support?.france_travail_registered ? 'Oui' : 'Non'}</p>}
+                </Field>
+                <Field label="Inscrit Mission Locale">
+                  {isEditing ? (
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" className="rounded" checked={!!formData.support?.mission_locale_registered}
+                        onChange={e => setFormData(prev => prev ? {
+                          ...prev, support: { ...prev.support, mission_locale_registered: e.target.checked }
+                        } : prev)} />
+                      <span className="text-sm text-gray-700">Oui</span>
+                    </label>
+                  ) : <p className={valueCls}>{formData.support?.mission_locale_registered ? 'Oui' : 'Non'}</p>}
+                </Field>
+              </div>
+              <Field label="Agence France Travail">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.support?.france_travail_agency ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, support: { ...prev.support, france_travail_agency: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.support?.france_travail_agency || '—'}</p>}
+              </Field>
+              <Field label="Ville Mission Locale">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.support?.mission_locale_city ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, support: { ...prev.support, mission_locale_city: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.support?.mission_locale_city || '—'}</p>}
+              </Field>
+            </div>
+          </Card>
+
+          {/* Projet professionnel & Recherche */}
+          <Card>
+            <SectionTitle>Projet professionnel & Recherche</SectionTitle>
+            <div className="space-y-4">
+              <Field label="Secteurs d'activité souhaités">
+                {isEditing ? (
+                  <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                    {ALL_DESIRED_SECTORS.map(s => (
+                      <label key={s} className="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" className="accent-blue-600 h-4 w-4"
+                          checked={formData.desired_sectors?.includes(s) ?? false}
+                          onChange={() => setFormData(prev => prev ? {
+                            ...prev,
+                            desired_sectors: prev.desired_sectors?.includes(s)
+                              ? prev.desired_sectors.filter(x => x !== s)
+                              : [...(prev.desired_sectors ?? []), s],
+                          } : prev)} />
+                        <span>{s}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {formData.desired_sectors?.length
+                      ? formData.desired_sectors.map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{s}</span>
+                        ))
+                      : <p className={valueCls}>—</p>}
+                  </div>
+                )}
+              </Field>
+              <Field label="Compétences attendues de l'entreprise">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.expected_company_skills?.join(', ') ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, expected_company_skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                    } : prev)} />
+                ) : (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {formData.expected_company_skills?.length
+                      ? formData.expected_company_skills.map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{s}</span>
+                        ))
+                      : <p className={valueCls}>—</p>}
+                  </div>
+                )}
+              </Field>
+              <Field label="Motivation pour le domaine">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.job_info?.domain_motivation ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, job_info: { ...prev.job_info, domain_motivation: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.job_info?.domain_motivation || '—'}</p>}
+              </Field>
+              <Field label="Questions / préoccupations">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.job_info?.questions_concerns ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, job_info: { ...prev.job_info, questions_concerns: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.job_info?.questions_concerns || '—'}</p>}
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Disponible le week-end">
+                  {isEditing ? (
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" className="rounded" checked={!!formData.job_info?.weekend_work}
+                        onChange={e => setFormData(prev => prev ? {
+                          ...prev, job_info: { ...prev.job_info, weekend_work: e.target.checked }
+                        } : prev)} />
+                      <span className="text-sm text-gray-700">Oui</span>
+                    </label>
+                  ) : <p className={valueCls}>{formData.job_info?.weekend_work ? 'Oui' : 'Non'}</p>}
+                </Field>
+                <Field label="Source de découverte">
+                  {isEditing ? (
+                    <select className={selectCls} value={formData.job_info?.discovery_source ?? ''}
+                      onChange={e => setFormData(prev => prev ? {
+                        ...prev, job_info: { ...prev.job_info, discovery_source: (e.target.value || undefined) as DiscoverySource }
+                      } : prev)}>
+                      <option value="">Non renseigné</option>
+                      {Object.entries(DISCOVERY_SOURCE_LABELS).map(([val, lbl]) => (
+                        <option key={val} value={val}>{lbl}</option>
+                      ))}
+                    </select>
+                  ) : <p className={valueCls}>{formData.job_info?.discovery_source ? DISCOVERY_SOURCE_LABELS[formData.job_info.discovery_source] || prettyEnum(formData.job_info.discovery_source) : '—'}</p>}
+                </Field>
+              </div>
+            </div>
+          </Card>
+
+          {/* Contact d'urgence */}
+          {formData.emergency_contact && (formData.emergency_contact.last_name || formData.emergency_contact.first_name || formData.emergency_contact.phone) && (
+            <Card>
+              <SectionTitle>Contact d'urgence</SectionTitle>
+              <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Signature recruteur">
+                  {isEditing ? (
+                    <input className={inputCls} value={formData.synthesis?.recruiter_signature ?? ''}
+                      onChange={e => setFormData(prev => prev ? {
+                        ...prev, synthesis: { ...prev.synthesis, recruiter_signature: e.target.value }
+                      } : prev)} />
+                  ) : formData.synthesis?.recruiter_signature?.startsWith('data:image/') ? (
+                    <img src={formData.synthesis.recruiter_signature} alt="Signature recruteur" className="mt-1 max-h-16 object-contain" />
+                  ) : <p className={valueCls}>{formData.synthesis?.recruiter_signature || '—'}</p>}
+                </Field>
+                <Field label="Signature candidat">
+                  {isEditing ? (
+                    <input className={inputCls} value={formData.synthesis?.candidate_signature ?? ''}
+                      onChange={e => setFormData(prev => prev ? {
+                        ...prev, synthesis: { ...prev.synthesis, candidate_signature: e.target.value }
+                      } : prev)} />
+                  ) : formData.synthesis?.candidate_signature?.startsWith('data:image/') ? (
+                    <img src={formData.synthesis.candidate_signature} alt="Signature candidat" className="mt-1 max-h-16 object-contain" />
+                  ) : <p className={valueCls}>{formData.synthesis?.candidate_signature || '—'}</p>}
+                </Field>
+              </div>
+                <Field label="Lien avec le candidat">
+                  {isEditing ? (
+                    <input className={inputCls} value={formData.emergency_contact?.relationship ?? ''}
+                      onChange={e => setFormData(prev => prev ? {
+                        ...prev, emergency_contact: { ...prev.emergency_contact, relationship: e.target.value }
+                      } : prev)} />
+                  ) : <p className={valueCls}>{formData.emergency_contact?.relationship || '—'}</p>}
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Téléphone">
+                    {isEditing ? (
+                      <input type="tel" className={inputCls} value={formData.emergency_contact?.phone ?? ''}
+                        onChange={e => setFormData(prev => prev ? {
+                          ...prev, emergency_contact: { ...prev.emergency_contact, phone: e.target.value }
+                        } : prev)} />
+                    ) : <p className={valueCls}>{formData.emergency_contact?.phone || '—'}</p>}
+                  </Field>
+                  <Field label="Email">
+                    {isEditing ? (
+                      <input type="email" className={inputCls} value={formData.emergency_contact?.email ?? ''}
+                        onChange={e => setFormData(prev => prev ? {
+                          ...prev, emergency_contact: { ...prev.emergency_contact, email: e.target.value }
+                        } : prev)} />
+                    ) : <p className={valueCls}>{formData.emergency_contact?.email || '—'}</p>}
+                  </Field>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Historique du candidat */}
           {id && <div className="md:col-span-2"><CandidateHistory candidateId={id} /></div>}
@@ -1414,6 +1855,7 @@ export default function FicheCandidat() {
         <MailModal
           defaultTo={formData.identity.email}
           candidateName={formData.identity.full_name}
+          defaultTemplateId={mailMode === 'cv-import' ? cvImportTemplateId : undefined}
           onCustomSend={mailMode === 'cv-import' ? handleSendCvImportMail : undefined}
           onClose={() => setMailMode(null)}
         />
@@ -1440,7 +1882,7 @@ export default function FicheCandidat() {
           onClose={() => setShowClassMarker(false)}
           firstName={first}
           lastName={last}
-          tpType={formData.tp_type}
+          tpTypes={formData.tp_types ?? []}
           candidateId={formData._id}
         />
       )}
@@ -1528,6 +1970,35 @@ export default function FicheCandidat() {
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setUnavailableModalOpen(false)}>Annuler</Button>
               <Button variant="primary" size="sm" disabled={!availabilityDate} onClick={confirmUnavailable}>Confirmer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {contractModalOpen && (
+        <ContractModal
+          candidate={formData}
+          onSuccess={(updated) => {
+            setFormData(updated)
+            setContractModalOpen(false)
+          }}
+          onClose={() => setContractModalOpen(false)}
+        />
+      )}
+
+      {aiSummaryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAiSummaryOpen(false)}>
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Résumé IA</h3>
+            <p className="mt-1 text-sm text-gray-500">Modifie le résumé généré par l'IA si nécessaire, puis enregistre.</p>
+            <div className="mt-4">
+              <textarea className={inputCls} rows={6} value={aiSummaryText}
+                onChange={e => setAiSummaryText(e.target.value)} />
+            </div>
+            {aiSummaryError && <p className="mt-2 text-xs text-red-500">{aiSummaryError}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setAiSummaryOpen(false)}>Annuler</Button>
+              <Button variant="primary" size="sm" disabled={!aiSummaryText.trim()} onClick={handleSaveAiSummary}>Enregistrer</Button>
             </div>
           </div>
         </div>

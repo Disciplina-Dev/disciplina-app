@@ -31,12 +31,35 @@ db['candidates'].createIndex({
 db['candidates'].createIndex({
   "candidate_id": 1
 });
-// Recherche full-text (candidatesPage → search) sur le résumé auto-généré du candidat.
-db['candidates'].createIndex({
-  "identity.description": "text"
-});
+// Recherche full-text (candidatesPage → search) : pondération nom 10× + stemming français.
+db['candidates'].createIndex(
+  {
+    "identity.description": "text",
+    "identity.full_name": "text"
+  },
+  {
+    default_language: "french",
+    weights: { "identity.full_name": 10, "identity.description": 1 },
+    name: "candidate_text_search"
+  }
+);
 
 db.createCollection('drive_folder_config');
+
+db.createCollection('kpis');
+// Fusion des ex-tables MySQL commercial_kpi / rh_kpi (#513) : kind discrimine
+// les metrics (site pour commercial, sector pour rh). Clé de bucket unique ;
+// le filtre partiel exclut les user_id null (orphelins hérités) car un index
+// unique Mongo, contrairement à MySQL, rejette les doublons de null.
+db['kpis'].createIndex({
+  "kind": 1,
+  "user_id": 1,
+  "site": 1,
+  "sector": 1,
+  "year": 1,
+  "month": 1,
+  "week": 1
+}, { unique: true, partialFilterExpression: { user_id: { $type: "number" } } });
 
 db.createCollection('mail_signatures');
 db['mail_signatures'].createIndex({
@@ -71,6 +94,11 @@ db['notifications'].createIndex({
 });
 db['notifications'].createIndex({
   "created_at": 1
+});
+
+db.createCollection('offer_history');
+db['offer_history'].createIndex({
+  "offer_id": 1
 });
 
 db.createCollection('offers');

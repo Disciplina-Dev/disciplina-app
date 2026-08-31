@@ -16,6 +16,23 @@ export interface Referents {
   recruitmentReferents?: ReferentDetails | null
 }
 
+export interface OfferTp {
+  tpType: string | null
+  missions: string[]
+  descriptionMissions: string[]
+  otherDescriptionMissions?: string | null
+  otherMissions?: string | null
+}
+
+export interface OfferHistoryEntry {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  text: string
+  ownerEmail: string | null
+  createdAt: string
+}
+
 export interface Job {
   id: string
   needsAnalysisId?: string | null
@@ -23,9 +40,10 @@ export interface Job {
   softSkills?: string | null
   companyName: string
   ageRange: string
-  desiredTP: string | null
+  desiredTp: OfferTp[]
   desiredSex: string | null
   drivingLicencseB: boolean | null
+  hasVehicle: boolean | null
   professionalExperience: boolean | null
   status: string | null
   localisation: string[] | null
@@ -33,5 +51,4 @@ export interface Job {
   salerInfo?: SalerInfo | null
   referents?: Referents | null
   title?: string | null
-  missions?: string[] | null
 }

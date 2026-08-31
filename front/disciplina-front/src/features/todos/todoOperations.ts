@@ -3,7 +3,23 @@ import { gql } from 'urql'
 export const MY_TODOS_QUERY = gql`
   query MyTodos {
     myTodos {
-      id userId title description deadline position status source sourceRef createdAt updatedAt
+      id userId assignedBy title description deadline position status source sourceRef groupId createdAt updatedAt
+    }
+  }
+`
+
+export const MY_TODO_GROUPS_QUERY = gql`
+  query MyTodoGroups {
+    myTodoGroups {
+      id userId name createdAt updatedAt
+    }
+  }
+`
+
+export const TODO_GROUPS_FOR_USER_QUERY = gql`
+  query TodoGroupsForUser($userId: Int!) {
+    todoGroupsForUser(userId: $userId) {
+      id userId name createdAt updatedAt
     }
   }
 `
@@ -11,7 +27,7 @@ export const MY_TODOS_QUERY = gql`
 export const CREATE_TODO_MUTATION = gql`
   mutation CreateTodo($input: CreateTodoInput!) {
     createTodo(input: $input) {
-      id userId title description deadline position status source sourceRef createdAt updatedAt
+      id userId assignedBy title description deadline position status source sourceRef groupId createdAt updatedAt
     }
   }
 `
@@ -19,7 +35,15 @@ export const CREATE_TODO_MUTATION = gql`
 export const UPDATE_TODO_MUTATION = gql`
   mutation UpdateTodo($id: Int!, $input: UpdateTodoInput!) {
     updateTodo(id: $id, input: $input) {
-      id userId title description deadline position status source sourceRef createdAt updatedAt
+      id userId assignedBy title description deadline position status source sourceRef groupId createdAt updatedAt
+    }
+  }
+`
+
+export const CREATE_TODO_GROUP_MUTATION = gql`
+  mutation CreateTodoGroup($name: String!, $forUserId: Int) {
+    createTodoGroup(name: $name, forUserId: $forUserId) {
+      id userId name createdAt updatedAt
     }
   }
 `

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useClient } from 'urql'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useBlacklistStore } from '@/store/blacklistStore'
+import { useQuarantineStore } from '@/store/quarantineStore'
 import {
   GET_COMPANIES,
   GET_COMPANY_BY_SIRET,
@@ -11,6 +12,10 @@ import {
   DELETE_COMPANY,
   BLACKLIST_COMPANY,
   UNBLACKLIST_COMPANY,
+  UPDATE_COMPANY_CONFLICT,
+  RESOLVE_COMPANY_CONFLICT,
+  DELETE_COMPANY_CONFLICT,
+  DELETE_COMPANY_CONFLICTS_BY_TYPE,
   GET_CANDIDATES,
   GET_CANDIDATE_STATS,
   GET_CANDIDATES_PAGE,
@@ -21,9 +26,13 @@ import {
   CREATE_CANDIDATE_DRIVE_FOLDER,
   CREATE_NEEDS_ANALYSIS,
   GET_NEEDS_ANALYSES_BY_COMPANY,
+  GET_NEEDS_ANALYSES_PAGE,
+  NEEDS_ANALYSES_FOR_DASHBOARD,
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
+  UPDATE_NEEDS_ANALYSIS_AB_STATUS,
+  SET_AB_RELANCE_DISABLED,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
@@ -31,18 +40,26 @@ import {
   GET_CANDIDATE_HISTORY,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
+  GET_OFFER_HISTORY,
+  ADD_OFFER_HISTORY_ENTRY,
+  DELETE_OFFER_HISTORY_ENTRY,
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
 import { apiJson } from '@/api/httpClient'
 import type { PageInfo } from '@/types/pagination'
+import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import type { OfferFilterInput } from '@/features/matching/services/jobFilters'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
 
 export interface CandidateServerFilters {
   trainingSite?: TrainingSite
   status?: CandidateStatus
+  statusIn?: CandidateStatus[]
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
+  /** Sexe du candidat (FILLE / GARCON), exclusif. */
+  sex?: string
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType[]
@@ -58,7 +75,7 @@ export interface CandidateServerFilters {
   /** Filtrer par le RH qui a mené l'entretien (nom complet). */
   interviewedBy?: string
 }
-import { candidateGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
+import { candidateGraphqlClient, offerGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -144,8 +161,6 @@ export function useCreateCompany() {
 
   const createCompany = (input: any) => {
     return executeMutation({ input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
@@ -188,8 +203,6 @@ export function useUpdateCompany() {
 
   const update = async (id: number, input: any) => {
     return executeMutation({ id, input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.updateCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.updateCompany.userID);
@@ -270,6 +283,84 @@ export function useUnblacklistCompany() {
   return { unblacklistCompany, result }
 }
 
+export function useUpdateCompanyConflict() {
+  const updateCompany = useQuarantineStore((s) => s.updateCompany)
+  const [result, executeMutation] = useMutation(UPDATE_COMPANY_CONFLICT)
+
+  const updateCompanyConflict = (id: number, input: Record<string, unknown>) => {
+    return executeMutation({ id, input }).then((response) => {
+      const updated = response.data?.updateCompanyConflict
+      if (updated) {
+        updateCompany(String(id), {
+          nom_commercial: updated.name,
+          representant_legal: updated.legalReferent,
+          telephone: updated.phone,
+          email: updated.email,
+          adresse: updated.address,
+          secteur: updated.sector,
+          metier: updated.mainActivity,
+          siret: updated.siret,
+          idcc: updated.idcc,
+          note: updated.notes,
+          conclusion: updated.conclusion,
+          proprietaire_id: updated.userID ?? null,
+        })
+      }
+      return response
+    })
+  }
+
+  return { updateCompanyConflict, result }
+}
+
+export function useResolveCompanyConflict() {
+  const removeCompany = useQuarantineStore((s) => s.removeCompany)
+  const [result, executeMutation] = useMutation(RESOLVE_COMPANY_CONFLICT)
+
+  const resolveCompanyConflict = (id: number) => {
+    return executeMutation({ id }).then((response) => {
+      if (response.data?.resolveCompanyConflict) {
+        removeCompany(String(id))
+      }
+      return response
+    })
+  }
+
+  return { resolveCompanyConflict, result }
+}
+
+export function useDeleteCompanyConflict() {
+  const removeCompany = useQuarantineStore((s) => s.removeCompany)
+  const [result, executeMutation] = useMutation(DELETE_COMPANY_CONFLICT)
+
+  const deleteCompanyConflict = (id: number) => {
+    return executeMutation({ id }).then((response) => {
+      if (response.data?.deleteCompanyConflict) {
+        removeCompany(String(id))
+      }
+      return response
+    })
+  }
+
+  return { deleteCompanyConflict, result }
+}
+
+export function useDeleteCompanyConflictsByType() {
+  const removeByConflictType = useQuarantineStore((s) => s.removeByConflictType)
+  const [result, executeMutation] = useMutation(DELETE_COMPANY_CONFLICTS_BY_TYPE)
+
+  const deleteCompanyConflictsByType = (conflictType: string) => {
+    return executeMutation({ conflictType }).then((response) => {
+      if (typeof response.data?.deleteCompanyConflictsByType === 'number') {
+        removeByConflictType(conflictType)
+      }
+      return response
+    })
+  }
+
+  return { deleteCompanyConflictsByType, result }
+}
+
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
 function mapTpType(raw: string): TitleProfessionalType {
@@ -288,7 +379,6 @@ function fromGql(c: any): Candidate {
     owner: c.owner
       ? { user_id: c.owner.userId, name: c.owner.name, sector: c.owner.sector ?? undefined }
       : undefined,
-    tp_type: mapTpType(c.tpType),
     tp_types: (c.tpTypes?.length ? c.tpTypes : c.tpType ? [c.tpType] : []).map(mapTpType),
     status: c.status as CandidateStatus,
     training_site: c.trainingSite,
@@ -298,6 +388,10 @@ function fromGql(c: any): Candidate {
     immersion_end_date: c.immersionEndDate ?? undefined,
     immersion_company_id: c.immersionCompanyId ?? undefined,
     immersion_company_name: c.immersionCompanyName ?? undefined,
+    contract_offer_id: c.contractOfferId ?? undefined,
+    contract_company_id: c.contractCompanyId ?? undefined,
+    contract_company_name: c.contractCompanyName ?? undefined,
+    contract_start_date: c.contractStartDate ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -427,13 +521,22 @@ function fromGql(c: any): Candidate {
           email: c.emergencyContact.email ?? undefined,
         }
       : undefined,
+    consentments: c.consentments
+      ? {
+          data_processing: c.consentments.dataProcessing,
+          data_sharing: c.consentments.dataSharing,
+          ai_processing: c.consentments.aiProcessing,
+          photo_processing: c.consentments.photoProcessing,
+          consent_date: c.consentments.consentDate,
+          consent_version: c.consentments.consentVersion,
+        }
+      : undefined,
   }
 }
 
 /** Maps frontend Candidate (snake_case) → GraphQL UpdateCandidateInput (camelCase) for mutation */
 function toGqlUpdateInput(c: Candidate): any {
   return {
-    tpType: c.tp_type,
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
@@ -441,6 +544,10 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
     ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
     ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
+    ...(c.contract_offer_id !== undefined && { contractOfferId: c.contract_offer_id }),
+    ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
+    ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
+    ...(c.contract_start_date !== undefined && { contractStartDate: c.contract_start_date }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
@@ -566,24 +673,28 @@ export function useCandidates() {
   }
 }
 
+export type CandidateSearchField = 'NAME' | 'PHONE' | 'EMAIL';
+
 /**
  * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
- * Returns { candidates, pageInfo, loading, error, refetch }.
+ * Returns { candidates, pageInfo, totalCount, loading, error, refetch }.
  */
-export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters) {
+export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters, searchField?: CandidateSearchField) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATES_PAGE,
-    variables: { first, after, search, filters },
+    variables: { first, after, search, searchField, filters },
     context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
     requestPolicy: 'network-only',
   })
 
   const candidates: Candidate[] = (result.data?.candidatesPage?.edges ?? []).map((edge: { node: Record<string, unknown> }) => fromGql(edge.node))
   const pageInfo: PageInfo | undefined = result.data?.candidatesPage?.pageInfo
+  const totalCount: number = result.data?.candidatesPage?.totalCount ?? 0
 
   return {
     candidates,
     pageInfo,
+    totalCount,
     loading: result.fetching,
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
@@ -603,7 +714,7 @@ export function useUpdateCandidate() {
 }
 
 interface CreateCandidateInput {
-  tpType: string
+  tpTypes: string[]
   status: string
   identity: { fullName: string; email: string; phone: string; [key: string]: any }
   education?: { schoolLevel?: string | null; [key: string]: any } | null
@@ -711,6 +822,40 @@ export function useDeleteCandidateHistoryEntry() {
   return { deleteHistoryEntry }
 }
 
+export function useOfferHistory(offerId: string | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_OFFER_HISTORY,
+    variables: { offerId: offerId ?? '' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/offers` },
+    pause: offerId === null,
+  })
+
+  const history: any[] = result.data?.offerHistory ?? []
+
+  return {
+    history,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+export function useAddOfferHistoryEntry() {
+  const addEntry = (offerId: string, text: string) => {
+    return offerGraphqlClient.mutation(ADD_OFFER_HISTORY_ENTRY, { offerId, text }).toPromise()
+  }
+
+  return { addEntry }
+}
+
+export function useDeleteOfferHistoryEntry() {
+  const deleteEntry = (id: string) => {
+    return offerGraphqlClient.mutation(DELETE_OFFER_HISTORY_ENTRY, { id }).toPromise()
+  }
+
+  return { deleteEntry }
+}
+
 export function useCreateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(CREATE_NEEDS_ANALYSIS)
 
@@ -724,6 +869,32 @@ export function useCreateNeedsAnalysis() {
   }
 
   return { createNeedsAnalysis, result }
+}
+
+/**
+ * Page paginée (curseur) de toutes les analyses de besoin — espace matching RH.
+ * Retourne { items, pageInfo, loading, error, refetch }.
+ */
+export function useNeedsAnalysesPage(first?: number, after?: string, filter?: OfferFilterInput) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_NEEDS_ANALYSES_PAGE,
+    variables: { first, after, filter },
+    context: { url: NEEDS_ANALYSIS_URL },
+    requestPolicy: 'network-only',
+  })
+
+  const items: NeedsAnalysis[] = (result.data?.needsAnalysesPage?.edges ?? []).map(
+    (edge: { node: NeedsAnalysis }) => edge.node,
+  )
+  const pageInfo: PageInfo | undefined = result.data?.needsAnalysesPage?.pageInfo
+
+  return {
+    items,
+    pageInfo,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
 }
 
 export function useNeedsAnalysesByCompany(companyID: number | null) {
@@ -778,13 +949,23 @@ export function useCreateContactLog() {
 }
 
 export function useNeedsAnalysis(id: string | null) {
-  const [result] = useQuery({
+  const [result, reexecuteQuery] = useQuery({
     query: GET_NEEDS_ANALYSIS,
     variables: { id: id ?? 0 },
     pause: id === null,
     context: { url: NEEDS_ANALYSIS_URL },
   })
-  return result
+  return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useUpdateNeedsAnalysisAbStatus() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_AB_STATUS)
+
+  const updateAbStatus = (id: string, abStatus: string | null) => {
+    return executeMutation({ id, abStatus }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateAbStatus, result }
 }
 
 export function useDeleteNeedsAnalysis() {
@@ -800,6 +981,21 @@ export function useDeleteNeedsAnalysis() {
   }
 
   return { deleteNeedsAnalysis, result }
+}
+
+export function useSetAbRelanceDisabled() {
+  const [result, executeMutation] = useMutation(SET_AB_RELANCE_DISABLED)
+
+  const setAbRelanceDisabled = (id: string, disabled: boolean) => {
+    return executeMutation({ id, disabled }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('setAbRelanceDisabled failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { setAbRelanceDisabled, result }
 }
 
 export function useUpdateNeedsAnalysis() {
@@ -872,4 +1068,34 @@ export function useCreateFilizFolder() {
     })
 
   return { createFilizFolder }
+}
+
+export interface NeedsAnalysisDashboardItem {
+  id: string
+  companyName: string | null
+  positionsCount: number
+  createdAt: string | null
+  status: string
+}
+
+export function useNeedsAnalysesForDashboard(limit = 5) {
+  const [result, reexecuteQuery] = useQuery({
+    query: NEEDS_ANALYSES_FOR_DASHBOARD,
+    variables: { limit },
+    context: { url: NEEDS_ANALYSIS_URL },
+    requestPolicy: 'network-only',
+  })
+
+  const items: NeedsAnalysisDashboardItem[] = (result.data?.needsAnalysesForDashboard?.items ?? []).map(
+    (item: NeedsAnalysisDashboardItem) => item,
+  )
+  const totalCount: number = result.data?.needsAnalysesForDashboard?.totalCount ?? 0
+
+  return {
+    items,
+    totalCount,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
 }

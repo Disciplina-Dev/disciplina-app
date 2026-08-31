@@ -97,18 +97,36 @@ export interface Referents {
     recruitment_referents?: ReferentDetails;
 }
 
+// Créneau horaire d'un jour de travail du poste (optionnel, saisi par jour dans l'AB).
+export interface ScheduleSlot {
+    day?: string | null;
+    start_hour?: string | null;
+    end_hour?: string | null;
+}
+
 export interface OfferCriteria {
     education_level?: EducationLevel | null;
     driving_license?: boolean;
+    has_vehicle?: boolean;
     experience_required?: boolean;
     training_domain?: TrainingDomain | null;
     age_min?: number | null;
     age_max?: number | null;
     desired_sex?: string | null;
     soft_skills?: string | null;
-    schedule_options?: string[];
+    schedule_options?: ScheduleSlot[];
     conditions?: string | null;
     additional_comments?: string | null;
+}
+
+// Titre professionnel visé par le poste, avec ses missions propres : un même poste
+// peut relever de plusieurs TP (ex. CC ou NTC) dont les missions diffèrent.
+export interface PositionTp {
+    tp_type?: TitleProfessionalType | null;
+    missions?: string[];
+    description_missions?: string[];
+    other_missions?: string | null;
+    other_description_missions?: string | null;
 }
 
 // Poste demandé par l'AB (formulaire commercial). Contient uniquement la donnée de
@@ -116,14 +134,11 @@ export interface OfferCriteria {
 // dans la collection `offers`, créée au premier envoi en signature.
 export interface Position {
     localisation?: Localisation[];
-    tp_type?: TitleProfessionalType | null;
+    desired_tp?: PositionTp[];
     training_domain?: TrainingDomain | null;
     job_role?: string | null;
     title?: string;
-    missions?: string[];
-    description_missions?: string[];
-    other_description_missions?: string | null;
-    other_missions?: string | null;
+    count?: number;
     criteria?: OfferCriteria;
 }
 
@@ -137,7 +152,24 @@ export interface NeedsAnalysis {
     immersion_period?: ImmersionPeriod;
     training_days?: string;
     signature_request_id?: string | null;
+    /** Date du dernier envoi en signature (mail « AB à signer ») → point de départ de la relance auto. */
+    signature_sent_at?: Date | null;
+    /** Lien DocuSeal de signature, conservé pour générer le bouton des relances. */
+    signature_url?: string | null;
+    /** Date de la dernière relance de signature envoyée automatiquement (null = jamais). */
+    last_relance_at?: Date | null;
+    /** Si vrai, la relance automatique de signature est désactivée (toggle commercial). */
+    is_relance_disabled?: boolean;
     status?: NeedsAnalysisStatus;
+    tags?: string[];
+    /**
+     * Statut d'onglet (liste matching RH) forcé manuellement. À défaut, le statut
+     * est dérivé des offres (ACTIVE/ARCHIVED) ou du soft delete (INACTIVE).
+     */
+    ab_status?: 'ACTIVE' | 'ARCHIVED' | 'INACTIVE' | null;
+    // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
+    // d'être retirée — on conserve le document pour l'historique.
+    is_deleted?: boolean;
     created_at?: Date;
     updated_at?: Date;
 }
@@ -166,5 +198,6 @@ export interface NeedsAnalysisWriteInput {
     trainingDays?: string;
     yousignSignatureRequestID?: string | null;
     status?: NeedsAnalysisStatus;
+    tags?: string[];
     createdAt?: string;
 }

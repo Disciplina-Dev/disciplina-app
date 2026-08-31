@@ -1,20 +1,24 @@
 import { CompaniesService } from '../../services/CompaniesService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { CompanyConflictService } from '../../services/CompanyConflictService';
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { ContactLogService } from '../../services/ContactLogService';
-import { toBlacklistedCompany } from '../../services/mappers/company.mapper';
+import { toBlacklistedCompany, toCompanyConflict, toCompanies } from '../../services/mappers/company.mapper';
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
-import { CompaniesRow } from '../../types/db-rows.types';
+import { CompaniesRow, CompanyConflictRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
+import { NotificationService } from '../../services/NotificationService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { permission } from 'node:process';
+import { logger } from '../../external/logger';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
+const companyConflictService = new CompanyConflictService();
 const contactLogService = new ContactLogService();
 const userService = new UserService();
+const notificationService = new NotificationService();
 
 interface CompanyInput {
     userID?: number | null;
@@ -35,6 +39,36 @@ interface CompanyInput {
     relanceType?: number | null;
     relanceTemplateId?: string | null;
     relanceChannel?: string | null;
+}
+
+interface CompanyConflictInput {
+    legalReferent?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    sector?: string | null;
+    mainActivity?: string | null;
+    siret?: string | null;
+    idcc?: string | null;
+    ape?: string | null;
+    userId?: number | null;
+}
+
+function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConflictRow> {
+    const row: Partial<CompanyConflictRow> = {};
+    if (input.legalReferent !== undefined) row.legal_referent = input.legalReferent;
+    if (input.name !== undefined) row.name = input.name;
+    if (input.phone !== undefined) row.phone = input.phone;
+    if (input.email !== undefined) row.email = input.email;
+    if (input.address !== undefined) row.address = input.address;
+    if (input.sector !== undefined) row.sector = input.sector;
+    if (input.mainActivity !== undefined) row.main_activity = input.mainActivity;
+    if (input.siret !== undefined) row.siret = input.siret;
+    if (input.idcc !== undefined) row.idcc = input.idcc;
+    if (input.ape !== undefined) row.ape = input.ape;
+    if (input.userId !== undefined) row.user_id = input.userId;
+    return row;
 }
 
 const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
@@ -74,6 +108,19 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     return row;
 }
 
+function toCompanyFilters(filtersInput?: Record<string, unknown>): CompanyFilters | undefined {
+    if (!filtersInput) return undefined;
+    return {
+        status: filtersInput.status as string[] | undefined,
+        userID: filtersInput.userID as number | undefined,
+        sector: filtersInput.sector as string | undefined,
+        relance: filtersInput.relance as string | undefined,
+        unassigned: filtersInput.unassigned as boolean | undefined,
+        createdFrom: filtersInput.createdFrom as string | undefined,
+        createdTo: filtersInput.createdTo as string | undefined,
+    };
+}
+
 export const resolvers = {
     Query: {
         companies: async (
@@ -88,18 +135,9 @@ export const resolvers = {
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
-            const filters: CompanyFilters | undefined = filtersInput
-                ? {
-                      status: filtersInput.status as string[] | undefined,
-                      userID: filtersInput.userID as number | undefined,
-                      sector: filtersInput.sector as string | undefined,
-                      relance: filtersInput.relance as string | undefined,
-                      unassigned: filtersInput.unassigned as boolean | undefined,
-                      createdFrom: filtersInput.createdFrom as string | undefined,
-                      createdTo: filtersInput.createdTo as string | undefined,
-                  }
-                : undefined;
+            const filters = toCompanyFilters(filtersInput);
             const companies = await companiesService.findAll(pageSize, after, search, filters);
+            const totalCount = await companiesService.countAll(search, filters);
             const isRelanceMode = !!filters?.relance;
             const conn = buildConnection(
                 companies,
@@ -115,7 +153,20 @@ export const resolvers = {
                     },
                 })),
             );
-            return { ...conn, edges: enrichedEdges };
+            return { ...conn, edges: enrichedEdges, totalCount };
+        },
+
+        companiesBySiren: async (
+            _: unknown,
+            { first, after, filters: filtersInput }: PaginationArgs & { filters?: Record<string, unknown> },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const filters = toCompanyFilters(filtersInput);
+            const groups = await companiesService.findGroupedBySiren(pageSize, after, filters);
+            const totalCount = await companiesService.countGroupedBySiren(filters);
+            return { ...buildConnection(groups, (g) => g.siren, pageSize), totalCount };
         },
 
         // Liste légère (id + nom) pour les sélecteurs d'entreprise côté RH
@@ -185,6 +236,18 @@ export const resolvers = {
             return buildConnection(companies, (c) => String(c.id), search ? companies.length : pageSize);
         },
 
+        companyConflicts: async (
+            _: unknown,
+            { first, after, search, conflictType }: PaginationArgs & { search?: string; conflictType?: string },
+            context: any,
+        ) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const rows = await companyConflictService.findAll(pageSize, after, search, conflictType);
+            const conflicts = rows.map(toCompanyConflict);
+            return buildConnection(conflicts, (c) => String(c.id), search ? conflicts.length : pageSize);
+        },
+
         companyHistory: async (_: unknown, { companyID }: { companyID: number }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return companiesService.getHistory(companyID);
@@ -230,14 +293,41 @@ export const resolvers = {
             };
         },
         deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
-            if (context.user.role === JobRole.COMMERCIAL) {
-                const existing = await companiesService.findById(id);
-                if (existing?.userID && existing.userID !== context.user.id) {
-                    throw new Error('Forbidden: You can only delete your own companies');
+            authGuard(context.user, Permission.RESPONSABLE);
+            const existing = await companiesService.findById(id);
+            if (!existing) {
+                throw new Error('Company not found');
+            }
+            const deleted = await companiesService.delete(id);
+            if (deleted) {
+                const actorId = Number(context.user.id);
+                const actorName =
+                    [context.user.firstName, context.user.lastName].filter(Boolean).join(' ').trim() ||
+                    context.user.email ||
+                    `Utilisateur #${actorId}`;
+                const companyLabel = existing.name?.trim() || `Entreprise #${id}`;
+                const siretLabel = existing.siret?.trim() ? ` (SIRET ${existing.siret.trim()})` : '';
+                try {
+                    const responsables = await userService.findByPermissions([Permission.RESPONSABLE, Permission.ADMIN]);
+                    const recipients = responsables.filter((u) => u.id !== actorId);
+                    await Promise.all(
+                        recipients.map((user) =>
+                            notificationService.create({
+                                userId: user.id,
+                                type: 'company_deleted',
+                                category: 'company',
+                                level: 'warning',
+                                title: 'Entreprise supprimée',
+                                message: `${companyLabel}${siretLabel} a été supprimée par ${actorName}.`,
+                                link: '/commercial/portefeuille',
+                            }),
+                        ),
+                    );
+                } catch (err) {
+                    logger.error({ err, companyId: id }, 'Failed to notify responsables after company deletion');
                 }
             }
-            return companiesService.delete(id);
+            return deleted;
         },
         blacklistCompany: async (
             _: unknown,
@@ -263,6 +353,28 @@ export const resolvers = {
                 await needsAnalysisService.delete(na.id);
             }
             return companiesBlacklistService.blacklistCompany(companyId, reason, allBlacklist);
+        },
+        updateCompanyConflict: async (
+            _: unknown,
+            { id, input }: { id: number; input: CompanyConflictInput },
+            context: any,
+        ) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const row = await companyConflictService.updateConflict(id, mapConflictInputToRow(input));
+            return toCompanyConflict(row);
+        },
+        resolveCompanyConflict: async (_: unknown, { id }: { id: number }, context: any) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const company = await companyConflictService.resolveConflict(id);
+            return toCompanies(company);
+        },
+        deleteCompanyConflict: async (_: unknown, { id }: { id: number }, context: any) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            return companyConflictService.deleteConflict(id);
+        },
+        deleteCompanyConflictsByType: async (_: unknown, { conflictType }: { conflictType: string }, context: any) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            return companyConflictService.deleteConflictsByType(conflictType);
         },
         createContactLog: async (
             _: unknown,

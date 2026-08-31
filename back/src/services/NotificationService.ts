@@ -19,8 +19,8 @@ export class NotificationService {
         return notification;
     }
 
-    async listForUser(userId: number): Promise<Notification[]> {
-        return this.repository.findForUser(userId);
+    async listForUser(userId: number, category?: string): Promise<Notification[]> {
+        return this.repository.findForUser(userId, 50, category);
     }
 
     async countUnread(userId: number): Promise<number> {

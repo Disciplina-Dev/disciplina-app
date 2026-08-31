@@ -95,6 +95,9 @@ export const typeDefs = gql`
         REJECTED
         IMMERSING
         CONTRACT
+        PRESENT
+        ABSENT
+        APPOINTMENT_CANCELLED
     }
 
     enum ImmersionConclusion {
@@ -115,6 +118,7 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -137,6 +141,7 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -177,7 +182,23 @@ export const typeDefs = gql`
     type CompanyInfos {
         id: Int
         name: String
+        address: String
+        email: String
         activities: [String!]
+    }
+
+    type OfferTp {
+        tpType: DesiredTP
+        missions: [String!]!
+        descriptionMissions: [String!]!
+        otherMissions: String
+        otherDescriptionMissions: String
+    }
+
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
     }
 
     type Offer {
@@ -185,9 +206,10 @@ export const typeDefs = gql`
         id: String!
         companyName: String
         ageRange: String
-        desiredTP: DesiredTP
+        desiredTp: [OfferTp!]!
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
@@ -202,8 +224,9 @@ export const typeDefs = gql`
         companyInfos: CompanyInfos
         title: String
         jobRole: String
-        missions: [String]
         softSkills: String
+        schedule: [ScheduleSlot]
+        relaxedCriteria: [String!]
     }
 
     input MatchingCandidateInput {
@@ -221,9 +244,9 @@ export const typeDefs = gql`
         id: String!
         companyName: String
         ageRange: String
-        desiredTP: DesiredTP
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
@@ -268,6 +291,15 @@ export const typeDefs = gql`
         immersionEndDate: String
     }
 
+    type OfferHistoryEntry {
+        id: ID!
+        firstName: String
+        lastName: String
+        text: String!
+        ownerEmail: String
+        createdAt: String!
+    }
+
     type Query {
         offers: [Offer!]!
         matchOffer(id: String!): Offer!
@@ -276,6 +308,7 @@ export const typeDefs = gql`
         candidateMatchedOfferIds(candidateId: String!): [String!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
         offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
+        offerHistory(offerId: String!): [OfferHistoryEntry!]!
     }
 
     type Mutation {
@@ -298,7 +331,12 @@ export const typeDefs = gql`
             immersionEndDate: String!
             immersionLocation: String!
         ): Offer
-        createMatchSession(offerId: String!, companyEmail: String!, candidates: [ProposedCandidateInput!]!): String!
+        createMatchSession(
+            offerId: String!
+            companyEmail: String!
+            candidates: [ProposedCandidateInput!]!
+            templateId: String
+        ): String!
         setInterviewConclusion(
             offerId: String!
             candidateId: String!
@@ -307,6 +345,8 @@ export const typeDefs = gql`
             immersionEndDate: String
         ): Offer
         setImmersionConclusion(offerId: String!, candidateId: String!, conclusion: ImmersionConclusion!): Offer
+        addOfferHistoryEntry(offerId: String!, text: String!): OfferHistoryEntry!
+        deleteOfferHistoryEntry(id: String!): Boolean!
         deleteOffer(id: String!): Boolean!
         deleteOffersByNeedsAnalysis(needsAnalysisId: String!): Boolean!
     }

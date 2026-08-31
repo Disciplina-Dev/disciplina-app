@@ -1,7 +1,6 @@
 import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
-import { Candidate, CandidateStatus } from '../../types/candidate.types';
+import { Candidate, CandidateOwner, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
-import { after } from 'cheerio/dist/commonjs/api/manipulation';
 
 export interface StatBucket {
     key: string;
@@ -30,11 +29,18 @@ interface RawStats {
     byTpAndStatus: { _id: { tpType: unknown; status: unknown }; count: number }[];
 }
 
+/** Champ ciblé par la recherche libre (candidatesPage → search + searchField). */
+export type CandidateSearchField = 'NAME' | 'PHONE' | 'EMAIL';
+
 export interface CandidateFilters {
     trainingSite?: string;
     status?: string;
+    statusIn?: string[];
     schoolLevel?: string;
     drivingLicenseB?: boolean;
+    hasVehicle?: boolean;
+    /** Sexe du candidat (FILLE / GARCON), exclusif. */
+    sex?: string;
     ageMin?: number;
     ageMax?: number;
     /** Titres professionnels visés (OR). */
@@ -73,6 +79,57 @@ function escapeRegexSpecialChars(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Limites défensives pour la recherche libre (évite `$regex` démesuré / ReDoS). */
+const MAX_SEARCH_LENGTH = 100;
+const MAX_SEARCH_TOKENS = 10;
+
+/** Normalise l'entrée utilisateur : trim, collapse whitespace, tronque. */
+function normalizeSearchInput(raw: string): string {
+    return raw.trim().replace(/\s+/g, ' ').slice(0, MAX_SEARCH_LENGTH);
+}
+
+/** Découpe une recherche déjà normalisée en tokens (max `MAX_SEARCH_TOKENS`). */
+function tokenizeSearch(normalized: string): string[] {
+    if (!normalized) return [];
+    return normalized.split(' ').filter(Boolean).slice(0, MAX_SEARCH_TOKENS);
+}
+
+/** Collation insensible à la casse et aux accents (français, strength 1). */
+const SEARCH_COLLATION = { locale: 'fr', strength: 1 } as const;
+
+/** Classes insensibles aux accents pour le `$regex` (symétrique : « Solene » ↔ « Solène »).
+ *  Chaque voyelle/consonne accentuée est ramenée à sa base puis élargie à un bracket
+ *  qui matche toutes les variantes. Sans cela, collation seule est asymétrique selon
+ *  que le pattern porte l'accent ou non (« Solène » trouvait les deux, « Solene »
+ *  ne trouvait que « Solene »). */
+const ACCENT_CLASSES: Record<string, string> = {
+    a: '[aàáâãäåæ]',
+    e: '[eèéêë]',
+    i: '[iìíîï]',
+    o: '[oòóôõöø]',
+    u: '[uùúûü]',
+    c: '[cç]',
+    n: '[nñ]',
+    y: '[yÿ]',
+};
+
+function diacriticInsensitivePattern(token: string): string {
+    let out = '';
+    for (const ch of token) {
+        if (/[.*+?^${}()|[\]\\]/.test(ch)) {
+            out += `\\${ch}`;
+            continue;
+        }
+        const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        if (ACCENT_CLASSES[base]) {
+            out += ACCENT_CLASSES[base];
+        } else {
+            out += escapeRegexSpecialChars(ch);
+        }
+    }
+    return out;
+}
+
 /** Date à laquelle un candidat né aurait exactement `years` ans aujourd'hui. */
 function yearsAgo(years: number): Date {
     const d = new Date();
@@ -107,16 +164,25 @@ export class CandidateRepository {
         return CandidateModel.find().sort({ created_at: -1, _id: 1 }).lean();
     }
 
-    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
+    /** Construit les conditions Mongo dérivées des filtres (hors recherche et curseur). */
+    private buildConditions(filters?: CandidateFilters): Record<string, any>[] {
         const conditions: Record<string, any>[] = [];
 
-        const trimmedSearch = search?.trim();
         if (filters?.trainingSite) conditions.push({ training_site: filters.trainingSite });
-        if (filters?.status) conditions.push({ status: filters.status });
+        if (filters?.statusIn?.length) conditions.push({ status: { $in: filters.statusIn } });
+        else if (filters?.status) conditions.push({ status: filters.status });
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
-        if (filters?.tpType?.length) conditions.push({ tp_type: { $in: filters.tpType } });
+        if (filters?.hasVehicle !== undefined) conditions.push({ 'identity.has_vehicle': filters.hasVehicle });
+        if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
+        // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
+        // scripts/cleanup_candidate_tp_type.py) : $or transitoire, à retirer une fois
+        // la migration terminée et le script de nettoyage passé.
+        if (filters?.tpType?.length)
+            conditions.push({
+                $or: [{ tp_types: { $in: filters.tpType } }, { tp_type: { $in: filters.tpType } }],
+            });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
         if (filters?.geographicMobility?.length)
@@ -154,7 +220,92 @@ export class CandidateRepository {
                 ],
             });
         }
+        return conditions;
+    }
 
+    /**
+     * Construit le filtre de recherche libre pour un champ ciblé (NAME / PHONE /
+     * EMAIL). Pour NAME, on conserve la double branche historique `$text` ∪
+     * `$regex` (description + nom) ; pour PHONE / EMAIL on ne cible que le champ
+     * correspondant via `$regex` (les emails/téléphones ne figurent pas dans
+     * l'index full-text). La branche `$regex` est désormais tokenisée (AND
+     * ordonné-indépendant) pour que « Test Example » matche « Example Test »,
+     * préserve le préfixe/sous-chaîne par token (ex. « jea » → « Jean ») et reste
+     * insensible à la casse/aux accents via collation `fr` strength 1.
+     */
+    private buildSearchFilter(
+        trimmedSearch: string,
+        conditions: Record<string, any>[],
+        searchField?: CandidateSearchField,
+    ): { textFilter?: Record<string, any>; regexFilter: Record<string, any> } {
+        const normalized = normalizeSearchInput(trimmedSearch);
+        const tokens = tokenizeSearch(normalized);
+
+        if (searchField === 'PHONE') {
+            const regexPattern = escapeRegexSpecialChars(normalized);
+            return {
+                regexFilter: { $and: [...conditions, { 'identity.phone': { $regex: regexPattern, $options: 'i' } }] },
+            };
+        }
+
+        if (searchField === 'EMAIL') {
+            const regexPattern = escapeRegexSpecialChars(normalized);
+            return {
+                regexFilter: { $and: [...conditions, { 'identity.email': { $regex: regexPattern, $options: 'i' } }] },
+            };
+        }
+
+        // Recherche par défaut / nom : combinaison `$text` (français, stemming) ∪ `$regex` tokenisé.
+        const quotedPhrase = `"${normalized.replace(/"/g, "'")}"`;
+        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase, $language: 'french' } }] };
+
+        // Tokenisation : chaque token doit apparaître (AND) dans `full_name` OU `description`
+        // (par token), indépendamment de l'ordre — corrige « Test Example » vs « Example Test ».
+        // Les patterns sont insensibles aux accents dans les deux sens (Solene ↔ Solène)
+        // via `diacriticInsensitivePattern`, car la collation seule est asymétrique.
+        if (tokens.length <= 1) {
+            const singlePattern = diacriticInsensitivePattern(tokens[0] ?? normalized);
+            return {
+                textFilter,
+                regexFilter: {
+                    $and: [
+                        ...conditions,
+                        {
+                            $or: [
+                                { 'identity.description': { $regex: singlePattern, $options: 'i' } },
+                                { 'identity.full_name': { $regex: singlePattern, $options: 'i' } },
+                            ],
+                        },
+                    ],
+                },
+            };
+        }
+
+        const diacriticTokens = tokens.map(diacriticInsensitivePattern);
+        const tokenClauses = diacriticTokens.map((t) => ({
+            $or: [
+                { 'identity.description': { $regex: t, $options: 'i' } },
+                { 'identity.full_name': { $regex: t, $options: 'i' } },
+            ],
+        }));
+
+        return {
+            textFilter,
+            regexFilter: { $and: [...conditions, ...tokenClauses] },
+        };
+    }
+
+    async findPage(
+        first: number,
+        after?: string,
+        search?: string,
+        filters?: CandidateFilters,
+        searchField?: CandidateSearchField,
+    ): Promise<Candidate[]> {
+        const conditions = this.buildConditions(filters);
+
+        const normalizedSearch = search ? normalizeSearchInput(search) : '';
+        const trimmedSearch = normalizedSearch || undefined;
         // Keyset sur (created_at DESC, _id ASC) : les fiches datées les plus récentes
         // d'abord, les non datées (created_at absent) en dernier.
         if (after && !trimmedSearch) {
@@ -182,32 +333,19 @@ export class CandidateRepository {
                 .lean();
         }
 
+        const { textFilter, regexFilter } = this.buildSearchFilter(trimmedSearch, conditions, searchField);
+
         // `$text` ne matche que des tokens entiers (avec stemming), pas de sous-chaîne.
         // On combine une requête `$text` (pertinence, portée élargie à identity.description)
         // et une requête `$regex` (préserve la recherche par préfixe/sous-chaîne, ex. "jea" → "Jean"),
         // exécutées en parallèle puis fusionnées par _id (un `$text` ne peut pas être imbriqué
         // dans le même `$or` qu'un autre opérateur au niveau racine).
-        const quotedPhrase = `"${trimmedSearch.replace(/"/g, "'")}"`;
-        const textFilter = { $and: [...conditions, { $text: { $search: quotedPhrase } }] };
-        // `identity.description` peut être absent (fiches héritées créées avant son introduction,
-        // ou écrites hors du flux CandidateService qui le génère) : on garde `full_name` en repli
-        // pour ne jamais régresser sur la recherche par nom.
-        const regexPattern = escapeRegexSpecialChars(trimmedSearch);
-        const regexFilter = {
-            $and: [
-                ...conditions,
-                {
-                    $or: [
-                        { 'identity.description': { $regex: regexPattern, $options: 'i' } },
-                        { 'identity.full_name': { $regex: regexPattern, $options: 'i' } },
-                    ],
-                },
-            ],
-        };
         const sort = { created_at: -1 as const, _id: 1 as const };
         const [textResults, regexResults] = await Promise.all([
-            CandidateModel.find(textFilter).sort(sort).lean(),
-            CandidateModel.find(regexFilter).sort(sort).lean(),
+            textFilter
+                ? CandidateModel.find(textFilter).collation(SEARCH_COLLATION).sort(sort).lean()
+                : Promise.resolve([]),
+            CandidateModel.find(regexFilter).collation(SEARCH_COLLATION).sort(sort).lean(),
         ]);
 
         const uniqueById = new Map<string, Candidate>();
@@ -222,8 +360,47 @@ export class CandidateRepository {
         });
     }
 
+    /** Compte les candidats correspondant à la recherche + filtres (même logique que findPage). */
+    async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
+        const conditions = this.buildConditions(filters);
+        const normalizedSearch = search ? normalizeSearchInput(search) : '';
+        const trimmedSearch = normalizedSearch || undefined;
+
+        if (!trimmedSearch) {
+            const filter = conditions.length ? { $and: conditions } : {};
+            return CandidateModel.countDocuments(filter);
+        }
+
+        const { textFilter, regexFilter } = this.buildSearchFilter(trimmedSearch, conditions, searchField);
+
+        // Même combinaison `$text` ∪ `$regex` que findPage : on déduplique par _id (collation fr strength 1).
+        const [textIds, regexIds] = await Promise.all([
+            textFilter
+                ? CandidateModel.distinct('_id', textFilter, { collation: SEARCH_COLLATION } as any)
+                : Promise.resolve([]),
+            CandidateModel.distinct('_id', regexFilter, { collation: SEARCH_COLLATION } as any),
+        ]);
+        return new Set([...textIds.map(String), ...regexIds.map(String)]).size;
+    }
+
     async findById(id: string): Promise<Candidate | null> {
         return CandidateModel.findById(id).lean();
+    }
+
+    /** Documents candidats (uniquement le lien CV) pour les ids demandés. */
+    async findCvLinksByIds(ids: string[]): Promise<Array<{ _id: string; cv_link?: string }>> {
+        return CandidateModel.find({ _id: { $in: ids } })
+            .select({ cv_link: 1, _id: 1 })
+            .lean();
+    }
+
+    /** Documents candidats (uniquement le consentement) pour les ids demandés. */
+    async findConsentmentsByIds(
+        ids: string[],
+    ): Promise<Array<{ _id: string; consentments?: Candidate['consentments'] }>> {
+        return CandidateModel.find({ _id: { $in: ids } })
+            .select({ consentments: 1, _id: 1 })
+            .lean();
     }
 
     /**
@@ -235,15 +412,36 @@ export class CandidateRepository {
     async stats(sectors?: string[]): Promise<CandidateStats> {
         // Filtre optionnel par secteur du créateur du dossier (owner.sector).
         const match = sectors && sectors.length > 0 ? [{ $match: { 'owner.sector': { $in: sectors } } }] : [];
+        // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
+        // scripts/cleanup_candidate_tp_type.py) : fallback vers [tp_type] tant que
+        // tp_types est absent. Un candidat multi-TP compte dans chacun de ses buckets
+        // (changement de cardinalité assumé par rapport à l'ancien group-by single-value).
+        const withTpTypes = [
+            {
+                $addFields: {
+                    _tp_types: {
+                        $cond: [
+                            { $gt: [{ $size: { $ifNull: ['$tp_types', []] } }, 0] },
+                            '$tp_types',
+                            { $cond: [{ $ifNull: ['$tp_type', false] }, ['$tp_type'], []] },
+                        ],
+                    },
+                },
+            },
+            { $unwind: '$_tp_types' },
+        ];
         const [result] = await CandidateModel.aggregate<RawStats>([
             ...match,
             {
                 $facet: {
                     total: [{ $count: 'count' }],
                     byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
-                    byTpType: [{ $group: { _id: '$tp_type', count: { $sum: 1 } } }],
+                    byTpType: [...withTpTypes, { $group: { _id: '$_tp_types', count: { $sum: 1 } } }],
                     byTrainingSite: [{ $group: { _id: '$training_site', count: { $sum: 1 } } }],
-                    byTpAndStatus: [{ $group: { _id: { tpType: '$tp_type', status: '$status' }, count: { $sum: 1 } } }],
+                    byTpAndStatus: [
+                        ...withTpTypes,
+                        { $group: { _id: { tpType: '$_tp_types', status: '$status' }, count: { $sum: 1 } } },
+                    ],
                 },
             },
         ]);
@@ -320,11 +518,22 @@ export class CandidateRepository {
         return CandidateModel.findOneAndUpdate(
             { _id: id },
             { $set: flattenObject(data) },
-            { returnDocument: 'after' },
+            { returnDocument: 'after', runValidators: true, context: 'query' },
         ).lean();
     }
 
     async delete(id: string): Promise<boolean> {
         return (await CandidateModel.deleteOne({ _id: id })).deletedCount > 0;
+    }
+
+    /**
+     * Réassigne (ou détache) le RH propriétaire des dossiers candidat d'un user
+     * supprimé. `owner = null` détache les dossiers (ils vivent sans propriétaire).
+     * Renvoie le nombre de dossiers modifiés.
+     */
+    async reassignOwner(fromUserId: number, owner: CandidateOwner | null): Promise<number> {
+        const update = owner ? { $set: { owner } } : { $unset: { owner: '' } };
+        const res = await CandidateModel.updateMany({ 'owner.user_id': fromUserId }, update);
+        return res.modifiedCount;
     }
 }

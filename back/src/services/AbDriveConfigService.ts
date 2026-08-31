@@ -2,8 +2,9 @@ import { AbDriveConfig, AbDriveConfigRepository } from '../repositories/mongo/Ab
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
-import { SECTORS, Sector, primarySector } from '../utils/sector';
+import { SECTORS, sectorFromRegion } from '../utils/sector';
 import { JobRole, User } from '../types/user.types';
+import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
 import { logger } from '../external/logger';
 
 /** Type de dossier d'archivage d'une AB : signé ou non signé. */
@@ -33,34 +34,60 @@ export class AbDriveConfigService {
         return this.repo.save({ sectorFolders });
     }
 
-    /** Dossier Drive cible pour une AB, selon le secteur du commercial et le type (signé / non signé). */
+    /** Dossier Drive cible pour une AB, selon le secteur de l'AB et le type (signé / non signé). */
     async resolveFolder(sector: string | undefined, kind: AbFolderKind): Promise<string | undefined> {
         if (!sector) return undefined;
         const config = await this.repo.get();
         return config.sectorFolders[abFolderKey(sector, kind)] || undefined;
     }
 
+    private async resolveCompanyFolder(
+        drive: GoogleDriveService,
+        parentFolderId: string,
+        companyName: string,
+    ): Promise<string> {
+        const folderName = companyName.trim() || 'Entreprise';
+        const existing = await drive.findFolder(folderName, parentFolderId);
+        if (existing) return existing.id;
+
+        const created = await drive.createFolder(folderName, parentFolderId);
+        logger.info(
+            { parentFolderId, folderName, folderId: created.id },
+            '[AbDrive] Sous-dossier entreprise créé sur le Drive',
+        );
+        return created.id;
+    }
+
     /**
-     * Archive un PDF d'AB dans le Drive, dans le dossier du secteur du créateur.
+     * Archive un PDF d'AB dans le Drive, dans le dossier du secteur de l'AB
+     * (région de l'entreprise), pas celui du commercial créateur.
      * Best-effort : ne jette jamais (hors chemin critique signature/envoi). Renvoie
      * le lien Drive en cas de succès, sinon null.
      *
-     * @param creatorId     id du commercial créateur de l'AB (source du secteur).
+     * @param region        secteur (région) de l'AB : NORD/OUEST/SUD. À défaut, repli
+     *                      sur le secteur du commercial créateur.
+     * @param kind          type de dossier (signé / non signé).
+     * @param buffer        contenu du PDF.
+     * @param filename      nom du fichier uploadé.
+     * @param companyName   nom de l'entreprise, utilisé pour regrouper les PDF signés dans un sous-dossier.
+     * @param creatorId     id du commercial créateur de l'AB (source des jetons Google).
      * @param actingUserId  id de l'utilisateur à l'origine de l'action (source prioritaire des jetons Google).
      */
     async archiveAbPdf(
-        creatorId: number | undefined,
+        region: CompanyRegion | undefined | null,
         kind: AbFolderKind,
         buffer: Buffer,
         filename: string,
+        companyName?: string,
+        creatorId?: number,
         actingUserId?: number,
     ): Promise<string | null> {
         try {
+            // Secteur de l'AB d'abord ; si absent, Nord-Est par défaut.
+            const sector = sectorFromRegion(region) ?? 'Nord-Est';
             const creator = creatorId ? await this.userService.findById(creatorId) : null;
             const actingUser =
                 actingUserId && actingUserId !== creatorId ? await this.userService.findById(actingUserId) : null;
-            // Créateur sans secteur : rattaché au Nord (Nord-Est) par défaut.
-            const sector: Sector = primarySector(creator?.sectors) ?? 'Nord-Est';
 
             const folderId = await this.resolveFolder(sector, kind);
             if (!folderId) {
@@ -71,16 +98,21 @@ export class AbDriveConfigService {
                 return null;
             }
 
-            // Jetons Google : ceux de l'utilisateur courant en priorité, puis du créateur
-            // de l'AB, sinon repli sur un commercial connecté.
-            let driveUser: User | null = actingUser?.oauthToken ? actingUser : creator;
-            if (!driveUser?.oauthToken) {
-                driveUser = await this.userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
-                if (driveUser) {
-                    logger.warn(
-                        { creatorId, actingUserId, fallbackUserId: driveUser.id },
-                        '[AbDrive] Repli sur un autre commercial connecté pour uploader sur le Drive',
-                    );
+            // Jetons Google : on privilégie un compte rafraîchissable, puis un
+            // access_token seul, avec repli sur un autre commercial connecté si besoin.
+            const candidates = [actingUser, creator].filter((user): user is User => !!user?.oauthToken);
+            let driveUser: User | null = candidates.find((user) => user.refreshToken) ?? candidates[0] ?? null;
+
+            if (!driveUser?.refreshToken) {
+                const fallback = await this.userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
+                if (fallback?.refreshToken || (!driveUser && fallback)) {
+                    if (driveUser) {
+                        logger.warn(
+                            { creatorId, actingUserId, fallbackUserId: fallback.id },
+                            '[AbDrive] Jetons non rafraîchissables, repli sur un autre commercial connecté',
+                        );
+                    }
+                    driveUser = fallback;
                 }
             }
             if (!driveUser?.oauthToken) {
@@ -92,11 +124,26 @@ export class AbDriveConfigService {
                 { access_token: driveUser.oauthToken, refresh_token: driveUser.refreshToken ?? undefined },
                 this.persistRefreshedTokens(driveUser.id),
             );
-            const uploaded = await drive.uploadFile(filename, 'application/pdf', buffer, folderId);
+            const targetFolderId =
+                kind === 'SIGNED' && companyName?.trim()
+                    ? await this.resolveCompanyFolder(drive, folderId, companyName)
+                    : folderId;
+            const uploaded = await drive.uploadFile(filename, 'application/pdf', buffer, targetFolderId);
             logger.info({ sector, kind, fileId: uploaded.id }, '[AbDrive] AB archivée sur le Drive');
             return uploaded.webViewLink;
-        } catch (err) {
-            logger.error({ err, creatorId, kind }, '[AbDrive] Échec archivage AB sur le Drive');
+        } catch (err: any) {
+            logger.error(
+                {
+                    err,
+                    creatorId,
+                    actingUserId,
+                    kind,
+                    filename,
+                    status: err?.code ?? err?.response?.status,
+                    googleError: err?.response?.data?.error,
+                },
+                '[AbDrive] Échec archivage AB sur le Drive',
+            );
             return null;
         }
     }

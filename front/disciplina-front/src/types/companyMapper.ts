@@ -2,12 +2,15 @@ import type { Company, CompanyWithSalePerson, SalePerson, Entreprise, Entreprise
 import { STATUS_VALUES } from '@/types/entreprise'
 import { fullName } from '@/store/authStore'
 
+// Statuses réellement rencontrés en base, y compris « Oui OF » (hors STATUS_VALUES).
+const KNOWN_STATUSES: string[] = [...STATUS_VALUES, 'Oui OF']
+
 export function toEntreprise(company: Company, salePerson: SalePerson | null): Entreprise {
   // Legacy rows stored the status in the conclusion column; fall back to it.
-  const legacyStatus = (STATUS_VALUES as string[]).includes(company.conclusion || '')
+  const legacyStatus = KNOWN_STATUSES.includes(company.conclusion || '')
     ? (company.conclusion as EntrepriseStatus)
     : null;
-  const status = (STATUS_VALUES as string[]).includes(company.status || '')
+  const status = KNOWN_STATUSES.includes(company.status || '')
     ? (company.status as EntrepriseStatus)
     : legacyStatus ?? 'À Réfléchir';
   return {
@@ -23,6 +26,7 @@ export function toEntreprise(company: Company, salePerson: SalePerson | null): E
     secteur: company.sector,
     metier: company.mainActivity,
     siret: company.siret,
+    siren: company.siren ?? (company.siret ? company.siret.slice(0, 9) : null),
     idcc: company.idcc,
     note: company.notes,
     conclusion: legacyStatus ? '' : company.conclusion,

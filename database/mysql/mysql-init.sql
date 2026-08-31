@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS `permissions` (
 INSERT IGNORE INTO `permissions` (`id`, `name`) VALUES
   (1, 'EMPLOYEE'),
   (2, 'RESPONSABLE'),
-  (3, 'ADMIN');
+  (3, 'ADMIN'),
+  (4, 'GUEST');
 
 CREATE TABLE IF NOT EXISTS `roles` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -34,7 +35,8 @@ INSERT IGNORE INTO `roles` (`id`, `name`) VALUES
   (2, 'RH'),
   (3, 'PEDA'),
   (4, 'AD'),
-  (5, 'GESTION');
+  (5, 'GESTION'),
+  (6, 'EXTERNAL_GUEST');
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -48,6 +50,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   `oauth_token` text DEFAULT NULL,
   `refresh_token` text DEFAULT NULL,
   `is_interviewer` tinyint(1) NOT NULL DEFAULT '0',
+  -- Soft delete : un user « supprimé » garde sa ligne pour l'historique
+  -- (contact_logs, candidate_history, etc.) mais est exclu de tous les workflows.
+  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+  `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `email` (`email`),
   KEY `idx_users_role_id` (`role_id`),
@@ -82,32 +88,6 @@ CREATE TABLE IF NOT EXISTS `booking_settings` (
   CONSTRAINT `fk_booking_settings_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE IF NOT EXISTS `commercial_kpi` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int DEFAULT NULL,
-  `user_name` varchar(255) NOT NULL,
-  `year` year(4) NOT NULL,
-  `month` tinyint NOT NULL,
-  `week` tinyint NOT NULL DEFAULT '0',
-  `site` enum('NORD','OUEST','SUD') NOT NULL DEFAULT 'NORD',
-  `count_oui` int NOT NULL DEFAULT '0',
-  `count_oui_of` int NOT NULL DEFAULT '0',
-  `count_non` int NOT NULL DEFAULT '0',
-  `count_ne_repond_pas` int NOT NULL DEFAULT '0',
-  `count_a_reflechir` int NOT NULL DEFAULT '0',
-  `count_relance` int NOT NULL DEFAULT '0',
-  `total_appels` int NOT NULL DEFAULT '0',
-  `total_trie` int NOT NULL DEFAULT '0',
-  `nbre_ent_ferme` int NOT NULL DEFAULT '0',
-  `nbre_ent_ouvert` int NOT NULL DEFAULT '0',
-  `visites_terrain` int NOT NULL DEFAULT '0',
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
---   KEY `idx_commercial_kpi_user_id` (`user_id`),
-  UNIQUE KEY `unique_kpi` (`user_id`,`year`,`month`,`week`,`site`),
-  CONSTRAINT `fk_commercial_kpi_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `companies` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -121,6 +101,7 @@ CREATE TABLE IF NOT EXISTS `companies` (
   `sector` varchar(255) NOT NULL DEFAULT 'Nord-Est',
   `main_activity` varchar(255) DEFAULT NULL,
   `siret` char(14) NOT NULL,
+  `siren` char(9) GENERATED ALWAYS AS (SUBSTRING(`siret`, 1, 9)) STORED,
   `idcc` char(4) DEFAULT NULL,
   `ape` char(5) DEFAULT NULL,
   `notes` text DEFAULT NULL,
@@ -133,8 +114,37 @@ CREATE TABLE IF NOT EXISTS `companies` (
   `relance_channel` enum('PHONE','MAIL') DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `siret` (`siret`),
+  KEY `idx_companies_siren` (`siren`),
   KEY `idx_companies_user_id` (`user_id`),
   CONSTRAINT `fk_companies_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS `company_conflict` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int DEFAULT NULL,
+  `ab_id` varchar(36) DEFAULT NULL,
+  `legal_referent` varchar(255) DEFAULT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `sector` varchar(255) DEFAULT NULL,
+  `main_activity` varchar(255) DEFAULT NULL,
+  `siret` char(14) DEFAULT NULL,
+  `idcc` char(4) DEFAULT NULL,
+  `ape` char(5) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `conclusion` varchar(255) DEFAULT NULL,
+  `status` varchar(50) DEFAULT NULL,
+  `relance_date` date DEFAULT NULL,
+  `relance_type` tinyint DEFAULT NULL,
+  `relance_template_id` varchar(64) DEFAULT NULL,
+  `relance_channel` enum('PHONE','MAIL') DEFAULT NULL,
+  `candidate_user_ids` text DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_company_conflict_siret` (`siret`),
+  CONSTRAINT `fk_company_conflict_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `companies_blacklist` (
@@ -173,6 +183,7 @@ CREATE TABLE IF NOT EXISTS `company_history` (
   `status` varchar(50) NOT NULL,
   `previous_status` varchar(50) DEFAULT NULL,
   `modified_by` int DEFAULT NULL,
+  `changes` json DEFAULT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_company_history_company_id` (`company_id`),
   CONSTRAINT `fk_company_history_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -198,6 +209,46 @@ CREATE TABLE IF NOT EXISTS `filiz` (
   `expires_at` datetime NOT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS `external_references` (
+  `id`   int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT IGNORE INTO `external_references` (`id`, `name`) VALUES
+  (1, 'IMPORT_CV'),
+  (2, 'MATCHING'),
+  (3, 'INTERVIEW_SLOTS');
+
+CREATE TABLE IF NOT EXISTS `external_access` (
+  `signature`      char(128)    NOT NULL,
+  `code`           char(6)      NULL,
+  `user_id`        int          NOT NULL,
+  `external_id`    varchar(64)  NOT NULL,
+  `external_type`  enum('COMPANY','CANDIDATE') NOT NULL,
+  `external_email` varchar(255) NULL,
+  `external_first_name` varchar(255) NULL,
+  `token`          varchar(512) NULL,
+  `reference_id`   int          NOT NULL,
+  `reference_key`  varchar(255) NOT NULL,
+  `status`         enum('SENDING','PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'SENDING',
+  `attempts`       tinyint      NOT NULL DEFAULT '0',
+  `expires_at`     timestamp    NULL DEFAULT NULL,
+  `created_at`     timestamp    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_ext_access_reference` (`reference_id`, `reference_key`),
+  KEY `idx_ext_access_external` (`external_id`, `external_type`),
+  CONSTRAINT `fk_ext_access_reference` FOREIGN KEY (`reference_id`) REFERENCES `external_references` (`id`),
+  CONSTRAINT `fk_ext_access_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- ──────────────────────────────────────────────────────────────────────────────
+-- DÉPRECATED: les trois tables ci-dessous sont remplacées par external_access.
+-- Elles restent ici temporairement pour permettre la migration des données.
+-- À supprimer une fois la migration terminée.
+-- ──────────────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS `interview_access` (
   `signature` char(64) NOT NULL,
@@ -275,6 +326,19 @@ CREATE TABLE IF NOT EXISTS `peda_draft_history` (
   CONSTRAINT `fk_peda_draft_history_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `refresh_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `token_hash` varchar(64) NOT NULL,
+  `expires_at` timestamp NOT NULL,
+  `revoked_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_refresh_user` (`user_id`),
+  KEY `idx_refresh_hash` (`token_hash`),
+  CONSTRAINT `fk_refresh_tokens_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `relance_history` (
   `id` int NOT NULL AUTO_INCREMENT,
   `company_id` int NOT NULL,
@@ -291,25 +355,6 @@ CREATE TABLE IF NOT EXISTS `relance_history` (
   CONSTRAINT `fk_relance_history_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE IF NOT EXISTS `rh_kpi` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int NOT NULL,
-  `sector` varchar(64) NOT NULL DEFAULT '',
-  `year` smallint NOT NULL,
-  `month` tinyint NOT NULL,
-  `week` tinyint NOT NULL,
-  `interviews_placed` int NOT NULL DEFAULT '0',
-  `interviews_attended` int NOT NULL DEFAULT '0',
-  `interviews_noshow` int NOT NULL DEFAULT '0',
-  `immersions` int NOT NULL DEFAULT '0',
-  `contracts` int NOT NULL DEFAULT '0',
-  `ruptures` int NOT NULL DEFAULT '0',
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  UNIQUE KEY `unique_rh_kpi_sector` (`user_id`,`sector`,`year`,`month`,`week`),
-  CONSTRAINT `fk_rh_kpi_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `sector_settings` (
   `sector` varchar(64) NOT NULL,
@@ -318,9 +363,23 @@ CREATE TABLE IF NOT EXISTS `sector_settings` (
   PRIMARY KEY (`sector`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `todo_groups` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `unique_group_user_name` (`user_id`, `name`),
+  KEY `idx_todo_groups_user` (`user_id`),
+  CONSTRAINT `fk_todo_groups_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `todos` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
+  `assigned_by` int DEFAULT NULL,
+  `group_id` int DEFAULT NULL,
   `title` varchar(500) NOT NULL,
   `description` text DEFAULT NULL,
   `deadline` date DEFAULT NULL,
@@ -334,8 +393,30 @@ CREATE TABLE IF NOT EXISTS `todos` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_user_deadline` (`user_id`,`deadline`),
   KEY `idx_user_position` (`user_id`,`position`),
-  CONSTRAINT `fk_todos_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  KEY `idx_todos_assigned_by` (`assigned_by`),
+  KEY `idx_todos_group` (`group_id`),
+  CONSTRAINT `fk_todos_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_todos_assigned_by` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_todos_group_id` FOREIGN KEY (`group_id`) REFERENCES `todo_groups` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Compte applicatif : le backend ne se connecte pas en `root`. Une injection SQL ou une
+-- fuite de .env ne doit pas donner DROP DATABASE, GRANT, ni la lecture de `mysql.user`.
+--
+-- Le compte lui-même est créé par l'image mysql à partir de MYSQL_USER / MYSQL_PASSWORD
+-- (le mot de passe ne transite donc pas par ce fichier versionné), mais avec ALL PRIVILEGES
+-- sur la base — dont DROP. On resserre ici : CREATE/ALTER/INDEX/REFERENCES restent
+-- nécessaires car back/src/db/mysql/migrations.ts fait évoluer le schéma au boot, et
+-- CREATE TEMPORARY TABLES car les requêtes KPI utilisent des CTE (WITH ...) que MySQL
+-- matérialise en tables temporaires. DROP et tout privilège global sont retirés :
+-- sans DROP, `DROP DATABASE disciplina` est refusé.
+--
+-- ATTENTION : ce fichier n'est joué que sur un volume vierge. Sur une base existante,
+-- appliquer database/mysql/migrations/2026-08-06-app-user.sql.
+REVOKE ALL PRIVILEGES ON `disciplina`.* FROM 'disciplina_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES
+    ON `disciplina`.* TO 'disciplina_app'@'%';
+FLUSH PRIVILEGES;
 
 INSERT IGNORE INTO sector_settings (sector, location) VALUES
     ('Nord-Est', 'Disciplina Nord-Est — Sainte-Marie'),

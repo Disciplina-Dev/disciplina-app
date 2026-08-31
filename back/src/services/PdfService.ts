@@ -5,6 +5,7 @@ import path from 'path';
 import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
+import { MASKED_SSN } from '../external/crypto/ssn-cipher';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // On utilise le Chromium natif du système (installé dans l'image Docker via apt)
@@ -199,6 +200,30 @@ function sh(title: string): string {
     return `<div class="section-header">${title}</div>`;
 }
 
+type PositionTpGql = NonNullable<NeedsAnalysisGql['positions'][number]['desiredTp']>[number];
+
+function buildTpMissionsBlock(tp: PositionTpGql): string {
+    const missionItems = (tp.missions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
+    const missionsType = (tp.descriptionMissions ?? []).join(', ');
+    const descriptifMissions = tp.otherDescriptionMissions ?? '';
+    const complementaire =
+        missionsType || descriptifMissions
+            ? `
+<div class="field-row">
+    <span class="field-label">Description complémentaire des missions :</span><br/>
+    ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
+    ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
+</div>`
+            : '';
+    return `
+${fr('Titre professionnel visé :', TP_LABELS[tp.tpType ?? ''] ?? tp.tpType ?? '')}
+<div class="field-row">
+    <span class="field-label">Description des missions :</span><br/>
+    <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
+    ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : '<div class="text-area">&nbsp;</div>'}
+</div>${complementaire}`;
+}
+
 function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
     const days = parseDays(analysis.trainingDays ?? '{}');
 
@@ -212,9 +237,7 @@ function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
         .map((p, i) => {
             const title =
                 positions.length > 1 ? `Poste ${i + 1} sur ${positions.length}` : 'Exigences du poste à pourvoir';
-            const missionItems = (p.missions ?? []).map((m) => `<li>${esc(m)}</li>`).join('');
-            const missionsType = (p.descriptionMissions ?? []).join(', ');
-            const descriptifMissions = p.otherDescriptionMissions ?? '';
+            const tpBlocks = (p.desiredTp ?? []).map(buildTpMissionsBlock).join('');
             return `
 ${sh(title)}
 ${p.jobRole ? fr('Intitulé de métier :', p.jobRole) : ''}
@@ -225,21 +248,7 @@ ${fr('Intitulé de la formation :', p.title)}
     <span class="option">${chk(p.trainingDomain === 'VENTE')}&nbsp;Vente</span>
 </div>
 ${fr('Localisation du poste :', formatCommunes(p.localisation))}
-<div class="field-row">
-    <span class="field-label">Description des missions :</span><br/>
-    <span class="hint">(Détailler les principales responsabilités et tâches associées au poste)</span>
-    ${missionItems ? `<ul class="missions-list">${missionItems}</ul>` : '<div class="text-area">&nbsp;</div>'}
-</div>
-${
-    missionsType || descriptifMissions
-        ? `
-<div class="field-row">
-    <span class="field-label">Description complémentaire des missions :</span><br/>
-    ${missionsType ? `<div class="text-area" style="margin-top:4px;">${esc(missionsType)}</div>` : ''}
-    ${descriptifMissions ? `<div class="text-area" style="margin-top:4px;">${esc(descriptifMissions)}</div>` : ''}
-</div>`
-        : ''
-}`;
+${tpBlocks}`;
         })
         .join('');
 
@@ -254,7 +263,12 @@ ${
                           .filter(Boolean)
                           .join(' ')
                     : '';
-            const conditions = c.conditions ?? (c.scheduleOptions ?? []).join(', ');
+            const scheduleOptions = (c.scheduleOptions ?? []).map((s: any) =>
+                typeof s === 'string'
+                    ? s
+                    : [s.day || null, [s.startHour, s.endHour].filter(Boolean).join('-')].filter(Boolean).join(' : '),
+            );
+            const conditions = c.conditions ?? (scheduleOptions.length ? scheduleOptions.join(', ') : null);
             const commentaires = c.additionalComments ?? '';
             return `
 ${sh(title)}
@@ -262,6 +276,12 @@ ${sh(title)}
     <span class="field-label">Permis :</span><br/>
     <div class="option-block">${chk(c.drivingLicense === true)}&nbsp;Oui</div>
     <div class="option-block">${chk(c.drivingLicense === false)}&nbsp;Optionnel</div>
+</div>
+
+<div class="field-row">
+    <span class="field-label">Véhiculé :</span><br/>
+    <div class="option-block">${chk((c as any).hasVehicle === true)}&nbsp;Oui</div>
+    <div class="option-block">${chk((c as any).hasVehicle === false)}&nbsp;Non</div>
 </div>
 
 <div class="field-row">
@@ -719,9 +739,9 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
 
     const trainingSites = c.training_sites?.length ? c.training_sites : c.training_site ? [c.training_site] : [];
     const trainingSitesLabel = trainingSites.map((s) => TRAINING_SITE_LABELS[s] ?? s).join(' · ');
-    const tpTypes = c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : [];
+    const tpTypes = c.tp_types ?? [];
     const tpTypesLabel = tpTypes.map((t) => TP_LABELS[t] ?? t).join(' · ');
-    const badges = [tpTypesLabel || (TP_LABELS[c.tp_type] ?? c.tp_type), STATUS_LABELS[c.status] ?? c.status];
+    const badges = [tpTypesLabel, STATUS_LABELS[c.status] ?? c.status];
     if (trainingSitesLabel) badges.push(trainingSitesLabel);
     doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text(badges.join('      |      '), left, doc.y);
     doc.fillColor('#000000');
@@ -730,7 +750,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Identité & contact');
     kv(tpTypes.length > 1 ? 'Titres professionnels' : 'Titre professionnel', tpTypesLabel);
     kv('Statut', STATUS_LABELS[c.status] ?? c.status);
-    kv('Numéro de sécurité sociale', id.social_security_number);
+    kv('Numéro de sécurité sociale', id.social_security_number ? MASKED_SSN : undefined);
     kv('Email', id.email);
     kv('Téléphone', id.phone);
     kv('Date de naissance', fmtDate(id.date_of_birth));
@@ -741,6 +761,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv('Ville', id.city);
     kv('Code postal', id.postal_code);
     if (id.driving_license_b != null) kv('Permis B', yn(id.driving_license_b));
+    if (id.has_vehicle != null) kv('Véhiculé', yn(id.has_vehicle));
     kv('Moyen de transport', id.transport_means);
     if (id.psh_referral_request != null) kv('Accompagnement PSH', yn(id.psh_referral_request));
     if (id.had_apprenticeship_contract != null)
@@ -762,7 +783,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     section('Parcours & prérequis');
     kv(
         'Niveau de formation',
-        c.education?.school_level ? SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level : '',
+        c.education?.school_level ? (SCHOOL_LEVEL_LABELS[c.education.school_level] ?? c.education.school_level) : '',
     );
     kv('Justificatif', c.education?.justification);
     kv('Dernier diplôme obtenu', c.background?.last_diploma);
@@ -852,7 +873,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv(
         'Comment a connu Disciplina',
         c.job_info?.discovery_source
-            ? DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source
+            ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source)
             : '',
     );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);

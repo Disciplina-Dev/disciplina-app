@@ -15,6 +15,7 @@ import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
 import { SECTEUR_VALUES } from '@/types/entreprise'
+import { DEFAULT_SECTEUR } from '@/constants/secteurs'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -196,7 +197,8 @@ export default function Calendrier() {
   const toggleUser = (id: number) =>
     setVisible((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
 
@@ -665,7 +667,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
         setLoaded(true)
         // Défaut : lieu du secteur de l'utilisateur, sinon Nord-Est ; rien si non configuré.
         if (autoDefault && !value.trim()) {
-          const sector = selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)) ?? 'Nord-Est'
+          const sector = selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)) ?? DEFAULT_SECTEUR
           const match = withLocation.find((s) => s.sector === sector)
           if (match) onChange(match.location)
         }
@@ -986,8 +988,8 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
     try {
       const updated = await setEventAttendance(event.id, status, event.ownerId)
       onAttendance(updated)
-      // « Arrivé » → création du candidat pré-rempli puis redirection vers sa fiche.
-      if (status === 'arrived') onArrived(updated)
+      // « Arrivé » (entretien uniquement) → création du candidat pré-rempli puis redirection vers sa fiche.
+      if (status === 'arrived' && event.isInterview) onArrived(updated)
     } catch (e) {
       setAttErr(e instanceof Error ? e.message : 'Erreur')
     } finally {
@@ -1020,29 +1022,27 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
           )}
         </div>
 
-        {/* Présence de l'invité (tout event avec un email, y compris agenda d'un collègue). */}
-        {event.attendeeEmail && (
-          <div className="mt-4 rounded-xl bg-gray-50 p-3">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Présence</p>
-            <div className="flex items-center gap-2">
-              <button onClick={() => mark('arrived')} disabled={savingAtt !== null}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-success-bg text-success' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
-                {savingAtt === 'arrived' ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />} Venu
-              </button>
-              <button onClick={() => mark('noshow')} disabled={savingAtt !== null}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-danger-bg text-danger' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
-                {savingAtt === 'noshow' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />} Pas venu
-              </button>
-            </div>
-            {event.attendance === 'noshow' && (
-              <p className="mt-2 text-[12px] text-gray-500">Un mail de proposition de rendez-vous a été envoyé.</p>
-            )}
-            {!isPast && event.attendance == null && (
-              <p className="mt-2 text-[12px] text-gray-400">Le rendez-vous n'a pas encore eu lieu.</p>
-            )}
-            {attErr && <p className="mt-2 text-[12px] text-danger">{attErr}</p>}
+        {/* Présence : venu / pas venu, disponible sur tout créneau (entretien ou non), impacte les KPI. */}
+        <div className="mt-4 rounded-xl bg-gray-50 p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Présence</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => mark('arrived')} disabled={savingAtt !== null}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-success-bg text-success' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
+              {savingAtt === 'arrived' ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />} Venu
+            </button>
+            <button onClick={() => mark('noshow')} disabled={savingAtt !== null}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-danger-bg text-danger' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
+              {savingAtt === 'noshow' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />} Pas venu
+            </button>
           </div>
-        )}
+          {event.isInterview && event.attendance === 'noshow' && (
+            <p className="mt-2 text-[12px] text-gray-500">Un mail de proposition de rendez-vous a été envoyé.</p>
+          )}
+          {!isPast && event.attendance == null && (
+            <p className="mt-2 text-[12px] text-gray-400">Le rendez-vous n'a pas encore eu lieu.</p>
+          )}
+          {attErr && <p className="mt-2 text-[12px] text-danger">{attErr}</p>}
+        </div>
 
         <div className="mt-5 flex items-center gap-2">
           {(event.meetingLink || event.hangoutLink) && (

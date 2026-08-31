@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
+import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
+import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
+import { OfferStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
@@ -23,18 +26,26 @@ describe('GraphQL candidate mutations', () => {
                     query: `
                         mutation($input: CreateCandidateInput!) {
                             createCandidate(input: $input) {
-                                id status tpType identity { fullName email phone }
+                                id status tpTypes identity { fullName email phone }
                             }
                         }
                     `,
                     variables: {
                         input: {
                             status: CandidateStatus.SEEKING,
-                            tpType: 'AD',
+                            tpTypes: ['AD'],
                             identity: {
                                 fullName: `Alice ${suffix}`,
                                 email: `alice-${suffix}@test.local`,
                                 phone: '0100000001',
+                            },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: 'test-v1',
                             },
                         },
                     },
@@ -46,7 +57,7 @@ describe('GraphQL candidate mutations', () => {
             expect(json.errors).toBeUndefined();
             expect(json.data.createCandidate.id).toBeTypeOf('string');
             expect(json.data.createCandidate.status).toBe('SEEKING');
-            expect(json.data.createCandidate.tpType).toBe('AD');
+            expect(json.data.createCandidate.tpTypes).toEqual(['AD']);
             expect(json.data.createCandidate.identity.fullName).toBe(`Alice ${suffix}`);
             expect(json.data.createCandidate.identity.email).toBe(`alice-${suffix}@test.local`);
         });
@@ -68,7 +79,7 @@ describe('GraphQL candidate mutations', () => {
                             createCandidate(input: $input) {
                                 id
                                 status
-                                tpType
+                                tpTypes
                                 identity { fullName email phone city }
                                 education { schoolLevel justification }
                                 desiredSectors
@@ -79,7 +90,7 @@ describe('GraphQL candidate mutations', () => {
                     variables: {
                         input: {
                             status: CandidateStatus.SEEKING,
-                            tpType: 'AD',
+                            tpTypes: ['AD'],
                             identity: {
                                 fullName: `Bob ${suffix}`,
                                 email: `bob-${suffix}@test.local`,
@@ -95,6 +106,14 @@ describe('GraphQL candidate mutations', () => {
                                 frenchLevel: 7,
                                 englishLevel: 4,
                                 readyForChallenges: true,
+                            },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: 'test-v1',
                             },
                         },
                     },
@@ -136,11 +155,19 @@ describe('GraphQL candidate mutations', () => {
                     variables: {
                         input: {
                             status: CandidateStatus.SEEKING,
-                            tpType: 'AD',
+                            tpTypes: ['AD'],
                             identity: {
                                 fullName: `Carol ${suffix}`,
                                 email: `carol-${suffix}@test.local`,
                                 phone: '0100000003',
+                            },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: 'test-v1',
                             },
                         },
                     },
@@ -154,6 +181,64 @@ describe('GraphQL candidate mutations', () => {
         });
     });
 
+    // Le validator d'unicité email (`identitySchema.path('email').validate`, candidate.schema.ts)
+    // a deux branches selon le contexte `this` : Query (via findOneAndUpdate, couvert par les
+    // tests updateCandidate ci-dessous) et Document (via .save(), déclenché par
+    // CandidateRepository.create). Le resolver createCandidate bloque déjà les doublons en amont
+    // et n'atteint donc jamais la branche Document — on appelle le repository directement pour
+    // l'exercer, comme le ferait un futur appelant (script d'import, endpoint direct).
+    describe('CandidateRepository.create — email uniqueness validator (branche document/.save())', () => {
+        it('rejects creating a candidate whose email is already used by another candidate', async () => {
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const existing = await repo.create({
+                _id: `save-validator-existing-${suffix}`,
+                candidate_id: `save-validator-existing-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Karim ${suffix}`,
+                    email: `karim-${suffix}@test.local`,
+                    phone: '0100000020',
+                },
+            });
+
+            await expect(
+                repo.create({
+                    _id: `save-validator-dup-${suffix}`,
+                    candidate_id: `save-validator-dup-${suffix}`,
+                    tp_types: [TitleProfessionalType.AD],
+                    status: CandidateStatus.SEEKING,
+                    identity: {
+                        full_name: `Karim Bis ${suffix}`,
+                        email: existing.identity.email,
+                        phone: '0100000021',
+                    },
+                }),
+            ).rejects.toThrow(/existe déjà/i);
+        });
+
+        it('allows creating a candidate with a unique email', async () => {
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const created = await repo.create({
+                _id: `save-validator-unique-${suffix}`,
+                candidate_id: `save-validator-unique-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Lina ${suffix}`,
+                    email: `lina-${suffix}@test.local`,
+                    phone: '0100000022',
+                },
+            });
+
+            expect(created._id).toBe(`save-validator-unique-${suffix}`);
+        });
+    });
+
     describe('updateCandidate', () => {
         it('updates the status field and returns camelCase result', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
@@ -163,7 +248,7 @@ describe('GraphQL candidate mutations', () => {
             const seeded = await repo.create({
                 _id: `update-status-${suffix}`,
                 candidate_id: `update-status-${suffix}`,
-                tp_type: TitleProfessionalType.AD,
+                tp_types: [TitleProfessionalType.AD],
                 status: CandidateStatus.SEEKING,
                 identity: { full_name: `Dave ${suffix}`, email: `dave-${suffix}@test.local`, phone: '0100000004' },
             });
@@ -179,7 +264,7 @@ describe('GraphQL candidate mutations', () => {
                     query: `
                         mutation($id: String!, $input: UpdateCandidateInput!) {
                             updateCandidate(id: $id, input: $input) {
-                                id status tpType identity { fullName }
+                                id status tpTypes identity { fullName }
                             }
                         }
                     `,
@@ -220,7 +305,7 @@ describe('GraphQL candidate mutations', () => {
             const seeded = await repo.create({
                 _id: `update-imm-${suffix}`,
                 candidate_id: `update-imm-${suffix}`,
-                tp_type: TitleProfessionalType.AD,
+                tp_types: [TitleProfessionalType.AD],
                 status: CandidateStatus.SEEKING,
                 identity: { full_name: `Imm ${suffix}`, email: `imm-${suffix}@test.local`, phone: '0100000009' },
             });
@@ -255,6 +340,182 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.immersionEndDate).toContain('2026-09-15');
         });
 
+        it('stores contract offer/company/start date when moving to CONTRACT', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-contract-${suffix}`,
+                candidate_id: `update-contract-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Erin ${suffix}`, email: `erin-${suffix}@test.local`, phone: '0100000010' },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) {
+                            id status contractOfferId contractCompanyId contractCompanyName contractStartDate
+                        }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            status: 'CONTRACT',
+                            contractOfferId: `offer-${suffix}`,
+                            contractCompanyId: 42,
+                            contractCompanyName: `Entreprise ${suffix}`,
+                            contractStartDate: '2026-10-01',
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('CONTRACT');
+            expect(json.data.updateCandidate.contractOfferId).toBe(`offer-${suffix}`);
+            expect(json.data.updateCandidate.contractCompanyId).toBe(42);
+            expect(json.data.updateCandidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
+            expect(json.data.updateCandidate.contractStartDate).toContain('2026-10-01');
+
+            // Verify persisted via a follow-up query
+            const verify = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `query($id: String!) { candidate(id: $id) { contractCompanyName contractStartDate } }`,
+                    variables: { id: seeded._id },
+                }),
+            });
+            const vjson = await verify.json();
+            expect(vjson.data.candidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
+            expect(vjson.data.candidate.contractStartDate).toContain('2026-10-01');
+        });
+
+        it('syncs linked offer status to CONTRACT when moving to CONTRACT', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+            const offerRepo = new OfferRepository();
+
+            const candidateId = `update-contract-sync-${suffix}`;
+            const seeded = await repo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Fiona ${suffix}`,
+                    email: `fiona-${suffix}@test.local`,
+                    phone: '0100000011',
+                },
+            });
+
+            const offerId = `offer-contract-sync-${suffix}`;
+            await seedOffer({ _id: offerId, status: OfferStatus.MATCHED });
+            await offerRepo.addMatchedCandidate(offerId, {
+                id: candidateId,
+                full_name: `Fiona ${suffix}`,
+                age: 25,
+                email: `fiona-${suffix}@test.local`,
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) { id status }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: { status: 'CONTRACT', contractOfferId: offerId },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('CONTRACT');
+
+            const offer = await offerRepo.findById(offerId);
+            expect(offer?.matching?.status).toBe(OfferStatus.CONTRACT);
+        });
+
+        it('does not sync linked offer status when moving to a non-contract status', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+            const offerRepo = new OfferRepository();
+
+            const candidateId = `update-not-contract-${suffix}`;
+            const seeded = await repo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `George ${suffix}`,
+                    email: `george-${suffix}@test.local`,
+                    phone: '0100000012',
+                },
+            });
+
+            const offerId = `offer-not-contract-${suffix}`;
+            await seedOffer({ _id: offerId, status: OfferStatus.MATCHED });
+            await offerRepo.addMatchedCandidate(offerId, {
+                id: candidateId,
+                full_name: `George ${suffix}`,
+                age: 25,
+                email: `george-${suffix}@test.local`,
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) { id status }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: { status: 'IMMERSING' },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('IMMERSING');
+
+            const offer = await offerRepo.findById(offerId);
+            expect(offer?.matching?.status).toBe(OfferStatus.MATCHED);
+        });
+
         it('updates nested identity fields', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
@@ -263,7 +524,7 @@ describe('GraphQL candidate mutations', () => {
             const seeded = await repo.create({
                 _id: `update-nested-${suffix}`,
                 candidate_id: `update-nested-${suffix}`,
-                tp_type: TitleProfessionalType.AD,
+                tp_types: [TitleProfessionalType.AD],
                 status: CandidateStatus.SEEKING,
                 identity: { full_name: `Eve ${suffix}`, email: `eve-${suffix}@test.local`, phone: '0100000005' },
             });
@@ -306,6 +567,100 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.identity.transportMeans).toBe('Car');
         });
 
+        it('rejects update when the new email is already used by another candidate', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const taken = await repo.create({
+                _id: `update-email-taken-${suffix}`,
+                candidate_id: `update-email-taken-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Holly ${suffix}`, email: `holly-${suffix}@test.local`, phone: '0100000013' },
+            });
+            const seeded = await repo.create({
+                _id: `update-email-mover-${suffix}`,
+                candidate_id: `update-email-mover-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Ivan ${suffix}`, email: `ivan-${suffix}@test.local`, phone: '0100000014' },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) { id }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            identity: { fullName: `Ivan ${suffix}`, email: taken.identity.email, phone: '0100000014' },
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeDefined();
+            expect(json.errors[0].message).toMatch(/existe déjà/i);
+        });
+
+        it('allows updating a candidate while keeping its own email unchanged', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-email-self-${suffix}`,
+                candidate_id: `update-email-self-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: { full_name: `Jane ${suffix}`, email: `jane-${suffix}@test.local`, phone: '0100000015' },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) { id identity { city } }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            identity: {
+                                fullName: `Jane ${suffix}`,
+                                email: seeded.identity.email,
+                                phone: '0100000015',
+                                city: 'Saint Denis',
+                            },
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.identity.city).toBe('Saint Denis');
+        });
+
         it('returns an error when updating a non-existent candidate', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
@@ -345,7 +700,7 @@ describe('GraphQL candidate mutations', () => {
             const seeded = await repo.create({
                 _id: `delete-existing-${suffix}`,
                 candidate_id: `delete-existing-${suffix}`,
-                tp_type: TitleProfessionalType.AD,
+                tp_types: [TitleProfessionalType.AD],
                 status: CandidateStatus.SEEKING,
                 identity: { full_name: `Frank ${suffix}`, email: `frank-${suffix}@test.local`, phone: '0100000006' },
             });

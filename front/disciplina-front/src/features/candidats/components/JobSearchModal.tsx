@@ -5,10 +5,14 @@ import { GET_OFFERS } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { MatchedOffer, TitleProfessionalType } from '@/types/candidate'
+import { formatScheduleSlots } from '@/utils/schedule'
 
 interface JobSearchModalProps {
   excludedJobIds: Set<string>
   candidateTpTypes?: TitleProfessionalType[]
+  singleSelect?: boolean
+  allowAnyTpOnSearch?: boolean
+  footerAction?: { label: string; onClick: () => void }
   onConfirm: (jobs: MatchedOffer[]) => void
   onClose: () => void
 }
@@ -18,7 +22,15 @@ function formatSector(raw?: string): string {
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onConfirm, onClose }: JobSearchModalProps) {
+export default function JobSearchModal({
+  excludedJobIds,
+  candidateTpTypes,
+  singleSelect,
+  allowAnyTpOnSearch,
+  footerAction,
+  onConfirm,
+  onClose,
+}: JobSearchModalProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<MatchedOffer[]>([])
@@ -47,12 +59,21 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
 
   const visibleJobs = jobs.filter((job) => {
     if (excludedJobIds.has(job.id)) return false
-    if (candidateTpTypes?.length && (!job.desiredTP || !candidateTpTypes.includes(job.desiredTP))) return false
+    if (
+      !(allowAnyTpOnSearch && search.trim()) &&
+      candidateTpTypes?.length &&
+      !(job.desiredTp ?? []).some((tp) => tp.tpType && candidateTpTypes.includes(tp.tpType))
+    )
+      return false
     if (!search.trim()) return true
     return (job.companyName ?? '').toLowerCase().includes(search.trim().toLowerCase())
   })
 
   const toggleJob = (offerId: string) => {
+    if (singleSelect) {
+      setSelectedJobIds((prev) => (prev.has(offerId) ? new Set() : new Set([offerId])))
+      return
+    }
     setSelectedJobIds((prev) => {
       const next = new Set(prev)
       if (next.has(offerId)) next.delete(offerId)
@@ -119,7 +140,7 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
                   }`}
                 >
                   <input
-                    type="checkbox"
+                    type={singleSelect ? 'radio' : 'checkbox'}
                     checked={selectedJobIds.has(job.id)}
                     onChange={() => toggleJob(job.id)}
                     className="h-4 w-4 shrink-0 accent-blue"
@@ -131,10 +152,16 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{job.companyName || 'Entreprise'}</p>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {job.desiredTP && (
-                        <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
-                          {TP_TYPE_LABELS[job.desiredTP]}
-                        </span>
+                      {(job.desiredTp ?? []).map(
+                        (tp) =>
+                          tp.tpType && (
+                            <span
+                              key={tp.tpType}
+                              className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                            >
+                              {TP_TYPE_LABELS[tp.tpType]}
+                            </span>
+                          ),
                       )}
                       {job.sector && (
                         <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
@@ -149,6 +176,14 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
                           {LOCALISATION_LABELS[loc]}
                         </span>
                       ))}
+                      {formatScheduleSlots(job.schedule).map((s) => (
+                        <span
+                          key={s}
+                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                        >
+                          {s}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </button>
@@ -157,13 +192,21 @@ export default function JobSearchModal({ excludedJobIds, candidateTpTypes, onCon
           )}
         </div>
 
-        <div className="flex justify-between gap-2 border-t border-gray-100 p-4">
+        <div className="flex items-center justify-between gap-2 border-t border-gray-100 p-4">
           <button
             onClick={onClose}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
           >
             Annuler
           </button>
+          {footerAction && (
+            <button
+              onClick={footerAction.onClick}
+              className="text-sm font-semibold text-blue hover:text-blue-600"
+            >
+              {footerAction.label}
+            </button>
+          )}
           <button
             onClick={handleConfirm}
             disabled={selectedJobIds.size === 0}

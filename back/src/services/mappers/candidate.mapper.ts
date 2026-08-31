@@ -1,6 +1,7 @@
 import { Candidate, CandidateStatus } from '../../types/candidate.types';
 import { Offer } from '../../types/offer.types';
 import { FilizStudentInfos } from '../../external/filiz/type';
+import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
 
 export function camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -42,8 +43,7 @@ export function candidateToGql(candidate: Candidate): any {
         // Rétro-compat : le statut "MATCHED" a été retiré ; les fiches legacy le portant
         // sont ramenées à "SEEKING" à la lecture (l'enum GraphQL ne l'accepte plus).
         status: (candidate.status as string) === 'MATCHED' ? CandidateStatus.SEEKING : candidate.status,
-        tpType: candidate.tp_type,
-        tpTypes: candidate.tp_types ?? (candidate.tp_type ? [candidate.tp_type] : []),
+        tpTypes: candidate.tp_types ?? [],
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,
@@ -51,10 +51,29 @@ export function candidateToGql(candidate: Candidate): any {
         immersionEndDate: candidate.immersion_end_date?.toISOString() ?? null,
         immersionCompanyId: candidate.immersion_company_id ?? null,
         immersionCompanyName: candidate.immersion_company_name ?? null,
+        contractOfferId: candidate.contract_offer_id ?? null,
+        contractCompanyId: candidate.contract_company_id ?? null,
+        contractCompanyName: candidate.contract_company_name ?? null,
+        contractStartDate: candidate.contract_start_date?.toISOString() ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
-        identity: candidate.identity ? snakeToCamelCase(candidate.identity) : null,
+        identity: candidate.identity
+            ? {
+                  ...snakeToCamelCase(candidate.identity),
+                  socialSecurityNumber: candidate.identity.social_security_number ? MASKED_SSN : undefined,
+              }
+            : null,
         emergencyContact: candidate.emergency_contact ? snakeToCamelCase(candidate.emergency_contact) : null,
+        consentments: candidate.consentments
+            ? {
+                  ...snakeToCamelCase(candidate.consentments),
+                  // fiches legacy sans date/version : les champs GraphQL sont non-null
+                  consentDate: candidate.consentments.consent_date
+                      ? new Date(candidate.consentments.consent_date).toISOString()
+                      : '',
+                  consentVersion: candidate.consentments.consent_version ?? '',
+              }
+            : null,
         education: candidate.education ? snakeToCamelCase(candidate.education) : null,
         support: candidate.support ? snakeToCamelCase(candidate.support) : null,
         background: candidate.background ? snakeToCamelCase(candidate.background) : null,
@@ -75,9 +94,7 @@ export function candidateToGql(candidate: Candidate): any {
         photoLink: candidate.photo_link || null,
         createdAt: candidate.created_at ? new Date(candidate.created_at).toISOString() : null,
         lastRelanceAt: candidate.last_relance_at ? new Date(candidate.last_relance_at).toISOString() : null,
-        relanceResponseAt: candidate.relance_response_at
-            ? new Date(candidate.relance_response_at).toISOString()
-            : null,
+        relanceResponseAt: candidate.relance_response_at ? new Date(candidate.relance_response_at).toISOString() : null,
     };
 }
 
@@ -138,7 +155,11 @@ export function offerToMatchedOfferGql(offer: Offer, candidateId?: string): obje
         companyName: offer.company_infos?.name,
         sector: null,
         localisation: offer.localisation,
-        desiredTP: offer.tp_type,
+        desiredTp: (offer.desired_tp ?? []).map((tp) => ({
+            tpType: tp.tp_type ?? null,
+            missions: tp.missions ?? [],
+            descriptionMissions: tp.description_missions ?? [],
+        })),
         ageRange,
         status,
         title: offer.title,

@@ -1,4 +1,4 @@
-import { UserRow, UserRowJoined } from '../../types/db-rows.types';
+import { UserRowJoined } from '../../types/db-rows.types';
 import { User, JobRole, Permission, UserResponse, DirectoryEntry } from '../../types/user.types';
 
 /**

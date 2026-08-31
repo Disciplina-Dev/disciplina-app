@@ -53,6 +53,7 @@ const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 const STATUS_CONFIG: Record<EntrepriseStatus, { bg: string; text: string; dot: string; border: string }> = {
   Oui:          { bg: 'bg-success-bg',  text: 'text-success',  dot: 'bg-success',  border: 'border-success/30' },
+  'Oui OF':     { bg: 'bg-success-bg',  text: 'text-success',  dot: 'bg-success',  border: 'border-success/30' },
   Non:          { bg: 'bg-danger-bg',   text: 'text-danger',   dot: 'bg-danger',   border: 'border-danger/30' },
   'À Réfléchir':{ bg: 'bg-warning-bg',  text: 'text-warning',  dot: 'bg-warning',  border: 'border-warning/30' },
   Relance:      { bg: 'bg-blue/10',     text: 'text-blue',     dot: 'bg-blue',     border: 'border-blue/30' },
@@ -253,7 +254,12 @@ export default function EntreprisePage() {
   }
 
   const toggleSelect = (id: string) => {
-    setSelectedAbIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+    setSelectedAbIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
   const handleBulkDelete = async () => {
     await Promise.all([...selectedAbIds].map((id) => deleteNeedsAnalysis(id)))

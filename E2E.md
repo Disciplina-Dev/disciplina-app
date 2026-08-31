@@ -39,7 +39,7 @@ Sources : `front/disciplina-front/src/store/authStore.ts`, `front/disciplina-fro
 | `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, modèles de mail |
 | `AD` / `GESTION` | `/admin` | CRUD utilisateurs, config Drive/secteurs |
 | `ENTREPRISE` | `/entreprise` | Remplir Analyse de Besoin, gérer apprentis, RDV, profils matchés |
-| Public (token/signature) | `/booking/:slug`, `/public/match/:signature`, `/public/interview/:signature`, `/public/cv-import/:signature` | Parcours invités sans compte |
+| Public (token/signature) | `/booking/:slug`, `/external/matching/:signature`, `/external/interview/:signature`, `/external/authenticate?sig=…`, `/external/cv-import/:signature` — les anciens liens `/public/{match,interview,cv-import}/:signature` (mails pré-migration) sont redirigés vers `/external/authenticate?sig=…` | Parcours invités sans compte |
 
 ---
 
@@ -101,27 +101,26 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 
 - **Étapes** : RH → `Matching` → lancer un match sur une offre → ajouter/retirer des candidats → créer une session de match.
 - **Chaîne** : GraphQL `/api/graphql/offers` — `matchOffer`, `addCandidateToOffer`, `removeCandidateFromOffer`, `updateMatchedCandidateStatus`, `createMatchSession(offerId, companyEmail, candidates)` → `MatchLinkService` / `MatchMailService` (lien signé + email Gmail). Offres/matches en Mongo.
-- **Résultat attendu** : (1) candidats matchés retournés ; statut `MATCHED`/`NOT_MATCHED` cohérent ; (2) relu via `offer(id)` ; (3) email de match envoyé, `interview_access` + email créés pour les candidats acceptés.
+- **Résultat attendu** : (1) candidats matchés retournés ; statut `MATCHED`/`NOT_MATCHED` cohérent ; (2) relu via `offer(id)` ; (3) email de match envoyé, session `external_access` reference 3 (entretien) créée + email d'invitation envoyé pour les candidats acceptés.
 - **External** : ⚠️ Gmail.
 - **Test vitest** : `graphql/offers/__tests__/{query,mutation}.test.ts`, `services/__tests__/MatchLinkService.test.ts`.
 - **Statut** : _à remplir_
 
 ### 3.7 Comparateur public (match)
 
-- **Étapes** : entreprise reçoit un lien `/public/match/:signature` → s'authentifie par code → compare les profils → soumet ses réponses.
-- **Chaîne** : `GET /api/match/:signature/inspect`, `POST /:signature/authenticate`, `GET /:signature/candidates`, `GET /:signature/cv/:candidateId`, `POST /:signature/answers` → `rest/match/controller.ts` (token dans `services/matchToken.ts`).
-- **Résultat attendu** : signature invalide rejetée ; après auth, candidats + CV accessibles ; réponses persistées (déclenche le flux entretien).
-- **External** : aucun (au submit, peut déclencher mail).
-- **Test vitest** : aucun (gap, mais token signé couvert par `external/crypto/signers.test.ts`).
-- **Statut** : _à remplir_
+- **Étapes** : entreprise reçoit un lien `/external/authenticate?sig=…` → saisit le code 6 chiffres (envoyé au chargement) → inspect pose le cookie `disc_at` → redirection `/external/matching/:signature` → compare les profils → soumet ses réponses.
+- **Chaîne** : `POST /api/external/inspect` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/match/{candidates,cv/:candidateId,completion}`, `POST /:signature/match/answers` → `MatchAccessService` (`external_access` reference 2) + `MatchMailService`.
+- **Résultat attendu** : signature inconnue rejetée ; après auth (cookie), candidats (avec consentement `data_sharing`) + CV accessibles ; réponses persistées (déclenche le flux entretien) ; session déjà finalisée → **409** ; re-soumettre une session COMPLETED → 409 sans changement.
+- **External** : ⚠️ Gmail (code envoyé séparément au chargement + template `proposition_candidat` sans code/identifiant).
+- **Test vitest** : `services/__tests__/MatchAccessService.test.ts`, `rest/external/__tests__/{matchCompleted,matchConsent}.test.ts`.
 
 ### 3.8 Entretiens
 
-- **Étapes** : entreprise ouvre `/public/interview/:signature` → s'authentifie (code) → choisit un créneau → réserve.
-- **Chaîne** : `GET /api/interview/:signature/inspect`, `POST /:signature/authenticate`, `GET /:signature/slots`, `POST /:signature/book` → `InterviewAccessService`, `InterviewMailService`, `interviewToken`. Crée un event Google Calendar.
-- **Résultat attendu** : (1) verrouillage après 3 codes erronés, code correct → token utilisable ; créneau déjà pris marqué occupé ; réservation d'un créneau libre → historique + notif RH ; créneau pris → **409 race-safe sous concurrence**.
+- **Étapes** : candidat accepté reçoit un email avec un lien `/external/authenticate?sig=…` → ouvre le lien → saisit le code 6 chiffres (envoyé au chargement) → cookie `disc_at` posé → redirection `/external/interview/:signature` → choisit un créneau → réserve.
+- **Chaîne** : `POST /api/external/inspect` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/interview/slots`, `POST /:signature/interview/book` → `ExternalInterviewService` (`external_access` reference 3 : offer = `external_id`, candidate = `reference_key`) + `InterviewMailService`. Occupation croisée agenda Google du RH (freebusy) + créneaux déjà réservés par d'autres candidats.
+- **Résultat attendu** : (1) code correct → cookie, session déjà finalisée → **"Démarche déjà finalisée"** ; créneau déjà pris marqué occupé ; réservation d'un créneau libre → historique (candidat + offre) + notif RH `interview_booked` ; créneau pris/chevauchant une période occupée → **409 race-safe sous concurrence** ; re-réservation sur session `COMPLETED` → 409.
 - **External** : ⚠️ Google Calendar.
-- **Test vitest** : `rest/interview/__tests__/flow.test.ts`.
+- **Test vitest** : `rest/external/__tests__/interviewFlow.test.ts`, `services/__tests__/MatchAccessService.test.ts` (déclenchement), `services/__tests__/InterviewMailService.test.ts`.
 - **Statut** : _à remplir_
 
 ### 3.9 Booking / calendrier
@@ -217,6 +216,12 @@ Source : `back/src/external/*`, `back/src/config/env.ts`. Rappel : au démarrage
 
 ## 5. Correspondance flux ↔ tests automatisés existants
 
+### Suite E2E Playwright (front → back → DB)
+
+Les 16 flux sont désormais automatisés bout-en-bout par une suite **Playwright** dans [`front/disciplina-front/e2e/`](front/disciplina-front/e2e/README.md) (un `*.spec.ts` par flux, nommé d'après ce document). Prérequis : `docker compose up` (le seed `database/mysql/mysql-seed-e2e.sql` provisionne un compte par rôle). Lancement : `npm run test:e2e` (ou `test:e2e:ci` pour exclure les tests taggés `@external`). Complète les tests component vitest ci-dessous, ne les remplace pas.
+
+### Tests component vitest
+
 Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` (DBs Docker requises). Voir [`back/HOWTOTEST.md`](back/HOWTOTEST.md).
 
 | Flux | Couvert par | Gap |
@@ -228,7 +233,7 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.5 AB | `needsAnalysis` (partiel) | **PDF** |
 | 3.6 Matching | `offers/{query,mutation}`, `MatchLinkService` | — |
 | 3.7 Comparateur public | `signers` (token) | **flux HTTP** |
-| 3.8 Entretiens | `interview/flow` | — |
+| 3.8 Entretiens | `external/interview` | — |
 | 3.9 Booking/calendrier | — | **oui** |
 | 3.10 E-signature | `needsAnalysis`, `webhookSignature` | — |
 | 3.11 Email/relance | (pattern documenté) | **oui** |

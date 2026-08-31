@@ -287,9 +287,9 @@ export default function ...  // ❌
 |---------|-----------|---------|------|
 | MySQL rows (raw) | snake_case | `user_id`, `oauth_token` | `types/db-rows.types.ts` |
 | MySQL domain types | camelCase — converted **at the repository** | `userID`, `oauthToken` | `types/company.types.ts`, `user.types.ts` |
-| MongoDB documents | snake_case | `full_name`, `tp_type` | `db/mongo/schemas/` |
-| MongoDB domain types | snake_case — **mirror the document**, no conversion here | `full_name`, `tp_type`, `training_site` | `types/candidate.types.ts`, `needsAnalysisNoSql.types.ts` |
-| GraphQL schema & responses (both DBs) | camelCase — converted **at the resolver** | `fullName`, `tpType` | `graphql/*/typeDefs.ts` |
+| MongoDB documents | snake_case | `full_name`, `tp_types` | `db/mongo/schemas/` |
+| MongoDB domain types | snake_case — **mirror the document**, no conversion here | `full_name`, `tp_types`, `training_site` | `types/candidate.types.ts`, `needsAnalysisNoSql.types.ts` |
+| GraphQL schema & responses (both DBs) | camelCase — converted **at the resolver** | `fullName`, `tpTypes` | `graphql/*/typeDefs.ts` |
 
 The two paths differ by **where** snake_case turns into camelCase:
 
@@ -348,6 +348,24 @@ try {
 - Manual connection handling (`getConnection()` + `conn.release()`) for create/update
 - JSON stored as stringified text (e.g., `sectors` in `users` table)
 
+#### Least-privilege account
+
+The app connects as `disciplina_app`, never as `root`. `mysql-init.sql` narrows its grants to
+`SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES` on
+`disciplina.*` — `DROP` and every global privilege are withheld, so `DROP DATABASE`, `DROP TABLE`
+and reads of `mysql.user` are all refused. `CREATE`/`ALTER` are granted because
+`runMysqlMigrations()` evolves the schema at boot; `CREATE TEMPORARY TABLES` because the KPI
+queries use CTEs that MySQL materialises.
+
+**Convention:** any new query must work under this grant set. Two known traps — `TRUNCATE`
+requires `DROP` (use `DELETE`), and a `WITH` CTE requires `CREATE TEMPORARY TABLES`. The test
+suite runs under the same account, so a violation fails in CI rather than in production.
+
+`mysql-init.sql` only runs on a fresh volume: existing databases need
+`database/mysql/migrations/2026-08-06-app-user.sql` applied once, otherwise keep `MYSQL_USER=root`
+in `.env`. Credentials come from `MYSQL_USER` / `MYSQL_PASSWORD`; `MYSQL_PASSWORD` is unset means
+falling back to the root password (backwards compatibility, see `config/env.ts`).
+
 ### MongoDB
 
 - Mongoose ODM with explicit `collection` names
@@ -370,6 +388,15 @@ column doesn't exist yet, logging each addition via `logger.info`.
 installs). Table/column identifiers in `REQUIRED_COLUMNS` are hardcoded constants, never
 user input, so the string-built `ALTER TABLE` is safe.
 
+`REQUIRED_COLUMNS` ne porte que des colonnes : un **index** (ou une colonne générée indexée, comme
+`companies.siren` / `idx_companies_siren`) doit être rattrapé par un bloc dédié dans
+`runMysqlMigrations()`, gardé par un `SELECT ... FROM INFORMATION_SCHEMA.STATISTICS`.
+
+The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table goes in **both**
+`mysql-init.sql` and `REQUIRED_TABLES`, otherwise fresh volumes and existing databases drift apart.
+`users`, `roles`, `permissions`, `filiz`, `companies` and `company_history` live only in
+`mysql-init.sql` — they predate the mechanism and are handled by ad-hoc migrations.
+
 ## Authentication & authorization
 
 ### Role-based access
@@ -381,6 +408,26 @@ user input, so the string-built `ALTER TABLE` is safe.
   the `requireRoles(...roles)` middleware from `rest/middleware/roleGuard.ts` chained after
   `authenticate` (e.g. `[authenticate, requireRoles('ADMIN', 'RESPONSABLE')]` — see
   `rest/kpi/route.ts`)
+
+### Candidate consent checks
+
+- `services/consentGuard.ts` — `assertConsent(candidate, [ConsentType.X], { mode: 'block' | 'warn' })`,
+  same shape as `authGuard()` (plain `Error` thrown, checked manually at the call site — no
+  middleware/directive wiring exists for this yet). `mode: 'warn'` logs and allows instead of
+  throwing, used as a temporary grace period for candidates recorded before a given consent check
+  existed; flip to `'block'` per call site once backfill/re-consent is confirmed.
+- Call sites (all currently `warn` mode — flip to `block` per site once backfill/re-consent is
+  confirmed):
+  - `rest/candidates/route.ts` `POST /:id/generate-summary` — `ConsentType.AI_PROCESSING`
+  - `rest/candidates/route.ts` `POST /:id/avatar`, `GET /:id/avatar-file`, public `GET /:id/avatar`,
+    and the Drive photo auto-detect side effect in `GET /:id/drive-files` — `ConsentType.PHOTO_PROCESSING`
+  - `rest/filiz/controller.ts` `createFolder` — `ConsentType.DATA_SHARING`
+  - `rest/match/controller.ts` `getCv`/`streamCandidateCv` — `ConsentType.DATA_SHARING`
+- Exception to the block/warn pattern: `rest/match/controller.ts` `getCandidates` (list of candidates
+  shown to an external company) **filters** non-consenting candidates out of the response instead of
+  throwing — a per-item decision, not a temporary grace period, since blocking the whole list over one
+  non-consenting candidate would break the company's session. Backed by
+  `CandidateRepository.findConsentmentsByIds()` to avoid N+1 queries.
 
 ### Google OAuth code patterns
 
@@ -592,7 +639,7 @@ The following violations of this CONVENTION.md have been identified in the codeb
 | 10 | `services/mappers/candidate.mapper.ts` | Mapper function names don't follow `toX()` pattern; generic utilities mixed in | Naming / Design |
 | 11 | `services/CandidateService.ts` | Repository initialized as field, not in constructor | Minor deviation |
 | 13 | `rest/candidates/route.ts` (×9), `rest/classmarker/webhook.route.ts` (×2), `external/yousign/yousign.service.ts` (×2), `rest/yousign/controller.ts` (×2), `rest/classmarker/route.ts`, `rest/peda/controller.ts`, `rest/mailTemplates/controller.ts`, `external/filiz/auth-client.ts` | `logger.error(err, 'message')` / `logger.error(error)` — bare error as first arg instead of `{ err: error }` | Logging |
-| 14 | `services/PedaService.ts`, `MailTemplateService.ts`, `InterviewAccessService.ts`, `rest/booking/service.ts` | 8 more custom Error classes beyond #3 — `SlotUnavailableError` is even declared twice | Error handling |
+| 14 | `services/PedaService.ts`, `MailTemplateService.ts`, `ExternalInterviewService.ts`, `rest/booking/service.ts` | 8 more custom Error classes beyond #3 — `SlotUnavailableError` is even declared twice | Error handling |
 | 15 | `rest/classmarker/webhook.route.ts`, `rest/candidates/route.ts` | Routes import Mongoose models directly (`CandidateModel`, `CandidateAvatarModel`), skipping both service and repository | Layering |
 | 16 | `rest/booking/repository.ts`, `rest/booking/service.ts`, `rest/classmarker/service.ts` | A repository and two services live under `rest/` instead of `repositories/` and `services/` | Structural |
 | 17 | `rest/mailTemplates/`, `rest/sectorSettings/`, `rest/needsAnalysis/`, `graphql/needsAnalysis/` | Directory names are camelCase, convention says kebab-case (`rest/rh-kpi/` complies) | Naming |

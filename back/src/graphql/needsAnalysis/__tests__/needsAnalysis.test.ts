@@ -4,7 +4,7 @@ import { truncateMysql, dropMongo } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
-import { JobRole, Permission } from '../../../types/user.types';
+import { NeedsAnalysisModel } from '../../../db/mongo/schemas/needsAnalysis.schema';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/needs-analysis`;
 
@@ -79,8 +79,8 @@ describe('GraphQL Needs Analysis integration', () => {
                     {
                         trainingDomain: 'VENTE',
                         title: 'Apprenti Conseiller de Vente',
-                        missions: ['Accueil client', 'Mise en rayon'],
                         localisation: ['SAINT_DENIS', 'SAINTE_MARIE'],
+                        desiredTp: [{ missions: ['Accueil client', 'Mise en rayon'] }],
                         criteria: {
                             educationLevel: 'BAC',
                             drivingLicense: false,
@@ -94,8 +94,8 @@ describe('GraphQL Needs Analysis integration', () => {
                     {
                         trainingDomain: 'SECRETARIAT',
                         title: 'Secrétaire Assistante',
-                        missions: ['Saisie de données'],
                         localisation: ['SAINT_PIERRE'],
+                        desiredTp: [{ missions: ['Saisie de données'] }],
                         criteria: {
                             educationLevel: 'BAC_PLUS_2',
                             drivingLicense: true,
@@ -123,7 +123,7 @@ describe('GraphQL Needs Analysis integration', () => {
                     positionsCount
                     positions {
                         title
-                        missions
+                        desiredTp { missions }
                         localisation
                         criteria {
                             educationLevel
@@ -225,8 +225,8 @@ describe('GraphQL Needs Analysis integration', () => {
                 {
                     trainingDomain: 'VENTE',
                     title: 'Apprenti Conseiller de Vente',
-                    missions: ['Accueil client'],
                     localisation: ['SAINT_DENIS', 'SAINTE_MARIE'],
+                    desiredTp: [{ missions: ['Accueil client'] }],
                     criteria: {
                         educationLevel: 'BAC',
                         drivingLicense: false,
@@ -305,5 +305,123 @@ describe('GraphQL Needs Analysis integration', () => {
         const { json: fetchJson } = await graphql(fetchQuery, { id: created.id });
         expect(fetchJson.errors).toBeUndefined();
         expect(fetchJson.data.needsAnalysis.status).toBe('SIGNE');
+    });
+
+    it('markNeedsAnalysisSigned marks status SIGNE and creates offers without Yousign', async () => {
+        const input = {
+            companyID: companyId,
+            userID: userId,
+            recruitmentResponsibleName: 'Jean Dupont',
+            recruitmentResponsiblePhone: '0692112233',
+            recruitmentResponsibleEmail: 'jean.dupont@company.local',
+            positions: [
+                {
+                    trainingDomain: 'VENTE',
+                    title: 'Apprenti Conseiller de Vente',
+                    localisation: ['SAINT_DENIS'],
+                    desiredTp: [{ missions: ['Accueil client'] }],
+                    criteria: {
+                        educationLevel: 'BAC',
+                        drivingLicense: false,
+                        experienceRequired: false,
+                        softSkills: 'Dynamique',
+                    },
+                },
+            ],
+            recruitmentMethod: 'PRESELECTION',
+            immersionPeriod: 'OUI',
+            trainingDays: JSON.stringify({ monday: ['MATIN'] }),
+            status: 'BROUILLON',
+        };
+
+        const createMutation = `
+            mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
+                createNeedsAnalysis(input: $input) { id status }
+            }
+        `;
+        const { json: createJson } = await graphql(createMutation, { input });
+        expect(createJson.errors).toBeUndefined();
+        const created = createJson.data.createNeedsAnalysis;
+        expect(created.status).toBe('BROUILLON');
+
+        const signMutation = `
+            mutation MarkSigned($id: ID!) {
+                markNeedsAnalysisSigned(id: $id) { id status }
+            }
+        `;
+        const { json: signJson } = await graphql(signMutation, { id: created.id });
+        expect(signJson.errors).toBeUndefined();
+        expect(signJson.data.markNeedsAnalysisSigned.status).toBe('SIGNE');
+
+        // The candidate having found their own contract skips Yousign entirely, but
+        // the matching offer must still be generated so it can be linked to them.
+        const offersEndpoint = `http://localhost:${env.API_PORT}/api/graphql/offers`;
+        const offersRes = await fetch(offersEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: authCookies.cookieHeader,
+                'x-csrf-token': authCookies.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($needsAnalysisId: String!) { offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) { id status } }`,
+                variables: { needsAnalysisId: created.id },
+            }),
+        });
+        const offersJson = await offersRes.json();
+        expect(offersJson.errors).toBeUndefined();
+        expect(offersJson.data.offersByNeedsAnalysis.length).toBeGreaterThan(0);
+    });
+
+    it('serves legacy needs analyses whose positions predate the schedule field', async () => {
+        // Insertion brute (hors Mongoose) : un AB créé avant le passage aux créneaux
+        // structurés porte des `schedule_options: string[]`, ou aucun critère du tout.
+        await NeedsAnalysisModel.collection.insertOne({
+            _id: `ab-legacy-${suffix}`,
+            company_infos: { id: companyId, name: `Test Company ${suffix}` },
+            saler_info: { id: userId, email: `sp-${suffix}@test.local` },
+            referents: { is_same: true },
+            positions: [
+                {
+                    localisation: ['SAINT_DENIS'],
+                    title: 'Apprenti Legacy',
+                    desired_tp: [{ missions: ['Accueil client'] }],
+                    criteria: {
+                        education_level: 'BAC',
+                        schedule_options: ['Lundi : 8h-12h', 'Mardi : 14h-17h'],
+                    },
+                },
+                {
+                    localisation: ['SAINT_PIERRE'],
+                    title: 'Poste sans critères',
+                    desired_tp: [],
+                },
+            ],
+            recruitment_method: 'PRESELECTION',
+            immersion_period: 'OUI',
+            status: 'SIGNE',
+        });
+
+        const query = `
+            query FetchLegacy($id: ID!) {
+                needsAnalysis(id: $id) {
+                    id
+                    positions {
+                        title
+                        criteria { scheduleOptions { day startHour endHour } }
+                    }
+                }
+            }
+        `;
+        const { status, json } = await graphql(query, { id: `ab-legacy-${suffix}` });
+
+        expect(status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.needsAnalysis.id).toBe(`ab-legacy-${suffix}`);
+        expect(json.data.needsAnalysis.positions[0].criteria.scheduleOptions).toEqual([
+            { day: null, startHour: 'Lundi : 8h-12h', endHour: null },
+            { day: null, startHour: 'Mardi : 14h-17h', endHour: null },
+        ]);
+        expect(json.data.needsAnalysis.positions[1].criteria).toBeNull();
     });
 });

@@ -32,30 +32,42 @@ export interface Referents {
   recruitmentReferents?: ReferentDetails | null
 }
 
+export interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 export interface OfferCriteria {
   educationLevel?: string | null
   drivingLicense?: boolean | null
+  hasVehicle?: boolean | null
   experienceRequired?: boolean | null
   trainingDomain?: string | null
   ageMin?: number | null
   ageMax?: number | null
   desiredSex?: string | null
   softSkills?: string | null
-  scheduleOptions?: string[] | null
+  scheduleOptions?: ScheduleSlot[] | null
   conditions?: string | null
   additionalComments?: string | null
 }
 
-export interface Position {
-  localisation?: string[] | null
+export interface PositionTp {
   tpType?: string | null
-  trainingDomain?: string | null
-  jobRole?: string | null
-  title?: string | null
   missions?: string[] | null
   descriptionMissions?: string[] | null
   otherDescriptionMissions?: string | null
   otherMissions?: string | null
+}
+
+export interface Position {
+  localisation?: string[] | null
+  desiredTp?: PositionTp[] | null
+  trainingDomain?: string | null
+  jobRole?: string | null
+  count?: number | null
+  title?: string | null
   criteria?: OfferCriteria | null
 }
 
@@ -71,6 +83,10 @@ export interface NeedsAnalysis {
   trainingDays?: string | null
   yousignSignatureRequestID?: string | null
   status?: string | null
+  /** Statut d'onglet (liste matching RH) : forcé manuellement ou dérivé des offres. */
+  abStatus?: string | null
+  isRelanceDisabled?: boolean | null
+  tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null
 }

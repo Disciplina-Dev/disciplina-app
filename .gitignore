@@ -13,13 +13,13 @@ client_secret.json
 credentials*.json
 service-account*.json
 
-CLAUDE.md
-AGENTS.md
-TASK.md
-PLAN.md
-.claude
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/memmory
 graphify-out
 scripts/resource
 ollama-data
 .vercel
+backups
 docs
+.playwright-mcp

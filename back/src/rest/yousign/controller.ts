@@ -6,8 +6,9 @@ import { UserRepository } from '../../repositories/mysql/UserRepository';
 import { CompaniesService } from '../../services/CompaniesService';
 import { YousignService } from '../../external/yousign/yousign.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { withNoReply } from '../../external/google/no-reply';
+import { MailTemplateService } from '../../services/MailTemplateService';
 import { logger } from '../../external/logger';
-import { JobRole } from '../../types/user.types';
 import { notifyUser } from './sse';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();
@@ -15,6 +16,7 @@ const userRepo = new UserRepository();
 const companiesService = new CompaniesService();
 const yousignService = new YousignService();
 const gmailService = new GoogleGmailService();
+const mailTemplateService = new MailTemplateService();
 
 export async function handleYousignWebhook(req: Request, res: Response): Promise<void> {
     const eventName = req.body.eventName || req.body.event;
@@ -98,6 +100,9 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
 
         if (senderUser && senderUser.oauth_token && senderUser.refresh_token) {
             const base64Pdf = pdfBuffer.toString('base64');
+            const signatureHtml = await mailTemplateService
+                .getSignatureHtml(senderUser.id, 'commercial')
+                .catch(() => '');
             const mailOptions = {
                 to: `${analysis.referents?.recruitmentReferents?.email || ''}, ${senderUser.email}`,
                 subject: `[Disciplina] Fiche Analyse du Besoin Signée - ${companyName}`,
@@ -121,6 +126,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                             Ceci est un e-mail automatique envoyé par l'application CRM Disciplina.
                         </div>
                     </div>
+                    ${signatureHtml}
                 `,
                 attachment: {
                     content: base64Pdf,
@@ -144,7 +150,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                 logger.info(`Sending signed PDF notification email from ${senderUser.email}...`);
                 await gmailService.sendEmail(
                     { access_token: senderUser.oauth_token, refresh_token: senderUser.refresh_token },
-                    mailOptions,
+                    withNoReply(mailOptions),
                     persistRefreshedTokens(senderUser.id),
                 );
                 logger.info('Notification email sent successfully!');

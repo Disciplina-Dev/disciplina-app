@@ -59,6 +59,7 @@ export const GET_COMPANIES = gql`
             sector
             mainActivity
             siret
+            siren
             idcc
             ape
             notes
@@ -84,6 +85,51 @@ export const GET_COMPANIES = gql`
         startCursor
         endCursor
       }
+      totalCount
+    }
+  }
+`
+
+export const GET_COMPANIES_BY_SIREN = gql`
+  query GetCompaniesBySiren($first: Int, $after: String, $filters: CompanyFiltersInput) {
+    companiesBySiren(first: $first, after: $after, filters: $filters) {
+      edges {
+        cursor
+        node {
+          siren
+          count
+          companies {
+            id
+            userID
+            legalReferent
+            name
+            phone
+            email
+            address
+            sector
+            mainActivity
+            siret
+            siren
+            idcc
+            ape
+            notes
+            conclusion
+            status
+            relanceDate
+            createdAt
+            relanceType
+            relanceTemplateId
+            relanceChannel
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+      totalCount
     }
   }
 `
@@ -274,6 +320,86 @@ export const UNBLACKLIST_COMPANY = gql`
   }
 `
 
+export const GET_COMPANY_CONFLICTS = gql`
+  query GetCompanyConflicts($first: Int, $after: String, $search: String, $conflictType: String) {
+    companyConflicts(first: $first, after: $after, search: $search, conflictType: $conflictType) {
+      edges {
+        cursor
+        node {
+          id
+          userID
+          legalReferent
+          name
+          phone
+          email
+          address
+          sector
+          mainActivity
+          siret
+          idcc
+          ape
+          notes
+          conclusion
+          status
+          relanceDate
+          createdAt
+          relanceType
+          relanceTemplateId
+          relanceChannel
+          candidateUserIds
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`
+
+export const UPDATE_COMPANY_CONFLICT = gql`
+  mutation UpdateCompanyConflict($id: Int!, $input: CompanyConflictInput!) {
+    updateCompanyConflict(id: $id, input: $input) {
+      id
+      userID
+      legalReferent
+      name
+      phone
+      email
+      address
+      sector
+      mainActivity
+      siret
+      idcc
+      ape
+      notes
+      conclusion
+    }
+  }
+`
+
+export const RESOLVE_COMPANY_CONFLICT = gql`
+  mutation ResolveCompanyConflict($id: Int!) {
+    resolveCompanyConflict(id: $id) {
+      id
+    }
+  }
+`
+
+export const DELETE_COMPANY_CONFLICT = gql`
+  mutation DeleteCompanyConflict($id: Int!) {
+    deleteCompanyConflict(id: $id)
+  }
+`
+
+export const DELETE_COMPANY_CONFLICTS_BY_TYPE = gql`
+  mutation DeleteCompanyConflictsByType($conflictType: String!) {
+    deleteCompanyConflictsByType(conflictType: $conflictType)
+  }
+`
+
 // ─── Candidats (MongoDB) ─────────────────────────────────────────────────────
 
 const CANDIDATE_FIELDS = gql`
@@ -285,7 +411,6 @@ const CANDIDATE_FIELDS = gql`
       sector
     }
     status
-    tpType
     tpTypes
     trainingSite
     trainingSites
@@ -354,8 +479,8 @@ export const GET_CANDIDATES = gql`
 `
 
 export const GET_CANDIDATES_PAGE = gql`
-  query GetCandidatesPage($first: Int, $after: String, $search: String, $filters: CandidateFiltersInput) {
-    candidatesPage(first: $first, after: $after, search: $search, filters: $filters) {
+  query GetCandidatesPage($first: Int, $after: String, $search: String, $searchField: CandidateSearchField, $filters: CandidateFiltersInput) {
+    candidatesPage(first: $first, after: $after, search: $search, searchField: $searchField, filters: $filters) {
       edges {
         cursor
         node {
@@ -368,6 +493,7 @@ export const GET_CANDIDATES_PAGE = gql`
         startCursor
         endCursor
       }
+      totalCount
     }
   }
   ${CANDIDATE_FIELDS}
@@ -443,6 +569,12 @@ export const CHECK_CANDIDATE_EMAIL = gql`
   }
 `
 
+export const UNMASK_SSN = gql`
+  query UnmaskCandidateSsn($id: String!) {
+    unmaskCandidateSsn(id: $id)
+  }
+`
+
 export const GET_CANDIDATE_BY_ID = gql`
   query GetCandidateById($id: String!) {
     candidate(id: $id) {
@@ -453,7 +585,6 @@ export const GET_CANDIDATE_BY_ID = gql`
         sector
       }
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -462,6 +593,10 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -487,6 +622,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -584,7 +720,6 @@ export const UPDATE_CANDIDATE = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -593,6 +728,10 @@ export const UPDATE_CANDIDATE = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -622,6 +761,7 @@ export const UPDATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -705,7 +845,6 @@ export const CREATE_CANDIDATE = gql`
     createCandidate(input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -726,6 +865,7 @@ export const CREATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
       }
@@ -761,7 +901,6 @@ export const GET_CANDIDATE_FULL = gql`
         sector
       }
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -770,6 +909,10 @@ export const GET_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -796,6 +939,7 @@ export const GET_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education { schoolLevel justification }
       support {
         franceTravailRegistered
@@ -874,7 +1018,11 @@ export const MATCH_CANDIDATE = gql`
         companyName
         sector
         localisation
-        desiredTP
+        desiredTp {
+          tpType
+          missions
+          descriptionMissions
+        }
         ageRange
         status
         title
@@ -889,7 +1037,6 @@ export const UPDATE_CANDIDATE_FULL = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -898,6 +1045,10 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      contractOfferId
+      contractCompanyId
+      contractCompanyName
+      contractStartDate
       desiredSectors
       expectedCompanySkills
       identity {
@@ -923,6 +1074,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -1057,13 +1209,21 @@ export const GET_OFFERS = gql`
       companyInfos { id name activities }
       companyName
       ageRange
-      desiredTP
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
       sector
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1097,17 +1257,25 @@ export const MATCH_OFFER = gql`
     matchOffer(id: $id) {
       id
       needsAnalysisId
-      companyInfos { id name activities }
+      companyInfos { id name address email activities }
       companyName
       ageRange
-      desiredTP
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
       sector
       softSkills
+      schedule { day startHour endHour }
       matchedCandidate {
         id
         fullName
@@ -1121,6 +1289,7 @@ export const MATCH_OFFER = gql`
         identityDescription
         comment
         cvWebview
+        hasCv
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1137,10 +1306,13 @@ export const MATCH_OFFER = gql`
         city
         email
         phone
+        hasCv
       }
+      interviewSlots
+      interviewLocation
       title
       jobRole
-      missions
+      relaxedCriteria
       salerInfo {
         id
         email
@@ -1165,8 +1337,8 @@ export const MATCH_OFFER = gql`
 `
 
 export const CREATE_MATCH_SESSION = gql`
-  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!) {
-    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates)
+  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!, $templateId: String) {
+    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates, templateId: $templateId)
   }
 `
 
@@ -1187,6 +1359,7 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         description
         identityDescription
         cvWebview
+        hasCv
       }
     }
   }
@@ -1338,9 +1511,16 @@ export const UNMATCH_OFFER = gql`
       id
       companyName
       ageRange
-      desiredTP
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
@@ -1414,8 +1594,26 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
   query OffersByNeedsAnalysis($needsAnalysisId: String!) {
     offersByNeedsAnalysis(needsAnalysisId: $needsAnalysisId) {
       id
+      needsAnalysisId
+      companyInfos { id name activities }
       companyName
+      ageRange
+      desiredTp {
+        tpType
+        missions
+        descriptionMissions
+        otherDescriptionMissions
+        otherMissions
+      }
+      desiredSex
+      drivingLicencseB
+      hasVehicle
+      professionalExperience
+      status
+      localisation
+      sector
       title
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1493,7 +1691,46 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
       }
       positionsCount
       status
+      isRelanceDisabled
       createdAt
+    }
+  }
+`
+
+export const GET_NEEDS_ANALYSES_PAGE = gql`
+  query GetNeedsAnalysesPage($first: Int, $after: String, $filter: OfferFilterInput) {
+    needsAnalysesPage(first: $first, after: $after, filter: $filter) {
+      edges {
+        cursor
+        node {
+          id
+          status
+          positionsCount
+          createdAt
+          companyInfos {
+            name
+            siret
+            sector
+            activities
+            commune
+          }
+          positions {
+            jobRole
+            title
+            count
+            localisation
+            desiredTp {
+              tpType
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
     }
   }
 `
@@ -1593,24 +1830,28 @@ export const GET_NEEDS_ANALYSIS = gql`
       positionsCount
       positions {
         localisation
-        tpType
+        desiredTp {
+          tpType
+          missions
+          descriptionMissions
+          otherDescriptionMissions
+          otherMissions
+        }
         trainingDomain
         jobRole
+        count
         title
-        missions
-        descriptionMissions
-        otherDescriptionMissions
-        otherMissions
         criteria {
           educationLevel
           drivingLicense
+          hasVehicle
           experienceRequired
           trainingDomain
           ageMin
           ageMax
           desiredSex
           softSkills
-          scheduleOptions
+          scheduleOptions { day startHour endHour }
           conditions
           additionalComments
         }
@@ -1620,6 +1861,9 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      abStatus
+      isRelanceDisabled
+      tags
       createdAt
       updatedAt
     }
@@ -1680,6 +1924,81 @@ export const UPDATE_NEEDS_ANALYSIS = gql`
       id
       status
       updatedAt
+    }
+  }
+`
+
+export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
+  mutation MarkNeedsAnalysisSigned($id: ID!) {
+    markNeedsAnalysisSigned(id: $id) {
+      id
+      status
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
+  mutation UpdateNeedsAnalysisAbStatus($id: ID!, $abStatus: AbStatus) {
+    updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
+      id
+      abStatus
+    }
+  }
+`
+
+export const SET_AB_RELANCE_DISABLED = gql`
+  mutation SetAbRelanceDisabled($id: ID!, $disabled: Boolean!) {
+    setAbRelanceDisabled(id: $id, disabled: $disabled) {
+      id
+      status
+      isRelanceDisabled
+    }
+  }
+`
+
+export const GET_OFFER_HISTORY = gql`
+  query OfferHistory($offerId: String!) {
+    offerHistory(offerId: $offerId) {
+      id
+      firstName
+      lastName
+      text
+      ownerEmail
+      createdAt
+    }
+  }
+`
+
+export const ADD_OFFER_HISTORY_ENTRY = gql`
+  mutation AddOfferHistoryEntry($offerId: String!, $text: String!) {
+    addOfferHistoryEntry(offerId: $offerId, text: $text) {
+      id
+      firstName
+      lastName
+      text
+      ownerEmail
+      createdAt
+    }
+  }
+`
+
+export const DELETE_OFFER_HISTORY_ENTRY = gql`
+  mutation DeleteOfferHistoryEntry($id: String!) {
+    deleteOfferHistoryEntry(id: $id)
+  }
+`
+
+export const NEEDS_ANALYSES_FOR_DASHBOARD = gql`
+  query NeedsAnalysesForDashboard($limit: Int) {
+    needsAnalysesForDashboard(limit: $limit) {
+      items {
+        id
+        companyName
+        positionsCount
+        createdAt
+        status
+      }
+      totalCount
     }
   }
 `

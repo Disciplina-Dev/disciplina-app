@@ -79,6 +79,11 @@ const data = {
 
     API_PORT: numberWithDefault('API_PORT', 4000),
 
+    // Contourne le loginRateLimiter pour les suites E2E (login réel par rôle à chaque run).
+    // Ignoré en production : le garde-fou anti-brute-force reste actif.
+    E2E_DISABLE_LOGIN_RATE_LIMIT:
+        process.env.NODE_ENV !== 'production' && process.env.E2E_DISABLE_LOGIN_RATE_LIMIT === 'true',
+
     APP_BASE_URL: stringWithDefault('APP_BASE_URL', 'http://localhost:4000'),
     FRONTEND_BASE_URL: stringWithDefault('FRONTEND_BASE_URL', 'http://localhost:5173'),
     CORS_ORIGINS: stringWithDefault('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
@@ -91,27 +96,41 @@ const data = {
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
     CLASSMARKER_WEBHOOK_SECRET: requireStringWithCIFallback('CLASSMARKER_WEBHOOK_SECRET', 'sldllsdkldkls'),
-    MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
+    MYSQL_HOST: stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
     MYSQL_ROOT_PASSWORD:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MYSQL_ROOT_PASSWORD') ?? ''
+            ? (optionalString('MYSQL_ROOT_PASSWORD') ?? '')
             : requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
+    // Mot de passe du compte applicatif non-root (`disciplina_app`). Retombe sur
+    // MYSQL_ROOT_PASSWORD tant que MYSQL_USER vaut root : les installations existantes,
+    // dont le compte applicatif n'a pas été créé (mysql-init.sql ne rejoue pas sur un
+    // volume existant, cf. database/mysql/migrations/2026-08-06-app-user.sql), continuent
+    // de démarrer sans modifier leur .env.
+    MYSQL_PASSWORD: optionalString('MYSQL_PASSWORD'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
     MYSQL_URI: optionalString('MYSQL_URI'),
+    // Chemin d'une autorité de certification à utiliser pour le TLS MySQL en production.
+    // Nécessaire quand la base est un MySQL auto-hébergé : son certificat auto-signé,
+    // généré à l'init du serveur, n'est pas vérifiable via les CA système.
+    // Vide (défaut) = vérification classique contre les CA système (TiDB Cloud & co).
+    MYSQL_SSL_CA: optionalString('MYSQL_SSL_CA'),
 
     MONGO_URI: optionalString('MONGO_URI'),
     MONGO_ROOT_USERNAME:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MONGO_ROOT_USERNAME') ?? ''
+            ? (optionalString('MONGO_ROOT_USERNAME') ?? '')
             : requireString('MONGO_ROOT_USERNAME'),
     MONGO_ROOT_PASSWORD:
         process.env.NODE_ENV === 'production'
-            ? optionalString('MONGO_ROOT_PASSWORD') ?? ''
+            ? (optionalString('MONGO_ROOT_PASSWORD') ?? '')
             : requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
-    MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),
+    MONGO_HOST:
+        process.env.NODE_ENV === 'test'
+            ? stringWithDefault('MONGO_HOST', 'localhost')
+            : stringWithDefault('MONGO_HOST', 'nosql-db'),
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
 
     JWT_SECRET: requireStringWithCIFallback('JWT_SECRET', 'ci-jwt-secret'),
@@ -160,6 +179,7 @@ const data = {
     DRIVE_TEMPLATES_FOLDER_ID: optionalString('DRIVE_TEMPLATES_FOLDER_ID'),
 
     OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
+    SSN_ENCRYPTION_KEY: requireString('SSN_ENCRYPTION_KEY'),
 
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
@@ -206,6 +226,11 @@ if (INSECURE_DEFAULTS.has(data.GOOGLE_STATE_SECRET)) {
 
 if (INSECURE_DEFAULTS.has(data.OAUTH_ENCRYPTION_KEY)) {
     console.error('OAUTH_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.SSN_ENCRYPTION_KEY)) {
+    console.error('SSN_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 

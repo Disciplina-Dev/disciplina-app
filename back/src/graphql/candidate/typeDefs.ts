@@ -197,13 +197,19 @@ export const typeDefs = gql`
         interviewedBy: String
     }
 
+    type MatchedOfferTp {
+        tpType: TitleProfessionalType
+        missions: [String!]!
+        descriptionMissions: [String!]!
+    }
+
     type MatchedOffer {
         id: String
         needsAnalysisId: String
         companyName: String
         sector: String
         localisation: [Localisation]
-        desiredTP: TitleProfessionalType
+        desiredTp: [MatchedOfferTp!]!
         ageRange: String
         status: String
         title: String
@@ -224,14 +230,23 @@ export const typeDefs = gql`
         email: String
     }
 
+    type CandidateConsentments {
+        dataProcessing: Boolean!
+        dataSharing: Boolean!
+        aiProcessing: Boolean!
+        photoProcessing: Boolean!
+        consentDate: String!
+        consentVersion: String!
+    }
+
     type Candidate {
         id: String!
         owner: CandidateOwner
         status: CandidateStatus!
-        tpType: TitleProfessionalType!
         tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
         emergencyContact: CandidateEmergencyContact
+        consentments: CandidateConsentments
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -239,6 +254,10 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        contractOfferId: String
+        contractCompanyId: Int
+        contractCompanyName: String
+        contractStartDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -340,6 +359,15 @@ export const typeDefs = gql`
         email: String
     }
 
+    input ConsentmentsInput {
+        dataProcessing: Boolean!
+        dataSharing: Boolean!
+        aiProcessing: Boolean!
+        photoProcessing: Boolean!
+        consentDate: String!
+        consentVersion: String!
+    }
+
     input JobInfoInput {
         domainMotivation: String
         questionsConcerns: String
@@ -378,10 +406,10 @@ export const typeDefs = gql`
 
     input CreateCandidateInput {
         status: CandidateStatus!
-        tpType: TitleProfessionalType!
-        tpTypes: [TitleProfessionalType!]
+        tpTypes: [TitleProfessionalType!]!
         identity: IdentityInput!
         emergencyContact: EmergencyContactInput
+        consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -389,6 +417,10 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        contractOfferId: String
+        contractCompanyId: Int
+        contractCompanyName: String
+        contractStartDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -403,10 +435,10 @@ export const typeDefs = gql`
 
     input UpdateCandidateInput {
         status: CandidateStatus
-        tpType: TitleProfessionalType
         tpTypes: [TitleProfessionalType!]
         identity: IdentityInput
         emergencyContact: EmergencyContactInput
+        consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -414,6 +446,10 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        contractOfferId: String
+        contractCompanyId: Int
+        contractCompanyName: String
+        contractStartDate: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -441,13 +477,25 @@ export const typeDefs = gql`
     type CandidateConnection {
         edges: [CandidateEdge!]!
         pageInfo: PageInfo!
+        totalCount: Int!
+    }
+
+    "Champ ciblé par la recherche libre du répertoire candidats (défaut : NAME)"
+    enum CandidateSearchField {
+        NAME
+        PHONE
+        EMAIL
     }
 
     input CandidateFiltersInput {
         trainingSite: TrainingSite
         status: CandidateStatus
+        statusIn: [CandidateStatus!]
         schoolLevel: SchoolLevel
         drivingLicenseB: Boolean
+        hasVehicle: Boolean
+        "Sexe du candidat (FILLE / GARCON), exclusif"
+        sex: String
         ageMin: Int
         ageMax: Int
         tpType: [TitleProfessionalType!]
@@ -529,12 +577,19 @@ export const typeDefs = gql`
     type Query {
         candidateStats(sectors: [String!]): CandidateStats!
         candidates: [Candidate!]!
-        candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
+        candidatesPage(
+            first: Int
+            after: String
+            search: String
+            searchField: CandidateSearchField
+            filters: CandidateFiltersInput
+        ): CandidateConnection!
         candidate(id: String!): Candidate
         candidateByEmail(email: String!): CandidateEmailCheck!
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
         driveFolderConfig: DriveFolderConfig!
+        unmaskCandidateSsn(id: String!): String
     }
 
     type Mutation {

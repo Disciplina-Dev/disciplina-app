@@ -11,19 +11,38 @@ import type { EntrepriseFilters } from '@/types/entreprise'
 import { useCurrentUser } from '@/store/authStore'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useInitializePortfolio, type ServerFilters } from '@/graphql/useInitializePortfolio'
+import { useInitializePortfolioBySiren } from '@/graphql/useInitializePortfolioBySiren'
 import { usePersistedListView } from '@/hooks/usePersistedListView'
 import EntrepriseCard from '@/features/portefeuille/components/EntrepriseCard'
+import { SirenGroupCard } from '@/features/portefeuille/components/SirenGroupCard'
 import CreateEditModal from '@/features/portefeuille/components/CreateEditModal'
 import FilterPanel, { EMPTY_FILTERS } from '@/features/portefeuille/components/FilterPanel'
 import Button from '@/components/ui/Button'
-import { useCreateCompany } from '@/graphql/hooks'
+import { useCreateCompany, useDeleteCompany } from '@/graphql/hooks'
+import DeleteCompanyModal from '@/features/portefeuille/components/DeleteCompanyModal'
 import { toSlug } from '@/utils/slug'
 import { toCompany } from '@/types/companyMapper'
 import { formatErrorMessage } from '@/utils/companyErrors'
 import type { Entreprise } from '@/types/entreprise'
-import { SECTEUR_VALUES } from '@/types/entreprise'
+import { SECTEUR_VALUES, STATUS_VALUES } from '@/types/entreprise'
 
 const PAGE_SIZE = 20
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+type CompanyTab = 'all' | 'oui' | 'aRelancer' | 'ferme'
+
+const TAB_STATUS_MAP: Record<Exclude<CompanyTab, 'all'>, string[]> = {
+  oui: ['Oui', 'Oui OF'],
+  aRelancer: ['Non', 'À Réfléchir', 'Relance', 'Réponds pas'],
+  ferme: ['Fermé'],
+}
+
+const TAB_LABELS: Record<CompanyTab, string> = {
+  all: 'Tous',
+  oui: 'Oui',
+  aRelancer: 'À Relancer',
+  ferme: 'Fermé',
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function countActiveFilters(f: EntrepriseFilters): number {
@@ -38,10 +57,13 @@ function countActiveFilters(f: EntrepriseFilters): number {
   return n
 }
 
-function toServerFilters(f: EntrepriseFilters): ServerFilters | undefined {
-  if (countActiveFilters(f) === 0) return undefined
+function toServerFilters(f: EntrepriseFilters, tab: CompanyTab): ServerFilters | undefined {
+  const status = tab !== 'all'
+    ? TAB_STATUS_MAP[tab]
+    : f.status.length > 0 ? f.status : undefined
+  if (!status && countActiveFilters(f) === 0) return undefined
   return {
-    status: f.status.length > 0 ? f.status : undefined,
+    status,
     userID: f.commercial_id ?? undefined,
     sector: f.secteur || undefined,
     relance: f.relance || undefined,
@@ -56,8 +78,10 @@ export default function PortefeuilleEntreprises() {
   const currentUser = useCurrentUser()
   const navigate = useNavigate()
   const companies = usePortefeuilleStore((s) => s.companies)
+  const sirenGroups = usePortefeuilleStore((s) => s.sirenGroups)
   const salePersons = usePortefeuilleStore((s) => s.salePersons)
   const { createCompany } = useCreateCompany()
+  const { deleteCompany, result: deleteResult } = useDeleteCompany()
   const updateCompany = usePortefeuilleStore((s) => s.updateCompany)
 
   const {
@@ -70,16 +94,51 @@ export default function PortefeuilleEntreprises() {
     cursorHistory,
     loadNextPage,
     loadPrevPage,
-  } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS)
+  } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS, {
+    status: STATUS_VALUES,
+    relance: ['', 'today', 'past', 'future'],
+  })
 
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillSiret, setPrefillSiret] = useState<string | undefined>()
   const [createError, setCreateError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Entreprise | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<CompanyTab>('all')
 
-  const serverFilters = useMemo(() => toServerFilters(filters), [filters])
+  // Un seul filtre de statut actif à la fois : un onglet écrase la sélection
+  // manuelle, une sélection manuelle ramène sur « Tous ».
+  const handleTabChange = (tab: CompanyTab) => {
+    setActiveTab(tab)
+    if (tab !== 'all' && filters.status.length > 0) {
+      setFilters({ ...filters, status: [] })
+    }
+  }
+
+  const handlePanelChange = (next: EntrepriseFilters) => {
+    const statusChanged =
+      next.status.length !== filters.status.length ||
+      next.status.some((s) => !filters.status.includes(s))
+    if (statusChanged) setActiveTab('all')
+    setFilters(next)
+  }
+
+  const resetAll = () => {
+    setActiveTab('all')
+    setFilters(EMPTY_FILTERS)
+  }
+
+  const serverFilters = useMemo(() => toServerFilters(filters, activeTab), [filters, activeTab])
   const isRelanceMode = !!filters.relance
 
-  const { loading, pageInfo } = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters)
+  // Vue à plat en recherche/relance (la query groupée ne les gère pas), sinon groupée par SIREN.
+  const isFlatMode = !!debouncedSearch || isRelanceMode
+  const flat = useInitializePortfolio(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters, !isFlatMode)
+  const grouped = useInitializePortfolioBySiren(PAGE_SIZE, afterCursor, serverFilters, isFlatMode)
+
+  const loading = isFlatMode ? flat.loading : grouped.loading
+  const pageInfo = isFlatMode ? flat.pageInfo : grouped.pageInfo
+  const isEmpty = isFlatMode ? companies.length === 0 : sirenGroups.length === 0
 
   const secteurs = SECTEUR_VALUES as unknown as string[]
 
@@ -108,11 +167,46 @@ export default function PortefeuilleEntreprises() {
     setCreateOpen(true)
   }
 
+  const handleDeleteRequest = (entreprise: Entreprise) => {
+    setDeleteTarget(entreprise)
+    setDeleteError(null)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleteError(null)
+    const response = await deleteCompany(Number(deleteTarget.id))
+    if (response.error) {
+      setDeleteError(response.error.message)
+      return
+    }
+    setDeleteTarget(null)
+  }
+
+  const renderCard = (e: Entreprise) => (
+    <EntrepriseCard
+      key={e.id}
+      entreprise={e}
+      currentUser={currentUser!}
+      onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
+      onClaim={() => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
+      onDelete={handleDeleteRequest}
+    />
+  )
+
   const activeFilterCount = countActiveFilters(filters)
 
   const hidePagination = debouncedSearch || isRelanceMode
 
-  if (loading && companies.length === 0) {
+  // « X trouvés sur Y » : X = entrées affichées sur la page, Y = total correspondant
+  // à la recherche + filtres actifs (calculé côté serveur).
+  const shownCompanies = isFlatMode
+    ? companies.length
+    : sirenGroups.reduce((sum, g) => sum + g.entreprises.length, 0)
+  const shownSirens = isFlatMode ? 0 : sirenGroups.length
+  const totalCount = isFlatMode ? flat.totalCount : grouped.totalCount
+
+  if (loading && isEmpty) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
         <div className="flex flex-col items-center gap-4">
@@ -139,8 +233,18 @@ export default function PortefeuilleEntreprises() {
                 Portefeuille entreprises
               </h1>
               <p className="mt-1.5 text-[13px] text-gray-400">
-                {companies.length.toLocaleString('fr-FR')}{' '}
-                entreprise{companies.length !== 1 ? 's' : ''}
+                {isFlatMode ? (
+                  <>
+                    {shownCompanies.toLocaleString('fr-FR')} entreprise{shownCompanies !== 1 ? 's' : ''} trouvée{shownCompanies !== 1 ? 's' : ''} sur {totalCount.toLocaleString('fr-FR')}
+                  </>
+                ) : (
+                  <>
+                    {shownSirens.toLocaleString('fr-FR')} SIREN trouvé{shownSirens !== 1 ? 's' : ''} sur {totalCount.toLocaleString('fr-FR')}
+                    {shownCompanies > 0 && (
+                      <span className="text-gray-400"> — {shownCompanies.toLocaleString('fr-FR')} entreprise{shownCompanies !== 1 ? 's' : ''}</span>
+                    )}
+                  </>
+                )}
                 {activeFilterCount > 0 && (
                   <span className="ml-1 text-blue font-medium">— vue filtrée</span>
                 )}
@@ -193,15 +297,30 @@ export default function PortefeuilleEntreprises() {
               filters={filters}
               secteurs={secteurs}
               salePersons={salePersons}
-              onChange={setFilters}
-              onReset={() => setFilters(EMPTY_FILTERS)}
+              onChange={handlePanelChange}
+              onReset={resetAll}
               activeCount={activeFilterCount}
             />
           </div>
         </div>
 
+        {/* ─── Status tabs ─────────────────────────────────────────── */}
+        <div className="mb-6 flex gap-1 rounded-xl bg-white border border-gray-100 p-1 shadow-sm">
+          {(Object.keys(TAB_LABELS) as CompanyTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                activeTab === tab ? 'bg-blue text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
+        </div>
+
         {/* ─── Cards grid ──────────────────────────────────────────── */}
-        {companies.length === 0 ? (
+        {isEmpty ? (
           <div className="flex flex-col items-center justify-center py-32 gap-5">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-light border border-blue/10">
               <Building2 className="h-7 w-7 text-blue" />
@@ -217,8 +336,12 @@ export default function PortefeuilleEntreprises() {
               </p>
             </div>
             {activeFilterCount > 0 ? (
-              <Button variant="secondary" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
+              <Button variant="secondary" size="sm" onClick={resetAll}>
                 Effacer les filtres
+              </Button>
+            ) : activeTab !== 'all' ? (
+              <Button variant="secondary" size="sm" onClick={() => handleTabChange('all')}>
+                Voir toutes les entreprises
               </Button>
             ) : (
               <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => openCreate()}>
@@ -226,15 +349,20 @@ export default function PortefeuilleEntreprises() {
               </Button>
             )}
           </div>
-        ) : (
+        ) : isFlatMode ? (
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {companies.map((e) => (
-              <EntrepriseCard
-                key={e.id}
-                entreprise={e}
+            {companies.map(renderCard)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            {sirenGroups.map((group) => (
+              <SirenGroupCard
+                key={group.siren}
+                group={group}
                 currentUser={currentUser!}
-                onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
-                onClaim={() => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
+                onOpen={(e) => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
+                onClaim={(e) => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
+                onDelete={handleDeleteRequest}
               />
             ))}
           </div>
@@ -272,6 +400,15 @@ export default function PortefeuilleEntreprises() {
           onSave={handleCreate}
           submitError={createError}
           onClose={() => { setCreateOpen(false); setPrefillSiret(undefined); setCreateError(null) }}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteCompanyModal
+          entreprise={deleteTarget}
+          onClose={() => { setDeleteTarget(null); setDeleteError(null) }}
+          onConfirm={handleDeleteConfirm}
+          loading={deleteResult.fetching}
+          error={deleteError}
         />
       )}
     </div>

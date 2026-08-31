@@ -1,28 +1,19 @@
 import { GoogleGmailService } from '../external/google/gmail.service';
+import { withNoReply } from '../external/google/no-reply';
 import { GoogleTokens } from '../external/google/types';
 import { UserService } from './UserService';
+import { MailTemplateService } from './MailTemplateService';
+import { INTERVIEW_INVITATION_SUBJECT, INTERVIEW_INVITATION_BODY } from './interviewInvitationTemplate';
+import { User } from '../types/user.types';
 import { escapeHtml } from './html';
 import { env } from '../config/env';
 import { logger } from '../external/logger';
-
-function interviewInvitationHtml(link: string, code: string, companyName: string): string {
-    return `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #60207E;">Choisissez votre créneau d'entretien</h2>
-            <p>Bonjour,</p>
-            <p>${escapeHtml(
-                companyName,
-            )} souhaite vous rencontrer. Cliquez sur le lien ci-dessous puis saisissez votre code pour choisir votre créneau d'entretien.</p>
-            <p><a href="${escapeHtml(link)}" style="color: #60207E;">${escapeHtml(link)}</a></p>
-            <p><strong>Code :</strong> ${escapeHtml(code)}</p>
-            <p>Ce lien expire dans 7 jours.</p>
-        </div>`;
-}
 
 export class InterviewMailService {
     constructor(
         private readonly gmailService = new GoogleGmailService(),
         private readonly userService = new UserService(),
+        private readonly mailTemplateService = new MailTemplateService(),
     ) {}
 
     async sendInvitation(
@@ -30,26 +21,60 @@ export class InterviewMailService {
         candidateEmail: string,
         companyName: string,
         signature: string,
-        code: string,
     ): Promise<void> {
-        const link = `${env.FRONTEND_BASE_URL}/public/interview?sig=${signature}`;
         const rh = await this.userService.findByEmail(rhEmail);
         if (!rh?.oauthToken || !rh?.refreshToken) {
             logger.warn({ rhEmail }, '[interview] no Google credentials to send mail');
             return;
         }
+
+        // Modèle système « Invitation entretien » (éditable dans « Modèles mail »),
+        // sinon le modèle par défaut.
+        const tpl = await this.mailTemplateService.findRhTemplateByKind('interview_invitation');
+        const subject = tpl?.subject ?? INTERVIEW_INVITATION_SUBJECT;
+        const body = tpl?.body ?? INTERVIEW_INVITATION_BODY;
+
+        const link = `${env.FRONTEND_BASE_URL}/external/authenticate?sig=${signature}`;
+        const linkText = escapeHtml(link);
+        const linkHtml =
+            `<a href="${linkText}" style="display:inline-block;background-color:#60207E;color:#fff;` +
+            `padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Choisir mon créneau</a>`;
+        const signatureHtml = await this.mailTemplateService.getSignatureHtml(rh.id, 'rh').catch(() => '');
+
+        // Le code est généré et envoyé au chargement de la page : on retire du mail
+        // un éventuel {{code}} laissé par un modèle édité.
+        const resolvedSubject = subject.replaceAll('{{code}}', '');
+        let resolvedBody = body
+            .replaceAll('{{company_name}}', escapeHtml(companyName))
+            .replaceAll('{{link}}', linkHtml)
+            .replaceAll('{{code}}', '')
+            .replaceAll('{{hr_signature}}', signatureHtml);
+
+        // Sécurité : le candidat doit toujours recevoir le bouton, même si le modèle
+        // édité a supprimé {{link}}.
+        if (!resolvedBody.includes(link)) {
+            resolvedBody += `<p style="text-align:center;margin:24px 0">${linkHtml}</p>`;
+        }
+
+        await this.sendAs(rh, {
+            to: candidateEmail,
+            subject: resolvedSubject,
+            text: resolvedBody.replace(/<[^>]*>/g, ''),
+            html: resolvedBody,
+        });
+    }
+
+    private async sendAs(
+        rh: User,
+        options: { to: string; subject: string; text: string; html: string },
+    ): Promise<void> {
+        if (!rh?.oauthToken || !rh?.refreshToken) {
+            logger.warn({ rhEmail: rh.email }, '[interview] no Google credentials to send mail');
+            return;
+        }
         const creds: GoogleTokens = { access_token: rh.oauthToken, refresh_token: rh.refreshToken };
         const persist = (refreshed: GoogleTokens) =>
             this.userService.updateGoogleTokens(rh.id, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
-        await this.gmailService.sendEmail(
-            creds,
-            {
-                to: candidateEmail,
-                subject: "[Disciplina] Choisissez votre créneau d'entretien",
-                text: `Choisissez votre créneau : ${link}\nCode : ${code}`,
-                html: interviewInvitationHtml(link, code, companyName),
-            },
-            persist,
-        );
+        await this.gmailService.sendEmail(creds, withNoReply(options), persist);
     }
 }

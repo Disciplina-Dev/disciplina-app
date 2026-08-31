@@ -9,6 +9,8 @@ export interface UserRow {
     sectors: string | string[] | null; // mysql2 v3 returns JSON columns as parsed objects
     oauth_token: string | null;
     refresh_token: string | null;
+    is_deleted?: number;
+    deleted_at?: string | null;
 }
 
 // Jointure avec les tables roles/permissions : le repository enrichit le UserRow
@@ -25,20 +27,6 @@ export interface MatchLinkRow {
     rh_email: string;
     company_email: string;
     offer_uuid: string;
-    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
-    attempts: number;
-    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
-    expires_at: string | Date;
-    created_at?: string | Date;
-    updated_at?: string | Date;
-}
-
-export interface InterviewAccessRow {
-    signature: string;
-    code: string;
-    offer_uuid: string;
-    candidate_id: string;
-    rh_email: string;
     status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
     attempts: number;
     // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
@@ -74,6 +62,7 @@ export interface CompaniesRow {
     sector: string | null;
     main_activity: string | null;
     siret: string | null;
+    siren: string | null;
     idcc: string | null;
     ape: string | null;
     notes: string | null;
@@ -100,6 +89,33 @@ export interface RelanceHistoryRow {
 
 export interface CompaniesBlacklistRow extends CompaniesRow {
     all_blacklist: number | null;
+}
+
+// Quarantaine des entreprises Digiforma en conflit : mêmes colonnes que
+// `companies`, sans `siren` (colonne générée absente de `company_conflict`).
+export interface CompanyConflictRow {
+    id: number;
+    ab_id: string | null;
+    user_id: number | null;
+    legal_referent: string | null;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    sector: string | null;
+    main_activity: string | null;
+    siret: string | null;
+    idcc: string | null;
+    ape: string | null;
+    notes: string | null;
+    conclusion: string | null;
+    status: string | null;
+    relance_date: Date | string | null;
+    relance_type: number | null;
+    relance_template_id: string | null;
+    relance_channel: string | null;
+    candidate_user_ids: string | null;
+    created_at?: string | Date;
 }
 
 export interface CompanyHistoryRow {
@@ -129,6 +145,24 @@ export interface RefreshTokenRow {
     expires_at: string | Date;
     revoked_at: string | Date | null;
     created_at?: string | Date;
+}
+
+export interface ExternalAccessRow {
+    signature: string;
+    code: string | null;
+    user_id: number;
+    external_id: string;
+    external_type: 'COMPANY' | 'CANDIDATE';
+    external_email: string | null;
+    external_first_name: string | null;
+    token: string | null;
+    reference_id: number;
+    reference_key: string;
+    status: 'SENDING' | 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
+    expires_at: string | Date | null;
+    created_at?: string | Date;
+    updated_at?: string | Date;
 }
 
 export interface FilizRow {

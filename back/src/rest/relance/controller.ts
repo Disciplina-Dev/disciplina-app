@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { NO_REPLY_FOOTER_HTML, NO_REPLY_FOOTER_TEXT, withNoReply } from '../../external/google/no-reply';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CompaniesService } from '../../services/CompaniesService';
@@ -14,16 +15,17 @@ import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { BulkRelanceService } from '../../services/BulkRelanceService';
+import { ExternalLinkService } from '../../services/ExternalLinkService';
+import { renderTemplate, usesVariable } from '../../services/renderTemplate';
 
 const mailTemplateService = new MailTemplateService();
 const bulkRelanceService = new BulkRelanceService();
+const externalLinkService = new ExternalLinkService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const companiesService = new CompaniesService();
 const relanceHistoryRepo = new RelanceHistoryRepository();
-
-const RELANCE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
 
 /**
  * Vérifie l'accès à l'entreprise pour une action de relance. Renvoie l'entreprise
@@ -78,9 +80,10 @@ export async function sendCompanyMailRelance(req: AuthRequest, res: Response): P
     }
 
     try {
+        const signatureHtml = await mailTemplateService.getSignatureHtml(user.id, 'commercial').catch(() => '');
         await gmailService.sendEmail(
             { access_token: user.oauthToken, refresh_token: user.refreshToken },
-            { to, subject, html: html ?? '', text: text ?? '', attachments },
+            { to, subject, html: (html ?? '') + signatureHtml, text: text ?? '', attachments },
             userService.googleTokenPersister(user.id),
         );
     } catch (err) {
@@ -189,6 +192,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     // Signature personnelle du RH, récupérée une seule fois pour tout le lot.
     const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
 
+    // pied de page
+    const noReplyFootnote = NO_REPLY_FOOTER_HTML;
+
     // NB : pas de header List-Unsubscribe ici. Ce mail vise une réponse individuelle
     // (Oui/Non) ; l'ajouter le fait classer « bulk » par Gmail et bascule en spam.
 
@@ -207,24 +213,25 @@ export async function sendRelance(req: AuthRequest, res: Response) {
   <p>Nous faisons le point sur votre recherche d'alternance et souhaitons mettre votre dossier à jour.</p>
   <p>Êtes-vous toujours en recherche d'une alternance ?</p>
   <p>
-    <a href="${ouiUrl}" style="color: #60207E;">Oui, je suis toujours en recherche</a><br>
-    <a href="${nonUrl}" style="color: #60207E;">Non, je ne recherche plus</a>
+    <a href="${ouiUrl}" style="display:inline-block;background:#60207E;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:8px;">Oui, je suis toujours en recherche</a>
+    <a href="${nonUrl}" style="display:inline-block;background:#ffffff;color:#60207E;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;border:1px solid #60207E;">Non, je ne recherche plus</a>
   </p>
   <p>Un simple clic suffit, votre dossier sera mis à jour automatiquement.</p>
   <p>Cordialement,<br>L'équipe DISCIPLINA${signatureHtml}</p>
+  ${noReplyFootnote}
 </div>`;
 
-        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA`;
+        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA${NO_REPLY_FOOTER_TEXT}`;
 
         try {
             await gmailService.sendEmail(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken },
-                {
+                withNoReply({
                     to: candidate.identity.email!,
                     subject: `${name}, êtes-vous toujours en recherche d'une alternance ?`,
                     html,
                     text,
-                },
+                }),
                 userService.googleTokenPersister(user.id),
             );
             // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;
@@ -242,9 +249,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 }
 
 /**
- * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Contrairement
- * à `sendRelance` (relance de disponibilité codée en dur avec liens Oui/Non), le
- * corps provient d'un modèle RH partagé et part tel quel à chaque destinataire.
+ * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Les variables
+ * {{prenom}}/{{nom}}/{{code}}/{{lien_import}} du modèle sont remplacées pour chaque
+ * destinataire ; les clés inconnues sont retirées (cf. booking/service.ts).
  */
 export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<void> {
     const user = await userService.findById(req.user.id);
@@ -281,8 +288,11 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
 
     // Désabonnement pointant vers la boîte du RH émetteur (Gmail bulk sender rules).
     const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
-    // Version texte dérivée du modèle HTML : évite un mail HTML-only (signal spam).
-    const bodyText = htmlToText(template.body);
+
+    // Un lien d'import CV n'est généré que si le modèle le référence, pour ne pas
+    // créer de session externe (et son code) sur des relances qui n'en ont pas besoin.
+    const templateText = `${template.subject}${template.body}`;
+    const needsImportLink = usesVariable(templateText, 'code') || usesVariable(templateText, 'lien_import');
 
     const candidates = await candidateService.findAll();
     const recipients = candidates.filter((c) => c.identity?.email && ids.includes(c._id));
@@ -290,14 +300,40 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
     let sent = 0;
     let errors = 0;
     for (const candidate of recipients) {
+        const fullName = candidate.identity.full_name ?? '';
+        const spaceIdx = fullName.indexOf(' ');
+        const firstName = spaceIdx > 0 ? fullName.slice(0, spaceIdx) : fullName;
+        const lastName = spaceIdx > 0 ? fullName.slice(spaceIdx + 1) : '';
+
+        const vars: Record<string, string> = { prenom: firstName, nom: lastName };
+
+        if (needsImportLink && user.email) {
+            try {
+                const link = await externalLinkService.createLink({
+                    externalEmail: candidate.identity.email!,
+                    rhEmail: user.email,
+                    guestType: 'CANDIDATE',
+                    externalUuid: candidate._id,
+                });
+                vars.code = link.code;
+                vars.lien_import = `${env.FRONTEND_BASE_URL}/public/cv-import?sig=${link.signature}`;
+            } catch (err) {
+                logger.error({ err, id: candidate._id }, '[relance] import link creation failed');
+            }
+        }
+
+        const resolvedSubject = renderTemplate(template.subject, vars);
+        // Version texte dérivée du HTML résolu : évite un mail HTML-only (signal spam).
+        const resolvedBody = renderTemplate(template.body, vars);
+
         try {
             await gmailService.sendEmail(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken },
                 {
                     to: candidate.identity.email!,
-                    subject: template.subject,
-                    html: `${template.body}${signatureHtml}`,
-                    text: bodyText,
+                    subject: resolvedSubject,
+                    html: `${resolvedBody}${signatureHtml}`,
+                    text: htmlToText(resolvedBody),
                     listUnsubscribe,
                     attachments,
                 },

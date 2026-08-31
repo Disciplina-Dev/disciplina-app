@@ -9,8 +9,9 @@ const notificationService = new NotificationService();
 export async function listNotifications(req: AuthRequest, res: Response): Promise<void> {
     try {
         const userId = Number(req.user.id);
+        const category = typeof req.query.category === 'string' ? req.query.category : undefined;
         const [notifications, unreadCount] = await Promise.all([
-            notificationService.listForUser(userId),
+            notificationService.listForUser(userId, category),
             notificationService.countUnread(userId),
         ]);
         res.status(200).json({ notifications: notifications.map(notificationToDto), unreadCount });
@@ -52,14 +53,15 @@ export async function markAllNotificationsRead(req: AuthRequest, res: Response):
  */
 export async function createNotification(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const { userId, type, title, level, message, link } = req.body ?? {};
-        if (!userId || !type || !title) {
-            res.status(400).json({ error: 'userId, type and title are required' });
+        const { userId, type, category, title, level, message, link } = req.body ?? {};
+        if (!userId || !type || !title || !category) {
+            res.status(400).json({ error: 'userId, type, category and title are required' });
             return;
         }
         const notification = await notificationService.create({
             userId: Number(userId),
             type,
+            category,
             title,
             level,
             message,

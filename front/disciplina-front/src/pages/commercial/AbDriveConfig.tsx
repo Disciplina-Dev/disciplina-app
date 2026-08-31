@@ -3,9 +3,10 @@ import { FolderCog, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { needsAnalysisGraphqlClient } from '@/graphql/client'
 import { GET_AB_DRIVE_CONFIG, UPDATE_AB_DRIVE_CONFIG } from '@/graphql/queries'
+import { SECTEUR_VALUES } from '@/constants/secteurs'
 
 // Secteurs métier Disciplina (valeurs canoniques côté back : utils/sector.ts).
-const SECTORS = ['Nord-Est', 'Ouest', 'Sud']
+const SECTORS = SECTEUR_VALUES
 const KINDS = ['UNSIGNED', 'SIGNED'] as const
 const KIND_LABELS: Record<string, string> = { UNSIGNED: 'Non signé', SIGNED: 'Signé' }
 
@@ -81,8 +82,8 @@ export default function AbDriveConfig() {
           <h1 className="text-xl font-semibold text-gray-900">Dossiers Drive analyses de besoin</h1>
           <p className="text-sm text-gray-500">
             Deux dossiers Drive par secteur : un pour les AB non signées (à l'envoi en signature) et un pour
-            les AB signées (au retour DocuSeal). Chaque AB est archivée dans le dossier du secteur de son
-            commercial créateur.
+            les AB signées (au retour DocuSeal). Chaque AB est archivée dans le dossier du secteur de l'entreprise
+            (région de l'AB), pas celui du commercial créateur.
           </p>
         </div>
       </div>

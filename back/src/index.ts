@@ -1,10 +1,15 @@
 import './config/env'; // validate env vars at startup
+import './instrumentation'; // OpenTelemetry SDK (must be before any module that uses pino, express, etc.)
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from './graphql/server';
+import { expressMiddleware } from '@as-integrations/express4';
+import { jwtContext } from './graphql/context';
 import { connectMySQL } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
+import { migrateLegacyKpiTables } from './db/mongo/legacyKpiImport';
+import { query } from './db/mysql/connection';
 import session from 'express-session';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -27,8 +32,6 @@ import { router as notificationsRouter } from './rest/notifications/route';
 import { router as calendarRouter } from './rest/calendar/route';
 import { router as bookingRouter } from './rest/booking/route';
 import { router as mailTemplatesRouter } from './rest/mailTemplates/route';
-import { router as matchRouter } from './rest/match/route';
-import { router as interviewRouter } from './rest/interview/route';
 import { router as externalRouter } from './rest/external/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
@@ -36,6 +39,8 @@ import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
+import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
+import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -124,8 +129,6 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/calendar', calendarRouter);
     app.use('/api/booking', bookingRouter);
     app.use('/api/mail-templates', mailTemplatesRouter);
-    app.use('/api/match', matchRouter);
-    app.use('/api/interview', interviewRouter);
     app.use('/api/external', externalRouter);
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
@@ -137,6 +140,21 @@ export async function createApp(): Promise<express.Express> {
     await runMysqlMigrations();
     await connectMongoDB();
 
+    // Ex-tables commercial_kpi / rh_kpi (#513) : import vers Mongo `kpis` puis
+    // drop. Best-effort : en cas d'échec les tables sont conservées et le
+    // retry repart au prochain boot ; ne doit jamais bloquer le démarrage.
+    try {
+        const legacy = await migrateLegacyKpiTables({ all: (sql, params) => query(sql as never, params) }, { dropAfter: true });
+        if (legacy.commercial || legacy.rh || legacy.dropped.length > 0) {
+            logger.info(
+                { commercial: legacy.commercial, rh: legacy.rh, dropped: legacy.dropped },
+                'Legacy MySQL KPI tables migrated to MongoDB',
+            );
+        }
+    } catch (err) {
+        logger.error({ err }, 'Legacy KPI migration failed, tables kept for retry');
+    }
+
     app.use('/api/graphql', graphqlRateLimiter);
 
     // Prevent browser/proxy caching of GraphQL responses (auth-sensitive data)
@@ -145,20 +163,22 @@ export async function createApp(): Promise<express.Express> {
         next();
     });
 
-    // cors: false — Apollo sinon installe son propre middleware CORS par
-    // défaut (Access-Control-Allow-Origin: *), qui écrase la config globale
-    // ci-dessus et casse les requêtes avec cookies (credentials: 'include').
+    // Express 4 middleware d'Apollo : pas de CORS installé (contrairement à
+    // applyMiddleware en v3) → la config globale ci-dessus (cors + credentials)
+    // s'applique sans être écrasée. Le parsing du corps JSON est aussi à notre
+    // charge, d'où l'express.json() ci-dessous.
     await CompanyAPI.start();
-    CompanyAPI.applyMiddleware({ app, path: '/api/graphql/companies', cors: false });
+    app.use('/api/graphql', express.json());
+    app.use('/api/graphql/companies', expressMiddleware(CompanyAPI, { context: jwtContext }));
 
     await CandidateAPI.start();
-    CandidateAPI.applyMiddleware({ app, path: '/api/graphql/candidates', cors: false });
+    app.use('/api/graphql/candidates', expressMiddleware(CandidateAPI, { context: jwtContext }));
 
     await OfferAPI.start();
-    OfferAPI.applyMiddleware({ app, path: '/api/graphql/offers', cors: false });
+    app.use('/api/graphql/offers', expressMiddleware(OfferAPI, { context: jwtContext }));
 
     await NeedsAnalysisAPI.start();
-    NeedsAnalysisAPI.applyMiddleware({ app, path: '/api/graphql/needs-analysis', cors: false });
+    app.use('/api/graphql/needs-analysis', expressMiddleware(NeedsAnalysisAPI, { context: jwtContext }));
 
     return app;
 }
@@ -168,6 +188,18 @@ export async function startServer(): Promise<http.Server> {
     const server = app.listen(env.API_PORT, () => {
         logger.info(`Server ready at http://localhost:${env.API_PORT}`);
     });
+
+    const shutdown = async () => {
+        logger.info('Shutting down gracefully…');
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        const { sdk } = await import('./instrumentation');
+        await sdk?.shutdown();
+        process.exit(0);
+    };
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+
     // Modèles de relance d'absence par défaut (idempotent, une seule fois).
     const mailTemplateService = new MailTemplateService();
     mailTemplateService
@@ -177,11 +209,34 @@ export async function startServer(): Promise<http.Server> {
         .seedAbSignatureDefault()
         .catch((err) => logger.error({ err }, 'ab-signature: seed du modèle système échoué'));
     mailTemplateService
+        .seedAbRelanceDefault()
+        .catch((err) => logger.error({ err }, 'ab-relance: seed du modèle système échoué'));
+    mailTemplateService
         .seedCvImportDefault()
         .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
+    mailTemplateService
+        .refreshCvImportTemplateButton()
+        .catch((err) => logger.error({ err }, 'cv-import: refresh du modèle par défaut échoué'));
+    mailTemplateService
+        .seedpropositionCandidatsDefault()
+        .catch((err) => logger.error({ err }, 'match-invitation: seed du modèle système échoué'));
+    mailTemplateService
+        .seedInterviewInvitationDefault()
+        .catch((err) => logger.error({ err }, 'interview-invitation: seed du modèle système échoué'));
+    mailTemplateService
+        .refreshNoCodeRHTemplates()
+        .catch((err) => logger.error({ err }, 'mail-template: refresh des modèles sans code échoué'));
+    mailTemplateService
+        .seedExternalAccessDefault()
+        .catch((err) => logger.error({ err }, 'external-access: seed du modèle système échoué'));
+    mailTemplateService
+        .seedExternalLinkDefault()
+        .catch((err) => logger.error({ err }, 'external-link: seed du modèle système échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();
+    startAbSignatureRelanceScheduler();
+    startExpiredAccessScheduler();
     return server;
 }
 

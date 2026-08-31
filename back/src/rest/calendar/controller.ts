@@ -215,6 +215,12 @@ export async function getEvents(req: AuthRequest, res: Response): Promise<void> 
             res.status(403).json({ error: 'Agenda non consultable' });
             return;
         }
+        // EMPLOYEE ne lit que les agendas partageant au moins un secteur ; RESPONSABLE+/ADMIN lisent tout.
+        const self = await userService.findById(Number(req.user.id));
+        if (self && !hasMinPermission(self, Permission.RESPONSABLE) && !shareSector(self.sectors, target.sectors)) {
+            res.status(403).json({ error: 'Agenda non consultable' });
+            return;
+        }
         if (!target.oauthToken) {
             res.status(409).json({ error: 'Agenda non connecté' });
             return;
@@ -281,15 +287,15 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         const calendar = calendarForUser(owner);
         const before = await calendar.getEvent(req.params.id);
         const event = await calendar.setAttendance(req.params.id, status);
-        // KPI : venu / pas venu (seulement pour les entretiens), attribué à l'acteur.
-        if (event.isInterview && actor) {
+        // KPI : venu / pas venu (tout créneau, entretien ou non), attribué à l'acteur.
+        if (actor) {
             const delta = attendanceDelta(before.attendance, status);
             if (Object.keys(delta).length) {
                 await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(event.start), delta);
             }
         }
-        // « Pas venu » : on envoie une relance avec le lien de réservation, si on a l'email.
-        if (status === 'noshow' && event.attendeeEmail) {
+        // « Pas venu » (entretien uniquement) : on envoie une relance avec le lien de réservation, si on a l'email.
+        if (status === 'noshow' && event.isInterview && event.attendeeEmail) {
             const settings = await bookingService.getOrCreate(owner.id);
             await sendNoShowRebooking({
                 host: owner,
@@ -318,13 +324,22 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
         const before = await calendar.getEvent(req.params.id);
         const event = await calendar.updateEvent(req.params.id, input);
         // KPI : rééquilibre le compteur « entretiens placés » si le flag ou la date a changé (acteur).
-        const movedOrToggled = before.isInterview !== input.isInterview || dayKey(before.start) !== dayKey(input.start);
-        if (actor && (before.isInterview || input.isInterview) && movedOrToggled) {
+        const dayMoved = dayKey(before.start) !== dayKey(input.start);
+        const toggled = before.isInterview !== input.isInterview;
+        if (actor) {
             const sector = primarySector(actor.sectors);
-            if (before.isInterview)
-                await rhKpiService.bump(actor.id, sector, new Date(before.start), { interviews_placed: -1 });
-            if (input.isInterview)
-                await rhKpiService.bump(actor.id, sector, new Date(input.start), { interviews_placed: 1 });
+            if ((before.isInterview || input.isInterview) && (dayMoved || toggled)) {
+                if (before.isInterview)
+                    await rhKpiService.bump(actor.id, sector, new Date(before.start), { interviews_placed: -1 });
+                if (input.isInterview)
+                    await rhKpiService.bump(actor.id, sector, new Date(input.start), { interviews_placed: 1 });
+            }
+            // KPI : un déplacement de date déplace aussi les compteurs venu / pas venu (tout créneau).
+            if (dayMoved && before.attendance) {
+                const popped = before.attendance === 'arrived' ? 'interviews_attended' : 'interviews_noshow';
+                await rhKpiService.bump(actor.id, sector, new Date(before.start), { [popped]: -1 });
+                await rhKpiService.bump(actor.id, sector, new Date(input.start), { [popped]: 1 });
+            }
         }
         res.json({ event });
     } catch (error) {
@@ -341,12 +356,15 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
     try {
         const before = await calendar.getEvent(req.params.id);
         await calendar.deleteEvent(req.params.id);
-        // KPI : on retire les compteurs portés par cet entretien (placé + venu + no-show), acteur.
-        if (actor && before.isInterview) {
-            const delta: Record<string, number> = { interviews_placed: -1 };
+        // KPI : on retire les compteurs portés par ce créneau (placé pour les entretiens, venu + no-show pour tous), acteur.
+        if (actor) {
+            const delta: Record<string, number> = {};
+            if (before.isInterview) delta.interviews_placed = -1;
             if (before.attendance === 'arrived') delta.interviews_attended = -1;
             if (before.attendance === 'noshow') delta.interviews_noshow = -1;
-            await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(before.start), delta);
+            if (Object.keys(delta).length) {
+                await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(before.start), delta);
+            }
         }
         res.status(204).end();
     } catch (error) {

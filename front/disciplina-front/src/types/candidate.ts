@@ -1,3 +1,5 @@
+import type { ScheduleSlot } from './needsAnalysis'
+
 export enum TitleProfessionalType {
     AD = "AD",       // Assistante de Direction
     CC = "CC",       // Conseiller Commercial
@@ -204,17 +206,30 @@ export interface Synthesis {
     interviewed_by?: string;
 }
 
+export interface MatchedOfferTp {
+    tpType?: TitleProfessionalType;
+    missions?: string[];
+    descriptionMissions?: string[];
+}
+
+export interface MatchedOfferCompanyInfos {
+    id?: number;
+    name?: string;
+}
+
 export interface MatchedOffer {
     id: string;
     needsAnalysisId?: string;
     companyName?: string;
+    companyInfos?: MatchedOfferCompanyInfos;
     sector?: string;
     localisation?: Localisation[];
-    desiredTP?: TitleProfessionalType;
+    desiredTp?: MatchedOfferTp[];
     ageRange?: string;
     status?: string;
     title?: string;
     jobRole?: string;
+    schedule?: ScheduleSlot[];
 }
 
 export interface CandidateOwner {
@@ -231,13 +246,22 @@ export interface EmergencyContact {
     email?: string;
 }
 
+export interface CandidateConsentments {
+    data_processing: boolean;
+    data_sharing: boolean;
+    ai_processing: boolean;
+    photo_processing: boolean;
+    consent_date: string;
+    consent_version: string;
+}
+
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
-    tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;
+    consentments?: CandidateConsentments;
     status: CandidateStatus;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
@@ -246,6 +270,10 @@ export interface Candidate {
     immersion_end_date?: string;
     immersion_company_id?: number;
     immersion_company_name?: string;
+    contract_offer_id?: string;
+    contract_company_id?: number;
+    contract_company_name?: string;
+    contract_start_date?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

@@ -15,6 +15,7 @@ export const todoTypeDefs = gql`
     type Todo {
         id: Int!
         userId: Int!
+        assignedBy: Int
         title: String!
         description: String
         deadline: String
@@ -22,6 +23,15 @@ export const todoTypeDefs = gql`
         status: TodoStatus!
         source: TodoSource!
         sourceRef: String
+        groupId: Int
+        createdAt: String!
+        updatedAt: String!
+    }
+
+    type TodoGroup {
+        id: Int!
+        userId: Int!
+        name: String!
         createdAt: String!
         updatedAt: String!
     }
@@ -31,6 +41,9 @@ export const todoTypeDefs = gql`
         description: String
         deadline: String
         status: TodoStatus
+        assignedTo: Int
+        groupId: Int
+        groupName: String
     }
 
     input UpdateTodoInput {
@@ -38,10 +51,13 @@ export const todoTypeDefs = gql`
         description: String
         deadline: String
         status: TodoStatus
+        groupId: Int
     }
 
     extend type Query {
         myTodos: [Todo!]!
+        myTodoGroups: [TodoGroup!]!
+        todoGroupsForUser(userId: Int!): [TodoGroup!]!
     }
 
     extend type Mutation {
@@ -49,6 +65,7 @@ export const todoTypeDefs = gql`
         updateTodo(id: Int!, input: UpdateTodoInput!): Todo!
         reorderTodos(orderedIds: [Int!]!): [Todo!]!
         deleteTodo(id: Int!): Boolean!
+        createTodoGroup(name: String!, forUserId: Int): TodoGroup!
         changePassword(currentPassword: String!, newPassword: String!): Boolean!
     }
 `;

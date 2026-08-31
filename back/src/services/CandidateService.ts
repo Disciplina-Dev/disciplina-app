@@ -1,14 +1,28 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
+import { CandidateRepository, CandidateFilters, CandidateSearchField, CandidateStats } from '../repositories/mongo/CandidateRepository';
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
+import { OfferStatus } from '../types/matching.types';
+import { NeedsAnalysisModel } from '../db/mongo/schemas/needsAnalysis.schema';
 import { computeAge } from '../utils/age';
+import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
+import { offerZones, candidateZones } from '../utils/zone';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
+import { encryptSsn, MASKED_SSN } from '../external/crypto/ssn-cipher';
+
+function encryptIdentitySsn(identity?: Candidate['identity']): void {
+    if (!identity || typeof identity.social_security_number !== 'string') return;
+    if (identity.social_security_number === MASKED_SSN) {
+        delete identity.social_security_number;
+        return;
+    }
+    identity.social_security_number = encryptSsn(identity.social_security_number);
+}
 
 export class CandidateService {
     private repository = new CandidateRepository();
@@ -22,9 +36,19 @@ export class CandidateService {
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
-    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
-        const candidates = await this.repository.findPage(first, after, search, filters);
+    async findPage(
+        first: number,
+        after?: string,
+        search?: string,
+        filters?: CandidateFilters,
+        searchField?: CandidateSearchField,
+    ): Promise<Candidate[]> {
+        const candidates = await this.repository.findPage(first, after, search, filters, searchField);
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
+    }
+
+    async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
+        return this.repository.countPage(search, filters, searchField);
     }
 
     async findById(id: string): Promise<Candidate | null> {
@@ -48,6 +72,7 @@ export class CandidateService {
                         .create({
                             userId: ownerId,
                             type: 'availability_ended',
+                            category: 'candidate',
                             level: 'info',
                             title: 'Disponible',
                             message: `${name} est de nouveau disponible.`,
@@ -62,8 +87,8 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.IMMERSING) {
             const endDate = candidate.immersion_end_date;
             if (!endDate || !this.immersionEnded(endDate)) return candidate;
-            const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
-            return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
+            const updated = await this.update(candidate._id, { status: CandidateStatus.SEEKING });
+            return updated ?? { ...candidate, status: CandidateStatus.SEEKING, immersion_agreement: false };
         }
 
         return candidate;
@@ -116,6 +141,7 @@ export class CandidateService {
                 this.notificationService.create({
                     userId: user.id,
                     type: 'candidate_available_again',
+                    category: 'candidate',
                     level: 'info',
                     title: 'Candidat de nouveau disponible',
                     message: `${name} est de nouveau en recherche (indisponibilité terminée).`,
@@ -137,6 +163,7 @@ export class CandidateService {
         if (data.identity && !data.identity.description) {
             data.identity.description = buildCandidateSummary(data as Candidate);
         }
+        encryptIdentitySsn(data.identity);
         return this.repository.create(data);
     }
 
@@ -157,6 +184,16 @@ export class CandidateService {
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
         const existing = await this.repository.findById(id);
+        // L'accord immersion suit le statut : coché à l'entrée en immersion, décoché
+        // dès qu'on en sort (fin, rejet, contrat, retour en recherche). Évite qu'un
+        // candidat en recherche arbore encore le badge « Convention immersion signée ».
+        if (existing) {
+            if (data.status === CandidateStatus.IMMERSING && existing.status !== CandidateStatus.IMMERSING) {
+                data.immersion_agreement = true;
+            } else if (existing.status === CandidateStatus.IMMERSING && data.status && data.status !== CandidateStatus.IMMERSING) {
+                data.immersion_agreement = false;
+            }
+        }
         if (existing) {
             const merged: Candidate = {
                 ...existing,
@@ -179,8 +216,29 @@ export class CandidateService {
                 } as Candidate['identity'];
             }
         }
+        encryptIdentitySsn(data.identity);
         const updated = await this.repository.update(id, data);
+        if (updated) {
+            // Passage en contrat : l'offre liée bascule elle aussi en contrat.
+            if (data.status === CandidateStatus.CONTRACT && existing?.status !== CandidateStatus.CONTRACT) {
+                await this.syncOffersToContract(updated);
+            }
+        }
         return updated;
+    }
+
+    // Quand un candidat passe en contrat, toutes les offres qui lui sont liées
+    // (offre du contrat signé + offres où il figure parmi les candidats retenus)
+    // basculent en contrat, pour refléter le placement réel.
+    private async syncOffersToContract(candidate: Candidate): Promise<void> {
+        const offerIds = new Set<string>();
+        if (candidate.contract_offer_id) offerIds.add(candidate.contract_offer_id);
+        const linked = await this.offerRepository.findOfferIdsWithCandidate(candidate._id);
+        for (const offerId of linked) offerIds.add(offerId);
+
+        await Promise.all(
+            Array.from(offerIds).map((offerId) => this.offerRepository.setOfferStatus(offerId, OfferStatus.CONTRACT)),
+        );
     }
 
     async delete(id: string): Promise<boolean> {
@@ -190,17 +248,21 @@ export class CandidateService {
     async matchOffers(id: string): Promise<Offer[]> {
         const candidate = await this.repository.findById(id);
         if (!candidate) return [];
-        if (candidate.status === CandidateStatus.CONTRACT) return [];
+        if (candidate.status !== CandidateStatus.SEEKING) return [];
 
-        const [allOffers, assignedOffers] = await Promise.all([
+        const [allOffers, assignedOffers, inactiveIds] = await Promise.all([
             this.offerRepository.listMatchingOffers(),
             this.offerRepository.findWithCandidate(id),
+            NeedsAnalysisModel.distinct('_id', { $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }] }),
         ]);
+
+        const inactiveSet = new Set<string>(inactiveIds.map(String));
+        const activeAssigned = assignedOffers.filter((offer) => !inactiveSet.has(String(offer.needs_analysis_id)));
 
         const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
         const matchedIds = new Set(matched.map((o) => String(o._id)));
 
-        for (const o of assignedOffers) {
+        for (const o of activeAssigned) {
             if (!matchedIds.has(String(o._id))) {
                 matched.push(o);
             }
@@ -210,17 +272,29 @@ export class CandidateService {
     }
 
     private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {
-        if (offer.tp_type && offer.tp_type !== candidate.tp_type) return false;
+        const offerTps = offerTpCodes(offer);
+        const candidateTps = candidate.tp_types ?? [];
+        if (offerTps.length && !offerTps.some((tp) => candidateTps.includes(tp))) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
+        if (offer.criteria?.has_vehicle && !candidate.identity.has_vehicle) return false;
 
         const candidateAge = computeAge(candidate.identity.date_of_birth) ?? candidate.identity.age;
         if (offer.criteria?.age_min != null && offer.criteria?.age_max != null && candidateAge != null) {
             if (candidateAge < offer.criteria.age_min || candidateAge > offer.criteria.age_max) return false;
         }
 
-        if (offer.localisation?.length) {
-            const mobility = candidate.job_info?.geographic_mobility ?? [];
-            if (!offer.localisation.every((loc) => mobility.includes(loc))) return false;
+        const offerZoneSet = offerZones(offer);
+        const offerCommunes = offer.localisation ?? [];
+        const hasGeoConstraint = offerZoneSet.size > 0 || offerCommunes.length > 0;
+        if (hasGeoConstraint) {
+            const mobility = (candidate.job_info?.geographic_mobility ?? []) as string[];
+            const hasMutualCommune = offerCommunes.length > 0 && offerCommunes.some((c) => mobility.includes(c));
+            if (hasMutualCommune) return true;
+            const cZones = candidateZones(candidate as any);
+            for (const z of offerZoneSet) {
+                if (cZones.has(z)) return true;
+            }
+            return false;
         }
 
         return true;

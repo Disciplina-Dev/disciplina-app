@@ -94,6 +94,12 @@ export const typeDefs = gql`
         EXPIRE
     }
 
+    enum AbStatus {
+        ACTIVE
+        ARCHIVED
+        INACTIVE
+    }
+
     type CompanyInfos {
         id: Int
         name: String
@@ -131,52 +137,77 @@ export const typeDefs = gql`
     type OfferCriteria {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         trainingDomain: TrainingDomain
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]!
+        scheduleOptions: [ScheduleSlot!]!
         conditions: String
         additionalComments: String
+    }
+
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
+    input ScheduleSlotInput {
+        day: String
+        startHour: String
+        endHour: String
     }
 
     input OfferCriteriaInput {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]
+        scheduleOptions: [ScheduleSlotInput!]
         conditions: String
         additionalComments: String
     }
 
-    type Position {
-        localisation: [Localisation!]!
+    type PositionTp {
         tpType: TitleProfessionalType
-        trainingDomain: TrainingDomain
-        jobRole: String
-        title: String!
         missions: [String!]!
         descriptionMissions: [String!]!
         otherDescriptionMissions: String
         otherMissions: String
+    }
+
+    input PositionTpInput {
+        tpType: TitleProfessionalType
+        missions: [String!]
+        descriptionMissions: [String!]
+        otherDescriptionMissions: String
+        otherMissions: String
+    }
+
+    type Position {
+        localisation: [Localisation!]!
+        desiredTp: [PositionTp!]!
+        trainingDomain: TrainingDomain
+        jobRole: String
+        title: String!
+        count: Int
         criteria: OfferCriteria
     }
 
     input PositionInput {
         localisation: [Localisation!]!
+        desiredTp: [PositionTpInput!]!
         trainingDomain: TrainingDomain
         jobRole: String
         title: String!
-        missions: [String!]
-        descriptionMissions: [String!]
-        otherDescriptionMissions: String
-        otherMissions: String
+        count: Int
         criteria: OfferCriteriaInput
     }
 
@@ -192,6 +223,9 @@ export const typeDefs = gql`
         trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
+        abStatus: AbStatus!
+        isRelanceDisabled: Boolean!
+        tags: [String!]
         createdAt: String
         updatedAt: String
     }
@@ -216,6 +250,7 @@ export const typeDefs = gql`
         trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus
+        tags: [String!]
     }
 
     type AbDriveFolder {
@@ -238,9 +273,50 @@ export const typeDefs = gql`
         sectorFolders: [AbDriveFolderInput!]!
     }
 
+    type PageInfo {
+        hasNextPage: Boolean!
+        hasPreviousPage: Boolean!
+        startCursor: String
+        endCursor: String
+    }
+
+    type NeedsAnalysisEdge {
+        node: NeedsAnalysis!
+        cursor: String!
+    }
+
+    type NeedsAnalysisConnection {
+        edges: [NeedsAnalysisEdge!]!
+        pageInfo: PageInfo!
+    }
+
+    input OfferFilterInput {
+        search: String
+        statuses: [String!]
+        desiredTp: [String!]
+        sectors: [String!]
+        localisations: [String!]
+        abStatus: AbStatus
+    }
+
+    type NeedsAnalysisDashboardItem {
+        id: ID!
+        companyName: String
+        positionsCount: Int!
+        createdAt: String
+        status: NeedsAnalysisStatus!
+    }
+
+    type NeedsAnalysisDashboard {
+        items: [NeedsAnalysisDashboardItem!]!
+        totalCount: Int!
+    }
+
     type Query {
         needsAnalysis(id: ID!): NeedsAnalysis
         needsAnalysesByCompany(companyID: Int!): [NeedsAnalysis!]!
+        needsAnalysesPage(first: Int, after: String, filter: OfferFilterInput): NeedsAnalysisConnection!
+        needsAnalysesForDashboard(limit: Int): NeedsAnalysisDashboard!
         abDriveConfig: AbDriveConfig!
     }
 
@@ -249,5 +325,13 @@ export const typeDefs = gql`
         updateNeedsAnalysis(id: ID!, input: NeedsAnalysisInput!): NeedsAnalysis!
         deleteNeedsAnalysis(id: ID!): Boolean!
         updateAbDriveConfig(input: AbDriveConfigInput!): AbDriveConfig!
+        # Marque une AB comme signée sans passer par le flux Yousign : réservé au cas où le
+        # contrat a été trouvé hors sourcing Disciplina (candidat ayant trouvé sa propre entreprise).
+        markNeedsAnalysisSigned(id: ID!): NeedsAnalysis!
+        # Force le statut d'onglet d'une AB (Actif/Archivé/Inactif) ; abStatus à null le
+        # réinitialise au calcul automatique dérivé des offres.
+        updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
+        # Désactive/réactive la relance automatique de signature (non destructif, garde l'AB et ses offres).
+        setAbRelanceDisabled(id: ID!, disabled: Boolean!): NeedsAnalysis!
     }
 `;

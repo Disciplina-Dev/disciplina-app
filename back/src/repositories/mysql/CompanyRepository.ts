@@ -31,21 +31,24 @@ export interface PeriodStatusCountRow {
     count: number;
 }
 
-export class CompanyRepository {
-    async findAll(
-        first: number = DEFAULT_PAGE_SIZE,
-        after?: string,
-        search?: string,
-        filters?: CompanyFilters,
-    ): Promise<CompaniesRow[]> {
-        if (search?.trim()) {
-            const pattern = `%${search.trim()}%`;
-            return query<CompaniesRow[]>('SELECT * FROM companies WHERE name LIKE ? OR siret LIKE ? ORDER BY id', [
-                pattern,
-                pattern,
-            ]);
-        }
+export interface CompanySirenGroupRow {
+    siren: string;
+    count: number;
+    companies: CompaniesRow[] | string;
+}
 
+const SIREN_GROUP_JSON = `JSON_ARRAYAGG(JSON_OBJECT(
+    'id', id, 'ab_id', ab_id, 'user_id', user_id, 'legal_referent', legal_referent,
+    'name', name, 'phone', phone, 'email', email, 'address', address,
+    'sector', sector, 'main_activity', main_activity, 'siret', siret, 'siren', siren,
+    'idcc', idcc, 'ape', ape, 'notes', notes, 'conclusion', conclusion, 'status', status,
+    'relance_date', relance_date, 'relance_type', relance_type,
+    'relance_template_id', relance_template_id, 'relance_channel', relance_channel,
+    'created_at', created_at
+))`;
+
+export class CompanyRepository {
+    private buildFilterClauses(filters?: CompanyFilters): { conditions: string[]; params: unknown[] } {
         const conditions: string[] = [];
         const params: unknown[] = [];
 
@@ -87,6 +90,48 @@ export class CompanyRepository {
             params.push(filters.createdTo);
         }
 
+        return { conditions, params };
+    }
+
+    async findGroupedBySiren(
+        first: number = DEFAULT_PAGE_SIZE,
+        after?: string,
+        filters?: CompanyFilters,
+    ): Promise<CompanySirenGroupRow[]> {
+        const { conditions, params } = this.buildFilterClauses(filters);
+
+        if (after) {
+            conditions.push('siren > ?');
+            params.push(decodeCursor(after));
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const limit = Math.max(1, Math.floor(Number(first)) + 1);
+        return query<CompanySirenGroupRow[]>(
+            `SELECT siren, COUNT(*) AS count, ${SIREN_GROUP_JSON} AS companies
+             FROM companies ${where}
+             GROUP BY siren ORDER BY siren LIMIT ${limit}`,
+            params,
+        );
+    }
+
+    async findAll(
+        first: number = DEFAULT_PAGE_SIZE,
+        after?: string,
+        search?: string,
+        filters?: CompanyFilters,
+    ): Promise<CompaniesRow[]> {
+        if (search?.trim()) {
+            const pattern = `%${search.trim().toLowerCase()}%`;
+            return query<CompaniesRow[]>(
+                'SELECT * FROM companies WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ? ORDER BY id',
+                [pattern, pattern],
+            );
+        }
+
+        const { conditions, params } = this.buildFilterClauses(filters);
+        const relance = filters?.relance && ALLOWED_RELANCE.has(filters.relance) ? filters.relance : null;
+
         // Relance mode: return all sorted results, no cursor pagination
         if (relance) {
             const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -113,6 +158,31 @@ export class CompanyRepository {
             `SELECT user_id, status, COUNT(*) AS count FROM companies ${where} GROUP BY user_id, status`,
             params,
         );
+    }
+
+    /** Compte les entreprises correspondant à la recherche + filtres (même logique que findAll). */
+    async countAll(search?: string, filters?: CompanyFilters): Promise<number> {
+        if (search?.trim()) {
+            const pattern = `%${search.trim().toLowerCase()}%`;
+            const rows = await query<{ n: number }[]>(
+                'SELECT COUNT(*) AS n FROM companies WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ?',
+                [pattern, pattern],
+            );
+            return Number(rows[0]?.n ?? 0);
+        }
+
+        const { conditions, params } = this.buildFilterClauses(filters);
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const rows = await query<{ n: number }[]>(`SELECT COUNT(*) AS n FROM companies ${where}`, params);
+        return Number(rows[0]?.n ?? 0);
+    }
+
+    /** Compte les SIREN distincts correspondant aux filtres (même logique que findGroupedBySiren). */
+    async countGroupedBySiren(filters?: CompanyFilters): Promise<number> {
+        const { conditions, params } = this.buildFilterClauses(filters);
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const rows = await query<{ n: number }[]>(`SELECT COUNT(DISTINCT siren) AS n FROM companies ${where}`, params);
+        return Number(rows[0]?.n ?? 0);
     }
 
     async countByPeriod(year: number, userID?: number | null): Promise<PeriodStatusCountRow[]> {

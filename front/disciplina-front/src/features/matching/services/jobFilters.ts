@@ -1,19 +1,55 @@
 import type { Job } from '../types'
 
+// Statut d'une AB dérivé de ses offres (onglets de la liste matching RH).
+export type AbStatus = 'ACTIVE' | 'ARCHIVED' | 'INACTIVE'
+
+export type AbTab = 'ALL' | AbStatus
+
 export interface JobFilters {
   search: string
   statuses: string[]
-  desiredTP: string | null
-  sector: string | null
+  desiredTPs: string[]
+  sectors: string[]
   localisations: string[]
+  tab: AbTab
 }
 
 export const EMPTY_JOB_FILTERS: JobFilters = {
   search: '',
   statuses: [],
-  desiredTP: null,
-  sector: null,
+  desiredTPs: [],
+  sectors: [],
   localisations: [],
+  tab: 'ALL',
+}
+
+export interface OfferFilterInput {
+  search?: string
+  statuses?: string[]
+  desiredTp?: string[]
+  sectors?: string[]
+  localisations?: string[]
+  abStatus?: AbStatus
+}
+
+export function toOfferFilterInput(filters: JobFilters, search: string): OfferFilterInput | undefined {
+  const abStatus = filters.tab === 'ALL' ? undefined : filters.tab
+  const hasFilter =
+    Boolean(search) ||
+    filters.statuses.length > 0 ||
+    filters.desiredTPs.length > 0 ||
+    filters.sectors.length > 0 ||
+    filters.localisations.length > 0 ||
+    Boolean(abStatus)
+  if (!hasFilter) return undefined
+  return {
+    search: search || undefined,
+    statuses: filters.statuses.length > 0 ? filters.statuses : undefined,
+    desiredTp: filters.desiredTPs.length > 0 ? filters.desiredTPs : undefined,
+    sectors: filters.sectors.length > 0 ? filters.sectors : undefined,
+    localisations: filters.localisations.length > 0 ? filters.localisations : undefined,
+    abStatus,
+  }
 }
 
 export function applyJobFilters(jobs: Job[], filters: JobFilters): Job[] {
@@ -26,11 +62,17 @@ export function applyJobFilters(jobs: Job[], filters: JobFilters): Job[] {
       return false
     }
 
-    if (filters.desiredTP && job.desiredTP !== filters.desiredTP) {
+    if (
+      filters.desiredTPs.length > 0 &&
+      !job.desiredTp.some((tp) => filters.desiredTPs.includes(tp.tpType ?? ''))
+    ) {
       return false
     }
 
-    if (filters.sector && !job.companyInfos?.activities?.includes(filters.sector)) {
+    if (
+      filters.sectors.length > 0 &&
+      !job.companyInfos?.activities?.some((a) => filters.sectors.includes(a))
+    ) {
       return false
     }
 

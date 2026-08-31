@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, UserPlus, Pencil, Loader2, ShieldAlert, MapPin } from 'lucide-react'
+import { Search, UserPlus, Pencil, Loader2, ShieldAlert, MapPin, Trash2 } from 'lucide-react'
 import { apiJson } from '@/api/httpClient'
 import UserEditModal, { type ManagedUser } from '@/components/admin/UserEditModal'
+import DeleteUserModal from '@/components/admin/DeleteUserModal'
+import { useAuthStore } from '@/store/authStore'
 
 const ROLE_LABELS: Record<string, string> = {
   AD: 'Admin',
@@ -40,6 +42,9 @@ export default function AdminUsers() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<ManagedUser | null>(null)
+  const [deleting, setDeleting] = useState<ManagedUser | null>(null)
+  const me = useAuthStore((s) => s.user)
+  const isAdmin = me?.permission === 'ADMIN'
 
   const loadUsers = async () => {
     setLoading(true)
@@ -72,6 +77,17 @@ export default function AdminUsers() {
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
     setEditing(null)
   }
+
+  const handleDeleted = (id: number) => {
+    setUsers((prev) => prev.filter((u) => u.id !== id))
+    setDeleting(null)
+  }
+
+  // Remplaçants proposés : actifs, même rôle que le compte supprimé.
+  const replacements = useMemo(
+    () => (deleting ? users.filter((u) => u.role === deleting.role && u.id !== deleting.id) : []),
+    [users, deleting],
+  )
 
   return (
     <div className="w-full max-w-3xl mx-auto">
@@ -166,6 +182,18 @@ export default function AdminUsers() {
                 <Pencil size={14} />
                 Modifier
               </button>
+
+              {isAdmin && me?.id !== undefined && String(me.id) !== String(user.id) && (
+                <button
+                  type="button"
+                  onClick={() => setDeleting(user)}
+                  aria-label={`Supprimer ${user.firstName} ${user.lastName}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] border border-gray-200 text-sm text-gray-600 hover:border-danger hover:text-danger transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Supprimer
+                </button>
+              )}
             </div>
           ))}
 
@@ -177,6 +205,14 @@ export default function AdminUsers() {
 
       {editing && (
         <UserEditModal user={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />
+      )}
+      {deleting && (
+        <DeleteUserModal
+          user={deleting}
+          replacements={replacements}
+          onClose={() => setDeleting(null)}
+          onDeleted={handleDeleted}
+        />
       )}
       </div>
     </div>

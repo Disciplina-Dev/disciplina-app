@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import { X, Loader2, Send, ExternalLink, FileText, Copy, Check } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Loader2, Send, ExternalLink, FileText, Copy, Check, Sparkles, UserX, UserCheck } from 'lucide-react'
+import { apiFetch } from '@/api/httpClient'
+import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 
 interface MatchedCandidate {
   id: string
@@ -13,23 +15,32 @@ interface MatchedCandidate {
   description?: string | null
   identityDescription?: string | null
   cvWebview?: string | null
+  hasCv?: boolean
 }
 
 interface MatchJobResult {
   id: string
   companyName: string
+  companyInfos?: { email?: string | null } | null
+  referents?: {
+    legalReferents?: { email?: string | null } | null
+    recruitmentReferents?: { email?: string | null } | null
+  } | null
 }
 
 interface SendToCompanyModalProps {
   job: MatchJobResult
   candidates: MatchedCandidate[]
   onClose: () => void
-  onSubmit: (offerId: string, companyEmail: string, candidates: { id: string; description: string }[]) => Promise<string>
+  onSubmit: (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string) => Promise<string>
 }
 
 export default function SendToCompanyModal({ job, candidates, onClose, onSubmit }: SendToCompanyModalProps) {
-  console.log(candidates);
-  const [companyEmail, setCompanyEmail] = useState('')
+  const { templates, load: loadTemplates } = useRhMailTemplatesStore()
+  const [companyEmail, setCompanyEmail] = useState(
+    job.referents?.recruitmentReferents?.email ?? job.companyInfos?.email ?? '',
+  )
+  const [templateId, setTemplateId] = useState<string>('')
   const [descriptions, setDescriptions] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
     for (const c of candidates) {
@@ -41,9 +52,48 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ signature: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [aiLoading, setAiLoading] = useState<Set<string>>(new Set())
+  const [aiErrors, setAiErrors] = useState<Record<string, string>>({})
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => { loadTemplates() }, [loadTemplates])
+
+  // Par défaut : le modèle système « Proposition de candidats ».
+  useEffect(() => {
+    if (templateId) return
+    const system = templates.find((t) => t.kind === 'proposition_candidat')
+    setTemplateId(system?.id ?? templates[0]?.id ?? '')
+  }, [templates]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDescriptionChange = (candidateId: string, value: string) => {
     setDescriptions((prev) => ({ ...prev, [candidateId]: value }))
+  }
+
+  const toggleExcluded = (candidateId: string) => {
+    setExcludedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(candidateId)) next.delete(candidateId)
+      else next.add(candidateId)
+      return next
+    })
+  }
+
+  const handleGenerateAiSummary = async (candidateId: string) => {
+    setAiLoading((prev) => new Set(prev).add(candidateId))
+    setAiErrors((prev) => { const n = { ...prev }; delete n[candidateId]; return n })
+    try {
+      const res = await apiFetch(`/api/candidates/${candidateId}/generate-summary`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }))
+        throw new Error(err.error || `Échec (${res.status})`)
+      }
+      const data = await res.json()
+      setDescriptions((prev) => ({ ...prev, [candidateId]: data.summary }))
+    } catch (err) {
+      setAiErrors((prev) => ({ ...prev, [candidateId]: err instanceof Error ? err.message : 'Erreur inconnue' }))
+    } finally {
+      setAiLoading((prev) => { const n = new Set(prev); n.delete(candidateId); return n })
+    }
   }
 
   const handleSubmit = async () => {
@@ -54,13 +104,15 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
     setIsSubmitting(true)
     setError(null)
     try {
+      const proposedCandidates = candidates.filter((c) => !excludedIds.has(c.id))
       const signature = await onSubmit(
         job.id,
         companyEmail.trim(),
-        candidates.map((c) => ({
+        proposedCandidates.map((c) => ({
           id: c.id,
           description: descriptions[c.id] ?? '',
         })),
+        templateId || undefined,
       )
       setSuccess({ signature })
     } catch (err) {
@@ -71,8 +123,11 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
   }
 
   const matchLink = success
-    ? `${window.location.origin}/public/match?sig=${success.signature}`
+    ? `${window.location.origin}/external/authenticate?sig=${success.signature}`
     : null
+
+  const proposedCount = candidates.filter((c) => !excludedIds.has(c.id)).length
+  const excludedCount = candidates.length - proposedCount
 
   if (success) {
     return (
@@ -123,7 +178,7 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs text-amber-700">
-                Ce lien expire dans 24h. L'entreprise pourra se connecter avec l'identifiant et le code reçus par email.
+                Ce lien expire dans 72h. L'entreprise pourra se connecter avec l'identifiant et le code reçus par email.
               </p>
             </div>
           </div>
@@ -171,62 +226,131 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
           </div>
 
           <div>
+            <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
+              Modèle de mail d'invitation
+            </label>
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors"
+            >
+              {templates.length === 0 && <option value="">Modèle par défaut</option>}
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.kind === 'proposition_candidat' ? 'Proposition de candidats' : t.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Les modèles RH sont modifiables dans « Modèles mail ».
+            </p>
+          </div>
+
+          <div>
             <p className="text-xs font-semibold text-gray-700 mb-3">
-              Candidats à proposer ({candidates.length})
+              Candidats à proposer ({proposedCount})
+              {excludedCount > 0 && (
+                <span className="text-gray-400"> / {candidates.length} · {excludedCount} exclu{excludedCount > 1 ? 's' : ''}</span>
+              )}
             </p>
             <div className="flex flex-col gap-4">
-              {candidates.map((candidate) => (
-                <div
-                  key={candidate.id}
-                  className="rounded-xl border border-gray-100 bg-gray-50/50 overflow-hidden"
-                >
-                  <div className="flex items-start justify-between gap-3 p-3 pb-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {candidate.fullName}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {candidate.age} ans · {candidate.city ?? 'Ville non renseignée'} · {candidate.email}
-                      </p>
+              {candidates.map((candidate) => {
+                const isExcluded = excludedIds.has(candidate.id)
+                return (
+                  <div
+                    key={candidate.id}
+                    className={[
+                      'rounded-xl border overflow-hidden transition-all duration-200',
+                      isExcluded ? 'border-gray-100 bg-gray-100/80 opacity-60' : 'border-gray-100 bg-gray-50/50',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-start justify-between gap-3 p-3 pb-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {candidate.fullName}
+                        </p>
+                        {!candidate.hasCv && (
+                          <span className="mt-0.5 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                            Aucun CV disponible
+                          </span>
+                        )}
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {candidate.age} ans · {candidate.city ?? 'Ville non renseignée'} · {candidate.email}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleExcluded(candidate.id)}
+                          className={[
+                            'flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                            isExcluded
+                              ? 'border-blue/20 text-blue hover:bg-blue-light'
+                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
+                          ].join(' ')}
+                          title={isExcluded ? 'Remettre ce candidat dans la liste' : 'Ne pas proposer ce candidat'}
+                        >
+                          {isExcluded ? <UserCheck size={12} /> : <UserX size={12} />}
+                          {isExcluded ? 'Re-proposer' : 'Ne pas proposer'}
+                        </button>
+                        {candidate.cvWebview && (
+                          <a
+                            href={candidate.cvWebview}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            <FileText size={12} />
+                            CV
+                          </a>
+                        )}
+                      </div>
                     </div>
+
                     {candidate.cvWebview && (
-                      <a
-                        href={candidate.cvWebview}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                      >
-                        <FileText size={12} />
-                        CV
-                      </a>
+                      <div className="px-3 pb-1">
+                        <iframe
+                          src={candidate.cvWebview}
+                          className="w-full rounded-lg border border-gray-200 bg-white"
+                          style={{ height: 200 }}
+                          title={`CV de ${candidate.fullName}`}
+                        />
+                      </div>
                     )}
-                  </div>
 
-                  {candidate.cvWebview && (
-                    <div className="px-3 pb-1">
-                      <iframe
-                        src={candidate.cvWebview}
-                        className="w-full rounded-lg border border-gray-200 bg-white"
-                        style={{ height: 200 }}
-                        title={`CV de ${candidate.fullName}`}
+                    <div className="px-3 pb-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          Description pour l'entreprise
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateAiSummary(candidate.id)}
+                          disabled={aiLoading.has(candidate.id)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40 transition-opacity"
+                        >
+                          {aiLoading.has(candidate.id) ? (
+                            <Loader2 size={11} className="animate-spin" />
+                          ) : (
+                            <Sparkles size={11} />
+                          )}
+                          {aiLoading.has(candidate.id) ? 'IA…' : 'Résumé IA'}
+                        </button>
+                      </div>
+                      <textarea
+                        value={descriptions[candidate.id] ?? ''}
+                        onChange={(e) => handleDescriptionChange(candidate.id, e.target.value)}
+                        placeholder="Points forts, compétences clés, disponibilité..."
+                        rows={2}
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors resize-none"
                       />
+                      {aiErrors[candidate.id] && (
+                        <p className="mt-1 text-[11px] text-red-500">{aiErrors[candidate.id]}</p>
+                      )}
                     </div>
-                  )}
-
-                  <div className="px-3 pb-3">
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1 block">
-                      Description pour l'entreprise
-                    </label>
-                    <textarea
-                      value={descriptions[candidate.id] ?? ''}
-                      onChange={(e) => handleDescriptionChange(candidate.id, e.target.value)}
-                      placeholder="Points forts, compétences clés, disponibilité..."
-                      rows={2}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors resize-none"
-                    />
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -246,7 +370,7 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting || !companyEmail.trim()}
+            disabled={isSubmitting || !companyEmail.trim() || proposedCount === 0}
             className="flex items-center gap-2 rounded-lg bg-blue px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
             {isSubmitting ? (

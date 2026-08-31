@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Building2,
   Users,
@@ -25,26 +25,19 @@ import {
   Send,
   Heart,
   CalendarClock,
-  FileEdit,
   Trash2,
-  Search,
+  ArrowLeft,
 } from 'lucide-react'
-import { GET_OFFERS, MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, GET_SALE_PERSONS, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
 import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus'
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
-import { SECTOR_TO_REGION, REGION_COMMUNES } from '@/features/matching/constants/regions'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useCurrentUser, Permission } from '@/store/authStore'
 import { apiFetch } from '@/api/httpClient'
-import { CSRF_HEADER, getCsrfCookie } from '@/lib/csrf'
-import { usePortefeuilleStore } from '@/store/portefeuilleStore'
-import { JobFilters } from '@/features/matching/components/JobFilters'
-import type { JobFilters as JobFiltersType } from '@/features/matching/services/jobFilters'
-import { EMPTY_JOB_FILTERS, applyJobFilters } from '@/features/matching/services/jobFilters'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
 import AddPreselectedCandidateModal from '@/features/matching/components/AddPreselectedCandidateModal'
@@ -53,19 +46,13 @@ import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
 import InterviewConclusionModal from '@/features/matching/components/InterviewConclusionModal'
 import ImmersionConclusionModal from '@/features/matching/components/ImmersionConclusionModal'
 import SendToCompanyModal from '@/features/matching/components/SendToCompanyModal'
+import HistoryModal from '@/features/matching/components/HistoryModal'
 import { isInterviewDatePast } from '@/utils/interview'
-import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
-import { useNeedsAnalysis, useCompanyBySiret, useCompanies, useCreateCompany } from '@/graphql/hooks'
-import type { Entreprise } from '@/types/entreprise'
-import type { SireneEtablissement } from '@/types/sourcing'
-
-interface CheckSiretResult extends SireneEtablissement {
-  alreadyExists: boolean
-  isBlacklisted: boolean
-  blacklistReason: string | null
-}
+import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
+import { formatScheduleSlots } from '@/utils/schedule'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +69,7 @@ interface MatchedCandidate {
   identityDescription?: string | null
   comment?: string | null
   cvWebview?: string | null
+  hasCv?: boolean
   interviewLocation?: string
   bookedInterviewSlot?: string | null
   interviewConclusion?: InterviewConclusion | null
@@ -109,16 +97,32 @@ interface Referents {
   recruitmentReferents?: ReferentDetails | null
 }
 
+interface OfferTp {
+  tpType: string | null
+  missions: string[]
+  descriptionMissions: string[]
+  otherDescriptionMissions?: string | null
+  otherMissions?: string | null
+}
+
+interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 interface Job {
   id: string
   needsAnalysisId?: string | null
-  companyInfos?: { id?: number; name?: string; activities?: string[] | null } | null
+  companyInfos?: { id?: number; name?: string; address?: string | null; email?: string | null; activities?: string[] | null } | null
   softSkills?: string | null
+  schedule?: (ScheduleSlot | string)[] | null
   companyName: string
   ageRange: string
-  desiredTP: string | null
+  desiredTp: OfferTp[]
   desiredSex: string | null
   drivingLicencseB: boolean | null
+  hasVehicle: boolean | null
   professionalExperience: boolean | null
   status: string | null
   localisation: string[] | null
@@ -127,12 +131,14 @@ interface Job {
   referents?: Referents | null
   title?: string | null
   jobRole?: string | null
-  missions?: string[] | null
+  relaxedCriteria?: string[] | null
 }
 
 interface MatchJobResult extends Job {
   matchedCandidate: MatchedCandidate[]
   suggestedCandidates: MatchedCandidate[]
+  interviewSlots?: string[] | null
+  interviewLocation?: string | null
 }
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
@@ -234,12 +240,16 @@ function CandidateRow({
   onSendMail,
   onRemove,
   actions,
+  interviewSlots,
+  interviewLocation,
 }: {
   candidate: MatchedCandidate
   onInfo: () => void
   onSendMail?: () => void
   onRemove?: () => void
   actions?: React.ReactNode
+  interviewSlots?: string[] | null
+  interviewLocation?: string | null
 }) {
   return (
     <div className="rounded-lg border border-gray-100 p-3">
@@ -273,10 +283,24 @@ function CandidateRow({
         </p>
       )}
 
-      {candidate.bookedInterviewSlot && candidate.interviewLocation && (
-        <div className="mb-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+      {candidate.bookedInterviewSlot && (
+        <div className="mb-2 rounded-md bg-green-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
           <p><CalendarClock size={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot)}</p>
-          <p>📍 {candidate.interviewLocation}</p>
+          <p>{candidate.interviewLocation || interviewLocation || 'Lieu non précisé'}</p>
+        </div>
+      )}
+
+      {!candidate.bookedInterviewSlot && interviewSlots && interviewSlots.length > 0 && (
+        <div className="mb-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
+          <p className="font-medium mb-0.5">Créneaux proposés par l'entreprise</p>
+          <div className="flex flex-wrap gap-1">
+            {interviewSlots.map((slot) => (
+              <span key={slot} className="rounded bg-white px-1.5 py-0.5 text-[15px] text-gray-500">
+                {formatSlot(slot)}
+              </span>
+            ))}
+          </div>
+          {interviewLocation && <p className="mt-0.5">{interviewLocation}</p>}
         </div>
       )}
 
@@ -506,10 +530,12 @@ function JobCard({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
-        {job.desiredTP && (
+        {job.desiredTp.length > 0 && (
           <div className="flex items-center gap-1.5 text-xs text-gray-500 col-span-2">
             <Briefcase size={11} className="text-gray-300 shrink-0" />
-            <span className="truncate font-medium">{tpLabel(job.desiredTP)}</span>
+            <span className="truncate font-medium">
+              {job.desiredTp.map((tp) => tpLabel(tp.tpType)).join(' · ')}
+            </span>
           </div>
         )}
         {job.desiredSex && (
@@ -522,6 +548,12 @@ function JobCard({
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <Car size={11} className="text-gray-300 shrink-0" />
             <span>Permis B requis</span>
+          </div>
+        )}
+        {job.hasVehicle === true && (
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 ml-3 pl-3 border-l border-gray-200">
+            <Car size={11} className="text-gray-300 shrink-0" />
+            <span>Véhiculé requis</span>
           </div>
         )}
         {job.sector && job.sector !== 'NONE' && (
@@ -547,6 +579,16 @@ function JobCard({
         </div>
       )}
 
+      {formatScheduleSlots(job.schedule).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {formatScheduleSlots(job.schedule).slice(0, 3).map((s) => (
+            <span key={s} className="rounded-md bg-gray-50 px-2 py-0.5 text-[10px] text-gray-500 border border-gray-100">
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-3">
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
           {chip.label}
@@ -564,7 +606,6 @@ function JobDetailsSection({
   isCreatingSession,
   onProposeCandidates,
   onShowCompanyInfo,
-  onEditAb,
   onDeleteOffer,
 }: {
   job: MatchJobResult
@@ -573,7 +614,6 @@ function JobDetailsSection({
   isCreatingSession: boolean
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
-  onEditAb?: () => void
   onDeleteOffer?: () => void
 }) {
   const chip = statusChip(job.status)
@@ -600,16 +640,6 @@ function JobDetailsSection({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {onEditAb && (
-            <button
-              onClick={onEditAb}
-              className="flex items-center justify-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue/20 hover:text-blue hover:bg-blue-light/30 md:px-4"
-              title="Modifier l'analyse du besoin"
-            >
-              <FileEdit size={16} />
-              <span className="hidden md:inline">Modifier l'AB</span>
-            </button>
-          )}
           {onDeleteOffer && (
             <button
               onClick={onDeleteOffer}
@@ -640,12 +670,14 @@ function JobDetailsSection({
           Critères
         </p>
         <div className="grid grid-cols-2 gap-3">
-          {job.desiredTP && (
+          {job.desiredTp.length > 0 && (
             <div className="flex items-start gap-2">
               <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
               <div>
                 <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Type de TP</p>
-                <p className="text-xs font-medium text-gray-800 mt-0.5">{tpLabel(job.desiredTP)}</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">
+                  {job.desiredTp.map((tp) => tpLabel(tp.tpType)).join(' · ')}
+                </p>
               </div>
             </div>
           )}
@@ -667,28 +699,39 @@ function JobDetailsSection({
               </div>
             </div>
           )}
-        </div>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {job.missions && job.missions.length > 0 && (
-            <div>
-              <details className="group">
-                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
-                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
-                    {job.missions.length} mission{job.missions.length > 1 ? 's' : ''}
-                  </span>
-                </summary>
-                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
-                  {job.missions.map((mission, i) => (
-                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
-                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
-                      {mission}
-                    </p>
-                  ))}
-                </div>
-              </details>
+          {job.companyInfos?.address && (
+            <div className="flex items-start gap-2">
+              <Building2 size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Siège social</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{job.companyInfos.address}</p>
+              </div>
             </div>
           )}
+        </div>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {job.desiredTp
+            .filter((tp) => tp.missions.length > 0)
+            .map((tp) => (
+              <div key={tp.tpType ?? ''}>
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                      <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                      {tpLabel(tp.tpType)} — {tp.missions.length} mission{tp.missions.length > 1 ? 's' : ''}
+                    </span>
+                  </summary>
+                  <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                    {tp.missions.map((mission, i) => (
+                      <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                        <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                        {mission}
+                      </p>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            ))}
           {job.companyInfos?.activities && job.companyInfos.activities.length > 0 && (
             <div>
               <details className="group">
@@ -729,6 +772,26 @@ function JobDetailsSection({
               </details>
             </div>
           )}
+          {formatScheduleSlots(job.schedule).length > 0 && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                    Horaires
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  {formatScheduleSlots(job.schedule).map((s, i) => (
+                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
+                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      {s}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
         </div>
       </div>
 
@@ -757,6 +820,15 @@ function JobDetailsSection({
             <div>
               <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Permis B</p>
               <p className="text-xs font-medium text-gray-800 mt-0.5">Requis</p>
+            </div>
+          </div>
+        )}
+        {job.hasVehicle != null && (
+          <div className="flex items-start gap-2 ml-3 pl-3 border-l border-gray-200">
+            <Car size={13} className="text-gray-300 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Véhiculé</p>
+              <p className="text-xs font-medium text-gray-800 mt-0.5">{job.hasVehicle ? 'Oui' : 'Non'}</p>
             </div>
           </div>
         )}
@@ -816,28 +888,42 @@ function JobDetailsSection({
         </div>
       )}
 
-      {job.referents && (
-        <div className="mt-3 pt-3 border-t border-gray-50">
-          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
-            <User size={10} className="inline mr-1 text-gray-300" />
-            Référents
-          </p>
-          {job.referents.isSame
-            ? (
-              <ReferentBlock
-                label="Référent"
-                details={job.referents.legalReferents ?? job.referents.recruitmentReferents}
-              />
-            )
-            : (
-              <div className="grid grid-cols-2 gap-3">
-                <ReferentBlock label="Référent légal" details={job.referents.legalReferents} />
-                <ReferentBlock label="Référent recrutement" details={job.referents.recruitmentReferents} />
-              </div>
-            )
-          }
-        </div>
-      )}
+      {job.referents && (() => {
+        const legal = job.referents.legalReferents
+        const recruit = job.referents.recruitmentReferents
+        const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
+        // Stale isSame flag from old data may be inaccurate — also compare actual fields.
+        const actuallySame = !hasRecruit || (
+          (recruit?.name ?? null) === (legal?.name ?? null) &&
+          (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+          (recruit?.email ?? null) === (legal?.email ?? null) &&
+          (recruit?.function ?? null) === (legal?.function ?? null)
+        )
+        const shouldShowBoth = !job.referents.isSame || !actuallySame
+        const showBoth = shouldShowBoth && hasRecruit
+        return (
+          <div className="mt-3 pt-3 border-t border-gray-50">
+            <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
+              <User size={10} className="inline mr-1 text-gray-300" />
+              Référents
+            </p>
+            {showBoth
+              ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <ReferentBlock label="Référent légal" details={legal} />
+                  <ReferentBlock label="Référent recrutement" details={recruit} />
+                </div>
+              )
+              : (
+                <ReferentBlock
+                  label="Référent"
+                  details={legal ?? recruit}
+                />
+              )
+            }
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -1040,6 +1126,8 @@ function AlreadySentCandidatesSection({
   onConcludeInterview,
   onConcludeImmersion,
   onAddCandidate,
+  interviewSlots,
+  interviewLocation,
 }: {
   candidates: MatchedCandidate[]
   onInfo: (c: MatchedCandidate) => void
@@ -1047,6 +1135,8 @@ function AlreadySentCandidatesSection({
   onConcludeInterview: (c: MatchedCandidate) => void
   onConcludeImmersion: (c: MatchedCandidate) => void
   onAddCandidate: () => void
+  interviewSlots?: string[] | null
+  interviewLocation?: string | null
 }) {
   const currentUser = useCurrentUser()
   const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
@@ -1079,13 +1169,15 @@ function AlreadySentCandidatesSection({
           {candidates.map((c) => {
             const needsInterviewConclusion = c.status === MatchedCandidateStatus.INTERVIEW && isInterviewDatePast(c.bookedInterviewSlot) && !c.interviewConclusion
             const needsImmersionConclusion = c.status === MatchedCandidateStatus.IMMERSING && !c.immersionConclusion
-            const canSendDates = c.status === MatchedCandidateStatus.INTERVIEW && c.bookedInterviewSlot && c.interviewLocation
+            const canSendDates = c.status === MatchedCandidateStatus.INTERVIEW && c.bookedInterviewSlot && (c.interviewLocation || interviewLocation)
 
             return (
               <CandidateRow
                 key={c.id}
                 candidate={c}
                 onInfo={() => onInfo(c)}
+                interviewSlots={interviewSlots}
+                interviewLocation={interviewLocation}
                 actions={
                   <div className="flex items-center gap-1">
                     {canSendDates && (
@@ -1133,8 +1225,13 @@ function buildOfferMailBody(
   nonUrl: string,
 ): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  const companyName = job.companyInfos?.name ?? job.companyName
+  const offerTitle = job.jobRole || job.title
   const segments: string[] = []
 
+  if (offerTitle) {
+    segments.push(`<div class="job-title"><strong>Role</strong></br> ${offerTitle}</div>`)
+  }
   if (job.sector && job.sector !== 'NONE') {
     segments.push(`<div class="field"><div class="field-label">Secteur</div><div class="field-value">${formatEnumLabel(job.sector)}</div></div>`)
   }
@@ -1144,20 +1241,28 @@ function buildOfferMailBody(
       .filter(Boolean)
       .join(', ')
     if (locs) {
-      segments.push(`<div class="field"><div class="field-label">Localisation</div><div class="field-value">${locs}</div></div>`)
+      segments.push(`<div class="field"><div class="field-label"><strong>Localisation</strong></div><div class="field-value">${locs}</div></div>`)
     }
   }
-  if (job.missions && job.missions.length > 0) {
-    const items = job.missions.map((m) => `<li>${m}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label">Missions</div><ul class="mission-list">${items}</ul></div>`)
+  for (const tp of job.desiredTp) {
+    if (tp.missions.length === 0) continue
+    const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
+    segments.push(`<div class="field"><div class="field-label"><strong>Missions</strong> — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+  }
+  const schedule = formatScheduleSlots(job.schedule)
+  if (schedule.length > 0) {
+    const items = schedule.map((s) => `<li>${s}</li>`).join('')
+    segments.push(`<div class="field"><div class="field-label"><strong>Horaires</strong></div><ul class="mission-list">${items}</ul></div>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
     const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
-    segments.push(`<div class="field"><div class="field-label">Activités de l'entreprise</div><div>${tags}</div></div>`)
+    segments.push(`<div class="field"><div class="field-label"><strong>Activités de l'entreprise</strong></div><div>${tags}</div></div>`)
   }
   const offerCard = segments.length > 0
     ? `<div class="offer-card">${segments.join('')}</div>`
     : ''
+
+  const introCompany = companyName ? ` chez <strong>${companyName}</strong>` : ''
 
   return `<!DOCTYPE html>
 <html>
@@ -1170,6 +1275,8 @@ function buildOfferMailBody(
   .field { margin-bottom: 10px; }
   .field-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: #9ca3af; letter-spacing: 0.5px; }
   .field-value { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 2px; }
+  .company { font-size: 17px; font-weight: 800; color: #60207E; margin-bottom: 4px; }
+  .job-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
   .mission-list { list-style: none; padding: 0; margin: 4px 0 0; }
   .mission-list li { padding: 3px 0; font-size: 13px; color: #374151; position: relative; padding-left: 16px; }
   .mission-list li::before { content: "•"; position: absolute; left: 0; color: #60207E; }
@@ -1189,7 +1296,7 @@ function buildOfferMailBody(
 <body>
   <div class="logo">DISCIPLINA</div>
   <p>Bonjour ${name},</p>
-  <p>Nous avons sélectionné pour vous une offre en alternance qui correspond à votre profil :</p>
+  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil :</p>
   ${offerCard}
   <div class="benefits">
     <h4>Pourquoi postuler ?</h4>
@@ -1217,7 +1324,7 @@ function buildOfferMailBody(
 
 function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
+  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1250,8 +1357,8 @@ function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: stri
 
 function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
+  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1291,6 +1398,7 @@ function MatchingSection({
   matchError,
   hasLaunched,
   savingIds,
+  relaxedCriteria,
   onLaunch,
   onAccept,
   onDismiss,
@@ -1306,6 +1414,7 @@ function MatchingSection({
   matchError: string | null
   hasLaunched: boolean
   savingIds: Set<string>
+  relaxedCriteria?: string[] | null
   onLaunch: () => void
   onAccept: (id: string) => void
   onDismiss: (id: string) => void
@@ -1333,6 +1442,16 @@ function MatchingSection({
           </span>
         )}
       </div>
+
+      {hasLaunched && !isMatching && relaxedCriteria?.includes('sector') && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
+          <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+          <span>
+            Aucun candidat ne correspond au(x) secteur(s) d'activité de cette offre&nbsp;: ce critère a été ignoré
+            pour afficher des résultats.
+          </span>
+        </div>
+      )}
 
       {!hasLaunched && (
         <div className="flex flex-col items-center gap-3 py-6">
@@ -1418,7 +1537,7 @@ function MatchingSection({
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
 function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
 }
 
 
@@ -1454,13 +1573,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const [addAcceptedOpen, setAddAcceptedOpen] = useState(false)
   const [conclusionCandidate, setConclusionCandidate] = useState<MatchedCandidate | null>(null)
   const [immersionConclusionCandidate, setImmersionConclusionCandidate] = useState<MatchedCandidate | null>(null)
-  const [abEditOpen, setAbEditOpen] = useState(false)
   const [sendToCompanyOpen, setSendToCompanyOpen] = useState(false)
-  const [abNeedsAnalysisId, setAbNeedsAnalysisId] = useState<string | null>(null)
-  const needsAnalysisResult = useNeedsAnalysis(abNeedsAnalysisId)
-  const needsAnalysisData = needsAnalysisResult.data?.needsAnalysis
-  const { result: abCompanyResult, searchBySiret: searchAbCompanyBySiret } = useCompanyBySiret()
-  const abCompany = abCompanyResult.data?.companyBySiret
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteStep, setDeleteStep] = useState<'reason' | 'confirmAll' | 'blacklist' | 'confirming'>('reason')
   const [deleteReason, setDeleteReason] = useState('')
@@ -1476,13 +1589,6 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     (interviewLocationNeedsAnalysis.data?.needsAnalysis?.companyInfos?.postalCode
       ? `Commune ${interviewLocationNeedsAnalysis.data.needsAnalysis.companyInfos.postalCode}`
       : '')
-
-  useEffect(() => {
-    if (abEditOpen && needsAnalysisData?.companyInfos?.siret) {
-      searchAbCompanyBySiret(needsAnalysisData.companyInfos.siret)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [abEditOpen, needsAnalysisData?.companyInfos?.siret])
 
   const preselectedStatuses: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.PRE_SELECTED,
@@ -1678,7 +1784,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           candidateName,
           type: 'interview',
           interviewLocation: location,
-          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}`).toISOString(),
+          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}:00+04:00`).toISOString(),
         })
       } else {
         const result = await offerGraphqlClient
@@ -1777,7 +1883,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     setAddPreselectedOpen(false)
   }
 
-  const handleAddAcceptedCandidate = async (candidateId: string, _candidateName: string) => {
+  const handleAddAcceptedCandidate = async (candidateId: string) => {
     if (!selectedJob) return
     try {
       const result = await offerGraphqlClient
@@ -1808,26 +1914,15 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     }
   }
 
-  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[]): Promise<string> => {
+  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string): Promise<string> => {
     const result = await offerGraphqlClient
-      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates })
+      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates, templateId })
       .toPromise()
     if (result.error) throw new Error(result.error.message)
     const signature = result.data?.createMatchSession
     if (!signature) throw new Error('Aucune signature retournée')
     if (selectedJob) loadJobData(selectedJob)
     return signature
-  }
-
-  const handleEditAb = () => {
-    if (!selectedJob?.needsAnalysisId) return
-    setAbNeedsAnalysisId(selectedJob.needsAnalysisId)
-    setAbEditOpen(true)
-  }
-
-  const handleAbEditClose = () => {
-    setAbEditOpen(false)
-    setAbNeedsAnalysisId(null)
   }
 
   const handleDeleteClick = async () => {
@@ -1970,17 +2065,14 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         isCreatingSession={false}
         onProposeCandidates={() => setSendToCompanyOpen(true)}
         onShowCompanyInfo={() => setShowCompanyInfo(true)}
-        onEditAb={
-          selectedJob?.needsAnalysisId && (currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN)
-            ? handleEditAb
-            : undefined
-        }
         onDeleteOffer={
           currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
             ? handleDeleteClick
             : undefined
         }
       />
+
+      <HistoryModal offerId={selectedJob.id} />
 
       {showCompanyInfo && selectedJob && (
         <CompanyInfoModal offerId={selectedJob.id} needsAnalysisId={selectedJob.needsAnalysisId} onClose={() => setShowCompanyInfo(false)} />
@@ -2012,6 +2104,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         onConcludeInterview={setConclusionCandidate}
         onConcludeImmersion={setImmersionConclusionCandidate}
         onAddCandidate={() => setInterviewModalOpen(true)}
+        interviewSlots={jobData.interviewSlots}
+        interviewLocation={jobData.interviewLocation}
       />
 
       <MatchingSection
@@ -2022,6 +2116,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         matchError={matchError}
         hasLaunched={hasLaunched}
         savingIds={savingIds}
+        relaxedCriteria={jobData?.relaxedCriteria}
         onLaunch={() => runMatch(selectedJob)}
         onAccept={(id) => setDecisions((p) => ({ ...p, [id]: 'accepted' }))}
         onDismiss={(id) => setDecisions((p) => ({ ...p, [id]: 'dismissed' }))}
@@ -2068,11 +2163,11 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           candidateName={datesMailState.fullName}
           defaultSubject="DISCIPLINA – Convocation à un entretien"
           defaultBody={
-            datesMailState.bookedInterviewSlot && datesMailState.interviewLocation
+            datesMailState.bookedInterviewSlot
               ? buildInterviewMailBody(
                 datesMailState.fullName,
                 datesMailState.bookedInterviewSlot,
-                datesMailState.interviewLocation,
+                datesMailState.interviewLocation || jobData?.interviewLocation || '',
               )
               : ''
           }
@@ -2155,41 +2250,6 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           immersionEndDate={immersionConclusionCandidate.immersionEndDate ?? undefined}
           onSubmit={handleSetImmersionConclusion}
           onClose={() => setImmersionConclusionCandidate(null)}
-        />
-      )}
-
-      {abEditOpen && needsAnalysisData && selectedJob && (
-        <NeedsAnalysisModal
-          entreprise={{
-            id: String(abCompany?.id ?? selectedJob.companyInfos?.id ?? ''),
-            nom_commercial: abCompany?.name ?? selectedJob.companyName ?? null,
-            proprietaire_contact: null,
-            commercial: null,
-            proprietaire_id: abCompany?.userID ?? null,
-            representant_legal: abCompany?.legalReferent ?? needsAnalysisData.referents?.legalReferents?.name ?? null,
-            telephone: abCompany?.phone ?? needsAnalysisData.referents?.legalReferents?.phone ?? null,
-            email: abCompany?.email ?? needsAnalysisData.referents?.legalReferents?.email ?? null,
-            adresse: abCompany?.address ?? null,
-            secteur: abCompany?.sector ?? needsAnalysisData.companyInfos?.activities?.join(', ') ?? null,
-            metier: abCompany?.mainActivity ?? null,
-            siret: abCompany?.siret ?? needsAnalysisData.companyInfos?.siret ?? null,
-            idcc: abCompany?.idcc ?? needsAnalysisData.companyInfos?.idcc ?? null,
-            note: abCompany?.notes ?? needsAnalysisData.companyInfos?.description ?? null,
-            conclusion: abCompany?.conclusion ?? null,
-            status: (abCompany?.status as Entreprise['status']) || (needsAnalysisData.status as Entreprise['status']) || 'À Réfléchir',
-            date_insertion: null,
-            date_relance: null,
-            type_relance: null,
-            relance_template_id: null,
-            relance_channel: null,
-          }}
-          currentUser={currentUser!}
-          initialData={needsAnalysisData}
-          onClose={handleAbEditClose}
-          onSuccess={() => {
-            handleAbEditClose()
-            if (selectedJob) loadJobData(selectedJob)
-          }}
         />
       )}
 
@@ -2310,315 +2370,191 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   )
 }
 
-// ─── Company Search Modal ─────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-function CompanySearchModal({ open, onClose, currentUser }: { open: boolean; onClose: () => void; currentUser: import('@/store/authStore').AppUser | null }) {
-  const [mode, setMode] = useState<'search' | 'siret'>('search')
-  const [query, setQuery] = useState('')
-  const [siret, setSiret] = useState('')
-  const [siretData, setSiretData] = useState<CheckSiretResult | null>(null)
-  const [siretStatus, setSiretStatus] = useState<'idle' | 'loading' | 'error' | 'success'>('idle')
-  const [siretError, setSiretError] = useState('')
-  const [selectedOwnerId, setSelectedOwnerId] = useState<number | null>(null)
-  const [abCompany, setAbCompany] = useState<Entreprise | null>(null)
-  const [creating, setCreating] = useState(false)
+function AbHeader({
+  needsAnalysisId,
+  currentUser,
+  fallbackName,
+  fallbackCompanyId,
+  onBack,
+  onEdited,
+}: {
+  needsAnalysisId: string
+  currentUser: import('@/store/authStore').AppUser | null
+  fallbackName?: string | null
+  fallbackCompanyId?: number | null
+  onBack: () => void
+  onEdited: () => void
+}) {
+   const abResult = useNeedsAnalysis(needsAnalysisId)
+  const ab = abResult.data?.needsAnalysis
+  const info = ab?.companyInfos
+  const legalReferent = ab?.referents?.legalReferents
+  const recruitmentReferent = ab?.referents?.recruitmentReferents
+  const isSameReferent = ab?.referents?.isSame ?? true
+  const hasRecruitmentHeader = !!(recruitmentReferent?.name || recruitmentReferent?.email || recruitmentReferent?.phone || recruitmentReferent?.function)
+  const actuallySameHeader = !hasRecruitmentHeader || (
+    (recruitmentReferent?.name ?? null) === (legalReferent?.name ?? null) &&
+    (recruitmentReferent?.phone ?? null) === (legalReferent?.phone ?? null) &&
+    (recruitmentReferent?.email ?? null) === (legalReferent?.email ?? null) &&
+    (recruitmentReferent?.function ?? null) === (legalReferent?.function ?? null)
+  )
+  const showRecruitmentInHeader = (!isSameReferent || !actuallySameHeader) && hasRecruitmentHeader
+  const canEdit = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+  const navigate = useNavigate()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [abStatusSaving, setAbStatusSaving] = useState(false)
+  const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
+  const { updateAbStatus } = useUpdateNeedsAnalysisAbStatus()
 
-  useCompanies()
-  const { createCompany } = useCreateCompany()
-  const companies = usePortefeuilleStore((s) => s.companies)
-  const salePersons = usePortefeuilleStore((s) => s.salePersons)
-  const setSalePersons = usePortefeuilleStore((s) => s.setSalePersons)
-  const [spResult] = useQuery({ query: GET_SALE_PERSONS, pause: salePersons.length > 0 })
-  useEffect(() => {
-    if (spResult.data?.salePersons) {
-      setSalePersons(spResult.data.salePersons)
-    }
-  }, [spResult.data, setSalePersons])
-
-  useEffect(() => {
-    if (open) {
-      setMode('search'); setQuery(''); setSiret('')
-      setSiretData(null); setSiretStatus('idle'); setSiretError('')
-      setSelectedOwnerId(null); setAbCompany(null); setCreating(false)
-    }
-  }, [open])
-
-  const findAutoOwner = useCallback((siren: string) => {
-    const match = companies.find((c) => c.siret?.startsWith(siren) && c.proprietaire_id != null)
-    return match?.proprietaire_id ?? null
-  }, [companies])
-
-  const handleSiretLookup = useCallback(async () => {
-    if (!/^\d{14}$/.test(siret)) {
-      setSiretError('Le SIRET doit contenir exactement 14 chiffres'); setSiretStatus('error')
-      return
-    }
-    setSiretStatus('loading'); setSiretError('')
+  const handleAbStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    setAbStatusSaving(true)
     try {
-      const res = await apiFetch(`/api/sourcing/${siret}`)
-      if (res.status === 404) {
-        setSiretError('SIRET introuvable dans le registre INSEE'); setSiretStatus('error')
-        return
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Erreur lors de la recherche' }))
-        setSiretError(err.error || 'Erreur lors de la recherche'); setSiretStatus('error')
-        return
-      }
-      const data = await res.json()
-      if (data.alreadyExists) {
-        setSiretError('Cette entreprise existe déjà dans le portefeuille'); setSiretStatus('error')
-        return
-      }
-      if (data.isBlacklisted) {
-        setSiretError(`Cette entreprise est blacklistée${data.blacklistReason ? ` : ${data.blacklistReason}` : ''}`)
-        setSiretStatus('error')
-        return
-      }
-      setSiretData(data); setSiretStatus('success')
-      const ownerId = findAutoOwner(data.siren)
-      setSelectedOwnerId(ownerId ?? (currentUser?.id ? Number(currentUser.id) : null))
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erreur lors de la recherche'
-      setSiretError(msg); setSiretStatus('error')
-    }
-  }, [siret, findAutoOwner, currentUser])
-
-  const handleCreate = useCallback(async () => {
-    if (!siretData) return
-    setCreating(true)
-    try {
-      const name = siretData.denomination || siretData.nomPrenom || 'Entreprise sans nom'
-      const address = [siretData.adresse.numeroVoie, siretData.adresse.typeVoie, siretData.adresse.libelleVoie].filter(Boolean).join(' ')
-      const res = await createCompany({
-        name: name.trim(),
-        siret: siretData.siret,
-        userID: selectedOwnerId,
-        address: address || undefined,
-      })
-      if (res.data?.createCompany) {
-        setAbCompany({
-          id: String(res.data.createCompany.id),
-          nom_commercial: res.data.createCompany.name,
-          proprietaire_contact: null,
-          commercial: null,
-          proprietaire_id: res.data.createCompany.userID ?? null,
-          representant_legal: null,
-          telephone: res.data.createCompany.phone,
-          email: res.data.createCompany.email,
-          adresse: res.data.createCompany.address,
-          secteur: res.data.createCompany.sector,
-          metier: res.data.createCompany.mainActivity,
-          siret: res.data.createCompany.siret,
-          idcc: res.data.createCompany.idcc,
-          note: res.data.createCompany.notes,
-          conclusion: res.data.createCompany.conclusion,
-          status: (res.data.createCompany.status as Entreprise['status']) || 'À Réfléchir',
-          date_insertion: null,
-          date_relance: null,
-          type_relance: null,
-          relance_template_id: null,
-          relance_channel: null,
-        })
-      }
+      const res = await updateAbStatus(needsAnalysisId, value === 'AUTO' ? null : value)
+      if (!res.error) abResult.refetch()
     } finally {
-      setCreating(false)
+      setAbStatusSaving(false)
     }
-  }, [siretData, createCompany, selectedOwnerId])
-
-  if (!open) return null
-
-  if (abCompany) {
-    return (
-      <NeedsAnalysisModal
-        entreprise={abCompany}
-        currentUser={currentUser!}
-        onClose={() => { setAbCompany(null); onClose() }}
-        onSuccess={() => { setAbCompany(null); onClose() }}
-      />
-    )
   }
 
-  if (mode === 'siret') {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setMode('search'); onClose() }}>
-        <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900">Nouvelle entreprise</h3>
-
-            <div>
-              <input
-                type="text"
-                value={siret}
-                onChange={(e) => { setSiret(e.target.value.replace(/\D/g, '').slice(0, 14)); setSiretStatus('idle') }}
-                placeholder="SIRET (14 chiffres)"
-                maxLength={14}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
-                autoFocus
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSiretLookup() }}
-              />
-              <button
-                onClick={handleSiretLookup}
-                disabled={siret.length !== 14 || siretStatus === 'loading'}
-                className="mt-2 w-full rounded-lg bg-blue px-3 py-2 text-sm font-medium text-white transition hover:bg-blue/90 disabled:opacity-40"
-              >
-                {siretStatus === 'loading' ? (
-                  <><Loader2 size={14} className="inline animate-spin mr-1" /> Vérification…</>
-                ) : 'Vérifier le SIRET'}
-              </button>
-            </div>
-
-            {siretStatus === 'error' && (
-              <div className="rounded-lg bg-danger-bg p-3 text-xs text-danger flex items-start gap-2">
-                <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                <span>{siretError}</span>
-                {siretError.includes('existe déjà') && (
-                  <button onClick={() => setMode('search')} className="shrink-0 font-medium underline whitespace-nowrap">
-                    Rechercher
-                  </button>
-                )}
-              </div>
-            )}
-
-            {siretStatus === 'success' && siretData && (
-              <div className="space-y-4">
-                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-1.5">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {siretData.denomination || siretData.nomPrenom || 'Entreprise sans nom'}
-                  </p>
-                  {siretData.adresse && (
-                    <p className="text-xs text-gray-500">
-                      {[siretData.adresse.numeroVoie, siretData.adresse.typeVoie, siretData.adresse.libelleVoie].filter(Boolean).join(' ')}
-                      {siretData.adresse.codePostal && `, ${siretData.adresse.codePostal}`}
-                      {siretData.adresse.commune && ` ${siretData.adresse.commune}`}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-400">SIRET : {siretData.siret}</p>
-                  <p className="text-xs text-gray-400">SIREN : {siretData.siren}</p>
-                </div>
-
-                {salePersons.length > 0 && (
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-gray-600">Propriétaire du contact</label>
-                    <select
-                      value={selectedOwnerId ?? ''}
-                      onChange={(e) => setSelectedOwnerId(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
-                    >
-                      <option value="">Sélectionner un commercial</option>
-                      {salePersons.map((sp) => (
-                        <option key={sp.id} value={sp.id}>
-                          {sp.firstName} {sp.lastName} ({sp.email})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setMode('siret')}
-                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
-                  >
-                    Modifier le SIRET
-                  </button>
-                  <button
-                    onClick={handleCreate}
-                    disabled={creating}
-                    className="flex items-center gap-1.5 rounded-lg bg-blue px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue/90 disabled:opacity-40"
-                  >
-                    {creating && <Loader2 size={14} className="animate-spin" />}
-                    {creating ? 'Création…' : "Créer l'entreprise"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {siretStatus !== 'success' && (
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setMode('search')}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
-                >
-                  Retour
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
+  const handleDelete = async () => {
+    await deleteNeedsAnalysis(needsAnalysisId)
+    navigate('/rh/matching')
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-900">Ajouter une entreprise</h3>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher par nom..."
-              className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
-              autoFocus
-            />
-          </div>
-          <ul className="max-h-60 divide-y overflow-y-auto rounded-lg border border-gray-100">
-            {companies
-              .filter((c) => c.nom_commercial?.toLowerCase().includes(query.toLowerCase()))
-              .map((c) => (
-                <li
-                  key={c.id}
-                  onClick={() => setAbCompany(c)}
-                  className="flex cursor-pointer items-center justify-between px-3 py-2.5 text-sm transition hover:bg-blue-50"
-                >
-                  <span className="font-medium text-gray-900">{c.nom_commercial}</span>
-                  {c.siret && <span className="text-xs text-gray-400">{c.siret}</span>}
-                </li>
-              ))}
-            {companies.filter((c) => c.nom_commercial?.toLowerCase().includes(query.toLowerCase())).length === 0 && (
-              <li className="px-3 py-4 text-center text-xs text-gray-400">Aucune entreprise trouvée</li>
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <button
+          onClick={onBack}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+          title="Retour à la liste"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-gray-900">{info?.name ?? fallbackName ?? 'Analyse de besoin'}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+            {info?.siret && <span>SIRET&nbsp;: {info.siret}</span>}
+            {info?.activities && info.activities.length > 0 && (
+              <span>{info.activities.map((a: string) => SECTOR_LABELS[a] ?? a).join(' · ')}</span>
             )}
-          </ul>
-          <button
-            onClick={() => { setMode('siret'); setSiret(''); setSiretStatus('idle'); setSiretError(''); setSiretData(null) }}
-            className="flex items-center gap-2 text-sm font-medium text-blue transition hover:text-blue/80"
-          >
-            <Plus size={14} />
-            Créer une nouvelle entreprise
-          </button>
+            {ab?.tags && ab.tags.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1">
+                {ab.tags.map((tag: string) => (
+                  <span key={tag} className="rounded-full bg-blue-light px-2 py-0.5 text-[11px] font-medium text-blue">
+                    {tag}
+                  </span>
+                ))}
+              </span>
+            )}
+            {legalReferent?.name && (
+              <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {legalReferent.name}{legalReferent.function ? ` (${legalReferent.function})` : ''}</span>
+            )}
+            {legalReferent?.phone && (
+              <span className="flex items-center gap-1"><Phone size={11} className="text-gray-300" /> {legalReferent.phone}</span>
+            )}
+            {legalReferent?.email && (
+              <span className="flex items-center gap-1"><Mail size={11} className="text-gray-300" /> {legalReferent.email}</span>
+            )}
+            {showRecruitmentInHeader && (
+              <>
+                <span className="text-gray-300">|</span>
+                {recruitmentReferent?.name && (
+                  <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {recruitmentReferent.name}{recruitmentReferent.function ? ` (${recruitmentReferent.function})` : ''} <span className="text-[10px] text-gray-400">(recrutement)</span></span>
+                )}
+                {recruitmentReferent?.phone && (
+                  <span className="flex items-center gap-1"><Phone size={11} className="text-gray-300" /> {recruitmentReferent.phone}</span>
+                )}
+                {recruitmentReferent?.email && (
+                  <span className="flex items-center gap-1"><Mail size={11} className="text-gray-300" /> {recruitmentReferent.email}</span>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
+      {ab && (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm" title="Changer le statut de l'analyse de besoin — onglet de la liste matching">
+            <span className="text-xs font-medium text-gray-500">Statut</span>
+            <select
+              value={ab.abStatus ?? 'AUTO'}
+              onChange={handleAbStatusChange}
+              disabled={abStatusSaving}
+              className="cursor-pointer bg-transparent text-sm font-semibold text-gray-800 outline-none disabled:opacity-50"
+            >
+              <option value="AUTO">Automatique</option>
+              <option value="ACTIVE">Actif</option>
+              <option value="ARCHIVED">Archivé</option>
+              <option value="INACTIVE">Inactif</option>
+            </select>
+          </div>
+          {canEdit && (
+            <>
+              {confirmDelete ? (
+                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                  <span className="text-xs font-medium text-red-700">Supprimer cette AB ?</span>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleteResult.fetching}
+                    className="rounded-lg bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                  >
+                    {deleteResult.fetching ? 'Suppression…' : 'Confirmer'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 md:px-4"
+                    title="Supprimer l'analyse du besoin"
+                  >
+                    <Trash2 size={16} />
+                    <span className="hidden md:inline">Supprimer</span>
+                  </button>
+                  <EditNeedsAnalysisButton
+                    needsAnalysisData={ab}
+                    currentUser={currentUser!}
+                    companyId={info?.id ?? fallbackCompanyId}
+                    companyName={info?.name ?? fallbackName}
+                    onSuccess={onEdited}
+                  />
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function Matching() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const currentUser = useCurrentUser()
+  const needsAnalysisId = searchParams.get('needsAnalysis')
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
-  const [filters, setFilters] = useState<JobFiltersType>(EMPTY_JOB_FILTERS)
-
-  const [showCompanySearch, setShowCompanySearch] = useState(false)
 
   const [jobsResult, reexecuteJobsQuery] = useQuery({
-    query: GET_OFFERS,
+    query: OFFERS_BY_NEEDS_ANALYSIS,
+    variables: { needsAnalysisId },
+    pause: !needsAnalysisId,
     context: {
       url: `${import.meta.env.VITE_API_URL}/api/graphql/offers`,
-      fetchOptions: {
-        credentials: 'include' as const,
-        headers: getCsrfCookie() ? { [CSRF_HEADER]: getCsrfCookie() as string } : {},
-      },
     },
   })
 
-  const jobs: Job[] = jobsResult.data?.offers ?? []
-  const filteredJobs = applyJobFilters(jobs, filters)
+  const jobs: Job[] = jobsResult.data?.offersByNeedsAnalysis ?? []
 
   // ?offer= (lien de notification) : se synchronise dans selectedJobId à chaque
   // changement (notamment quand on clique sur une notification déjà sur la page).
@@ -2627,18 +2563,8 @@ export default function Matching() {
     if (offerFromUrl) setSelectedJobId(offerFromUrl)
   }, [offerFromUrl])
 
-  // Default commune filter from the current user's sectors.
-  const userSectors = currentUser?.sectors
-  useEffect(() => {
-    if (userSectors?.length && filters.localisations.length === 0) {
-      const regions = userSectors.map((s) => SECTOR_TO_REGION[s]).filter(Boolean)
-      const communes = [...new Set(regions.flatMap((r) => REGION_COMMUNES[r as keyof typeof REGION_COMMUNES]))]
-      if (communes.length) setFilters((prev) => ({ ...prev, localisations: communes }))
-    }
-  }, [userSectors, filters.localisations.length])
-
   const effectiveJobId = selectedJobId ?? searchParams.get('offer')
-  const selectedJob = filteredJobs.find((j) => j.id === effectiveJobId) ?? null
+  const selectedJob = jobs.find((j) => j.id === effectiveJobId) ?? null
 
   if (jobsResult.fetching) {
     return (
@@ -2663,26 +2589,18 @@ export default function Matching() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col">
-      {/* Top bar */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">Matching</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {filteredJobs.length} offre{filteredJobs.length > 1 ? 's' : ''}{jobs.length !== filteredJobs.length ? ` · ${jobs.length} au total` : ''}
-            </p>
-          </div>
-          {(currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
-            <button
-              onClick={() => setShowCompanySearch(true)}
-              className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-gray-500 transition hover:border-gray-400 hover:text-gray-700"
-            >
-              <Plus size={16} />
-              Ajouter des entreprises
-            </button>
-          )}
-        </div>
-        <JobFilters filters={filters} onChange={setFilters} />
+      {/* Top bar — infos de l'analyse de besoin */}
+      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+        {needsAnalysisId && (
+          <AbHeader
+            needsAnalysisId={needsAnalysisId}
+            currentUser={currentUser}
+            fallbackName={jobs[0]?.companyName}
+            fallbackCompanyId={jobs[0]?.companyInfos?.id}
+            onBack={() => navigate('/rh/matching')}
+            onEdited={reexecuteJobsQuery}
+          />
+        )}
       </div>
 
       {/* Two-column layout */}
@@ -2692,16 +2610,14 @@ export default function Matching() {
           <div className="px-4 pt-4 pb-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Offres entreprises</p>
           </div>
-          {filteredJobs.length === 0 ? (
+          {jobs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center px-6">
               <Building2 size={28} className="text-gray-300" />
-              <p className="text-sm text-gray-400">
-                {jobs.length === 0 ? 'Aucune offre disponible' : 'Aucune offre ne correspond aux filtres'}
-              </p>
+              <p className="text-sm text-gray-400">Aucune offre pour cette analyse de besoin</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2 px-4 pb-6">
-              {filteredJobs.map((job) => (
+              {jobs.map((job) => (
                 <JobCard
                   key={job.id}
                   job={job}
@@ -2718,12 +2634,6 @@ export default function Matching() {
           <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} />
         </div>
       </div>
-
-      <CompanySearchModal
-        open={showCompanySearch}
-        onClose={() => setShowCompanySearch(false)}
-        currentUser={currentUser}
-      />
     </div>
   )
 }

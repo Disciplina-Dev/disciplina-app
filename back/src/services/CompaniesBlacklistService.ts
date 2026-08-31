@@ -60,6 +60,7 @@ export class CompaniesBlacklistService {
                     delete blacklistData.id;
                     delete blacklistData.created_at;
                     delete (blacklistData as any).ab_id;
+                    delete (blacklistData as any).siren;
                     await this.blacklistRepository.create(blacklistData);
                 }
                 await conn.execute('DELETE FROM companies WHERE id = ?', [company.id]);

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+playwright-report/
+test-results/
+*.log
+npm-debug.log*
+package-lock.json
+database/mysql/data/
+ollama-data/
+graphify-out/
+docs/

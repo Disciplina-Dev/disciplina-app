@@ -10,7 +10,12 @@ import {
 } from '../types/mailTemplate.types';
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
+import { AB_RELANCE_SUBJECT, AB_RELANCE_BODY } from './abRelanceTemplate';
 import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
+import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
+import { INTERVIEW_INVITATION_SUBJECT, INTERVIEW_INVITATION_BODY } from './interviewInvitationTemplate';
+import { EXTERNAL_ACCESS_SUBJECT, EXTERNAL_ACCESS_BODY } from './externalAccessDefaultTemplate';
+import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
 import { UserService } from './UserService';
@@ -48,8 +53,26 @@ export const PEDA_TEMPLATES_SEEDED_KEY = 'peda_templates_seeded';
 /** Clé app_settings : le modèle système « AB à signer » a déjà été semé une fois. */
 export const AB_SIGNATURE_SEEDED_KEY = 'ab_signature_template_seeded';
 
+/** Clé app_settings : le modèle système « Relance AB à signer » a déjà été semé une fois. */
+export const AB_RELANCE_SEEDED_KEY = 'ab_relance_template_seeded';
+
 /** Clé app_settings : le modèle « Import CV » par défaut a déjà été semé une fois. */
 export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
+
+/** Clé app_settings : le modèle « Import CV » a été rafraîchi (bouton, sans code). */
+export const CV_IMPORT_TEMPLATE_V2_KEY = 'cv_import_template_v2';
+
+/** Clé app_settings : le modèle « Invitation sélection candidats » a déjà été semé une fois. */
+export const PROPOSITION_CANDIDAT_SEEDED_KEY = 'proposition_candidat_template_seeded';
+
+/** Clé app_settings : le modèle « Invitation entretien » a déjà été semé une fois. */
+export const INTERVIEW_INVITATION_SEEDED_KEY = 'interview_invitation_template_seeded';
+
+/** Clé app_settings : les modèles « sans code » (matching + entretien) ont été rafraîchis. */
+export const NO_CODE_RH_TEMPLATES_V2_KEY = 'mails_no_code_rh_templates_v2';
+
+export const EXTERNAL_ACCESS_SEEDED_KEY = 'external_access_template_seeded';
+export const EXTERNAL_LINK_SEEDED_KEY = 'external_link_template_seeded';
 
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
@@ -135,9 +158,22 @@ export class MailTemplateService {
         return doc ? toDTO(doc) : null;
     }
 
+    /** Modèle système du scope rh (ex. invitation à la sélection de candidats), ou null s'il n'existe pas. */
+    async findRhTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
+        const doc = await MailTemplateModel.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+        return doc ? toDTO(doc) : null;
+    }
+
+    /** Modèle accessible à un user (toutes scopes), ou null s'il est introuvable / non autorisé. */
+    async findById(userId: number, id: string): Promise<MailTemplateDTO | null> {
+        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        if (!doc || !this.canAccess(doc, userId)) return null;
+        return toDTO(doc);
+    }
+
     /** Le niveau n'a de sens que pour le scope `peda` ; il est ignoré ailleurs. */
     private pedaLevelFor(scope: MailTemplateScope, level: PedaLevel | null | undefined): PedaLevel | null {
-        return scope === 'peda' ? level ?? null : null;
+        return scope === 'peda' ? (level ?? null) : null;
     }
 
     /** Refuse deux modèles Peda sur le même niveau : la résolution serait ambiguë. */
@@ -259,6 +295,36 @@ export class MailTemplateService {
     }
 
     /**
+     * Sème le modèle système « Relance d'Analyse du Besoin à signer » (scope
+     * commercial, kind `ab_relance`) au premier démarrage. Idempotent via flag
+     * app_settings ET vérification d'existence, pour ne pas dupliquer si un
+     * modèle a déjà ce kind.
+     */
+    async seedAbRelanceDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(AB_RELANCE_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'commercial', kind: 'ab_relance' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_COMMERCIAL_USER_ID,
+                scope: 'commercial',
+                name: 'Relance AB à signer',
+                subject: AB_RELANCE_SUBJECT,
+                body: AB_RELANCE_BODY,
+                peda_level: null,
+                kind: 'ab_relance',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('ab-relance: modèle système semé');
+        }
+        await settings.set(AB_RELANCE_SEEDED_KEY, '1');
+    }
+
+    /**
      * Sème le modèle « Import CV » par défaut (scope rh) au premier démarrage.
      * Idempotent via flag app_settings.
      */
@@ -283,6 +349,170 @@ export class MailTemplateService {
             logger.info('cv-import: modèle par défaut semé');
         }
         await settings.set(CV_IMPORT_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Rafraîchit une seule fois le modèle « Import CV » déjà présent en base
+     * (semé avant le passage au bouton /external/authenticate et à la
+     * suppression du code en ligne). N'écrase que les corps obsolètes.
+     */
+    async refreshCvImportTemplateButton(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(CV_IMPORT_TEMPLATE_V2_KEY)) return;
+
+        const doc = await MailTemplateModel.findOne({ scope: 'rh', name: 'Import CV' }).lean<MailTemplate>();
+        if (doc && (doc.body.includes('/public/cv-import') || doc.body.includes('{{code}}'))) {
+            await MailTemplateModel.updateOne(
+                { _id: doc._id },
+                { $set: { subject: CV_IMPORT_SUBJECT, body: CV_IMPORT_BODY, updated_at: new Date() } },
+            );
+            logger.info('cv-import: modèle « Import CV » rafraîchi (bouton, sans code)');
+        }
+        await settings.set(CV_IMPORT_TEMPLATE_V2_KEY, '1');
+    }
+
+    /**
+     * Rafraîchit une seule fois les modèles « Proposition de candidats » et
+     * « Invitation entretien » déjà présents en base (semés avant la migration
+     * vers les sessions sans code en ligne). N'écrase que les corps obsolètes
+     * (placeholders {{code}}/{{id}}), laissés par les anciens défauts.
+     */
+    async refreshNoCodeRHTemplates(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(NO_CODE_RH_TEMPLATES_V2_KEY)) return;
+
+        const defaults = [
+            { kind: 'proposition_candidat', subject: PROPOSITION_CANDIDAT_SUBJECT, body: PROPOSITION_CANDIDAT_BODY },
+            { kind: 'interview_invitation', subject: INTERVIEW_INVITATION_SUBJECT, body: INTERVIEW_INVITATION_BODY },
+        ] as const;
+
+        for (const { kind, subject, body } of defaults) {
+            const doc = await MailTemplateModel.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+            if (doc && (doc.body.includes('{{code}}') || doc.body.includes('{{id}}'))) {
+                await MailTemplateModel.updateOne(
+                    { _id: doc._id },
+                    { $set: { subject, body, updated_at: new Date() } },
+                );
+                logger.info(`mail-template: modèle « ${kind} » rafraîchi (bouton, sans code)`);
+            }
+        }
+        await settings.set(NO_CODE_RH_TEMPLATES_V2_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Proposition de candidats » (scope rh,
+     * kind `proposition_candidat`) au premier démarrage. Idempotent via flag app_settings
+     * ET vérification d'existence, pour ne pas dupliquer si un modèle a déjà ce kind.
+     */
+    async seedpropositionCandidatsDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(PROPOSITION_CANDIDAT_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'proposition_candidat' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Proposition de candidats',
+                subject: PROPOSITION_CANDIDAT_SUBJECT,
+                body: PROPOSITION_CANDIDAT_BODY,
+                peda_level: null,
+                kind: 'proposition_candidat',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('match-invitation: modèle système semé');
+        }
+        await settings.set(PROPOSITION_CANDIDAT_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Invitation entretien » (scope rh,
+     * kind `interview_invitation`) au premier démarrage. Idempotent via flag
+     * app_settings ET vérification d'existence.
+     */
+    async seedInterviewInvitationDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(INTERVIEW_INVITATION_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'interview_invitation' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Invitation entretien',
+                subject: INTERVIEW_INVITATION_SUBJECT,
+                body: INTERVIEW_INVITATION_BODY,
+                peda_level: null,
+                kind: 'interview_invitation',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('interview-invitation: modèle système semé');
+        }
+        await settings.set(INTERVIEW_INVITATION_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Code d'accès externe » (scope rh,
+     * kind `external_access`) au premier démarrage. Idempotent via flag app_settings
+     * ET vérification d'existence.
+     */
+    async seedExternalAccessDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(EXTERNAL_ACCESS_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'external_access' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Code d\'accès externe',
+                subject: EXTERNAL_ACCESS_SUBJECT,
+                body: EXTERNAL_ACCESS_BODY,
+                peda_level: null,
+                kind: 'external_access',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('external-access: modèle système semé');
+        }
+        await settings.set(EXTERNAL_ACCESS_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Lien d'accès externe » (scope rh,
+     * kind `external_link`) au premier démarrage. Idempotent via flag app_settings
+     * ET vérification d'existence.
+     */
+    async seedExternalLinkDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(EXTERNAL_LINK_SEEDED_KEY)) return;
+
+        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'external_link' }))) {
+            const now = new Date();
+            await MailTemplateModel.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Lien d\'accès externe',
+                subject: EXTERNAL_LINK_SUBJECT,
+                body: EXTERNAL_LINK_BODY,
+                peda_level: null,
+                kind: 'external_link',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('external-link: modèle système semé');
+        }
+        await settings.set(EXTERNAL_LINK_SEEDED_KEY, '1');
     }
 
     async remove(userId: number, id: string): Promise<void> {

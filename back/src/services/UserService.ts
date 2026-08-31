@@ -26,6 +26,7 @@ const PERMISSION_TO_ID: Record<Permission, number> = {
     [Permission.EMPLOYEE]: 1,
     [Permission.RESPONSABLE]: 2,
     [Permission.ADMIN]: 3,
+    [Permission.GUEST]: 4,
 };
 
 // Hash bcrypt d'une valeur arbitraire, au même coût que les vrais : sert de leurre
@@ -197,9 +198,10 @@ export class UserService {
      */
     async findFirstGoogleConnectedUser(roles: JobRole[]): Promise<User | null> {
         const users = await this.findByJobRoles(roles);
-        // refreshToken peut être null (Google ne le renvoie qu'au 1er consentement) :
-        // un access_token suffit, comme la route /drive-files.
-        return users.find((u) => u.oauthToken) ?? null;
+        // Un access_token suffit pour les routes utilisateur, mais hors session
+        // (webhook) il est souvent expiré. On privilégie donc un compte
+        // rafraîchissable, avec repli sur un access_token seul.
+        return users.find((u) => u.oauthToken && u.refreshToken) ?? users.find((u) => u.oauthToken) ?? null;
     }
 
     async register(

@@ -61,6 +61,7 @@ export class ImmersionEndNotificationService {
                 this.notificationService.create({
                     userId,
                     type: 'immersion_ended',
+                    category: 'candidate',
                     level: 'info',
                     title: 'Immersion terminée',
                     message: `L'immersion de ${name} chez ${company} est terminée.`,

@@ -127,12 +127,16 @@ import pool from '../../src/db/mysql/connection';
 import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
 import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 
+const CLEARED_TABLES = ['users', 'companies' /* ... */];
+
 export async function truncateMysql(): Promise<void> {
     const conn = await pool.getConnection();
     try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-        await conn.query('TRUNCATE TABLE users');
-        await conn.query('TRUNCATE TABLE companies');
+        for (const table of CLEARED_TABLES) {
+            await conn.query(`DELETE FROM ${table}`);
+            await conn.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+        }
         await conn.query('SET FOREIGN_KEY_CHECKS = 1');
     } finally {
         conn.release();
@@ -146,6 +150,23 @@ export async function dropMongo(): Promise<void> {
 ```
 
 Per-test uniqueness still matters when suites run in parallel — append `Date.now()` or a UUID to email/name fields so two suites seeding "test user" don't trip the unique index.
+
+**`DELETE` and not `TRUNCATE`**: the test backend connects as `disciplina_app`, the same
+least-privilege account as production (see `CONVENTION.md` → *Database conventions*). That account
+has no `DROP` privilege, which `TRUNCATE` requires. Running the suite under the production
+privilege set is deliberate — a query needing a privilege the app doesn't have fails here rather
+than in production. The explicit `AUTO_INCREMENT = 1` restores what `TRUNCATE` used to do for free;
+several tests assume ids restart at 1.
+
+A test needing a table cleared adds it to `CLEARED_TABLES` (children before parents) rather than
+issuing its own `TRUNCATE` in a `beforeEach` — that shortcut fails in CI on the missing `DROP`.
+
+**Connection limit**: vitest isolates the module registry per test file, so every file re-imports
+`src/db/mysql/connection.ts` and creates its own `mysql2` pool (10 connections) without closing the
+previous ones. With ~40 files this blows past MySQL's default `max_connections` of 151, which is why
+`docker-compose.test.yml` starts `test-sql-db` with `--max-connections=1000`. Symptom if it
+regresses: `ER_CON_COUNT_ERROR` / "Too many connections", hitting whichever files happen to run last
+— so the set of failing suites shifts between runs.
 
 ---
 
@@ -231,7 +252,7 @@ describe('GraphQL candidate query', () => {
         const seeded = await new CandidateRepository().create({
             identity: { full_name: `Jane ${Date.now()}`, email: 'jane@test.local', phone: '0600000000' },
             status: 'SEEKING',
-            tp_type: 'AD',
+            tp_types: ['AD'],
         });
 
         // Act
@@ -335,6 +356,12 @@ Real examples: `src/graphql/company/__tests__/create-blacklist-validation.test.t
 `src/rest/sourcing/__tests__/searchBySiren.test.ts`. This is the one sanctioned exception to the
 "no `vi.spyOn` on internals" rule below — it's still mocking the `external/` boundary, just via
 the prototype instead of a module factory.
+
+For routes/webhooks that send Gmail (`GoogleGmailService.prototype.sendEmail`) and/or read a
+signature off Drive (`GoogleDriveService.fromTokens`), reuse `test/helpers/googleMail.ts`
+(`spyOnGoogleMail()`) instead of re-declaring the spies per file — see
+`src/rest/relance/__tests__/signature.test.ts`, `src/rest/yousign/__tests__/signature.test.ts`,
+and `src/services/__tests__/SignedAbProcessor.test.ts` for usage.
 
 ---
 

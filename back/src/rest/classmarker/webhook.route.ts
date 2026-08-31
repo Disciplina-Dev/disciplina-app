@@ -10,7 +10,7 @@ import { addClient, removeClient, notifyCandidate } from './sse';
 import { PdfService } from '../../services/PdfService';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
-import { JobRole, Permission } from '../../types/user.types';
+import { JobRole } from '../../types/user.types';
 import { Candidate } from '../../types/candidate.types';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 
@@ -56,7 +56,7 @@ async function uploadResultPdf(candidate: Candidate): Promise<void> {
         const folderName = `${candidate.identity.full_name} - ${candidateId.substring(0, 8)}`;
         const folder = await driveService.createFolder(
             folderName,
-            await driveParentFolderForTp(candidate.tp_type, candidate.training_site),
+            await driveParentFolderForTp(candidate.tp_types?.[0], candidate.training_site),
         );
         folderId = folder.id;
         update.drive_folder_id = folder.id;

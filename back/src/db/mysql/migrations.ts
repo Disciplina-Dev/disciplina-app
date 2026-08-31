@@ -33,6 +33,24 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
     { table: 'companies', column: 'ab_id', definition: 'VARCHAR(36) DEFAULT NULL' },
     { table: 'companies_blacklist', column: 'relance_channel', definition: "ENUM('PHONE', 'MAIL') DEFAULT NULL" },
+    // Quarantaine : liste (JSON) des commerciaux candidats pour les conflits
+    // multiple_commercials_same_siren, pour ne proposer que ceux-ci en résolution.
+    { table: 'company_conflict', column: 'candidate_user_ids', definition: 'TEXT DEFAULT NULL' },
+    // Colonne générée : siren = 9 premiers chiffres du siret, utilisée par le
+    // regroupement d'entreprises (companiesBySiren). Déclarée dans mysql-init.sql,
+    // donc absente des bases créées avant son introduction.
+    {
+        table: 'companies',
+        column: 'siren',
+        definition: 'CHAR(9) GENERATED ALWAYS AS (SUBSTRING(`siret`, 1, 9)) STORED',
+    },
+    // Soft delete des users : la ligne reste (historiques FK) mais sort de tous
+    // les workflows (login, listes, directory). Cf. UserRepository.markDeleted.
+    { table: 'users', column: 'is_deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+    { table: 'users', column: 'deleted_at', definition: 'TIMESTAMP NULL DEFAULT NULL' },
+    { table: 'external_access', column: 'external_email', definition: 'VARCHAR(255) NULL' },
+    { table: 'external_access', column: 'external_first_name', definition: 'VARCHAR(255) NULL' },
+    { table: 'external_access', column: 'token', definition: 'VARCHAR(512) NULL' },
 ];
 
 /**
@@ -75,53 +93,35 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
-        // KPI RH agrégés par utilisateur (RH) et par bucket (année ISO / mois / semaine ISO).
-        // Une ligne = un (user, year, month, week) ; les compteurs sont incrémentés au fil des actions.
-        table: 'rh_kpi',
-        ddl: `CREATE TABLE IF NOT EXISTS rh_kpi (
+        // Quarantaine des entreprises Digiforma en conflit lors de l'import
+        // (SIRET manquant/factice, plusieurs commerciaux sur un même SIREN).
+        // Une ligne = une entreprise Digiforma non importée ; conclusion/notes
+        // portent le type et le détail du conflit.
+        table: 'company_conflict',
+        ddl: `CREATE TABLE IF NOT EXISTS company_conflict (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            sector VARCHAR(64) NOT NULL DEFAULT '',
-            year SMALLINT NOT NULL,
-            month TINYINT NOT NULL,
-            week TINYINT NOT NULL,
-            interviews_placed INT NOT NULL DEFAULT 0,
-            interviews_attended INT NOT NULL DEFAULT 0,
-            interviews_noshow INT NOT NULL DEFAULT 0,
-            immersions INT NOT NULL DEFAULT 0,
-            contracts INT NOT NULL DEFAULT 0,
-            ruptures INT NOT NULL DEFAULT 0,
+            user_id INT DEFAULT NULL,
+            ab_id VARCHAR(36) DEFAULT NULL,
+            legal_referent VARCHAR(255) DEFAULT NULL,
+            name VARCHAR(255) DEFAULT NULL,
+            phone VARCHAR(50) DEFAULT NULL,
+            email VARCHAR(255) DEFAULT NULL,
+            address VARCHAR(255) DEFAULT NULL,
+            sector VARCHAR(255) DEFAULT NULL,
+            main_activity VARCHAR(255) DEFAULT NULL,
+            siret CHAR(14) DEFAULT NULL,
+            idcc CHAR(4) DEFAULT NULL,
+            ape CHAR(5) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            conclusion VARCHAR(255) DEFAULT NULL,
+            status VARCHAR(50) DEFAULT NULL,
+            relance_date DATE DEFAULT NULL,
+            relance_type TINYINT DEFAULT NULL,
+            relance_template_id VARCHAR(64) DEFAULT NULL,
+            relance_channel ENUM('PHONE', 'MAIL') DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_rh_kpi (user_id, sector, year, month, week),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
-        )`,
-    },
-    {
-        table: 'commercial_kpi',
-        ddl: `CREATE TABLE IF NOT EXISTS commercial_kpi (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT,
-            user_name VARCHAR(255) NOT NULL,
-            year YEAR NOT NULL,
-            month TINYINT NOT NULL,
-            week TINYINT NOT NULL DEFAULT 0,
-            site ENUM('NORD', 'OUEST', 'SUD') NOT NULL DEFAULT 'NORD',
-            count_oui INT NOT NULL DEFAULT 0,
-            count_oui_of INT NOT NULL DEFAULT 0,
-            count_non INT NOT NULL DEFAULT 0,
-            count_ne_repond_pas INT NOT NULL DEFAULT 0,
-            count_a_reflechir INT NOT NULL DEFAULT 0,
-            count_relance INT NOT NULL DEFAULT 0,
-            total_appels INT NOT NULL DEFAULT 0,
-            total_trie INT NOT NULL DEFAULT 0,
-            nbre_ent_ferme INT NOT NULL DEFAULT 0,
-            nbre_ent_ouvert INT NOT NULL DEFAULT 0,
-            visites_terrain INT NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_kpi (user_id, year, month, week, site),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+            KEY idx_company_conflict_siret (siret),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE
         )`,
     },
     {
@@ -152,61 +152,38 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
-        // Session de portail entreprise (acceptation interactive des candidats).
-        // Une ligne = un lien envoyé à une entreprise pour répondre aux candidats proposés d'un job.
-        table: 'match_link',
-        ddl: `CREATE TABLE IF NOT EXISTS match_link (
-            signature CHAR(64) PRIMARY KEY,
-            code CHAR(6) NOT NULL,
-            identifier VARCHAR(32) NOT NULL,
-            rh_email VARCHAR(255) NOT NULL,
-            company_email VARCHAR(255) NOT NULL,
-            offer_uuid VARCHAR(64) NOT NULL,
-            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-            attempts TINYINT NOT NULL DEFAULT 0,
-            expires_at TIMESTAMP NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )`,
-    },
-    {
-        // Lien d'accès externe unifié (entreprises et candidats). Remplace progressivement
-        // match_link et interview_access. Signature 128 chars (512 bits) + code 6 chiffres.
-        table: 'external_link',
-        ddl: `CREATE TABLE IF NOT EXISTS external_link (
+        // Table de lookup pour les types d'accès externe (IMPORT_MAIL, MATCHING, INTERVIEW_SLOTS).
+        table: 'external_references',
+        ddl: `CREATE TABLE IF NOT EXISTS external_references (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            signature CHAR(128) NOT NULL UNIQUE KEY,
-            code CHAR(6) NOT NULL,
-            external_email VARCHAR(255) NOT NULL,
-            rh_email VARCHAR(255) NOT NULL,
-            guest_type ENUM('COMPANY','CANDIDATE') NOT NULL,
-            external_uuid VARCHAR(64) NOT NULL,
-            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-            attempts TINYINT NOT NULL DEFAULT 0,
-            expires_at TIMESTAMP NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_external_uuid (external_uuid),
-            INDEX idx_guest_type (guest_type)
+            name VARCHAR(255) NOT NULL
         )`,
     },
     {
-        // Choix de créneau d'entretien par le candidat (portail public, code d'accès simple).
-        // Une ligne = un lien envoyé à un candidat proposé pour choisir un créneau parmi le pool du job.
-        table: 'interview_access',
-        ddl: `CREATE TABLE IF NOT EXISTS interview_access (
-            signature CHAR(64) PRIMARY KEY,
-            code CHAR(6) NOT NULL,
-            offer_uuid VARCHAR(64) NOT NULL,
-            candidate_id VARCHAR(64) NOT NULL,
-            rh_email VARCHAR(255) NOT NULL,
-            status ENUM('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
+        // Table unifiée des liens signés remplaçant interview_access, match_link et external_link.
+        // Chaque ligne représente un lien envoyé à un guest (candidat ou entreprise) avec
+        // signature 128 chars (512 bits) + code 6 chiffres optionnel.
+        table: 'external_access',
+        ddl: `CREATE TABLE IF NOT EXISTS external_access (
+            signature CHAR(128) PRIMARY KEY,
+            code CHAR(6) NULL,
+            user_id INT NOT NULL,
+            external_id VARCHAR(64) NOT NULL,
+            external_type ENUM('COMPANY','CANDIDATE') NOT NULL,
+            external_email VARCHAR(255) NULL,
+            external_first_name VARCHAR(255) NULL,
+            token VARCHAR(512) NULL,
+            reference_id INT NOT NULL,
+            reference_key VARCHAR(255) NOT NULL,
+            status ENUM('SENDING','PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'SENDING',
             attempts TINYINT NOT NULL DEFAULT 0,
-            expires_at TIMESTAMP NOT NULL,
+            expires_at TIMESTAMP NULL DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_interview_access_offer (offer_uuid),
-            INDEX idx_interview_access_candidate (candidate_id)
+            INDEX idx_ext_access_reference (reference_id, reference_key),
+            INDEX idx_ext_access_external (external_id, external_type),
+            CONSTRAINT fk_ext_access_reference FOREIGN KEY (reference_id) REFERENCES external_references (id),
+            CONSTRAINT fk_ext_access_user FOREIGN KEY (user_id) REFERENCES users (id)
         )`,
     },
     {
@@ -294,6 +271,23 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Groupes de tâches par utilisateur. Un même nom peut exister chez deux
+        // utilisateurs différents (unique sur (user_id, name)), mais un todo ne peut
+        // appartenir qu'à un groupe de son owner (vérifié en service).
+        // Déclaré avant `todos` car ce dernier référence cette table via FK.
+        table: 'todo_groups',
+        ddl: `CREATE TABLE IF NOT EXISTS todo_groups (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            name VARCHAR(100) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_group_user_name (user_id, name),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            INDEX idx_todo_groups_user (user_id)
+        )`,
+    },
+    {
         // Todo list personnelle (une ligne = un todo d'un user). source=SYSTEM pour
         // les todos créés automatiquement (AB signé, relance échue) avec source_ref
         // comme clé de déduplication ; deleted=1 = soft delete (ne pas recréer).
@@ -301,6 +295,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         ddl: `CREATE TABLE IF NOT EXISTS todos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
+            assigned_by INT DEFAULT NULL,
             title VARCHAR(255) NOT NULL,
             description TEXT DEFAULT NULL,
             deadline DATE DEFAULT NULL,
@@ -308,11 +303,15 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             status ENUM('TODO', 'IN_PROGRESS', 'DONE') NOT NULL DEFAULT 'TODO',
             source ENUM('MANUAL', 'SYSTEM') NOT NULL DEFAULT 'MANUAL',
             source_ref VARCHAR(255) DEFAULT NULL,
+            group_id INT DEFAULT NULL,
             deleted TINYINT(1) NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-            INDEX idx_todos_user (user_id)
+            FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+            FOREIGN KEY (group_id) REFERENCES todo_groups(id) ON DELETE SET NULL ON UPDATE CASCADE,
+            INDEX idx_todos_user (user_id),
+            INDEX idx_todos_group (group_id)
         )`,
     },
     {
@@ -364,87 +363,16 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info(`MySQL migration: added column ${table}.${column}`);
     }
 
-    // commercial_kpi created before weekly granularity: add week column and
-    // widen the unique key (week = 0 means "monthly aggregate row").
-    const weekColumn = await query<{ count: number }[]>(
-        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'commercial_kpi' AND COLUMN_NAME = 'week'",
+    // Index sur la colonne générée siren (déclaré dans mysql-init.sql) : il doit
+    // suivre la colonne backfillée ci-dessus sur les bases existantes.
+    const sirenIndex = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'companies' AND INDEX_NAME = 'idx_companies_siren'",
     );
-    if (Number(weekColumn[0]?.count) === 0) {
-        await query('ALTER TABLE commercial_kpi ADD COLUMN week TINYINT NOT NULL DEFAULT 0 AFTER month');
-        // Split DROP + ADD into two statements: TiDB rejects a combined
-        // "DROP INDEX x, ADD ... x" ALTER with "Duplicate key name".
-        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi');
-        await query('ALTER TABLE commercial_kpi ADD UNIQUE KEY unique_kpi (user_name, year, month, week, site)');
-        logger.info('MySQL migration: added commercial_kpi.week and widened unique_kpi');
+    if (Number(sirenIndex[0]?.count) === 0) {
+        await query('CREATE INDEX idx_companies_siren ON companies (siren)');
+        logger.info('MySQL migration: created index idx_companies_siren');
     }
 
-    // commercial_kpi identity moved from user_name to user_id (2026-06-29): KPI
-    // rows are now tied to a real user; user_name kept only as a display snapshot.
-    // Rebuild unique_kpi on (user_id, …). Legacy rows with user_id NULL keep
-    // surviving user deletion (MySQL treats NULLs as distinct in unique keys).
-    const uniqueKpiCols = await query<{ COLUMN_NAME: string }[]>(
-        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'commercial_kpi' AND INDEX_NAME = 'unique_kpi'",
-    );
-    if (uniqueKpiCols.some((c) => c.COLUMN_NAME === 'user_name')) {
-        // Drop rows that would collide on the new key (same user_id+période), keeping the newest.
-        await query(`
-            DELETE c1 FROM commercial_kpi c1
-            JOIN commercial_kpi c2
-              ON c1.user_id = c2.user_id AND c1.year = c2.year AND c1.month = c2.month
-             AND c1.week = c2.week AND c1.site = c2.site AND c1.id < c2.id
-            WHERE c1.user_id IS NOT NULL
-        `);
-        // Split DROP + ADD: TiDB rejects the combined form with "Duplicate key name".
-        await query('ALTER TABLE commercial_kpi DROP INDEX unique_kpi');
-        await query('ALTER TABLE commercial_kpi ADD UNIQUE KEY unique_kpi (user_id, year, month, week, site)');
-        logger.info('MySQL migration: commercial_kpi unique_kpi rebuilt on user_id');
-    }
-
-    // rh_kpi gained a `sector` dimension (2026-06-30): add the column and widen
-    // the unique key to (user_id, sector, year, month, week). Existing rows keep
-    // sector = '' (= "secteur inconnu / global").
-    const rhKpiSectorCol = await query<{ count: number }[]>(
-        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND COLUMN_NAME = 'sector'",
-    );
-    if (Number(rhKpiSectorCol[0]?.count) === 0) {
-        await query("ALTER TABLE rh_kpi ADD COLUMN sector VARCHAR(64) NOT NULL DEFAULT '' AFTER user_id");
-        logger.info('MySQL migration: added rh_kpi.sector');
-    }
-    // Widen unique_rh_kpi to include `sector`. The FK on user_id relies on this
-    // index, so MySQL refuses a direct DROP: create the widened index first
-    // (it also covers user_id for the FK), then drop the old one. Idempotent:
-    // keyed on whether the current unique_rh_kpi already includes `sector`.
-    const rhKpiUniqueCols = await query<{ COLUMN_NAME: string }[]>(
-        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND INDEX_NAME = 'unique_rh_kpi'",
-    );
-    if (rhKpiUniqueCols.length > 0 && !rhKpiUniqueCols.some((c) => c.COLUMN_NAME === 'sector')) {
-        // Idempotent step-by-step: a crash between the ADD and the DROP leaves
-        // unique_rh_kpi_sector already present, so guard each statement on the
-        // actual index state instead of re-issuing a blind ADD (which throws
-        // "Duplicate key name 'unique_rh_kpi_sector'").
-        const sectorIdx = await query<{ count: number }[]>(
-            "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_kpi' AND INDEX_NAME = 'unique_rh_kpi_sector'",
-        );
-        if (Number(sectorIdx[0]?.count) === 0) {
-            await query('ALTER TABLE rh_kpi ADD UNIQUE KEY unique_rh_kpi_sector (user_id, sector, year, month, week)');
-        }
-        await query('ALTER TABLE rh_kpi DROP INDEX unique_rh_kpi');
-        logger.info('MySQL migration: widened rh_kpi unique key to include sector');
-    }
-
-    // Renommage job_uuid → offer_uuid (unification jobs → offers d'AB). Sur les
-    // tables de session déjà créées avec l'ancienne colonne, on la renomme ;
-    // idempotent : gardé sur la présence de la colonne legacy.
-    for (const table of ['match_link', 'interview_access']) {
-        const legacyColumn = await query<{ count: number }[]>(
-            "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'job_uuid'",
-            [table],
-        );
-        if (Number(legacyColumn[0]?.count) === 0) continue;
-        // Identifiers come from the hardcoded list above, never from user input
-        await query(`ALTER TABLE ${table} CHANGE COLUMN job_uuid offer_uuid VARCHAR(64) NOT NULL`);
-        logger.info(`MySQL migration: renamed ${table}.job_uuid to offer_uuid`);
-    }
 
     // Rôle PEDA (2026-07-08) : élargit l'ENUM users.role. mysql-init.sql ne
     // tourne que sur un volume neuf, les bases existantes sont migrées ici.
@@ -478,6 +406,66 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info('MySQL migration: added users.is_interviewer and seeded the AB interviewer list');
     }
 
+    // Todos : auteur de l'assignation (2026-08-13). user_id reste le destinataire
+    // de la tâche ; assigned_by = l'utilisateur qui l'a créée/assignée (NULL pour
+    // les todos SYSTEM). Les lignes existantes étaient toutes auto-assignées :
+    // backfill assigned_by = user_id à la création de la colonne.
+    const assignedByCol = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND COLUMN_NAME = 'assigned_by'",
+    );
+    if (Number(assignedByCol[0]?.count) === 0) {
+        await query('ALTER TABLE todos ADD COLUMN assigned_by INT DEFAULT NULL AFTER user_id');
+        await query('UPDATE todos SET assigned_by = user_id WHERE assigned_by IS NULL');
+        await query('ALTER TABLE todos ADD KEY idx_todos_assigned_by (assigned_by)');
+        logger.info('MySQL migration: added todos.assigned_by and backfilled it to user_id');
+    }
+
+    // Le FK ci-dessous refuserait des todos orphelins (assignataire supprimé hors
+    // FOREIGN_KEY_CHECKS, cf. seed de dev) : purge préalable, idempotente. Étape
+    // séparée du backfill pour survivre à une application partielle.
+    await query('DELETE t FROM todos t LEFT JOIN users u ON u.id = t.user_id WHERE u.id IS NULL');
+
+    const assignedByFk = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND CONSTRAINT_NAME = 'fk_todos_assigned_by'",
+    );
+    if (Number(assignedByFk[0]?.count) === 0) {
+        await query(
+            'ALTER TABLE todos ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE',
+        );
+        logger.info('MySQL migration: added todos FK fk_todos_assigned_by');
+    }
+
+    // Groupes de tâches : colonne group_id et table todo_groups (2026-08-21)
+    const groupIdCol = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND COLUMN_NAME = 'group_id'",
+    );
+    if (Number(groupIdCol[0]?.count) === 0) {
+        await query('ALTER TABLE todos ADD COLUMN group_id INT DEFAULT NULL AFTER assigned_by');
+        await query('ALTER TABLE todos ADD KEY idx_todos_group (group_id)');
+        logger.info('MySQL migration: added todos.group_id');
+    }
+
+    const todoGroupsFk = await query<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND CONSTRAINT_NAME = 'fk_todos_group_id'",
+    );
+    if (Number(todoGroupsFk[0]?.count) === 0) {
+        // Ensure orphan group_ids are cleared before adding FK (old rows created before groups existed)
+        await query(
+            'UPDATE todos SET group_id = NULL WHERE group_id IS NOT NULL AND group_id NOT IN (SELECT id FROM todo_groups)',
+        );
+        // MySQL requires the column to be indexed for FK; already added above.
+        try {
+            await query(
+                'ALTER TABLE todos ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES todo_groups(id) ON DELETE SET NULL ON UPDATE CASCADE',
+            );
+            logger.info('MySQL migration: added todos FK fk_todos_group_id');
+        } catch (e: unknown) {
+            // FK may fail on TiDB if todo_groups doesn't exist yet due to REQUIRED_TABLES loop ordering;
+            // the REQUIRED_TABLES creation above is idempotent and will have created it.
+            logger.warn({ err: e }, 'MySQL migration: failed to add fk_todos_group_id');
+        }
+    }
+
     // RBAC : séparation rôles métier / permissions (2026-07-20). On crée les tables
     // de référence, on ajoute les FK à users, on migre les données existantes et
     // on supprime l'ancienne colonne role.
@@ -508,6 +496,13 @@ export async function runMysqlMigrations(): Promise<void> {
         );
         logger.info('MySQL migration: created roles table');
     }
+
+    // Permission guest (2026-08-27) : niveau 0, aucun accès staff. Ajout
+    // idempotent pour les bases où la table permissions existe déjà.
+    await query("INSERT IGNORE INTO permissions (id, name) VALUES (4, 'GUEST')");
+
+    // Rôle guest JWT (2026-08-27) : identifie les sessions externes signées.
+    await query("INSERT IGNORE INTO roles (id, name) VALUES (6, 'EXTERNAL_GUEST')");
 
     // Ajout des colonnes role_id / permission_id si absentes.
     const roleIdCol = await query<{ count: number }[]>(

@@ -13,6 +13,7 @@ export const typeDefs = gql`
         sector: String
         mainActivity: String
         siret: String
+        siren: String
         idcc: String
         ape: String
         notes: String
@@ -23,6 +24,23 @@ export const typeDefs = gql`
         relanceType: Int
         relanceTemplateId: String
         relanceChannel: String
+    }
+
+    type CompanySirenGroup {
+        siren: String!
+        count: Int!
+        companies: [Company!]!
+    }
+
+    type CompanySirenGroupEdge {
+        node: CompanySirenGroup!
+        cursor: String!
+    }
+
+    type CompanySirenGroupConnection {
+        edges: [CompanySirenGroupEdge!]!
+        pageInfo: PageInfo!
+        totalCount: Int!
     }
 
     input CompanyFiltersInput {
@@ -69,6 +87,7 @@ export const typeDefs = gql`
     type CompanyConnection {
         edges: [CompanyEdge!]!
         pageInfo: PageInfo!
+        totalCount: Int!
     }
 
     type BlacklistedCompany {
@@ -104,6 +123,56 @@ export const typeDefs = gql`
     type BlacklistedCompanyConnection {
         edges: [BlacklistedCompanyEdge!]!
         pageInfo: PageInfo!
+    }
+
+    type CompanyConflict {
+        id: Int!
+        abID: String
+        userID: Int
+        legalReferent: String
+        name: String
+        phone: String
+        email: String
+        address: String
+        sector: String
+        mainActivity: String
+        siret: String
+        siren: String
+        idcc: String
+        ape: String
+        notes: String
+        conclusion: String
+        status: String
+        relanceDate: String
+        createdAt: String
+        relanceType: Int
+        relanceTemplateId: String
+        relanceChannel: String
+        candidateUserIds: [Int!]
+    }
+
+    type CompanyConflictEdge {
+        node: CompanyConflict!
+        cursor: String!
+    }
+
+    type CompanyConflictConnection {
+        edges: [CompanyConflictEdge!]!
+        pageInfo: PageInfo!
+    }
+
+    input CompanyConflictInput {
+        legalReferent: String
+        name: String
+        phone: String
+        email: String
+        address: String
+        sector: String
+        mainActivity: String
+        siret: String
+        idcc: String
+        ape: String
+        userId: Int
     }
 
     type StatusCount {
@@ -168,6 +237,7 @@ export const typeDefs = gql`
 
     type Query {
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
+        companiesBySiren(first: Int, after: String, filters: CompanyFiltersInput): CompanySirenGroupConnection!
         companyOptions: [CompanyOption!]!
         companyStats(year: Int!): CompanyStats!
         salePersons: [User!]!
@@ -176,6 +246,7 @@ export const typeDefs = gql`
         companyByCommercial(userID: Int!): [CompanyWithSalePerson!]!
         companyBySiret(siret: String!): Company
         blacklistedCompanies(first: Int, after: String, search: String): BlacklistedCompanyConnection!
+        companyConflicts(first: Int, after: String, search: String, conflictType: String): CompanyConflictConnection!
         companyHistory(companyID: Int!): [CompanyHistory!]!
         contactLogs(companyID: Int!): [ContactLog!]!
         contactLogStats: ContactLogStats!
@@ -188,6 +259,10 @@ export const typeDefs = gql`
         blacklistCompany(id: Int!, reason: String!, allBlacklist: Boolean!): Boolean!
         unblacklistCompany(id: Int!): Boolean!
         deleteAndBlacklistCompany(companyId: Int!, reason: String!, allBlacklist: Boolean!): Boolean!
+        updateCompanyConflict(id: Int!, input: CompanyConflictInput!): CompanyConflict!
+        resolveCompanyConflict(id: Int!): Company!
+        deleteCompanyConflict(id: Int!): Boolean!
+        deleteCompanyConflictsByType(conflictType: String!): Int!
         createContactLog(companyID: Int!, comment: String!): ContactLog!
     }
 `;

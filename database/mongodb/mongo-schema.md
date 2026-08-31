@@ -14,7 +14,7 @@ Stores complete candidate profiles including identity, education, support system
 |-------|------|----------|-------|
 | _id | string | yes | Auto-generated UUID |
 | candidate_id | string | yes | Unique candidate identifier |
-| tp_type | string | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, SA) |
+| tp_types | string[] | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, SA), multi-select |
 | identity | object | yes | Candidate personal information (see below) |
 | status | string | yes | enum: CandidateStatus |
 | formation_type | string | — | enum: VENTE, SECRETARIAT |
@@ -284,11 +284,45 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | age_min | int | — | Minimum age |
 | age_max | int | — | Maximum age |
 | soft_skills | string | — | Expected soft skills |
-| schedule_options | string[] | — | Schedule options |
+| schedule_options | object[] | — | Schedule slots: `{ day, start_hour, end_hour }` |
 | conditions | string | — | Work conditions |
 | additional_comments | string | — | Additional comments |
 
 ---
+
+## Collection: kpis
+
+Weekly/monthly KPI counter buckets. Replaces the former MySQL tables `commercial_kpi` and `rh_kpi` (merged via the `kind` discriminator, #513). One document per `(kind, user_id, dimension, year, month, week)` bucket; counters live in `metrics`, whose shape depends on `kind`.
+
+### Top-level fields
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| _id | string | yes | Application UUID |
+| kind | string | yes | enum: `commercial` or `rh` — discriminates `metrics` shape and which dimension field is set |
+| user_id | int | — | `users.id` (MySQL). `null` = orphan legacy row from an Excel import whose user was deleted |
+| year | int | yes | e.g. 2026 |
+| month | int | yes | 1–12 |
+| week | int | yes | 0 = monthly aggregate row (commercial), 1–53 = ISO week |
+| site | string | — | enum: NORD, OUEST, SUD — set when `kind = commercial` |
+| sector | string | — | Sector name — set when `kind = rh` (`''` = unknown/global) |
+| user_name | string | — | Display snapshot written at upsert (commercial only); sole remaining trace of deleted users — kept by documented arbitrage (`DATA_CLASSIFICATION.md` §4.1) |
+| metrics | object | — | Counters keyed by metric name (see below) |
+| created_at | date | — | Creation date |
+| updated_at | date | — | Last update date |
+
+### metrics
+
+Typed union on the application side:
+
+- `kind: commercial` → `count_oui`, `count_oui_of`, `count_non`, `count_ne_repond_pas`, `count_a_reflechir`, `count_relance`, `total_appels`, `total_trie`, `nbre_ent_ferme`, `nbre_ent_ouvert`, `visites_terrain`
+- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `immersions`, `contracts`, `ruptures`
+
+All values are non-negative integers; unknown keys are ignored at read time (metrics may grow over time without schema change).
+
+### Unique index
+
+`{ kind, user_id, site, sector, year, month, week }` with `partialFilterExpression: { user_id: { $type: "number" } }` — bucket uniqueness for real users. The partial filter excludes orphan rows (`user_id: null`): MongoDB unique indexes, unlike MySQL, reject duplicate null keys, so orphans are kept out of the index to preserve the unlimited/distinct behavior of the former MySQL unique keys.
 
 ## Enums reference
 
