@@ -21,6 +21,7 @@ export interface OfferAbFilter {
     sectors?: string[];
     localisations?: string[];
     abStatus?: AbStatus;
+    administrationTypes?: string[];
 }
 
 export interface OfferHistoryEntry {

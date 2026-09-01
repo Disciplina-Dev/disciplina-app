@@ -71,6 +71,14 @@ export interface Position {
   criteria?: OfferCriteria | null
 }
 
+export type AdministrationType = 'NON_RENSEIGNE' | 'ADMINISTRATION_PUBLIQUE' | 'ADMINISTRATION_PRIVEE'
+
+export const ADMINISTRATION_LABELS: Record<AdministrationType, string> = {
+  NON_RENSEIGNE: 'Non renseigné',
+  ADMINISTRATION_PUBLIQUE: 'Administration publique',
+  ADMINISTRATION_PRIVEE: 'Administration privée',
+}
+
 export interface NeedsAnalysis {
   id: string
   companyInfos?: CompanyInfos | null
@@ -86,6 +94,7 @@ export interface NeedsAnalysis {
   /** Statut d'onglet (liste matching RH) : forcé manuellement ou dérivé des offres. */
   abStatus?: string | null
   isRelanceDisabled?: boolean | null
+  administrationType?: AdministrationType | null
   tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null

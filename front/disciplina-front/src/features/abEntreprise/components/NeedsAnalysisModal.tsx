@@ -93,6 +93,7 @@ interface FormData {
   opco: Opco | undefined
   companySectorOther: string
   companyDescriptionOther: string
+  administrationType: 'NON_RENSEIGNE' | 'ADMINISTRATION_PUBLIQUE' | 'ADMINISTRATION_PRIVEE'
   recruitmentMethod: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW'
   immersionPeriod: 'OUI' | 'NON' | 'A_DISCUTER'
 }
@@ -691,6 +692,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companySectorOther:       '',
       opco:                     (initialCompanyInfos?.opco as Opco | undefined) ?? undefined,
       companyDescriptionOther:  initialCompanyInfos?.description ?? '',
+      administrationType: (initialData?.administrationType as 'NON_RENSEIGNE' | 'ADMINISTRATION_PUBLIQUE' | 'ADMINISTRATION_PRIVEE' | undefined) ?? 'NON_RENSEIGNE',
       recruitmentMethod:  (initialData?.recruitmentMethod as 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW' | undefined) ?? undefined,
       immersionPeriod:    (initialData?.immersionPeriod as 'OUI' | 'NON' | 'A_DISCUTER' | undefined) ?? undefined,
     },
@@ -874,6 +876,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companyDescription: data.companyDescriptionOther || null,
       postalCode:         data.companyPostalCode || null,
       commune:            data.companyCommune || null,
+      administrationType: data.administrationType || 'NON_RENSEIGNE',
       positions:          postes.map((p) => ({
         trainingDomain:   p.trainingDomain,
         jobRole:          p.jobRole.trim(),
@@ -1138,6 +1141,18 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                 <TextareaField id="companyDescriptionOther" label="Précisions complémentaires" optional rows={3}
                   placeholder="Mission globale, spécificités de l'entreprise…"
                   {...register('companyDescriptionOther')} />
+
+                <RadioGroup
+                  label="Type d'administration"
+                  required
+                  value={watch('administrationType')}
+                  onChange={(v) => setValue('administrationType', v as FormData['administrationType'])}
+                  options={[
+                    { value: 'NON_RENSEIGNE', label: 'Non renseigné' },
+                    { value: 'ADMINISTRATION_PUBLIQUE', label: 'Administration publique' },
+                    { value: 'ADMINISTRATION_PRIVEE', label: 'Administration privée' },
+                  ]}
+                />
               </section>
 
               {/* ── Postes à pourvoir ────────────────────────────────────────── */}

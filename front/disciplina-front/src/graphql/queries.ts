@@ -1707,6 +1707,7 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
           status
           positionsCount
           createdAt
+          administrationType
           companyInfos {
             name
             siret
@@ -1863,6 +1864,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       status
       abStatus
       isRelanceDisabled
+      administrationType
       tags
       createdAt
       updatedAt

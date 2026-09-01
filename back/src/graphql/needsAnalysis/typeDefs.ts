@@ -100,6 +100,12 @@ export const typeDefs = gql`
         INACTIVE
     }
 
+    enum AdministrationType {
+        NON_RENSEIGNE
+        ADMINISTRATION_PUBLIQUE
+        ADMINISTRATION_PRIVEE
+    }
+
     type CompanyInfos {
         id: Int
         name: String
@@ -225,6 +231,7 @@ export const typeDefs = gql`
         status: NeedsAnalysisStatus!
         abStatus: AbStatus!
         isRelanceDisabled: Boolean!
+        administrationType: AdministrationType!
         tags: [String!]
         createdAt: String
         updatedAt: String
@@ -244,6 +251,7 @@ export const typeDefs = gql`
         referralSource: ReferralSource
         postalCode: String
         commune: String
+        administrationType: AdministrationType
         positions: [PositionInput!]
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
@@ -297,6 +305,7 @@ export const typeDefs = gql`
         sectors: [String!]
         localisations: [String!]
         abStatus: AbStatus
+        administrationTypes: [AdministrationType!]
     }
 
     type NeedsAnalysisDashboardItem {
