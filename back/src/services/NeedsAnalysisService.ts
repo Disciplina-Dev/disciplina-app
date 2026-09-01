@@ -117,9 +117,10 @@ export class NeedsAnalysisService {
     async findPage(first: number, after?: string, filter?: OfferAbFilter): Promise<NeedsAnalysisNoSql[]> {
         const hasOfferFilter = Boolean(filter && hasActiveOfferFilter(filter));
         const abStatus = filter?.abStatus;
+        const hasAdminFilter = Boolean(filter?.administrationTypes?.length);
 
         // Aucune contrainte : liste brute (la liste « Tous » inclut les AB inactives).
-        if (!hasOfferFilter && !abStatus) {
+        if (!hasOfferFilter && !abStatus && !hasAdminFilter) {
             return this.repository.findPage(first, after);
         }
 
@@ -137,15 +138,27 @@ export class NeedsAnalysisService {
             if (statusIds.length === 0) return [];
         }
 
-        // Intersection des deux contraintes, sinon celle présente seule.
-        let restrictIds: string[] | undefined;
-        if (offerIds && statusIds) {
-            const statusSet = new Set(statusIds);
-            restrictIds = offerIds.filter((id) => statusSet.has(id));
-        } else {
-            restrictIds = offerIds ?? statusIds;
+        // Contrainte par type d'administration (directement sur needs_analysis).
+        let adminIds: string[] | undefined;
+        if (hasAdminFilter) {
+            adminIds = await this.repository.findIdsByAdministrationTypes(filter!.administrationTypes!);
+            if (adminIds.length === 0) return [];
         }
-        if (restrictIds && restrictIds.length === 0) return [];
+
+        // Intersection de toutes les contraintes présentes.
+        const allSets: string[][] = [offerIds, statusIds, adminIds].filter((a): a is string[] => !!a);
+        if (allSets.length === 0) return this.repository.findPage(first, after);
+        if (allSets.length === 1) {
+            const only = allSets[0];
+            if (only.length === 0) return [];
+            return this.repository.findPage(first, after, only);
+        }
+        let restrictIds = allSets[0];
+        for (let i = 1; i < allSets.length; i++) {
+            const set = new Set(allSets[i]);
+            restrictIds = restrictIds.filter((id) => set.has(id));
+            if (restrictIds.length === 0) return [];
+        }
 
         return this.repository.findPage(first, after, restrictIds);
     }
@@ -604,6 +617,7 @@ export class NeedsAnalysisService {
             referralSource: data.referralSource ?? existing.company_infos?.referral_source ?? null,
             postalCode: data.postalCode ?? existing.company_infos?.postal_code ?? null,
             commune: data.commune ?? existing.company_infos?.commune ?? null,
+            administrationType: data.administrationType ?? (existing as any).administration_type ?? null,
             positions: data.positions ?? existing.positions ?? [],
             recruitmentMethod: data.recruitmentMethod ?? existing.recruitment_method,
             immersionPeriod: data.immersionPeriod ?? existing.immersion_period,

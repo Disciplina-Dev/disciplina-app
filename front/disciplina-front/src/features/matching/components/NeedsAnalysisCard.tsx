@@ -1,6 +1,7 @@
-import { Building2, MapPin, Hash, Briefcase, Calendar } from 'lucide-react'
+import { Building2, MapPin, Hash, Briefcase, Calendar, Landmark } from 'lucide-react'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { AB_STATUS_BADGE } from '@/features/abEntreprise/components/ABDetailContent'
+import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatCommune } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
@@ -76,6 +77,13 @@ export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
                 {SECTOR_LABELS[a] ?? a}
               </span>
             ))}
+          </div>
+        )}
+
+        {analysis.administrationType && analysis.administrationType !== 'NON_RENSEIGNE' && (
+          <div className="mt-2 flex items-center gap-1.5 text-[12px] text-gray-600">
+            <Landmark className="h-3.5 w-3.5 shrink-0 text-gray-300" />
+            <span>{ADMINISTRATION_LABELS[analysis.administrationType as keyof typeof ADMINISTRATION_LABELS] ?? analysis.administrationType}</span>
           </div>
         )}
       </div>

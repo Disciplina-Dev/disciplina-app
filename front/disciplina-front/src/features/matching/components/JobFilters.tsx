@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Search, ChevronDown, X, Check, Briefcase, Building2, MapPin } from 'lucide-react'
+import { Search, ChevronDown, X, Check, Briefcase, Building2, MapPin, Landmark } from 'lucide-react'
 import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
 import { OfferStatus, DesiredTP, Sector, formatEnumLabel } from '../constants/jobEnums'
@@ -216,12 +216,19 @@ export function JobFilters({ filters, onChange, hideSearch = false }: Props) {
     return `${filters.localisations.length} commune${filters.localisations.length > 1 ? 's' : ''}`
   }, [filters.localisations])
 
+  const administrationOptions = [
+    { label: 'Non renseigné', value: 'NON_RENSEIGNE' },
+    { label: 'Administration publique', value: 'ADMINISTRATION_PUBLIQUE' },
+    { label: 'Administration privée', value: 'ADMINISTRATION_PRIVEE' },
+  ]
+
   const activeCount = [
     filters.search,
     ...filters.statuses,
     ...filters.desiredTPs,
     ...filters.sectors,
     ...(filters.localisations.length > 0 ? ['localisations'] : []),
+    ...(filters.administrationTypes.length > 0 ? ['administration'] : []),
   ].filter(Boolean).length
 
   return (
@@ -312,6 +319,26 @@ export function JobFilters({ filters, onChange, hideSearch = false }: Props) {
           <RegionMultiSelectContent
             selected={filters.localisations}
             onChange={(localisations) => onChange({ ...filters, localisations })}
+          />
+        </ChipDropdown>
+
+        <ChipDropdown
+          icon={<Landmark className="h-3 w-3" />}
+          label="Administration"
+          activeLabel={filters.administrationTypes.length === 1 ? (administrationOptions.find(o => o.value === filters.administrationTypes[0])?.label ?? filters.administrationTypes[0]) : `${filters.administrationTypes.length} sélectionnés`}
+          isActive={filters.administrationTypes.length > 0}
+          onClear={() => onChange({ ...filters, administrationTypes: [] })}
+        >
+          <MultiSelectContent
+            options={administrationOptions}
+            selected={filters.administrationTypes}
+            onToggle={(v) => {
+              const updated = filters.administrationTypes.includes(v)
+                ? filters.administrationTypes.filter((x) => x !== v)
+                : [...filters.administrationTypes, v]
+              onChange({ ...filters, administrationTypes: updated })
+            }}
+            placeholder="Tous les types"
           />
         </ChipDropdown>
 

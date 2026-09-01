@@ -21,6 +21,7 @@ interface OfferFilterInput {
     sectors?: string[];
     localisations?: string[];
     abStatus?: AbStatus;
+    administrationTypes?: string[];
 }
 
 function toOfferAbFilter(filter?: OfferFilterInput): OfferAbFilter | undefined {
