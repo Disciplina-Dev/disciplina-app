@@ -13,6 +13,7 @@ interface JobSearchModalProps {
   singleSelect?: boolean
   allowAnyTpOnSearch?: boolean
   footerAction?: { label: string; onClick: () => void }
+  onNonRenseigne?: () => void
   onConfirm: (jobs: MatchedOffer[]) => void
   onClose: () => void
 }
@@ -28,6 +29,7 @@ export default function JobSearchModal({
   singleSelect,
   allowAnyTpOnSearch,
   footerAction,
+  onNonRenseigne,
   onConfirm,
   onClose,
 }: JobSearchModalProps) {
@@ -199,14 +201,24 @@ export default function JobSearchModal({
           >
             Annuler
           </button>
-          {footerAction && (
-            <button
-              onClick={footerAction.onClick}
-              className="text-sm font-semibold text-blue hover:text-blue-600"
-            >
-              {footerAction.label}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onNonRenseigne && (
+              <button
+                onClick={onNonRenseigne}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                Non renseigné
+              </button>
+            )}
+            {footerAction && (
+              <button
+                onClick={footerAction.onClick}
+                className="text-sm font-semibold text-blue hover:text-blue-600"
+              >
+                {footerAction.label}
+              </button>
+            )}
+          </div>
           <button
             onClick={handleConfirm}
             disabled={selectedJobIds.size === 0}
