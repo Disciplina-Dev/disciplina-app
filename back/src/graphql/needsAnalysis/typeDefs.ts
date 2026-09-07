@@ -235,6 +235,8 @@ export const typeDefs = gql`
         tags: [String!]
         createdAt: String
         updatedAt: String
+        # URL Drive du dossier contenant le mandat signé (uniquement si status = SIGNE).
+        driveFolderUrl: String
     }
 
     input NeedsAnalysisInput {
