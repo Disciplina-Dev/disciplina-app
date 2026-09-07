@@ -98,4 +98,6 @@ export interface NeedsAnalysis {
   tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null
+  /** URL Drive du dossier contenant le mandat signé (uniquement si SIGNE). */
+  driveFolderUrl?: string | null
 }

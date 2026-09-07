@@ -1708,6 +1708,7 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
           positionsCount
           createdAt
           administrationType
+          driveFolderUrl
           companyInfos {
             name
             siret
@@ -1868,6 +1869,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       tags
       createdAt
       updatedAt
+      driveFolderUrl
     }
   }
 `
