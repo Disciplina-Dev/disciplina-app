@@ -108,6 +108,9 @@ function label(v: string | null | undefined): string {
         SALON: 'Salon',
         RSMA: 'RSMA',
         RESEAUX_SOCIAUX: 'Réseaux sociaux',
+        NON_RENSEIGNE: 'Non renseigné',
+        ADMINISTRATION_PUBLIQUE: 'Administration publique',
+        ADMINISTRATION_PRIVEE: 'Administration privée',
     };
     return MAP[v ?? ''] ?? esc(v);
 }
@@ -467,6 +470,7 @@ ${
         ? fr('Comment a-t-il connu DISCIPLINA ? :', label(analysis.companyInfos.referralSource))
         : ''
 }
+${(analysis as any).administrationType ? fr('Administration :', label((analysis as any).administrationType)) : ''}
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
 
 ${positionBlocks}

@@ -154,6 +154,29 @@ export class NeedsAnalysisRepository {
             .lean();
     }
 
+    /** Ids des AB dont le type d'administration est dans `types`. Les docs sans champ sont traités comme NON_RENSEIGNE (rétrocompat). */
+    async findIdsByAdministrationTypes(types: string[]): Promise<string[]> {
+        if (!types.length) return [];
+        const wantsNonRenseigne = types.includes('NON_RENSEIGNE');
+        if (wantsNonRenseigne && types.length === 1) {
+            return NeedsAnalysisModel.distinct('_id', {
+                $or: [{ administration_type: 'NON_RENSEIGNE' }, { administration_type: { $exists: false } }, { administration_type: null }],
+            });
+        }
+        if (wantsNonRenseigne) {
+            const others = types.filter((t) => t !== 'NON_RENSEIGNE');
+            return NeedsAnalysisModel.distinct('_id', {
+                $or: [
+                    { administration_type: { $in: others } },
+                    { administration_type: 'NON_RENSEIGNE' },
+                    { administration_type: { $exists: false } },
+                    { administration_type: null },
+                ],
+            });
+        }
+        return NeedsAnalysisModel.distinct('_id', { administration_type: { $in: types } });
+    }
+
     /**
      * Réassigne (ou détache) le commercial porteur de toutes les AB liées à un
      * user supprimé. `saler = null` détache la fiche (l'AB vit sans commercial).

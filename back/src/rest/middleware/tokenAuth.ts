@@ -8,10 +8,12 @@ export const CSRF_COOKIE = 'disc_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 
 export interface AccessTokenPayload {
-    id: number;
-    email: string;
+    id?: number;
+    email?: string;
     role: string;
     permission: string;
+    signature?: string;
+    referenceId?: number;
 }
 
 export interface RefreshTokenPayload {

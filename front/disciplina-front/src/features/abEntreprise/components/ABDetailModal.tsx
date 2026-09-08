@@ -7,6 +7,7 @@ import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
 import { formatScheduleSlots } from '@/utils/schedule'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
@@ -191,12 +192,13 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               </Section>
             )}
 
-            {(ab.companyInfos?.activities?.length > 0 || ab.companyInfos?.description) && (
+            {(ab.companyInfos?.activities?.length > 0 || ab.companyInfos?.description || ab.administrationType) && (
               <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
                 {ab.companyInfos.activities?.length > 0 && (
                   <Row label="Secteurs" value={ab.companyInfos.activities.join(', ')} />
                 )}
                 <Row label="Description" value={ab.companyInfos.description} />
+                <Row label="Administration" value={ab.administrationType ? ADMINISTRATION_LABELS[ab.administrationType as keyof typeof ADMINISTRATION_LABELS] ?? ab.administrationType : null} />
               </Section>
             )}
 

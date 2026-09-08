@@ -58,7 +58,15 @@ export class CompanyConflictRepository {
                 .join(', ');
             const values = [...Object.values(cleaned), id];
             const result = await conn.execute(`UPDATE company_conflict SET ${sets} WHERE id = ?`, values);
-            return (result[0] as any).affectedRows > 0;
+            if ((result[0] as any).affectedRows > 0) return true;
+
+            // MySQL ne compte dans `affectedRows` que les lignes réellement *modifiées*
+            // (le pool n'active pas `foundRows`). Une sauvegarde à l'identique — typiquement
+            // un second clic sur « Enregistrer » après un échec de résolution — renvoie donc 0
+            // alors que la ligne existe. Sans cette vérification, l'appelant remonte un
+            // « Company conflict entry not found » trompeur sur une entrée bien présente.
+            const existing = await conn.execute('SELECT id FROM company_conflict WHERE id = ?', [id]);
+            return (existing[0] as any[]).length > 0;
         } finally {
             conn.release();
         }

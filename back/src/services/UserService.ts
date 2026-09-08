@@ -26,6 +26,7 @@ const PERMISSION_TO_ID: Record<Permission, number> = {
     [Permission.EMPLOYEE]: 1,
     [Permission.RESPONSABLE]: 2,
     [Permission.ADMIN]: 3,
+    [Permission.GUEST]: 4,
 };
 
 // Hash bcrypt d'une valeur arbitraire, au même coût que les vrais : sert de leurre

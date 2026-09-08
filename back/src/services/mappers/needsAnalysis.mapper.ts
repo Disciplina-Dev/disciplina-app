@@ -9,6 +9,7 @@ import {
     ScheduleSlot,
     CompanyRegion,
     NeedsAnalysisStatus,
+    AdministrationType,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
 import { ZONE_TO_COMMUNES, Zone } from './abToOffer';
@@ -167,6 +168,7 @@ export function toNeedsAnalysisDocument(
         signature_request_id: data.yousignSignatureRequestID ?? null,
         status: data.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: data.tags ?? [],
+        administration_type: data.administrationType ?? AdministrationType.NON_RENSEIGNE,
         created_at: data.createdAt ? new Date(data.createdAt) : now,
         updated_at: now,
     };
@@ -216,6 +218,7 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
     return {
         id: String(doc._id),
         isRelanceDisabled: !!doc.is_relance_disabled,
+        administrationType: (doc as any).administration_type ?? AdministrationType.NON_RENSEIGNE,
         companyInfos: doc.company_infos
             ? {
                   id: doc.company_infos.id ?? null,

@@ -2,7 +2,7 @@ import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { UserService } from '../../services/UserService';
-import { regionFromSector } from '../../utils/sector';
+import { regionFromSector, sectorFromRegion } from '../../utils/sector';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
@@ -21,6 +21,7 @@ interface OfferFilterInput {
     sectors?: string[];
     localisations?: string[];
     abStatus?: AbStatus;
+    administrationTypes?: string[];
 }
 
 function toOfferAbFilter(filter?: OfferFilterInput): OfferAbFilter | undefined {
@@ -36,6 +37,54 @@ export const resolvers = {
         abStatus: async (parent: any, _: unknown, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             return needsAnalysisService.getAbStatus(parent.id);
+        },
+        driveFolderUrl: async (parent: any, _: unknown, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            if (parent.status !== 'SIGNE') return null;
+            const region = parent.companyInfos?.sector ?? (parent as any).company_infos?.sector ?? null;
+            const sector = sectorFromRegion(region as any);
+            if (!sector) return null;
+            const folderId = await abDriveConfigService.resolveFolder(sector, 'SIGNED');
+            if (!folderId) return null;
+            // Preferred: company sub-folder if resolvable via Drive (best-effort, no token = parent folder).
+            const companyName: string | undefined = parent.companyInfos?.name ?? (parent as any).company_infos?.name;
+            if (companyName?.trim()) {
+                try {
+                    const creatorId = parent.salerInfo?.id ?? (parent as any).saler_info?.id;
+                    const actingUser = creatorId ? await userService.findById(Number(creatorId)) : null;
+                    const { GoogleDriveService } = await import('../../external/google/drive.service');
+                    const tokens = actingUser?.oauthToken
+                        ? { access_token: actingUser.oauthToken, refresh_token: actingUser.refreshToken ?? undefined }
+                        : null;
+                    let drive: InstanceType<typeof GoogleDriveService> | null = null;
+                    if (tokens) {
+                        drive = GoogleDriveService.fromTokens(
+                            tokens,
+                            async (refreshed) => {
+                                if (creatorId) await userService.updateGoogleTokens(Number(creatorId), refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+                            },
+                        );
+                    } else {
+                        const fallback = await userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
+                        if (fallback?.oauthToken) {
+                            drive = GoogleDriveService.fromTokens(
+                                { access_token: fallback.oauthToken, refresh_token: fallback.refreshToken ?? undefined },
+                                async (refreshed) => {
+                                    await userService.updateGoogleTokens(Number(fallback.id), refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+                                },
+                            );
+                        }
+                    }
+                    if (drive) {
+                        const sub = await drive.findFolder(companyName.trim(), folderId);
+                        if (sub?.webViewLink) return sub.webViewLink;
+                        if (sub?.id) return `https://drive.google.com/drive/folders/${sub.id}`;
+                    }
+                } catch {
+                    // Fall through to parent folder link
+                }
+            }
+            return `https://drive.google.com/drive/folders/${folderId}`;
         },
     },
     Query: {

@@ -9,7 +9,7 @@ function base64ToBlobUrl(content: string, contentType: string): string {
   return URL.createObjectURL(new Blob([bytes], { type: contentType || 'application/pdf' }))
 }
 
-function CvViewer({ signature, candidateId, token }: { signature: string; candidateId: string; token: string }) {
+function CvViewer({ signature, candidateId }: { signature: string; candidateId: string }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [filename, setFilename] = useState('cv.pdf')
   const [error, setError] = useState(false)
@@ -17,7 +17,7 @@ function CvViewer({ signature, candidateId, token }: { signature: string; candid
 
   useEffect(() => {
     let url: string | null = null
-    getMatchCv(signature, candidateId, token)
+    getMatchCv(signature, candidateId)
       .then((cv) => {
         url = base64ToBlobUrl(cv.content, cv.contentType)
         setFilename(cv.filename)
@@ -28,7 +28,7 @@ function CvViewer({ signature, candidateId, token }: { signature: string; candid
     return () => {
       if (url) URL.revokeObjectURL(url)
     }
-  }, [signature, candidateId, token])
+  }, [signature, candidateId])
 
   if (loading) {
     return (
@@ -64,17 +64,15 @@ function CvViewer({ signature, candidateId, token }: { signature: string; candid
 
 export default function CandidateComparator({
   signature,
-  token,
   candidate,
 }: {
   signature: string
-  token: string
   candidate: ProposedCandidateView
 }) {
   return (
     <div className="grid h-[70vh] gap-4 md:grid-cols-2">
       <div className="h-full overflow-hidden rounded-xl border border-gray-100 bg-white p-2 shadow-sm">
-        <CvViewer key={candidate.id} signature={signature} candidateId={candidate.id} token={token} />
+        <CvViewer key={candidate.id} signature={signature} candidateId={candidate.id} />
       </div>
       <div className="h-full overflow-y-auto rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <h2 className="text-[18px] font-extrabold text-gray-900">{candidate.fullName ?? 'Candidat'}</h2>

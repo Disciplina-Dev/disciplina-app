@@ -60,6 +60,7 @@ export interface AbDetail {
   recruitmentResponsibleEmail?: string | null
   companySectors?: string[]
   companyDescription?: string | null
+  administrationType?: string | null
   positionsCount?: number
   recruitmentMethod?: string
   immersionPeriod?: string
@@ -109,12 +110,13 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
         </Section>
       )}
 
-      {((ab.companySectors?.length ?? 0) > 0 || ab.companyDescription) && (
+      {((ab.companySectors?.length ?? 0) > 0 || ab.companyDescription || ab.administrationType) && (
         <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
           {(ab.companySectors?.length ?? 0) > 0 && (
             <Row label="Secteurs" value={ab.companySectors!.join(', ')} />
           )}
           <Row label="Description" value={ab.companyDescription} />
+          <Row label="Administration" value={ab.administrationType ? ({ NON_RENSEIGNE: 'Non renseigné', ADMINISTRATION_PUBLIQUE: 'Administration publique', ADMINISTRATION_PRIVEE: 'Administration privée' }[ab.administrationType] ?? ab.administrationType) : null} />
         </Section>
       )}
 
