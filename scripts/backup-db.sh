@@ -8,9 +8,14 @@ RETENTION_DAYS=7
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-set -a
-source .env
-set +a
+# .env contient des valeurs avec métacaractères shell (ex. `&` dans MONGO_URI),
+# donc `source .env` échoue en parse error. On n'extrait que les clés nécessaires.
+load_env() {
+    grep -E "^${1}=" .env | tail -1 | cut -d= -f2-
+}
+MYSQL_ROOT_PASSWORD="$(load_env MYSQL_ROOT_PASSWORD)"
+MONGO_ROOT_USERNAME="$(load_env MONGO_ROOT_USERNAME)"
+MONGO_ROOT_PASSWORD="$(load_env MONGO_ROOT_PASSWORD)"
 
 DATE=$(date +%Y-%m-%d_%H%M%S)
 mkdir -p backups

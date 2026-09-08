@@ -1,5 +1,13 @@
 name: disciplina-test
 
+networks:
+  test-net:
+    driver: bridge
+
+volumes:
+  test-mysql-data:
+  test-mongo-data:
+
 services:
   test-sql-db:
     image: mysql:8.4.8
@@ -18,8 +26,11 @@ services:
       MYSQL_DATABASE: disciplina
     volumes:
       - ./database/mysql/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - test-mysql-data:/var/lib/mysql
     ports:
       - "3307:3306"
+    networks:
+      - test-net
     healthcheck:
       # 127.0.0.1 et non localhost : `localhost` passe par la socket Unix, sur laquelle
       # le serveur TEMPORAIRE de la phase d'init répond déjà. Le conteneur était donc
@@ -39,8 +50,11 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: test-root-password
     volumes:
       - ./database/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+      - test-mongo-data:/data/db
     ports:
-      - "27017:27017"
+      - "27018:27017"
+    networks:
+      - test-net
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -54,18 +68,19 @@ services:
       dockerfile: Dockerfile
       # Stage dev : dépendances complètes (vitest) + code source, requis pour `npm test`.
       target: dev
-    network_mode: host
     depends_on:
       test-sql-db:
         condition: service_healthy
       test-nosql-db:
         condition: service_healthy
+    networks:
+      - test-net
     environment:
       MYSQL_ROOT_PASSWORD: test-root-password
-      MYSQL_PORT: 3307
+      MYSQL_HOST: test-sql-db
       MONGO_ROOT_USERNAME: test-root
       MONGO_ROOT_PASSWORD: test-root-password
-      MONGO_PORT: 27017
+      MONGO_HOST: test-nosql-db
       API_PORT: 4000
       SESSION_SECRET: test-session-secret
       JWT_SECRET: test-jwt-secret

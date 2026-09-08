@@ -10,6 +10,7 @@ export enum Permission {
     EMPLOYEE = 'EMPLOYEE',
     RESPONSABLE = 'RESPONSABLE',
     ADMIN = 'ADMIN',
+    GUEST = 'GUEST',
 }
 
 // Rôles JWT-only : vivent uniquement dans le JWT, jamais persistés en base.
