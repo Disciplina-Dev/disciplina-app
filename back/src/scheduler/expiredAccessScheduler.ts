@@ -1,5 +1,4 @@
-import { InterviewAccessRepository } from '../repositories/mysql/InterviewAccessRepository';
-import { MatchLinkRepository } from '../repositories/mysql/MatchLinkRepository';
+import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
 import { ExternalLinkRepository } from '../repositories/mysql/ExternalLinkRepository';
 import { RefreshTokenRepository } from '../repositories/mysql/RefreshTokenRepository';
 import { logger } from '../external/logger/logger';
@@ -20,15 +19,14 @@ const GRACE_DAYS = 7;
  * Planificateur de purge des accès éphémères : supprime les liens signés et les
  * refresh tokens expirés depuis plus de GRACE_DAYS jours.
  *
- * Ces tables (interview_access, match_link, external_link, refresh_tokens) stockent des
+ * Ces tables (external_access, external_link, refresh_tokens) stockent des
  * couples signature/code associés à des emails et n'étaient jamais purgées : elles
  * croissaient indéfiniment, sans aucune valeur métier passé l'expiration.
  * Cf. database/DATA_CLASSIFICATION.md. In-process (setInterval), à l'image de
  * `unavailableExpiryScheduler`.
  */
 export function startExpiredAccessScheduler(): NodeJS.Timeout {
-    const interviewAccessRepository = new InterviewAccessRepository();
-    const matchLinkRepository = new MatchLinkRepository();
+    const externalAccessRepository = new ExternalAccessRepository();
     const externalLinkRepository = new ExternalLinkRepository();
     const refreshTokenRepository = new RefreshTokenRepository();
     let running = false;
@@ -37,16 +35,15 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
         if (running) return;
         running = true;
         try {
-            // Séquentiel : une purge de fond ne doit pas mobiliser quatre connexions du
+            // Séquentiel : une purge de fond ne doit pas mobiliser plusieurs connexions du
             // pool d'un coup au détriment du trafic applicatif.
-            const interviewAccess = await interviewAccessRepository.deleteExpired(GRACE_DAYS);
-            const matchLink = await matchLinkRepository.deleteExpired(GRACE_DAYS);
+            const externalAccess = await externalAccessRepository.deleteExpired(GRACE_DAYS);
             const externalLink = await externalLinkRepository.deleteExpired(GRACE_DAYS);
             const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
-            const total = interviewAccess + matchLink + externalLink + refreshTokens;
+            const total = externalAccess + externalLink + refreshTokens;
             if (total > 0) {
                 logger.info(
-                    { interviewAccess, matchLink, externalLink, refreshTokens, total },
+                    { externalAccess, externalLink, refreshTokens, total },
                     'expired-access: accès expirés purgés',
                 );
             }

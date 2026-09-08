@@ -5,6 +5,7 @@ import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
+import { fetchCommercialSignature, saveCommercialSignature } from '@/api/mailTemplates'
 import { cleanHtml } from '@/services/sanitizeHtml'
 
 // Aperçu avant l'envoi en signature : le commercial vérifie les documents
@@ -64,6 +65,14 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
   const [savedTpl, setSavedTpl] = useState(false)
   const [tplError, setTplError] = useState<string | null>(null)
 
+  // Deuxième section : signature commerciale par-user, ajoutée à la fin du mail.
+  const [commercialSignature, setCommercialSignature] = useState('')
+  const [baseCommercialSignature, setBaseCommercialSignature] = useState('')
+  const [savingSig, setSavingSig] = useState(false)
+  const [sigSaved, setSigSaved] = useState(false)
+  const [sigError, setSigError] = useState<string | null>(null)
+  const [sigLoading, setSigLoading] = useState(true)
+
   // Charge les 3 PDF (en blob, pour pouvoir les afficher inline malgré l'auth) + le mail.
   useEffect(() => {
     let cancelled = false
@@ -111,6 +120,29 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
     loadTemplates()
   }, [loadTemplates])
 
+  // Charge la signature commerciale du commercial connecté (persistée par user).
+  useEffect(() => {
+    let cancelled = false
+    fetchCommercialSignature()
+      .then((sig) => {
+        if (cancelled) return
+        setCommercialSignature(sig)
+        setBaseCommercialSignature(sig)
+      })
+      .catch(() => {
+        if (cancelled) return
+        const fallback = '<p>Cordialement,</p><p>Commercial Disciplina<br>{{signature}}</p>'
+        setCommercialSignature(fallback)
+        setBaseCommercialSignature(fallback)
+      })
+      .finally(() => {
+        if (!cancelled) setSigLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useEffect(() => {
     if (!email || selectedTemplateId) return
     const currentTemplate = email.templateId ? templates.find((t) => t.id === email.templateId) : templates[0]
@@ -153,9 +185,37 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
   const handleConfirm = async () => {
     setSending(true)
     try {
+      // Persiste la signature commerciale si elle a été modifiée, afin que
+      // le back l'ajoute à la fin du mail lors de l'envoi.
+      if (commercialSignature !== baseCommercialSignature) {
+        try {
+          await saveCommercialSignature(commercialSignature)
+          setBaseCommercialSignature(commercialSignature)
+        } catch {
+          // Si la sauvegarde échoue, on envoie quand même le corps principal ;
+          // le back utilisera l'ancienne signature stockée.
+        }
+      }
       await onConfirm({ subject, body })
     } finally {
       setSending(false)
+    }
+  }
+
+  const handleSaveCommercialSignature = async () => {
+    if (!commercialSignature.trim()) return
+    setSavingSig(true)
+    setSigError(null)
+    try {
+      const saved = await saveCommercialSignature(commercialSignature)
+      setCommercialSignature(saved)
+      setBaseCommercialSignature(saved)
+      setSigSaved(true)
+      setTimeout(() => setSigSaved(false), 2500)
+    } catch (err) {
+      setSigError(err instanceof Error ? err.message : 'Échec de l\'enregistrement')
+    } finally {
+      setSavingSig(false)
     }
   }
 
@@ -188,6 +248,7 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
 
   const activeUrl = pdfUrls[activeTab]
   const dirty = subject !== baseSubject || body !== baseBody
+  const sigDirty = commercialSignature !== baseCommercialSignature
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -314,6 +375,46 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
                 {tplError && <span className="text-[11px] text-danger">{tplError}</span>}
               </div>
             )}
+          </div>
+
+          {/* Signature commerciale — deuxième section ajoutée à la fin du mail */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+              <PenLine size={15} /> Signature du commercial
+              <span className="ml-1 text-[11px] font-normal text-gray-400">— ajoutée à la fin du mail, enregistrée par commercial</span>
+            </div>
+
+            {sigLoading ? (
+              <p className="text-xs text-gray-400">Chargement de votre signature…</p>
+            ) : showPreview ? (
+              <div
+                className="prose prose-sm max-w-none rounded-[10px] border border-gray-200 bg-white p-4 text-sm text-gray-800"
+                dangerouslySetInnerHTML={{ __html: cleanHtml(renderPreview(commercialSignature, email?.variables ?? {})) }}
+              />
+            ) : (
+              <RichTextEditor value={commercialSignature} onChange={setCommercialSignature} minHeight="120px" />
+            )}
+
+            <p className="mt-2 text-[11px] text-gray-400">
+              Variable : <code className="rounded bg-gray-200/70 px-1">{'{{signature}}'}</code> — votre image de signature.
+              Contenu par défaut : <code className="rounded bg-gray-200/70 px-1">Cordialement, Commercial Disciplina</code> + image.
+              Cette signature est ajoutée automatiquement à la fin du mail à l'envoi.
+            </p>
+
+            <div className="mt-3 flex items-center gap-3 border-t border-gray-200 pt-3">
+              <button
+                type="button"
+                onClick={handleSaveCommercialSignature}
+                disabled={savingSig || !sigDirty || sigLoading}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-blue hover:text-blue disabled:opacity-40">
+                {sigSaved ? <Check size={13} /> : <Save size={13} />}
+                {sigSaved ? 'Signature enregistrée' : 'Enregistrer ma signature'}
+              </button>
+              <span className="text-[11px] text-gray-400">
+                {sigDirty ? 'Modifications non enregistrées.' : 'Votre signature pour les prochains envois.'}
+              </span>
+              {sigError && <span className="text-[11px] text-danger">{sigError}</span>}
+            </div>
           </div>
         </div>
 

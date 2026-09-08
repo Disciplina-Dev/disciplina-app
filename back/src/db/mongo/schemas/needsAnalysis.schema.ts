@@ -8,6 +8,7 @@ import {
     RecruitmentMethod,
     ImmersionPeriod,
     NeedsAnalysisStatus,
+    AdministrationType,
 } from '../../../types/needsAnalysisNoSql.types';
 import { salerInfoSchema, referentsSchema } from './referents.schema';
 import { positionSchema } from './position.schema';
@@ -45,10 +46,12 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
         signature_sent_at: { type: Date, default: null },
         signature_url: { type: String, default: null },
         last_relance_at: { type: Date, default: null },
+        is_relance_disabled: { type: Boolean, default: false },
         status: { type: String, enum: Object.values(NeedsAnalysisStatus), default: NeedsAnalysisStatus.BROUILLON },
         tags: { type: [String], default: [] },
         ab_status: { type: String, enum: ['ACTIVE', 'ARCHIVED', 'INACTIVE'], default: null },
         is_deleted: { type: Boolean, default: false },
+        administration_type: { type: String, enum: Object.values(AdministrationType), default: AdministrationType.NON_RENSEIGNE },
         created_at: { type: Date },
         updated_at: { type: Date },
     },

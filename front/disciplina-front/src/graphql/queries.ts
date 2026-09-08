@@ -1691,6 +1691,7 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
       }
       positionsCount
       status
+      isRelanceDisabled
       createdAt
     }
   }
@@ -1706,6 +1707,8 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
           status
           positionsCount
           createdAt
+          administrationType
+          driveFolderUrl
           companyInfos {
             name
             siret
@@ -1861,9 +1864,12 @@ export const GET_NEEDS_ANALYSIS = gql`
       yousignSignatureRequestID
       status
       abStatus
+      isRelanceDisabled
+      administrationType
       tags
       createdAt
       updatedAt
+      driveFolderUrl
     }
   }
 `
@@ -1940,6 +1946,16 @@ export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
     updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
       id
       abStatus
+    }
+  }
+`
+
+export const SET_AB_RELANCE_DISABLED = gql`
+  mutation SetAbRelanceDisabled($id: ID!, $disabled: Boolean!) {
+    setAbRelanceDisabled(id: $id, disabled: $disabled) {
+      id
+      status
+      isRelanceDisabled
     }
   }
 `

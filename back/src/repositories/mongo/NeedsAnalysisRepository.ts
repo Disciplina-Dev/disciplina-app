@@ -145,12 +145,36 @@ export class NeedsAnalysisRepository {
         return NeedsAnalysisModel.find({
             status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
             is_deleted: { $ne: true },
+            is_relance_disabled: { $ne: true },
             signature_sent_at: { $lte: cutoff, $ne: null },
             last_relance_at: null,
             signature_url: { $exists: true, $ne: null },
         })
             .sort({ signature_sent_at: 1 })
             .lean();
+    }
+
+    /** Ids des AB dont le type d'administration est dans `types`. Les docs sans champ sont traités comme NON_RENSEIGNE (rétrocompat). */
+    async findIdsByAdministrationTypes(types: string[]): Promise<string[]> {
+        if (!types.length) return [];
+        const wantsNonRenseigne = types.includes('NON_RENSEIGNE');
+        if (wantsNonRenseigne && types.length === 1) {
+            return NeedsAnalysisModel.distinct('_id', {
+                $or: [{ administration_type: 'NON_RENSEIGNE' }, { administration_type: { $exists: false } }, { administration_type: null }],
+            });
+        }
+        if (wantsNonRenseigne) {
+            const others = types.filter((t) => t !== 'NON_RENSEIGNE');
+            return NeedsAnalysisModel.distinct('_id', {
+                $or: [
+                    { administration_type: { $in: others } },
+                    { administration_type: 'NON_RENSEIGNE' },
+                    { administration_type: { $exists: false } },
+                    { administration_type: null },
+                ],
+            });
+        }
+        return NeedsAnalysisModel.distinct('_id', { administration_type: { $in: types } });
     }
 
     /**

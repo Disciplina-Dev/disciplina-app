@@ -100,6 +100,12 @@ export const typeDefs = gql`
         INACTIVE
     }
 
+    enum AdministrationType {
+        NON_RENSEIGNE
+        ADMINISTRATION_PUBLIQUE
+        ADMINISTRATION_PRIVEE
+    }
+
     type CompanyInfos {
         id: Int
         name: String
@@ -224,9 +230,13 @@ export const typeDefs = gql`
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
         abStatus: AbStatus!
+        isRelanceDisabled: Boolean!
+        administrationType: AdministrationType!
         tags: [String!]
         createdAt: String
         updatedAt: String
+        # URL Drive du dossier contenant le mandat signé (uniquement si status = SIGNE).
+        driveFolderUrl: String
     }
 
     input NeedsAnalysisInput {
@@ -243,6 +253,7 @@ export const typeDefs = gql`
         referralSource: ReferralSource
         postalCode: String
         commune: String
+        administrationType: AdministrationType
         positions: [PositionInput!]
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
@@ -296,6 +307,7 @@ export const typeDefs = gql`
         sectors: [String!]
         localisations: [String!]
         abStatus: AbStatus
+        administrationTypes: [AdministrationType!]
     }
 
     type NeedsAnalysisDashboardItem {
@@ -330,5 +342,7 @@ export const typeDefs = gql`
         # Force le statut d'onglet d'une AB (Actif/Archivé/Inactif) ; abStatus à null le
         # réinitialise au calcul automatique dérivé des offres.
         updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
+        # Désactive/réactive la relance automatique de signature (non destructif, garde l'AB et ses offres).
+        setAbRelanceDisabled(id: ID!, disabled: Boolean!): NeedsAnalysis!
     }
 `;
