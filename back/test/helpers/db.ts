@@ -10,7 +10,7 @@ const CLEARED_TABLES = [
     'companies',
     'companies_blacklist',
     'match_link',
-    'interview_access',
+    // interview_access : table conservée (dépréciée) ; le flux entretien vit dans external_access (reference 3).
     // rh_kpi / commercial_kpi : supprimées (#513), les buckets vivent dans
     // Mongo `kpis`, vidés via dropMongo().
     'todos',

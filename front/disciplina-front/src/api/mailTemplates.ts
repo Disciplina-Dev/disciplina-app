@@ -36,7 +36,13 @@ export interface MailTemplateAttachmentMeta {
 }
 
 /** Modèle système (non supprimable, partagé) ; null pour un modèle utilisateur. */
-export type MailTemplateKind = 'ab_signature' | 'ab_relance' | 'proposition_candidat'
+export type MailTemplateKind =
+  | 'ab_signature'
+  | 'ab_relance'
+  | 'proposition_candidat'
+  | 'external_access'
+  | 'external_link'
+  | 'interview_invitation'
 
 export interface MailTemplate {
   id: string
@@ -119,4 +125,19 @@ export async function uploadSignature(scope: MailTemplatesScope, file: File): Pr
 
 export async function deleteSignature(scope: MailTemplatesScope): Promise<void> {
   await tplFetch(`/signature?scope=${scope}`, { method: 'DELETE' })
+}
+
+// ── Signature commerciale textuelle (section ajoutée au mail AB à signer) ──
+export async function fetchCommercialSignature(): Promise<string> {
+  const res = await tplFetch('/commercial-signature')
+  return ((await res.json()) as { body: string }).body
+}
+
+export async function saveCommercialSignature(body: string): Promise<string> {
+  const res = await tplFetch('/commercial-signature', {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ body }),
+  })
+  return ((await res.json()) as { body: string }).body
 }

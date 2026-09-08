@@ -13,6 +13,8 @@ import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { MailTemplateService } from './MailTemplateService';
+import { CommercialSignatureService } from './CommercialSignatureService';
+import { DEFAULT_COMMERCIAL_SIGNATURE } from './commercialSignatureTemplate';
 import { UserService } from './UserService';
 import { GoogleGmailService } from '../external/google/gmail.service';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
@@ -86,6 +88,7 @@ export class NeedsAnalysisService {
     private companiesService: CompaniesService;
     private docusealService: DocuSealService;
     private mailTemplateService: MailTemplateService;
+    private commercialSignatureService: CommercialSignatureService;
     private userService: UserService;
     private gmailService: GoogleGmailService;
     private userRepository: UserRepository;
@@ -98,6 +101,7 @@ export class NeedsAnalysisService {
         this.companiesService = new CompaniesService();
         this.docusealService = new DocuSealService();
         this.mailTemplateService = new MailTemplateService();
+        this.commercialSignatureService = new CommercialSignatureService();
         this.userService = new UserService();
         this.gmailService = new GoogleGmailService();
         this.userRepository = new UserRepository();
@@ -113,9 +117,10 @@ export class NeedsAnalysisService {
     async findPage(first: number, after?: string, filter?: OfferAbFilter): Promise<NeedsAnalysisNoSql[]> {
         const hasOfferFilter = Boolean(filter && hasActiveOfferFilter(filter));
         const abStatus = filter?.abStatus;
+        const hasAdminFilter = Boolean(filter?.administrationTypes?.length);
 
         // Aucune contrainte : liste brute (la liste « Tous » inclut les AB inactives).
-        if (!hasOfferFilter && !abStatus) {
+        if (!hasOfferFilter && !abStatus && !hasAdminFilter) {
             return this.repository.findPage(first, after);
         }
 
@@ -133,15 +138,27 @@ export class NeedsAnalysisService {
             if (statusIds.length === 0) return [];
         }
 
-        // Intersection des deux contraintes, sinon celle présente seule.
-        let restrictIds: string[] | undefined;
-        if (offerIds && statusIds) {
-            const statusSet = new Set(statusIds);
-            restrictIds = offerIds.filter((id) => statusSet.has(id));
-        } else {
-            restrictIds = offerIds ?? statusIds;
+        // Contrainte par type d'administration (directement sur needs_analysis).
+        let adminIds: string[] | undefined;
+        if (hasAdminFilter) {
+            adminIds = await this.repository.findIdsByAdministrationTypes(filter!.administrationTypes!);
+            if (adminIds.length === 0) return [];
         }
-        if (restrictIds && restrictIds.length === 0) return [];
+
+        // Intersection de toutes les contraintes présentes.
+        const allSets: string[][] = [offerIds, statusIds, adminIds].filter((a): a is string[] => !!a);
+        if (allSets.length === 0) return this.repository.findPage(first, after);
+        if (allSets.length === 1) {
+            const only = allSets[0];
+            if (only.length === 0) return [];
+            return this.repository.findPage(first, after, only);
+        }
+        let restrictIds = allSets[0];
+        for (let i = 1; i < allSets.length; i++) {
+            const set = new Set(allSets[i]);
+            restrictIds = restrictIds.filter((id) => set.has(id));
+            if (restrictIds.length === 0) return [];
+        }
 
         return this.repository.findPage(first, after, restrictIds);
     }
@@ -406,6 +423,8 @@ export class NeedsAnalysisService {
      * Construit le mail « AB à signer » à partir de l'override (édité dans l'aperçu),
      * sinon du modèle système `ab_signature`, sinon du modèle par défaut. Remplace
      * les variables : {{entreprise}}, {{lien_signature}} (bouton), {{signature}}.
+     * Ajoute la signature commerciale textuelle du commercial (sauvegardée par-user)
+     * à la fin du corps.
      */
     private async buildSignatureEmail(
         userId: number,
@@ -422,6 +441,17 @@ export class NeedsAnalysisService {
             const tpl = await this.mailTemplateService.findCommercialTemplateByKind('ab_signature');
             subject = tpl?.subject ?? AB_SIGNATURE_SUBJECT;
             body = tpl?.body ?? AB_SIGNATURE_BODY;
+        }
+
+        // Signature commerciale textuelle (deuxième section, par commercial).
+        // Ajoutée à la fin du mail avant le remplacement des variables.
+        const commercialSig = await this.commercialSignatureService
+            .getForUser(userId)
+            .catch(() => DEFAULT_COMMERCIAL_SIGNATURE);
+        // Evite le double ajout si le front a déjà concaténé la signature
+        // (cas d'une requête directe avec body déjà complet).
+        if (!body.includes(commercialSig) && commercialSig.trim()) {
+            body = `${body}${commercialSig}`;
         }
 
         const signatureHtml = await this.mailTemplateService.getSignatureHtml(userId, 'commercial').catch(() => '');
@@ -587,6 +617,7 @@ export class NeedsAnalysisService {
             referralSource: data.referralSource ?? existing.company_infos?.referral_source ?? null,
             postalCode: data.postalCode ?? existing.company_infos?.postal_code ?? null,
             commune: data.commune ?? existing.company_infos?.commune ?? null,
+            administrationType: data.administrationType ?? (existing as any).administration_type ?? null,
             positions: data.positions ?? existing.positions ?? [],
             recruitmentMethod: data.recruitmentMethod ?? existing.recruitment_method,
             immersionPeriod: data.immersionPeriod ?? existing.immersion_period,

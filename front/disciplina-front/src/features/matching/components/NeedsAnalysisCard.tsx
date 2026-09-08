@@ -1,6 +1,7 @@
-import { Building2, MapPin, Hash, Briefcase, Calendar } from 'lucide-react'
+import { Building2, MapPin, Hash, Briefcase, Calendar, Landmark, ExternalLink } from 'lucide-react'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { AB_STATUS_BADGE } from '@/features/abEntreprise/components/ABDetailContent'
+import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatCommune } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
@@ -27,10 +28,18 @@ function tpLabel(tp?: string | null): string {
 
 export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
   const badge = AB_STATUS_BADGE[analysis.status ?? 'BROUILLON'] ?? AB_STATUS_BADGE['BROUILLON']
+  const isSigned = analysis.status === 'SIGNE'
   const positions = analysis.positions ?? []
   const communes = [...new Set(positions.flatMap((p) => p.localisation ?? []))]
   const localisation = communes.length ? communes.map(formatCommune).join(' · ') : analysis.companyInfos?.commune
   const activities = analysis.companyInfos?.activities ?? []
+
+  const handleSignedBadgeClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (analysis.driveFolderUrl) {
+      window.open(analysis.driveFolderUrl, '_blank', 'noopener,noreferrer')
+    }
+  }
 
   return (
     <article
@@ -57,9 +66,21 @@ export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
               </span>
             )}
           </div>
-          <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${badge.bg} ${badge.text}`}>
-            {badge.label}
-          </span>
+          {isSigned && analysis.driveFolderUrl ? (
+            <button
+              type="button"
+              onClick={handleSignedBadgeClick}
+              title="Ouvrir le dossier Drive (mandat signé)"
+              className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${badge.bg} ${badge.text} hover:opacity-80 hover:ring-1 hover:ring-green-200 cursor-pointer transition`}
+            >
+              {badge.label}
+              <ExternalLink className="h-3 w-3" />
+            </button>
+          ) : (
+            <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${badge.bg} ${badge.text}`}>
+              {badge.label}
+            </span>
+          )}
         </div>
 
         {localisation && (
@@ -76,6 +97,13 @@ export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
                 {SECTOR_LABELS[a] ?? a}
               </span>
             ))}
+          </div>
+        )}
+
+        {analysis.administrationType && analysis.administrationType !== 'NON_RENSEIGNE' && (
+          <div className="mt-2 flex items-center gap-1.5 text-[12px] text-gray-600">
+            <Landmark className="h-3.5 w-3.5 shrink-0 text-gray-300" />
+            <span>{ADMINISTRATION_LABELS[analysis.administrationType as keyof typeof ADMINISTRATION_LABELS] ?? analysis.administrationType}</span>
           </div>
         )}
       </div>

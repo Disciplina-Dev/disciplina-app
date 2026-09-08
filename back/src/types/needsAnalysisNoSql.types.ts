@@ -63,6 +63,12 @@ export enum NeedsAnalysisStatus {
     EXPIRE = 'EXPIRE',
 }
 
+export enum AdministrationType {
+    NON_RENSEIGNE = 'NON_RENSEIGNE',
+    ADMINISTRATION_PUBLIQUE = 'ADMINISTRATION_PUBLIQUE',
+    ADMINISTRATION_PRIVEE = 'ADMINISTRATION_PRIVEE',
+}
+
 export interface CompanyInfos {
     id?: number;
     name?: string;
@@ -170,6 +176,8 @@ export interface NeedsAnalysis {
     // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
     // d'être retirée — on conserve le document pour l'historique.
     is_deleted?: boolean;
+    /** Type d'administration de l'entreprise : publique, privée ou non renseigné (défaut rétrocompat). */
+    administration_type?: AdministrationType | null;
     created_at?: Date;
     updated_at?: Date;
 }
@@ -192,6 +200,7 @@ export interface NeedsAnalysisWriteInput {
     referralSource?: ReferralSource | null;
     postalCode?: string | null;
     commune?: string | null;
+    administrationType?: AdministrationType | null;
     positions?: Position[];
     recruitmentMethod?: RecruitmentMethod;
     immersionPeriod?: ImmersionPeriod;

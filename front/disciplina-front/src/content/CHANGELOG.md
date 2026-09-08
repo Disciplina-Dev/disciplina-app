@@ -51,6 +51,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Contenu du mail d'offre au candidat ajusté (#603) : ajustements mineurs dans `Matching.tsx`.
 - Mails externes : en-tête `Reply-To: noreply@disciplina.re` ajouté à tous les envois Gmail (`mime.builder.ts`, `no-reply.ts`, #601) ; `From` Gmail conservé.
 - KPI : bascule MySQL → MongoDB avec bump atomique via pipeline `$replaceWith` + clamp `$max`, noms résolus via `UserRepository.findByIds` (#513).
+- Rework complet des accès externes (#514) : flux unifiés profil matché / réservation d'entretien / import CV sous `/external/*`. Les anciens liens `/public/*` déjà envoyés par email redirigent automatiquement vers le nouveau flux. Le code d'accès est désormais envoyé par email au chargement de la page (et plus dans l'email d'invitation), le lien de réservation d'entretien s'affiche sous forme de bouton « Choisir mon créneau ». Tables `interview_access`, `match_link` et `external_link` consolidées dans `external_access`.
 
 ### Fixed
 
@@ -64,6 +65,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Fuseau horaire des entretiens sur la page de matching (#676) : `InterviewProposalForm`, `InterviewSlotPicker`, `Matching.tsx`.
 - Placement des boutons (chevauchement) (#681).
 - Hooks pré-commit contournables corrigés (#658) : `skip hooks` ne bypass plus les vérifications.
+- Filtres de statut des accès externes (#514) : `ExternalAccessRepository.findAllFiltered` utilisait `IN (?)` avec un tableau, non développé par `pool.execute()` (prepared statements) — le statut arrivait comme un littéral unique et chaque onglet renvoyait un résultat vide. Placeholders énumérés `IN (?, ?, …)` pour les filtres `statuses` et `types`.
 
 ## [1.1.0] - 2026-08-20
 

@@ -8,9 +8,11 @@ import {
     DuplicatePedaLevelError,
     SystemTemplateError,
 } from '../../services/MailTemplateService';
+import { CommercialSignatureService } from '../../services/CommercialSignatureService';
 import { MailTemplateScope, PedaLevel, isPedaLevel } from '../../types/mailTemplate.types';
 
 const service = new MailTemplateService();
+const commercialSignatureService = new CommercialSignatureService();
 
 function parseScope(raw: unknown): MailTemplateScope {
     if (raw === 'commercial') return 'commercial';
@@ -186,6 +188,34 @@ export async function deleteSignature(req: AuthRequest, res: Response): Promise<
     try {
         await service.removeSignature(Number(req.user.id), parseScope(req.query.scope));
         res.status(204).end();
+    } catch (err) {
+        handleError(err, res);
+    }
+}
+
+// ── Signature commerciale textuelle (section ajoutée au mail AB à signer) ──
+export async function getCommercialSignature(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const body = await commercialSignatureService.getForUser(Number(req.user!.id));
+        res.json({ body });
+    } catch (err) {
+        handleError(err, res);
+    }
+}
+
+export async function putCommercialSignature(req: AuthRequest, res: Response): Promise<void> {
+    const rawBody = (req.body as Record<string, unknown>)?.body;
+    if (typeof rawBody !== 'string' || !rawBody.trim()) {
+        res.status(400).json({ error: 'body est requis' });
+        return;
+    }
+    if (rawBody.length > 50_000) {
+        res.status(400).json({ error: 'body trop volumineux (max 50 000 caractères)' });
+        return;
+    }
+    try {
+        const body = await commercialSignatureService.setForUser(Number(req.user!.id), rawBody);
+        res.json({ body });
     } catch (err) {
         handleError(err, res);
     }
