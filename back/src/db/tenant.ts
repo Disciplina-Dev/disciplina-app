@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from '../config/env';
-import { isRegion, type Region } from '../types/tenant';
+import { isRegion, VALID_REGIONS, type Region } from '../types/tenant';
 
 const regionStorage = new AsyncLocalStorage<Region>();
 
@@ -10,6 +10,15 @@ export function withRegion<T>(region: Region, fn: () => Promise<T>): Promise<T> 
 
 export function syncWithRegion<T>(region: Region, fn: () => T): T {
     return regionStorage.run(region, fn);
+}
+
+/**
+ * Exécute `fn` pour chaque tenant (les régions tournent en parallèle, sur des
+ * pools/connexions distincts). Servi par les schedulers : hors ALS, `getRegion()`
+ * retomberait sur le tenant par défaut et ne traiterait qu'une seule base.
+ */
+export async function runForAllRegions<T>(fn: () => Promise<T>): Promise<T[]> {
+    return Promise.all(VALID_REGIONS.map((region) => syncWithRegion(region, () => fn())));
 }
 
 export function getRegion(): Region {

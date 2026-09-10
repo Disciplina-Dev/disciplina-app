@@ -1,6 +1,7 @@
 import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
 import { ExternalLinkRepository } from '../repositories/mysql/ExternalLinkRepository';
 import { RefreshTokenRepository } from '../repositories/mysql/RefreshTokenRepository';
+import { runForAllRegions, getRegion } from '../db/tenant';
 import { logger } from '../external/logger/logger';
 
 // Tick quotidien : la granularité « jour » suffit pour de la purge de rétention.
@@ -36,19 +37,24 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
         running = true;
         try {
             // Séquentiel : une purge de fond ne doit pas mobiliser plusieurs connexions du
-            // pool d'un coup au détriment du trafic applicatif.
-            const externalAccess = await externalAccessRepository.deleteExpired(GRACE_DAYS);
-            const externalLink = await externalLinkRepository.deleteExpired(GRACE_DAYS);
-            const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
-            const total = externalAccess + externalLink + refreshTokens;
-            if (total > 0) {
-                logger.info(
-                    { externalAccess, externalLink, refreshTokens, total },
-                    'expired-access: accès expirés purgés',
-                );
-            }
-        } catch (err) {
-            logger.error({ err }, 'expired-access: tick du scheduler en erreur');
+            // pool d'un coup au détriment du trafic applicatif. Vérifié par tenant.
+            await runForAllRegions(async () => {
+                const region = getRegion();
+                try {
+                    const externalAccess = await externalAccessRepository.deleteExpired(GRACE_DAYS);
+                    const externalLink = await externalLinkRepository.deleteExpired(GRACE_DAYS);
+                    const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
+                    const total = externalAccess + externalLink + refreshTokens;
+                    if (total > 0) {
+                        logger.info(
+                            { region, externalAccess, externalLink, refreshTokens, total },
+                            'expired-access: accès expirés purgés',
+                        );
+                    }
+                } catch (err) {
+                    logger.error({ err, region }, 'expired-access: tick du scheduler en erreur');
+                }
+            });
         } finally {
             running = false;
         }
