@@ -400,6 +400,101 @@ CREATE TABLE IF NOT EXISTS `todos` (
   CONSTRAINT `fk_todos_group_id` FOREIGN KEY (`group_id`) REFERENCES `todo_groups` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- ──────────────────────────────────────────────────────────────────────────────
+-- BASE SECONDAIRE : disciplina_annemasse (multi-tenant — site Annemasse).
+-- Mêmes tables que `disciplina` SAUF les trois tables deprecated, remplacées par
+-- `external_access` (interview_access / match_link / external_link).
+--
+-- Stratégie de clonage : `CREATE TABLE ... LIKE` copie colonnes, clés,
+-- index et colonnes générées, mais PAS les contraintes de clés étrangères —
+-- on les recrée donc explicitement ci-dessous, puis on rejoue les données de
+-- référence (permissions, roles, external_references, sector_settings).
+--
+-- ATTENTION : ce bloc n'est joué que sur un volume vierge (initdb). Sur une
+-- instance existante, appliquer database/mysql/migrations/2026-09-10-annemasse-schema.sql.
+-- ──────────────────────────────────────────────────────────────────────────────
+CREATE DATABASE IF NOT EXISTS disciplina_annemasse;
+
+CREATE TABLE disciplina_annemasse.app_settings LIKE disciplina.app_settings;
+CREATE TABLE disciplina_annemasse.permissions LIKE disciplina.permissions;
+CREATE TABLE disciplina_annemasse.roles LIKE disciplina.roles;
+CREATE TABLE disciplina_annemasse.users LIKE disciplina.users;
+CREATE TABLE disciplina_annemasse.booking_settings LIKE disciplina.booking_settings;
+CREATE TABLE disciplina_annemasse.companies LIKE disciplina.companies;
+CREATE TABLE disciplina_annemasse.company_conflict LIKE disciplina.company_conflict;
+CREATE TABLE disciplina_annemasse.companies_blacklist LIKE disciplina.companies_blacklist;
+CREATE TABLE disciplina_annemasse.company_history LIKE disciplina.company_history;
+CREATE TABLE disciplina_annemasse.contact_logs LIKE disciplina.contact_logs;
+CREATE TABLE disciplina_annemasse.filiz LIKE disciplina.filiz;
+CREATE TABLE disciplina_annemasse.external_references LIKE disciplina.external_references;
+CREATE TABLE disciplina_annemasse.external_access LIKE disciplina.external_access;
+CREATE TABLE disciplina_annemasse.peda_config LIKE disciplina.peda_config;
+CREATE TABLE disciplina_annemasse.peda_draft_history LIKE disciplina.peda_draft_history;
+CREATE TABLE disciplina_annemasse.refresh_tokens LIKE disciplina.refresh_tokens;
+CREATE TABLE disciplina_annemasse.relance_history LIKE disciplina.relance_history;
+CREATE TABLE disciplina_annemasse.sector_settings LIKE disciplina.sector_settings;
+CREATE TABLE disciplina_annemasse.todo_groups LIKE disciplina.todo_groups;
+CREATE TABLE disciplina_annemasse.todos LIKE disciplina.todos;
+
+-- Contraintes de clés étrangères (non copiées par LIKE) — mêmes noms et
+-- mêmes règles que dans `disciplina`.
+ALTER TABLE disciplina_annemasse.users
+  ADD CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES disciplina_annemasse.roles (id) ON UPDATE CASCADE,
+  ADD CONSTRAINT fk_users_permission_id FOREIGN KEY (permission_id) REFERENCES disciplina_annemasse.permissions (id) ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.booking_settings
+  ADD CONSTRAINT fk_booking_settings_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.companies
+  ADD CONSTRAINT fk_companies_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.company_conflict
+  ADD CONSTRAINT fk_company_conflict_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.companies_blacklist
+  ADD CONSTRAINT fk_companies_blacklist_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.company_history
+  ADD CONSTRAINT fk_company_history_company_id FOREIGN KEY (company_id) REFERENCES disciplina_annemasse.companies (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.contact_logs
+  ADD CONSTRAINT fk_contact_logs_company_id FOREIGN KEY (company_id) REFERENCES disciplina_annemasse.companies (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT fk_contact_logs_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.external_access
+  ADD CONSTRAINT fk_ext_access_reference FOREIGN KEY (reference_id) REFERENCES disciplina_annemasse.external_references (id),
+  ADD CONSTRAINT fk_ext_access_user FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id);
+
+ALTER TABLE disciplina_annemasse.peda_config
+  ADD CONSTRAINT fk_peda_config_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.peda_draft_history
+  ADD CONSTRAINT fk_peda_draft_history_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.refresh_tokens
+  ADD CONSTRAINT fk_refresh_tokens_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.relance_history
+  ADD CONSTRAINT fk_relance_history_company_id FOREIGN KEY (company_id) REFERENCES disciplina_annemasse.companies (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT fk_relance_history_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.todo_groups
+  ADD CONSTRAINT fk_todo_groups_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE;
+
+ALTER TABLE disciplina_annemasse.todos
+  ADD CONSTRAINT fk_todos_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL,
+  ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES disciplina_annemasse.todo_groups (id) ON DELETE SET NULL;
+
+-- Données de référence : copiées depuis `disciplina` (mêmes ids => même RBAC).
+-- NB: sector_settings est copié en fin de fichier, après le seed disciplina.
+INSERT IGNORE INTO disciplina_annemasse.permissions (id, name)
+    SELECT id, name FROM disciplina.permissions;
+INSERT IGNORE INTO disciplina_annemasse.roles (id, name)
+    SELECT id, name FROM disciplina.roles;
+INSERT IGNORE INTO disciplina_annemasse.external_references (id, name)
+    SELECT id, name FROM disciplina.external_references;
+
 -- Compte applicatif : le backend ne se connecte pas en `root`. Une injection SQL ou une
 -- fuite de .env ne doit pas donner DROP DATABASE, GRANT, ni la lecture de `mysql.user`.
 --
@@ -416,9 +511,18 @@ CREATE TABLE IF NOT EXISTS `todos` (
 REVOKE ALL PRIVILEGES ON `disciplina`.* FROM 'disciplina_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES
     ON `disciplina`.* TO 'disciplina_app'@'%';
+-- Pas de REVOKE sur `disciplina_annemasse` : l'entrypoint de l'image ne grant
+-- que MYSQL_DATABASE (disciplina). La seconde base n'a donc jamais reçu de
+-- privilèges larges, le GRANT restreint ci-dessous suffit (idempotent).
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES
+    ON `disciplina_annemasse`.* TO 'disciplina_app'@'%';
 FLUSH PRIVILEGES;
 
 INSERT IGNORE INTO sector_settings (sector, location) VALUES
     ('Nord-Est', 'Disciplina Nord-Est — Sainte-Marie'),
     ('Ouest', 'Disciplina Ouest — Saint-Paul'),
     ('Sud', 'Disciplina Sud — Saint-Pierre');
+
+-- Copie secteur Annemasse : doit suivre le seed disciplina ci-dessus.
+INSERT IGNORE INTO disciplina_annemasse.sector_settings (sector, location)
+    SELECT sector, location FROM disciplina.sector_settings;
