@@ -48,6 +48,7 @@ router.get('/:signature/match/completion', externalRateLimiter, requireExternalG
 router.get('/:signature/interview/slots', externalRateLimiter, requireExternalGuest, requireInterviewReference, getInterviewSlots);
 router.post('/:signature/interview/book', externalRateLimiter, requireExternalGuest, requireInterviewReference, bookInterviewSlot);
 
+router.post('/cv-import/send', externalRateLimiter, authenticateStaff, sendCvImportMail);
 router.post(
     '/:signature/cv-upload',
     express.raw({ type: ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'], limit: '20mb' }),
