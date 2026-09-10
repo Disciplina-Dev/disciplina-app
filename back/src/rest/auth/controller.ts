@@ -5,6 +5,7 @@ import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
+import { syncWithRegion, getRegion } from '../../db/tenant';
 import { toUserResponse, toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { sanitizeSectors } from '../../utils/sector';
 import { isValidEmail } from '../../services/validation';
@@ -255,7 +256,7 @@ export async function generateGoogleUri(req: AuthRequest, res: Response): Promis
     try {
         const targetUserId =
             req.body?.userId && req.user.permission === Permission.ADMIN ? req.body.userId : req.user.id;
-        const state = signGoogleState(targetUserId);
+        const state = signGoogleState(targetUserId, getRegion());
         const url = googleOAuth.generateAuthUrl(state);
         res.json({ url });
     } catch (error: any) {
@@ -299,10 +300,18 @@ export async function handleGoogleToken(req: AuthRequest, res: Response): Promis
             res.status(400).json({ error: 'Invalid state parameter' });
             return;
         }
-        const tokens = await googleOAuth.exchangeCode(code);
-        await userService.updateGoogleTokens(result.userId, tokens.access_token ?? null, tokens.refresh_token ?? null);
-        const user = await userService.findById(result.userId);
-        res.json(user ? toUserResponse(user) : null);
+        // Route non authentifiée (pas de JWT) → la région ne peut venir que du state.
+        // On la re-établit dans l'ALS pour que l'écriture des tokens cible la bonne base.
+        await syncWithRegion(result.region, async () => {
+            const tokens = await googleOAuth.exchangeCode(code);
+            await userService.updateGoogleTokens(
+                result.userId,
+                tokens.access_token ?? null,
+                tokens.refresh_token ?? null,
+            );
+            const user = await userService.findById(result.userId);
+            res.json(user ? toUserResponse(user) : null);
+        });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
