@@ -1,12 +1,14 @@
 import express, { Router, Request, Response } from 'express';
 import { logger } from '../../external/logger';
 import { getModels } from '../../db/mongo/tenant';
+import { getRegion, runForAllRegions, syncWithRegion } from '../../db/tenant';
 import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
 import { env } from '../../config/env';
 import { authenticateStaffStream } from '../middleware/sseAuth';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
 import { addClient, removeClient, notifyCandidate } from './sse';
+import { sseKey } from '../shared/sseChannel';
 import { PdfService } from '../../services/PdfService';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
@@ -104,6 +106,12 @@ router.post(
         // Process fully — including the best-effort PDF upload — BEFORE sending
         // the response so the async work actually completes. Always answer 200
         // to avoid ClassMarker retry-storms.
+        // Le webhook n'a pas de JWT : on itère les deux bases régionales pour
+        // trouver le candidat (l'ObjectId n'existe que dans UNE des deux), puis
+        // on traite dans la région trouvée sous ALS — le push SSE et l'upload
+        // Drive repartent alors vers la bonne base et la bonne clé de canal.
+        let updated: any = null;
+        let handled = false;
         try {
             const body = req.body ?? {};
             const { payload_status, result, test, questions } = body;
@@ -141,35 +149,47 @@ router.post(
                 questions: Array.isArray(questions) ? questions : undefined,
             };
 
-            const updated = await getModels().Candidate.findByIdAndUpdate(
-                candidateId,
-                { $set: { classmarker: data }, $push: { classmarker_history: data } },
-                { returnDocument: 'after' },
-            );
+            await runForAllRegions(async () => {
+                if (handled) return;
+                try {
+                    const candidate = await getModels().Candidate.findByIdAndUpdate(
+                        candidateId,
+                        { $set: { classmarker: data }, $push: { classmarker_history: data } },
+                        { returnDocument: 'after' },
+                    );
+                    if (!candidate) return;
+                    handled = true;
+                    updated = candidate;
+                    logger.info(
+                        { candidateId, region: getRegion(), percentage: data.percentage, passed: data.passed },
+                        'ClassMarker result saved to DB',
+                    );
+
+                    notifyCandidate(candidateId, {
+                        percentage: data.percentage,
+                        passed: data.passed,
+                        test_name: data.test_name ?? null,
+                        completed_at: typeof result.time_finished === 'number' ? result.time_finished : null,
+                        points_scored: data.points_scored,
+                        points_available: data.points_available,
+                        duration: data.duration ?? null,
+                    });
+
+                    try {
+                        await uploadResultPdf(candidate.toObject() as Candidate);
+                    } catch (pdfErr) {
+                        logger.error({ err: pdfErr }, 'ClassMarker result PDF generation/upload failed');
+                    }
+                } catch (err) {
+                    if (handled) throw err;
+                    logger.error({ err, region: getRegion() }, 'ClassMarker webhook handling failed');
+                }
+            });
+
             if (!updated) {
                 logger.warn({ candidateId }, 'ClassMarker webhook: candidate not found');
                 res.status(200).json({ received: true });
                 return;
-            }
-            logger.info(
-                { candidateId, percentage: data.percentage, passed: data.passed },
-                'ClassMarker result saved to DB',
-            );
-
-            notifyCandidate(candidateId, {
-                percentage: data.percentage,
-                passed: data.passed,
-                test_name: data.test_name ?? null,
-                completed_at: typeof result.time_finished === 'number' ? result.time_finished : null,
-                points_scored: data.points_scored,
-                points_available: data.points_available,
-                duration: data.duration ?? null,
-            });
-
-            try {
-                await uploadResultPdf(updated.toObject() as Candidate);
-            } catch (pdfErr) {
-                logger.error({ err: pdfErr }, 'ClassMarker result PDF generation/upload failed');
             }
 
             res.status(200).json({ received: true });
@@ -182,32 +202,35 @@ router.post(
 
 // Un staff observe le flux d'un candidat : candidateId reste un paramètre, le token est exigé.
 router.get('/classmarker/stream', (req: AuthRequest, res: Response) => {
-    if (!authenticateStaffStream(req, res)) return;
+    const staff = authenticateStaffStream(req, res);
+    if (!staff) return;
     const candidateId = typeof req.query.candidateId === 'string' ? req.query.candidateId : '';
     if (!candidateId) {
         res.status(400).end();
         return;
     }
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-    res.write(': connected\n\n');
+    syncWithRegion(staff.region, () => {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+        res.write(': connected\n\n');
 
-    addClient(candidateId, res);
-    const heartbeat = setInterval(() => {
-        try {
-            res.write(': ping\n\n');
-        } catch {
-            /* ignore */
-        }
-    }, 30000);
+        addClient(sseKey(staff.region, candidateId), res);
+        const heartbeat = setInterval(() => {
+            try {
+                res.write(': ping\n\n');
+            } catch {
+                /* ignore */
+            }
+        }, 30000);
 
-    req.on('close', () => {
-        clearInterval(heartbeat);
-        removeClient(candidateId, res);
+        req.on('close', () => {
+            clearInterval(heartbeat);
+            removeClient(sseKey(staff.region, candidateId), res);
+        });
     });
 });
 

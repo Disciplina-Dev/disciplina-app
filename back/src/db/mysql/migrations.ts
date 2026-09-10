@@ -167,7 +167,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         // signature 128 chars (512 bits) + code 6 chiffres optionnel.
         table: 'external_access',
         ddl: `CREATE TABLE IF NOT EXISTS external_access (
-            signature CHAR(128) PRIMARY KEY,
+            signature VARCHAR(191) PRIMARY KEY,
             code CHAR(6) NULL,
             user_id INT NOT NULL,
             external_id VARCHAR(64) NOT NULL,
@@ -361,6 +361,17 @@ export async function runMysqlMigrations(dbQuery: QueryFn = queryDefault): Promi
     await dbQuery(
         "INSERT IGNORE INTO external_references (id, name) VALUES (1, 'IMPORT_CV'), (2, 'MATCHING'), (3, 'INTERVIEW_SLOTS')",
     );
+
+    // Suffixe région sur les signatures de liens externes (`<sig>:<region>`) :
+    // élargit char(128) → varchar(191) pour les bases existantes (init.sql ne
+    // tourne que sur un volume neuf). Table external_link dépréciée : non concernée.
+    const sigCol = await dbQuery<{ COLUMN_TYPE: string }[]>(
+        "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'external_access' AND COLUMN_NAME = 'signature'",
+    );
+    if (sigCol[0] && sigCol[0].COLUMN_TYPE === 'char(128)') {
+        await dbQuery('ALTER TABLE external_access MODIFY COLUMN signature VARCHAR(191) NOT NULL');
+        logger.info('MySQL migration: widened external_access.signature to VARCHAR(191)');
+    }
 
     for (const { table, column, definition } of REQUIRED_COLUMNS) {
         const rows = await dbQuery<{ count: number }[]>(

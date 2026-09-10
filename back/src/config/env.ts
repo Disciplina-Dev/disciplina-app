@@ -19,6 +19,16 @@ const INSECURE_DEFAULTS = new Set([
 
 const errors: string[] = [];
 
+// Les deux clés drillent aes-256-gcm : 32 octets exacts en hex (64 chars).
+// Une clé trop courte fait échouer createCipheriv au moment du chiffrement
+// (500 sournois, ex. google.test.ts en CI), autant l'attraper au boot.
+function assertAes256HexKey(key: string, name: string): void {
+    if (!key) return;
+    if (!/^[0-9a-fA-F]{64}$/.test(key) || Buffer.from(key, 'hex').length !== 32) {
+        errors.push(`${name} must be a 64-char hex string (32 bytes for aes-256-gcm)`);
+    }
+}
+
 function requireString(key: string): string {
     const raw = process.env[key];
     if (raw === undefined || raw === '') {
@@ -218,6 +228,9 @@ const VALID_NODE_ENVS = ['development', 'production', 'test'] as const;
 if (!VALID_NODE_ENVS.includes(data.NODE_ENV)) {
     errors.push(`NODE_ENV must be one of: ${VALID_NODE_ENVS.join(', ')} (got "${process.env.NODE_ENV}")`);
 }
+
+assertAes256HexKey(data.OAUTH_ENCRYPTION_KEY, 'OAUTH_ENCRYPTION_KEY');
+assertAes256HexKey(data.SSN_ENCRYPTION_KEY, 'SSN_ENCRYPTION_KEY');
 
 if (errors.length > 0) {
     console.error('Invalid environment variables:');

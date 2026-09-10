@@ -222,7 +222,7 @@ INSERT IGNORE INTO `external_references` (`id`, `name`) VALUES
   (3, 'INTERVIEW_SLOTS');
 
 CREATE TABLE IF NOT EXISTS `external_access` (
-  `signature`      char(128)    NOT NULL,
+  `signature`      varchar(191) NOT NULL,
   `code`           char(6)      NULL,
   `user_id`        int          NOT NULL,
   `external_id`    varchar(64)  NOT NULL,
@@ -283,7 +283,7 @@ CREATE TABLE IF NOT EXISTS `match_link` (
 
 CREATE TABLE IF NOT EXISTS `external_link` (
   `id`             int           NOT NULL AUTO_INCREMENT,
-  `signature`      char(128)    NOT NULL,
+  `signature`      char(128)     NOT NULL,
   `code`           char(6)      NOT NULL,
   `external_email` varchar(255) NOT NULL,
   `rh_email`       varchar(255) NOT NULL,
