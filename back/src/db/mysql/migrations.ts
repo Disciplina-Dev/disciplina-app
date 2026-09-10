@@ -1,5 +1,7 @@
-import { query } from './connection';
+import { query as queryDefault } from './connection';
 import { logger } from '../../external/logger';
+
+type QueryFn = <T>(sql: string, params?: unknown[]) => Promise<T>;
 
 interface ColumnSpec {
     table: string;
@@ -340,14 +342,14 @@ const SECTOR_SETTINGS_DEFAULTS: { sector: string; location: string }[] = [
     { sector: 'Sud', location: 'Disciplina Sud — Saint-Pierre' },
 ];
 
-export async function runMysqlMigrations(): Promise<void> {
+export async function runMysqlMigrations(dbQuery: QueryFn = queryDefault): Promise<void> {
     for (const { table, ddl } of REQUIRED_TABLES) {
-        const rows = await query<{ count: number }[]>(
+        const rows = await dbQuery<{ count: number }[]>(
             'SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
             [table],
         );
         if (Number(rows[0]?.count) > 0) continue;
-        await query(ddl);
+        await dbQuery(ddl);
         logger.info(`MySQL migration: created table ${table}`);
     }
 
@@ -356,40 +358,40 @@ export async function runMysqlMigrations(): Promise<void> {
     // un volume neuf : sur une base existante la table était créée vide et tout
     // INSERT dans external_access violait fk_ext_access_reference. INSERT IGNORE,
     // donc inconditionnel et idempotent.
-    await query(
+    await dbQuery(
         "INSERT IGNORE INTO external_references (id, name) VALUES (1, 'IMPORT_CV'), (2, 'MATCHING'), (3, 'INTERVIEW_SLOTS')",
     );
 
     for (const { table, column, definition } of REQUIRED_COLUMNS) {
-        const rows = await query<{ count: number }[]>(
+        const rows = await dbQuery<{ count: number }[]>(
             'SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
             [table, column],
         );
         if (Number(rows[0]?.count) > 0) continue;
 
         // Identifiers come from the hardcoded list above, never from user input
-        await query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+        await dbQuery(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
         logger.info(`MySQL migration: added column ${table}.${column}`);
     }
 
     // Index sur la colonne générée siren (déclaré dans mysql-init.sql) : il doit
     // suivre la colonne backfillée ci-dessus sur les bases existantes.
-    const sirenIndex = await query<{ count: number }[]>(
+    const sirenIndex = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'companies' AND INDEX_NAME = 'idx_companies_siren'",
     );
     if (Number(sirenIndex[0]?.count) === 0) {
-        await query('CREATE INDEX idx_companies_siren ON companies (siren)');
+        await dbQuery('CREATE INDEX idx_companies_siren ON companies (siren)');
         logger.info('MySQL migration: created index idx_companies_siren');
     }
 
 
     // Rôle PEDA (2026-07-08) : élargit l'ENUM users.role. mysql-init.sql ne
     // tourne que sur un volume neuf, les bases existantes sont migrées ici.
-    const roleColumn = await query<{ COLUMN_TYPE: string }[]>(
+    const roleColumn = await dbQuery<{ COLUMN_TYPE: string }[]>(
         "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'",
     );
     if (roleColumn[0] && !roleColumn[0].COLUMN_TYPE.includes('PEDA')) {
-        await query(
+        await dbQuery(
             "ALTER TABLE users MODIFY COLUMN role ENUM('ADMIN', 'RESPONSABLE', 'COMMERCIAL', 'RH', 'PEDA') NOT NULL",
         );
         logger.info('MySQL migration: added PEDA to users.role enum');
@@ -398,20 +400,20 @@ export async function runMysqlMigrations(): Promise<void> {
     // Seed des lieux de RDV par secteur. INSERT IGNORE : ne réécrit pas une valeur
     // déjà personnalisée par l'admin, crée seulement les lignes manquantes.
     for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS) {
-        await query('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
+        await dbQuery('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
     }
 
     // Marqueur « fait passer les entretiens » (2026-07-09) : la liste « Entretien
     // fait par » de l'AB déborde le rôle RH. On ajoute la colonne et on coche la
     // liste initiale UNIQUEMENT à la création de la colonne, pour ne pas réécrire
     // les choix ultérieurs (un décochage en base doit survivre aux redéploiements).
-    const interviewerCol = await query<{ count: number }[]>(
+    const interviewerCol = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'is_interviewer'",
     );
     if (Number(interviewerCol[0]?.count) === 0) {
-        await query('ALTER TABLE users ADD COLUMN is_interviewer TINYINT(1) NOT NULL DEFAULT 0');
+        await dbQuery('ALTER TABLE users ADD COLUMN is_interviewer TINYINT(1) NOT NULL DEFAULT 0');
         const placeholders = INTERVIEWER_EMAILS.map(() => '?').join(', ');
-        await query(`UPDATE users SET is_interviewer = 1 WHERE email IN (${placeholders})`, INTERVIEWER_EMAILS);
+        await dbQuery(`UPDATE users SET is_interviewer = 1 WHERE email IN (${placeholders})`, INTERVIEWER_EMAILS);
         logger.info('MySQL migration: added users.is_interviewer and seeded the AB interviewer list');
     }
 
@@ -419,52 +421,52 @@ export async function runMysqlMigrations(): Promise<void> {
     // de la tâche ; assigned_by = l'utilisateur qui l'a créée/assignée (NULL pour
     // les todos SYSTEM). Les lignes existantes étaient toutes auto-assignées :
     // backfill assigned_by = user_id à la création de la colonne.
-    const assignedByCol = await query<{ count: number }[]>(
+    const assignedByCol = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND COLUMN_NAME = 'assigned_by'",
     );
     if (Number(assignedByCol[0]?.count) === 0) {
-        await query('ALTER TABLE todos ADD COLUMN assigned_by INT DEFAULT NULL AFTER user_id');
-        await query('UPDATE todos SET assigned_by = user_id WHERE assigned_by IS NULL');
-        await query('ALTER TABLE todos ADD KEY idx_todos_assigned_by (assigned_by)');
+        await dbQuery('ALTER TABLE todos ADD COLUMN assigned_by INT DEFAULT NULL AFTER user_id');
+        await dbQuery('UPDATE todos SET assigned_by = user_id WHERE assigned_by IS NULL');
+        await dbQuery('ALTER TABLE todos ADD KEY idx_todos_assigned_by (assigned_by)');
         logger.info('MySQL migration: added todos.assigned_by and backfilled it to user_id');
     }
 
     // Le FK ci-dessous refuserait des todos orphelins (assignataire supprimé hors
     // FOREIGN_KEY_CHECKS, cf. seed de dev) : purge préalable, idempotente. Étape
     // séparée du backfill pour survivre à une application partielle.
-    await query('DELETE t FROM todos t LEFT JOIN users u ON u.id = t.user_id WHERE u.id IS NULL');
+    await dbQuery('DELETE t FROM todos t LEFT JOIN users u ON u.id = t.user_id WHERE u.id IS NULL');
 
-    const assignedByFk = await query<{ count: number }[]>(
+    const assignedByFk = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND CONSTRAINT_NAME = 'fk_todos_assigned_by'",
     );
     if (Number(assignedByFk[0]?.count) === 0) {
-        await query(
+        await dbQuery(
             'ALTER TABLE todos ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE',
         );
         logger.info('MySQL migration: added todos FK fk_todos_assigned_by');
     }
 
     // Groupes de tâches : colonne group_id et table todo_groups (2026-08-21)
-    const groupIdCol = await query<{ count: number }[]>(
+    const groupIdCol = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND COLUMN_NAME = 'group_id'",
     );
     if (Number(groupIdCol[0]?.count) === 0) {
-        await query('ALTER TABLE todos ADD COLUMN group_id INT DEFAULT NULL AFTER assigned_by');
-        await query('ALTER TABLE todos ADD KEY idx_todos_group (group_id)');
+        await dbQuery('ALTER TABLE todos ADD COLUMN group_id INT DEFAULT NULL AFTER assigned_by');
+        await dbQuery('ALTER TABLE todos ADD KEY idx_todos_group (group_id)');
         logger.info('MySQL migration: added todos.group_id');
     }
 
-    const todoGroupsFk = await query<{ count: number }[]>(
+    const todoGroupsFk = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'todos' AND CONSTRAINT_NAME = 'fk_todos_group_id'",
     );
     if (Number(todoGroupsFk[0]?.count) === 0) {
         // Ensure orphan group_ids are cleared before adding FK (old rows created before groups existed)
-        await query(
+        await dbQuery(
             'UPDATE todos SET group_id = NULL WHERE group_id IS NOT NULL AND group_id NOT IN (SELECT id FROM todo_groups)',
         );
         // MySQL requires the column to be indexed for FK; already added above.
         try {
-            await query(
+            await dbQuery(
                 'ALTER TABLE todos ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES todo_groups(id) ON DELETE SET NULL ON UPDATE CASCADE',
             );
             logger.info('MySQL migration: added todos FK fk_todos_group_id');
@@ -478,29 +480,29 @@ export async function runMysqlMigrations(): Promise<void> {
     // RBAC : séparation rôles métier / permissions (2026-07-20). On crée les tables
     // de référence, on ajoute les FK à users, on migre les données existantes et
     // on supprime l'ancienne colonne role.
-    const permissionsTable = await query<{ count: number }[]>(
+    const permissionsTable = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'permissions'",
     );
     if (Number(permissionsTable[0]?.count) === 0) {
-        await query(`CREATE TABLE IF NOT EXISTS permissions (
+        await dbQuery(`CREATE TABLE IF NOT EXISTS permissions (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(50) NOT NULL UNIQUE
         )`);
-        await query(
+        await dbQuery(
             "INSERT IGNORE INTO permissions (id, name) VALUES (1, 'EMPLOYEE'), (2, 'RESPONSABLE'), (3, 'ADMIN')",
         );
         logger.info('MySQL migration: created permissions table');
     }
 
-    const rolesTable = await query<{ count: number }[]>(
+    const rolesTable = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'roles'",
     );
     if (Number(rolesTable[0]?.count) === 0) {
-        await query(`CREATE TABLE IF NOT EXISTS roles (
+        await dbQuery(`CREATE TABLE IF NOT EXISTS roles (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(50) NOT NULL UNIQUE
         )`);
-        await query(
+        await dbQuery(
             "INSERT IGNORE INTO roles (id, name) VALUES (1, 'COMMERCIAL'), (2, 'RH'), (3, 'PEDA'), (4, 'AD'), (5, 'GESTION')",
         );
         logger.info('MySQL migration: created roles table');
@@ -508,33 +510,33 @@ export async function runMysqlMigrations(): Promise<void> {
 
     // Permission guest (2026-08-27) : niveau 0, aucun accès staff. Ajout
     // idempotent pour les bases où la table permissions existe déjà.
-    await query("INSERT IGNORE INTO permissions (id, name) VALUES (4, 'GUEST')");
+    await dbQuery("INSERT IGNORE INTO permissions (id, name) VALUES (4, 'GUEST')");
 
     // Rôle guest JWT (2026-08-27) : identifie les sessions externes signées.
-    await query("INSERT IGNORE INTO roles (id, name) VALUES (6, 'EXTERNAL_GUEST')");
+    await dbQuery("INSERT IGNORE INTO roles (id, name) VALUES (6, 'EXTERNAL_GUEST')");
 
     // Ajout des colonnes role_id / permission_id si absentes.
-    const roleIdCol = await query<{ count: number }[]>(
+    const roleIdCol = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role_id'",
     );
     if (Number(roleIdCol[0]?.count) === 0) {
         // Ajouter les colonnes (d'abord NULL pour la migration)
-        await query('ALTER TABLE users ADD COLUMN role_id INT DEFAULT NULL AFTER password');
-        await query('ALTER TABLE users ADD COLUMN permission_id INT DEFAULT NULL AFTER role_id');
+        await dbQuery('ALTER TABLE users ADD COLUMN role_id INT DEFAULT NULL AFTER password');
+        await dbQuery('ALTER TABLE users ADD COLUMN permission_id INT DEFAULT NULL AFTER role_id');
 
         // Migration des anciennes valeurs role → role_id / permission_id
         // ADMIN → GESTION (5) + ADMIN (3)
-        await query("UPDATE users SET role_id = 5, permission_id = 3 WHERE role = 'ADMIN'");
+        await dbQuery("UPDATE users SET role_id = 5, permission_id = 3 WHERE role = 'ADMIN'");
         // COMMERCIAL → COMMERCIAL (1) + EMPLOYEE (1)
-        await query("UPDATE users SET role_id = 1, permission_id = 1 WHERE role = 'COMMERCIAL'");
+        await dbQuery("UPDATE users SET role_id = 1, permission_id = 1 WHERE role = 'COMMERCIAL'");
         // RH → RH (2) + EMPLOYEE (1)
-        await query("UPDATE users SET role_id = 2, permission_id = 1 WHERE role = 'RH'");
+        await dbQuery("UPDATE users SET role_id = 2, permission_id = 1 WHERE role = 'RH'");
         // PEDA → PEDA (3) + EMPLOYEE (1)
-        await query("UPDATE users SET role_id = 3, permission_id = 1 WHERE role = 'PEDA'");
+        await dbQuery("UPDATE users SET role_id = 3, permission_id = 1 WHERE role = 'PEDA'");
         // RESPONSABLE → COMMERCIAL (1) par défaut + RESPONSABLE (2)
         // Ces utilisateurs doivent être revus manuellement pour leur rôle métier.
-        await query("UPDATE users SET role_id = 1, permission_id = 2 WHERE role = 'RESPONSABLE'");
-        const responsibleUsers = await query<{ id: number; email: string }[]>(
+        await dbQuery("UPDATE users SET role_id = 1, permission_id = 2 WHERE role = 'RESPONSABLE'");
+        const responsibleUsers = await dbQuery<{ id: number; email: string }[]>(
             "SELECT id, email FROM users WHERE role = 'RESPONSABLE'",
         );
         if (responsibleUsers.length > 0) {
@@ -545,29 +547,29 @@ export async function runMysqlMigrations(): Promise<void> {
         }
 
         // Passage en NOT NULL
-        await query('ALTER TABLE users MODIFY COLUMN role_id INT NOT NULL');
-        await query('ALTER TABLE users MODIFY COLUMN permission_id INT NOT NULL');
+        await dbQuery('ALTER TABLE users MODIFY COLUMN role_id INT NOT NULL');
+        await dbQuery('ALTER TABLE users MODIFY COLUMN permission_id INT NOT NULL');
 
         // Ajout des FK
-        await query(
+        await dbQuery(
             'ALTER TABLE users ADD CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id) ON UPDATE CASCADE',
         );
-        await query(
+        await dbQuery(
             'ALTER TABLE users ADD CONSTRAINT fk_users_permission_id FOREIGN KEY (permission_id) REFERENCES permissions(id) ON UPDATE CASCADE',
         );
 
         // Création des index
-        await query('CREATE INDEX idx_users_role_id ON users (role_id)');
-        await query('CREATE INDEX idx_users_permission_id ON users (permission_id)');
+        await dbQuery('CREATE INDEX idx_users_role_id ON users (role_id)');
+        await dbQuery('CREATE INDEX idx_users_permission_id ON users (permission_id)');
 
         // Suppression de l'ancienne colonne role
-        const oldRoleCol = await query<{ count: number }[]>(
+        const oldRoleCol = await dbQuery<{ count: number }[]>(
             "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'",
         );
         if (Number(oldRoleCol[0]?.count) > 0) {
             // En production (TiDB) on ne peut pas DROP COLUMN avec des FK qui
             // référencent la table ; on cascade d'abord les FK existantes.
-            await query('ALTER TABLE users DROP COLUMN role');
+            await dbQuery('ALTER TABLE users DROP COLUMN role');
             logger.info('MySQL migration: dropped users.role, replaced by role_id + permission_id FK');
         }
 

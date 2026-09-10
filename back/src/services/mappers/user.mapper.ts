@@ -1,5 +1,7 @@
 import { UserRowJoined } from '../../types/db-rows.types';
 import { User, JobRole, Permission, UserResponse, DirectoryEntry } from '../../types/user.types';
+import { getRegion } from '../../db/tenant';
+import type { Region } from '../../types/tenant';
 
 /**
  * Map des id → noms pour les rôles et permissions.
@@ -53,7 +55,7 @@ export function toUser(row: UserRowJoined): User {
     };
 }
 
-export function toUserResponse(user: User): UserResponse {
+export function toUserResponse(user: User, region: Region = getRegion()): UserResponse {
     return {
         id: user.id,
         email: user.email,
@@ -63,6 +65,7 @@ export function toUserResponse(user: User): UserResponse {
         permission: user.permission,
         sectors: user.sectors,
         googleConnected: Boolean(user.oauthToken),
+        region,
     };
 }
 

@@ -3,7 +3,7 @@ import { CandidateRepository, CandidateFilters, CandidateSearchField, CandidateS
 import { Candidate, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
-import { NeedsAnalysisModel } from '../db/mongo/schemas/needsAnalysis.schema';
+import { getModels } from '../db/mongo/tenant';
 import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
@@ -253,7 +253,7 @@ export class CandidateService {
         const [allOffers, assignedOffers, inactiveIds] = await Promise.all([
             this.offerRepository.listMatchingOffers(),
             this.offerRepository.findWithCandidate(id),
-            NeedsAnalysisModel.distinct('_id', { $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }] }),
+            getModels().NeedsAnalysis.distinct('_id', { $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }] }),
         ]);
 
         const inactiveSet = new Set<string>(inactiveIds.map(String));

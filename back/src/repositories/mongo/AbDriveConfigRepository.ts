@@ -1,4 +1,5 @@
-import { AbDriveConfigModel, AB_DRIVE_CONFIG_ID } from '../../db/mongo/schemas/abDriveConfig.schema';
+import { AB_DRIVE_CONFIG_ID } from '../../db/mongo/schemas/abDriveConfig.schema';
+import { getModels } from '../../db/mongo/tenant';
 
 export interface AbDriveConfig {
     sectorFolders: Record<string, string>;
@@ -14,12 +15,12 @@ function toConfig(doc: any): AbDriveConfig {
 
 export class AbDriveConfigRepository {
     async get(): Promise<AbDriveConfig> {
-        const doc = await AbDriveConfigModel.findById(AB_DRIVE_CONFIG_ID).lean();
+        const doc = await getModels().AbDriveConfig.findById(AB_DRIVE_CONFIG_ID).lean();
         return toConfig(doc);
     }
 
     async save(config: AbDriveConfig): Promise<AbDriveConfig> {
-        const doc = await AbDriveConfigModel.findByIdAndUpdate(
+        const doc = await getModels().AbDriveConfig.findByIdAndUpdate(
             AB_DRIVE_CONFIG_ID,
             {
                 _id: AB_DRIVE_CONFIG_ID,

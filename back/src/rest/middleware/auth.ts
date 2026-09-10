@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { JobRole } from '../../types/user.types';
 import { ACCESS_TOKEN_COOKIE, verifyAccessToken } from './tokenAuth';
 import { isCsrfValid, rejectCsrf } from './csrf';
+import { env } from '../../config/env';
+import { syncWithRegion } from '../../db/tenant';
+import { isRegion } from '../../types/tenant';
 
 export interface AuthRequest extends Request {
     user?: any;
@@ -30,5 +33,5 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
         return;
     }
     req.user = payload;
-    next();
+    syncWithRegion(isRegion(payload.region) ? payload.region : env.DB_DEFAULT_TENANT, () => next());
 }

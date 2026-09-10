@@ -4,8 +4,8 @@ import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from './graphql/server';
 import { expressMiddleware } from '@as-integrations/express4';
-import { jwtContext } from './graphql/context';
-import { connectMySQL } from './db/mysql/connection';
+import { jwtContext, graphqlRegionMiddleware } from './graphql/context';
+import { connectMySQL, getPool } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
 import { connectMongoDB } from './db/mongo/connection';
 import { migrateLegacyKpiTables } from './db/mongo/legacyKpiImport';
@@ -138,6 +138,12 @@ export async function createApp(): Promise<express.Express> {
 
     await connectMySQL();
     await runMysqlMigrations();
+    // Les migrations tournent aussi sur la base annemasse : même schéma, même
+    // exigence de colonnes. getPool('annemasse') est hors ALS (boot, pas requête).
+    await runMysqlMigrations(async <T>(sql: string, params?: unknown[]): Promise<T> => {
+        const [rows] = await getPool('annemasse').execute(sql as string, params as (string | number)[]);
+        return rows as T;
+    });
     await connectMongoDB();
 
     // Ex-tables commercial_kpi / rh_kpi (#513) : import vers Mongo `kpis` puis
@@ -169,6 +175,7 @@ export async function createApp(): Promise<express.Express> {
     // charge, d'où l'express.json() ci-dessous.
     await CompanyAPI.start();
     app.use('/api/graphql', express.json());
+    app.use('/api/graphql', graphqlRegionMiddleware);
     app.use('/api/graphql/companies', expressMiddleware(CompanyAPI, { context: jwtContext }));
 
     await CandidateAPI.start();
