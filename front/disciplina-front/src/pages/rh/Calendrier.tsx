@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Layers, Loader2, AlertCircle, CalendarDays,
   MapPin, Video, Plus, Trash2, X, Pencil, LinkIcon, Share2, Copy, Check,
-  Mail, UserCheck, UserX, User as UserIcon,
+  Mail, UserCheck, UserX, User as UserIcon, Search, Settings,
 } from 'lucide-react'
 import {
   fetchMyBookingSettings, updateMyBookingSettings, bookingPublicUrl,
@@ -171,6 +171,17 @@ export default function Calendrier() {
   const [createFromEvent, setCreateFromEvent] = useState<CalendarEvent | null>(null)
   const navigate = useNavigate()
 
+  // Recherche par email invité : highlight + quick-select.
+  const [emailQuery, setEmailQuery] = useState('')
+  const [showMatches, setShowMatches] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  type SearchScope = 'week' | 'month' | 'year'
+  const [searchScope, setSearchScope] = useState<SearchScope>('month')
+  const [showScopeMenu, setShowScopeMenu] = useState(false)
+  const [searchEvents, setSearchEvents] = useState<OwnedEvent[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchFetched, setSearchFetched] = useState(false)
+
   // Multi-agendas : liste des RH/responsables + ceux affichés.
   const [users, setUsers] = useState<CalendarUser[]>([])
   const [visible, setVisible] = useState<Set<number>>(new Set())
@@ -267,6 +278,86 @@ export default function Calendrier() {
     setCursor((c) => (view === 'month' ? new Date(c.getFullYear(), c.getMonth() + delta, 1) : addDays(c, delta * 7)))
   const goToday = () => setCursor(today)
 
+  // Fermeture du dropdown quick-select / menu portée au clic hors champ.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowMatches(false)
+        setShowScopeMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const searchRange = useMemo(() => {
+    if (searchScope === 'week') {
+      const week = buildWeek(cursor)
+      const max = new Date(week[6]); max.setHours(23, 59, 59, 999)
+      return { min: week[0], max }
+    }
+    if (searchScope === 'month') {
+      const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1); start.setHours(0, 0, 0, 0)
+      const end = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0); end.setHours(23, 59, 59, 999)
+      return { min: start, max: end }
+    }
+    const start = new Date(cursor.getFullYear(), 0, 1); start.setHours(0, 0, 0, 0)
+    const end = new Date(cursor.getFullYear(), 11, 31); end.setHours(23, 59, 59, 999)
+    return { min: start, max: end }
+  }, [cursor, searchScope])
+
+  const normalizedQuery = emailQuery.trim().toLowerCase()
+
+  // Recherche étendue : fetch sur la portée configurée (week/month/year) dès qu'une requête est saisie.
+  useEffect(() => {
+    if (!normalizedQuery) { setSearchEvents([]); setSearchLoading(false); setSearchFetched(false); return }
+    const ids = visibleKey ? visibleKey.split(',').map(Number).filter(Boolean) : []
+    if (ids.length === 0) { setSearchEvents([]); setSearchFetched(true); return }
+    let cancelled = false
+    setSearchLoading(true)
+    setSearchFetched(false)
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const perUser = await Promise.all(
+            ids.map(async (id) => {
+              try {
+                const evs = await fetchCalendarEvents(searchRange.min, searchRange.max, id === selfId ? undefined : id)
+                return evs.map((e) => ({ ...e, ownerId: id }))
+              } catch {
+                return []
+              }
+            }),
+          )
+          if (!cancelled) { setSearchEvents(perUser.flat()); setSearchLoading(false); setSearchFetched(true) }
+        } catch {
+          if (!cancelled) { setSearchLoading(false); setSearchFetched(true) }
+        }
+      })()
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [normalizedQuery, searchRange.min, searchRange.max, visibleKey, selfId])
+
+  const matchedEvents = useMemo(() => {
+    if (!normalizedQuery) return []
+    const source = searchFetched ? searchEvents : events
+    return [...source]
+      .filter((e) => (e.attendeeEmail ?? '').toLowerCase().includes(normalizedQuery))
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  }, [events, searchEvents, searchFetched, normalizedQuery])
+  // Highlight only entries currently visible in the calendar grid.
+  const matchedIds = useMemo(() => {
+    if (!normalizedQuery) return new Set<string>()
+    // If search scope matches current view range (or superset), highlight via filtered source intersect.
+    // Simpler: highlight ids that exist in matchedEvents (non-visible ids won't be rendered anyway).
+    return new Set(matchedEvents.map((e) => e.id))
+  }, [matchedEvents, normalizedQuery])
+  const jumpToEvent = (ev: OwnedEvent) => {
+    setCursor(startOfDay(new Date(ev.start)))
+    setDetail(ev)
+    setShowMatches(false)
+  }
+
   const headerLabel = view === 'month'
     ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`
     : (() => {
@@ -351,6 +442,94 @@ export default function Calendrier() {
               </button>
             </div>
           )}
+          {/* Recherche par email invité */}
+          <div ref={searchRef} className="relative w-full max-w-sm self-start">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-2 focus-within:border-purple">
+              <Search size={16} className="flex-shrink-0 text-gray-400" />
+              <input
+                value={emailQuery}
+                onChange={(e) => { setEmailQuery(e.target.value); setShowMatches(true) }}
+                onFocus={() => { if (normalizedQuery) setShowMatches(true) }}
+                placeholder="Rechercher par email invité…"
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-gray-400"
+                aria-label="Rechercher par email"
+              />
+              {emailQuery && (
+                <button
+                  onClick={() => { setEmailQuery(''); setShowMatches(false) }}
+                  className="rounded p-0.5 text-gray-400 hover:text-gray-600"
+                  aria-label="Effacer la recherche"
+                >
+                  <X size={14} />
+                </button>
+              )}
+              {normalizedQuery && !searchLoading && matchedEvents.length > 0 && (
+                <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                  {matchedEvents.length}
+                </span>
+              )}
+              {searchLoading && normalizedQuery && (
+                <Loader2 size={14} className="flex-shrink-0 animate-spin text-gray-400" />
+              )}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => setShowScopeMenu((v) => !v)}
+                  className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-bold text-gray-600 hover:bg-gray-50"
+                  aria-label="Configurer la portée de recherche"
+                  title="Portée de recherche"
+                >
+                  <Settings size={12} />
+                  <span className="hidden sm:inline">{searchScope === 'week' ? 'Semaine' : searchScope === 'month' ? 'Mois' : 'Année'}</span>
+                  <ChevronDown size={12} className={`transition-transform ${showScopeMenu ? 'rotate-180' : ''}`} />
+                </button>
+                {showScopeMenu && (
+                  <div className="absolute right-0 z-40 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
+                    <p className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Portée</p>
+                    {(['week', 'month', 'year'] as const).map((scope) => (
+                      <button
+                        key={scope}
+                        onClick={() => { setSearchScope(scope); setShowScopeMenu(false); if (normalizedQuery) setShowMatches(true) }}
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold ${searchScope === scope ? 'bg-purple text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                      >
+                        {scope === 'week' ? 'Semaine' : scope === 'month' ? 'Mois' : 'Année'}
+                        {searchScope === scope && <Check size={14} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {showMatches && normalizedQuery && (
+              <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                {searchLoading ? (
+                  <div className="flex items-center justify-center gap-2 px-4 py-6 text-[13px] text-gray-400">
+                    <Loader2 size={16} className="animate-spin" /> Recherche…
+                  </div>
+                ) : matchedEvents.length === 0 ? (
+                  <p className="px-4 py-3 text-[13px] text-gray-400">Aucun résultat sur {searchScope === 'week' ? 'la semaine' : searchScope === 'month' ? 'le mois' : "l'année"}</p>
+                ) : (
+                  matchedEvents.map((e) => {
+                    const start = new Date(e.start)
+                    const owner = users.find((u) => u.id === e.ownerId)
+                    const ownerLabel = owner ? `${owner.firstName} ${owner.lastName}`.trim() : `Agenda #${e.ownerId}`
+                    return (
+                      <button
+                        key={`${e.ownerId}-${e.id}`}
+                        onClick={() => jumpToEvent(e)}
+                        className="flex w-full flex-col gap-0.5 border-b border-gray-50 px-4 py-2.5 text-left last:border-0 hover:bg-amber-50"
+                      >
+                        <span className="truncate text-[13px] font-semibold text-gray-800">{e.summary}</span>
+                        <span className="truncate text-[12px] text-gray-500">
+                          {e.attendeeEmail} • {start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} {formatTime(e.start)} – {formatTime(e.end)}
+                        </span>
+                        <span className="text-[11px] text-gray-400">{ownerLabel}</span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex min-h-0 flex-1 gap-4">
           <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} onToggleGroup={toggleGroup} />
           <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white">
@@ -360,8 +539,8 @@ export default function Calendrier() {
               </div>
             )}
             {view === 'month'
-              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} selfId={selfId} />
-              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} selfId={selfId} />}
+              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} selfId={selfId} highlightedIds={matchedIds} />
+              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} selfId={selfId} highlightedIds={matchedIds} />}
           </div>
           </div>
         </div>
@@ -722,9 +901,9 @@ function Field({ label, className, children }: { label: string; className?: stri
   )
 }
 
-function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId }: {
+function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId, highlightedIds }: {
   cells: Date[]; cursorMonth: number; today: Date; selfId: number
-  eventsByDay: Map<string, OwnedEvent[]>; onEvent: (e: OwnedEvent) => void
+  eventsByDay: Map<string, OwnedEvent[]>; onEvent: (e: OwnedEvent) => void; highlightedIds?: Set<string>
 }) {
   return (
     <>
@@ -746,10 +925,11 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId }: 
               <div className="flex flex-col gap-1 overflow-hidden">
                 {dayEvents.slice(0, 3).map((e) => {
                   const hex = displayHex(e, selfId)
+                  const isHighlighted = highlightedIds?.has(e.id) ?? false
                   return (
                     <button key={e.id} onClick={() => onEvent(e)} title={e.summary}
-                      className="flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-left text-[11px] font-semibold transition-opacity hover:opacity-80"
-                      style={{ backgroundColor: `${hex}22`, color: hex }}>
+                      className={`flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-left text-[11px] font-semibold transition-opacity hover:opacity-80 ${isHighlighted ? 'ring-2 ring-amber-400 ring-offset-1 shadow-sm' : ''}`}
+                      style={{ backgroundColor: isHighlighted ? `${hex}33` : `${hex}22`, color: hex, ...(isHighlighted ? { boxShadow: '0 0 0 1px #f59e0b' } : {}) }}>
                       <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: hex }} />
                       {!e.allDay && <span className="font-bold opacity-70">{formatTime(e.start)}</span>}
                       <span className="truncate">{e.summary}</span>
@@ -766,9 +946,9 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId }: 
   )
 }
 
-function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
+function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlightedIds }: {
   days: Date[]; today: Date; eventsByDay: Map<string, OwnedEvent[]>; selfId: number
-  onEvent: (e: OwnedEvent) => void; onSlot: (start: Date) => void
+  onEvent: (e: OwnedEvent) => void; onSlot: (start: Date) => void; highlightedIds?: Set<string>
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 7.5 * HOUR_PX }, [])
@@ -819,10 +999,11 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
                   const hex = displayHex(event, selfId)
                   const width = `calc(${100 / cols}% - 4px)`
                   const left = `calc(${(100 / cols) * col}% + 2px)`
+                  const isHighlighted = highlightedIds?.has(event.id) ?? false
                   return (
                     <button key={event.id} onClick={(e) => { e.stopPropagation(); onEvent(event) }}
-                      className="absolute overflow-hidden rounded-md px-1.5 py-1 text-left transition-opacity hover:opacity-90"
-                      style={{ top, height, width, left, backgroundColor: `${hex}26`, borderLeft: `3px solid ${hex}` }}>
+                      className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-left transition-opacity hover:opacity-90 ${isHighlighted ? 'z-10 ring-2 ring-amber-400 ring-offset-0 shadow-md' : ''}`}
+                      style={{ top, height, width, left, backgroundColor: isHighlighted ? `${hex}40` : `${hex}26`, borderLeft: `3px solid ${hex}`, ...(isHighlighted ? { boxShadow: '0 0 0 1px #f59e0b, 0 2px 6px rgba(0,0,0,0.12)' } : {}) }}>
                       <div className="truncate text-[11px] font-bold" style={{ color: hex }}>{event.summary}</div>
                       {height > 30 && <div className="truncate text-[10px] font-medium text-gray-500">{formatTime(event.start)} – {formatTime(event.end)}</div>}
                     </button>
