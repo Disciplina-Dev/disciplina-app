@@ -16,6 +16,12 @@ import { authenticate as authenticateStaff } from '../middleware/auth';
 
 export const router: Router = express.Router();
 
+// Mail d'import CV : le corps porte la signature en data URL + les pièces
+// jointes en base64, donc bien au-delà des 100kb par défaut. Déclaré AVANT le
+// express.json() du router : sinon le parser 100kb rejette la requête (413)
+// avant que celui de la route ne soit atteint.
+router.post('/cv-import/send', express.json({ limit: '50mb' }), externalRateLimiter, authenticateStaff, sendCvImportMail);
+
 router.use(express.json());
 
 router.post('/generate', authenticateStaff, generate);
