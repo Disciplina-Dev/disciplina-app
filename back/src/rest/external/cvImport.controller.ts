@@ -47,15 +47,25 @@ export async function sendCvImportMail(req: AuthRequest, res: Response): Promise
     const firstName = spaceIdx > 0 ? fullName.slice(0, spaceIdx) : fullName;
     const lastName = spaceIdx > 0 ? fullName.slice(spaceIdx + 1) : '';
 
-    const linkResult = await externalAccessService.createInvite({
-        userId: req.user?.id,
-        externalId: candidateUuid,
-        externalType: 'CANDIDATE',
-        externalEmail: candidate.identity.email,
-        externalFirstName: firstName,
-        referenceId: 1,
-        referenceKey: candidateUuid,
-    });
+    // Express 4 ne rattrape pas le rejet d'un handler async : une erreur SQL ici
+    // (ex. violation de fk_ext_access_reference) remonte en unhandledRejection et
+    // tue le process — tout le backend tombe, pas seulement cette requête.
+    let linkResult: Awaited<ReturnType<typeof externalAccessService.createInvite>>;
+    try {
+        linkResult = await externalAccessService.createInvite({
+            userId: req.user?.id,
+            externalId: candidateUuid,
+            externalType: 'CANDIDATE',
+            externalEmail: candidate.identity.email,
+            externalFirstName: firstName,
+            referenceId: 1,
+            referenceKey: candidateUuid,
+        });
+    } catch (err) {
+        logger.error({ err, candidateUuid }, '[cv-import] invite creation failed');
+        res.status(502).json({ error: "La génération du lien a échoué" });
+        return;
+    }
     if (!linkResult.success) {
         res.status(502).json({ error: "La génération du lien a échoué" });
         return;

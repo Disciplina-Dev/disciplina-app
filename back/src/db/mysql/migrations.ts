@@ -351,6 +351,15 @@ export async function runMysqlMigrations(): Promise<void> {
         logger.info(`MySQL migration: created table ${table}`);
     }
 
+    // Lignes de lookup de external_references (1=IMPORT_CV, 2=MATCHING,
+    // 3=INTERVIEW_SLOTS). Seul mysql-init.sql les semait, or il ne tourne que sur
+    // un volume neuf : sur une base existante la table était créée vide et tout
+    // INSERT dans external_access violait fk_ext_access_reference. INSERT IGNORE,
+    // donc inconditionnel et idempotent.
+    await query(
+        "INSERT IGNORE INTO external_references (id, name) VALUES (1, 'IMPORT_CV'), (2, 'MATCHING'), (3, 'INTERVIEW_SLOTS')",
+    );
+
     for (const { table, column, definition } of REQUIRED_COLUMNS) {
         const rows = await query<{ count: number }[]>(
             'SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
