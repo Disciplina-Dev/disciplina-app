@@ -9,6 +9,8 @@ import { toUserResponse, toDirectoryEntry } from '../../services/mappers/user.ma
 import { sanitizeSectors } from '../../utils/sector';
 import { isValidEmail } from '../../services/validation';
 import { JobRole, Permission } from '../../types/user.types';
+import { isRegion } from '../../types/tenant';
+import { env } from '../../config/env';
 import { setAuthCookies, clearAuthCookies } from '../middleware/cookies';
 import { issueCsrfCookie } from '../middleware/csrf';
 import { REFRESH_TOKEN_COOKIE } from '../middleware/tokenAuth';
@@ -29,7 +31,7 @@ export async function listUsers(req: AuthRequest, res: Response): Promise<void> 
             return;
         }
         const users = await userService.findAll();
-        res.json(users.map(toUserResponse));
+        res.json(users.map((u) => toUserResponse(u)));
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: listUsers failed');
         res.status(500).json({ error: error.message });
@@ -79,9 +81,18 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
             res.status(400).json({ error: 'Email and password are required' });
             return;
         }
-        const result = await userService.login(email, passwordPlain);
-        setAuthCookies(res, result.accessToken, result.refreshToken, issueCsrfCookie());
-        res.json({ user: toUserResponse(result.user) });
+        const region = req.body?.region;
+        if (region !== undefined && region !== '' && !isRegion(region)) {
+            res.status(400).json({ error: 'Invalid region: must be "reunion" or "annemasse"' });
+            return;
+        }
+        const { accessToken, refreshToken, user, region: userRegion } = await userService.login(
+            email,
+            passwordPlain,
+            isRegion(region) ? region : env.DB_DEFAULT_TENANT,
+        );
+        setAuthCookies(res, accessToken, refreshToken, issueCsrfCookie());
+        res.json({ user: toUserResponse(user, userRegion) });
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: login failed');
         res.status(401).json({ error: error.message || 'Invalid credentials' });
@@ -112,7 +123,7 @@ export async function refresh(req: AuthRequest, res: Response): Promise<void> {
             return;
         }
         setAuthCookies(res, result.accessToken, result.refreshToken, issueCsrfCookie());
-        res.json({ user: toUserResponse(result.user) });
+        res.json({ user: toUserResponse(result.user, result.region) });
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: refresh failed');
         res.status(500).json({ error: 'Internal error' });

@@ -1,6 +1,6 @@
 import express, { Router, Request, Response } from 'express';
 import { logger } from '../../external/logger';
-import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
 import { env } from '../../config/env';
 import { authenticateStaffStream } from '../middleware/sseAuth';
@@ -85,7 +85,7 @@ async function uploadResultPdf(candidate: Candidate): Promise<void> {
     if (historyLen > 0) {
         update[`classmarker_history.${historyLen - 1}.pdf_link`] = webViewLink;
     }
-    await CandidateModel.findByIdAndUpdate(candidate._id, { $set: update });
+    await getModels().Candidate.findByIdAndUpdate(candidate._id, { $set: update });
 
     // Pousse le lien PDF aux clients SSE déjà connectés : le 1er notify (score)
     // part avant l'upload, donc sans pdf_link. Sans ce 2e notify, le bouton
@@ -141,7 +141,7 @@ router.post(
                 questions: Array.isArray(questions) ? questions : undefined,
             };
 
-            const updated = await CandidateModel.findByIdAndUpdate(
+            const updated = await getModels().Candidate.findByIdAndUpdate(
                 candidateId,
                 { $set: { classmarker: data }, $push: { classmarker_history: data } },
                 { returnDocument: 'after' },
@@ -218,7 +218,7 @@ router.get(
     async (req: AuthRequest, res: Response) => {
         const { candidateId } = req.params;
         try {
-            const doc = await CandidateModel.findById(candidateId).select('classmarker classmarker_history').lean();
+            const doc = await getModels().Candidate.findById(candidateId).select('classmarker classmarker_history').lean();
             if (!doc) {
                 res.status(404).json({ error: 'Not found' });
                 return;
