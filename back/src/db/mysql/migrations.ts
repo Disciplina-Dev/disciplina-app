@@ -333,6 +333,40 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             INDEX idx_refresh_hash (token_hash)
         )`,
     },
+    {
+        // Clients OAuth enregistrés par claude.ai via DCR (clé en DDL = détection
+        // d'existence via INFORMATION_SCHEMA, idempotent sur base existante).
+        table: 'mcp_oauth_clients',
+        ddl: `CREATE TABLE IF NOT EXISTS mcp_oauth_clients (
+            client_id VARCHAR(128) PRIMARY KEY,
+            client_name VARCHAR(255) DEFAULT NULL,
+            client_uri VARCHAR(512) DEFAULT NULL,
+            logo_uri VARCHAR(512) DEFAULT NULL,
+            redirect_uris JSON NOT NULL,
+            auth_method VARCHAR(32) NOT NULL DEFAULT 'none',
+            scope VARCHAR(255) DEFAULT NULL,
+            client_secret VARCHAR(128) DEFAULT NULL,
+            client_id_issued_at BIGINT DEFAULT NULL,
+            client_secret_expires_at BIGINT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_used_at TIMESTAMP NULL DEFAULT NULL
+        )`,
+    },
+    {
+        // Refresh tokens des sessions OAuth MCP : hachés sha256, rotation à
+        // chaque échange, révocables.
+        table: 'mcp_oauth_refresh_tokens',
+        ddl: `CREATE TABLE IF NOT EXISTS mcp_oauth_refresh_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            client_id VARCHAR(128) NOT NULL,
+            token_hash VARCHAR(64) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            revoked_at TIMESTAMP NULL DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_mcp_refresh_client (client_id),
+            INDEX idx_mcp_refresh_hash (token_hash)
+        )`,
+    },
 ];
 
 /** Lieux par défaut (modifiables ensuite par l'admin via l'interface). */

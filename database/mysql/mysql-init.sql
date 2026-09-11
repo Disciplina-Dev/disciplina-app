@@ -339,6 +339,40 @@ CREATE TABLE IF NOT EXISTS `refresh_tokens` (
   CONSTRAINT `fk_refresh_tokens_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- Refresh tokens des sessions OAuth MCP (claude.ai web) : haché sha256, jamais
+-- stocké en clair, rotation à chaque échange. Miroir de `refresh_tokens` mais
+-- adossé à un client OAuth (mcp_oauth_clients) plutôt qu'à un utilisateur.
+CREATE TABLE IF NOT EXISTS `mcp_oauth_refresh_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `client_id` varchar(128) NOT NULL,
+  `token_hash` varchar(64) NOT NULL,
+  `expires_at` timestamp NOT NULL,
+  `revoked_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_mcp_refresh_client` (`client_id`),
+  KEY `idx_mcp_refresh_hash` (`token_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Clients OAuth enregistrés par claude.ai via Dynamic Client Registration (DCR),
+-- pour l'accès MCP en lecture seule au CRM. Non dupliqués dans disciplina_annemasse
+-- (les tokens OAuth ne sont pas liés à un tenant, la table est globale au service).
+CREATE TABLE IF NOT EXISTS `mcp_oauth_clients` (
+  `client_id` varchar(128) NOT NULL,
+  `client_name` varchar(255) DEFAULT NULL,
+  `client_uri` varchar(512) DEFAULT NULL,
+  `logo_uri` varchar(512) DEFAULT NULL,
+  `redirect_uris` json NOT NULL,
+  `auth_method` varchar(32) NOT NULL DEFAULT 'none',
+  `scope` varchar(255) DEFAULT NULL,
+  `client_secret` varchar(128) DEFAULT NULL,
+  `client_id_issued_at` bigint DEFAULT NULL,
+  `client_secret_expires_at` bigint DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `last_used_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`client_id`) /*T![clustered_index] CLUSTERED */
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `relance_history` (
   `id` int NOT NULL AUTO_INCREMENT,
   `company_id` int NOT NULL,

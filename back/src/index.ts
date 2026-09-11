@@ -43,6 +43,7 @@ import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelance
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
+import { buildMcpOAuthRouter } from './mcp/oauth/router';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -133,6 +134,9 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
+    // OAuth MCP (claude.ai web) : endpoints .well-known/authorize/token/register/
+    // revoke à la racine de l'issuer — avant mcpRouter et errorHandler.
+    app.use(buildMcpOAuthRouter());
     app.use(mcpRouter);
     app.use(errorHandler);
 
