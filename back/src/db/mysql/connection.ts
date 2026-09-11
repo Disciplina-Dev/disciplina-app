@@ -1,6 +1,8 @@
 import fs from 'fs';
 import mysql, { Pool, PoolConnection } from 'mysql2/promise';
 import { env } from '../../config/env';
+import { getRegion } from '../tenant';
+import type { Region } from '../../types/tenant';
 import { logger } from '../../external/logger';
 
 // TiDB Cloud Serverless rejects insecure transport — TLS is mandatory.
@@ -18,56 +20,91 @@ const productionSsl = env.MYSQL_SSL_CA
       }
     : { minVersion: 'TLSv1.2' as const };
 
-const pool: Pool =
-    env.NODE_ENV === 'production'
-        ? mysql.createPool({
-              uri: env.MYSQL_URI!,
-              // TiDB Cloud Serverless rejects insecure transport
-              ssl: productionSsl,
-              waitForConnections: true,
-              connectionLimit: 10,
-              queueLimit: 0,
-              dateStrings: true,
-              charset: 'utf8mb4',
-          })
-        : mysql.createPool({
-              host: env.MYSQL_HOST,
-              port: env.MYSQL_PORT,
-              user: env.MYSQL_USER,
-              // Compte applicatif non-root dès que MYSQL_PASSWORD est fourni ; sinon on
-              // retombe sur le mot de passe root pour ne pas casser les installations
-              // antérieures à la création de `disciplina_app`.
-              password: env.MYSQL_PASSWORD ?? env.MYSQL_ROOT_PASSWORD,
-              database: env.MYSQL_DATABASE,
-              waitForConnections: true,
-              connectionLimit: 10,
-              queueLimit: 0,
-              dateStrings: true,
-              charset: 'utf8mb4',
-          });
+interface PoolConfig {
+    uri?: string;
+    database?: string;
+    user?: string;
+    password?: string;
+}
+
+function createPool(cfg: PoolConfig): Pool {
+    if (env.NODE_ENV === 'production') {
+        return mysql.createPool({
+            uri: cfg.uri!,
+            // TiDB Cloud Serverless rejects insecure transport
+            ssl: productionSsl,
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0,
+            dateStrings: true,
+            charset: 'utf8mb4',
+        });
+    }
+    return mysql.createPool({
+        host: env.MYSQL_HOST,
+        port: env.MYSQL_PORT,
+        user: cfg.user,
+        // Compte applicatif non-root dès que MYSQL_PASSWORD est fourni ; sinon on
+        // retombe sur le mot de passe root pour ne pas casser les installations
+        // antérieures à la création de `disciplina_app`.
+        password: cfg.password,
+        database: cfg.database,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        dateStrings: true,
+        charset: 'utf8mb4',
+    });
+}
+
+export const pools: Record<Region, Pool> = {
+    reunion: createPool({
+        uri: env.MYSQL_URI,
+        database: env.MYSQL_DATABASE,
+        user: env.MYSQL_USER,
+        password: env.MYSQL_PASSWORD ?? env.MYSQL_ROOT_PASSWORD,
+    }),
+    annemasse: createPool({
+        uri: env.MYSQL_ANNEMASSE_URI,
+        database: env.MYSQL_ANNEMASSE_DATABASE,
+        user: env.MYSQL_ANNEMASSE_USER ?? env.MYSQL_USER,
+        password: env.MYSQL_ANNEMASSE_PASSWORD ?? env.MYSQL_PASSWORD ?? env.MYSQL_ROOT_PASSWORD,
+    }),
+};
+
+export function getPool(region: Region = getRegion()): Pool {
+    return pools[region];
+}
 
 export async function connectMySQL(): Promise<void> {
-    const conn = await pool.getConnection();
-    conn.release();
-    logger.info('MySQL connected');
+    const regions = await Promise.all(
+        (Object.entries(pools) as [Region, Pool][]).map(async ([region, pool]) => {
+            const conn = await pool.getConnection();
+            conn.release();
+            return region;
+        }),
+    );
+    for (const region of regions) {
+        logger.info(`MySQL connected (${region})`);
+    }
 }
 
 /**
- * Ferme le pool. Utilisé par les tests : chaque fichier vitest ré-instancie ce
- * module (registre isolé) donc son propre pool ; sans fermeture, les connexions
+ * Ferme les pools. Utilisé par les tests : chaque fichier vitest ré-instancie ce
+ * module (registre isolé) donc ses propres pools ; sans fermeture, les connexions
  * s'accumulent jusqu'au `max_connections` de MySQL.
  */
 export async function closeMySQL(): Promise<void> {
-    await pool.end();
+    await Promise.all(Object.values(pools).map((pool) => pool.end()));
 }
 
 export async function getConnection(): Promise<PoolConnection> {
-    return pool.getConnection();
+    return getPool().getConnection();
 }
 
 export async function query<T>(sql: string, params?: unknown[]): Promise<T> {
-    const [rows] = await pool.execute(sql, params as (string | number)[]);
+    const [rows] = await getPool().execute(sql, params as (string | number)[]);
     return rows as T;
 }
 
-export default pool;
+export default pools.reunion;

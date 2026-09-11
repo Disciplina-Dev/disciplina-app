@@ -16,6 +16,7 @@ import { env } from '../config/env';
 import { MAX_ATTEMPTS } from './signedAccess';
 import { signAccessToken } from '../rest/middleware/tokenAuth';
 import { Permission, GuestRole } from '../types/user.types';
+import { appendRegion } from '../db/tenant';
 
 type SendCodeResult =
     | { status: 'NOT_FOUND'; httpCode: 404; message: string }
@@ -46,7 +47,7 @@ export class ExternalAccessService {
     ) {}
 
     async generate(input: GenerateInput): Promise<GenerateResult> {
-        const signature = generateExternalSignature();
+        const signature = appendRegion(generateExternalSignature());
 
         await this.repository.create({
             signature,
@@ -89,7 +90,7 @@ export class ExternalAccessService {
     async createInvite(
         input: GenerateInput,
     ): Promise<{ success: true; signature: string; link: string } | { success: false; error: string }> {
-        const signature = generateExternalSignature();
+        const signature = appendRegion(generateExternalSignature());
 
         await this.repository.create({
             signature,

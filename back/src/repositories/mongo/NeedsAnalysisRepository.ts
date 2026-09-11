@@ -1,5 +1,4 @@
-import { NeedsAnalysisModel } from '../../db/mongo/schemas/needsAnalysis.schema';
-import { OfferModel } from '../../db/mongo/schemas/offer.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { NeedsAnalysis, NeedsAnalysisStatus } from '../../types/needsAnalysisNoSql.types';
 import { AbStatus } from '../../types/offer.types';
 import { decodeCursor } from '../../services/pagination';
@@ -22,7 +21,7 @@ function parseNeedsAnalysisCursor(raw: string): { createdAt: Date | null; id: st
 
 export class NeedsAnalysisRepository {
     async findAll(): Promise<NeedsAnalysis[]> {
-        return NeedsAnalysisModel.find().lean();
+        return getModels().NeedsAnalysis.find().lean();
     }
 
     async findPage(first: number, after?: string, restrictIds?: string[]): Promise<NeedsAnalysis[]> {
@@ -46,34 +45,34 @@ export class NeedsAnalysisRepository {
             }
         }
         const filter = conditions.length ? { $and: conditions } : {};
-        return NeedsAnalysisModel.find(filter)
+        return getModels().NeedsAnalysis.find(filter)
             .sort({ created_at: -1, _id: 1 })
             .limit(first + 1)
             .lean();
     }
 
     async findById(id: string): Promise<NeedsAnalysis | null> {
-        return NeedsAnalysisModel.findOne({ _id: id }).lean();
+        return getModels().NeedsAnalysis.findOne({ _id: id }).lean();
     }
 
     async findByCompanyId(companyId: number): Promise<NeedsAnalysis[]> {
         // Les AB supprimées (inactives) n'apparaissent pas dans le portefeuille commercial.
-        return NeedsAnalysisModel.find({ 'company_infos.id': companyId, is_deleted: { $ne: true } }).lean();
+        return getModels().NeedsAnalysis.find({ 'company_infos.id': companyId, is_deleted: { $ne: true } }).lean();
     }
 
     async findBySignatureRequestId(signatureRequestId: string): Promise<NeedsAnalysis | null> {
-        return NeedsAnalysisModel.findOne({ signature_request_id: signatureRequestId }).lean();
+        return getModels().NeedsAnalysis.findOne({ signature_request_id: signatureRequestId }).lean();
     }
 
     async create(data: NeedsAnalysis): Promise<NeedsAnalysis> {
-        const doc = new NeedsAnalysisModel(data);
+        const doc = new (getModels().NeedsAnalysis)(data);
         await doc.save();
         return doc.toObject() as NeedsAnalysis;
     }
 
     async update(id: string, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis | null> {
         const { _id, ...patch } = data;
-        return NeedsAnalysisModel.findOneAndUpdate({ _id: id }, { $set: patch }, { new: true }).lean();
+        return getModels().NeedsAnalysis.findOneAndUpdate({ _id: id }, { $set: patch }, { new: true }).lean();
     }
 
     /**
@@ -81,30 +80,30 @@ export class NeedsAnalysisRepository {
      * Elle reste visible dans la liste matching (onglet « Inactif ») pour l'historique.
      */
     async markDeleted(id: string): Promise<boolean> {
-        const res = await NeedsAnalysisModel.updateOne({ _id: id }, { $set: { is_deleted: true } });
+        const res = await getModels().NeedsAnalysis.updateOne({ _id: id }, { $set: { is_deleted: true } });
         return res.modifiedCount > 0;
     }
 
     /** Ids des AB supprimées (inactives). */
     async findDeletedIds(): Promise<string[]> {
-        return NeedsAnalysisModel.distinct('_id', { is_deleted: true });
+        return getModels().NeedsAnalysis.distinct('_id', { is_deleted: true });
     }
 
     /** Ids des AB dont le statut d'onglet (matching) est forcé manuellement à `status`. */
     async findIdsByManualStatus(status: AbStatus): Promise<string[]> {
-        return NeedsAnalysisModel.distinct('_id', { ab_status: status });
+        return getModels().NeedsAnalysis.distinct('_id', { ab_status: status });
     }
 
     /** Ids des AB ayant un statut manuel (quel qu'il soit) — exclues du calcul dérivé. */
     async findIdsWithManualStatus(): Promise<string[]> {
-        return NeedsAnalysisModel.distinct('_id', { ab_status: { $exists: true, $ne: null } });
+        return getModels().NeedsAnalysis.distinct('_id', { ab_status: { $exists: true, $ne: null } });
     }
 
     /** Ids des AB non supprimées qui n'ont aucune offre de matching. */
     async findIdsWithoutOffers(): Promise<string[]> {
         const [allIds, offerIds] = await Promise.all([
-            NeedsAnalysisModel.distinct('_id', { is_deleted: { $ne: true } }),
-            OfferModel.distinct('needs_analysis_id', { needs_analysis_id: { $exists: true, $ne: null } }),
+            getModels().NeedsAnalysis.distinct('_id', { is_deleted: { $ne: true } }),
+            getModels().Offer.distinct('needs_analysis_id', { needs_analysis_id: { $exists: true, $ne: null } }),
         ]);
         const offerSet = new Set(offerIds);
         return allIds.filter((id) => !offerSet.has(id));
@@ -118,7 +117,7 @@ export class NeedsAnalysisRepository {
         if (regions?.length) {
             filter['company_infos.sector'] = { $in: regions };
         }
-        return NeedsAnalysisModel.find(filter)
+        return getModels().NeedsAnalysis.find(filter)
             .sort({ created_at: -1 })
             .limit(limit)
             .lean();
@@ -132,7 +131,7 @@ export class NeedsAnalysisRepository {
         if (regions?.length) {
             filter['company_infos.sector'] = { $in: regions };
         }
-        return NeedsAnalysisModel.countDocuments(filter);
+        return getModels().NeedsAnalysis.countDocuments(filter);
     }
 
     /**
@@ -142,7 +141,7 @@ export class NeedsAnalysisRepository {
      */
     async findDueSignatureRelance(now: Date, delayMs: number): Promise<NeedsAnalysis[]> {
         const cutoff = new Date(now.getTime() - delayMs);
-        return NeedsAnalysisModel.find({
+        return getModels().NeedsAnalysis.find({
             status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
             is_deleted: { $ne: true },
             is_relance_disabled: { $ne: true },
@@ -159,13 +158,13 @@ export class NeedsAnalysisRepository {
         if (!types.length) return [];
         const wantsNonRenseigne = types.includes('NON_RENSEIGNE');
         if (wantsNonRenseigne && types.length === 1) {
-            return NeedsAnalysisModel.distinct('_id', {
+            return getModels().NeedsAnalysis.distinct('_id', {
                 $or: [{ administration_type: 'NON_RENSEIGNE' }, { administration_type: { $exists: false } }, { administration_type: null }],
             });
         }
         if (wantsNonRenseigne) {
             const others = types.filter((t) => t !== 'NON_RENSEIGNE');
-            return NeedsAnalysisModel.distinct('_id', {
+            return getModels().NeedsAnalysis.distinct('_id', {
                 $or: [
                     { administration_type: { $in: others } },
                     { administration_type: 'NON_RENSEIGNE' },
@@ -174,7 +173,7 @@ export class NeedsAnalysisRepository {
                 ],
             });
         }
-        return NeedsAnalysisModel.distinct('_id', { administration_type: { $in: types } });
+        return getModels().NeedsAnalysis.distinct('_id', { administration_type: { $in: types } });
     }
 
     /**
@@ -186,7 +185,7 @@ export class NeedsAnalysisRepository {
         const update = saler
             ? { $set: { saler_info: { id: saler.id, email: saler.email } } }
             : { $unset: { saler_info: '' } };
-        const res = await NeedsAnalysisModel.updateMany({ 'saler_info.id': fromUserId }, update);
+        const res = await getModels().NeedsAnalysis.updateMany({ 'saler_info.id': fromUserId }, update);
         return res.modifiedCount;
     }
 }
