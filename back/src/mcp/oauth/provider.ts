@@ -53,6 +53,7 @@ function renderConsentPage(client: OAuthClientInformationFull, params: Authoriza
         : scopeRequested.map(escapeHtml).join(', ');
 
     const hiddenFields = [
+        ['response_type', 'code'],
         ['client_id', client.client_id],
         ['redirect_uri', params.redirectUri],
         ['code_challenge', params.codeChallenge],

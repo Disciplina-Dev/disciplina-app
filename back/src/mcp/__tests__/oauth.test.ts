@@ -173,6 +173,54 @@ describe('MCP OAuth 2.1 (claude.ai web)', () => {
         expect(tokens.token_type).toBe('Bearer');
     });
 
+    it('round-trips the rendered consent form end-to-end (hidden fields incl. response_type)', async () => {
+        const { clientId } = await registerClient();
+        const { verifier, challenge } = pkce();
+
+        const page = await (await fetch(`${BASE}/authorize?${authorizeParams(clientId, challenge)}`)).text();
+        const hidden = [...page.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)].map(
+            (m) => [m[1] as string, m[2] as string] as const,
+        );
+        const names = hidden.map(([n]) => n);
+        expect(names).toContain('response_type');
+        expect(names).toContain('state');
+        expect(names).toContain('code_challenge');
+        expect(names).toContain('client_id');
+
+        const form = new URLSearchParams(hidden.map(([n, v]) => [n, v]));
+        form.set('mcp_key', MCP_KEY);
+        const res = await fetch(`${BASE}/authorize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'null' },
+            body: form.toString(),
+            redirect: 'manual',
+        });
+        expect(res.status).toBe(302);
+        const location = res.headers.get('location') ?? '';
+        expect(location).toContain('http://localhost/cb');
+        expect(location).toContain('state=test-state');
+        const code = new URL(location).searchParams.get('code');
+        expect(code).toBeTruthy();
+
+        const tokens = await exchangeTokens(clientId, verifier, code!);
+        expect(tokens.access_token).toBeTruthy();
+    });
+
+    it('accepts the consent POST from an opaque origin (claude.ai sandboxed iframe)', async () => {
+        const { clientId } = await registerClient();
+        const { challenge } = pkce();
+        const res = await fetch(`${BASE}/authorize`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                Origin: 'null',
+            },
+            body: new URLSearchParams(`${authorizeParams(clientId, challenge)}&mcp_key=${encodeURIComponent(MCP_KEY)}`).toString(),
+            redirect: 'manual',
+        });
+        expect(res.status).toBe(302);
+    });
+
     it('only exchanges an authorization code with the matching PKCE verifier', async () => {
         const { clientId } = await registerClient();
         const { code } = await gate(clientId);
