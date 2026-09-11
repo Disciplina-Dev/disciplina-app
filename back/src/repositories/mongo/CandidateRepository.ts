@@ -1,4 +1,4 @@
-import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { Candidate, CandidateOwner, CandidateStatus } from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 
@@ -161,7 +161,7 @@ function flattenObject(obj: any, parentKey: string = ''): FlattenedObject {
 
 export class CandidateRepository {
     async findAll(): Promise<Candidate[]> {
-        return CandidateModel.find().sort({ created_at: -1, _id: 1 }).lean();
+        return getModels().Candidate.find().sort({ created_at: -1, _id: 1 }).lean();
     }
 
     /** Construit les conditions Mongo dérivées des filtres (hors recherche et curseur). */
@@ -327,7 +327,7 @@ export class CandidateRepository {
 
         if (!trimmedSearch) {
             const filter = conditions.length ? { $and: conditions } : {};
-            return CandidateModel.find(filter)
+            return getModels().Candidate.find(filter)
                 .sort({ created_at: -1, _id: 1 })
                 .limit(first + 1)
                 .lean();
@@ -343,9 +343,9 @@ export class CandidateRepository {
         const sort = { created_at: -1 as const, _id: 1 as const };
         const [textResults, regexResults] = await Promise.all([
             textFilter
-                ? CandidateModel.find(textFilter).collation(SEARCH_COLLATION).sort(sort).lean()
+                ? getModels().Candidate.find(textFilter).collation(SEARCH_COLLATION).sort(sort).lean()
                 : Promise.resolve([]),
-            CandidateModel.find(regexFilter).collation(SEARCH_COLLATION).sort(sort).lean(),
+            getModels().Candidate.find(regexFilter).collation(SEARCH_COLLATION).sort(sort).lean(),
         ]);
 
         const uniqueById = new Map<string, Candidate>();
@@ -368,7 +368,7 @@ export class CandidateRepository {
 
         if (!trimmedSearch) {
             const filter = conditions.length ? { $and: conditions } : {};
-            return CandidateModel.countDocuments(filter);
+            return getModels().Candidate.countDocuments(filter);
         }
 
         const { textFilter, regexFilter } = this.buildSearchFilter(trimmedSearch, conditions, searchField);
@@ -376,20 +376,20 @@ export class CandidateRepository {
         // Même combinaison `$text` ∪ `$regex` que findPage : on déduplique par _id (collation fr strength 1).
         const [textIds, regexIds] = await Promise.all([
             textFilter
-                ? CandidateModel.distinct('_id', textFilter, { collation: SEARCH_COLLATION } as any)
+                ? getModels().Candidate.distinct('_id', textFilter, { collation: SEARCH_COLLATION } as any)
                 : Promise.resolve([]),
-            CandidateModel.distinct('_id', regexFilter, { collation: SEARCH_COLLATION } as any),
+            getModels().Candidate.distinct('_id', regexFilter, { collation: SEARCH_COLLATION } as any),
         ]);
         return new Set([...textIds.map(String), ...regexIds.map(String)]).size;
     }
 
     async findById(id: string): Promise<Candidate | null> {
-        return CandidateModel.findById(id).lean();
+        return getModels().Candidate.findById(id).lean();
     }
 
     /** Documents candidats (uniquement le lien CV) pour les ids demandés. */
     async findCvLinksByIds(ids: string[]): Promise<Array<{ _id: string; cv_link?: string }>> {
-        return CandidateModel.find({ _id: { $in: ids } })
+        return getModels().Candidate.find({ _id: { $in: ids } })
             .select({ cv_link: 1, _id: 1 })
             .lean();
     }
@@ -398,7 +398,7 @@ export class CandidateRepository {
     async findConsentmentsByIds(
         ids: string[],
     ): Promise<Array<{ _id: string; consentments?: Candidate['consentments'] }>> {
-        return CandidateModel.find({ _id: { $in: ids } })
+        return getModels().Candidate.find({ _id: { $in: ids } })
             .select({ consentments: 1, _id: 1 })
             .lean();
     }
@@ -430,7 +430,7 @@ export class CandidateRepository {
             },
             { $unwind: '$_tp_types' },
         ];
-        const [result] = await CandidateModel.aggregate<RawStats>([
+        const [result] = await getModels().Candidate.aggregate<RawStats>([
             ...match,
             {
                 $facet: {
@@ -461,14 +461,14 @@ export class CandidateRepository {
     }
 
     async findByfilter(filter: Record<string, any>): Promise<Candidate[]> {
-        return CandidateModel.find(filter).lean();
+        return getModels().Candidate.find(filter).lean();
     }
 
     // Candidats dont l'immersion s'est terminée (date de fin passée) et pour
     // lesquels la notification « immersion terminée » n'a pas encore été émise.
     // Sert au scheduler de notification d'immersion.
     async findImmersionEndedUnnotified(now: Date): Promise<Candidate[]> {
-        return CandidateModel.find({
+        return getModels().Candidate.find({
             immersion_end_date: { $ne: null, $lte: now },
             immersion_end_notified_at: null,
         }).lean();
@@ -476,13 +476,13 @@ export class CandidateRepository {
 
     // Marque la notification « immersion terminée » comme émise (dédup scheduler).
     async markImmersionEndNotified(id: string, at: Date): Promise<void> {
-        await CandidateModel.updateOne({ _id: id }, { $set: { immersion_end_notified_at: at } });
+        await getModels().Candidate.updateOne({ _id: id }, { $set: { immersion_end_notified_at: at } });
     }
 
     // Candidats indisponibles dont la date de disponibilité est atteinte (fin
     // d'indisponibilité). Sert au scheduler de retour en recherche.
     async findExpiredUnavailable(now: Date): Promise<Candidate[]> {
-        return CandidateModel.find({
+        return getModels().Candidate.find({
             status: CandidateStatus.UNAVAILABLE,
             'job_info.availability_date': { $ne: null, $lte: now },
         }).lean();
@@ -492,7 +492,7 @@ export class CandidateRepository {
     // jour n'a lieu que si le statut est encore UNAVAILABLE. Retourne true si ce
     // candidat vient d'être basculé (⇒ un seul appelant notifie, dédup lecture/scheduler).
     async revertUnavailableToSeeking(id: string): Promise<boolean> {
-        const res = await CandidateModel.updateOne(
+        const res = await getModels().Candidate.updateOne(
             { _id: id, status: CandidateStatus.UNAVAILABLE },
             { $set: { status: CandidateStatus.SEEKING } },
         );
@@ -505,17 +505,17 @@ export class CandidateRepository {
         const normalized = email.trim();
         if (!normalized) return null;
         const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return CandidateModel.findOne({ 'identity.email': { $regex: `^${escaped}$`, $options: 'i' } }).lean();
+        return getModels().Candidate.findOne({ 'identity.email': { $regex: `^${escaped}$`, $options: 'i' } }).lean();
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {
-        const doc = new CandidateModel(data);
+        const doc = new (getModels().Candidate)(data);
         await doc.save();
         return doc.toObject() as Candidate;
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
-        return CandidateModel.findOneAndUpdate(
+        return getModels().Candidate.findOneAndUpdate(
             { _id: id },
             { $set: flattenObject(data) },
             { returnDocument: 'after', runValidators: true, context: 'query' },
@@ -523,7 +523,7 @@ export class CandidateRepository {
     }
 
     async delete(id: string): Promise<boolean> {
-        return (await CandidateModel.deleteOne({ _id: id })).deletedCount > 0;
+        return (await getModels().Candidate.deleteOne({ _id: id })).deletedCount > 0;
     }
 
     /**
@@ -533,7 +533,7 @@ export class CandidateRepository {
      */
     async reassignOwner(fromUserId: number, owner: CandidateOwner | null): Promise<number> {
         const update = owner ? { $set: { owner } } : { $unset: { owner: '' } };
-        const res = await CandidateModel.updateMany({ 'owner.user_id': fromUserId }, update);
+        const res = await getModels().Candidate.updateMany({ 'owner.user_id': fromUserId }, update);
         return res.modifiedCount;
     }
 }

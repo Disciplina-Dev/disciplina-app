@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { isRegion, type Region } from '../types/tenant';
 
 dotenv.config({
     path: ['.env', '../.env'],
@@ -17,6 +18,16 @@ const INSECURE_DEFAULTS = new Set([
 ]);
 
 const errors: string[] = [];
+
+// Les deux clés drillent aes-256-gcm : 32 octets exacts en hex (64 chars).
+// Une clé trop courte fait échouer createCipheriv au moment du chiffrement
+// (500 sournois, ex. google.test.ts en CI), autant l'attraper au boot.
+function assertAes256HexKey(key: string, name: string): void {
+    if (!key) return;
+    if (!/^[0-9a-fA-F]{64}$/.test(key) || Buffer.from(key, 'hex').length !== 32) {
+        errors.push(`${name} must be a 64-char hex string (32 bytes for aes-256-gcm)`);
+    }
+}
 
 function requireString(key: string): string {
     const raw = process.env[key];
@@ -111,6 +122,25 @@ const data = {
     MYSQL_PASSWORD: optionalString('MYSQL_PASSWORD'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
     MYSQL_URI: optionalString('MYSQL_URI'),
+    // URI du serveur MySQL pour le tenant Annemasse (MÊME serveur MySQL, base
+    // disciplina_annemasse). Requise en production, comme MYSQL_URI.
+    MYSQL_ANNEMASSE_URI: optionalString('MYSQL_ANNEMASSE_URI'),
+    // Compte et mot de passe du tenant Annemasse (en non-production). Optionnels :
+    // en l'absence de valeur, on retombe sur le compte de Réunion (le même compte
+    // MySQL, ex. `disciplina_app`, est déjà granté sur les deux bases).
+    MYSQL_ANNEMASSE_USER: optionalString('MYSQL_ANNEMASSE_USER'),
+    MYSQL_ANNEMASSE_PASSWORD: optionalString('MYSQL_ANNEMASSE_PASSWORD'),
+    // Nom de la base du tenant Annemasse, en non-production (URI construite par pieces).
+    MYSQL_ANNEMASSE_DATABASE: stringWithDefault('MYSQL_ANNEMASSE_DATABASE', 'disciplina_annemasse'),
+    // Tenant par défaut (pas de JWT / valeur absente) : 'reunion' | 'annemasse'.
+    DB_DEFAULT_TENANT: (() => {
+        const raw = stringWithDefault('DB_DEFAULT_TENANT', 'reunion');
+        if (!isRegion(raw)) {
+            errors.push(`DB_DEFAULT_TENANT must be 'reunion' or 'annemasse', got "${raw}"`);
+            return 'reunion' as Region;
+        }
+        return raw as Region;
+    })(),
     // Chemin d'une autorité de certification à utiliser pour le TLS MySQL en production.
     // Nécessaire quand la base est un MySQL auto-hébergé : son certificat auto-signé,
     // généré à l'init du serveur, n'est pas vérifiable via les CA système.
@@ -132,6 +162,14 @@ const data = {
             ? stringWithDefault('MONGO_HOST', 'localhost')
             : stringWithDefault('MONGO_HOST', 'nosql-db'),
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
+    // URI du tenant Annemasse (MÊME serveur Mongo, base disciplina_annemasse).
+    MONGO_ANNEMASSE_URI: optionalString('MONGO_ANNEMASSE_URI'),
+    // Credentials du tenant Annemasse (utilisés pour construire l'URI en non-production).
+    // Optionnels : fallback sur MONGO_ROOT_USERNAME/MONGO_ROOT_PASSWORD.
+    MONGO_ANNEMASSE_USERNAME: optionalString('MONGO_ANNEMASSE_USERNAME'),
+    MONGO_ANNEMASSE_PASSWORD: optionalString('MONGO_ANNEMASSE_PASSWORD'),
+    // Nom de la base Mongo du tenant Annemasse (non-production).
+    MONGO_ANNEMASSE_DATABASE: stringWithDefault('MONGO_ANNEMASSE_DATABASE', 'disciplina_annemasse'),
 
     JWT_SECRET: requireStringWithCIFallback('JWT_SECRET', 'ci-jwt-secret'),
     JWT_REFRESH_SECRET: requireStringWithCIFallback('JWT_REFRESH_SECRET', 'ci-jwt-refresh-secret'),
@@ -191,6 +229,9 @@ if (!VALID_NODE_ENVS.includes(data.NODE_ENV)) {
     errors.push(`NODE_ENV must be one of: ${VALID_NODE_ENVS.join(', ')} (got "${process.env.NODE_ENV}")`);
 }
 
+assertAes256HexKey(data.OAUTH_ENCRYPTION_KEY, 'OAUTH_ENCRYPTION_KEY');
+assertAes256HexKey(data.SSN_ENCRYPTION_KEY, 'SSN_ENCRYPTION_KEY');
+
 if (errors.length > 0) {
     console.error('Invalid environment variables:');
     for (const message of errors) {
@@ -241,6 +282,16 @@ if (data.NODE_ENV === 'production' && !data.MONGO_URI) {
 
 if (data.NODE_ENV === 'production' && !data.MYSQL_URI) {
     console.error('MYSQL_URI is required in production');
+    process.exit(1);
+}
+
+if (data.NODE_ENV === 'production' && !data.MYSQL_ANNEMASSE_URI) {
+    console.error('MYSQL_ANNEMASSE_URI is required in production');
+    process.exit(1);
+}
+
+if (data.NODE_ENV === 'production' && !data.MONGO_ANNEMASSE_URI) {
+    console.error('MONGO_ANNEMASSE_URI is required in production');
     process.exit(1);
 }
 

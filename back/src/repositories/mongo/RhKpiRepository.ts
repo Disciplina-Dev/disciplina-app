@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { KpiModel } from '../../db/mongo/schemas/kpi.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { RhKpiColumn, RhKpiRow } from '../../types/rhKpi.types';
 import { sanitizeRhKpiMetrics } from '../../types/kpiDoc.types';
 
@@ -41,7 +41,7 @@ export class RhKpiRepository {
             ]),
         );
         try {
-            await KpiModel.updateOne(
+            await getModels().Kpi.updateOne(
                 { kind: 'rh', user_id: userId, sector, year, month, week },
                 [
                     {
@@ -78,12 +78,12 @@ export class RhKpiRepository {
             if (userIds.length === 0) return [];
             filter.user_id = { $in: userIds };
         }
-        const docs = await KpiModel.find(filter).sort({ week: 1 }).lean<Record<string, unknown>[]>();
+        const docs = await getModels().Kpi.find(filter).sort({ week: 1 }).lean<Record<string, unknown>[]>();
         return docs.map(docToRow);
     }
 
     async getAvailableYears(): Promise<number[]> {
-        const years = await KpiModel.distinct('year', { kind: 'rh' });
+        const years = await getModels().Kpi.distinct('year', { kind: 'rh' });
         return years.map(Number).sort((a, b) => b - a);
     }
 }

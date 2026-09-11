@@ -633,8 +633,15 @@ export default function FicheCandidat() {
         attachments: mail.attachments.length ? mail.attachments : undefined,
       }),
     })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error ?? "L'envoi du mail a échoué")
+    if (!res.ok) {
+      // Un 413 (corps trop volumineux) ou une coupure de proxy peut renvoyer un
+      // corps vide : ne jamais parser sans garde, sinon l'erreur affichée est
+      // « Unexpected end of JSON input » au lieu de la vraie cause.
+      const body = (await res.json().catch(() => null)) as { error?: string | { message?: string } } | null
+      const raw = body?.error
+      const message = typeof raw === 'string' ? raw : raw?.message
+      throw new Error(message ?? `L'envoi du mail a échoué (${res.status})`)
+    }
   }
 
   const handleDownloadPdf = async () => {

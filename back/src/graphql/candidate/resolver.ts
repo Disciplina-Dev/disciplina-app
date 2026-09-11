@@ -96,6 +96,7 @@ async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
         const match = interviewers.find((u) => `${u.firstName} ${u.lastName}`.trim() === name);
         if (!match) return;
         await rhKpiService.bump(match.id, primarySector(match.sectors) ?? '', new Date(), {
+            interviews_placed: 1,
             interviews_attended: 1,
         });
     } catch (error) {

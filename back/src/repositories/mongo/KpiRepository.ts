@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { KpiModel } from '../../db/mongo/schemas/kpi.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { CommercialKpiDoc, sanitizeCommercialMetrics } from '../../types/kpiDoc.types';
 import { KPI_METRIC_COLUMNS, KpiRow, KpiSite, KpiUpsertInput } from '../../types/kpi.types';
 
@@ -42,14 +42,14 @@ function isDuplicateKey(err: unknown): boolean {
 export class KpiRepository {
     /** Lignes agrégées mensuelles uniquement (week = 0). */
     async findByYearAndSite(year: number, site: string): Promise<KpiRow[]> {
-        const docs = await KpiModel.find({ kind: 'commercial', year, site, week: 0 })
+        const docs = await getModels().Kpi.find({ kind: 'commercial', year, site, week: 0 })
             .sort({ user_name: 1, month: 1 })
             .lean<CommercialKpiDoc[]>();
         return docs.map(docToRow);
     }
 
     async findByYearMonthSite(year: number, month: number, site: string): Promise<KpiRow[]> {
-        const docs = await KpiModel.find({ kind: 'commercial', year, month, site, week: 0 })
+        const docs = await getModels().Kpi.find({ kind: 'commercial', year, month, site, week: 0 })
             .sort({ user_name: 1 })
             .lean<CommercialKpiDoc[]>();
         return docs.map(docToRow);
@@ -57,7 +57,7 @@ export class KpiRepository {
 
     /** Lignes hebdomadaires uniquement (week > 0). */
     async findWeeklyByYearAndSite(year: number, site: string): Promise<KpiRow[]> {
-        const docs = await KpiModel.find({ kind: 'commercial', year, site, week: { $gt: 0 } })
+        const docs = await getModels().Kpi.find({ kind: 'commercial', year, site, week: { $gt: 0 } })
             .sort({ week: 1, user_name: 1 })
             .lean<CommercialKpiDoc[]>();
         return docs.map(docToRow);
@@ -65,7 +65,7 @@ export class KpiRepository {
 
     /** Lignes mensuelles (week = 0) de tous les sites — vue globale. */
     async findMonthlyByYear(year: number): Promise<KpiRow[]> {
-        const docs = await KpiModel.find({ kind: 'commercial', year, week: 0 })
+        const docs = await getModels().Kpi.find({ kind: 'commercial', year, week: 0 })
             .sort({ site: 1, user_name: 1, month: 1 })
             .lean<CommercialKpiDoc[]>();
         return docs.map(docToRow);
@@ -73,7 +73,7 @@ export class KpiRepository {
 
     /** Toutes les lignes (mensuelles + hebdo) d'un utilisateur pour une année, tous sites. */
     async findByYearAndUser(year: number, userId: number): Promise<KpiRow[]> {
-        const docs = await KpiModel.find({ kind: 'commercial', year, user_id: userId })
+        const docs = await getModels().Kpi.find({ kind: 'commercial', year, user_id: userId })
             .sort({ site: 1, week: 1, month: 1 })
             .lean<CommercialKpiDoc[]>();
         return docs.map(docToRow);
@@ -87,7 +87,7 @@ export class KpiRepository {
     async upsert(data: KpiUpsertInput): Promise<void> {
         const metrics = Object.fromEntries(KPI_METRIC_COLUMNS.map((c) => [c, data[c] ?? 0]));
         try {
-            await KpiModel.updateOne(
+            await getModels().Kpi.updateOne(
                 bucketFilter(data),
                 {
                     $set: {
@@ -121,7 +121,7 @@ export class KpiRepository {
     async bulkUpsert(rows: KpiUpsertInput[]): Promise<void> {
         if (rows.length === 0) return;
         try {
-            await KpiModel.bulkWrite(
+            await getModels().Kpi.bulkWrite(
                 rows.map((row) => ({
                     updateOne: {
                         filter: bucketFilter(row),
@@ -153,7 +153,7 @@ export class KpiRepository {
     }
 
     async getAvailableYears(): Promise<number[]> {
-        const years = await KpiModel.distinct('year', { kind: 'commercial' });
+        const years = await getModels().Kpi.distinct('year', { kind: 'commercial' });
         return years.map(Number).sort((a, b) => b - a);
     }
 }

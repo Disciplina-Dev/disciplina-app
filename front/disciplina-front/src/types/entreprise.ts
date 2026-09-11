@@ -105,11 +105,14 @@ export interface EntrepriseBlacklistee extends Entreprise {
 
 export type EntrepriseConflit = Entreprise
 
+export type SecteurMode = 'OR' | 'AND'
+
 export type EntrepriseFilters = {
   siret: string
   status: EntrepriseStatus[]
   commercial_id: number | null
-  secteur: string
+  secteur: string[]
+  secteurMode: SecteurMode
   relance: RelanceFilter | ''
   unassigned_only: boolean
   date_insertion_from: string

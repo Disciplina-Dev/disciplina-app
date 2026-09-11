@@ -498,10 +498,12 @@ function fromGql(c: any): Candidate {
               }
             : undefined,
           other_recommendations: c.synthesis.otherRecommendations,
+          important_note: c.synthesis.importantNote,
           location: c.synthesis.location,
           date: c.synthesis.date,
           recruiter_signature: c.synthesis.recruiterSignature,
           candidate_signature: c.synthesis.candidateSignature,
+          interviewed_by: c.synthesis.interviewedBy,
         }
       : undefined,
     pdf_link: c.pdfLink,
@@ -599,6 +601,12 @@ function toGqlUpdateInput(c: Candidate): any {
         ...(c.synthesis.other_recommendations !== undefined && {
           otherRecommendations: c.synthesis.other_recommendations,
         }),
+        ...(c.synthesis.important_note !== undefined && { importantNote: c.synthesis.important_note }),
+        ...(c.synthesis.location !== undefined && { location: c.synthesis.location }),
+        ...(c.synthesis.date !== undefined && { date: c.synthesis.date }),
+        ...(c.synthesis.recruiter_signature !== undefined && { recruiterSignature: c.synthesis.recruiter_signature }),
+        ...(c.synthesis.candidate_signature !== undefined && { candidateSignature: c.synthesis.candidate_signature }),
+        ...(c.synthesis.interviewed_by !== undefined && { interviewedBy: c.synthesis.interviewed_by }),
         ...(c.synthesis.pedagogical_recommendations && {
           pedagogicalRecommendations: {
             officeToolsReinforcement: !!c.synthesis.pedagogical_recommendations.office_tools_reinforcement,

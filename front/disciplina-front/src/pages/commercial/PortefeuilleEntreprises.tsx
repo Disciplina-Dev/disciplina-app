@@ -49,7 +49,7 @@ function countActiveFilters(f: EntrepriseFilters): number {
   let n = 0
   if (f.status.length) n++
   if (f.commercial_id != null) n++
-  if (f.secteur) n++
+  if (f.secteur.length) n++
   if (f.relance) n++
   if (f.unassigned_only) n++
   if (f.date_insertion_from) n++
@@ -65,7 +65,10 @@ function toServerFilters(f: EntrepriseFilters, tab: CompanyTab): ServerFilters |
   return {
     status,
     userID: f.commercial_id ?? undefined,
-    sector: f.secteur || undefined,
+    sector: f.secteur.length ? f.secteur : undefined,
+    sectors: f.secteur.length ? f.secteur : undefined,
+    sectorMode: f.secteur.length > 1 ? f.secteurMode : undefined,
+    sectorsMode: f.secteur.length > 1 ? f.secteurMode : undefined,
     relance: f.relance || undefined,
     unassigned: f.unassigned_only || undefined,
     createdFrom: f.date_insertion_from || undefined,
@@ -96,6 +99,8 @@ export default function PortefeuilleEntreprises() {
     loadPrevPage,
   } = usePersistedListView<EntrepriseFilters>('disciplina:list-view:portefeuille', EMPTY_FILTERS, {
     status: STATUS_VALUES,
+    secteur: SECTEUR_VALUES,
+    secteurMode: ['OR', 'AND'],
     relance: ['', 'today', 'past', 'future'],
   })
 

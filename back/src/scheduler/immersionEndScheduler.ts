@@ -1,4 +1,5 @@
 import { ImmersionEndNotificationService } from '../services/ImmersionEndNotificationService';
+import { runForAllRegions, getRegion } from '../db/tenant';
 import { logger } from '../external/logger/logger';
 
 // Tick horaire : la granularité « jour » de la date de fin d'immersion ne
@@ -21,10 +22,15 @@ export function startImmersionEndScheduler(): NodeJS.Timeout {
         if (running) return;
         running = true;
         try {
-            const notified = await service.run();
-            if (notified > 0) logger.info({ notified }, 'immersion-end: notifications émises');
-        } catch (err) {
-            logger.error({ err }, 'immersion-end: tick du scheduler en erreur');
+            await runForAllRegions(async () => {
+                const region = getRegion();
+                try {
+                    const notified = await service.run();
+                    if (notified > 0) logger.info({ region, notified }, 'immersion-end: notifications émises');
+                } catch (err) {
+                    logger.error({ err, region }, 'immersion-end: tick du scheduler en erreur');
+                }
+            });
         } finally {
             running = false;
         }

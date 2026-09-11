@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { X, Building2, ArrowRight, AlertTriangle } from 'lucide-react'
+import { X, Building2, ArrowRight, AlertTriangle, Check } from 'lucide-react'
 import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
+
 import type { AppUser } from '@/store/authStore'
 import { fullName } from '@/store/authStore'
 import { apiFetch } from '@/api/httpClient'
@@ -31,7 +32,7 @@ type FormValues = {
   telephone: string
   email: string
   adresse: string
-  secteur: string
+  secteur: string[]
   metier: string
   representant_legal: string
   idcc: string
@@ -43,6 +44,13 @@ type FormValues = {
   type_relance: string
   relance_template_id: string
   relance_channel: string
+}
+
+function parseSecteurValue(raw: string | null | undefined): string[] {
+  if (!raw) return [DEFAULT_SECTEUR]
+  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean)
+  const valid = parts.filter((s) => (SECTEUR_VALUES as string[]).includes(s))
+  return valid.length ? valid : [DEFAULT_SECTEUR]
 }
 
 interface Props {
@@ -69,14 +77,14 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       ? currentUser.id
       : String(initial?.proprietaire_id ?? currentUser.id)
 
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, setValue, watch, getValues, formState: { errors, isSubmitting } } = useForm<FormValues>({
     defaultValues: {
       nom_commercial: initial?.nom_commercial ?? '',
       siret: initial?.siret ?? prefillSiret ?? '',
       telephone: initial?.telephone ?? '',
       email: initial?.email ?? '',
       adresse: initial?.adresse ?? '',
-      secteur: initial?.secteur ?? DEFAULT_SECTEUR,
+      secteur: parseSecteurValue(initial?.secteur),
       metier: initial?.metier ?? '',
       representant_legal: initial?.representant_legal ?? '',
       idcc: initial?.idcc ?? '',
@@ -94,6 +102,15 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
   })
 
   const relanceChannel = watch('relance_channel')
+  const selectedSecteurs = watch('secteur') ?? []
+
+  const toggleSecteur = (value: string) => {
+    const current = getValues('secteur') ?? []
+    const next = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value]
+    setValue('secteur', next, { shouldValidate: true, shouldDirty: true })
+  }
 
   // Two-step flow state
   const [step, setStep] = useState<'lookup' | 'form'>(mode === 'create' ? 'lookup' : 'form')
@@ -143,7 +160,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       telephone: values.telephone || null,
       email: values.email || null,
       adresse: values.adresse || null,
-      secteur: values.secteur || null,
+      secteur: values.secteur && values.secteur.length ? values.secteur.join(', ') : null,
       metier: values.metier || null,
       representant_legal: values.representant_legal || null,
       idcc: values.idcc || null,
@@ -339,18 +356,32 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       {...register('adresse')}
                     />
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="secteur">
+                      <label className="text-sm font-medium text-gray-700">
                         Secteur
                       </label>
-                      <select
-                        id="secteur"
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
-                        {...register('secteur')}
-                      >
-                        {SECTEUR_VALUES.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap gap-2">
+                        {SECTEUR_VALUES.map((s) => {
+                          const active = selectedSecteurs.includes(s)
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => toggleSecteur(s)}
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                active
+                                  ? 'border-blue bg-blue text-white'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900'
+                              }`}
+                            >
+                              {active && <Check className="h-3 w-3" />}
+                              {s}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {selectedSecteurs.length === 0 && (
+                        <p className="text-xs text-danger">Sélectionnez au moins un secteur</p>
+                      )}
                     </div>
                   </div>
                 </div>

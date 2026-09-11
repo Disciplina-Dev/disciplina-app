@@ -33,6 +33,8 @@ export interface User {
     password?: string;
 }
 
+import type { Region } from './tenant';
+
 export interface UserResponse {
     id: number;
     email: string;
@@ -42,6 +44,7 @@ export interface UserResponse {
     permission: Permission;
     sectors: string[] | null;
     googleConnected: boolean;
+    region: Region;
 }
 
 export interface DirectoryEntry {

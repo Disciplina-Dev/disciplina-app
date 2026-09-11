@@ -1,7 +1,5 @@
-import {
-    DriveFolderConfigModel,
-    DRIVE_FOLDER_CONFIG_ID,
-} from '../../db/mongo/schemas/driveFolderConfig.schema';
+import { DRIVE_FOLDER_CONFIG_ID } from '../../db/mongo/schemas/driveFolderConfig.schema';
+import { getModels } from '../../db/mongo/tenant';
 
 export interface DriveFolderConfig {
     rootFolderId: string | null;
@@ -21,12 +19,12 @@ function toConfig(doc: any): DriveFolderConfig {
 
 export class DriveFolderConfigRepository {
     async get(): Promise<DriveFolderConfig> {
-        const doc = await DriveFolderConfigModel.findById(DRIVE_FOLDER_CONFIG_ID).lean();
+        const doc = await getModels().DriveFolderConfig.findById(DRIVE_FOLDER_CONFIG_ID).lean();
         return toConfig(doc);
     }
 
     async save(config: DriveFolderConfig): Promise<DriveFolderConfig> {
-        const doc = await DriveFolderConfigModel.findByIdAndUpdate(
+        const doc = await getModels().DriveFolderConfig.findByIdAndUpdate(
             DRIVE_FOLDER_CONFIG_ID,
             {
                 _id: DRIVE_FOLDER_CONFIG_ID,

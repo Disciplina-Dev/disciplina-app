@@ -12,7 +12,7 @@ import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
 import { OllamaService } from '../../external/ollama/ollama.service';
-import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -296,7 +296,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         // stockée (avatar_updated_at peut mentir sur des fiches legacy sans bytes
         // en base), on cherche un fichier "Photo_*" dans le dossier Drive et on
         // le met en cache comme avatar.
-        const hasStoredAvatar = await CandidateAvatarModel.exists({ candidate_id: id });
+        const hasStoredAvatar = await getModels().CandidateAvatar.exists({ candidate_id: id });
         if (
             !hasStoredAvatar &&
             !candidate.identity.drive_avatar_file_id &&
@@ -306,7 +306,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
             if (photoFile) {
                 try {
                     const { buffer, mimeType } = await driveService.downloadFile(photoFile.id);
-                    await CandidateAvatarModel.findOneAndUpdate(
+                    await getModels().CandidateAvatar.findOneAndUpdate(
                         { candidate_id: id },
                         { candidate_id: id, data: buffer, content_type: mimeType, updated_at: new Date() },
                         { upsert: true, new: true },
@@ -504,7 +504,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
 
         const now = new Date();
 
-        await CandidateAvatarModel.findOneAndUpdate(
+        await getModels().CandidateAvatar.findOneAndUpdate(
             { candidate_id: id },
             { candidate_id: id, data: file.buffer, content_type: detectedMime, updated_at: now },
             { upsert: true, new: true },
@@ -578,7 +578,7 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
         }
         assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
 
-        const cached = await CandidateAvatarModel.findOne({ candidate_id: id }).lean();
+        const cached = await getModels().CandidateAvatar.findOne({ candidate_id: id }).lean();
         if (cached) {
             const raw = cached.data as unknown as { buffer?: Buffer };
             const buf = Buffer.isBuffer(cached.data) ? cached.data : Buffer.from(raw.buffer ?? (cached.data as never));
@@ -620,7 +620,7 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
         // Cache for future requests (incl. the public route) — best-effort.
         try {
             const now = new Date();
-            await CandidateAvatarModel.findOneAndUpdate(
+            await getModels().CandidateAvatar.findOneAndUpdate(
                 { candidate_id: id },
                 { candidate_id: id, data: buffer, content_type: mimeType, updated_at: now },
                 { upsert: true },
@@ -652,7 +652,7 @@ router.get('/:id/avatar', async (req, res: Response) => {
         }
         assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
 
-        const avatar = await CandidateAvatarModel.findOne({ candidate_id: req.params.id }).lean();
+        const avatar = await getModels().CandidateAvatar.findOne({ candidate_id: req.params.id }).lean();
         if (!avatar) {
             res.status(404).end();
             return;

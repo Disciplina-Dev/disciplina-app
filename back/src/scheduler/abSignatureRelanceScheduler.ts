@@ -1,4 +1,5 @@
 import { AbSignatureRelanceService } from '../services/AbSignatureRelanceService';
+import { runForAllRegions, getRegion } from '../db/tenant';
 import { logger } from '../external/logger/logger';
 
 // Tick horaire : la granularité « jour » du délai de 2 semaines ne nécessite pas
@@ -21,10 +22,15 @@ export function startAbSignatureRelanceScheduler(): NodeJS.Timeout {
         if (running) return;
         running = true;
         try {
-            const relanced = await service.run();
-            if (relanced > 0) logger.info({ relanced }, 'ab-relance: relances de signature envoyées');
-        } catch (err) {
-            logger.error({ err }, 'ab-relance: tick du scheduler en erreur');
+            await runForAllRegions(async () => {
+                const region = getRegion();
+                try {
+                    const relanced = await service.run();
+                    if (relanced > 0) logger.info({ region, relanced }, 'ab-relance: relances de signature envoyées');
+                } catch (err) {
+                    logger.error({ err, region }, 'ab-relance: tick du scheduler en erreur');
+                }
+            });
         } finally {
             running = false;
         }

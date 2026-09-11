@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { KpiModel } from './schemas/kpi.schema';
+import { getModels } from './tenant';
 import { KPI_METRIC_COLUMNS } from '../../types/kpi.types';
 import { RH_KPI_COLUMNS } from '../../types/rhKpi.types';
 
@@ -92,7 +92,7 @@ async function migrateOne(
     let verified = 0;
     for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
         const chunk = rows.slice(i, i + CHUNK_SIZE);
-        const result = await KpiModel.bulkWrite(
+        const result = await getModels().Kpi.bulkWrite(
             chunk.map((row) => {
                 const { filter, set } = buildDoc(row);
                 return {

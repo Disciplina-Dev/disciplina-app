@@ -106,7 +106,7 @@ services:
       FILIZ_BASE_URI: http://localhost
       FILIZ_AUTH_URI: http://localhost
       INSEE_API_KEY: test-api-key
-      OAUTH_ENCRYPTION_KEY: 5D539695AC72E55098D81BA3F2DDCA68
+      OAUTH_ENCRYPTION_KEY: b2a84c6f814ddcaa75137e7ee8cdee759b305282e439da29b479fffde6f813af
       SSN_ENCRYPTION_KEY: ca8b3584e39e348284771bb25ff0bff6fe6bd3d645ff83d6a66899a01244203f
       CI: true
       RELANCE_HMAC_SECRET: Super-secret-hmac-relance
