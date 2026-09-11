@@ -10,7 +10,10 @@ const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
 export interface CompanyFilters {
     status?: string[];
     userID?: number | null;
-    sector?: string | null;
+    sector?: string | string[] | null;
+    sectors?: string[] | null;
+    sectorMode?: 'OR' | 'AND' | null;
+    sectorsMode?: 'OR' | 'AND' | null;
     relance?: string | null;
     unassigned?: boolean | null;
     createdFrom?: string | null;
@@ -67,9 +70,22 @@ export class CompanyRepository {
             params.push(filters.userID);
         }
 
-        if (filters?.sector && ALLOWED_SECTORS.has(filters.sector)) {
-            conditions.push('sector = ?');
-            params.push(filters.sector);
+        // Multi-sector filter : supports both legacy `sector: "Ouest"` and new `sector: ["Ouest","Sud"]` / `sectors`.
+        const rawSectors: string[] = [];
+        if (filters?.sector !== undefined && filters?.sector !== null) {
+            if (Array.isArray(filters.sector)) rawSectors.push(...filters.sector);
+            else rawSectors.push(String(filters.sector));
+        }
+        if (filters?.sectors?.length) rawSectors.push(...filters.sectors);
+        const validSectors = [...new Set(rawSectors.filter((s) => ALLOWED_SECTORS.has(s)))];
+        const mode = (filters?.sectorMode === 'AND' || filters?.sectorsMode === 'AND') ? 'AND' : 'OR';
+        if (validSectors.length === 1) {
+            conditions.push('sector LIKE CONCAT("%", ?, "%")');
+            params.push(validSectors[0]);
+        } else if (validSectors.length > 1) {
+            const joiner = mode === 'AND' ? ' AND ' : ' OR ';
+            conditions.push(`(${validSectors.map(() => 'sector LIKE CONCAT("%", ?, "%")').join(joiner)})`);
+            params.push(...validSectors);
         }
 
         const relance = filters?.relance && ALLOWED_RELANCE.has(filters.relance) ? filters.relance : null;
