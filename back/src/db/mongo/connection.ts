@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { type Connection, type Model } from 'mongoose';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 import { MailTemplateModel } from './schemas/mailTemplate.schema';
@@ -9,12 +9,33 @@ const MONGO_URI =
         ? env.MONGO_URI!
         : `mongodb://${env.MONGO_ROOT_USERNAME}:${env.MONGO_ROOT_PASSWORD}@${env.MONGO_HOST}:${env.MONGO_PORT}/${env.MONGO_DB_NAME}?authSource=admin`;
 
+const MONGO_ANNEMASSE_URI =
+    env.NODE_ENV === 'production'
+        ? env.MONGO_ANNEMASSE_URI!
+        : `mongodb://${env.MONGO_ANNEMASSE_USERNAME ?? env.MONGO_ROOT_USERNAME}:${env.MONGO_ANNEMASSE_PASSWORD ?? env.MONGO_ROOT_PASSWORD}@${env.MONGO_HOST}:${env.MONGO_PORT}/${env.MONGO_ANNEMASSE_DATABASE}?authSource=admin`;
+
+const MONGO_CONNECTION_OPTIONS = {
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+} as const;
+
+let annemasseConnection: Connection | undefined;
+
+export function getAnnemasseConnection(): Connection {
+    if (!annemasseConnection) {
+        annemasseConnection = mongoose.createConnection(MONGO_ANNEMASSE_URI, MONGO_CONNECTION_OPTIONS);
+    }
+    return annemasseConnection;
+}
+
 /**
  * Patches the candidates collection validator to fix inconsistencies
  * between the original mongo-init.js schema and the actual application schema.
  */
-async function patchCandidatesValidator(): Promise<void> {
-    await mongoose.connection.db!.command({
+async function patchCandidatesValidator(conn: Connection): Promise<void> {
+    await conn.db!.command({
         collMod: 'candidates',
         validator: {
             $jsonSchema: {
@@ -215,8 +236,8 @@ async function patchCandidatesValidator(): Promise<void> {
  * Rend les modèles de mail RH communs : reverse les anciens modèles RH
  * (stockés par user) vers le propriétaire partagé. Idempotent.
  */
-async function shareRhMailTemplates(): Promise<void> {
-    const res = await MailTemplateModel.updateMany(
+async function shareRhMailTemplates<T>(model: Model<T>): Promise<void> {
+    const res = await model.updateMany(
         { scope: 'rh', user_id: { $ne: SHARED_RH_USER_ID } },
         { $set: { user_id: SHARED_RH_USER_ID } },
     );
@@ -225,21 +246,25 @@ async function shareRhMailTemplates(): Promise<void> {
     }
 }
 
+async function patchAndSeed(region: 'reunion' | 'annemasse', conn: Connection, mailTemplateModel: Model<unknown>): Promise<void> {
+    try {
+        await patchCandidatesValidator(conn);
+    } catch (err) {
+        logger.warn({ err }, `MongoDB (${region}): validator patch failed`);
+    }
+    try {
+        await shareRhMailTemplates(mailTemplateModel);
+    } catch (err) {
+        logger.warn({ err }, `MongoDB (${region}): partage modèles RH échoué`);
+    }
+}
+
 export async function connectMongoDB(): Promise<void> {
-    await mongoose.connect(MONGO_URI, {
-        maxPoolSize: 10,
-        minPoolSize: 2,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-    });
-    try {
-        await patchCandidatesValidator();
-    } catch (err) {
-        logger.warn({ err }, 'MongoDB: validator patch failed');
-    }
-    try {
-        await shareRhMailTemplates();
-    } catch (err) {
-        logger.warn({ err }, 'MongoDB: partage modèles RH échoué');
-    }
+    await mongoose.connect(MONGO_URI, MONGO_CONNECTION_OPTIONS);
+    const annemasse = getAnnemasseConnection();
+    await annemasse.asPromise();
+    const annemasseMailModel =
+        annemasse.models.MailTemplate ?? annemasse.model('MailTemplate', MailTemplateModel.schema);
+    await patchAndSeed('reunion', mongoose.connection, MailTemplateModel);
+    await patchAndSeed('annemasse', annemasse, annemasseMailModel);
 }

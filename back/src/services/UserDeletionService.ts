@@ -5,7 +5,7 @@ import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepo
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { NotificationRepository } from '../repositories/mongo/NotificationRepository';
-import { MailTemplateModel, MailSignatureModel } from '../db/mongo/schemas/mailTemplate.schema';
+import { getModels } from '../db/mongo/tenant';
 import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
 import { Permission } from '../types/user.types';
@@ -186,8 +186,8 @@ export class UserDeletionService {
             const candidates = await this.candidateRepository.reassignOwner(userId, owner);
 
             const notifications = await this.notificationRepository.deleteAllForUser(userId);
-            const mailTemplates = await MailTemplateModel.deleteMany({ user_id: userId });
-            const mailSignatures = await MailSignatureModel.deleteMany({ user_id: userId });
+            const mailTemplates = await getModels().MailTemplate.deleteMany({ user_id: userId });
+            const mailSignatures = await getModels().MailSignature.deleteMany({ user_id: userId });
 
             return {
                 reassigned: { needsAnalyses, offers, candidates },
