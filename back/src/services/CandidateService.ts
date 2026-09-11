@@ -11,6 +11,7 @@ import { offerZones, candidateZones } from '../utils/zone';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
+import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
 import { encryptSsn, MASKED_SSN } from '../external/crypto/ssn-cipher';
@@ -30,6 +31,7 @@ export class CandidateService {
     private candidateHistoryService = new CandidateHistoryService();
     private notificationService = new NotificationService();
     private userRepository = new UserRepository();
+    private companyRepository = new CompanyRepository();
 
     async findAll(): Promise<Candidate[]> {
         const candidates = await this.repository.findAll();
@@ -164,7 +166,11 @@ export class CandidateService {
             data.identity.description = buildCandidateSummary(data as Candidate);
         }
         encryptIdentitySsn(data.identity);
-        return this.repository.create(data);
+        const created = await this.repository.create(data);
+        if (created.status === CandidateStatus.CONTRACT) {
+            await this.notifyCommercialOnContract(created);
+        }
+        return created;
     }
 
     /**
@@ -222,6 +228,7 @@ export class CandidateService {
             // Passage en contrat : l'offre liée bascule elle aussi en contrat.
             if (data.status === CandidateStatus.CONTRACT && existing?.status !== CandidateStatus.CONTRACT) {
                 await this.syncOffersToContract(updated);
+                await this.notifyCommercialOnContract(updated);
             }
         }
         return updated;
@@ -239,6 +246,74 @@ export class CandidateService {
         await Promise.all(
             Array.from(offerIds).map((offerId) => this.offerRepository.setOfferStatus(offerId, OfferStatus.CONTRACT)),
         );
+    }
+
+    // Quand un candidat passe en contrat avec une entreprise sélectionnée, notifie
+    // le commercial propriétaire de l'entreprise (companies.user_id).
+    private async notifyCommercialOnContract(candidate: Candidate): Promise<void> {
+        let companyId: number | undefined = candidate.contract_company_id
+            ? Number(candidate.contract_company_id)
+            : undefined;
+
+        // Fallback : si l'entreprise n'est pas directement sur le candidat mais via l'offre
+        if (!companyId && candidate.contract_offer_id) {
+            try {
+                const offer = await this.offerRepository.findById(candidate.contract_offer_id);
+                const offerCompanyId = offer?.company_infos?.id;
+                if (offerCompanyId) companyId = Number(offerCompanyId);
+            } catch {
+                // best-effort fallback, on continue sans entreprise
+            }
+        }
+
+        if (!companyId) {
+            // Dernier fallback : entreprise renseignée uniquement par son nom (ex. recherche exacte)
+            const name = candidate.contract_company_name?.trim();
+            if (name && name !== 'Non renseigné') {
+                try {
+                    const byName = await this.companyRepository.findByName(name);
+                    if (byName?.user_id) {
+                        const candidateName = candidate.identity?.full_name ?? 'Un candidat';
+                        await this.notificationService.create({
+                            userId: byName.user_id,
+                            type: 'candidate_contract',
+                            category: 'company',
+                            level: 'success',
+                            title: 'Contrat signé',
+                            message: `${candidateName} a signé un contrat avec ${byName.name ?? name}`,
+                            link: `/rh/candidats/${candidate._id}`,
+                        });
+                    }
+                } catch (err) {
+                    logger.error({ err, candidateId: candidate._id }, 'contract notification by name failed');
+                }
+            }
+            return;
+        }
+
+        try {
+            const company = await this.companyRepository.findById(companyId);
+            if (!company?.user_id) {
+                logger.warn(
+                    { candidateId: candidate._id, companyId },
+                    'contract notification skipped: company has no commercial linked',
+                );
+                return;
+            }
+            const candidateName = candidate.identity?.full_name ?? 'Un candidat';
+            const companyName = company.name ?? candidate.contract_company_name ?? "l'entreprise";
+            await this.notificationService.create({
+                userId: company.user_id,
+                type: 'candidate_contract',
+                category: 'company',
+                level: 'success',
+                title: 'Contrat signé',
+                message: `${candidateName} a signé un contrat avec ${companyName}`,
+                link: `/rh/candidats/${candidate._id}`,
+            });
+        } catch (err) {
+            logger.error({ err, candidateId: candidate._id, companyId }, 'contract notification failed');
+        }
     }
 
     async delete(id: string): Promise<boolean> {
