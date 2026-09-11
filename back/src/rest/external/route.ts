@@ -91,6 +91,16 @@ router.post(
     bookInterviewSlot,
 );
 
+// Session de matching (external_access, reference 2) — accès cookie EXTERNAL_GUEST.
+router.get('/:signature/match/candidates', externalRateLimiter, requireExternalGuest, requireMatchingReference, getCandidates);
+router.get('/:signature/match/cv/:candidateId', externalRateLimiter, requireExternalGuest, requireMatchingReference, getCv);
+router.post('/:signature/match/answers', externalRateLimiter, requireExternalGuest, requireMatchingReference, submitAnswers);
+router.get('/:signature/match/completion', externalRateLimiter, requireExternalGuest, requireMatchingReference, getCompletion);
+
+// Session entretien (external_access, reference 3) — accès cookie EXTERNAL_GUEST.
+router.get('/:signature/interview/slots', externalRateLimiter, requireExternalGuest, requireInterviewReference, getInterviewSlots);
+router.post('/:signature/interview/book', externalRateLimiter, requireExternalGuest, requireInterviewReference, bookInterviewSlot);
+
 router.post('/cv-import/send', externalRateLimiter, authenticateStaff, sendCvImportMail);
 router.post(
     '/:signature/cv-upload',
