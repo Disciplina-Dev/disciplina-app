@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { gzipSync, gunzipSync } from 'zlib';
-import { MailTemplateModel, MailSignatureModel } from '../db/mongo/schemas/mailTemplate.schema';
+import { getModels } from '../db/mongo/tenant';
 import {
     MailTemplate,
     MailTemplateScope,
@@ -148,25 +148,25 @@ export class MailTemplateService {
             scope === 'commercial'
                 ? { scope, $or: [{ user_id: userId }, { kind: { $ne: null } }] }
                 : { user_id: this.ownerFor(userId, scope), scope };
-        const docs = await MailTemplateModel.find(filter).sort({ created_at: 1 }).lean<MailTemplate[]>();
+        const docs = await getModels().MailTemplate.find(filter).sort({ created_at: 1 }).lean<MailTemplate[]>();
         return docs.map(toDTO);
     }
 
     /** Modèle système du scope commercial (ex. mail « AB à signer »), ou null s'il n'existe pas. */
     async findCommercialTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ scope: 'commercial', kind }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ scope: 'commercial', kind }).lean<MailTemplate>();
         return doc ? toDTO(doc) : null;
     }
 
     /** Modèle système du scope rh (ex. invitation à la sélection de candidats), ou null s'il n'existe pas. */
     async findRhTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
         return doc ? toDTO(doc) : null;
     }
 
     /** Modèle accessible à un user (toutes scopes), ou null s'il est introuvable / non autorisé. */
     async findById(userId: number, id: string): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!doc || !this.canAccess(doc, userId)) return null;
         return toDTO(doc);
     }
@@ -181,7 +181,7 @@ export class MailTemplateService {
         if (!level) return;
         const filter: Record<string, unknown> = { scope: 'peda', peda_level: level };
         if (exceptId) filter._id = { $ne: exceptId };
-        if (await MailTemplateModel.exists(filter)) {
+        if (await getModels().MailTemplate.exists(filter)) {
             throw new DuplicatePedaLevelError(`Un modèle porte déjà le niveau ${level}`);
         }
     }
@@ -190,7 +190,7 @@ export class MailTemplateService {
         const now = new Date();
         const pedaLevel = this.pedaLevelFor(scope, data.pedaLevel);
         await this.assertLevelFree(pedaLevel);
-        const doc = await MailTemplateModel.create({
+        const doc = await getModels().MailTemplate.create({
             _id: randomUUID(),
             user_id: this.ownerFor(userId, scope),
             scope,
@@ -206,11 +206,11 @@ export class MailTemplateService {
     }
 
     async update(userId: number, id: string, data: MailTemplateInput): Promise<MailTemplateDTO> {
-        const existing = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const existing = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!existing || !this.canAccess(existing, userId)) throw new TemplateNotFoundError();
         const pedaLevel = this.pedaLevelFor(existing.scope, data.pedaLevel);
         await this.assertLevelFree(pedaLevel, id);
-        const doc = await MailTemplateModel.findOneAndUpdate(
+        const doc = await getModels().MailTemplate.findOneAndUpdate(
             { _id: id },
             {
                 $set: {
@@ -229,7 +229,7 @@ export class MailTemplateService {
 
     /** Modèle Peda associé à un niveau de relance, ou null s'il n'a pas été défini. */
     async findPedaTemplateByLevel(level: PedaLevel): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ scope: 'peda', peda_level: level }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ scope: 'peda', peda_level: level }).lean<MailTemplate>();
         return doc ? toDTO(doc) : null;
     }
 
@@ -245,9 +245,9 @@ export class MailTemplateService {
         let created = 0;
         for (const tpl of PEDA_DEFAULT_TEMPLATES) {
             // Un modèle déjà présent sur ce niveau (créé à la main) a la priorité.
-            if (await MailTemplateModel.exists({ scope: 'peda', peda_level: tpl.pedaLevel })) continue;
+            if (await getModels().MailTemplate.exists({ scope: 'peda', peda_level: tpl.pedaLevel })) continue;
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_PEDA_USER_ID,
                 scope: 'peda',
@@ -274,9 +274,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(AB_SIGNATURE_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'commercial', kind: 'ab_signature' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'commercial', kind: 'ab_signature' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_COMMERCIAL_USER_ID,
                 scope: 'commercial',
@@ -304,9 +304,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(AB_RELANCE_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'commercial', kind: 'ab_relance' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'commercial', kind: 'ab_relance' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_COMMERCIAL_USER_ID,
                 scope: 'commercial',
@@ -332,9 +332,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(CV_IMPORT_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'rh', name: 'Import CV' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', name: 'Import CV' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
@@ -360,9 +360,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(CV_IMPORT_TEMPLATE_V2_KEY)) return;
 
-        const doc = await MailTemplateModel.findOne({ scope: 'rh', name: 'Import CV' }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ scope: 'rh', name: 'Import CV' }).lean<MailTemplate>();
         if (doc && (doc.body.includes('/public/cv-import') || doc.body.includes('{{code}}'))) {
-            await MailTemplateModel.updateOne(
+            await getModels().MailTemplate.updateOne(
                 { _id: doc._id },
                 { $set: { subject: CV_IMPORT_SUBJECT, body: CV_IMPORT_BODY, updated_at: new Date() } },
             );
@@ -387,9 +387,9 @@ export class MailTemplateService {
         ] as const;
 
         for (const { kind, subject, body } of defaults) {
-            const doc = await MailTemplateModel.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+            const doc = await getModels().MailTemplate.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
             if (doc && (doc.body.includes('{{code}}') || doc.body.includes('{{id}}'))) {
-                await MailTemplateModel.updateOne(
+                await getModels().MailTemplate.updateOne(
                     { _id: doc._id },
                     { $set: { subject, body, updated_at: new Date() } },
                 );
@@ -408,9 +408,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(PROPOSITION_CANDIDAT_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'proposition_candidat' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'proposition_candidat' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
@@ -437,9 +437,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(INTERVIEW_INVITATION_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'interview_invitation' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'interview_invitation' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
@@ -466,9 +466,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(EXTERNAL_ACCESS_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'external_access' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'external_access' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
@@ -495,9 +495,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(EXTERNAL_LINK_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'external_link' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'external_link' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
@@ -516,7 +516,7 @@ export class MailTemplateService {
     }
 
     async remove(userId: number, id: string): Promise<void> {
-        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
         // Un modèle système (kind) ne peut pas être supprimé, seulement édité.
         if (doc.kind) throw new SystemTemplateError();
@@ -529,7 +529,7 @@ export class MailTemplateService {
                 /* ignore : on supprime quand même le modèle */
             }
         }
-        await MailTemplateModel.deleteOne({ _id: id });
+        await getModels().MailTemplate.deleteOne({ _id: id });
     }
 
     // ── Pièce jointe (1 par modèle, zippée sur Drive) ────────────────────
@@ -540,7 +540,7 @@ export class MailTemplateService {
         contentType: string,
         content: Buffer,
     ): Promise<MailTemplateDTO> {
-        const doc = await MailTemplateModel.findOne({ _id: id });
+        const doc = await getModels().MailTemplate.findOne({ _id: id });
         if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
 
         const drive = await this.driveForUser(userId);
@@ -568,7 +568,7 @@ export class MailTemplateService {
     }
 
     async removeAttachment(userId: number, id: string): Promise<MailTemplateDTO> {
-        const doc = await MailTemplateModel.findOne({ _id: id });
+        const doc = await getModels().MailTemplate.findOne({ _id: id });
         if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
         if (doc.attachment?.driveFileId) {
             try {
@@ -588,7 +588,7 @@ export class MailTemplateService {
         userId: number,
         id: string,
     ): Promise<{ filename: string; contentType: string; content: string }> {
-        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!doc || !this.canAccess(doc, userId) || !doc.attachment) throw new TemplateNotFoundError();
         const drive = await this.driveForUser(userId);
         const { buffer } = await drive.downloadFile(doc.attachment.driveFileId);
@@ -602,7 +602,7 @@ export class MailTemplateService {
 
     // ── Signature (une par user+scope, image sur Drive) ──────────────────
     async getSignature(userId: number, scope: MailTemplateScope): Promise<string | null> {
-        const sig = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{
+        const sig = await getModels().MailSignature.findOne({ user_id: userId, scope }).lean<{
             driveFileId: string;
             contentType: string;
         }>();
@@ -623,7 +623,7 @@ export class MailTemplateService {
         const user = await this.userService.findById(userId);
         if (!user || !user.oauthToken) throw new GoogleNotConnectedError('Google Drive non connecté');
         const drive = await this.driveForUser(userId);
-        const existing = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
+        const existing = await getModels().MailSignature.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
         if (existing?.driveFileId) {
             try {
                 await drive.deleteFile(existing.driveFileId);
@@ -637,7 +637,7 @@ export class MailTemplateService {
             `${user.firstName} ${user.lastName}`.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || `user${userId}`;
         const filename = `Signature DISCIPLINA - ${safeName} (${scope}).${ext}`;
         const uploaded = await drive.uploadFile(filename, contentType, content, env.DRIVE_TEMPLATES_FOLDER_ID);
-        await MailSignatureModel.findOneAndUpdate(
+        await getModels().MailSignature.findOneAndUpdate(
             { _id: `${userId}:${scope}` },
             {
                 $set: {
@@ -655,7 +655,7 @@ export class MailTemplateService {
     }
 
     async removeSignature(userId: number, scope: MailTemplateScope): Promise<void> {
-        const sig = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
+        const sig = await getModels().MailSignature.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
         if (!sig) return;
         try {
             const drive = await this.driveForUser(userId);
@@ -663,6 +663,6 @@ export class MailTemplateService {
         } catch {
             /* ignore */
         }
-        await MailSignatureModel.deleteOne({ _id: `${userId}:${scope}` });
+        await getModels().MailSignature.deleteOne({ _id: `${userId}:${scope}` });
     }
 }

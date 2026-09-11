@@ -46,7 +46,10 @@ export const typeDefs = gql`
     input CompanyFiltersInput {
         status: [String!]
         userID: Int
-        sector: String
+        sector: [String!]
+        sectors: [String!]
+        sectorMode: String
+        sectorsMode: String
         relance: String
         unassigned: Boolean
         createdFrom: String

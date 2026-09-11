@@ -5,6 +5,8 @@ import { yousignWebhookGuard } from '../middleware/webhookSignature';
 import { authenticateStaffStream } from '../middleware/sseAuth';
 import { AuthRequest } from '../middleware/auth';
 import { env } from '../../config/env';
+import { sseKey } from '../shared/sseChannel';
+import { syncWithRegion } from '../../db/tenant';
 
 export const router: Router = Router();
 
@@ -14,26 +16,28 @@ router.post('/api/webhooks/yousign', ...yousignWebhookGuard(env.YOUSIGN_WEBHOOK_
 router.get('/api/webhooks/yousign/stream', (req: AuthRequest, res: Response) => {
     const staff = authenticateStaffStream(req, res);
     if (!staff) return;
-    const userID = String(staff.id);
+    syncWithRegion(staff.region, () => {
+        const userID = String(staff.id);
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-    res.write(': connected\n\n');
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+        res.write(': connected\n\n');
 
-    addClient(userID, res);
-    const heartbeat = setInterval(() => {
-        try {
-            res.write(': ping\n\n');
-        } catch {
-            /* ignore */
-        }
-    }, 30000);
+        addClient(sseKey(staff.region, userID), res);
+        const heartbeat = setInterval(() => {
+            try {
+                res.write(': ping\n\n');
+            } catch {
+                /* ignore */
+            }
+        }, 30000);
 
-    req.on('close', () => {
-        clearInterval(heartbeat);
-        removeClient(userID, res);
+        req.on('close', () => {
+            clearInterval(heartbeat);
+            removeClient(sseKey(staff.region, userID), res);
+        });
     });
 });

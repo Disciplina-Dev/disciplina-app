@@ -24,7 +24,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
-import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
+import { STATUS_VALUES, SECTEUR_VALUES } from '@/types/entreprise'
 import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
@@ -400,14 +400,37 @@ export default function EntreprisePage() {
                 <div className="flex gap-3">
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><MapPin className="h-4 w-4" /></span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Secteur</p>
-                    <select
-                      value={draft.secteur ?? DEFAULT_SECTEUR}
-                      onChange={(e) => set('secteur', e.target.value)}
-                      className={INLINE_INPUT}
-                    >
-                      {SECTEUR_VALUES.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Secteur</p>
+                    <div className="flex flex-wrap gap-2">
+                      {SECTEUR_VALUES.map((s) => {
+                        const secteurs = (draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+                        const active = secteurs.includes(s)
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              const current = (draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+                              const valid = current.filter((x) => (SECTEUR_VALUES as string[]).includes(x))
+                              const next = active ? valid.filter((x) => x !== s) : [...valid, s]
+                              const ordered = SECTEUR_VALUES.filter((v) => next.includes(v))
+                              set('secteur', ordered.length ? ordered.join(', ') : '')
+                            }}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-blue bg-blue text-white'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900'
+                            }`}
+                          >
+                            {active && <Check className="h-3 w-3" />}
+                            {s}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {!(draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean).length && (
+                      <p className="text-xs text-danger mt-1.5">Sélectionnez au moins un secteur</p>
+                    )}
                   </div>
                 </div>
               ) : (

@@ -45,7 +45,8 @@ export const EMPTY_FILTERS: EntrepriseFilters = {
   siret: '',
   status: [],
   commercial_id: null,
-  secteur: '',
+  secteur: [],
+  secteurMode: 'OR',
   relance: '',
   unassigned_only: false,
   date_insertion_from: '',
@@ -206,6 +207,62 @@ function SelectContent({
   )
 }
 
+// ─── Secteur multi-select dropdown content ──────────────────────────────────
+function SecteurContent({
+  selected,
+  onToggle,
+  options,
+  mode,
+  onModeChange,
+}: {
+  selected: string[]
+  onToggle: (s: string) => void
+  options: string[]
+  mode: 'OR' | 'AND'
+  onModeChange: (m: 'OR' | 'AND') => void
+}) {
+  return (
+    <div className="py-1.5">
+      {options.map((s) => {
+        const active = selected.includes(s)
+        return (
+          <button
+            key={s}
+            onClick={() => onToggle(s)}
+            className="flex w-full items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <span className="flex-1 text-left">{s}</span>
+            {active && <Check className="h-3.5 w-3.5 text-blue" />}
+          </button>
+        )
+      })}
+      {selected.length > 1 && (
+        <div className="border-t border-gray-100 mt-1 px-2 pt-2 pb-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 px-1">Correspondance</p>
+          <div className="flex rounded-lg bg-gray-50 p-0.5 gap-0.5">
+            <button
+              onClick={() => onModeChange('OR')}
+              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                mode === 'OR' ? 'bg-white text-blue shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Au moins un (OR)
+            </button>
+            <button
+              onClick={() => onModeChange('AND')}
+              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                mode === 'AND' ? 'bg-white text-blue shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Tous (AND)
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Relance dropdown content ─────────────────────────────────────────────────
 function RelanceContent({
   value,
@@ -304,13 +361,30 @@ export default function FilterPanel({ filters, secteurs, salePersons, onChange, 
     ? RELANCE_OPTIONS.find(o => o.value === filters.relance)?.label
     : undefined
 
+  const toggleSecteur = (s: string) => {
+    const cur = filters.secteur
+    const next = cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]
+    onChange({
+      ...filters,
+      secteur: next,
+      // Reset to OR when going back to ≤1 selection for cleaner state
+      ...(next.length <= 1 && filters.secteurMode !== 'OR' ? { secteurMode: 'OR' as const } : {}),
+    })
+  }
+
+  const secteurLabel =
+    filters.secteur.length === 0
+      ? undefined
+      : filters.secteur.length === 1
+        ? filters.secteur[0]
+        : `${filters.secteur.length} secteurs • ${filters.secteurMode}`
+
   const matchedCommercial = filters.commercial_id != null
     ? salePersons.find(sp => sp.id === filters.commercial_id) ?? null
     : null
   const commercialLabel = matchedCommercial ? fullName(matchedCommercial) : undefined
 
   const commercialOptions = salePersons.map(sp => ({ label: fullName(sp), value: sp.id }))
-  const secteurOptions = secteurs.map(s => ({ label: s, value: s }))
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -345,15 +419,16 @@ export default function FilterPanel({ filters, secteurs, salePersons, onChange, 
       <ChipDropdown
         icon={<MapPin className="h-3.5 w-3.5" />}
         label="Secteur"
-        activeLabel={filters.secteur || undefined}
-        isActive={!!filters.secteur}
-        onClear={() => onChange({ ...filters, secteur: '' })}
+        activeLabel={secteurLabel}
+        isActive={filters.secteur.length > 0}
+        onClear={() => onChange({ ...filters, secteur: [], secteurMode: 'OR' })}
       >
-        <SelectContent
-          options={secteurOptions}
-          value={filters.secteur || null}
-          onChange={(v) => onChange({ ...filters, secteur: (v as string) || '' })}
-          placeholder="Tous les secteurs"
+        <SecteurContent
+          selected={filters.secteur}
+          onToggle={toggleSecteur}
+          options={secteurs}
+          mode={filters.secteurMode}
+          onModeChange={(m) => onChange({ ...filters, secteurMode: m })}
         />
       </ChipDropdown>
 
