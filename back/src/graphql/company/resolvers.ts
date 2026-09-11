@@ -27,7 +27,7 @@ interface CompanyInput {
     phone?: string | null;
     email?: string | null;
     address?: string | null;
-    sector?: string | null;
+    sector?: string | string[] | null;
     mainActivity?: string | null;
     siret?: string | null;
     idcc?: string | null;
@@ -55,6 +55,24 @@ interface CompanyConflictInput {
     userId?: number | null;
 }
 
+const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
+const DEFAULT_SECTOR = 'Nord-Est';
+const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
+const DEFAULT_STATUS = 'À Réfléchir';
+
+function normalizeSector(raw: string | string[] | null | undefined): string {
+    let parts: string[] = [];
+    if (Array.isArray(raw)) {
+        parts = raw.map((s) => String(s).trim()).filter(Boolean);
+    } else if (typeof raw === 'string') {
+        parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    const valid = parts.filter((s) => ALLOWED_SECTORS.has(s));
+    const unique = [...new Set(valid)];
+    if (unique.length === 0) return DEFAULT_SECTOR;
+    return unique.join(', ');
+}
+
 function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConflictRow> {
     const row: Partial<CompanyConflictRow> = {};
     if (input.legalReferent !== undefined) row.legal_referent = input.legalReferent;
@@ -62,7 +80,15 @@ function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConf
     if (input.phone !== undefined) row.phone = input.phone;
     if (input.email !== undefined) row.email = input.email;
     if (input.address !== undefined) row.address = input.address;
-    if (input.sector !== undefined) row.sector = input.sector;
+    if (input.sector !== undefined) {
+        if (input.sector === null || input.sector === '') {
+            row.sector = null;
+        } else {
+            const parts = String(input.sector).split(',').map((s) => s.trim()).filter(Boolean);
+            const valid = parts.filter((s) => ALLOWED_SECTORS.has(s));
+            row.sector = [...new Set(valid)].join(', ') || null;
+        }
+    }
     if (input.mainActivity !== undefined) row.main_activity = input.mainActivity;
     if (input.siret !== undefined) row.siret = input.siret;
     if (input.idcc !== undefined) row.idcc = input.idcc;
@@ -70,11 +96,6 @@ function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConf
     if (input.userId !== undefined) row.user_id = input.userId;
     return row;
 }
-
-const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
-const DEFAULT_SECTOR = 'Nord-Est';
-const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
-const DEFAULT_STATUS = 'À Réfléchir';
 
 function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     const row: Partial<CompaniesRow> = {};
@@ -85,7 +106,7 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     if (input.email !== undefined) row.email = input.email;
     if (input.address !== undefined) row.address = input.address ?? '';
     if (input.sector !== undefined)
-        row.sector = input.sector && ALLOWED_SECTORS.has(input.sector) ? input.sector : DEFAULT_SECTOR;
+        row.sector = normalizeSector(input.sector as string | string[] | null);
     if (input.mainActivity !== undefined) row.main_activity = input.mainActivity;
     if (input.siret !== undefined) row.siret = input.siret ?? '';
     if (input.idcc !== undefined) row.idcc = input.idcc;
@@ -110,10 +131,23 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
 
 function toCompanyFilters(filtersInput?: Record<string, unknown>): CompanyFilters | undefined {
     if (!filtersInput) return undefined;
+    const rawSector = filtersInput.sector as unknown;
+    const rawSectors = filtersInput.sectors as string[] | undefined;
+    let mergedSectors: string[] | undefined;
+    if (Array.isArray(rawSector)) mergedSectors = rawSector as string[];
+    else if (typeof rawSector === 'string' && rawSector) mergedSectors = [rawSector];
+    if (Array.isArray(rawSectors) && rawSectors.length) {
+        mergedSectors = [...(mergedSectors ?? []), ...rawSectors];
+    }
+    const rawMode = (filtersInput.sectorMode as string) ?? (filtersInput.sectorsMode as string);
+    const mode = rawMode === 'AND' ? 'AND' : rawMode === 'OR' ? 'OR' : undefined;
     return {
         status: filtersInput.status as string[] | undefined,
         userID: filtersInput.userID as number | undefined,
-        sector: filtersInput.sector as string | undefined,
+        sector: mergedSectors,
+        sectors: mergedSectors,
+        sectorMode: mode as 'OR' | 'AND' | undefined,
+        sectorsMode: mode as 'OR' | 'AND' | undefined,
         relance: filtersInput.relance as string | undefined,
         unassigned: filtersInput.unassigned as boolean | undefined,
         createdFrom: filtersInput.createdFrom as string | undefined,
