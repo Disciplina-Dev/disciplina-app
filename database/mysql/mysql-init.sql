@@ -342,21 +342,28 @@ CREATE TABLE IF NOT EXISTS `refresh_tokens` (
 -- Refresh tokens des sessions OAuth MCP (claude.ai web) : haché sha256, jamais
 -- stocké en clair, rotation à chaque échange. Miroir de `refresh_tokens` mais
 -- adossé à un client OAuth (mcp_oauth_clients) plutôt qu'à un utilisateur.
+-- user_id : identité de l'utilisateur CRM qui a autorisé ce token (lié à la
+--   table users de la région indiquée).
+-- region : tenant cible (reunion | annemasse), utilisé au refresh pour
+--   réémettre l'access token avec le bon contexte multi-tenant.
 CREATE TABLE IF NOT EXISTS `mcp_oauth_refresh_tokens` (
   `id` int NOT NULL AUTO_INCREMENT,
   `client_id` varchar(128) NOT NULL,
+  `user_id` int DEFAULT NULL,
+  `region` varchar(16) NOT NULL DEFAULT 'reunion',
   `token_hash` varchar(64) NOT NULL,
   `expires_at` timestamp NOT NULL,
   `revoked_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_mcp_refresh_client` (`client_id`),
-  KEY `idx_mcp_refresh_hash` (`token_hash`)
+  KEY `idx_mcp_refresh_hash` (`token_hash`),
+  KEY `idx_mcp_refresh_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- Clients OAuth enregistrés par claude.ai via Dynamic Client Registration (DCR),
--- pour l'accès MCP en lecture seule au CRM. Non dupliqués dans disciplina_annemasse
--- (les tokens OAuth ne sont pas liés à un tenant, la table est globale au service).
+-- pour l'accès MCP en lecture seule au CRM. user_id / region : dernier
+-- utilisateur ayant autorisé ce client (mis à jour à chaque consentement).
 CREATE TABLE IF NOT EXISTS `mcp_oauth_clients` (
   `client_id` varchar(128) NOT NULL,
   `client_name` varchar(255) DEFAULT NULL,
@@ -368,6 +375,8 @@ CREATE TABLE IF NOT EXISTS `mcp_oauth_clients` (
   `client_secret` varchar(128) DEFAULT NULL,
   `client_id_issued_at` bigint DEFAULT NULL,
   `client_secret_expires_at` bigint DEFAULT NULL,
+  `user_id` int DEFAULT NULL,
+  `region` varchar(16) DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `last_used_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`client_id`) /*T![clustered_index] CLUSTERED */

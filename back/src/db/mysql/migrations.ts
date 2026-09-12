@@ -53,6 +53,11 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'external_access', column: 'external_email', definition: 'VARCHAR(255) NULL' },
     { table: 'external_access', column: 'external_first_name', definition: 'VARCHAR(255) NULL' },
     { table: 'external_access', column: 'token', definition: 'VARCHAR(512) NULL' },
+    // MCP OAuth : user_id + region sur les tables de consentement/refresh
+    { table: 'mcp_oauth_clients', column: 'user_id', definition: 'INT DEFAULT NULL' },
+    { table: 'mcp_oauth_clients', column: 'region', definition: 'VARCHAR(16) DEFAULT NULL' },
+    { table: 'mcp_oauth_refresh_tokens', column: 'user_id', definition: 'INT DEFAULT NULL' },
+    { table: 'mcp_oauth_refresh_tokens', column: 'region', definition: "VARCHAR(16) NOT NULL DEFAULT 'reunion'" },
 ];
 
 /**
@@ -336,6 +341,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
     {
         // Clients OAuth enregistrés par claude.ai via DCR (clé en DDL = détection
         // d'existence via INFORMATION_SCHEMA, idempotent sur base existante).
+        // user_id / region : dernier utilisateur ayant autorisé ce client.
         table: 'mcp_oauth_clients',
         ddl: `CREATE TABLE IF NOT EXISTS mcp_oauth_clients (
             client_id VARCHAR(128) PRIMARY KEY,
@@ -348,23 +354,29 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             client_secret VARCHAR(128) DEFAULT NULL,
             client_id_issued_at BIGINT DEFAULT NULL,
             client_secret_expires_at BIGINT DEFAULT NULL,
+            user_id INT DEFAULT NULL,
+            region VARCHAR(16) DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_used_at TIMESTAMP NULL DEFAULT NULL
         )`,
     },
     {
         // Refresh tokens des sessions OAuth MCP : hachés sha256, rotation à
-        // chaque échange, révocables.
+        // chaque échange, révocables. user_id / region : identité et tenant
+        // associés au token, utilisés au refresh pour réémettre les tokens.
         table: 'mcp_oauth_refresh_tokens',
         ddl: `CREATE TABLE IF NOT EXISTS mcp_oauth_refresh_tokens (
             id INT AUTO_INCREMENT PRIMARY KEY,
             client_id VARCHAR(128) NOT NULL,
+            user_id INT DEFAULT NULL,
+            region VARCHAR(16) NOT NULL DEFAULT 'reunion',
             token_hash VARCHAR(64) NOT NULL,
             expires_at TIMESTAMP NOT NULL,
             revoked_at TIMESTAMP NULL DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_mcp_refresh_client (client_id),
-            INDEX idx_mcp_refresh_hash (token_hash)
+            INDEX idx_mcp_refresh_hash (token_hash),
+            INDEX idx_mcp_refresh_user (user_id)
         )`,
     },
 ];

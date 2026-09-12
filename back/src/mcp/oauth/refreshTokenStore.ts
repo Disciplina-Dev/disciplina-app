@@ -1,8 +1,11 @@
 import { query } from '../../db/mysql/connection';
+import type { Region } from '../../types/tenant';
 
 export interface McpOAuthRefreshTokenRow {
     id: number;
     client_id: string;
+    user_id: number | null;
+    region: Region;
     token_hash: string;
     expires_at: Date;
     revoked_at: Date | null;
@@ -10,12 +13,13 @@ export interface McpOAuthRefreshTokenRow {
 
 // Miroir du RefreshTokenRepository applicatif (table `refresh_tokens`) mais pour
 // les sessions OAuth MCP : token opaque haché sha256 (jamais stocké en clair),
-// rotation à chaque échange, révocable.
+// rotation à chaque échange, révocable. user_id + region : identité du compte
+// CRM qui a autorisé la session — réinjectée dans l'access token au refresh.
 export class McpOAuthRefreshTokenStore {
-    async create(clientId: string, tokenHash: string, expiresAt: Date): Promise<void> {
+    async create(clientId: string, userId: number, region: Region, tokenHash: string, expiresAt: Date): Promise<void> {
         await query(
-            'INSERT INTO mcp_oauth_refresh_tokens (client_id, token_hash, expires_at) VALUES (?, ?, ?)',
-            [clientId, tokenHash, expiresAt],
+            'INSERT INTO mcp_oauth_refresh_tokens (client_id, user_id, region, token_hash, expires_at) VALUES (?, ?, ?, ?, ?)',
+            [clientId, userId, region, tokenHash, expiresAt],
         );
     }
 

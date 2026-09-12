@@ -3,6 +3,7 @@ import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/serv
 import { randomUUID } from 'crypto';
 import { query } from '../../db/mysql/connection';
 import { logger } from '../../external/logger';
+import type { Region } from '../../types/tenant';
 
 interface McpOAuthClientRow {
     client_id: string;
@@ -73,5 +74,16 @@ export class McpOAuthClientStore implements OAuthRegisteredClientsStore {
         );
         logger.info({ clientId: registered.client_id }, 'MCP OAuth: client registered via DCR');
         return registered;
+    }
+
+    // Mémorise le dernier utilisateur (et sa région) ayant autorisé ce client :
+    // sert de traçabilité (qui a accordé l'accès à quel tenant) sans bloquer de
+    // session — chaque refresh token porte sa propre identité.
+    async recordConsent(clientId: string, userId: number, region: Region): Promise<void> {
+        await query('UPDATE mcp_oauth_clients SET user_id = ?, region = ?, last_used_at = NOW() WHERE client_id = ?', [
+            userId,
+            region,
+            clientId,
+        ]);
     }
 }

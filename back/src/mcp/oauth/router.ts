@@ -18,8 +18,10 @@ export function buildMcpOAuthRouter(): express.Router {
 
     const consentHook = express.Router();
     consentHook.post('/authorize', express.urlencoded({ extended: false }), (req, res, next) => {
-        const body = req.body as { mcp_key?: unknown } | undefined;
-        res.locals.mcpKey = typeof body?.mcp_key === 'string' ? body.mcp_key : '';
+        const body = req.body as { email?: unknown; password?: unknown; region?: unknown } | undefined;
+        res.locals.loginEmail = typeof body?.email === 'string' ? body.email : '';
+        res.locals.loginPassword = typeof body?.password === 'string' ? body.password : '';
+        res.locals.loginRegion = typeof body?.region === 'string' ? body.region : '';
         next();
     });
 
