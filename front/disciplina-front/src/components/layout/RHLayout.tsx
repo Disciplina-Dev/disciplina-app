@@ -5,6 +5,7 @@ import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
 import LegalLinks from './LegalLinks'
+import RegionBadge from './RegionBadge'
 import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
@@ -47,6 +48,8 @@ export default function RHLayout() {
           </span>
           <p className="whitespace-nowrap text-[16px] font-extrabold text-gray-900 tracking-tight">Espace RH</p>
         </div>
+
+        <RegionBadge />
 
         {/* Scrollable nav */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
