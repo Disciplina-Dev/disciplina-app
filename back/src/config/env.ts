@@ -222,6 +222,10 @@ const data = {
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
     MCP_API_KEY: optionalString('MCP_API_KEY'),
+
+    // URL publique HTTPS de l'authorization server OAuth MCP (claude.ai web). Le
+    // SDK exige https sans fragment ni query ; le défaut localhost sert au dev/test.
+    MCP_OAUTH_ISSUER_URL: stringWithDefault('MCP_OAUTH_ISSUER_URL', 'http://localhost:4000'),
 };
 
 const VALID_NODE_ENVS = ['development', 'production', 'test'] as const;

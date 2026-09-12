@@ -104,6 +104,21 @@ export class UserService {
         return row ? this.decryptUserTokens(toUser(row)) : null;
     }
 
+    /**
+     * Vérifie uniquement les credentials (page d'autorisation OAuth MCP) et
+     * retourne l'utilisateur, sans émettre de session applicative. Rejette les
+     * comptes désactivés (findByEmail exclut déjà les is_deleted). Le lookup se
+     * fait dans le tenant `region` (les users vivent dans une base par région).
+     */
+    async verifyCredentials(email: string, passwordPlain: string, region: Region): Promise<User | null> {
+        return syncWithRegion(region, async () => {
+            const userRow = await this.userRepository.findByEmail(email);
+            const isMatch = await bcrypt.compare(passwordPlain, userRow?.password || DUMMY_PASSWORD_HASH);
+            if (!userRow || !userRow.password || !isMatch) return null;
+            return this.decryptUserTokens(toUser(userRow));
+        });
+    }
+
     async findAll(): Promise<User[]> {
         const rows = await this.userRepository.findAll();
         return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
