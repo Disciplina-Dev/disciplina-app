@@ -10,8 +10,12 @@ Pipeline (côté hôte, nécessite docker + docker compose) :
   1. Dump `disciplina` (MySQL) et `human_ressources` (MongoDB) via docker exec
   2. `docker compose down` puis purge des répertoires de données (bind mounts)
   3. `docker compose up -d sql-db nosql-db` -> init scripts créent les 2 bases
-  4. Restore des dumps dans leurs bases d'origine
-  5. Vérification finale (tables/collections/documents des 4 bases)
+  4. Création des comptes applicatifs dédiés Annemasse (MYSQL_ANNEMASSE_USER /
+     MYSQL_ANNEMASSE_PASSWORD, MONGO_ANNEMASSE_USERNAME / MONGO_ANNEMASSE_PASSWORD)
+     si ces variables sont renseignées ; sinon repli sur le compte partagé.
+  5. Restore des dumps dans leurs bases d'origine
+  6. Vérification finale (tables/collections/documents des 4 bases + connexion
+     des comptes dédiés)
 
 Garde-fou : refuse toute cible non-locale ou NODE_ENV=production (règle du repo,
 cf. db/guard.py). Utilisez --dry-run pour visualiser les commandes sans agir.
@@ -24,6 +28,7 @@ Usage :
 
 import argparse
 import datetime
+import json
 import os
 import subprocess
 import sys
@@ -155,6 +160,104 @@ def restore_mongo(container_id, source: Path):
     print("  OK -- MongoDB restauré")
 
 
+def escape_sql_literal(value: str) -> str:
+    """Echappe une valeur pour un littéral SQL (guillemet simple + backslash)."""
+    return value.replace("\\", "\\\\").replace("'", "''")
+
+
+def create_annemasse_mysql_user(container_id, password) -> bool:
+    """Crée le compte MySQL dédié Annemasse si MYSQL_ANNEMASSE_USER /
+    MYSQL_ANNEMASSE_PASSWORD sont renseignés. Mêmes restrictions que
+    disciplina_app (pas de DROP, pas de privilège global)."""
+    user = os.getenv("MYSQL_ANNEMASSE_USER", "")
+    user_password = os.getenv("MYSQL_ANNEMASSE_PASSWORD", "")
+    if not (user and user_password):
+        print("  WARN -- MYSQL_ANNEMASSE_USER / MYSQL_ANNEMASSE_PASSWORD absents : "
+              "compte dédié non créé (repli sur disciplina_app).")
+        return False
+    sql = (
+        f"CREATE USER IF NOT EXISTS '{user}'@'%' IDENTIFIED BY '{escape_sql_literal(user_password)}';\n"
+        f"GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES "
+        f"ON `{MONGO_ANNEMASSE_DB}`.* TO '{user}'@'%';\n"
+        "FLUSH PRIVILEGES;\n"
+    )
+    subprocess.run(
+        ["docker", "exec", "-i", "-e", "MYSQL_ROOT_PASSWORD", container_id,
+         "sh", "-c", 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'],
+        input=sql, check=True, text=True,
+        env={"MYSQL_ROOT_PASSWORD": password, "PATH": os.environ.get("PATH", "")},
+    )
+    print(f"  OK -- MySQL compte dédié Annemasse créé : {user}")
+    return True
+
+
+def create_annemasse_mongo_user(container_id) -> bool:
+    """Crée le compte MongoDB dédié Annemasse (rôle readWrite sur
+    disciplina_annemasse uniquement) si MONGO_ANNEMASSE_USERNAME /
+    MONGO_ANNEMASSE_PASSWORD sont renseignés. Idempotent (updateUser)."""
+    user = os.getenv("MONGO_ANNEMASSE_USERNAME", "")
+    user_password = os.getenv("MONGO_ANNEMASSE_PASSWORD", "")
+    if not (user and user_password):
+        print("  WARN -- MONGO_ANNEMASSE_USERNAME / MONGO_ANNEMASSE_PASSWORD absents : "
+              "compte dédié non créé (repli sur le compte root admin).")
+        return False
+    script = (
+        f"const u = {json.dumps(user)};"
+        f"const p = {json.dumps(user_password)};"
+        f"const roles = [{{ role: 'readWrite', db: 'disciplina_annemasse' }}];"
+        f"const admin = db.getSiblingDB('admin');"
+        f"admin.getUser(u)"
+        f"  ? admin.updateUser(u, {{ pwd: p, roles }})"
+        f"  : admin.createUser({{ user: u, pwd: p, roles }});"
+        f"print('OK -- MongoDB compte dédié Annemasse prêt : ' + u);"
+    )
+    subprocess.run(
+        ["docker", "exec", container_id, "mongosh",
+         "-u", os.getenv("MONGO_ROOT_USERNAME", ""), "-p", os.getenv("MONGO_ROOT_PASSWORD", ""),
+         "--authenticationDatabase", "admin", "--quiet", "--eval", script],
+        check=True,
+    )
+    return True
+
+
+def check_annemasse_mysql_user(container_id):
+    """Sonde la connexion du compte dédié à disciplina_annemasse."""
+    user = os.getenv("MYSQL_ANNEMASSE_USER", "")
+    user_password = os.getenv("MYSQL_ANNEMASSE_PASSWORD", "")
+    if not (user and user_password):
+        print("  - compte MySQL dédié : non configuré (non vérifié)")
+        return
+    out = subprocess.run(
+        ["docker", "exec", container_id, "mysql", "-u", user, "-p" + user_password,
+         "-N", "-e", "SELECT COUNT(*) FROM disciplina_annemasse.todos;"],
+        capture_output=True, text=True,
+    )
+    if out.returncode == 0:
+        print(f"  - compte MySQL dédié {user} : connexion disciplina_annemasse OK")
+    else:
+        print(f"  - compte MySQL dédié {user} : ÉCHEC ({out.stderr.strip()})")
+
+
+def check_annemasse_mongo_user(container_id):
+    """Sonde la connexion du compte dédié à disciplina_annemasse."""
+    user = os.getenv("MONGO_ANNEMASSE_USERNAME", "")
+    user_password = os.getenv("MONGO_ANNEMASSE_PASSWORD", "")
+    if not (user and user_password):
+        print("  - compte Mongo dédié : non configuré (non vérifié)")
+        return
+    out = subprocess.run(
+        ["docker", "exec", container_id, "mongosh",
+         "-u", user, "-p", user_password, "--authenticationDatabase", "admin", "--quiet",
+         "--eval", "db.getSiblingDB('disciplina_annemasse').getCollectionNames().length"],
+        capture_output=True, text=True,
+    )
+    if out.returncode == 0 and out.stdout.strip().isdigit():
+        print(f"  - compte Mongo dédié {user} : connexion disciplina_annemasse OK "
+              f"({out.stdout.strip()} collections)")
+    else:
+        print(f"  - compte Mongo dédié {user} : ÉCHEC ({out.stderr.strip()})")
+
+
 def purge_data_dir():
     """Vide les répertoires de données. Les fichiers des conteneurs MySQL/Mongo
     sont root-ouverts : un rm hôte échouerait, on purge donc via un conteneur root."""
@@ -222,9 +325,9 @@ def main() -> int:
 
     # 1. Sauvegarde
     if resume:
-        print("\n[1/5] Dump ignoré (--resume-dir) : dumps existants réutilisés.")
+        print("\n[1/6] Dump ignoré (--resume-dir) : dumps existants réutilisés.")
     else:
-        print("\n[1/5] Dump des bases existantes...")
+        print("\n[1/6] Dump des bases existantes...")
         if dry:
             print(f"  $ mysqldump {MYSQL_DB}  >  {mysql_dump}")
             print(f"  $ mongodump --db {MONGO_DB}  >  {mongo_dump}")
@@ -234,7 +337,7 @@ def main() -> int:
             dump_mongo(nosql_id, mongo_dump)
 
     # 2. Destructif (confirmé)
-    print("\n[2/5] Arrêt + purge des répertoires de données...")
+    print("\n[2/6] Arrêt + purge des répertoires de données...")
     if not dry:
         print(f"  ⚠  Voici les répertoires qui seront VIDÉS :\n    - {MYSQL_DATA}\n    - {MONGO_DATA}")
         if input("  Confirmer la purge (oui/non) ? ").strip().lower() not in ("o", "oui", "yes", "y"):
@@ -248,7 +351,7 @@ def main() -> int:
         purge_data_dir()
 
     # 3. Démarrage neuf
-    print("\n[3/5] Redémarrage des bases (init scripts → 2 bases chacune)...")
+    print("\n[3/6] Redémarrage des bases (init scripts → 2 bases chacune)...")
     if dry:
         print("  $ docker compose up -d sql-db nosql-db")
     else:
@@ -260,7 +363,7 @@ def main() -> int:
         wait_mongo_ready()
 
     # 4. Restore
-    print("\n[4/5] Restore des dumps dans leurs bases d'origine...")
+    print("\n[4/6] Restore des dumps dans leurs bases d'origine...")
     if dry:
         print(f"  $ mysql {MYSQL_DB}  <<  {mysql_dump}")
         print(f"  $ mongorestore --nsInclude={MONGO_DB}.*  <<  {mongo_dump}")
@@ -268,8 +371,19 @@ def main() -> int:
         restore_mysql(sql_id, os.getenv("MYSQL_ROOT_PASSWORD", ""), mysql_dump)
         restore_mongo(nosql_id, mongo_dump)
 
+    # 4b. Comptes applicatifs dédiés Annemasse
+    print("\n[4b/6] Création des comptes applicatifs dédiés Annemasse...")
+    created_mysql = False
+    created_mongo = False
+    if dry:
+        print("  $ CREATE USER ... (si MYSQL_ANNEMASSE_USER renseigné)")
+        print("  $ createUser ... (si MONGO_ANNEMASSE_USERNAME renseigné)")
+    else:
+        created_mysql = create_annemasse_mysql_user(sql_id, os.getenv("MYSQL_ROOT_PASSWORD", ""))
+        created_mongo = create_annemasse_mongo_user(nosql_id)
+
     # 5. Vérification
-    print("\n[5/5] Vérification...")
+    print("\n[5/6] Vérification...")
     if dry:
         print("  (dry-run : pas de vérification)")
     else:
@@ -280,6 +394,9 @@ def main() -> int:
         for db_name in (MONGO_DB, MONGO_ANNEMASSE_DB):
             d = client[db_name]
             print(f"  {db_name} collections : {len(d.list_collection_names())}")
+        print("  Comptes dédiés Annemasse :")
+        check_annemasse_mysql_user(sql_id)
+        check_annemasse_mongo_user(nosql_id)
 
     print("\nTerminé.")
     return 0
