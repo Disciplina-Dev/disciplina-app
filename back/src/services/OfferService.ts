@@ -194,8 +194,10 @@ export class OfferService {
     private notificationService = new NotificationService();
     private userRepository = new UserRepository();
 
-    async findAll(): Promise<object[]> {
-        const offers = await this.offerRepository.listMatchingOffers();
+    async findAll(includeClosed = false): Promise<object[]> {
+        const offers = includeClosed
+            ? await this.offerRepository.listAllOffers()
+            : await this.offerRepository.listMatchingOffers();
         return offers.map((offer) => toGql(offer));
     }
 
@@ -439,10 +441,15 @@ export class OfferService {
         if (kind === 'IMMERSING') {
             since = hit.pc.immersion_start_date ?? null;
         } else {
-            const entries = await this.candidateHistoryService.findByCandidate(candidateId);
-            const company = hit.offer.company_infos?.name;
-            const entry = company ? entries.find((e) => e.description?.includes(`contrat avec ${company}`)) : undefined;
-            since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
+            const candidate = await this.candidateRepository.findById(candidateId);
+            if (candidate?.contract_start_date) {
+                since = new Date(candidate.contract_start_date).toISOString();
+            } else {
+                const entries = await this.candidateHistoryService.findByCandidate(candidateId);
+                const company = hit.offer.company_infos?.name;
+                const entry = company ? entries.find((e) => e.description?.includes(`contrat avec ${company}`)) : undefined;
+                since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
+            }
         }
 
         return {
