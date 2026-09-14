@@ -122,62 +122,10 @@ docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d --build
 
 ## 6. Notes for special features
 
-### Multi-tenant (Annemasse)
+This section is reserved for **manual, non-scripted** deployment steps tied to
+specific features. It is currently empty because everything is automated —
+`deploy.sh` / `rollback.sh` handle the deploy itself, `migrate-multi-tenant.py`
+the multi-tenant setup, and feature-specific conventions live in `CLAUDE.md` /
+`back/CONVENTION.md`.
 
-Two tenants live in the **same containers**: `disciplina` + `disciplina_annemasse`
-(MySQL), `human_ressources` + `disciplina_annemasse` (MongoDB).
-
-**Setting up a new prod machine** — run the migration script so the init
-scripts create both databases:
-
-```bash
-python scripts/migrate-multi-tenant.py
-```
-
-Pipeline: dump → purge volumes → recreate from init scripts (both tenants) →
-create dedicated Annemasse app users → restore dumps → verify.
-
-**Dedicated Annemasse accounts.** If `MYSQL_ANNEMASSE_USER` /
-`MYSQL_ANNEMASSE_PASSWORD` (MySQL) and `MONGO_ANNEMASSE_USERNAME` /
-`MONGO_ANNEMASSE_PASSWORD` (MongoDB) are set in `back/.env`, the script creates
-a dedicated least-privilege account for the `disciplina_annemasse` database
-(scoped `readWrite`, no DROP, no global privileges). If those variables are
-empty, the app falls back to the shared `disciplina_app` account (MySQL) / root
-admin user (MongoDB).
-
-**Required env vars in production** (`back/.env`):
-
-```
-MYSQL_ANNEMASSE_URI=mysql://...                  # required in prod
-MYSQL_ANNEMASSE_USER=                            # optional, falls back to MYSQL_USER
-MYSQL_ANNEMASSE_PASSWORD=                        # optional, falls back to MYSQL_PASSWORD
-MYSQL_ANNEMASSE_DATABASE=disciplina_annemasse
-
-MONGO_ANNEMASSE_URI=mongodb://...                # required in prod
-MONGO_ANNEMASSE_USERNAME=                        # optional, falls back to MONGO_ROOT_USERNAME
-MONGO_ANNEMASSE_PASSWORD=
-MONGO_ANNEMASSE_DATABASE=disciplina_annemasse
-
-DB_DEFAULT_TENANT=reunion                        # or "annemasse"
-```
-
-The backend refuses to boot in production without `MYSQL_ANNEMASSE_URI` /
-`MONGO_ANNEMASSE_URI` (`back/src/config/env.ts`).
-
-### MCP server
-
-- `MCP_API_KEY` must be set in `back/.env` (≥ 32 characters)
-- Endpoint exposed as `POST /api/mcp` through Caddy
-- Smoke test after deploy: call the endpoint and expect a non-401 response
-
-### New MySQL columns
-
-A new column must be added in **two places**, otherwise existing deployments
-won't get it:
-
-1. `database/mysql/mysql-init.sql` — only runs on fresh volumes
-2. `REQUIRED_COLUMNS` in `back/src/db/mysql/migrations.ts` — backfills existing
-   databases at backend boot
-
-`runMysqlMigrations()` applies missing columns automatically on startup — no
-manual SQL is needed for column additions on existing databases.
+**Rule:** any new script run at deployment time must be documented here.

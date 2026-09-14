@@ -279,6 +279,5 @@ log "  Tests post-deploy  : ${TEST_RESULT}"
 log "  Smoke HTTP         : front=${FRONT_CODE} backend=${BACKEND_CODE} mcp=${MCP_CODE}"
 log "  Rollback           : ./scripts/rollback.sh"
 log ""
-log "Rappel — manuel (non scripté) : consulter HOWTODEPLOY.md section 6"
-log "  (multi-tenant, MCP_API_KEY, ajout de colonnes MySQL)"
+log "Rappel — manuel (non scripté) : consulter HOWTODEPLOY.md §6 (notes)"
 exit 0
