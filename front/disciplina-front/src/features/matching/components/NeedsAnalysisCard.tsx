@@ -1,4 +1,5 @@
-import { Building2, MapPin, Hash, Briefcase, Calendar, Landmark, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { Building2, MapPin, Hash, Briefcase, Calendar, Landmark, ExternalLink, Eye } from 'lucide-react'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { AB_STATUS_BADGE } from '@/features/abEntreprise/components/ABDetailContent'
 import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
@@ -6,6 +7,7 @@ import { SECTOR_LABELS } from '@/data/sectors'
 import { formatCommune } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import type { TitleProfessionalType } from '@/types/candidate'
+import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 
 interface Props {
   analysis: NeedsAnalysis
@@ -27,6 +29,7 @@ function tpLabel(tp?: string | null): string {
 }
 
 export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
+  const [showAbDetail, setShowAbDetail] = useState(false)
   const badge = AB_STATUS_BADGE[analysis.status ?? 'BROUILLON'] ?? AB_STATUS_BADGE['BROUILLON']
   const isSigned = analysis.status === 'SIGNE'
   const positions = analysis.positions ?? []
@@ -39,6 +42,11 @@ export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
     if (analysis.driveFolderUrl) {
       window.open(analysis.driveFolderUrl, '_blank', 'noopener,noreferrer')
     }
+  }
+
+  const handleSeeAb = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowAbDetail(true)
   }
 
   return (
@@ -147,11 +155,24 @@ export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
         <span className="font-medium text-gray-500">
           {analysis.positionsCount ?? 0} poste{(analysis.positionsCount ?? 0) > 1 ? 's' : ''} à pourvoir
         </span>
-        <span className="flex items-center gap-1">
-          <Calendar className="h-3 w-3" />
-          {formatCreatedAt(analysis.createdAt)}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSeeAb}
+            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:border-blue hover:text-blue transition-colors"
+          >
+            <Eye className="h-3 w-3" />
+            Voir l'AB
+          </button>
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            {formatCreatedAt(analysis.createdAt)}
+          </span>
+        </div>
       </div>
+      {showAbDetail && (
+        <ABDetailModal id={analysis.id} onClose={() => setShowAbDetail(false)} />
+      )}
     </article>
   )
 }
