@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search, ChevronDown, Info } from 'lucide-react'
+import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search, ChevronDown, Info, Eye } from 'lucide-react'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
@@ -10,6 +10,7 @@ import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, 
 import AddCandidateToJobModal from './AddCandidateToJobModal'
 import JobSearchModal from './JobSearchModal'
 import CompanyInfoModal from '@/features/matching/components/CompanyInfoModal'
+import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 
 interface MatchedJobsListProps {
   candidateId: string
@@ -37,6 +38,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
   const [queuedJobs, setQueuedJobs] = useState<MatchedOffer[]>([])
   const [queueIndex, setQueueIndex] = useState(0)
   const [companyInfoOfferId, setCompanyInfoOfferId] = useState<string | null>(null)
+  const [abDetailId, setAbDetailId] = useState<string | null>(null)
 
   const fetchMatches = useCallback(async () => {
     setLoading(true)
@@ -182,6 +184,17 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {job.needsAnalysisId && (
+                  <button
+                    type="button"
+                    onClick={() => setAbDetailId(job.needsAnalysisId!)}
+                    className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue transition-colors"
+                    title="Voir l'AB"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Voir l'AB
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setCompanyInfoOfferId(job.id)}
@@ -255,6 +268,10 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
           needsAnalysisId={jobs.find(j => j.id === companyInfoOfferId)?.needsAnalysisId ?? null}
           onClose={() => setCompanyInfoOfferId(null)}
         />
+      )}
+
+      {abDetailId && (
+        <ABDetailModal id={abDetailId} onClose={() => setAbDetailId(null)} />
       )}
     </section>
   )

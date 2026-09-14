@@ -1,12 +1,16 @@
 import { Outlet } from 'react-router-dom'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
 import LegalLinks from './LegalLinks'
+import RegionBadge from './RegionBadge'
 
 export default function EntrepriseLayout() {
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="flex w-64 flex-col bg-gray-900 p-4 text-white">
         <p>Entreprise</p>
+        <div className="mt-3 -mx-4">
+          <RegionBadge tone="dark" />
+        </div>
         <div className="mt-auto pt-4">
           <LegalLinks tone="dark" />
         </div>
