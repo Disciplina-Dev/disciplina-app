@@ -30,6 +30,8 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-14
+
 ### Added
 
 - Garde de consentement RGPD (`services/consentGuard.ts`, #639) : vérification du consentement candidat avant génération de résumé IA (`AI_PROCESSING`), affichage/partage d'avatar (`PHOTO_PROCESSING`) et partage avec les entreprises (`DATA_SHARING` — Filiz, matching CV/liste). Mode `warn` transitoire avec log, filtrage silencieux pour la liste externe.
@@ -44,6 +46,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Unification des KPI dans MongoDB (#513) : collection unique `kpis` (`kind: commercial|rh`), `KpiRepository`/`RhKpiRepository` Mongo, migration automatique au boot (`legacyKpiImport.ts`, `scripts/migrate-kpi-to-mongo.ts`), suppression des DDL MySQL associées.
 - Tag « Véhicule » (`hasVehicle`) sur candidat et AB (#671) : champ conditionnel candidat/AB, affiché dans `CandidateFormModal`, `ABDetailModal`/`ABDetailContent` et le PDF.
 - Toggle d'activation des relances par AB (#681) : champ `shouldRelance` (`needsAnalysis.schema`, `NeedsAnalysisService`, `ABDetailModal` + hooks/queries `useUpdateShouldRelance`).
+- Bouton « Voir l'AB » sur les pages de matching (#725) : `AbHeader` et `JobDetailsSection` dans `Matching.tsx` (`/rh/matching?needsAnalysis=…`), `NeedsAnalysisCard` (liste `/rh/matching`) et `MatchedJobsList` (fiche candidat) ouvrent `ABDetailModal` pour consulter l'analyse de besoin sans quitter le contexte matching.
 
 ### Changed
 
@@ -51,6 +54,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Mails externes : en-tête `Reply-To: noreply@disciplina.re` ajouté à tous les envois Gmail (`mime.builder.ts`, `no-reply.ts`, #601) ; `From` Gmail conservé.
 - KPI : bascule MySQL → MongoDB avec bump atomique via pipeline `$replaceWith` + clamp `$max`, noms résolus via `UserRepository.findByIds` (#513).
 - Rework complet des accès externes (#514) : flux unifiés profil matché / réservation d'entretien / import CV sous `/external/*`. Les anciens liens `/public/*` déjà envoyés par email redirigent automatiquement vers le nouveau flux. Le code d'accès est désormais envoyé par email au chargement de la page (et plus dans l'email d'invitation), le lien de réservation d'entretien s'affiche sous forme de bouton « Choisir mon créneau ». Tables `interview_access`, `match_link` et `external_link` consolidées dans `external_access`.
+- `ABDetailModal` : rendu via `createPortal` sur `document.body` et dimensions élargies (`max-w-3xl`, `max-h-[88vh]`, `items-center justify-center`) pour garantir un affichage centré et lisible même depuis la vue matching détaillée.
 
 ### Fixed
 
@@ -65,6 +69,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Placement des boutons (chevauchement) (#681).
 - Hooks pré-commit contournables corrigés (#658) : `skip hooks` ne bypass plus les vérifications.
 - Filtres de statut des accès externes (#514) : `ExternalAccessRepository.findAllFiltered` utilisait `IN (?)` avec un tableau, non développé par `pool.execute()` (prepared statements) — le statut arrivait comme un littéral unique et chaque onglet renvoyait un résultat vide. Placeholders énumérés `IN (?, ?, …)` pour les filtres `statuses` et `types`.
+- Modal de détail d'AB tronquée/mal centrée depuis une page de matching sélectionnée (#725) : `ABDetailModal` tronquée par le layout `backdrop-blur`/`overflow` du matching (affichage à moitié hors écran en haut) ; corrigé par portail pleine-page, centrage `items-center justify-center` et hauteur `max-h-[88vh]` avec scroll interne.
 
 ## [1.1.0] - 2026-08-20
 
