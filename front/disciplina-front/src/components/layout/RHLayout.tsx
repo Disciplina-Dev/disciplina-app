@@ -82,7 +82,7 @@ export default function RHLayout() {
             <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>
             <nav className="flex flex-col gap-1 px-3">
               <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
-              {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION') && (
+              {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION' || currentUser?.permission === Permission.ADMIN) && (
                 <>
                   <NavItem to="/peda" icon={<GraduationCap size={18} />} label="Espace Péda" />
                   <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />

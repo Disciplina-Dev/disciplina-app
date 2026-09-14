@@ -72,7 +72,7 @@ export default function CommercialLayout() {
               <NavItem to="/commercial/quarantaine" icon={<ShieldAlert size={18} />} label="Quarantaine" />
               <NavItem to="/commercial/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
               <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
-              {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION') && (
+              {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION' || currentUser?.permission === Permission.ADMIN) && (
                 <>
                   <NavItem to="/peda" icon={<GraduationCap size={18} />} label="Espace Péda" />
                   <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
