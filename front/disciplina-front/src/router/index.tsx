@@ -70,6 +70,12 @@ export const router = createBrowserRouter([
     children: [
   {
     path: "/", element: <LoginPage /> },
+  // Le choix de région se fait désormais sur la page de login : l'ancien portail
+  // ne redirige que pour les onglets et favoris qui pointent encore dessus.
+  {
+    path: "/portail", element: <Navigate to="/login" replace /> },
+  {
+    path: "/login", element: <LoginPage /> },
   {
     path: "/auth/google", element: <GoogleAuthCallback /> },
       // Redirections rétro-compatibles vers le nouvel espace admin

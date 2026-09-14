@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Briefcase, Users, ClipboardList, Calendar, Hash, BellOff, Bell } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -78,11 +79,11 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
     if (!res.error) result.refetch()
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center p-4" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative z-10 w-full max-w-3xl max-h-[88vh] flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — responsive: title on top, actions wrap below to avoid overlap */}
@@ -296,6 +297,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
