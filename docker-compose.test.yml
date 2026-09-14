@@ -81,6 +81,9 @@ services:
       MONGO_ROOT_USERNAME: test-root
       MONGO_ROOT_PASSWORD: test-root-password
       MONGO_HOST: test-nosql-db
+      # Requis par les tests du connecteur MCP OAuth : auth.ts et le consentement
+      # OAuth sont fail-closed en-deçà de 32 chars (voir back/src/mcp/auth.ts).
+      MCP_API_KEY: test-mcp-api-key-0123456789abcdef0123456789
       API_PORT: 4000
       SESSION_SECRET: test-session-secret
       JWT_SECRET: test-jwt-secret

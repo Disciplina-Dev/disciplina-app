@@ -2,6 +2,10 @@ import express, { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { buildMcpServer } from './server';
 import { mcpAuth } from './auth';
+import { runWithMcpUser } from './context';
+import type { McpUser } from './types';
+import { syncWithRegion } from '../db/tenant';
+import { env } from '../config/env';
 import { mcpRateLimiter } from '../rest/middleware/rateLimiter';
 import { logger } from '../external/logger';
 
@@ -13,6 +17,10 @@ export const router = express.Router();
  * Each POST spins up a fresh server + transport, handles the single JSON-RPC
  * request, then tears both down. No session store, no SSE stream to keep alive.
  * GET/DELETE are unsupported in stateless mode → 405.
+ *
+ * Multi-tenant : le traitement JSON-RPC est enveloppé dans le contexte du
+ * McpUser (RBAC par outil) ET dans celui de la région (syncWithRegion) pour que
+ * tous les services/repos frappent le pool MySQL/Mongo du bon tenant.
  */
 router.post(
     '/api/mcp',
@@ -20,6 +28,7 @@ router.post(
     mcpAuth,
     express.json({ limit: '1mb' }),
     async (req: Request, res: Response) => {
+        const mcpUser = res.locals.mcpUser as McpUser | undefined;
         const server = buildMcpServer();
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
@@ -29,11 +38,18 @@ router.post(
         });
 
         // Audit : trace tout accès authentifié au CRM (méthode JSON-RPC + IP).
-        logger.info({ ip: req.ip, method: req.body?.method, mcpToolName: req.body?.params?.name }, 'MCP request');
+        logger.info(
+            { ip: req.ip, method: req.body?.method, mcpToolName: req.body?.params?.name },
+            'MCP request',
+        );
 
         try {
-            await server.connect(transport);
-            await transport.handleRequest(req, res, req.body);
+            await runWithMcpUser(mcpUser, () =>
+                syncWithRegion(mcpUser?.region ?? env.DB_DEFAULT_TENANT, async () => {
+                    await server.connect(transport);
+                    await transport.handleRequest(req, res, req.body);
+                }),
+            );
         } catch (error) {
             logger.error({ err: error }, 'MCP request failed');
             if (!res.headersSent) {

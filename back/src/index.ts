@@ -43,6 +43,7 @@ import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelance
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
+import { buildMcpOAuthRouter } from './mcp/oauth/router';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -75,17 +76,28 @@ export async function createApp(): Promise<express.Express> {
 
     app.use(httpLogger);
 
-    app.use(
-        cors({
-            origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-                // No Origin header: same-origin, curl, server-to-server
-                if (!origin) return callback(null, true);
-                if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
-                return callback(new Error(`CORS: origin ${origin} not allowed`));
-            },
-            credentials: true,
-        }),
-    );
+    const corsMiddleware = cors({
+        origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+            // No Origin header: same-origin, curl, server-to-server
+            if (!origin) return callback(null, true);
+            if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
+            return callback(new Error(`CORS: origin ${origin} not allowed`));
+        },
+        credentials: true,
+    });
+
+    // Les endpoints OAuth MCP sont à la racine de l'issuer et sont consommés par
+    // claude.ai web depuis une iframe sandbox (Origin: null) : le contrôle
+    // d'origine CORS y est inapplicable et bloquerait le POST /authorize (500).
+    // Le consentement reste protégé par MCP_API_KEY centrée sur le serveur.
+    const mcpOAuthRootPaths = new Set(['/authorize', '/token', '/register', '/revoke']);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        const path = req.path;
+        if (mcpOAuthRootPaths.has(path) || path.startsWith('/.well-known/oauth')) {
+            return next();
+        }
+        return corsMiddleware(req, res, next);
+    });
 
     app.use(cookieParser());
 
@@ -133,6 +145,9 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
+    // OAuth MCP (claude.ai web) : endpoints .well-known/authorize/token/register/
+    // revoke à la racine de l'issuer — avant mcpRouter et errorHandler.
+    app.use(buildMcpOAuthRouter());
     app.use(mcpRouter);
     app.use(errorHandler);
 
