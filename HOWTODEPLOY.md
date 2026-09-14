@@ -122,62 +122,55 @@ docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d --build
 
 ## 6. Notes for special features
 
-### Multi-tenant (Annemasse)
+This section is reserved for **manual, non-scripted** deployment steps tied to
+specific features. It is currently empty because everything is automated —
+`deploy.sh` / `rollback.sh` handle the deploy itself, `migrate-multi-tenant.py`
+the multi-tenant setup, and feature-specific conventions live in `CLAUDE.md` /
+`back/CONVENTION.md`.
 
-Two tenants live in the **same containers**: `disciplina` + `disciplina_annemasse`
-(MySQL), `human_ressources` + `disciplina_annemasse` (MongoDB).
+**Rule:** any new script run at deployment time must be documented here.
 
-**Setting up a new prod machine** — run the migration script so the init
-scripts create both databases:
+### Claude.ai MCP connector (OAuth)
+
+The MCP endpoint also acts as an OAuth 2.1 authorization server so Claude.ai
+(web) can authenticate via login + consent instead of a static bearer token.
+
+**Architecture**
+
+- Issuer URL: `https://app-reunion.disciplina.re` (root — `MCP_OAUTH_ISSUER_URL`)
+- Connector URL in Claude.ai settings: `https://app-reunion.disciplina.re/api/mcp`
+- The OAuth endpoints are served at the **issuer root**, not under `/api/`:
+  - `/.well-known/oauth-authorization-server`
+  - `/.well-known/oauth-protected-resource/api/mcp`
+  - `/register` `/authorize` `/token` `/revoke`
+
+**Caddy requirement (one-time, on the Mac mini)**
+
+Caddy must route the OAuth root paths to the backend (`127.0.0.1:4000`). If Caddy
+only proxies `/api/*` to the backend, the OAuth endpoints reach the frontend nginx
+and return the SPA `index.html` instead of OAuth JSON metadata, so Claude.ai cannot
+complete the discovery/registration/consent flow.
+
+Add a matcher in the `app-reunion.disciplina.re` host block:
+
+```
+@appreunion host app-reunion.disciplina.re {
+    @mcproute {
+        path /.well-known/oauth* /authorize /token /register /revoke
+    }
+    reverse_proxy @mcproute 127.0.0.1:4000
+
+    reverse_proxy 127.0.0.1:8090
+}
+```
+
+Reload: `caddy reload`
+
+**Verification**
 
 ```bash
-python scripts/migrate-multi-tenant.py
+curl -i https://app-reunion.disciplina.re/.well-known/oauth-authorization-server
+curl -i https://app-reunion.disciplina.re/.well-known/oauth-protected-resource/api/mcp
 ```
 
-Pipeline: dump → purge volumes → recreate from init scripts (both tenants) →
-create dedicated Annemasse app users → restore dumps → verify.
-
-**Dedicated Annemasse accounts.** If `MYSQL_ANNEMASSE_USER` /
-`MYSQL_ANNEMASSE_PASSWORD` (MySQL) and `MONGO_ANNEMASSE_USERNAME` /
-`MONGO_ANNEMASSE_PASSWORD` (MongoDB) are set in `back/.env`, the script creates
-a dedicated least-privilege account for the `disciplina_annemasse` database
-(scoped `readWrite`, no DROP, no global privileges). If those variables are
-empty, the app falls back to the shared `disciplina_app` account (MySQL) / root
-admin user (MongoDB).
-
-**Required env vars in production** (`back/.env`):
-
-```
-MYSQL_ANNEMASSE_URI=mysql://...                  # required in prod
-MYSQL_ANNEMASSE_USER=                            # optional, falls back to MYSQL_USER
-MYSQL_ANNEMASSE_PASSWORD=                        # optional, falls back to MYSQL_PASSWORD
-MYSQL_ANNEMASSE_DATABASE=disciplina_annemasse
-
-MONGO_ANNEMASSE_URI=mongodb://...                # required in prod
-MONGO_ANNEMASSE_USERNAME=                        # optional, falls back to MONGO_ROOT_USERNAME
-MONGO_ANNEMASSE_PASSWORD=
-MONGO_ANNEMASSE_DATABASE=disciplina_annemasse
-
-DB_DEFAULT_TENANT=reunion                        # or "annemasse"
-```
-
-The backend refuses to boot in production without `MYSQL_ANNEMASSE_URI` /
-`MONGO_ANNEMASSE_URI` (`back/src/config/env.ts`).
-
-### MCP server
-
-- `MCP_API_KEY` must be set in `back/.env` (≥ 32 characters)
-- Endpoint exposed as `POST /api/mcp` through Caddy
-- Smoke test after deploy: call the endpoint and expect a non-401 response
-
-### New MySQL columns
-
-A new column must be added in **two places**, otherwise existing deployments
-won't get it:
-
-1. `database/mysql/mysql-init.sql` — only runs on fresh volumes
-2. `REQUIRED_COLUMNS` in `back/src/db/mysql/migrations.ts` — backfills existing
-   databases at backend boot
-
-`runMysqlMigrations()` applies missing columns automatically on startup — no
-manual SQL is needed for column additions on existing databases.
+Both must return `application/json` (OAuth metadata) — not `text/html` (SPA).
