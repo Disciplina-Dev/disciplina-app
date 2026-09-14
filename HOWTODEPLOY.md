@@ -129,3 +129,48 @@ the multi-tenant setup, and feature-specific conventions live in `CLAUDE.md` /
 `back/CONVENTION.md`.
 
 **Rule:** any new script run at deployment time must be documented here.
+
+### Claude.ai MCP connector (OAuth)
+
+The MCP endpoint also acts as an OAuth 2.1 authorization server so Claude.ai
+(web) can authenticate via login + consent instead of a static bearer token.
+
+**Architecture**
+
+- Issuer URL: `https://app-reunion.disciplina.re` (root — `MCP_OAUTH_ISSUER_URL`)
+- Connector URL in Claude.ai settings: `https://app-reunion.disciplina.re/api/mcp`
+- The OAuth endpoints are served at the **issuer root**, not under `/api/`:
+  - `/.well-known/oauth-authorization-server`
+  - `/.well-known/oauth-protected-resource/api/mcp`
+  - `/register` `/authorize` `/token` `/revoke`
+
+**Caddy requirement (one-time, on the Mac mini)**
+
+Caddy must route the OAuth root paths to the backend (`127.0.0.1:4000`). If Caddy
+only proxies `/api/*` to the backend, the OAuth endpoints reach the frontend nginx
+and return the SPA `index.html` instead of OAuth JSON metadata, so Claude.ai cannot
+complete the discovery/registration/consent flow.
+
+Add a matcher in the `app-reunion.disciplina.re` host block:
+
+```
+@appreunion host app-reunion.disciplina.re {
+    @mcproute {
+        path /.well-known/oauth* /authorize /token /register /revoke
+    }
+    reverse_proxy @mcproute 127.0.0.1:4000
+
+    reverse_proxy 127.0.0.1:8090
+}
+```
+
+Reload: `caddy reload`
+
+**Verification**
+
+```bash
+curl -i https://app-reunion.disciplina.re/.well-known/oauth-authorization-server
+curl -i https://app-reunion.disciplina.re/.well-known/oauth-protected-resource/api/mcp
+```
+
+Both must return `application/json` (OAuth metadata) — not `text/html` (SPA).
