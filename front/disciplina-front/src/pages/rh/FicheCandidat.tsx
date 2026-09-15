@@ -12,9 +12,9 @@ import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
-import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
+import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate, useAddCandidateHistoryEntry } from '@/graphql/hooks'
 import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN } from '@/graphql/queries'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
 import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
@@ -282,6 +282,11 @@ export default function FicheCandidat() {
   const [revealedSsn, setRevealedSsn] = useState<string | null>(null)
   const [revealingSsn, setRevealingSsn] = useState(false)
   const [ssnError, setSsnError] = useState<string | null>(null)
+  const [showPendingComment, setShowPendingComment] = useState(false)
+  const [pendingComment, setPendingComment] = useState('')
+  const [pendingCommentLoading, setPendingCommentLoading] = useState(false)
+  const [pendingCommentError, setPendingCommentError] = useState<string | null>(null)
+  const { addHistoryEntry } = useAddCandidateHistoryEntry()
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -872,6 +877,25 @@ export default function FicheCandidat() {
           <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
             <AlertCircle size={16} className="shrink-0" />
             {saveError}
+          </div>
+        )}
+
+        {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-orange-700 font-bold text-sm">
+              <AlertCircle size={16} /> En attente de finalisation
+            </div>
+            <p className="text-sm text-gray-700">
+              Ce candidat est en « Test non réussi » (moyenne {formData.test_average != null ? `${Number(formData.test_average).toFixed(2)} / 20` : '≤ 10 / 20'}). Un commentaire sur les actions entreprises doit être saisi pour finaliser la fiche. Tant que ce commentaire n’est pas enregistré, la fiche reste en attente.
+            </p>
+            <p className="text-xs text-gray-500">
+              Moyenne calculée à partir de l’épreuve écrite ({formData.written_test_score ?? '—'} / 20) et du score ClassMarker. Vous pouvez compléter à tout moment.
+            </p>
+            <div>
+              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white" onClick={() => setShowPendingComment(true)}>
+                Ajouter le commentaire
+              </Button>
+            </div>
           </div>
         )}
 
@@ -2006,6 +2030,45 @@ export default function FicheCandidat() {
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setAiSummaryOpen(false)}>Annuler</Button>
               <Button variant="primary" size="sm" disabled={!aiSummaryText.trim()} onClick={handleSaveAiSummary}>Enregistrer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPendingComment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPendingComment(false)}>
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Finaliser le test – commentaire</h3>
+            <p className="mt-1 text-sm text-gray-500">Décris les actions prises suite à l’échec (recontact, orientation, remédiation...). Ce commentaire sera enregistré dans l’historique du candidat.</p>
+            <div className="mt-4">
+              <textarea className={inputCls + ' resize-none'} rows={4} value={pendingComment} onChange={e => setPendingComment(e.target.value)} placeholder="Ex: Candidat informé de l’échec, proposé atelier de remise à niveau, suivi prévu..." />
+            </div>
+            {pendingCommentError && <p className="mt-2 text-xs text-red-500">{pendingCommentError}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowPendingComment(false)}>Annuler</Button>
+              <Button size="sm" isLoading={pendingCommentLoading} disabled={!pendingComment.trim()} onClick={async () => {
+                if (!pendingComment.trim() || !id) return;
+                setPendingCommentLoading(true);
+                setPendingCommentError(null);
+                try {
+                  const addRes = await addHistoryEntry(id, pendingComment.trim());
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if ((addRes as any)?.error) throw new Error(((addRes as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'));
+                  // also try to read new history to confirm
+                  const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id, input: { testFailurePending: false } });
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if ((upd as any)?.error) throw new Error(((upd as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'));
+                  setFormData(prev => prev ? { ...prev, test_failure_pending: false } as Candidate : prev);
+                  setShowPendingComment(false);
+                  setPendingComment('');
+                } catch (err) {
+                  setPendingCommentError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement');
+                } finally {
+                  setPendingCommentLoading(false);
+                }
+              }} className="bg-purple hover:bg-purple-dark text-white">
+                Enregistrer
+              </Button>
             </div>
           </div>
         </div>

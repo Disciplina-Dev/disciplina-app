@@ -7,8 +7,9 @@ import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
 import { candidateGraphqlClient, graphqlClient } from '@/graphql/client';
-import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS } from '@/graphql/queries';
+import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS, ADD_CANDIDATE_HISTORY_ENTRY } from '@/graphql/queries';
 import { apiFetch } from '@/api/httpClient';
+import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
@@ -139,6 +140,10 @@ type ABForm = {
   // consentements RGPD
   consentDataProcessing: boolean; consentDataSharing: boolean;
   consentAiProcessing: boolean; consentPhotoProcessing: boolean;
+  // test préalable (épreuve écrite + ClassMarker)
+  writtenTestScore: string;
+  testAverage: string;
+  testFailurePending: boolean;
 };
 
 // Version du corpus légal au moment du consentement — garder cohérent avec
@@ -211,6 +216,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     interviewedBy: '',
     consentDataProcessing: false, consentDataSharing: false,
     consentAiProcessing: false, consentPhotoProcessing: false,
+    writtenTestScore: '', testAverage: '', testFailurePending: false,
   };
 }
 
@@ -308,6 +314,9 @@ function candidateToForm(c: Candidate): ABForm {
     consentDataSharing: c.consentments?.data_sharing ?? false,
     consentAiProcessing: c.consentments?.ai_processing ?? false,
     consentPhotoProcessing: c.consentments?.photo_processing ?? false,
+    writtenTestScore: c.written_test_score != null ? String(c.written_test_score) : '',
+    testAverage: c.test_average != null ? String(c.test_average) : '',
+    testFailurePending: !!c.test_failure_pending,
   };
 }
 
@@ -323,8 +332,13 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
     && prevConsent.data_sharing === f.consentDataSharing
     && prevConsent.ai_processing === f.consentAiProcessing
     && prevConsent.photo_processing === f.consentPhotoProcessing;
+  const wt = f.writtenTestScore !== '' ? parseFloat(f.writtenTestScore) : undefined;
+  const avg = f.testAverage !== '' ? parseFloat(f.testAverage) : undefined;
   return {
     tpTypes: f.tpTypes, status: f.status,
+    writtenTestScore: wt,
+    testAverage: avg,
+    testFailurePending: f.testFailurePending || undefined,
     trainingSites: f.trainingSites,
     immersionAgreement: pb(f.immersionAgreement),
     desiredSectors: f.desiredSectors,
@@ -545,6 +559,157 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     setDraftRestored(false);
   };
 
+  // ── Gate : test écrit + ClassMarker ─────────────────────────────────────
+  const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? 'form' : 'gate');
+  const [manualClassMarkerScore, setManualClassMarkerScore] = useState<string>(() => {
+    if (candidate?.test_average != null && candidate?.written_test_score != null) return '';
+    return '';
+  });
+  const [failureComment, setFailureComment] = useState('');
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gateLoading, setGateLoading] = useState(false);
+  const [failedCandidateId, setFailedCandidateId] = useState<string | null>(null);
+  const [failedCandidateName, setFailedCandidateName] = useState<string>('');
+  // ClassMarker auto-fill : si édition, on récupère le résultat du candidat existant.
+  const { result: gateClassMarkerResult } = useClassMarkerResult(candidate?._id);
+  const classMarkerScore20: number | null = (() => {
+    if (gateClassMarkerResult && typeof gateClassMarkerResult.percentage === 'number') {
+      return gateClassMarkerResult.percentage / 5;
+    }
+    if (manualClassMarkerScore.trim() !== '') {
+      const v = parseFloat(manualClassMarkerScore.replace(',', '.'));
+      if (!Number.isNaN(v) && v >= 0 && v <= 20) return v;
+    }
+    return null;
+  })();
+  const writtenScoreNum: number | null = (() => {
+    const v = parseFloat((form.writtenTestScore ?? '').replace(',', '.'));
+    if (Number.isNaN(v)) return null;
+    return v;
+  })();
+  const testAverage: number | null = writtenScoreNum != null && classMarkerScore20 != null
+    ? (writtenScoreNum + classMarkerScore20) / 2
+    : null;
+
+  const handleGateValidate = async () => {
+    setGateError(null);
+    if (writtenScoreNum == null || writtenScoreNum < 0 || writtenScoreNum > 20) {
+      setGateError('Veuillez saisir le résultat de l’épreuve écrite (0–20).');
+      return;
+    }
+    if (classMarkerScore20 == null) {
+      setGateError('Résultat ClassMarker manquant : saisissez-le (0–20) ou attendez le résultat automatique.');
+      return;
+    }
+    if (testAverage == null) {
+      setGateError('Impossible de calculer la moyenne.');
+      return;
+    }
+    const avg = testAverage;
+    if (avg > 10) {
+      // Réussite : on poursuit vers le formulaire complet, statut Seeking
+      setForm(prev => ({ ...prev, testAverage: String(avg.toFixed(2)), status: 'SEEKING', testFailurePending: false }));
+      setGateStep('form');
+    } else {
+      // Échec : candidat en TEST_FAILED + pending, puis invite à commenter
+      setGateLoading(true);
+      try {
+        if (isEdit && candidate) {
+          const input = toServerInput({ ...form, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true } as ABForm, candidate);
+          // Force statut / scores même si toServerInput les normalise
+          input.status = 'TEST_FAILED';
+          input.writtenTestScore = writtenScoreNum;
+          input.testAverage = avg;
+          input.testFailurePending = true;
+          const res = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate._id, input });
+          if (res.error) throw new Error(res.error.message.replace(/^\[GraphQL\]\s*/, ''));
+          setFailedCandidateId(candidate._id);
+          setFailedCandidateName(form.fullName || candidate.identity.full_name);
+          setForm(prev => ({ ...prev, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true }));
+        } else {
+          // Création : il faut au minimum nom/email/téléphone pour créer la fiche en échec
+          if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim()) {
+            setGateError('Pour enregistrer l’échec, renseignez au minimum Nom, Email et Téléphone dans le formulaire ci-dessous.');
+            setGateLoading(false);
+            return;
+          }
+          // Assure un consentement minimal pour passer la garde backend
+          const pendingForm: ABForm = {
+            ...form,
+            status: 'TEST_FAILED',
+            testAverage: String(avg.toFixed(2)),
+            testFailurePending: true,
+            consentDataProcessing: form.consentDataProcessing || true,
+            consentDataSharing: form.consentDataSharing,
+            consentAiProcessing: form.consentAiProcessing,
+            consentPhotoProcessing: form.consentPhotoProcessing,
+          };
+          const input: any = toServerInput(pendingForm, null);
+          input.status = 'TEST_FAILED';
+          input.writtenTestScore = writtenScoreNum;
+          input.testAverage = avg;
+          input.testFailurePending = true;
+          // Si l'utilisateur n'a pas coché le consentement, on le force pour l'échec (sinon 400)
+          if (!input.consentments) {
+            input.consentments = {
+              dataProcessing: true, dataSharing: false, aiProcessing: false, photoProcessing: false,
+              consentDate: new Date().toISOString(), consentVersion: CONSENT_VERSION,
+            };
+          } else if (!input.consentments.dataProcessing) {
+            input.consentments.dataProcessing = true;
+            input.consentments.consentDate = new Date().toISOString();
+            input.consentments.consentVersion = CONSENT_VERSION;
+          }
+          const res = await candidateGraphqlClient.mutation(CREATE_CANDIDATE, { input });
+          if (res.error) throw new Error(res.error.message.replace(/^\[GraphQL\]\s*/, ''));
+          const newId: string | null = res.data?.createCandidate?.id ?? null;
+          if (!newId) throw new Error('Création échouée (id manquant)');
+          createdIdRef.current = newId;
+          setFailedCandidateId(newId);
+          setFailedCandidateName(form.fullName);
+          // Nettoie le brouillon de création
+          clearDraft(draftKey);
+        }
+        setGateStep('failedComment');
+      } catch (err) {
+        setGateError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement');
+      } finally {
+        setGateLoading(false);
+      }
+    }
+  };
+
+  const handleFailureCommentSubmit = async () => {
+    if (!failureComment.trim() || !failedCandidateId) return;
+    setGateLoading(true);
+    setGateError(null);
+    try {
+      const addRes = await candidateGraphqlClient.mutation(ADD_CANDIDATE_HISTORY_ENTRY, {
+        candidateId: failedCandidateId,
+        description: failureComment.trim(),
+      });
+      if (addRes.error) throw new Error(addRes.error.message.replace(/^\[GraphQL\]\s*/, ''));
+      // Lève le flag pending
+      const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, {
+        id: failedCandidateId,
+        input: { testFailurePending: false },
+      });
+      if (upd.error) throw new Error(upd.error.message.replace(/^\[GraphQL\]\s*/, ''));
+      onSaved();
+      if (createdIdRef.current && onCreated) onCreated(createdIdRef.current);
+      // Si c'était une création, on ferme après le commentaire, sinon on reste sur la fiche
+      if (!isEdit) {
+        const id = createdIdRef.current;
+        if (id && onCreated) onCreated(id);
+      }
+      onClose();
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement du commentaire');
+    } finally {
+      setGateLoading(false);
+    }
+  };
+
   // Template fusionné sur tous les TP cochés (options = union, anglais = si au moins un).
   const selectedTps = form.tpTypes.length ? form.tpTypes : [TitleProfessionalType.CC];
   const uniq = (a: string[]) => [...new Set(a)];
@@ -735,8 +900,81 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           </button>
         </div>
 
-        {/* Corps scrollable */}
-        <form id="ab-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+        {/* ── Gate : épreuve écrite + ClassMarker ─────────────────────────── */}
+        {gateStep === 'gate' ? (
+          <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
+            <div className="rounded-xl border border-purple/20 bg-purple-50/50 p-4">
+              <h3 className="text-sm font-bold text-purple">Étape préalable : résultats des tests</h3>
+              <p className="mt-1 text-xs text-gray-600">Saisissez la note de l’épreuve écrite et vérifiez le score ClassMarker. La moyenne doit être &gt; 10 pour poursuivre vers le formulaire.</p>
+            </div>
+            {gateError && (
+              <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
+                <AlertCircle size={16} className="shrink-0" />{gateError}
+              </div>
+            )}
+            {/* Identité minimale requise pour un éventuel échec */}
+            {!isEdit && (
+              <div className="space-y-3">
+                <InputField id="gate-fullname" label="Nom et prénom *" required value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <InputField id="gate-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
+                  <InputField id="gate-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
+                </div>
+                {emailDup && (
+                  <p className="flex items-center gap-1.5 text-xs text-red-500"><AlertCircle size={13} className="shrink-0" />Une fiche existe déjà pour cet email ({emailDup.fullName}).</p>
+                )}
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="gate-written" className="text-sm font-medium text-gray-700">Épreuve écrite (sur 20) *</label>
+                <input id="gate-written" type="number" min={0} max={20} step={0.5} placeholder="Ex: 12" value={form.writtenTestScore} onChange={e => set('writtenTestScore', e.target.value)} className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="gate-classmarker" className="text-sm font-medium text-gray-700">ClassMarker (sur 20)</label>
+                {gateClassMarkerResult && typeof gateClassMarkerResult.percentage === 'number' ? (
+                  <div className="w-full rounded-[10px] border border-gray-100 bg-gray-50 py-2.5 px-3 text-sm text-gray-700">
+                    {classMarkerScore20?.toFixed(2)} / 20 <span className="text-xs text-gray-400">({gateClassMarkerResult.percentage.toFixed(1)}%) – rempli automatiquement</span>
+                  </div>
+                ) : (
+                  <input id="gate-classmarker" type="number" min={0} max={20} step={0.5} placeholder="Saisir le score ClassMarker /20" value={manualClassMarkerScore} onChange={e => setManualClassMarkerScore(e.target.value)} className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple" />
+                )}
+              </div>
+            </div>
+            {testAverage != null && (
+              <div className={`rounded-lg p-3 text-sm font-medium ${testAverage > 10 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-orange-50 text-orange-700 border border-orange-200'}`}>
+                Moyenne : {testAverage.toFixed(2)} / 20 — {testAverage > 10 ? 'Admis : le formulaire sera accessible et le candidat passera en « Recherche ».' : 'Non admis : le candidat passera en « Test non réussi », un commentaire sera demandé.'}
+              </div>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+              <Button type="button" isLoading={gateLoading} onClick={handleGateValidate} className="bg-purple hover:bg-purple-dark text-white">Valider les résultats</Button>
+            </div>
+          </div>
+        ) : gateStep === 'failedComment' ? (
+          <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+              <h3 className="text-sm font-bold text-orange-700">Candidat en « Test non réussi »</h3>
+              <p className="mt-1 text-xs text-gray-600">Moyenne {testAverage?.toFixed(2) ?? '—'} / 20 — inférieure ou égale à 10. Le candidat <span className="font-semibold">{failedCandidateName || form.fullName}</span> est enregistré en « Test non réussi » (en attente de finalisation). Veuillez saisir un commentaire sur les actions prises — il sera enregistré dans l’historique du candidat.</p>
+            </div>
+            {gateError && (
+              <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
+                <AlertCircle size={16} className="shrink-0" />{gateError}
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gate-comment" className="text-sm font-medium text-gray-700">Commentaire — actions prises *</label>
+              <textarea id="gate-comment" rows={4} value={failureComment} onChange={e => setFailureComment(e.target.value)} placeholder="Ex: Candidat recontacté, proposé remédiation, orientation..." className="w-full rounded-[10px] border border-gray-100 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-purple resize-none" />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" type="button" onClick={() => { onSaved(); if (failedCandidateId && onCreated) onCreated(failedCandidateId); onClose(); }}>Plus tard</Button>
+              <Button type="button" isLoading={gateLoading} disabled={!failureComment.trim()} onClick={handleFailureCommentSubmit} className="bg-purple hover:bg-purple-dark text-white">Enregistrer le commentaire</Button>
+            </div>
+            <p className="text-xs text-gray-400">Vous pourrez revenir sur la fiche candidat pour compléter ce commentaire tant qu’il n’a pas été saisi.</p>
+          </div>
+        ) : (
+          <>
+          <form id="ab-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
 
           {error && (
             <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
@@ -1162,7 +1400,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             )}
           </div>
         </div>
-
+          </>
+        )}
       </div>
     </div>
   );
