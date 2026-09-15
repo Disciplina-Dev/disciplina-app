@@ -860,7 +860,7 @@ export default function FicheCandidat() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="secondary" leftIcon={<Edit2 size={15} />} onClick={() => setEditOpen(true)}>
-              Modifier
+              Compléter
             </Button>
             <Button
               size="sm"
@@ -1874,6 +1874,7 @@ export default function FicheCandidat() {
       {editOpen && (
         <CandidateFormModal
           candidate={formData}
+          requireGate
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             setFormData(null)

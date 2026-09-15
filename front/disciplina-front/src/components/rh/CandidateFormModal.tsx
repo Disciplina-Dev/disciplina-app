@@ -454,6 +454,8 @@ interface CandidateFormModalProps {
   onSaved: () => void;
   /** Appelé après création avec l'id du nouveau candidat (ex: pour rediriger vers sa fiche). */
   onCreated?: (id: string) => void;
+  /** Si vrai, le mode édition commence par l'étape de vérification des résultats de test (gate). */
+  requireGate?: boolean;
 }
 
 // ─── Brouillon localStorage (création + édition) ──────────────────────────────
@@ -494,7 +496,7 @@ function isDraftMeaningful(d: Partial<ABForm> | null): d is Partial<ABForm> {
   return !!d && !!(d.fullName || d.email || d.phone);
 }
 
-export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated }: CandidateFormModalProps) {
+export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated, requireGate }: CandidateFormModalProps) {
   const isEdit = !!candidate;
   // Clé de brouillon : par candidat en édition, unique en création.
   const draftKey = candidate ? editDraftKey(candidate._id) : CREATE_DRAFT_KEY;
@@ -560,7 +562,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   };
 
   // ── Gate : test écrit + ClassMarker ─────────────────────────────────────
-  const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? 'form' : 'gate');
+  const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? (requireGate ? 'gate' : 'form') : 'gate');
   const [manualClassMarkerScore, setManualClassMarkerScore] = useState<string>(() => {
     if (candidate?.test_average != null && candidate?.written_test_score != null) return '';
     return '';
@@ -888,10 +890,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">
-                {isEdit ? 'Modifier la fiche candidat' : 'Analyse du besoin – Nouveau candidat'}
+                {isEdit ? (requireGate ? 'Compléter la fiche candidat' : 'Modifier la fiche candidat') : 'Analyse du besoin – Nouveau candidat'}
               </h2>
               <p className="text-xs text-gray-400">
-                {isEdit ? 'Vos modifications non enregistrées sont conservées automatiquement' : 'Remplissez les champs correspondant au profil'}
+                {isEdit ? (requireGate ? 'Vérification des résultats puis formulaire complet' : 'Vos modifications non enregistrées sont conservées automatiquement') : 'Remplissez les champs correspondant au profil'}
               </p>
             </div>
           </div>
@@ -1394,7 +1396,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <>
                 <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
                 <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
-                  {isEdit ? 'Enregistrer les modifications' : 'Créer le candidat'}
+                  {isEdit ? (requireGate ? 'Compléter la fiche' : 'Enregistrer les modifications') : 'Créer le candidat'}
                 </Button>
               </>
             )}

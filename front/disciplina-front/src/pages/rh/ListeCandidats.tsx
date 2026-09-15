@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateAvatar from '@/components/rh/CandidateAvatar';
-import CandidateFormModal from '@/components/rh/CandidateFormModal';
+import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal';
 import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
@@ -818,11 +818,16 @@ export default function ListeCandidats() {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal — bare minimum (name/email/phone + RGPD) then navigate to fiche */}
       {showCreateModal && (
-        <CandidateFormModal
+        <CandidateQuickCreateModal
           onClose={() => setShowCreateModal(false)}
           onSaved={() => refetch()}
+          onCreated={(id) => {
+            setShowCreateModal(false)
+            refetch()
+            navigate(`/rh/candidats/${id}`)
+          }}
         />
       )}
 
