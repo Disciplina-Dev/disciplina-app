@@ -33,7 +33,7 @@ grep -rno '\[\[[A-Z_]*\]\]' front/disciplina-front/src/content/legal/
 | Placeholder | Description | Exemple |
 |---|---|---|
 | `[[NDA_FORMATION]]` | Numéro de déclaration d'activité de prestataire de formation | 04 97 00000 97 |
-| `[[CERTIF_QUALIOPI]]` | Référence de la certification Qualiopi, ou « non applicable » | Certificat n° XXXXX délivré le JJ/MM/AAAA |
+| `[[N_QUALIOPI]]` | Numéro de certification Qualiopi | 24974 |
 
 ## Protection des données
 
