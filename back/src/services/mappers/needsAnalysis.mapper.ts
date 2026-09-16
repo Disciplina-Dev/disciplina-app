@@ -276,6 +276,8 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         immersionPeriod: doc.immersion_period ?? null,
         trainingDays: doc.training_days ?? '{}',
         yousignSignatureRequestID: doc.signature_request_id ?? null,
+        signatureUrl: doc.signature_url ?? null,
+        signatureSentAt: doc.signature_sent_at ? new Date(doc.signature_sent_at).toISOString() : null,
         status: doc.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: doc.tags ?? [],
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
