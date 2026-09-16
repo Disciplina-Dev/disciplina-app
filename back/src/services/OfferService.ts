@@ -1,6 +1,8 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
-import { Offer } from '../types/offer.types';
+import { Offer, AbStatus } from '../types/offer.types';
+import { NeedsAnalysisService } from './NeedsAnalysisService';
+import { logger } from '../external/logger';
 import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
@@ -193,6 +195,42 @@ export class OfferService {
     private companiesService = new CompaniesService();
     private notificationService = new NotificationService();
     private userRepository = new UserRepository();
+    private needsAnalysisService = new NeedsAnalysisService();
+
+    /**
+     * Statut effectif de l'AB avant mutation (best-effort, null si indisponible).
+     * Sert à détecter une réactivation (retour à ACTIVE) pour horodater
+     * `last_active_at` sans jamais faire échouer la mutation appelante.
+     */
+    private async captureAbStatus(needsAnalysisId: string | undefined): Promise<AbStatus | null> {
+        if (!needsAnalysisId) return null;
+        try {
+            return await this.needsAnalysisService.getAbStatus(needsAnalysisId);
+        } catch {
+            return null;
+        }
+    }
+
+    private async captureAbStatusByOfferId(
+        offerId: string,
+    ): Promise<{ needsAnalysisId: string; before: AbStatus | null } | null> {
+        const offer = await this.offerRepository.findById(offerId);
+        const needsAnalysisId = offer?.needs_analysis_id;
+        if (!needsAnalysisId) return null;
+        return { needsAnalysisId, before: await this.captureAbStatus(needsAnalysisId) };
+    }
+
+    private async stampActivationIfReactivated(
+        needsAnalysisId: string | undefined,
+        before: AbStatus | null,
+    ): Promise<void> {
+        if (!needsAnalysisId || !before || before === 'ACTIVE') return;
+        try {
+            await this.needsAnalysisService.refreshActivationStamp(needsAnalysisId, before);
+        } catch (err) {
+            logger.error({ err, needsAnalysisId }, '[Offer] Failed to refresh AB activation stamp');
+        }
+    }
 
     async findAll(): Promise<object[]> {
         const offers = await this.offerRepository.listMatchingOffers();
@@ -347,18 +385,26 @@ export class OfferService {
 
     async update(id: string, data: any): Promise<object | null> {
         if (data.status) {
+            const captured = await this.captureAbStatusByOfferId(id);
             const offer = await this.offerRepository.setOfferStatus(id, data.status as OfferStatus);
+            await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
             return offer ? toGql(offer) : null;
         }
         return null;
     }
 
     async delete(id: string): Promise<boolean> {
-        return this.offerRepository.deleteById(id);
+        const captured = await this.captureAbStatusByOfferId(id);
+        const deleted = await this.offerRepository.deleteById(id);
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
+        return deleted;
     }
 
     async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
-        return this.offerRepository.deleteByNeedsAnalysisId(needsAnalysisId);
+        const before = await this.captureAbStatus(needsAnalysisId);
+        const count = await this.offerRepository.deleteByNeedsAnalysisId(needsAnalysisId);
+        await this.stampActivationIfReactivated(needsAnalysisId, before);
+        return count;
     }
 
     async findByNeedsAnalysisId(needsAnalysisId: string): Promise<object[]> {
@@ -389,20 +435,24 @@ export class OfferService {
     async removeCandidate(offerId: string, candidateId: string): Promise<object | null> {
         const candidate = await this.candidateRepository.findById(candidateId);
         const name = candidate?.identity?.full_name ?? candidateId;
+        const captured = await this.captureAbStatusByOfferId(offerId);
         const offer = await this.offerRepository.removeMatchedCandidate(offerId, candidateId);
         if (!offer) return null;
 
         await this.offerHistoryService.recordAuto(offerId, `Candidat ${name} retiré de l'offre`);
 
         const synced = await this.syncDerivedStatus(offerId, offer);
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
         return toGql(synced);
     }
 
     async unmatchAll(offerId: string): Promise<object | null> {
+        const captured = await this.captureAbStatusByOfferId(offerId);
         const offer = await this.offerRepository.clearMatchedCandidates(offerId);
         if (offer) {
             await this.offerHistoryService.recordAuto(offerId, "Tous les candidats ont été retirés de l'offre");
         }
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
         return offer ? toGql(offer) : null;
     }
 
@@ -454,6 +504,7 @@ export class OfferService {
     }
 
     async updateMatchedCandidateStatus(offerId: string, candidateId: string, status: string): Promise<object | null> {
+        const captured = await this.captureAbStatusByOfferId(offerId);
         const offer = await this.offerRepository.setMatchedCandidateStatus(
             offerId,
             candidateId,
@@ -482,6 +533,7 @@ export class OfferService {
         }
 
         const synced = await this.syncDerivedStatus(offerId, offer);
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
         return toGql(synced);
     }
 
@@ -653,6 +705,8 @@ export class OfferService {
             throw new Error("Les dates d'immersion sont requises pour cette conclusion");
         }
 
+        const before = await this.captureAbStatus(offer.needs_analysis_id);
+
         const status =
             conclusion === InterviewConclusion.IMMERSING
                 ? MatchedCandidateStatus.IMMERSING
@@ -708,6 +762,8 @@ export class OfferService {
             );
         }
 
+        await this.stampActivationIfReactivated(offer.needs_analysis_id, before);
+
         return toGql(updated);
     }
 
@@ -726,6 +782,8 @@ export class OfferService {
         if (proposed.interview_conclusion !== InterviewConclusion.IMMERSING) {
             throw new Error("Ce candidat n'est pas en immersion");
         }
+
+        const before = await this.captureAbStatus(offer.needs_analysis_id);
 
         const updated = await this.offerRepository.setProposedCandidateImmersionConclusion(
             offerId,
@@ -764,6 +822,8 @@ export class OfferService {
                 offer.needs_analysis_id,
             );
         }
+
+        await this.stampActivationIfReactivated(offer.needs_analysis_id, before);
 
         return toGql(updated);
     }

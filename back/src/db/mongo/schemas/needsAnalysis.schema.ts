@@ -50,6 +50,7 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
         status: { type: String, enum: Object.values(NeedsAnalysisStatus), default: NeedsAnalysisStatus.BROUILLON },
         tags: { type: [String], default: [] },
         ab_status: { type: String, enum: ['ACTIVE', 'ARCHIVED', 'INACTIVE'], default: null },
+        last_active_at: { type: Date, default: null },
         is_deleted: { type: Boolean, default: false },
         administration_type: { type: String, enum: Object.values(AdministrationType), default: AdministrationType.NON_RENSEIGNE },
         created_at: { type: Date },

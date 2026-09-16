@@ -190,6 +190,7 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | training_days | string | — | JSON string of per-day availability (not parsed) |
 | signature_request_id | string | — | DocuSeal submission id (e-signature) |
 | status | string | — | enum: NeedsAnalysisStatus |
+| last_active_at | date | — | Last transition to effective ACTIVE (creation, then reactivations) |
 | created_at | date | — | Creation date |
 | updated_at | date | — | Last update date |
 
