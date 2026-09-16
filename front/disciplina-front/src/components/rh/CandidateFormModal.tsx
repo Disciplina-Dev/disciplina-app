@@ -12,7 +12,8 @@ import { apiFetch } from '@/api/httpClient';
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { computeAge } from '@/utils/age';
-import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
+import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS, TP_TYPE_LABELS } from '@/data/candidateTemplates';
+import { gateThresholdForTp } from '@/utils/testGateThreshold';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 import SignaturePad from '@/components/ui/SignaturePad';
@@ -562,7 +563,14 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   };
 
   // ── Gate : test écrit + ClassMarker ─────────────────────────────────────
-  const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? (requireGate ? 'gate' : 'form') : 'gate');
+  // Le gate n'est demandé qu'une fois : si le candidat a déjà des résultats
+  // enregistrés (vérification déjà effectuée), « Compléter » ouvre directement
+  // le formulaire comme « Modifier », sans re-prompt.
+  const hasRecordedGateResults = candidate?.test_average != null && candidate?.written_test_score != null;
+  const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? (requireGate && !hasRecordedGateResults ? 'gate' : 'form') : 'gate');
+  // TP évalué au gate : détermine la moyenne minimale requise (CC → 10, autres → 12).
+  const [gateTp, setGateTp] = useState<TitleProfessionalType>(() => form.tpTypes[0] ?? TitleProfessionalType.CC);
+  const gateThreshold = gateThresholdForTp(gateTp);
   const [manualClassMarkerScore, setManualClassMarkerScore] = useState<string>(() => {
     if (candidate?.test_average != null && candidate?.written_test_score != null) return '';
     return '';
@@ -608,16 +616,21 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       return;
     }
     const avg = testAverage;
-    if (avg > 10) {
+    // Le TP choisi au gate devient le TP de la fiche en création ; en édition
+    // on l'ajoute aux TP existants sans rien retirer.
+    const gateTpTypes = isEdit
+      ? (form.tpTypes.includes(gateTp) ? form.tpTypes : [...form.tpTypes, gateTp])
+      : [gateTp];
+    if (avg >= gateThreshold) {
       // Réussite : on poursuit vers le formulaire complet, statut Seeking
-      setForm(prev => ({ ...prev, testAverage: String(avg.toFixed(2)), status: 'SEEKING', testFailurePending: false }));
+      setForm(prev => ({ ...prev, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'SEEKING', testFailurePending: false }));
       setGateStep('form');
     } else {
       // Échec : candidat en TEST_FAILED + pending, puis invite à commenter
       setGateLoading(true);
       try {
         if (isEdit && candidate) {
-          const input = toServerInput({ ...form, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true } as ABForm, candidate);
+          const input = toServerInput({ ...form, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true } as ABForm, candidate);
           // Force statut / scores même si toServerInput les normalise
           input.status = 'TEST_FAILED';
           input.writtenTestScore = writtenScoreNum;
@@ -627,7 +640,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           if (res.error) throw new Error(res.error.message.replace(/^\[GraphQL\]\s*/, ''));
           setFailedCandidateId(candidate._id);
           setFailedCandidateName(form.fullName || candidate.identity.full_name);
-          setForm(prev => ({ ...prev, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true }));
+          setForm(prev => ({ ...prev, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true }));
         } else {
           // Création : il faut au minimum nom/email/téléphone pour créer la fiche en échec
           if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim()) {
@@ -638,6 +651,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           // Assure un consentement minimal pour passer la garde backend
           const pendingForm: ABForm = {
             ...form,
+            tpTypes: gateTpTypes,
             status: 'TEST_FAILED',
             testAverage: String(avg.toFixed(2)),
             testFailurePending: true,
@@ -679,6 +693,13 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
         setGateLoading(false);
       }
     }
+  };
+
+  // Sortie de secours : ouvre le formulaire comme après une validation réussie,
+  // sans vérifier les résultats et sans toucher aux notes ni au statut.
+  const handleGateSkip = () => {
+    setGateError(null);
+    setGateStep('form');
   };
 
   const handleFailureCommentSubmit = async () => {
@@ -907,13 +928,24 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
             <div className="rounded-xl border border-purple/20 bg-purple-50/50 p-4">
               <h3 className="text-sm font-bold text-purple">Étape préalable : résultats des tests</h3>
-              <p className="mt-1 text-xs text-gray-600">Saisissez la note de l’épreuve écrite et vérifiez le score ClassMarker. La moyenne doit être &gt; 10 pour poursuivre vers le formulaire.</p>
+              <p className="mt-1 text-xs text-gray-600">Saisissez la note de l’épreuve écrite et vérifiez le score ClassMarker. La moyenne doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / SA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
             </div>
             {gateError && (
               <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
                 <AlertCircle size={16} className="shrink-0" />{gateError}
               </div>
             )}
+            {/* TP évalué : détermine la moyenne minimale requise (CC → 10, autres → 12) */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gate-tp" className="text-sm font-medium text-gray-700">Titre professionnel visé *</label>
+              <select id="gate-tp" value={gateTp} onChange={e => setGateTp(e.target.value as TitleProfessionalType)}
+                className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple">
+                {Object.values(TitleProfessionalType).map(t => (
+                  <option key={t} value={t}>{t} — {TP_TYPE_LABELS[t]} (≥ {gateThresholdForTp(t)})</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400">Moyenne minimale requise pour {gateTp} : {gateThreshold} / 20.</p>
+            </div>
             {/* Identité minimale requise pour un éventuel échec */}
             {!isEdit && (
               <div className="space-y-3">
@@ -944,20 +976,23 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </div>
             </div>
             {testAverage != null && (
-              <div className={`rounded-lg p-3 text-sm font-medium ${testAverage > 10 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-orange-50 text-orange-700 border border-orange-200'}`}>
-                Moyenne : {testAverage.toFixed(2)} / 20 — {testAverage > 10 ? 'Admis : le formulaire sera accessible et le candidat passera en « Recherche ».' : 'Non admis : le candidat passera en « Test non réussi », un commentaire sera demandé.'}
+              <div className={`rounded-lg p-3 text-sm font-medium ${testAverage >= gateThreshold ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-orange-50 text-orange-700 border border-orange-200'}`}>
+                Moyenne : {testAverage.toFixed(2)} / 20 — {testAverage >= gateThreshold ? 'Admis : le formulaire sera accessible et le candidat passera en « Recherche ».' : 'Non admis : le candidat passera en « Test non réussi », un commentaire sera demandé.'}
               </div>
             )}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
-              <Button type="button" isLoading={gateLoading} onClick={handleGateValidate} className="bg-purple hover:bg-purple-dark text-white">Valider les résultats</Button>
+            <div className="flex justify-between gap-3 pt-2">
+              <Button variant="ghost" type="button" onClick={handleGateSkip} title="Ouvrir le formulaire sans vérifier les résultats">Passer la vérification</Button>
+              <div className="flex gap-3">
+                <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+                <Button type="button" isLoading={gateLoading} onClick={handleGateValidate} className="bg-purple hover:bg-purple-dark text-white">Valider les résultats</Button>
+              </div>
             </div>
           </div>
         ) : gateStep === 'failedComment' ? (
           <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
             <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
               <h3 className="text-sm font-bold text-orange-700">Candidat en « Test non réussi »</h3>
-              <p className="mt-1 text-xs text-gray-600">Moyenne {testAverage?.toFixed(2) ?? '—'} / 20 — inférieure ou égale à 10. Le candidat <span className="font-semibold">{failedCandidateName || form.fullName}</span> est enregistré en « Test non réussi » (en attente de finalisation). Veuillez saisir un commentaire sur les actions prises — il sera enregistré dans l’historique du candidat.</p>
+              <p className="mt-1 text-xs text-gray-600">Moyenne {testAverage?.toFixed(2) ?? '—'} / 20 — inférieure à {gateThreshold}. Le candidat <span className="font-semibold">{failedCandidateName || form.fullName}</span> est enregistré en « Test non réussi » (en attente de finalisation). Veuillez saisir un commentaire sur les actions prises — il sera enregistré dans l’historique du candidat.</p>
             </div>
             {gateError && (
               <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">

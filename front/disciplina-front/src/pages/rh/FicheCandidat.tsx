@@ -23,6 +23,7 @@ import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTe
 import { SECTEUR_LABELS } from '@/constants/secteurs'
 import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
+import { gateThresholdForTps } from '@/utils/testGateThreshold'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
@@ -886,7 +887,7 @@ export default function FicheCandidat() {
               <AlertCircle size={16} /> En attente de finalisation
             </div>
             <p className="text-sm text-gray-700">
-              Ce candidat est en « Test non réussi » (moyenne {formData.test_average != null ? `${Number(formData.test_average).toFixed(2)} / 20` : '≤ 10 / 20'}). Un commentaire sur les actions entreprises doit être saisi pour finaliser la fiche. Tant que ce commentaire n’est pas enregistré, la fiche reste en attente.
+              Ce candidat est en « Test non réussi » (moyenne {formData.test_average != null ? `${Number(formData.test_average).toFixed(2)} / 20` : `< ${gateThresholdForTps(formData.tp_types)} / 20`}). Un commentaire sur les actions entreprises doit être saisi pour finaliser la fiche. Tant que ce commentaire n’est pas enregistré, la fiche reste en attente.
             </p>
             <p className="text-xs text-gray-500">
               Moyenne calculée à partir de l’épreuve écrite ({formData.written_test_score ?? '—'} / 20) et du score ClassMarker. Vous pouvez compléter à tout moment.
