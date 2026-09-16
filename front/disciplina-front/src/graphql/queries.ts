@@ -411,6 +411,9 @@ const CANDIDATE_FIELDS = gql`
       sector
     }
     status
+    writtenTestScore
+    testAverage
+    testFailurePending
     tpTypes
     trainingSite
     trainingSites
@@ -585,6 +588,9 @@ export const GET_CANDIDATE_BY_ID = gql`
         sector
       }
       status
+      writtenTestScore
+      testAverage
+      testFailurePending
       tpTypes
       trainingSite
       trainingSites

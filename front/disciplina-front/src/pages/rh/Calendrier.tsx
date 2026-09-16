@@ -18,7 +18,7 @@ import { SECTEUR_VALUES } from '@/types/entreprise'
 import { DEFAULT_SECTEUR } from '@/constants/secteurs'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
-import CandidateFormModal from '@/components/rh/CandidateFormModal'
+import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal'
 import {
   fetchCalendarEvents, fetchCalendarUsers, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   setEventAttendance,
@@ -558,7 +558,7 @@ export default function Calendrier() {
         />
       )}
       {createFromEvent && (
-        <CandidateFormModal
+        <CandidateQuickCreateModal
           prefill={{
             fullName: candidateNameFromSummary(createFromEvent.summary),
             email: createFromEvent.attendeeEmail ?? '',

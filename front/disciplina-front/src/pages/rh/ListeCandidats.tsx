@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateAvatar from '@/components/rh/CandidateAvatar';
-import CandidateFormModal from '@/components/rh/CandidateFormModal';
+import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal';
 import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
@@ -622,6 +622,11 @@ export default function ListeCandidats() {
             onClick={() => navigate(`/rh/candidats/${candidate._id}`)}
             className="group relative bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-purple/30 transition-all cursor-pointer flex flex-col h-full overflow-hidden"
           >
+            {candidate.status === CandidateStatus.TEST_FAILED && candidate.test_failure_pending && (
+              <div className="absolute top-0 left-0 px-3 py-1 rounded-br-xl text-[9px] font-bold uppercase tracking-wider bg-orange-500 text-white z-10">
+                En attente
+              </div>
+            )}
             {/* Status Corner Badge */}
             <div className={`absolute top-0 right-0 px-4 py-1.5 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-opacity hover:opacity-90 cursor-pointer z-10 ${CANDIDATE_STATUS_BADGE_CLASS[candidate.status]}`}>
               <select
@@ -813,11 +818,16 @@ export default function ListeCandidats() {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal — bare minimum (name/email/phone + RGPD) then navigate to fiche */}
       {showCreateModal && (
-        <CandidateFormModal
+        <CandidateQuickCreateModal
           onClose={() => setShowCreateModal(false)}
           onSaved={() => refetch()}
+          onCreated={(id) => {
+            setShowCreateModal(false)
+            refetch()
+            navigate(`/rh/candidats/${id}`)
+          }}
         />
       )}
 
