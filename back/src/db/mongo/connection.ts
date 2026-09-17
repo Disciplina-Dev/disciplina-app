@@ -179,6 +179,7 @@ async function patchCandidatesValidator(conn: Connection): Promise<void> {
                             // Free-text string (not an array of city enums)
                             geographic_mobility: { bsonType: 'array', items: { bsonType: 'string' } },
                             weekend_work: { bsonType: 'bool' },
+                            job_search_platforms: { bsonType: 'string' },
                             discovery_source: {
                                 enum: [
                                     'SOCIAL_MEDIA',

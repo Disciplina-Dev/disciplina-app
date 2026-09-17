@@ -1675,6 +1675,15 @@ export default function FicheCandidat() {
                   ) : <p className={valueCls}>{formData.job_info?.discovery_source ? DISCOVERY_SOURCE_LABELS[formData.job_info.discovery_source] || prettyEnum(formData.job_info.discovery_source) : '—'}</p>}
                 </Field>
               </div>
+              <Field label="Sites / plateformes de recherche d'alternance">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.job_info?.job_search_platforms ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, job_info: { ...prev.job_info, job_search_platforms: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.job_info?.job_search_platforms || '—'}</p>}
+              </Field>
             </div>
           </Card>
 

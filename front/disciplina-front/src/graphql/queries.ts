@@ -701,6 +701,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       cvLink
@@ -839,6 +840,7 @@ export const UPDATE_CANDIDATE = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       createdAt
@@ -984,6 +986,7 @@ export const GET_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion
@@ -1130,6 +1133,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion

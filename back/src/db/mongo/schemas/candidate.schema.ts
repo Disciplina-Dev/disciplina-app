@@ -194,6 +194,7 @@ const jobInfoSchema = new Schema<JobInfo>(
         geographic_mobility: { type: [String], enum: Object.values(Localisation) },
         weekend_work: { type: Boolean },
         discovery_source: { type: String, enum: Object.values(DiscoverySource) },
+        job_search_platforms: { type: String },
     },
     { _id: false },
 );

@@ -126,6 +126,7 @@ type ABForm = {
   desiredSectors: string[]; expectedCompanySkills: string[];
   // découverte
   discoverySource: string;
+  jobSearchPlatforms: string;
   // préconisations pédagogiques (clés camel sélectionnées) + zone libre
   pedagogicalRecommendations: string[];
   otherRecommendations: string;
@@ -207,6 +208,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     domainMotivation: '', questionsConcerns: '', availabilityDate: '', geographicMobility: [], weekendWork: '',
     desiredSectors: [], expectedCompanySkills: [],
     discoverySource: '',
+    jobSearchPlatforms: '',
     pedagogicalRecommendations: [],
     otherRecommendations: '',
     feasibilityConclusion: '',
@@ -301,6 +303,7 @@ function candidateToForm(c: Candidate): ABForm {
     desiredSectors: c.desired_sectors ?? [],
     expectedCompanySkills: c.expected_company_skills ?? [],
     discoverySource: c.job_info?.discovery_source ?? '',
+    jobSearchPlatforms: c.job_info?.job_search_platforms ?? '',
     pedagogicalRecommendations: c.synthesis?.pedagogical_recommendations
       ? PEDA_OPTIONS.filter(o => c.synthesis!.pedagogical_recommendations![o.snake]).map(o => o.camel)
       : [],
@@ -415,6 +418,7 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
       geographicMobility: f.geographicMobility.length ? f.geographicMobility : undefined,
       weekendWork: pb(f.weekendWork),
       discoverySource: f.discoverySource || undefined,
+      jobSearchPlatforms: f.jobSearchPlatforms.trim() || undefined,
     },
     synthesis: {
       importantNote: f.importantNote || undefined,
@@ -1306,6 +1310,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </label>
             ))}
           </div>
+          <ABTextarea label="Sur quels sites ou plateformes avez-vous l'habitude de rechercher et de postuler à des offres d'alternance ? (optionnel)" value={form.jobSearchPlatforms} onChange={v => set('jobSearchPlatforms', v)} rows={2} />
 
           {/* Préconisations pédagogiques */}
           <ABSectionTitle title="Préconisations pédagogiques" />
