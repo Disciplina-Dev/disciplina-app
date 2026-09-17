@@ -39,7 +39,9 @@ FAIL=0
 
 if [ -n "$BACK_SRC" ]; then
     MYSQL_H=$(env_value MYSQL_HOST 127.0.0.1)
-    MYSQL_P=$(env_value MYSQL_PORT 3306)
+    # 4010, pas 3306 : c'est le port hôte par défaut de docker-compose.yaml
+    # (${MYSQL_PORT:-4010}) quand MYSQL_PORT est vide/absent du .env.
+    MYSQL_P=$(env_value MYSQL_PORT 4010)
     MONGO_H=$(env_value MONGO_HOST 127.0.0.1)
     MONGO_P=$(env_value MONGO_PORT 27017)
     # Hôtes internes au réseau compose : injoignables depuis l'hôte, on teste en local.
@@ -47,7 +49,15 @@ if [ -n "$BACK_SRC" ]; then
     case "$MONGO_H" in sql-db | nosql-db) MONGO_H=127.0.0.1 ;; esac
 
     if nc -z -w1 "$MYSQL_H" "$MYSQL_P" 2>/dev/null && nc -z -w1 "$MONGO_H" "$MONGO_P" 2>/dev/null; then
-        if ! (cd back && npm test); then
+        # Les valeurs ci-dessus sont déjà traduites pour l'hôte (sql-db -> 127.0.0.1,
+        # port compose réel) : il faut les repasser explicitement à npm test, sinon
+        # dotenv recharge .env/back/.env tel quel et retombe sur sql-db (ENOTFOUND).
+        # API_PORT dédié : évite un conflit avec le conteneur backend de dev, déjà
+        # sur le 4000 si `docker compose up` tourne en parallèle.
+        if ! (
+            cd back && MYSQL_HOST="$MYSQL_H" MYSQL_PORT="$MYSQL_P" MONGO_HOST="$MONGO_H" MONGO_PORT="$MONGO_P" \
+                API_PORT="${API_PORT:-4099}" npm test
+        ); then
             echo "test-gate: tests backend en échec — corrige avant de terminer." >&2
             FAIL=1
         fi
