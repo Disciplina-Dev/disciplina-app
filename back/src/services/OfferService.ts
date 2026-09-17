@@ -462,6 +462,24 @@ export class OfferService {
         return this.offerRepository.findOfferIdsWithCandidate(candidateId);
     }
 
+    async getCandidateSentCompanies(candidateId: string): Promise<object[]> {
+        const offers = await this.offerRepository.findWithCandidate(candidateId);
+        const sent: object[] = [];
+        for (const offer of offers) {
+            const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
+            if (!candidate?.status || !PROPOSED_STATUSES.includes(candidate.status)) continue;
+            sent.push({
+                offerId: offer._id,
+                companyName: offer.company_infos?.name ?? null,
+                status: candidate.status,
+                title: offer.title ?? null,
+                jobRole: offer.job_role ?? null,
+                needsAnalysisId: offer.needs_analysis_id ?? null,
+            });
+        }
+        return sent;
+    }
+
     async getCandidatePlacement(candidateId: string): Promise<object | null> {
         const placements = await this.offerRepository.findPlacementOffers(candidateId);
 
