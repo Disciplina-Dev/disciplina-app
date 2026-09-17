@@ -19,6 +19,7 @@ const OPTIONS: sanitizeHtml.IOptions = {
             color: [HEX_OR_NAMED_COLOR],
             'background-color': [HEX_OR_NAMED_COLOR],
             'text-align': [KEYWORD_VALUE],
+            'font-size': [LENGTH_VALUE],
             padding: [LENGTH_VALUE],
             'border-radius': [LENGTH_VALUE],
             'font-weight': [KEYWORD_VALUE, /^\d{3}$/],
