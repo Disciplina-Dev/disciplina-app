@@ -1711,8 +1711,10 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         node {
           id
           status
+          abStatus
           positionsCount
           createdAt
+          lastActiveAt
           administrationType
           driveFolderUrl
           companyInfos {

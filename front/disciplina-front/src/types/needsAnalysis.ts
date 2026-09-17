@@ -98,6 +98,8 @@ export interface NeedsAnalysis {
   tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null
+  /** Date du dernier passage au statut effectif ACTIVE (null = antérieur au suivi). */
+  lastActiveAt?: string | null
   /** URL Drive du dossier contenant le mandat signé (uniquement si SIGNE). */
   driveFolderUrl?: string | null
 }

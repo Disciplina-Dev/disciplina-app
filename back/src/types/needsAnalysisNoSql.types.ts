@@ -173,6 +173,12 @@ export interface NeedsAnalysis {
      * est dérivé des offres (ACTIVE/ARCHIVED) ou du soft delete (INACTIVE).
      */
     ab_status?: 'ACTIVE' | 'ARCHIVED' | 'INACTIVE' | null;
+    /**
+     * Date du dernier passage au statut effectif ACTIVE (création puis chaque
+     * réactivation après un passage en INACTIVE/ARCHIVED). Affichée dans
+     * l'annuaire des entreprises du tableau de bord RH.
+     */
+    last_active_at?: Date | null;
     // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
     // d'être retirée — on conserve le document pour l'historique.
     is_deleted?: boolean;

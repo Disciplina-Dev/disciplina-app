@@ -224,11 +224,39 @@ export class NeedsAnalysisService {
         if (!existing) {
             throw new Error('Needs analysis not found');
         }
+        const before = await this.getAbStatus(id);
         const updated = await this.repository.update(id, { ab_status: abStatus ?? null });
         if (!updated) {
             throw new Error('Needs analysis not found after update');
         }
-        return toNeedsAnalysis(updated);
+        await this.refreshActivationStamp(id, before);
+        // Relecture : le stamp d'activation a pu modifier le document après `update`.
+        const final = await this.repository.findById(id);
+        return toNeedsAnalysis(final ?? updated);
+    }
+
+    /**
+     * Met à jour `last_active_at` si l'AB vient de (re)devenir effectivement
+     * ACTIVE alors qu'elle ne l'était pas juste avant (`before`). Appelé après
+     * chaque mutation susceptible de faire basculer le statut effectif
+     * (forçage manuel, ajout/retrait d'offres, évolution du matching).
+     * Best-effort : n'échoue jamais l'opération appelante.
+     */
+    async refreshActivationStamp(id: string, before: AbStatus | null): Promise<void> {
+        if (!id || before === 'ACTIVE') return;
+        let after: AbStatus;
+        try {
+            after = await this.getAbStatus(id);
+        } catch (err) {
+            logger.error({ err, id }, '[NeedsAnalysis] Failed to compute status for activation stamp');
+            return;
+        }
+        if (after !== 'ACTIVE') return;
+        try {
+            await this.repository.update(id, { last_active_at: new Date() });
+        } catch (err) {
+            logger.error({ err, id }, '[NeedsAnalysis] Failed to stamp activation date');
+        }
     }
 
     async findById(id: string): Promise<NeedsAnalysisGql | null> {
@@ -629,6 +657,7 @@ export class NeedsAnalysisService {
         if (!companyID) {
             throw new Error(`Company with ID ${companyID} not found`);
         }
+        const before = await this.getAbStatus(id);
         const company = await this.companiesService.findById(companyID);
         if (!company) {
             throw new Error(`Company with ID ${companyID} not found`);
@@ -644,6 +673,9 @@ export class NeedsAnalysisService {
         // fois : dans ce cas, on répercute les changements de poste sur les offres
         // existantes en préservant leur id stable et leur état de matching.
         await this.syncOffers(id, updated);
+
+        // L'ajout/retrait de postes peut réactiver une AB archivée (retour à ACTIVE).
+        await this.refreshActivationStamp(id, before);
 
         return toNeedsAnalysis(updated);
     }
