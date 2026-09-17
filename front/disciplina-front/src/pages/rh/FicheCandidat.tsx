@@ -9,6 +9,7 @@ import {
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
+import CandidateSentCompaniesCallout from '@/features/candidats/components/CandidateSentCompaniesCallout'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -880,6 +881,9 @@ export default function FicheCandidat() {
             {saveError}
           </div>
         )}
+
+        {/* ── Déjà envoyé en entreprise via le matching ── */}
+        {id && <CandidateSentCompaniesCallout candidateId={id} />}
 
         {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
           <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex flex-col gap-3">

@@ -1641,6 +1641,19 @@ export const GET_CANDIDATE_PLACEMENT = gql`
   }
 `
 
+export const GET_CANDIDATE_SENT_COMPANIES = gql`
+  query GetCandidateSentCompanies($candidateId: String!) {
+    candidateSentCompanies(candidateId: $candidateId) {
+      offerId
+      companyName
+      status
+      title
+      jobRole
+      needsAnalysisId
+    }
+  }
+`
+
 export const GET_CANDIDATE_HISTORY = gql`
   query CandidateHistory($candidateId: String!) {
     candidateHistory(candidateId: $candidateId) {

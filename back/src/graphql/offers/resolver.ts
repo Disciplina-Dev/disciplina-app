@@ -39,6 +39,10 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getMatchedOfferIds(candidateId);
         },
+        candidateSentCompanies: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.getCandidateSentCompanies(candidateId);
+        },
         candidatePlacement: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getCandidatePlacement(candidateId);
