@@ -41,6 +41,25 @@ function escapeHtml(s: string): string {
 }
 
 /**
+ * Nom du fichier archivé / joint pour un document signé DocuSeal.
+ * DocuSeal renvoie les noms d'origine : 'Mandat de publication',
+ * 'Catalogue Disciplina', ou le nom de l'AB générée. Le test précédent ne
+ * distinguait que mandat vs reste, ce qui renommait le Catalogue en
+ * `Analyse_Besoin_..._Signee.pdf` — on distingue désormais les trois cas.
+ */
+function signedAbFilename(docName: string, safeName: string): string {
+    if (/mandat/i.test(docName)) return `Mandat_Publication_${safeName}_Signe.pdf`;
+    if (/catalogue/i.test(docName)) return `Catalogue_Disciplina_${safeName}_Signe.pdf`;
+    return `Analyse_Besoin_${safeName}_Signee.pdf`;
+}
+
+function signedAbLabel(filename: string): string {
+    if (/mandat/i.test(filename)) return 'Mandat de publication';
+    if (/catalogue/i.test(filename)) return 'Catalogue Disciplina';
+    return 'Analyse du Besoin';
+}
+
+/**
  * Résout l'expéditeur pour le mail copie commerciale.
  * Priorité : commercial propriétaire (si Google connecté) → Responsable Commercial connecté → fallback Commercial connecté.
  */
@@ -147,8 +166,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
             const safeName = companyName.replace(/\s+/g, '_');
             const driveLinks: string[] = [];
             for (const signedDoc of signedDocuments) {
-                const isMandat = /mandat/i.test(signedDoc.name);
-                const fname = isMandat ? `Mandat_Publication_${safeName}_Signe.pdf` : `Analyse_Besoin_${safeName}_Signee.pdf`;
+                const fname = signedAbFilename(signedDoc.name, safeName);
                 const link = await abDriveConfigService.archiveAbPdf(
                     analysis.companyInfos?.sector,
                     'SIGNED',
@@ -160,12 +178,9 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
                 if (link) driveLinks.push(link);
             }
 
-            const safeCompanyName = companyName.replace(/\s+/g, '_');
+            const safeCompanyName = safeName;
             const attachments = signedDocuments.map((doc) => {
-                const isMandat = /mandat/i.test(doc.name);
-                const filename = isMandat
-                    ? `Mandat_Publication_${safeCompanyName}_Signe.pdf`
-                    : `Analyse_Besoin_${safeCompanyName}_Signee.pdf`;
+                const filename = signedAbFilename(doc.name, safeCompanyName);
                 return {
                     content: doc.buffer.toString('base64'),
                     filename,
@@ -190,7 +205,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
                 const siret = (company as any)?.siret || analysis.companyInfos?.siret || '—';
                 const sectorLabel = analysis.companyInfos?.sector || '—';
                 const abId = analysis.id;
-                const docsList = attachments.map((a) => `<li>${escapeHtml(a.filename)} — ${/Mandat/i.test(a.filename) ? 'Mandat de publication' : 'Analyse du Besoin'}</li>`).join('');
+                const docsList = attachments.map((a) => `<li>${escapeHtml(a.filename)} — ${signedAbLabel(a.filename)}</li>`).join('');
                 const driveInfo = driveLinks.length
                     ? `<p style="margin:8px 0 0 0;font-size:13px;color:#555;">Archivage Drive secteur <strong>${escapeHtml(sectorLabel)}</strong> : ${driveLinks.map((l) => `<a href="${l}" style="color:#0052cc;">ouvrir le dossier</a>`).join(' · ')}</p>`
                     : `<p style="margin:8px 0 0 0;font-size:13px;color:#555;">Archivage Drive : en attente (dossier secteur ${escapeHtml(sectorLabel)} non configuré ou échec temporaire).</p>`;
