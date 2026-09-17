@@ -1,4 +1,5 @@
 import { useEditor, EditorContent } from '@tiptap/react'
+import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
@@ -12,7 +13,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Heading2, Link2, Unlink, Palette, ImagePlus, MousePointerClick,
+  Heading2, Link2, Unlink, Palette, ImagePlus, MousePointerClick, ALargeSmall,
 } from 'lucide-react'
 
 // Image insérée en base64 directement dans le HTML du mail (comme la signature
@@ -36,6 +37,61 @@ const LinkWithStyle = Link.extend({
     }
   },
 })
+
+// Pas d'extension officielle @tiptap/extension-font-size en v2 (seulement une
+// préversion 3.x) — même pattern que Color : un attribut `fontSize` ajouté au
+// mark `textStyle` existant.
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    fontSize: {
+      setFontSize: (fontSize: string) => ReturnType
+      unsetFontSize: () => ReturnType
+    }
+  }
+}
+
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addOptions() {
+    return { types: ['textStyle'] }
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: (element: HTMLElement) => element.style.fontSize || null,
+            renderHTML: (attributes: { fontSize?: string | null }) => {
+              if (!attributes.fontSize) return {}
+              return { style: `font-size: ${attributes.fontSize}` }
+            },
+          },
+        },
+      },
+    ]
+  },
+  addCommands() {
+    return {
+      setFontSize:
+        (fontSize: string) =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontSize }).run(),
+      unsetFontSize:
+        () =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontSize: null }).run(),
+    }
+  },
+})
+
+const FONT_SIZES = [
+  { label: 'Petit', value: '12px' },
+  { label: 'Normal', value: null },
+  { label: 'Grand', value: '18px' },
+  { label: 'Très grand', value: '24px' },
+]
 
 const COLOR_SWATCHES = [
   { label: 'Noir', value: '#0D0D0D' },
@@ -91,6 +147,8 @@ export default function RichTextEditor({
 }: RichTextEditorProps) {
   const [colorPanelOpen, setColorPanelOpen] = useState(false)
   const colorPanelRef = useRef<HTMLDivElement>(null)
+  const [sizePanelOpen, setSizePanelOpen] = useState(false)
+  const sizePanelRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
@@ -106,6 +164,7 @@ export default function RichTextEditor({
       }),
       TextStyle,
       Color,
+      FontSize,
       Image,
     ],
     content: value,
@@ -140,6 +199,22 @@ export default function RichTextEditor({
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [colorPanelOpen])
+
+  useEffect(() => {
+    if (!sizePanelOpen) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (!sizePanelRef.current?.contains(e.target as Node)) setSizePanelOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSizePanelOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [sizePanelOpen])
 
   const setLink = useCallback(() => {
     if (!editor) return
@@ -268,6 +343,35 @@ export default function RichTextEditor({
               >
                 ×
               </button>
+            </div>
+          )}
+        </div>
+        <div className="relative" ref={sizePanelRef}>
+          <ToolbarButton
+            onClick={() => setSizePanelOpen((open) => !open)}
+            active={sizePanelOpen || !!editor.getAttributes('textStyle').fontSize}
+            title="Taille du texte"
+          >
+            <ALargeSmall size={14} />
+          </ToolbarButton>
+          {sizePanelOpen && (
+            <div className="absolute left-0 top-full z-10 mt-1 flex flex-col gap-0.5 rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
+              {FONT_SIZES.map(({ label, value }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    if (value) editor.chain().focus().setFontSize(value).run()
+                    else editor.chain().focus().unsetFontSize().run()
+                    setSizePanelOpen(false)
+                  }}
+                  style={{ fontSize: value ?? '14px' }}
+                  className="whitespace-nowrap rounded px-2 py-1 text-left text-gray-700 hover:bg-gray-100"
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           )}
         </div>
