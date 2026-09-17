@@ -4,13 +4,25 @@ import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
-import { useEffect, useCallback } from 'react'
+import TextStyle from '@tiptap/extension-text-style'
+import Color from '@tiptap/extension-color'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Heading2, Link2, Unlink,
+  Heading2, Link2, Unlink, Palette,
 } from 'lucide-react'
+
+const COLOR_SWATCHES = [
+  { label: 'Noir', value: '#0D0D0D' },
+  { label: 'Gris', value: '#3D3D3D' },
+  { label: 'Bleu', value: '#1130A7' },
+  { label: 'Violet', value: '#60207E' },
+  { label: 'Rose', value: '#B10F55' },
+  { label: 'Succès', value: '#1A7A4A' },
+  { label: 'Alerte', value: '#A65C00' },
+]
 
 interface RichTextEditorProps {
   value: string
@@ -54,6 +66,9 @@ export default function RichTextEditor({
   placeholder = 'Rédigez votre message...',
   minHeight = '200px',
 }: RichTextEditorProps) {
+  const [colorPanelOpen, setColorPanelOpen] = useState(false)
+  const colorPanelRef = useRef<HTMLDivElement>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ bulletList: {}, orderedList: {}, heading: { levels: [2, 3] } }),
@@ -65,6 +80,8 @@ export default function RichTextEditor({
         autolink: true,
         HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer nofollow' },
       }),
+      TextStyle,
+      Color,
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -82,6 +99,22 @@ export default function RichTextEditor({
       editor.commands.setContent(value, false)
     }
   }, [value])
+
+  useEffect(() => {
+    if (!colorPanelOpen) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (!colorPanelRef.current?.contains(e.target as Node)) setColorPanelOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setColorPanelOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [colorPanelOpen])
 
   const setLink = useCallback(() => {
     if (!editor) return
@@ -121,6 +154,60 @@ export default function RichTextEditor({
         {btn('Gras', () => editor.chain().focus().toggleBold().run(), editor.isActive('bold'))}
         {btn('Italique', () => editor.chain().focus().toggleItalic().run(), editor.isActive('italic'))}
         {btn('Souligné', () => editor.chain().focus().toggleUnderline().run(), editor.isActive('underline'))}
+        <div className="relative" ref={colorPanelRef}>
+          <ToolbarButton
+            onClick={() => setColorPanelOpen((open) => !open)}
+            active={colorPanelOpen || editor.isActive('textStyle')}
+            title="Couleur du texte"
+          >
+            <Palette size={14} />
+          </ToolbarButton>
+          {colorPanelOpen && (
+            <div className="absolute left-0 top-full z-10 mt-1 flex gap-1 rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
+              {COLOR_SWATCHES.map(({ label, value }) => (
+                <button
+                  key={value}
+                  type="button"
+                  title={label}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    editor.chain().focus().setColor(value).run()
+                    setColorPanelOpen(false)
+                  }}
+                  className="h-5 w-5 rounded-full ring-1 ring-inset ring-black/10"
+                  style={{ backgroundColor: value }}
+                />
+              ))}
+              <label
+                title="Autre couleur..."
+                className="h-5 w-5 cursor-pointer overflow-hidden rounded-full border-0 p-0 ring-1 ring-inset ring-black/10"
+                style={{
+                  background:
+                    'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
+                }}
+              >
+                <input
+                  type="color"
+                  className="h-full w-full cursor-pointer opacity-0"
+                  onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+                  onBlur={() => setColorPanelOpen(false)}
+                />
+              </label>
+              <button
+                type="button"
+                title="Réinitialiser la couleur"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  editor.chain().focus().unsetColor().run()
+                  setColorPanelOpen(false)
+                }}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-gray-500 ring-1 ring-inset ring-black/10"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
         <Divider />
         {btn('Titre', () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive('heading', { level: 2 }))}
         {btn('Liste', () => editor.chain().focus().toggleBulletList().run(), editor.isActive('bulletList'))}
