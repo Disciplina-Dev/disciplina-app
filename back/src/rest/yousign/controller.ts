@@ -2,22 +2,49 @@ import { Request, Response } from 'express';
 import { NeedsAnalysisRepository } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
 import { NeedsAnalysisStatus } from '../../types/needsAnalysisNoSql.types';
-import { UserRepository } from '../../repositories/mysql/UserRepository';
+import { UserService } from '../../services/UserService';
 import { CompaniesService } from '../../services/CompaniesService';
 import { YousignService } from '../../external/yousign/yousign.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
 import { withNoReply } from '../../external/google/no-reply';
 import { MailTemplateService } from '../../services/MailTemplateService';
+import { JobRole, Permission } from '../../types/user.types';
 import { logger } from '../../external/logger';
 import { notifyUser } from './sse';
 import { getRegion, runForAllRegions } from '../../db/tenant';
 
 const needsAnalysisRepo = new NeedsAnalysisRepository();
-const userRepo = new UserRepository();
+const userService = new UserService();
 const companiesService = new CompaniesService();
 const yousignService = new YousignService();
 const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
+
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function resolveCommercialMailSender(commercial: any | null): Promise<any | null> {
+    if (commercial?.oauthToken && commercial.refreshToken) return commercial;
+    if (commercial?.oauthToken) return commercial;
+    try {
+        const responsables = await userService.findByPermission(Permission.RESPONSABLE);
+        const rcWithToken = responsables.filter((u: any) => u.role === JobRole.COMMERCIAL && u.oauthToken);
+        const preferred = rcWithToken.find((u: any) => u.refreshToken) ?? rcWithToken[0];
+        if (preferred) {
+            logger.info({ fallbackUserId: preferred.id, fallbackEmail: preferred.email }, '[Yousign] Using Responsable Commercial as mail sender');
+            return preferred;
+        }
+    } catch (err) {
+        logger.warn({ err }, '[Yousign] Failed to resolve Responsable Commercial sender');
+    }
+    const fallback = await userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
+    if (fallback) {
+        logger.info({ fallbackUserId: fallback.id, fallbackEmail: fallback.email }, '[Yousign] Using fallback Commercial as mail sender');
+        return fallback;
+    }
+    return null;
+}
 
 export async function handleYousignWebhook(req: Request, res: Response): Promise<void> {
     const eventName = req.body.eventName || req.body.event;
@@ -91,38 +118,94 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                     return;
                 }
 
-                // 4. Fetch associated Commercial and Company details
-                const commercial = analysis.salerInfo?.id ? await userRepo.findById(analysis.salerInfo.id) : null;
+                // 4. Fetch associated Commercial and Company details (decrypted tokens via UserService)
+                const commercial = analysis.salerInfo?.id ? await userService.findById(analysis.salerInfo.id) : null;
                 const company = analysis.companyInfos?.id ? await companiesService.findById(analysis.companyInfos.id) : null;
-                const companyName = company?.name || 'Entreprise';
+                const companyName = company?.name || (analysis.companyInfos as any)?.name || 'Entreprise';
 
-                // 5. Send notification email using Gmail API
-                // Try to find a user with valid Google OAuth credentials to dispatch the email
-                let senderUser: any = commercial;
-                if (!senderUser?.oauth_token || !senderUser?.refresh_token) {
-                    logger.warn(
-                        `Commercial owner ID ${analysis.salerInfo?.id} has no Google OAuth tokens. Searching for any administrative/commercial fallback account with tokens...`,
-                    );
-                    const allUsers = (await userRepo.findByRoleId(1)) || [];
-                    const fallback = allUsers.find((u: any) => u.oauth_token && u.refresh_token);
-                    if (fallback) {
-                        senderUser = fallback;
-                        logger.info(`Found fallback sender account: ${senderUser.email}`);
-                    } else {
-                        logger.error('No account with valid Google OAuth credentials found in database to dispatch the email.');
+                const safeName = companyName.replace(/\s+/g, '_');
+                const filename = `Analyse_Besoin_${safeName}_Signee.pdf`;
+                const base64Pdf = pdfBuffer.toString('base64');
+                const attachments = [{ content: base64Pdf, filename, contentType: 'application/pdf' }];
+
+                const commercialEmail = commercial?.email?.trim() || null;
+                const senderForCommercial = await resolveCommercialMailSender(commercial);
+
+                if (!commercialEmail) {
+                    logger.warn({ analysisId: analysis.id }, '[Yousign] No commercial email — skipping commercial copy');
+                } else if (!senderForCommercial?.oauthToken) {
+                    logger.warn('[Yousign] No Google OAuth account available to dispatch the commercial copy. Status is still SIGNE.');
+                } else {
+                    const signatureHtml = await mailTemplateService.getSignatureHtml(senderForCommercial.id, 'commercial').catch(() => '');
+                    const positionsList = (analysis.positions ?? [])
+                        .map((p) => `${escapeHtml(p.title || 'Poste')} ${p.count ? `(x${p.count})` : ''}`.trim())
+                        .filter(Boolean)
+                        .join(', ') || '—';
+                    const siret = (company as any)?.siret || (analysis.companyInfos as any)?.siret || '—';
+                    const sectorLabel = (analysis.companyInfos as any)?.sector || '—';
+                    const abId = analysis.id;
+
+                    const persist = (uid: number) => async (refreshed: any) => {
+                        await userService.updateGoogleTokens(uid, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+                    };
+
+                    const commercialSubject = `[Disciplina] AB signée — ${companyName} — copie commerciale`;
+                    const commercialHtml = `
+                    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #f0f0f0; border-radius: 12px; overflow: hidden;">
+                        <div style="background-color: #0052cc; color: white; padding: 24px; text-align: center;">
+                            <h2 style="margin: 0; font-size: 20px; font-weight: bold; letter-spacing: 1px;">DISCIPLINA</h2>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.8;">Analyse du Besoin — copie commerciale</p>
+                        </div>
+                        <div style="padding: 24px; background-color: white;">
+                            <p>Bonjour${commercial?.firstName ? ` ${escapeHtml(commercial.firstName)}` : ''},</p>
+                            <p>L'Analyse du Besoin <strong>${escapeHtml(abId)}</strong> pour <strong>${escapeHtml(companyName)}</strong> vient d'être <strong>signée</strong> par l'entreprise.</p>
+                            <p style="margin: 16px 0 8px 0;"><strong>Entreprise :</strong> ${escapeHtml(companyName)} — SIRET ${escapeHtml(String(siret))} — secteur ${escapeHtml(String(sectorLabel))}</p>
+                            <p style="margin: 8px 0;"><strong>Poste(s) :</strong> ${positionsList}</p>
+                            <p style="margin: 8px 0;"><strong>Réf. AB :</strong> ${escapeHtml(abId)} · <strong>Statut :</strong> SIGNE</p>
+                            <p style="margin: 16px 0 8px 0;"><strong>Document signé joint :</strong> ${escapeHtml(filename)} — Analyse du Besoin</p>
+                            <p style="margin: 8px 0 0 0; font-size: 13px; color: #555;">Le PDF signé est joint à cet e-mail.</p>
+                            <br />
+                            <p style="margin-bottom: 0;">Cordialement,</p>
+                            <p style="margin-top: 4px; font-weight: bold; color: #0052cc;">L'équipe Disciplina (envoi automatique)</p>
+                        </div>
+                        <div style="background-color: #f9f9f9; padding: 16px; text-align: center; font-size: 11px; color: #888; border-top: 1px solid #f0f0f0;">
+                            Copie commerciale — AB ${escapeHtml(abId)} — ${escapeHtml(companyName)} — 1 pièce jointe.
+                        </div>
+                    </div>
+                    ${signatureHtml}
+                `;
+                    const commercialText = [
+                        `Bonjour${commercial?.firstName ? ` ${commercial.firstName}` : ''},`,
+                        ``,
+                        `L'Analyse du Besoin ${abId} pour ${companyName} vient d'être signée.`,
+                        `Entreprise : ${companyName} — SIRET ${siret} — secteur ${sectorLabel}`,
+                        `Poste(s) : ${(analysis.positions ?? []).map((p) => p.title || 'Poste').join(', ') || '—'}`,
+                        `Réf. AB : ${abId} — Statut : SIGNE`,
+                        `Document joint : ${filename}`,
+                        ``,
+                        `Cordialement, L'équipe Disciplina`,
+                    ].join('\n');
+
+                    try {
+                        logger.info(`Sending commercial copy from ${senderForCommercial.email} to ${commercialEmail}...`);
+                        await gmailService.sendEmail(
+                            { access_token: senderForCommercial.oauthToken!, refresh_token: senderForCommercial.refreshToken ?? undefined },
+                            withNoReply({ to: commercialEmail, subject: commercialSubject, html: commercialHtml, text: commercialText, attachments }),
+                            persist(senderForCommercial.id),
+                        );
+                        logger.info('Commercial copy email sent successfully!');
+                    } catch (err: any) {
+                        logger.error({ err }, 'Failed to send commercial copy email via Yousign flow');
                     }
-                }
 
-                if (senderUser && senderUser.oauth_token && senderUser.refresh_token) {
-                    const base64Pdf = pdfBuffer.toString('base64');
-                    const signatureHtml = await mailTemplateService
-                        .getSignatureHtml(senderUser.id, 'commercial')
-                        .catch(() => '');
-                    const mailOptions = {
-                        to: `${analysis.referents?.recruitmentReferents?.email || ''}, ${senderUser.email}`,
-                        subject: `[Disciplina] Fiche Analyse du Besoin Signée - ${companyName}`,
-                        text: `Bonjour,\n\nL'Analyse du Besoin pour ${companyName} a été signée avec succès.\nVous trouverez le PDF signé en pièce jointe.`,
-                        html: `
+                    // Notify company referent as second mail (if distinct)
+                    const referentEmail = analysis.referents?.recruitmentReferents?.email?.trim() || null;
+                    if (referentEmail && referentEmail !== commercialEmail) {
+                        try {
+                            const sigHtml2 = signatureHtml;
+                            const companySubject = `[Disciplina] Fiche Analyse du Besoin Signée - ${companyName}`;
+                            const companyText = `Bonjour,\n\nL'Analyse du Besoin pour ${companyName} a été signée avec succès.\nVous trouverez le PDF signé en pièce jointe.`;
+                            const companyHtml = `
                             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #f0f0f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
                                 <div style="background-color: #0052cc; color: white; padding: 24px; text-align: center;">
                                     <h2 style="margin: 0; font-size: 20px; font-weight: bold; letter-spacing: 1px;">DISCIPLINA</h2>
@@ -130,7 +213,7 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                                 </div>
                                 <div style="padding: 24px; background-color: white;">
                                     <p>Bonjour,</p>
-                                    <p>Nous avons le plaisir de vous informer que l'Analyse du Besoin en recrutement pour le poste de <strong>${analysis.positions?.[0]?.title}</strong> initiée pour <strong>${companyName}</strong> a été signée avec succès par les parties prenantes.</p>
+                                    <p>Nous avons le plaisir de vous informer que l'Analyse du Besoin en recrutement pour le poste de <strong>${escapeHtml(analysis.positions?.[0]?.title || '—')}</strong> initiée pour <strong>${escapeHtml(companyName)}</strong> a été signée avec succès par les parties prenantes.</p>
                                     <p>Le document officiel signé numériquement et revêtu du cachet électronique de conformité Yousign est joint à cet e-mail pour vos archives.</p>
                                     <p>Notre équipe administrative prend désormais le relais pour organiser le rapprochement des profils candidats et planifier l'alternance.</p>
                                     <br />
@@ -141,41 +224,18 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                                     Ceci est un e-mail automatique envoyé par l'application CRM Disciplina.
                                 </div>
                             </div>
-                            ${signatureHtml}
-                        `,
-                        attachment: {
-                            content: base64Pdf,
-                            filename: `Analyse_Besoin_${companyName.replace(/\s+/g, '_')}_Signee.pdf`,
-                            contentType: 'application/pdf',
-                        },
-                    };
-
-                    const persistRefreshedTokens = (uid: number) => async (refreshed: any) => {
-                        logger.info(`Refreshed Google OAuth tokens for user ID ${uid}`);
-                        const userServiceModule = require('../../services/UserService');
-                        const userService = new userServiceModule.UserService();
-                        await userService.updateGoogleTokens(
-                            uid,
-                            refreshed.access_token ?? null,
-                            refreshed.refresh_token ?? null,
-                        );
-                    };
-
-                    try {
-                        logger.info(`Sending signed PDF notification email from ${senderUser.email}...`);
-                        await gmailService.sendEmail(
-                            { access_token: senderUser.oauth_token, refresh_token: senderUser.refresh_token },
-                            withNoReply(mailOptions),
-                            persistRefreshedTokens(senderUser.id),
-                        );
-                        logger.info('Notification email sent successfully!');
-                    } catch (err: any) {
-                        logger.error(err, 'Failed to send notification email via Google Gmail Service');
+                            ${sigHtml2}
+                        `;
+                            await gmailService.sendEmail(
+                                { access_token: senderForCommercial.oauthToken!, refresh_token: senderForCommercial.refreshToken ?? undefined },
+                                withNoReply({ to: referentEmail, subject: companySubject, html: companyHtml, text: companyText, attachments }),
+                                persist(senderForCommercial.id),
+                            );
+                            logger.info({ to: referentEmail }, 'Company notification email sent successfully (Yousign)');
+                        } catch (err: any) {
+                            logger.error({ err }, 'Failed to send company notification email via Yousign flow');
+                        }
                     }
-                } else {
-                    logger.warn(
-                        'No Google OAuth account available to dispatch the signed PDF email. Proceeding anyway (status is still marked as SIGNE).',
-                    );
                 }
             } catch (err) {
                 if (processed) throw err;
