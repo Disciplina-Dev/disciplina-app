@@ -479,6 +479,7 @@ function fromGql(c: any): Candidate {
           geographic_mobility: c.jobInfo.geographicMobility,
           weekend_work: c.jobInfo.weekendWork,
           discovery_source: c.jobInfo.discoverySource,
+          job_search_platforms: c.jobInfo.jobSearchPlatforms ?? undefined,
         }
       : undefined,
     synthesis: c.synthesis

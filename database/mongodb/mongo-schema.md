@@ -128,6 +128,7 @@ Stores complete candidate profiles including identity, education, support system
 | geographic_mobility | string[] | — | Preferred cities (enum: Localisation) |
 | weekend_work | bool | — | Willing to work weekends |
 | discovery_source | string | — | enum: DiscoverySource |
+| job_search_platforms | string | — | Sites/plateformes où le candidat recherche et postule (optionnel) |
 
 ### Embedded object: synthesis
 

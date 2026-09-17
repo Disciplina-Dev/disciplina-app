@@ -168,6 +168,7 @@ export const typeDefs = gql`
         geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
+        jobSearchPlatforms: String
     }
 
     type PedagogicalRecommendations {
@@ -378,6 +379,7 @@ export const typeDefs = gql`
         geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
+        jobSearchPlatforms: String
     }
 
     input PedagogicalRecommendationsInput {
