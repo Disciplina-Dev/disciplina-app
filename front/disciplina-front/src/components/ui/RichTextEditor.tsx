@@ -6,13 +6,19 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import TextStyle from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
+import Image from '@tiptap/extension-image'
 import { useEffect, useCallback, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Heading2, Link2, Unlink, Palette,
+  Heading2, Link2, Unlink, Palette, ImagePlus,
 } from 'lucide-react'
+
+// Image insérée en base64 directement dans le HTML du mail (comme la signature
+// aujourd'hui) — pas d'upload serveur, cf. décision #747. Garde-fou pour ne pas
+// alourdir démesurément un modèle de mail avec une photo non compressée.
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 
 const COLOR_SWATCHES = [
   { label: 'Noir', value: '#0D0D0D' },
@@ -68,6 +74,7 @@ export default function RichTextEditor({
 }: RichTextEditorProps) {
   const [colorPanelOpen, setColorPanelOpen] = useState(false)
   const colorPanelRef = useRef<HTMLDivElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
     extensions: [
@@ -82,6 +89,7 @@ export default function RichTextEditor({
       }),
       TextStyle,
       Color,
+      Image,
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -130,6 +138,25 @@ export default function RichTextEditor({
     const href = /^(https?:\/\/|mailto:|tel:)/i.test(url) ? url : `https://${url}`
     editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
   }, [editor])
+
+  const handleImageChosen = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = '' // permet de resélectionner le même fichier ensuite
+      if (!file || !editor) return
+      if (file.size > MAX_IMAGE_BYTES) {
+        window.alert('Image trop lourde (max 2 Mo) — réduis-la avant de l’insérer.')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const src = reader.result as string
+        editor.chain().focus().setImage({ src }).run()
+      }
+      reader.readAsDataURL(file)
+    },
+    [editor],
+  )
 
   if (!editor) return null
 
@@ -213,6 +240,17 @@ export default function RichTextEditor({
         {btn('Liste', () => editor.chain().focus().toggleBulletList().run(), editor.isActive('bulletList'))}
         {btn('Liste numérotée', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'))}
         <Divider />
+        <ToolbarButton onClick={() => imageInputRef.current?.click()} title="Insérer une image">
+          <ImagePlus size={14} />
+        </ToolbarButton>
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageChosen}
+        />
+        <Divider />
         <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Insérer un lien">
           <Link2 size={14} />
         </ToolbarButton>
@@ -241,6 +279,7 @@ export default function RichTextEditor({
         .tiptap ol { list-style: decimal; padding-left: 1.5em; margin: 0.5em 0; }
         .tiptap li { margin: 0.15em 0; }
         .tiptap a { color: #2563eb; text-decoration: underline; cursor: pointer; }
+        .tiptap img { max-width: 100%; height: auto; }
         .tiptap p.is-editor-empty:first-child::before {
           color: #d1d5db;
           content: attr(data-placeholder);
