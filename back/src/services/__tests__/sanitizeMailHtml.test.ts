@@ -42,11 +42,21 @@ describe('sanitizeMailHtml', () => {
         expect(out).toContain('rel="noopener noreferrer nofollow"');
     });
 
-    it('conserve un bouton CTA stylé (couleur de fond, padding, coins arrondis)', () => {
+    it('conserve un bouton CTA stylé (couleur de fond, padding, coins arrondis, sans soulignement)', () => {
         const html =
-            '<a href="https://exemple.fr" style="background-color:#1130A7;padding:8px 16px;border-radius:6px;font-weight:600">Voir</a>';
+            '<a href="https://exemple.fr" style="display:inline-block;background-color:#1130A7;color:#ffffff;padding:10px 20px;border-radius:6px;font-weight:600;text-decoration:none">Voir</a>';
         const out = sanitizeMailHtml(html);
+        expect(out).toContain('display:inline-block');
         expect(out).toContain('background-color:#1130A7');
         expect(out).toContain('border-radius:6px');
+        expect(out).toContain('text-decoration:none');
+    });
+
+    it('conserve les couleurs au format rgb() — ce que le navigateur produit réellement depuis l’éditeur', () => {
+        const html =
+            '<a href="https://exemple.fr" style="background-color: rgb(17, 48, 167); color: rgb(255, 255, 255);">Voir</a>';
+        const out = sanitizeMailHtml(html);
+        expect(out).toContain('background-color:rgb(17, 48, 167)');
+        expect(out).toContain('color:rgb(255, 255, 255)');
     });
 });

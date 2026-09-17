@@ -22,6 +22,10 @@ const OPTIONS: sanitizeHtml.IOptions = {
             padding: [LENGTH_VALUE],
             'border-radius': [LENGTH_VALUE],
             'font-weight': [KEYWORD_VALUE, /^\d{3}$/],
+            'text-decoration': [KEYWORD_VALUE],
+            // inline-block : nécessaire pour que le padding vertical du bouton CTA
+            // s'applique réellement (un <a> reste inline sinon).
+            display: [KEYWORD_VALUE],
             width: [LENGTH_VALUE],
             height: [LENGTH_VALUE],
         },
