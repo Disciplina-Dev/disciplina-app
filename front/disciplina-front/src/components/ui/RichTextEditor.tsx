@@ -12,13 +12,30 @@ import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Heading2, Link2, Unlink, Palette, ImagePlus,
+  Heading2, Link2, Unlink, Palette, ImagePlus, MousePointerClick,
 } from 'lucide-react'
 
 // Image insérée en base64 directement dans le HTML du mail (comme la signature
 // aujourd'hui) — pas d'upload serveur, cf. décision #747. Garde-fou pour ne pas
 // alourdir démesurément un modèle de mail avec une photo non compressée.
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024
+
+// Style de bouton CTA prédéfini — propriétés toutes couvertes par l'allowlist
+// backend (sanitizeMailHtml.ts), sinon elles seraient retirées à l'enregistrement.
+const CTA_BUTTON_STYLE =
+  'display:inline-block;background-color:#1130A7;color:#ffffff;padding:10px 20px;' +
+  'border-radius:6px;font-weight:600;text-decoration:none'
+
+// Extension du mark Link existant : ajoute juste l'attribut `style`, pour pouvoir
+// transformer un lien en bouton sans introduire un nouveau nœud/mark TipTap.
+const LinkWithStyle = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      style: { default: null },
+    }
+  },
+})
 
 const COLOR_SWATCHES = [
   { label: 'Noir', value: '#0D0D0D' },
@@ -82,7 +99,7 @@ export default function RichTextEditor({
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder }),
-      Link.configure({
+      LinkWithStyle.configure({
         openOnClick: false,
         autolink: true,
         HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer nofollow' },
@@ -157,6 +174,25 @@ export default function RichTextEditor({
     },
     [editor],
   )
+
+  const insertCtaButton = useCallback(() => {
+    if (!editor) return
+    const input = window.prompt('Adresse du lien (URL)', 'https://')
+    if (input === null) return // annulé
+    const url = input.trim()
+    if (url === '') return
+    const href = /^(https?:\/\/|mailto:|tel:)/i.test(url) ? url : `https://${url}`
+    const label = window.prompt('Texte du bouton', 'En savoir plus')?.trim() || 'En savoir plus'
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'text',
+        text: label,
+        marks: [{ type: 'link', attrs: { href, style: CTA_BUTTON_STYLE } }],
+      })
+      .run()
+  }, [editor])
 
   if (!editor) return null
 
@@ -253,6 +289,9 @@ export default function RichTextEditor({
         <Divider />
         <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Insérer un lien">
           <Link2 size={14} />
+        </ToolbarButton>
+        <ToolbarButton onClick={insertCtaButton} title="Insérer un bouton (CTA)">
+          <MousePointerClick size={14} />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
