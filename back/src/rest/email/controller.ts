@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { sanitizeMailHtml } from '../../services/sanitizeMailHtml';
 
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
@@ -30,11 +31,12 @@ async function handleEmail(req: AuthRequest, res: Response, mode: 'send' | 'draf
         return;
     }
 
+    const cleanBody = sanitizeMailHtml(body);
     const options = {
         to,
         subject,
-        html: body,
-        text: body.replace(/<[^>]*>/g, ''),
+        html: cleanBody,
+        text: cleanBody.replace(/<[^>]*>/g, ''),
         attachments,
     };
     const creds = { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined };

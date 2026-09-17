@@ -18,6 +18,7 @@ import { EXTERNAL_ACCESS_SUBJECT, EXTERNAL_ACCESS_BODY } from './externalAccessD
 import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
+import { sanitizeMailHtml } from './sanitizeMailHtml';
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
@@ -196,7 +197,7 @@ export class MailTemplateService {
             scope,
             name: data.name,
             subject: data.subject,
-            body: data.body,
+            body: sanitizeMailHtml(data.body),
             peda_level: pedaLevel,
             attachment: null,
             created_at: now,
@@ -210,19 +211,21 @@ export class MailTemplateService {
         if (!existing || !this.canAccess(existing, userId)) throw new TemplateNotFoundError();
         const pedaLevel = this.pedaLevelFor(existing.scope, data.pedaLevel);
         await this.assertLevelFree(pedaLevel, id);
-        const doc = await getModels().MailTemplate.findOneAndUpdate(
-            { _id: id },
-            {
-                $set: {
-                    name: data.name,
-                    subject: data.subject,
-                    body: data.body,
-                    peda_level: pedaLevel,
-                    updated_at: new Date(),
+        const doc = await getModels()
+            .MailTemplate.findOneAndUpdate(
+                { _id: id },
+                {
+                    $set: {
+                        name: data.name,
+                        subject: data.subject,
+                        body: sanitizeMailHtml(data.body),
+                        peda_level: pedaLevel,
+                        updated_at: new Date(),
+                    },
                 },
-            },
-            { new: true },
-        ).lean<MailTemplate>();
+                { new: true },
+            )
+            .lean<MailTemplate>();
         if (!doc) throw new TemplateNotFoundError();
         return toDTO(doc);
     }
@@ -472,7 +475,7 @@ export class MailTemplateService {
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
-                name: 'Code d\'accès externe',
+                name: "Code d'accès externe",
                 subject: EXTERNAL_ACCESS_SUBJECT,
                 body: EXTERNAL_ACCESS_BODY,
                 peda_level: null,
@@ -501,7 +504,7 @@ export class MailTemplateService {
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
-                name: 'Lien d\'accès externe',
+                name: "Lien d'accès externe",
                 subject: EXTERNAL_LINK_SUBJECT,
                 body: EXTERNAL_LINK_BODY,
                 peda_level: null,
@@ -623,7 +626,9 @@ export class MailTemplateService {
         const user = await this.userService.findById(userId);
         if (!user || !user.oauthToken) throw new GoogleNotConnectedError('Google Drive non connecté');
         const drive = await this.driveForUser(userId);
-        const existing = await getModels().MailSignature.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
+        const existing = await getModels()
+            .MailSignature.findOne({ user_id: userId, scope })
+            .lean<{ driveFileId: string }>();
         if (existing?.driveFileId) {
             try {
                 await drive.deleteFile(existing.driveFileId);

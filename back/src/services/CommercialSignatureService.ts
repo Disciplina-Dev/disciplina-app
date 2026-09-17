@@ -1,5 +1,6 @@
 import { getModels } from '../db/mongo/tenant';
 import { DEFAULT_COMMERCIAL_SIGNATURE } from './commercialSignatureTemplate';
+import { sanitizeMailHtml } from './sanitizeMailHtml';
 
 export class CommercialSignatureService {
     async getForUser(userId: number): Promise<string> {
@@ -15,11 +16,14 @@ export class CommercialSignatureService {
 
     async setForUser(userId: number, body: string): Promise<string> {
         const now = new Date();
-        const doc = await getModels().CommercialSignature.findOneAndUpdate(
-            { _id: `${userId}` },
-            { $set: { user_id: userId, body, updated_at: now } },
-            { upsert: true, new: true },
-        ).lean<{ body: string }>();
+        const clean = sanitizeMailHtml(body);
+        const doc = await getModels()
+            .CommercialSignature.findOneAndUpdate(
+                { _id: `${userId}` },
+                { $set: { user_id: userId, body: clean, updated_at: now } },
+                { upsert: true, new: true },
+            )
+            .lean<{ body: string }>();
         return doc!.body;
     }
 }

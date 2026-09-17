@@ -17,6 +17,7 @@ import { MailTemplateService } from '../../services/MailTemplateService';
 import { BulkRelanceService } from '../../services/BulkRelanceService';
 import { ExternalLinkService } from '../../services/ExternalLinkService';
 import { renderTemplate, usesVariable } from '../../services/renderTemplate';
+import { sanitizeMailHtml } from '../../services/sanitizeMailHtml';
 
 const mailTemplateService = new MailTemplateService();
 const bulkRelanceService = new BulkRelanceService();
@@ -83,7 +84,7 @@ export async function sendCompanyMailRelance(req: AuthRequest, res: Response): P
         const signatureHtml = await mailTemplateService.getSignatureHtml(user.id, 'commercial').catch(() => '');
         await gmailService.sendEmail(
             { access_token: user.oauthToken, refresh_token: user.refreshToken },
-            { to, subject, html: (html ?? '') + signatureHtml, text: text ?? '', attachments },
+            { to, subject, html: sanitizeMailHtml(html ?? '') + signatureHtml, text: text ?? '', attachments },
             userService.googleTokenPersister(user.id),
         );
     } catch (err) {
