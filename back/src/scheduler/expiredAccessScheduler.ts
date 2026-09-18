@@ -1,5 +1,4 @@
 import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
-import { ExternalLinkRepository } from '../repositories/mysql/ExternalLinkRepository';
 import { RefreshTokenRepository } from '../repositories/mysql/RefreshTokenRepository';
 import { runForAllRegions, getRegion } from '../db/tenant';
 import { logger } from '../external/logger/logger';
@@ -20,15 +19,14 @@ const GRACE_DAYS = 7;
  * Planificateur de purge des accès éphémères : supprime les liens signés et les
  * refresh tokens expirés depuis plus de GRACE_DAYS jours.
  *
- * Ces tables (external_access, external_link, refresh_tokens) stockent des
- * couples signature/code associés à des emails et n'étaient jamais purgées : elles
- * croissaient indéfiniment, sans aucune valeur métier passé l'expiration.
+ * Ces tables (external_access, refresh_tokens) stockent des liens magiques
+ * associés à des emails et n'étaient jamais purgées : elles croissaient
+ * indéfiniment, sans aucune valeur métier passé l'expiration.
  * Cf. database/DATA_CLASSIFICATION.md. In-process (setInterval), à l'image de
  * `unavailableExpiryScheduler`.
  */
 export function startExpiredAccessScheduler(): NodeJS.Timeout {
     const externalAccessRepository = new ExternalAccessRepository();
-    const externalLinkRepository = new ExternalLinkRepository();
     const refreshTokenRepository = new RefreshTokenRepository();
     let running = false;
 
@@ -42,12 +40,11 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
                 const region = getRegion();
                 try {
                     const externalAccess = await externalAccessRepository.deleteExpired(GRACE_DAYS);
-                    const externalLink = await externalLinkRepository.deleteExpired(GRACE_DAYS);
                     const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
-                    const total = externalAccess + externalLink + refreshTokens;
+                    const total = externalAccess + refreshTokens;
                     if (total > 0) {
                         logger.info(
-                            { region, externalAccess, externalLink, refreshTokens, total },
+                            { region, externalAccess, refreshTokens, total },
                             'expired-access: accès expirés purgés',
                         );
                     }

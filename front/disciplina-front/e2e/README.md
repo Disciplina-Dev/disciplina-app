@@ -37,7 +37,7 @@ Rapport HTML : `playwright-report/`.
 |---|---|
 | `setup/auth.setup.ts` | Login réel via UI pour chaque rôle → `e2e/.auth/<role>.json` (storageState, cookies httpOnly) |
 | `fixtures/roles.ts` | Comptes de test, URLs `home`, chemins storageState, `API_URL` |
-| `fixtures/mocks.ts` | `mockExternal()` / `mockSignedToken()` — interception réseau des services tiers |
+| `fixtures/mocks.ts` | `mockExternal()` — interception réseau des services tiers |
 | `fixtures/csrf.ts` | Header `x-csrf-token` pour les requêtes REST state-changing |
 | `tests/*.spec.ts` | Un spec par flux, nommé d'après E2E.md (+ `portefeuille.spec.ts` : CRM commercial, hors numérotation E2E.md) |
 
@@ -70,8 +70,8 @@ Les parcours d'écriture (création candidat/utilisateur, modification entrepris
 
 - **Sélecteurs** : rôle/label/texte uniquement (aucun `data-testid` dans le front). Pas de `waitForTimeout`.
 - **Auth** : cookies httpOnly capturés en storageState ; l'app réhydrate via `GET /api/auth/me`.
-- **Tag `@external`** : tout test touchant/mockant un service tiers (Google, INSEE, Ollama, DocuSeal, ClassMarker) ou un token signé. Exclus par `test:e2e:ci`.
-- **ENTREPRISE** : rôle invité JWT-only (pas de user en base) → couvert par token mocké (`mockSignedToken`).
+- **Tag `@external`** : tout test touchant/mockant un service tiers (Google, INSEE, Ollama, DocuSeal, ClassMarker) ou un lien magique invité. Exclus par `test:e2e:ci`.
+- **ENTREPRISE** : rôle invité JWT-only (pas de user en base) → couvert par lien magique mocké (`POST /api/external/:signature/authenticate`).
 
 ## Calibration au premier run
 
