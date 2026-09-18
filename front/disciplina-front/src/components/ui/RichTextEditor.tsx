@@ -327,7 +327,7 @@ export default function RichTextEditor({
                 <input
                   type="color"
                   className="h-full w-full cursor-pointer opacity-0"
-                  onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+                  onInput={(e) => editor.chain().focus().setColor((e.target as HTMLInputElement).value).run()}
                   onBlur={() => setColorPanelOpen(false)}
                 />
               </label>
