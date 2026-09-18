@@ -117,6 +117,11 @@ const HighlightColor = Extension.create({
   },
 })
 
+const FONT_SIZE_VALUES_PX = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
+const FONT_SIZES: { label: string; value: string | null }[] = [
+  { label: 'Normal (défaut)', value: null },
+  ...FONT_SIZE_VALUES_PX.map((px) => ({ label: String(px), value: `${px}px` })),
+]
 
 const HIGHLIGHT_SWATCHES = [
   { label: 'Jaune', value: '#FEF3E2' },
@@ -125,12 +130,6 @@ const HIGHLIGHT_SWATCHES = [
   { label: 'Rose', value: '#FAE4ED' },
   { label: 'Violet', value: '#F0E6F6' },
   { label: 'Gris', value: '#E8E8E4' },
-]
-
-const FONT_SIZE_VALUES_PX = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
-const FONT_SIZES: { label: string; value: string | null }[] = [
-  { label: 'Normal (défaut)', value: null },
-  ...FONT_SIZE_VALUES_PX.map((px) => ({ label: String(px), value: `${px}px` })),
 ]
 
 const COLOR_SWATCHES = [
@@ -148,6 +147,59 @@ interface RichTextEditorProps {
   onChange: (html: string) => void
   placeholder?: string
   minHeight?: string
+}
+
+function useDropdownPanel(ref: React.RefObject<HTMLElement | null>) {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, ref])
+  return [open, setOpen] as const
+}
+
+function SwatchPanel({
+  swatches, onPick, onReset, extra,
+}: {
+  swatches: { label: string; value: string }[]
+  onPick: (value: string) => void
+  onReset: () => void
+  extra?: React.ReactNode
+}) {
+  return (
+    <div className="absolute left-0 top-full z-10 mt-1 flex gap-1 rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
+      {swatches.map(({ label, value }) => (
+        <button
+          key={value}
+          type="button"
+          title={label}
+          onMouseDown={(e) => { e.preventDefault(); onPick(value) }}
+          className="h-5 w-5 rounded-full ring-1 ring-inset ring-black/10"
+          style={{ backgroundColor: value }}
+        />
+      ))}
+      {extra}
+      <button
+        type="button"
+        title="Réinitialiser"
+        onMouseDown={(e) => { e.preventDefault(); onReset() }}
+        className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-gray-500 ring-1 ring-inset ring-black/10"
+      >
+        ×
+      </button>
+    </div>
+  )
 }
 
 function ToolbarButton({
@@ -185,12 +237,12 @@ export default function RichTextEditor({
   placeholder = 'Rédigez votre message...',
   minHeight = '200px',
 }: RichTextEditorProps) {
-  const [colorPanelOpen, setColorPanelOpen] = useState(false)
   const colorPanelRef = useRef<HTMLDivElement>(null)
-  const [highlightPanelOpen, setHighlightPanelOpen] = useState(false)
+  const [colorPanelOpen, setColorPanelOpen] = useDropdownPanel(colorPanelRef)
   const highlightPanelRef = useRef<HTMLDivElement>(null)
-  const [sizePanelOpen, setSizePanelOpen] = useState(false)
+  const [highlightPanelOpen, setHighlightPanelOpen] = useDropdownPanel(highlightPanelRef)
   const sizePanelRef = useRef<HTMLDivElement>(null)
+  const [sizePanelOpen, setSizePanelOpen] = useDropdownPanel(sizePanelRef)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
@@ -226,54 +278,6 @@ export default function RichTextEditor({
       editor.commands.setContent(value, false)
     }
   }, [value])
-
-  useEffect(() => {
-    if (!colorPanelOpen) return
-    const onPointerDown = (e: PointerEvent) => {
-      if (!colorPanelRef.current?.contains(e.target as Node)) setColorPanelOpen(false)
-    }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setColorPanelOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [colorPanelOpen])
-
-  useEffect(() => {
-    if (!highlightPanelOpen) return
-    const onPointerDown = (e: PointerEvent) => {
-      if (!highlightPanelRef.current?.contains(e.target as Node)) setHighlightPanelOpen(false)
-    }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setHighlightPanelOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [highlightPanelOpen])
-
-  useEffect(() => {
-    if (!sizePanelOpen) return
-    const onPointerDown = (e: PointerEvent) => {
-      if (!sizePanelRef.current?.contains(e.target as Node)) setSizePanelOpen(false)
-    }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSizePanelOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [sizePanelOpen])
 
   const setLink = useCallback(() => {
     if (!editor) return
@@ -360,49 +364,25 @@ export default function RichTextEditor({
             <Palette size={14} />
           </ToolbarButton>
           {colorPanelOpen && (
-            <div className="absolute left-0 top-full z-10 mt-1 flex gap-1 rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
-              {COLOR_SWATCHES.map(({ label, value }) => (
-                <button
-                  key={value}
-                  type="button"
-                  title={label}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    editor.chain().focus().setColor(value).run()
-                    setColorPanelOpen(false)
-                  }}
-                  className="h-5 w-5 rounded-full ring-1 ring-inset ring-black/10"
-                  style={{ backgroundColor: value }}
-                />
-              ))}
-              <label
-                title="Autre couleur..."
-                className="h-5 w-5 cursor-pointer overflow-hidden rounded-full border-0 p-0 ring-1 ring-inset ring-black/10"
-                style={{
-                  background:
-                    'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
-                }}
-              >
-                <input
-                  type="color"
-                  className="h-full w-full cursor-pointer opacity-0"
-                  onInput={(e) => editor.chain().focus().setColor((e.target as HTMLInputElement).value).run()}
-                  onBlur={() => setColorPanelOpen(false)}
-                />
-              </label>
-              <button
-                type="button"
-                title="Réinitialiser la couleur"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  editor.chain().focus().unsetColor().run()
-                  setColorPanelOpen(false)
-                }}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-gray-500 ring-1 ring-inset ring-black/10"
-              >
-                ×
-              </button>
-            </div>
+            <SwatchPanel
+              swatches={COLOR_SWATCHES}
+              onPick={(v) => { editor.chain().focus().setColor(v).run(); setColorPanelOpen(false) }}
+              onReset={() => { editor.chain().focus().unsetColor().run(); setColorPanelOpen(false) }}
+              extra={
+                <label
+                  title="Autre couleur..."
+                  className="h-5 w-5 cursor-pointer overflow-hidden rounded-full border-0 p-0 ring-1 ring-inset ring-black/10"
+                  style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }}
+                >
+                  <input
+                    type="color"
+                    className="h-full w-full cursor-pointer opacity-0"
+                    onInput={(e) => editor.chain().focus().setColor((e.target as HTMLInputElement).value).run()}
+                    onBlur={() => setColorPanelOpen(false)}
+                  />
+                </label>
+              }
+            />
           )}
         </div>
         <div className="relative" ref={sizePanelRef}>
@@ -443,34 +423,11 @@ export default function RichTextEditor({
             <Highlighter size={14} />
           </ToolbarButton>
           {highlightPanelOpen && (
-            <div className="absolute left-0 top-full z-10 mt-1 flex gap-1 rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
-              {HIGHLIGHT_SWATCHES.map(({ label, value }) => (
-                <button
-                  key={value}
-                  type="button"
-                  title={label}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    editor.chain().focus().setHighlightColor(value).run()
-                    setHighlightPanelOpen(false)
-                  }}
-                  className="h-5 w-5 rounded-full ring-1 ring-inset ring-black/10"
-                  style={{ backgroundColor: value }}
-                />
-              ))}
-              <button
-                type="button"
-                title="Retirer le surlignage"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  editor.chain().focus().unsetHighlightColor().run()
-                  setHighlightPanelOpen(false)
-                }}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-gray-500 ring-1 ring-inset ring-black/10"
-              >
-                ×
-              </button>
-            </div>
+            <SwatchPanel
+              swatches={HIGHLIGHT_SWATCHES}
+              onPick={(v) => { editor.chain().focus().setHighlightColor(v).run(); setHighlightPanelOpen(false) }}
+              onReset={() => { editor.chain().focus().unsetHighlightColor().run(); setHighlightPanelOpen(false) }}
+            />
           )}
         </div>
         <Divider />
