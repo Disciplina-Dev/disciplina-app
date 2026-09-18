@@ -23,7 +23,7 @@ function parseError(res: Response): Promise<string> {
 
 export async function getInterviewSlots(signature: string): Promise<InterviewSlotsResult> {
   const res = await apiFetch(`${API_PATH(signature)}/slots`)
-  if (res.status === 401) throw new ExternalAuthError('Session expirée, veuillez vous identifier à nouveau')
+  if (res.status === 401) throw new ExternalAuthError("Session expirée, veuillez rouvrir votre lien d'accès")
   if (res.status === 403) throw new ExternalAuthError('Démarche inaccessible')
   if (!res.ok) throw new Error(await parseError(res))
   return res.json()
@@ -40,6 +40,6 @@ export async function bookInterviewSlot(signature: string, slot: string): Promis
     if (/already completed/i.test(error)) throw new SessionCompletedError(error)
     throw new SlotUnavailableError(error)
   }
-  if (res.status === 401) throw new ExternalAuthError('Session expirée, veuillez vous identifier à nouveau')
+  if (res.status === 401) throw new ExternalAuthError("Session expirée, veuillez rouvrir votre lien d'accès")
   if (!res.ok) throw new Error(await parseError(res))
 }

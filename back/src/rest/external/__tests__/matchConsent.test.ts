@@ -74,7 +74,7 @@ async function seedSession(suffix: number, candidateIds: string[]): Promise<{ si
     const signature = `sig-match-consent-${suffix}`.padEnd(64, '0');
     await new ExternalAccessRepository().create({
         signature,
-        code: '000000',
+        code: null,
         user_id: userId,
         external_id: offerId,
         external_type: 'COMPANY',

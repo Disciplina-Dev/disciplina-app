@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import { ExternalAccessService } from '../../services/ExternalAccessService';
+import { ExternalAccessRepository } from '../../repositories/mysql/ExternalAccessRepository';
 import { setGuestCookies } from '../middleware/cookies';
 import { issueCsrfCookie } from '../middleware/csrf';
 import type { AuthRequest } from '../middleware/auth';
 import type { ExternalGuestRequest } from './guard';
-import { notifyLockedMatch } from './match.controller';
 
 const externalAccessService = new ExternalAccessService();
 
@@ -65,15 +65,47 @@ export async function complete(req: ExternalGuestRequest, res: Response): Promis
     res.status(200).json({ success: true });
 }
 
-export async function sendCode(req: Request, res: Response): Promise<void> {
+/**
+ * Ouverture d'un lien magique (sans code) : arme l'expiration à J+7 au premier
+ * clic puis émet le cookie invité. Idempotent tant que le lien n'a pas expiré.
+ */
+export async function openAccess(req: Request, res: Response): Promise<void> {
     const { signature } = req.params;
     if (!signature) {
         res.status(400).json({ error: 'Signature requise' });
         return;
     }
 
-    const result = await externalAccessService.sendCode(signature);
-    res.status(result.httpCode).json({ message: result.message });
+    const result = await externalAccessService.openLink(signature);
+    if (result.status !== 'OK') {
+        res.status(result.httpCode).json({ message: result.message });
+        return;
+    }
+
+    setGuestCookies(res, result.token, issueCsrfCookie());
+    res.status(200).json({
+        success: true,
+        user: {
+            role: 'EXTERNAL_GUEST',
+            permission: 'GUEST',
+            referenceId: result.referenceId,
+        },
+        expiresAt: result.expiresAt.toISOString(),
+    });
+}
+
+export async function getProfile(req: ExternalGuestRequest, res: Response): Promise<void> {
+    const row = await new ExternalAccessRepository().findBySignature(req.params.signature);
+    if (!row) {
+        res.status(404).json({ error: 'Session introuvable' });
+        return;
+    }
+    res.json({
+        externalEmail: row.external_email,
+        guestType: row.external_type,
+        externalUuid: row.external_id,
+        expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+    });
 }
 
 const REQUIRED_FIELDS = [
@@ -135,34 +167,4 @@ export async function regenerate(req: AuthRequest, res: Response): Promise<void>
     res.status(result.success ? 201 : 400).json(result);
 }
 
-export async function inspectCode(req: Request, res: Response): Promise<void> {
-    const { signature, code } = req.body;
 
-    if (!signature || !code) {
-        res.status(400).json({ success: false, error: 'signature et code requis' });
-        return;
-    }
-
-    const result = await externalAccessService.inspect(signature, code);
-
-    if (!result.success) {
-        if (result.referenceId === 2 && /locked/i.test(result.error ?? '')) {
-            await notifyLockedMatch(signature);
-        }
-        res.status(400).json(result);
-        return;
-    }
-
-    if (result.token) {
-        setGuestCookies(res, result.token, issueCsrfCookie());
-    }
-
-    res.status(200).json({
-        success: true,
-        user: {
-            role: 'EXTERNAL_GUEST',
-            permission: 'GUEST',
-            referenceId: result.referenceId,
-        },
-    });
-}

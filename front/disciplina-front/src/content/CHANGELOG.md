@@ -31,6 +31,40 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-18
+
+### Added
+
+- Socle multi-tenant Annemasse (#709, #716) : second tenant avec bases MySQL/Mongo dédiées, routage backend par région du JWT (`db/tenant.ts`, `mongo/tenant.ts`), OAuth Google, webhooks ClassMarker/YouSign, SSE et schedulers régionalisés. Correctifs d'écarts (#717, #718), script de migration `migrate-multi-tenant.py`, jeu de données de test `seed_annemasse_test_data.py` et documentation de déploiement (#730, #731).
+- Sélection de la région au login et badge de région permanent (#724) : choix du tenant (Réunion/Annemasse) dans le formulaire de connexion (mémorisé en `localStorage`), badge visible dans les cinq espaces, `/portail` redirige vers `/login`.
+- Authentification OAuth du serveur MCP et RBAC par outil (#712, #723) : consentement par compte CRM (email/mot de passe/région), tokens délimités par région, chaque outil MCP scopé en miroir des guards GraphQL, `list_notifications` restreint à l'utilisateur courant.
+- Liste des entreprises actives sur le dashboard RH (#739, #744) : champ `lastActiveAt` alimenté par les AB et les offres.
+- Envoi des PDF au commercial à la signature d'une AB (#713, #746) : `SignedAbProcessor` et le contrôleur YouSign transmettent les documents signés par mail.
+- Encadré « déjà envoyé » sur la fiche candidat (#748, #751) : `CandidateSentCompaniesCallout` liste les entreprises déjà destinataires du profil.
+- Question optionnelle sur les plateformes de recherche d'emploi (#755, #756) : champ `job_search_platforms` sur la fiche candidat (formulaires, questionnaire AB, PDF).
+- Seuils de validation des tests par TP (#738, #740) : moyenne minimale de 10 pour CC, 12 pour NTC/REM/AD/SA (`testGateThreshold`), création rapide de candidat (`CandidateQuickCreateModal`).
+- Redirection Drive sur les AB signées depuis le matching (#700, #701).
+- Statut « Non renseigné » pour le In-Contract candidat (#698, #699) : `ContractModal`/`JobSearchModal`.
+- Champ de recherche dans le calendrier (#706, #707).
+- Secteur d'activité multi-sélection pour les entreprises (#710, #719) : `CreateEditModal`, fiche entreprise et filtres du portefeuille.
+- Notification à la bascule d'un candidat vers `in_contract` (#711, #720).
+- Interface de gestion des accès externes (#692) : pilotage des liens `/external/*`.
+- Scripts de déploiement/rollback (`scripts/deploy.sh`, `scripts/rollback.sh`) et guide `HOWTODEPLOY.md` (#730, #731, #734, #736).
+
+### Changed
+
+- Liens externes sans code d'accès (#715, #757) : suppression de la génération/exigence de code (`ExternalAccessService`, `MatchAccessService`), contrôleurs et garde simplifiés.
+- Mentions légales : placeholders remplacés par le contenu final (#742, #743).
+- Nommage « Catalogue » pour la sauvegarde Drive et l'envoi mail des PDF d'AB signées (#745, #749).
+- Historique du matching : entrées automatiques et manuelles distinguées, avec filtre (#753, #754).
+
+### Fixed
+
+- Comptage KPI des entretiens candidat issus de l'import CV externe (#704, #705).
+- Anomalie MCP sur les offres (#737, #741) : filtrage via `OfferRepository`/`OfferService`.
+
+## [1.2.0] - 2026-09-14
+
 ### Added
 
 - Garde de consentement RGPD (`services/consentGuard.ts`, #639) : vérification du consentement candidat avant génération de résumé IA (`AI_PROCESSING`), affichage/partage d'avatar (`PHOTO_PROCESSING`) et partage avec les entreprises (`DATA_SHARING` — Filiz, matching CV/liste). Mode `warn` transitoire avec log, filtrage silencieux pour la liste externe.
@@ -45,6 +79,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Unification des KPI dans MongoDB (#513) : collection unique `kpis` (`kind: commercial|rh`), `KpiRepository`/`RhKpiRepository` Mongo, migration automatique au boot (`legacyKpiImport.ts`, `scripts/migrate-kpi-to-mongo.ts`), suppression des DDL MySQL associées.
 - Tag « Véhicule » (`hasVehicle`) sur candidat et AB (#671) : champ conditionnel candidat/AB, affiché dans `CandidateFormModal`, `ABDetailModal`/`ABDetailContent` et le PDF.
 - Toggle d'activation des relances par AB (#681) : champ `shouldRelance` (`needsAnalysis.schema`, `NeedsAnalysisService`, `ABDetailModal` + hooks/queries `useUpdateShouldRelance`).
+- Bouton « Voir l'AB » sur les pages de matching (#725) : `AbHeader` et `JobDetailsSection` dans `Matching.tsx` (`/rh/matching?needsAnalysis=…`), `NeedsAnalysisCard` (liste `/rh/matching`) et `MatchedJobsList` (fiche candidat) ouvrent `ABDetailModal` pour consulter l'analyse de besoin sans quitter le contexte matching.
 
 ### Changed
 
@@ -52,6 +87,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Mails externes : en-tête `Reply-To: noreply@disciplina.re` ajouté à tous les envois Gmail (`mime.builder.ts`, `no-reply.ts`, #601) ; `From` Gmail conservé.
 - KPI : bascule MySQL → MongoDB avec bump atomique via pipeline `$replaceWith` + clamp `$max`, noms résolus via `UserRepository.findByIds` (#513).
 - Rework complet des accès externes (#514) : flux unifiés profil matché / réservation d'entretien / import CV sous `/external/*`. Les anciens liens `/public/*` déjà envoyés par email redirigent automatiquement vers le nouveau flux. Le code d'accès est désormais envoyé par email au chargement de la page (et plus dans l'email d'invitation), le lien de réservation d'entretien s'affiche sous forme de bouton « Choisir mon créneau ». Tables `interview_access`, `match_link` et `external_link` consolidées dans `external_access`.
+- `ABDetailModal` : rendu via `createPortal` sur `document.body` et dimensions élargies (`max-w-3xl`, `max-h-[88vh]`, `items-center justify-center`) pour garantir un affichage centré et lisible même depuis la vue matching détaillée.
 
 ### Fixed
 
@@ -66,6 +102,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Placement des boutons (chevauchement) (#681).
 - Hooks pré-commit contournables corrigés (#658) : `skip hooks` ne bypass plus les vérifications.
 - Filtres de statut des accès externes (#514) : `ExternalAccessRepository.findAllFiltered` utilisait `IN (?)` avec un tableau, non développé par `pool.execute()` (prepared statements) — le statut arrivait comme un littéral unique et chaque onglet renvoyait un résultat vide. Placeholders énumérés `IN (?, ?, …)` pour les filtres `statuses` et `types`.
+- Modal de détail d'AB tronquée/mal centrée depuis une page de matching sélectionnée (#725) : `ABDetailModal` tronquée par le layout `backdrop-blur`/`overflow` du matching (affichage à moitié hors écran en haut) ; corrigé par portail pleine-page, centrage `items-center justify-center` et hauteur `max-h-[88vh]` avec scroll interne.
 
 ## [1.1.0] - 2026-08-20
 

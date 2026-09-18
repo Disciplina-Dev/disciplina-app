@@ -20,7 +20,7 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
  * `proposition_candidat` = mail d'invitation à la sélection de candidats (scope rh).
  * `interview_invitation`  = mail d'invitation à la réservation d'un créneau d'entretien (scope rh).
  */
-export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'ab_relance', 'proposition_candidat', 'external_access', 'external_link', 'interview_invitation'] as const;
+export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'ab_relance', 'proposition_candidat', 'external_link', 'interview_invitation'] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
 
 /** Libellés affichés (front + logs). */

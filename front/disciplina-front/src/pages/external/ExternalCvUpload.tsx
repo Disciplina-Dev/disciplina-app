@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Loader2, Upload, CheckCircle, AlertCircle } from 'lucide-react'
 import { getExternalProfile, uploadExternalCv, completeExternalCv, ExternalAuthError, type ExternalProfile } from '@/api/external'
+import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 
 export default function ExternalCvUpload() {
   const { signature } = useParams<{ signature: string }>()
@@ -105,6 +106,7 @@ export default function ExternalCvUpload() {
         <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
         <h1 className="mt-1 text-[20px] font-extrabold text-gray-900">Import de votre CV</h1>
         <p className="mt-1 text-[13px] text-gray-500">{profile.externalEmail}</p>
+        <ExternalExpiryNotice expiresAt={profile.expiresAt} />
 
         <div className="mt-6">
           <div

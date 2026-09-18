@@ -27,6 +27,7 @@ import {
   CalendarClock,
   Trash2,
   ArrowLeft,
+  Eye,
 } from 'lucide-react'
 import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
@@ -49,6 +50,7 @@ import SendToCompanyModal from '@/features/matching/components/SendToCompanyModa
 import HistoryModal from '@/features/matching/components/HistoryModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
+import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
@@ -607,6 +609,7 @@ function JobDetailsSection({
   onProposeCandidates,
   onShowCompanyInfo,
   onDeleteOffer,
+  onSeeAb,
 }: {
   job: MatchJobResult
   onSetStatus: (status: OfferStatus) => void
@@ -615,6 +618,7 @@ function JobDetailsSection({
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
   onDeleteOffer?: () => void
+  onSeeAb?: () => void
 }) {
   const chip = statusChip(job.status)
 
@@ -640,6 +644,16 @@ function JobDetailsSection({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {onSeeAb && (
+            <button
+              onClick={onSeeAb}
+              className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
+              title="Voir l'analyse de besoin"
+            >
+              <Eye size={16} />
+              <span className="hidden md:inline">Voir l'AB</span>
+            </button>
+          )}
           {onDeleteOffer && (
             <button
               onClick={onDeleteOffer}
@@ -1582,6 +1596,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const [offersInNA, setOffersInNA] = useState(0)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [showOfferAbDetail, setShowOfferAbDetail] = useState(false)
 
   const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
   const interviewDefaultLocation =
@@ -2070,6 +2085,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
             ? handleDeleteClick
             : undefined
         }
+        onSeeAb={jobData.needsAnalysisId ? () => setShowOfferAbDetail(true) : undefined}
       />
 
       <HistoryModal offerId={selectedJob.id} />
@@ -2366,6 +2382,10 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           </div>
         </div>
       )}
+
+      {showOfferAbDetail && jobData?.needsAnalysisId && (
+        <ABDetailModal id={jobData.needsAnalysisId} onClose={() => setShowOfferAbDetail(false)} />
+      )}
     </div>
   )
 }
@@ -2405,6 +2425,7 @@ function AbHeader({
   const navigate = useNavigate()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [abStatusSaving, setAbStatusSaving] = useState(false)
+  const [showAbDetail, setShowAbDetail] = useState(false)
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
   const { updateAbStatus } = useUpdateNeedsAnalysisAbStatus()
 
@@ -2478,6 +2499,14 @@ function AbHeader({
       </div>
       {ab && (
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAbDetail(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
+            title="Voir l'analyse de besoin"
+          >
+            <Eye size={16} />
+            <span className="hidden md:inline">Voir l'AB</span>
+          </button>
           <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm" title="Changer le statut de l'analyse de besoin — onglet de la liste matching">
             <span className="text-xs font-medium text-gray-500">Statut</span>
             <select
@@ -2533,6 +2562,9 @@ function AbHeader({
             </>
           )}
         </div>
+      )}
+      {showAbDetail && (
+        <ABDetailModal id={needsAnalysisId} onClose={() => setShowAbDetail(false)} />
       )}
     </div>
   )

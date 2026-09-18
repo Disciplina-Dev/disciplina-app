@@ -381,6 +381,9 @@ function fromGql(c: any): Candidate {
       : undefined,
     tp_types: (c.tpTypes?.length ? c.tpTypes : c.tpType ? [c.tpType] : []).map(mapTpType),
     status: c.status as CandidateStatus,
+    written_test_score: c.writtenTestScore ?? undefined,
+    test_average: c.testAverage ?? undefined,
+    test_failure_pending: c.testFailurePending ?? undefined,
     training_site: c.trainingSite,
     training_sites: c.trainingSites ?? (c.trainingSite ? [c.trainingSite] : []),
     immersion_agreement: c.immersionAgreement,
@@ -476,6 +479,7 @@ function fromGql(c: any): Candidate {
           geographic_mobility: c.jobInfo.geographicMobility,
           weekend_work: c.jobInfo.weekendWork,
           discovery_source: c.jobInfo.discoverySource,
+          job_search_platforms: c.jobInfo.jobSearchPlatforms ?? undefined,
         }
       : undefined,
     synthesis: c.synthesis
@@ -541,6 +545,9 @@ function toGqlUpdateInput(c: Candidate): any {
   return {
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
+    ...(c.written_test_score !== undefined && { writtenTestScore: c.written_test_score }),
+    ...(c.test_average !== undefined && { testAverage: c.test_average }),
+    ...(c.test_failure_pending !== undefined && { testFailurePending: c.test_failure_pending }),
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
     ...(c.immersion_start_date !== undefined && { immersionStartDate: c.immersion_start_date }),
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
