@@ -47,7 +47,7 @@ describe('resolveExternalRegion', () => {
         expect(run({ params: { signature: 'hex:reunion' }, body: {} })).toBe('reunion');
     });
 
-    it('route selon la région de la signature dans le body (/inspect)', () => {
+    it('route selon la région de la signature dans le body (legacy)', () => {
         expect(run({ params: {}, body: { signature: 'hex:annemasse' } })).toBe('annemasse');
     });
 

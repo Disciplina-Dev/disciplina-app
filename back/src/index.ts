@@ -249,9 +249,6 @@ export async function startServer(): Promise<http.Server> {
         .refreshNoCodeRHTemplates()
         .catch((err) => logger.error({ err }, 'mail-template: refresh des modèles sans code échoué'));
     mailTemplateService
-        .seedExternalAccessDefault()
-        .catch((err) => logger.error({ err }, 'external-access: seed du modèle système échoué'));
-    mailTemplateService
         .seedExternalLinkDefault()
         .catch((err) => logger.error({ err }, 'external-link: seed du modèle système échoué'));
     startPedaDraftScheduler();

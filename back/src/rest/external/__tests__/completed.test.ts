@@ -37,7 +37,7 @@ async function createRow(sig: string, overrides: Partial<Parameters<ExternalAcce
         userId,
         row: await repository.create({
             signature: sig,
-            code: '123456',
+            code: null,
             user_id: userId,
             external_id: `ext-${sig.slice(0, 8)}`,
             external_type: 'CANDIDATE',

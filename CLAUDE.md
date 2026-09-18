@@ -39,6 +39,11 @@ Frontend (`front/disciplina-front/`):
 - Backend tests require live Dockerized DBs: `docker compose up -d sql-db nosql-db` first
 - **MySQL port gotcha**: three different ports depending on context — `sql-db:3306` inside the compose network, `3307` in `docker-compose.test.yml`/CI, `5001` for local host dev per `.env.back.example`. Mismatched ports are the most common cause of `npm test` failing in `back/`.
 
+## Deployment
+
+- `scripts/deploy.sh` automates the production deploy (pre-flight → git sync → backup → build/up → post-deploy verification); `scripts/rollback.sh` reverts it. See `HOWTODEPLOY.md` for the full guide.
+- **Rule:** any new script run at deployment time (called by `deploy.sh`/`rollback.sh`, or run manually on the prod machine) must be documented in `HOWTODEPLOY.md`.
+
 ## Backend conventions (see `@back/CONVENTION.md` for the full, load-bearing rulebook)
 
 - `console.*` is banned in `back/src` — use the `logger` singleton from `external/logger/`, error logging as `{ err: error }`

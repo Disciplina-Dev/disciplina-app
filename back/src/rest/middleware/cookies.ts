@@ -30,7 +30,7 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
 
 // Session guest externe : même cookie d'accès que le personnel — le middleware
 // authenticate rejette déjà les rôles guest (403), les deux restent isolés.
-// Pas de refresh token : l'invité se ré-authentifie par code email à expiration.
+// Pas de refresh token : le lien magique reste rouvrable 7 jours après son premier clic.
 export function setGuestCookies(res: Response, accessToken: string, csrfToken: string): void {
     res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
         httpOnly: true,

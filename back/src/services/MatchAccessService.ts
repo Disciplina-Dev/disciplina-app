@@ -1,5 +1,6 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { Offer } from '../types/offer.types';
+import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
 import { ExternalAccessRow } from '../types/db-rows.types';
 import { ExternalAccessService } from './ExternalAccessService';
@@ -10,6 +11,7 @@ import { OfferHistoryService } from './OfferHistoryService';
 import { InterviewMailService } from './InterviewMailService';
 import { TodoService } from './TodoService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
+import { ConsentType, hasConsent } from './consentGuard';
 
 /** Session déjà complétée : toute action de soumission est refusée. */
 export class SessionAlreadyCompletedError extends Error {}
@@ -82,6 +84,7 @@ export class MatchAccessService {
         private readonly interviewMailService = new InterviewMailService(),
         private readonly todoService = new TodoService(),
         private readonly userRepository = new UserRepository(),
+        private readonly candidateRepository = new CandidateRepository(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -89,6 +92,7 @@ export class MatchAccessService {
         if (!offer) throw new Error('Offer not found');
 
         const proposed = buildProposedCandidates(offer, input.candidates);
+        await this.assertSharingConsent(proposed);
         await this.offerRepository.setProposedCandidates(input.offerId, proposed);
         for (const candidate of proposed) {
             await this.candidateHistoryService.recordAuto(
@@ -122,6 +126,30 @@ export class MatchAccessService {
             companyEmail: input.companyEmail,
             offerUuid: input.offerId,
         };
+    }
+
+    /**
+     * Garde-fou RGPD : la vue entreprise (`GET match/candidates`) exclut les
+     * candidats sans consentement `data_sharing`. Échouer ici avec un message
+     * explicite plutôt que de créer une session qui afficherait
+     * « Aucun candidat à afficher » côté entreprise.
+     */
+    private async assertSharingConsent(proposed: MatchingCandidate[]): Promise<void> {
+        const docs = proposed.length
+            ? await this.candidateRepository.findConsentmentsByIds(proposed.map((c) => c.id))
+            : [];
+        const byId = new Map(docs.map((doc) => [String(doc._id), doc]));
+        const missing = proposed.filter((candidate) => {
+            const doc = byId.get(candidate.id);
+            return !doc || !hasConsent(doc, [ConsentType.DATA_SHARING]);
+        });
+        if (missing.length > 0) {
+            const names = missing.map((c) => c.full_name ?? c.id).join(', ');
+            throw new Error(
+                `Consentement de partage manquant (data_sharing) pour : ${names}. ` +
+                    'Recueillez leur consentement avant de les proposer à l’entreprise.',
+            );
+        }
     }
 
     async getContext(

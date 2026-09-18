@@ -11,6 +11,8 @@ import {
   type ProposedAnswer,
   type SubmitAnswerPayload,
 } from '@/api/match'
+import { getExternalProfile } from '@/api/external'
+import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 import CandidateComparator from '@/features/publicMatch/components/CandidateComparator'
 import AnswerControls from '@/features/publicMatch/components/AnswerControls'
 import InterviewProposalForm from '@/features/publicMatch/components/InterviewProposalForm'
@@ -33,6 +35,7 @@ export default function MatchComparator() {
   const [comments, setComments] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
 
   useEffect(() => {
     getMatchCandidates(signature)
@@ -44,6 +47,9 @@ export default function MatchComparator() {
         }
         setLoadError(e instanceof Error ? e.message : 'Erreur')
       })
+    getExternalProfile(signature)
+      .then((profile) => setExpiresAt(profile.expiresAt))
+      .catch(() => {})
   }, [signature, navigate])
 
   const setAnswer = (candidateId: string, answer: ProposedAnswer) => {
@@ -139,7 +145,10 @@ export default function MatchComparator() {
     <div className="min-h-screen bg-gray-50 px-4 py-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-[20px] font-extrabold text-gray-900">Candidats proposés</h1>
+          <div>
+            <h1 className="text-[20px] font-extrabold text-gray-900">Candidats proposés</h1>
+            <ExternalExpiryNotice expiresAt={expiresAt} />
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIndex((i) => Math.max(0, i - 1))}

@@ -5,6 +5,7 @@ import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
 
 const CLEARED_TABLES = [
+    'external_access',
     'external_link',
     'company_history',
     'companies',

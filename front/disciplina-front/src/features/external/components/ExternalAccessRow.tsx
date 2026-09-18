@@ -58,6 +58,11 @@ export default function ExternalAccessRow({ access, onChanged }: ExternalAccessR
           <CalendarDays size={13} className="text-gray-400" />
           Créé le {access.created_at ? new Date(access.created_at).toLocaleDateString('fr-FR') : '—'}
         </span>
+        {access.expires_at && (
+          <span>
+            Expire le {new Date(access.expires_at).toLocaleDateString('fr-FR')} (7 jours après la première ouverture)
+          </span>
+        )}
         <span>Référence : {EXTERNAL_REFERENCE_LABELS[access.reference_id] ?? access.reference_id}</span>
       </div>
     </div>

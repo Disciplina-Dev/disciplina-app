@@ -124,6 +124,18 @@ export class OfferRepository {
         return getModels().Offer.find({ needs_analysis_id: needsAnalysisId }).lean();
     }
 
+    /** Toutes les offres, y compris celles déjà contractualisées (hors AB inactives). */
+    async listAllOffers(): Promise<Offer[]> {
+        const inactiveIds: string[] = await getModels().NeedsAnalysis.distinct('_id', {
+            $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }],
+        });
+        const filter: Record<string, unknown> = {};
+        if (inactiveIds.length) {
+            (filter as Record<string, unknown>)['needs_analysis_id'] = { $nin: inactiveIds };
+        }
+        return getModels().Offer.find(filter).lean();
+    }
+
     /** Toutes les offres à matcher (hors offres déjà contractualisées et hors AB inactives). */
     async listMatchingOffers(): Promise<Offer[]> {
         const inactiveIds: string[] = await getModels().NeedsAnalysis.distinct('_id', {

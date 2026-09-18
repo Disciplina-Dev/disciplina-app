@@ -8,15 +8,6 @@ import { User } from '../types/user.types';
 import { escapeHtml } from './html';
 import { logger } from '../external/logger';
 
-function lockAlertHtml(): string {
-    return `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #b00020;">Trop de tentatives</h2>
-            <p>L'accès à la sélection de candidats a été bloqué après 3 tentatives incorrectes.</p>
-            <p>Une nouvelle session doit être créée par votre conseiller RH.</p>
-        </div>`;
-}
-
 export interface MatchInvitation {
     signature: string;
     link: string;
@@ -57,7 +48,7 @@ export class MatchMailService {
             .replaceAll('{{link}}', linkHtml)
             .replaceAll('{{expiration time}}', '')
             .replaceAll('{{hr_signature}}', signatureHtml)
-            // Code/identifiant retirés : le code est envoyé séparément au chargement de la page.
+            // Code/identifiant obsolètes (lien magique sans code) : toujours retirés.
             .replaceAll('{{code}}', '')
             .replaceAll('{{id}}', '');
 
@@ -72,19 +63,6 @@ export class MatchMailService {
             subject: resolvedSubject,
             text: resolvedBody.replace(/<[^>]*>/g, ''),
             html: resolvedBody,
-        });
-    }
-
-    async sendLockAlert(rhEmail: string | null, companyEmail: string | null): Promise<void> {
-        if (!rhEmail) return;
-        const rh = await this.userService.findByEmail(rhEmail);
-        if (!rh) return;
-        const signatureHtml = await this.mailTemplateService.getSignatureHtml(rh.id, 'rh').catch(() => '');
-        await this.sendAs(rh, {
-            to: [companyEmail, rhEmail].filter(Boolean).join(', '),
-            subject: '[Disciplina] Accès bloqué après 3 tentatives',
-            text: "L'accès à la sélection de candidats a été bloqué après 3 tentatives incorrectes.",
-            html: lockAlertHtml() + signatureHtml,
         });
     }
 

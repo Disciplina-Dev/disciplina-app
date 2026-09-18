@@ -880,6 +880,10 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
             ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source)
             : '',
     );
+    para(
+        'Sites ou plateformes de recherche et de candidature aux offres d’alternance',
+        c.job_info?.job_search_platforms,
+    );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);
     para('Questions / préoccupations', c.job_info?.questions_concerns);
     listLine('Secteurs souhaités', c.desired_sectors);

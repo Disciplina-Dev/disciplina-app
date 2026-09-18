@@ -194,6 +194,7 @@ const jobInfoSchema = new Schema<JobInfo>(
         geographic_mobility: { type: [String], enum: Object.values(Localisation) },
         weekend_work: { type: Boolean },
         discovery_source: { type: String, enum: Object.values(DiscoverySource) },
+        job_search_platforms: { type: String },
     },
     { _id: false },
 );
@@ -256,6 +257,9 @@ const candidateSchema = new Schema<Candidate & Document>(
         emergency_contact: { type: emergencyContactSchema },
         consentments: { type: consentmentsSchema },
         status: { type: String, enum: Object.values(CandidateStatus), required: true },
+        written_test_score: { type: Number, min: 0, max: 20 },
+        test_average: { type: Number, min: 0, max: 20 },
+        test_failure_pending: { type: Boolean },
         training_site: { type: String, enum: Object.values(TrainingSite) },
         training_sites: { type: [String], enum: Object.values(TrainingSite), default: undefined },
         immersion_agreement: { type: Boolean },

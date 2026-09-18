@@ -45,7 +45,7 @@ describe('InterviewMailService.sendInvitation', () => {
         expect(html).toContain('<img alt="signature"/>');
     });
 
-    it('strips a {{code}} left by an edited template (code is sent at page load)', async () => {
+    it('strips an obsolete {{code}} left by an edited template (magic link, no code)', async () => {
         const { sendEmail, service } = buildMocks({
             template: {
                 subject: 'Custom interview subject',
