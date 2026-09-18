@@ -64,12 +64,14 @@ accès à restreindre.
 | Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
 |---|---|---|---|---|
 | `filiz` | S3 | `token` (API tierce) | `FilizRepository` | Purge à expiration |
-| `interview_access` | S3+S2 | `signature`, `code`, `rh_email`, `candidate_id` | `InterviewAccessRepository` | Purge à expiration + 7 j |
-| `match_link` | S3+S2 | `signature`, `code`, `rh_email`, `company_email` | `MatchLinkRepository` | Idem |
-| `external_link` | S3+S2 | `signature`, `code`, `external_email`, `rh_email` | `ExternalLinkRepository` | Idem |
+| `external_access` | S3+S2 | `signature`, `external_email`, `external_first_name` | `ExternalAccessRepository` | Purge à expiration + 7 j |
+| `interview_access` (dépréciée) | S3+S2 | `signature`, `code`, `rh_email`, `candidate_id` | — | Idem |
+| `match_link` (dépréciée) | S3+S2 | `signature`, `code`, `rh_email`, `company_email` | — | Idem |
+| `external_link` (dépréciée) | S3+S2 | `signature`, `code`, `external_email`, `rh_email` | — | Idem |
 
-Ces tables sont des couples signature/code d'accès associés à des emails. Les conserver
-au-delà de leur expiration n'a aucune valeur métier et allonge la surface d'exposition.
+Ces tables sont des liens magiques (sans code) associés à des emails, valables 7 jours
+après leur première ouverture. Les conserver au-delà de leur expiration n'a aucune valeur
+métier et allonge la surface d'exposition.
 Purgées par `back/src/scheduler/expiredAccessScheduler.ts`.
 
 ### Paramétrage & divers

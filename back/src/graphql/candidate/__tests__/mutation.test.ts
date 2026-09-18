@@ -133,6 +133,89 @@ describe('GraphQL candidate mutations', () => {
             expect(c.profile.readyForChallenges).toBe(true);
         });
 
+        it('stores and returns the optional job search platforms field', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+
+            const createRes = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($input: CreateCandidateInput!) {
+                            createCandidate(input: $input) {
+                                id
+                                jobInfo { discoverySource jobSearchPlatforms }
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            status: CandidateStatus.SEEKING,
+                            tpTypes: ['CC'],
+                            identity: {
+                                fullName: `Plats ${suffix}`,
+                                email: `plats-${suffix}@test.local`,
+                                phone: '0100000003',
+                            },
+                            jobInfo: {
+                                discoverySource: 'SOCIAL_MEDIA',
+                                jobSearchPlatforms: 'Indeed, Leboncoin, France Travail',
+                            },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: 'test-v1',
+                            },
+                        },
+                    },
+                }),
+            });
+            const created = await createRes.json();
+
+            expect(createRes.status).toBe(200);
+            expect(created.errors).toBeUndefined();
+            expect(created.data.createCandidate.jobInfo.discoverySource).toBe('SOCIAL_MEDIA');
+            expect(created.data.createCandidate.jobInfo.jobSearchPlatforms).toBe(
+                'Indeed, Leboncoin, France Travail',
+            );
+
+            const updateRes = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) {
+                                id
+                                jobInfo { jobSearchPlatforms }
+                            }
+                        }
+                    `,
+                    variables: {
+                        id: created.data.createCandidate.id,
+                        input: { jobInfo: { jobSearchPlatforms: 'Hellowork' } },
+                    },
+                }),
+            });
+            const updated = await updateRes.json();
+
+            expect(updateRes.status).toBe(200);
+            expect(updated.errors).toBeUndefined();
+            expect(updated.data.updateCandidate.jobInfo.jobSearchPlatforms).toBe('Hellowork');
+        });
+
         it('applies template defaults for skills_assessment when not provided', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();

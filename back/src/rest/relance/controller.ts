@@ -15,12 +15,12 @@ import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { BulkRelanceService } from '../../services/BulkRelanceService';
-import { ExternalLinkService } from '../../services/ExternalLinkService';
+import { ExternalAccessService } from '../../services/ExternalAccessService';
 import { renderTemplate, usesVariable } from '../../services/renderTemplate';
 
 const mailTemplateService = new MailTemplateService();
 const bulkRelanceService = new BulkRelanceService();
-const externalLinkService = new ExternalLinkService();
+const externalAccessService = new ExternalAccessService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
@@ -250,7 +250,7 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 
 /**
  * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Les variables
- * {{prenom}}/{{nom}}/{{code}}/{{lien_import}} du modèle sont remplacées pour chaque
+ * {{prenom}}/{{nom}}/{{lien_import}} du modèle sont remplacées pour chaque
  * destinataire ; les clés inconnues sont retirées (cf. booking/service.ts).
  */
 export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<void> {
@@ -289,10 +289,13 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
     // Désabonnement pointant vers la boîte du RH émetteur (Gmail bulk sender rules).
     const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
 
-    // Un lien d'import CV n'est généré que si le modèle le référence, pour ne pas
-    // créer de session externe (et son code) sur des relances qui n'en ont pas besoin.
+    // Un lien d'import CV (lien magique sans code, valable 7 jours après sa
+    // première ouverture) n'est généré que si le modèle le référence, pour ne
+    // pas créer de session externe sur des relances qui n'en ont pas besoin.
+    // Les éventuels {{code}} laissés par d'anciens modèles sont retirés par
+    // renderTemplate (clés inconnues → chaîne vide).
     const templateText = `${template.subject}${template.body}`;
-    const needsImportLink = usesVariable(templateText, 'code') || usesVariable(templateText, 'lien_import');
+    const needsImportLink = usesVariable(templateText, 'lien_import');
 
     const candidates = await candidateService.findAll();
     const recipients = candidates.filter((c) => c.identity?.email && ids.includes(c._id));
@@ -309,14 +312,18 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
 
         if (needsImportLink && user.email) {
             try {
-                const link = await externalLinkService.createLink({
+                const invite = await externalAccessService.createInvite({
+                    userId: req.user.id,
+                    externalId: candidate._id,
+                    externalType: 'CANDIDATE',
                     externalEmail: candidate.identity.email!,
-                    rhEmail: user.email,
-                    guestType: 'CANDIDATE',
-                    externalUuid: candidate._id,
+                    externalFirstName: firstName || 'Client',
+                    referenceId: 1,
+                    referenceKey: candidate._id,
                 });
-                vars.code = link.code;
-                vars.lien_import = `${env.FRONTEND_BASE_URL}/public/cv-import?sig=${link.signature}`;
+                if (invite.success) {
+                    vars.lien_import = invite.link;
+                }
             } catch (err) {
                 logger.error({ err, id: candidate._id }, '[relance] import link creation failed');
             }

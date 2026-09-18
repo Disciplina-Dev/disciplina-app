@@ -19,7 +19,7 @@ export function registerOfferTools(server: McpServer): void {
         'Liste toutes les offres / postes (MongoDB) avec leurs critères de matching et statut.',
         {},
         OFFER_SCOPE,
-        async () => toolResult(await offerService.findAll()),
+        async () => toolResult(await offerService.findAll(true)),
     );
 
     readTool(

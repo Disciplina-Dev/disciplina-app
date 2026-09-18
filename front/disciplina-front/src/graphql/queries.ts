@@ -411,6 +411,9 @@ const CANDIDATE_FIELDS = gql`
       sector
     }
     status
+    writtenTestScore
+    testAverage
+    testFailurePending
     tpTypes
     trainingSite
     trainingSites
@@ -585,6 +588,9 @@ export const GET_CANDIDATE_BY_ID = gql`
         sector
       }
       status
+      writtenTestScore
+      testAverage
+      testFailurePending
       tpTypes
       trainingSite
       trainingSites
@@ -695,6 +701,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       cvLink
@@ -833,6 +840,7 @@ export const UPDATE_CANDIDATE = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       createdAt
@@ -978,6 +986,7 @@ export const GET_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion
@@ -1124,6 +1133,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion
@@ -1635,6 +1645,19 @@ export const GET_CANDIDATE_PLACEMENT = gql`
   }
 `
 
+export const GET_CANDIDATE_SENT_COMPANIES = gql`
+  query GetCandidateSentCompanies($candidateId: String!) {
+    candidateSentCompanies(candidateId: $candidateId) {
+      offerId
+      companyName
+      status
+      title
+      jobRole
+      needsAnalysisId
+    }
+  }
+`
+
 export const GET_CANDIDATE_HISTORY = gql`
   query CandidateHistory($candidateId: String!) {
     candidateHistory(candidateId: $candidateId) {
@@ -1705,8 +1728,10 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         node {
           id
           status
+          abStatus
           positionsCount
           createdAt
+          lastActiveAt
           administrationType
           driveFolderUrl
           companyInfos {

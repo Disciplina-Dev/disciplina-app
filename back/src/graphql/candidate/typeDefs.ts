@@ -168,6 +168,7 @@ export const typeDefs = gql`
         geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
+        jobSearchPlatforms: String
     }
 
     type PedagogicalRecommendations {
@@ -243,6 +244,9 @@ export const typeDefs = gql`
         id: String!
         owner: CandidateOwner
         status: CandidateStatus!
+        writtenTestScore: Float
+        testAverage: Float
+        testFailurePending: Boolean
         tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
         emergencyContact: CandidateEmergencyContact
@@ -375,6 +379,7 @@ export const typeDefs = gql`
         geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
+        jobSearchPlatforms: String
     }
 
     input PedagogicalRecommendationsInput {
@@ -412,6 +417,9 @@ export const typeDefs = gql`
         consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
+        writtenTestScore: Float
+        testAverage: Float
+        testFailurePending: Boolean
         immersionAgreement: Boolean
         immersionStartDate: String
         immersionEndDate: String
@@ -441,6 +449,9 @@ export const typeDefs = gql`
         consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
+        writtenTestScore: Float
+        testAverage: Float
+        testFailurePending: Boolean
         immersionAgreement: Boolean
         immersionStartDate: String
         immersionEndDate: String

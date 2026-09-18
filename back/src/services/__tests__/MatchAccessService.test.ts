@@ -5,7 +5,9 @@ import { ExternalAccessRepository } from '../../repositories/mysql/ExternalAcces
 import { OfferRepository } from '../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../test/helpers/seedOffer';
 import { UserRepository } from '../../repositories/mysql/UserRepository';
+import { CandidateService } from '../CandidateService';
 import { OfferStatus, MatchedCandidateStatus, Sex } from '../../types/matching.types';
+import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
 
 async function createRhUser(suffix: number): Promise<{ id: number; email: string }> {
     const repo = new UserRepository();
@@ -24,12 +26,37 @@ async function createRhUser(suffix: number): Promise<{ id: number; email: string
     return { id, email };
 }
 
+async function seedCandidateDoc(id: string, suffix: number, dataSharing: boolean): Promise<string> {
+    const service = new CandidateService();
+    await service.create({
+        _id: id,
+        candidate_id: id,
+        tp_types: [TitleProfessionalType.CC],
+        status: CandidateStatus.SEEKING,
+        identity: {
+            full_name: `Candidat MatchAccess ${suffix}`,
+            email: `cand-matchaccess-doc-${suffix}@test.local`,
+            phone: '0692000004',
+        } as any,
+        consentments: {
+            data_processing: true,
+            data_sharing: dataSharing,
+            ai_processing: false,
+            photo_processing: false,
+            consent_date: new Date(),
+            consent_version: '1',
+        },
+    } as any);
+    return id;
+}
+
 describe('MatchAccessService', () => {
     it('creates the session in external_access (reference 2) with a SENDING status', async () => {
         const suffix = Date.now();
         const rh = await createRhUser(suffix);
         const offerId = `job-matchaccess-${suffix}`;
         const candidateId = `cand-matchaccess-${suffix}`;
+        await seedCandidateDoc(candidateId, suffix, true);
 
         await seedOffer({
             _id: offerId,
@@ -86,6 +113,7 @@ describe('MatchAccessService', () => {
 
         const offerId = `job-matchaccess-${suffix}`;
         const candidateId = `cand-matchaccess-${suffix}`;
+        await seedCandidateDoc(candidateId, suffix, true);
         await seedOffer({
             _id: offerId,
             company_name: `MatchAccess Corp ${suffix}`,
@@ -145,5 +173,41 @@ describe('MatchAccessService', () => {
         );
         expect(rows).toHaveLength(1);
         expect(rows[0].status).toBe('SENDING');
+    });
+
+    it('refuses to create a session when a proposed candidate has not consented to data sharing', async () => {
+        const suffix = Date.now();
+        const rh = await createRhUser(suffix);
+        const offerId = `job-matchaccess-noconsent-${suffix}`;
+        const candidateId = await seedCandidateDoc(`cand-matchaccess-noconsent-${suffix}`, suffix, false);
+
+        await seedOffer({
+            _id: offerId,
+            company_name: `MatchAccess Corp ${suffix}`,
+            status: OfferStatus.CV_SEND,
+            candidates: [
+                {
+                    id: candidateId,
+                    full_name: `Candidat MatchAccess ${suffix}`,
+                    email: `cand-matchaccess-doc-${suffix}@test.local`,
+                    age: 20,
+                    sex: Sex.NONE,
+                    status: MatchedCandidateStatus.ACCEPTED,
+                },
+            ],
+        });
+
+        const service = new MatchAccessService();
+        // Sans ce garde-fou, la session est créée puis la vue entreprise filtre
+        // le candidat (GET match/candidates → []) : « Aucun candidat à afficher ».
+        await expect(
+            service.createSession({
+                offerId,
+                rhUserId: rh.id,
+                rhEmail: rh.email,
+                companyEmail: `company-${suffix}@test.local`,
+                candidates: [{ id: candidateId }],
+            }),
+        ).rejects.toThrow(/consentement.*partage|data_sharing/i);
     });
 });

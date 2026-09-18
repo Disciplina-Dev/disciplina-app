@@ -38,7 +38,7 @@ async function createRow(
     const userId = await createRhUser();
     await repository.create({
         signature: sig,
-        code: '123456',
+        code: null,
         user_id: userId,
         external_id: `offer-${sig.slice(0, 8)}`,
         external_type: 'COMPANY',

@@ -113,7 +113,7 @@ describe('POST /api/relance/bulk — variables du modèle remplacées par candid
         expect(options.text).toBe('Bonjour Marie Dupont,');
     });
 
-    it('génère un lien d\'import CV et un code quand le modèle les référence', async () => {
+    it('génère un lien magique d\'import CV sans code quand le modèle référence {{lien_import}}', async () => {
         const candidateId = await createCandidate('Marie Dupont', 'candidate@test.local');
         const templateId = await createTemplate(
             'Votre espace {{prenom}}',
@@ -126,18 +126,20 @@ describe('POST /api/relance/bulk — variables du modèle remplacées par candid
 
         const [, options] = sendEmail.mock.calls[0] as [unknown, { subject: string; html: string; text: string }];
         expect(options.subject).toBe('Votre espace Marie');
-        expect(options.html).toMatch(/<p>Code : \d{6}<\/p>/);
-        expect(options.html).toContain(`${env.FRONTEND_BASE_URL}/public/cv-import?sig=`);
+        // {{code}} obsolète : toujours retiré, aucun code à 6 chiffres généré.
+        expect(options.html).toContain('<p>Code : </p>');
+        expect(options.html).not.toMatch(/Code : \d{6}/);
+        expect(options.html).toContain(`${env.FRONTEND_BASE_URL}/external/authenticate?sig=`);
         expect(options.html).not.toContain('{{');
 
         const [rows] = await pool.query(
-            'SELECT external_email FROM external_link WHERE external_email = ?',
+            'SELECT external_email FROM external_access WHERE external_email = ?',
             ['candidate@test.local'],
         );
         expect((rows as { external_email: string }[]).length).toBe(1);
     });
 
-    it('ne crée pas de lien d\'import si le modèle n\'utilise pas ces variables', async () => {
+    it('ne crée pas de lien d\'import si le modèle n\'utilise pas {{lien_import}}', async () => {
         const candidateId = await createCandidate('Marie Dupont', 'candidate@test.local');
         const templateId = await createTemplate('Bonjour {{prenom}}', '<p>Bonjour {{prenom}}</p>');
 
@@ -145,7 +147,7 @@ describe('POST /api/relance/bulk — variables du modèle remplacées par candid
         expect(res.status).toBe(200);
 
         const [rows] = await pool.query(
-            'SELECT external_email FROM external_link WHERE external_email = ?',
+            'SELECT external_email FROM external_access WHERE external_email = ?',
             ['candidate@test.local'],
         );
         expect((rows as { external_email: string }[]).length).toBe(0);
