@@ -13,22 +13,17 @@ import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Heading2, Link2, Unlink, Palette, ImagePlus, MousePointerClick, ALargeSmall,
+  Heading2, Link2, Unlink, Palette, ImagePlus, MousePointerClick, ALargeSmall, Highlighter,
 } from 'lucide-react'
 
-// Image insérée en base64 directement dans le HTML du mail (comme la signature
-// aujourd'hui) — pas d'upload serveur, cf. décision #747. Garde-fou pour ne pas
-// alourdir démesurément un modèle de mail avec une photo non compressée.
+
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 
-// Style de bouton CTA prédéfini — propriétés toutes couvertes par l'allowlist
-// backend (sanitizeMailHtml.ts), sinon elles seraient retirées à l'enregistrement.
+
 const CTA_BUTTON_STYLE =
   'display:inline-block;background-color:#1130A7;color:#ffffff;padding:10px 20px;' +
   'border-radius:6px;font-weight:600;text-decoration:none'
 
-// Extension du mark Link existant : ajoute juste l'attribut `style`, pour pouvoir
-// transformer un lien en bouton sans introduire un nouveau nœud/mark TipTap.
 const LinkWithStyle = Link.extend({
   addAttributes() {
     return {
@@ -37,15 +32,15 @@ const LinkWithStyle = Link.extend({
     }
   },
 })
-
-// Pas d'extension officielle @tiptap/extension-font-size en v2 (seulement une
-// préversion 3.x) — même pattern que Color : un attribut `fontSize` ajouté au
-// mark `textStyle` existant.
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     fontSize: {
       setFontSize: (fontSize: string) => ReturnType
       unsetFontSize: () => ReturnType
+    }
+    highlightColor: {
+      setHighlightColor: (color: string) => ReturnType
+      unsetHighlightColor: () => ReturnType
     }
   }
 }
@@ -85,6 +80,52 @@ const FontSize = Extension.create({
     }
   },
 })
+
+const HighlightColor = Extension.create({
+  name: 'highlightColor',
+  addOptions() {
+    return { types: ['textStyle'] }
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          highlightColor: {
+            default: null,
+            parseHTML: (element: HTMLElement) => element.style.backgroundColor || null,
+            renderHTML: (attributes: { highlightColor?: string | null }) => {
+              if (!attributes.highlightColor) return {}
+              return { style: `background-color: ${attributes.highlightColor}` }
+            },
+          },
+        },
+      },
+    ]
+  },
+  addCommands() {
+    return {
+      setHighlightColor:
+        (color: string) =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { highlightColor: color }).run(),
+      unsetHighlightColor:
+        () =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { highlightColor: null }).run(),
+    }
+  },
+})
+
+
+const HIGHLIGHT_SWATCHES = [
+  { label: 'Jaune', value: '#FEF3E2' },
+  { label: 'Vert', value: '#E6F4ED' },
+  { label: 'Bleu', value: '#E8EBFA' },
+  { label: 'Rose', value: '#FAE4ED' },
+  { label: 'Violet', value: '#F0E6F6' },
+  { label: 'Gris', value: '#E8E8E4' },
+]
 
 const FONT_SIZE_VALUES_PX = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
 const FONT_SIZES: { label: string; value: string | null }[] = [
@@ -146,6 +187,8 @@ export default function RichTextEditor({
 }: RichTextEditorProps) {
   const [colorPanelOpen, setColorPanelOpen] = useState(false)
   const colorPanelRef = useRef<HTMLDivElement>(null)
+  const [highlightPanelOpen, setHighlightPanelOpen] = useState(false)
+  const highlightPanelRef = useRef<HTMLDivElement>(null)
   const [sizePanelOpen, setSizePanelOpen] = useState(false)
   const sizePanelRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -164,6 +207,7 @@ export default function RichTextEditor({
       TextStyle,
       Color,
       FontSize,
+      HighlightColor,
       Image,
     ],
     content: value,
@@ -198,6 +242,22 @@ export default function RichTextEditor({
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [colorPanelOpen])
+
+  useEffect(() => {
+    if (!highlightPanelOpen) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (!highlightPanelRef.current?.contains(e.target as Node)) setHighlightPanelOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHighlightPanelOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [highlightPanelOpen])
 
   useEffect(() => {
     if (!sizePanelOpen) return
@@ -371,6 +431,45 @@ export default function RichTextEditor({
                   {label}
                 </button>
               ))}
+            </div>
+          )}
+        </div>
+        <div className="relative" ref={highlightPanelRef}>
+          <ToolbarButton
+            onClick={() => setHighlightPanelOpen((open) => !open)}
+            active={highlightPanelOpen || !!editor.getAttributes('textStyle').highlightColor}
+            title="Surligner"
+          >
+            <Highlighter size={14} />
+          </ToolbarButton>
+          {highlightPanelOpen && (
+            <div className="absolute left-0 top-full z-10 mt-1 flex gap-1 rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
+              {HIGHLIGHT_SWATCHES.map(({ label, value }) => (
+                <button
+                  key={value}
+                  type="button"
+                  title={label}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    editor.chain().focus().setHighlightColor(value).run()
+                    setHighlightPanelOpen(false)
+                  }}
+                  className="h-5 w-5 rounded-full ring-1 ring-inset ring-black/10"
+                  style={{ backgroundColor: value }}
+                />
+              ))}
+              <button
+                type="button"
+                title="Retirer le surlignage"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  editor.chain().focus().unsetHighlightColor().run()
+                  setHighlightPanelOpen(false)
+                }}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-gray-500 ring-1 ring-inset ring-black/10"
+              >
+                ×
+              </button>
             </div>
           )}
         </div>
