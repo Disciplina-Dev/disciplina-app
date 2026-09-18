@@ -235,6 +235,9 @@ export const typeDefs = gql`
         tags: [String!]
         createdAt: String
         updatedAt: String
+        # Date du dernier passage au statut effectif ACTIVE (création puis
+        # réactivations). Null pour les documents antérieurs au suivi.
+        lastActiveAt: String
         # URL Drive du dossier contenant le mandat signé (uniquement si status = SIGNE).
         driveFolderUrl: String
     }

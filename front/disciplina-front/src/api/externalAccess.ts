@@ -18,7 +18,6 @@ export interface ExternalReference {
 
 export interface ExternalAccessRowData {
   signature: string
-  code: string | null
   user_id: number
   external_id: string
   external_type: ExternalAccessType
@@ -28,7 +27,6 @@ export interface ExternalAccessRowData {
   reference_id: number
   reference_key: string
   status: ExternalAccessStatus
-  attempts: number
   expires_at: string | null
   created_at?: string
   updated_at?: string

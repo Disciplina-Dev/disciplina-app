@@ -79,7 +79,7 @@ async function createInterviewSession(
 ): Promise<void> {
     await repository.create({
         signature: sig,
-        code: '123456',
+        code: null,
         user_id: rhId,
         external_id: offerId,
         external_type: 'CANDIDATE',
@@ -107,7 +107,7 @@ describe('External interview flow (reference 3)', () => {
     });
 
     describe('auth', () => {
-        it('authenticates via POST /inspect and issues the guest cookie (reference 3)', async () => {
+        it('authenticates via POST /:signature/authenticate magic link and issues the guest cookie (reference 3)', async () => {
             const suffix = Date.now();
             const rh = await createRhUser(suffix);
             const offerId = await seedInterviewOffer(suffix, ['2030-01-01T09:00:00.000Z'], [
@@ -116,16 +116,39 @@ describe('External interview flow (reference 3)', () => {
             const sig = signature('sig-interview-auth');
             await createInterviewSession(rh.id, offerId, `cand-auth-${suffix}`, sig);
 
-            const res = await fetch(`${BASE}/inspect`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ signature: sig, code: '123456' }),
-            });
+            const res = await fetch(`${BASE}/${sig}/authenticate`, { method: 'POST' });
             expect(res.status).toBe(200);
-            await expect(res.json()).resolves.toMatchObject({ success: true, user: { referenceId: 3 } });
+            const body = (await res.json()) as { success: boolean; user: { referenceId: number }; expiresAt: string };
+            expect(body).toMatchObject({ success: true, user: { referenceId: 3 } });
+            // Première ouverture : expiration armée à ~J+7.
+            const expiresInMs = new Date(body.expiresAt).getTime() - Date.now();
+            expect(expiresInMs).toBeGreaterThan(6 * 24 * 60 * 60 * 1000);
+            expect(expiresInMs).toBeLessThanOrEqual(7 * 24 * 60 * 60 * 1000);
 
             const setCookie = res.headers.get('set-cookie');
             expect(setCookie).toContain(ACCESS_TOKEN_COOKIE);
+        });
+
+        it('rejects an expired link with 410 and marks it EXPIRED', async () => {
+            const suffix = Date.now();
+            const rh = await createRhUser(suffix);
+            const offerId = await seedInterviewOffer(suffix, ['2030-01-04T09:00:00.000Z'], [
+                { id: `cand-exp-${suffix}`, email: `candidate-exp-${suffix}@test.local` },
+            ]);
+            const sig = signature('sig-interview-exp');
+            await createInterviewSession(rh.id, offerId, `cand-exp-${suffix}`, sig, {
+                status: 'AUTHENTICATED',
+                expires_at: new Date(Date.now() - 1000),
+            });
+
+            const res = await fetch(`${BASE}/${sig}/authenticate`, { method: 'POST' });
+            expect(res.status).toBe(410);
+            expect((await repository.findBySignature(sig))?.status).toBe('EXPIRED');
+        });
+
+        it('returns 404 for an unknown signature', async () => {
+            const res = await fetch(`${BASE}/unknown-signature/authenticate`, { method: 'POST' });
+            expect(res.status).toBe(404);
         });
 
         it('rejects slots without a guest cookie (401)', async () => {

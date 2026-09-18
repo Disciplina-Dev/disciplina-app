@@ -23,13 +23,19 @@ import {
   RefreshCw,
   Bell,
   X,
+  Building2,
+  ChevronDown,
 } from 'lucide-react';
 import { useCurrentUser, Permission } from '@/store/authStore';
-import { useCandidateStats, useNeedsAnalysesForDashboard, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { useCandidateStats, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY } from '@/graphql/queries';
+import { offerGraphqlClient } from '@/graphql/client';
+import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
-import { SECTEUR_LABELS, SECTEUR_VALUES } from '@/constants/secteurs';
+import { SECTEUR_LABELS, SECTEUR_VALUES, SECTEUR_KEYS, type SecteurKey } from '@/constants/secteurs';
+import { Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
 
 // --- Charte graphique (cf. index.css) ---
 const COLORS = {
@@ -178,6 +184,551 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
+const DIRECTORY_PAGE_SIZE = 500;
+
+function primaryTp(analysis: NeedsAnalysis): string | null {
+  const tps = analysisTps(analysis);
+  return tps.length > 0 ? tps[0] : null;
+}
+
+function analysisTps(analysis: NeedsAnalysis): string[] {
+  return [...new Set((analysis.positions ?? []).flatMap((p) => (p.desiredTp ?? []).map((t) => t.tpType).filter(Boolean) as string[]))].sort();
+}
+
+/** Statut affiché (reflète `AbActiveBadge`) : `abStatus` manquant = Inactive. */
+function effectiveAbStatus(analysis: NeedsAnalysis): string {
+  return analysis.abStatus ?? 'INACTIVE';
+}
+
+const DIRECTORY_STATUSES = ['ACTIVE', 'ARCHIVED', 'INACTIVE'] as const;
+
+const DIRECTORY_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Active',
+  ARCHIVED: 'Archivée',
+  INACTIVE: 'Inactive',
+};
+
+// Secteurs d'activité (issus de `companyInfos.activities`) proposés dans le filtre.
+const DIRECTORY_ACTIVITY_SECTORS = Object.values(Sector).filter((s) => s !== Sector.NONE);
+
+/**
+ * Date d'activation de l'AB : dernier passage au statut effectif ACTIVE.
+ * Repli sur la date de création pour les documents antérieurs au suivi.
+ */
+function activationDateOf(analysis: NeedsAnalysis): string | null | undefined {
+  return analysis.lastActiveAt ?? analysis.createdAt;
+}
+
+interface DirectoryHistoryEntry {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  text: string;
+  createdAt: string;
+}
+
+interface DirectoryHistoryState {
+  expanded: boolean;
+  loaded: boolean;
+  loading: boolean;
+  error: string | null;
+  offers: { id: string; title?: string | null }[];
+  selectedOfferId: string | null;
+  latestByOffer: Record<string, DirectoryHistoryEntry | null>;
+  textOpen: boolean;
+}
+
+function freshHistoryState(): DirectoryHistoryState {
+  return {
+    expanded: false,
+    loaded: false,
+    loading: false,
+    error: null,
+    offers: [],
+    selectedOfferId: null,
+    latestByOffer: {},
+    textOpen: false,
+  };
+}
+
+function historyAuthor(entry: DirectoryHistoryEntry): string {
+  const name = `${entry.firstName ?? ''} ${entry.lastName ?? ''}`.trim();
+  return name || 'Système';
+}
+
+function formatDirectoryDate(iso?: string | null): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return '—';
+  }
+}
+
+function AbActiveBadge({ status }: { status?: string | null }) {
+  if (status === 'ACTIVE') {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-200">
+        Active
+      </span>
+    );
+  }
+  if (status === 'ARCHIVED') {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+        Archivée
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-200">
+      Inactive
+    </span>
+  );
+}
+
+/**
+ * Annuaire des entreprises issues des analyses de besoin.
+ * Tri : TP (ordre canonique AD, CC, NTC, REM, SA) puis date d'activation croissante.
+ */
+function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const { items, pageInfo, loading, error, refetch } = useNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
+
+  const [selectedTps, setSelectedTps] = useState<Set<string>>(new Set());
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+  const [selectedZone, setSelectedZone] = useState<SecteurKey | null>(null);
+  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [minDate, setMinDate] = useState('');
+  const [maxDate, setMaxDate] = useState('');
+  const [historyByAnalysis, setHistoryByAnalysis] = useState<Record<string, DirectoryHistoryState>>({});
+
+  const toggleTp = (tp: string) =>
+    setSelectedTps((prev) => {
+      const next = new Set(prev);
+      if (next.has(tp)) next.delete(tp);
+      else next.add(tp);
+      return next;
+    });
+  const toggleStatus = (s: string) =>
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  const toggleActivity = (s: string) =>
+    setSelectedActivities((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  const hasActiveFilters = selectedTps.size > 0 || selectedStatuses.size > 0 || selectedZone !== null || selectedActivities.size > 0 || minDate !== '' || maxDate !== '';
+  const resetFilters = () => {
+    setSelectedTps(new Set());
+    setSelectedStatuses(new Set());
+    setSelectedZone(null);
+    setSelectedActivities(new Set());
+    setMinDate('');
+    setMaxDate('');
+  };
+
+  const loadHistory = async (analysisId: string) => {
+    try {
+      const offersResult = await offerGraphqlClient
+        .query(OFFERS_BY_NEEDS_ANALYSIS, { needsAnalysisId: analysisId })
+        .toPromise();
+      if (offersResult.error) throw new Error(offersResult.error.message);
+      const offers = (offersResult.data?.offersByNeedsAnalysis ?? []) as {
+        id: string;
+        title?: string | null;
+      }[];
+      const latestByOffer: Record<string, DirectoryHistoryEntry | null> = {};
+      await Promise.all(
+        offers.map(async (offer) => {
+          const historyResult = await offerGraphqlClient
+            .query(GET_OFFER_HISTORY, { offerId: offer.id })
+            .toPromise();
+          if (historyResult.error) throw new Error(historyResult.error.message);
+          const entries = (historyResult.data?.offerHistory ?? []) as DirectoryHistoryEntry[];
+          latestByOffer[offer.id] = entries[0] ?? null;
+        }),
+      );
+      setHistoryByAnalysis((prev) => ({
+        ...prev,
+        [analysisId]: {
+          ...(prev[analysisId] ?? freshHistoryState()),
+          expanded: true,
+          loaded: true,
+          loading: false,
+          error: null,
+          offers,
+          selectedOfferId: offers[0]?.id ?? null,
+          latestByOffer,
+          textOpen: false,
+        },
+      }));
+    } catch (err) {
+      setHistoryByAnalysis((prev) => ({
+        ...prev,
+        [analysisId]: {
+          ...(prev[analysisId] ?? freshHistoryState()),
+          expanded: true,
+          loading: false,
+          error: err instanceof Error ? err.message : 'Erreur de chargement',
+        },
+      }));
+    }
+  };
+
+  const toggleHistory = (analysisId: string) => {
+    const current = historyByAnalysis[analysisId] ?? freshHistoryState();
+    if (current.expanded) {
+      setHistoryByAnalysis((prev) => ({ ...prev, [analysisId]: { ...current, expanded: false } }));
+      return;
+    }
+    setHistoryByAnalysis((prev) => ({
+      ...prev,
+      [analysisId]: { ...current, expanded: true, loading: !current.loaded, error: null },
+    }));
+    if (!current.loaded) void loadHistory(analysisId);
+  };
+
+  const rows = useMemo(() => {
+    const order = new Map(TP_ORDER.map((tp, i) => [tp, i]));
+    const minTime = minDate ? new Date(`${minDate}T00:00:00`).getTime() : null;
+    const maxTime = maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null;
+    return [...items]
+      .filter((a) => {
+        if (selectedTps.size > 0) {
+          const tps = analysisTps(a);
+          if (!tps.some((t) => selectedTps.has(t))) return false;
+        }
+        if (selectedStatuses.size > 0 && !selectedStatuses.has(effectiveAbStatus(a))) return false;
+        if (selectedZone !== null && a.companyInfos?.sector !== selectedZone) return false;
+        if (selectedActivities.size > 0) {
+          const activities = a.companyInfos?.activities ?? [];
+          if (!activities.some((act) => selectedActivities.has(act))) return false;
+        }
+        if (minTime != null || maxTime != null) {
+          const activated = activationDateOf(a) ? new Date(activationDateOf(a) as string).getTime() : Number.NaN;
+          if (Number.isNaN(activated)) return false;
+          if (minTime != null && activated < minTime) return false;
+          if (maxTime != null && activated > maxTime) return false;
+        }
+        return true;
+      })
+      .map((a) => ({ analysis: a, tp: primaryTp(a) }))
+      .sort((x, y) => {
+        const ox = x.tp != null ? (order.get(x.tp) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+        const oy = y.tp != null ? (order.get(y.tp) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+        if (ox !== oy) return ox - oy;
+        const dx = activationDateOf(x.analysis) ? new Date(activationDateOf(x.analysis) as string).getTime() : Number.MAX_SAFE_INTEGER;
+        const dy = activationDateOf(y.analysis) ? new Date(activationDateOf(y.analysis) as string).getTime() : Number.MAX_SAFE_INTEGER;
+        return dx - dy;
+      });
+  }, [items, selectedTps, selectedStatuses, selectedZone, selectedActivities, minDate, maxDate]);
+
+  const renderHistoryCell = (analysis: NeedsAnalysis) => {
+    const state = historyByAnalysis[analysis.id] ?? freshHistoryState();
+
+    if (!state.expanded) {
+      return (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id); }}
+          className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-200"
+        >
+          Historique <ChevronDown size={12} />
+        </button>
+      );
+    }
+
+    const selectedEntry = state.selectedOfferId ? (state.latestByOffer[state.selectedOfferId] ?? null) : null;
+
+    return (
+      <div className="min-w-52 max-w-72 space-y-1.5">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id); }}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-blue hover:underline"
+        >
+          Masquer <ChevronDown size={12} className="rotate-180" />
+        </button>
+        {state.loading ? (
+          <p className="flex items-center gap-1.5 text-xs text-gray-500">
+            <Loader2 size={12} className="animate-spin" /> Chargement…
+          </p>
+        ) : state.error ? (
+          <div className="space-y-1">
+            <p className="text-xs text-danger">Erreur de chargement.</p>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); void loadHistory(analysis.id); }}
+              className="text-xs font-semibold text-blue hover:underline"
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : state.offers.length === 0 ? (
+          <p className="text-xs text-gray-400">Aucune offre — pas d'historique.</p>
+        ) : (
+          <>
+            {state.offers.length > 1 && (
+              <select
+                value={state.selectedOfferId ?? ''}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  const selectedOfferId = e.target.value;
+                  setHistoryByAnalysis((prev) => ({
+                    ...prev,
+                    [analysis.id]: { ...(prev[analysis.id] ?? freshHistoryState()), selectedOfferId, textOpen: false },
+                  }));
+                }}
+                className="w-full rounded-md border border-gray-200 px-1.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue"
+                aria-label="Choisir l'offre dont voir l'historique"
+              >
+                {state.offers.map((offer, i) => (
+                  <option key={offer.id} value={offer.id}>
+                    {offer.title ? `#${i + 1} · ${offer.title}` : `Offre #${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedEntry ? (
+              <div className="space-y-0.5">
+                <p className="text-[11px] font-medium text-gray-400">
+                  {historyAuthor(selectedEntry)} · {formatDirectoryDate(selectedEntry.createdAt)}
+                </p>
+                <p className={`text-xs text-gray-700 ${state.textOpen ? '' : 'line-clamp-2'}`}>
+                  {selectedEntry.text}
+                </p>
+                {selectedEntry.text.length > 120 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHistoryByAnalysis((prev) => ({
+                        ...prev,
+                        [analysis.id]: { ...(prev[analysis.id] ?? freshHistoryState()), textOpen: !state.textOpen },
+                      }));
+                    }}
+                    className="text-xs font-semibold text-blue hover:underline"
+                  >
+                    {state.textOpen ? 'Voir moins' : 'Voir plus'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">Aucune entrée pour cette offre.</p>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Liste des entreprises">
+      <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
+      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Entreprises</h2>
+            <p className="text-xs text-gray-500">
+              Triées par TP puis par date d'activation · {rows.length} entreprise{rows.length > 1 ? 's' : ''}
+              {hasActiveFilters && items.length > 0 ? ` sur ${items.length}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            title="Fermer"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-2 border-b border-gray-100 px-5 py-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-500">TP :</span>
+            {TP_ORDER.map((tp) => {
+              const active = selectedTps.has(tp);
+              return (
+                <button
+                  key={tp}
+                  type="button"
+                  onClick={() => toggleTp(tp)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                    active ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {tp}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-500">Statut :</span>
+            {DIRECTORY_STATUSES.map((s) => {
+              const active = selectedStatuses.has(s);
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => toggleStatus(s)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                    active ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {DIRECTORY_STATUS_LABELS[s]}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-500">Zone :</span>
+            <button
+              type="button"
+              onClick={() => setSelectedZone(null)}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                selectedZone === null ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Toutes
+            </button>
+            {SECTEUR_KEYS.map((zone) => (
+              <button
+                key={zone}
+                type="button"
+                onClick={() => setSelectedZone((prev) => (prev === zone ? null : zone))}
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                  selectedZone === zone ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {SECTEUR_LABELS[zone]}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-500">Secteur d'activité :</span>
+            {DIRECTORY_ACTIVITY_SECTORS.map((sector) => {
+              const active = selectedActivities.has(sector);
+              return (
+                <button
+                  key={sector}
+                  type="button"
+                  onClick={() => toggleActivity(sector)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                    active ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {formatEnumLabel(sector)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-gray-500">Activée entre :</span>
+            <input
+              type="date"
+              value={minDate}
+              max={maxDate || undefined}
+              onChange={(e) => setMinDate(e.target.value)}
+              className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue"
+              aria-label="Date d'activation minimale"
+            />
+            <span className="text-xs text-gray-400">et</span>
+            <input
+              type="date"
+              value={maxDate}
+              min={minDate || undefined}
+              onChange={(e) => setMaxDate(e.target.value)}
+              className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue"
+              aria-label="Date d'activation maximale"
+            />
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="ml-auto rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {loading && rows.length === 0 ? (
+            <div className="flex h-48 items-center justify-center gap-2 text-sm text-gray-500">
+              <Loader2 size={18} className="animate-spin text-blue" /> Chargement des entreprises…
+            </div>
+          ) : error ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-danger">
+              <p className="font-medium">Erreur de chargement des entreprises</p>
+              <button
+                onClick={() => refetch()}
+                className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
+              >
+                <RefreshCw size={16} /> Réessayer
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="py-12 text-center text-sm text-gray-400">
+              {hasActiveFilters ? 'Aucune entreprise ne correspond aux filtres.' : 'Aucune entreprise.'}
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-gray-100">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">Entreprise</th>
+                      <th className="px-4 py-2.5 font-semibold">TP</th>
+                      <th className="px-4 py-2.5 font-semibold">Date d'activation</th>
+                      <th className="px-4 py-2.5 font-semibold">Statut</th>
+                      <th className="px-4 py-2.5 font-semibold">Historique</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {rows.map(({ analysis, tp }) => (
+                      <tr
+                        key={analysis.id}
+                        onClick={() => navigate(`/rh/matching?needsAnalysis=${analysis.id}`)}
+                        className="cursor-pointer transition hover:bg-gray-50"
+                        title="Ouvrir le matching"
+                      >
+                        <td className="px-4 py-2.5 font-medium text-gray-900">{analysis.companyInfos?.name ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-gray-600">{tp ?? '—'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-gray-600">{formatDirectoryDate(activationDateOf(analysis))}</td>
+                        <td className="px-4 py-2.5">
+                          <AbActiveBadge status={analysis.abStatus} />
+                        </td>
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          {renderHistoryCell(analysis)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {pageInfo?.hasNextPage && (
+                <p className="mt-3 text-xs text-gray-400">
+                  Liste limitée aux {DIRECTORY_PAGE_SIZE} premières analyses — affinez la recherche depuis la page Matching.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardRH() {
   const currentUser = useCurrentUser();
   const canViewAll = currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE;
@@ -193,6 +744,7 @@ export default function DashboardRH() {
     [selectedSectors],
   );
   const { stats, loading, error, refetch } = useCandidateStats(sectorArray);
+  const [showCompanies, setShowCompanies] = useState(false);
 
   const toggleSector = (s: string) =>
     setSelectedSectors((prev) => {
@@ -314,6 +866,12 @@ export default function DashboardRH() {
             </div>
           )}
           <button
+            onClick={() => setShowCompanies(true)}
+            className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
+          >
+            <Building2 size={16} /> Entreprises
+          </button>
+          <button
             onClick={refetch}
             className="flex items-center gap-2 rounded-md border border-gray-100 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
@@ -432,6 +990,8 @@ export default function DashboardRH() {
           </ResponsiveContainer>
         </ChartCard>
       )}
+
+      {showCompanies && <CompanyDirectoryModal onClose={() => setShowCompanies(false)} />}
     </div>
   );
 }

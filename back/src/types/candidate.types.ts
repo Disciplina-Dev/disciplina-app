@@ -144,6 +144,7 @@ export interface JobInfo {
     geographic_mobility?: Localisation[];
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
+    job_search_platforms?: string;
 }
 
 export interface PedagogicalRecommendations {
@@ -236,6 +237,9 @@ export interface Candidate {
     emergency_contact?: EmergencyContact;
     consentments?: CandidateConsentments;
     status: CandidateStatus;
+    written_test_score?: number;
+    test_average?: number;
+    test_failure_pending?: boolean;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
     immersion_agreement?: boolean;

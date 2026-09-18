@@ -1,63 +1,44 @@
 import { apiFetch } from '@/api/httpClient'
 
-const MAX_ATTEMPTS = 3
-
 export interface ExternalProfile {
   externalEmail: string
   guestType: string
   externalUuid: string
+  expiresAt: string | null
 }
 
 export class ExternalAuthError extends Error {}
 
-export type InspectExternalResult =
-  | { ok: true; referenceId: number }
-  | { ok: false; reason: 'invalid' | 'locked' | 'already-authenticated' | 'wrong-code'; remaining?: number; referenceId?: number }
+export type OpenExternalResult =
+  | { ok: true; referenceId: number; expiresAt: string }
+  | { ok: false; reason: 'invalid' | 'blocked' | 'expired' | 'completed' }
 
-export async function inspectExternal(signature: string, code: string): Promise<InspectExternalResult> {
-  const res = await apiFetch('/api/external/inspect', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ signature, code }),
-  })
-
-  if (res.ok) {
-    const body = (await res.json()) as { user: { referenceId: number } }
-    return { ok: true, referenceId: body.user.referenceId }
-  }
-
-  const body = (await res.json().catch(() => ({}))) as { error?: string; referenceId?: number }
-  const error = body.error ?? ''
-
-  if (/already authenticated/.test(error)) return { ok: false, reason: 'already-authenticated', referenceId: body.referenceId }
-  if (/locked/.test(error)) return { ok: false, reason: 'locked' }
-  const wrongCode = error.match(/Wrong code (\d+) attempts/)
-  if (wrongCode) {
-    return { ok: false, reason: 'wrong-code', remaining: Math.max(0, MAX_ATTEMPTS - Number(wrongCode[1])) }
-  }
-  return { ok: false, reason: 'invalid' }
-}
-
-export type SendCodeExternalResult = { ok: true } | { ok: false; reason: 'invalid' | 'blocked' | 'completed' }
-
-export async function sendCodeExternal(signature: string): Promise<SendCodeExternalResult> {
+export async function openExternalLink(signature: string): Promise<OpenExternalResult> {
   const res = await apiFetch(`/api/external/${signature}/authenticate`, { method: 'POST' })
 
   if (res.status === 404) return { ok: false, reason: 'invalid' }
-  if (!res.ok) throw new Error(`Envoi du code échoué (${res.status})`)
+  if (res.status === 410) return { ok: false, reason: 'expired' }
+  if (!res.ok) throw new Error(`Ouverture du lien échouée (${res.status})`)
 
-  const body = (await res.json().catch(() => ({}))) as { message?: string }
+  const body = (await res.json().catch(() => ({}))) as {
+    success?: boolean
+    message?: string
+    user?: { referenceId: number }
+    expiresAt?: string
+  }
+  if (body.success && body.user && body.expiresAt) {
+    return { ok: true, referenceId: body.user.referenceId, expiresAt: body.expiresAt }
+  }
   const message = body.message ?? ''
   if (/already completed/.test(message)) return { ok: false, reason: 'completed' }
-  if (/expired or locked/.test(message)) return { ok: false, reason: 'blocked' }
-  return { ok: true }
+  if (/locked/.test(message)) return { ok: false, reason: 'blocked' }
+  if (/expired/.test(message)) return { ok: false, reason: 'expired' }
+  return { ok: false, reason: 'invalid' }
 }
 
 export async function getExternalProfile(signature: string): Promise<ExternalProfile> {
   const res = await apiFetch(`/api/external/${signature}/profile`)
-  if (res.status === 401) throw new ExternalAuthError("Session expirée, veuillez vous identifier à nouveau")
+  if (res.status === 401) throw new ExternalAuthError("Session expirée, veuillez rouvrir votre lien d'accès")
   if (!res.ok) throw new Error(`Chargement du profil échoué (${res.status})`)
   return res.json()
 }

@@ -9,6 +9,8 @@ import {
   SessionCompletedError,
   type InterviewSlotsResult,
 } from '@/api/externalInterview'
+import { getExternalProfile } from '@/api/external'
+import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">{children}</div>
@@ -46,6 +48,7 @@ export default function ExternalInterview() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [busySlot, setBusySlot] = useState<string | null>(null)
   const [bookedSlot, setBookedSlot] = useState<string | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
 
   const load = () => {
     getInterviewSlots(signature)
@@ -65,6 +68,9 @@ export default function ExternalInterview() {
       return
     }
     load()
+    getExternalProfile(signature)
+      .then((profile) => setExpiresAt(profile.expiresAt))
+      .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature, navigate])
 
@@ -113,6 +119,7 @@ export default function ExternalInterview() {
       <div className="mx-auto max-w-lg">
         <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
         <h1 className="mt-1 text-[20px] font-extrabold text-gray-900">Choisissez votre créneau d'entretien</h1>
+        <ExternalExpiryNotice expiresAt={expiresAt} />
 
         {data.location && (
           <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gray-600">

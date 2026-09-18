@@ -171,6 +171,9 @@ export function toNeedsAnalysisDocument(
         administration_type: data.administrationType ?? AdministrationType.NON_RENSEIGNE,
         created_at: data.createdAt ? new Date(data.createdAt) : now,
         updated_at: now,
+        // Une AB naissante est active par dérivation (sans offre) : sa date
+        // d'activation initiale est sa date de création.
+        last_active_at: now,
     };
 }
 
@@ -276,10 +279,13 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         immersionPeriod: doc.immersion_period ?? null,
         trainingDays: doc.training_days ?? '{}',
         yousignSignatureRequestID: doc.signature_request_id ?? null,
+        signatureUrl: doc.signature_url ?? null,
+        signatureSentAt: doc.signature_sent_at ? new Date(doc.signature_sent_at).toISOString() : null,
         status: doc.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: doc.tags ?? [],
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
         updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
+        lastActiveAt: doc.last_active_at ? new Date(doc.last_active_at).toISOString() : null,
     };
 }
 
