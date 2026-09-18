@@ -108,17 +108,17 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 
 ### 3.7 Comparateur public (match)
 
-- **Étapes** : entreprise reçoit un lien `/external/authenticate?sig=…` → saisit le code 6 chiffres (envoyé au chargement) → inspect pose le cookie `disc_at` → redirection `/external/matching/:signature` → compare les profils → soumet ses réponses.
-- **Chaîne** : `POST /api/external/inspect` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/match/{candidates,cv/:candidateId,completion}`, `POST /:signature/match/answers` → `MatchAccessService` (`external_access` reference 2) + `MatchMailService`.
-- **Résultat attendu** : signature inconnue rejetée ; après auth (cookie), candidats (avec consentement `data_sharing`) + CV accessibles ; réponses persistées (déclenche le flux entretien) ; session déjà finalisée → **409** ; re-soumettre une session COMPLETED → 409 sans changement.
-- **External** : ⚠️ Gmail (code envoyé séparément au chargement + template `proposition_candidat` sans code/identifiant).
+- **Étapes** : entreprise reçoit un lien `/external/authenticate?sig=…` → ouvre le lien (lien magique sans code, expiration armée à J+7) → cookie `disc_at` posé → redirection `/external/matching/:signature` → compare les profils → soumet ses réponses.
+- **Chaîne** : `POST /api/external/:signature/authenticate` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/match/{candidates,cv/:candidateId,completion}`, `POST /:signature/match/answers` → `MatchAccessService` (`external_access` reference 2) + `MatchMailService`.
+- **Résultat attendu** : signature inconnue rejetée (404), lien expiré → **410** ; création refusée si un candidat proposé n'a pas consenti au partage (`data_sharing`) — sinon la vue entreprise serait vide ; après auth (cookie), candidats (avec consentement `data_sharing`) + CV accessibles ; réponses persistées (déclenche le flux entretien) ; session déjà finalisée → **409** ; re-soumettre une session COMPLETED → 409 sans changement.
+- **External** : ⚠️ Gmail (template `proposition_candidat` sans code/identifiant).
 - **Test vitest** : `services/__tests__/MatchAccessService.test.ts`, `rest/external/__tests__/{matchCompleted,matchConsent}.test.ts`.
 
 ### 3.8 Entretiens
 
-- **Étapes** : candidat accepté reçoit un email avec un lien `/external/authenticate?sig=…` → ouvre le lien → saisit le code 6 chiffres (envoyé au chargement) → cookie `disc_at` posé → redirection `/external/interview/:signature` → choisit un créneau → réserve.
-- **Chaîne** : `POST /api/external/inspect` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/interview/slots`, `POST /:signature/interview/book` → `ExternalInterviewService` (`external_access` reference 3 : offer = `external_id`, candidate = `reference_key`) + `InterviewMailService`. Occupation croisée agenda Google du RH (freebusy) + créneaux déjà réservés par d'autres candidats.
-- **Résultat attendu** : (1) code correct → cookie, session déjà finalisée → **"Démarche déjà finalisée"** ; créneau déjà pris marqué occupé ; réservation d'un créneau libre → historique (candidat + offre) + notif RH `interview_booked` ; créneau pris/chevauchant une période occupée → **409 race-safe sous concurrence** ; re-réservation sur session `COMPLETED` → 409.
+- **Étapes** : candidat accepté reçoit un email avec un lien `/external/authenticate?sig=…` → ouvre le lien (lien magique sans code, expiration armée à J+7) → cookie `disc_at` posé → redirection `/external/interview/:signature` → choisit un créneau → réserve.
+- **Chaîne** : `POST /api/external/:signature/authenticate` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/interview/slots`, `POST /:signature/interview/book` → `ExternalInterviewService` (`external_access` reference 3 : offer = `external_id`, candidate = `reference_key`) + `InterviewMailService`. Occupation croisée agenda Google du RH (freebusy) + créneaux déjà réservés par d'autres candidats.
+- **Résultat attendu** : (1) lien valide → cookie, session déjà finalisée → **"Démarche déjà finalisée"** ; créneau déjà pris marqué occupé ; réservation d'un créneau libre → historique (candidat + offre) + notif RH `interview_booked` ; créneau pris/chevauchant une période occupée → **409 race-safe sous concurrence** ; re-réservation sur session `COMPLETED` → 409.
 - **External** : ⚠️ Google Calendar.
 - **Test vitest** : `rest/external/__tests__/interviewFlow.test.ts`, `services/__tests__/MatchAccessService.test.ts` (déclenchement), `services/__tests__/InterviewMailService.test.ts`.
 - **Statut** : _à remplir_

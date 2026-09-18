@@ -1,7 +1,7 @@
 import { test, expect, type Route } from '@playwright/test';
 
 // 3.7 Comparateur public (match) — parcours invité, flux external_access
-// (/external/authenticate → code 6 chiffres → cookie disc_at → /external/matching/:sig).
+// (/external/authenticate → lien magique sans code → cookie disc_at → /external/matching/:sig).
 test.use({ storageState: { cookies: [], origins: [] } });
 
 function json(route: Route, body: unknown, status = 200): Promise<void> {
@@ -18,13 +18,26 @@ const CANDIDATE = {
     status: null,
 };
 
+const AUTH_OK = {
+    success: true,
+    user: { role: 'EXTERNAL_GUEST', permission: 'GUEST', referenceId: 2 },
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+};
+
 test.describe('3.7 Comparateur public @external', () => {
-    test('la page d\'authentification se charge sans session', async ({ page }) => {
-        await page.route('**/api/external/mock/authenticate', (route) =>
-            json(route, { message: 'OK signature exists' }),
+    test('lien valide (mocké) → redirection comparateur + candidats', async ({ page }) => {
+        await page.route('**/api/external/mock/authenticate', (route) => json(route, AUTH_OK));
+        await page.route('**/api/external/mock/match/candidates', (route) => json(route, [CANDIDATE]));
+        await page.route('**/api/external/mock/match/cv/*', (route) =>
+            json(route, { filename: 'CV_candidat.pdf', contentType: 'application/pdf', content: 'aGVsbG8=' }),
         );
+
         await page.goto('/external/authenticate?sig=mock');
-        await expect(page.getByText(/Un code à 6 chiffres vous a été envoyé/)).toBeVisible();
+
+        await expect(page).toHaveURL(/\/external\/matching\/mock$/);
+        await expect(page.getByText('Candidats proposés')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Candidat exemple' })).toBeVisible();
+        await expect(page.getByText(/7 jours après sa première ouverture/)).toBeVisible();
     });
 
     test('signature invalide → contenu de rejet', async ({ page }) => {
@@ -35,34 +48,17 @@ test.describe('3.7 Comparateur public @external', () => {
         await expect(page.getByText('Lien inconnu')).toBeVisible();
     });
 
-    test('code valide (mocké) → redirection comparateur + candidats', async ({ page }) => {
-        await page.route('**/api/external/mock/authenticate', (route) =>
-            json(route, { message: 'OK signature exists' }),
+    test('lien expiré → contenu de rejet avec avertissement', async ({ page }) => {
+        await page.route('**/api/external/expired-signature/authenticate', (route) =>
+            json(route, { message: 'KO signature expired' }, 410),
         );
-        await page.route('**/api/external/inspect', (route) =>
-            json(route, { user: { referenceId: 2 } }),
-        );
-        await page.route('**/api/external/mock/match/candidates', (route) => json(route, [CANDIDATE]));
-        await page.route('**/api/external/mock/match/cv/*', (route) =>
-            json(route, { filename: 'CV_candidat.pdf', contentType: 'application/pdf', content: 'aGVsbG8=' }),
-        );
-
-        await page.goto('/external/authenticate?sig=mock');
-        await page.getByPlaceholder('Code à 6 chiffres').fill('123456');
-        await page.getByRole('button', { name: 'Vérifier' }).click();
-
-        await expect(page).toHaveURL(/\/external\/matching\/mock$/);
-        await expect(page.getByText('Candidats proposés')).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Candidat exemple' })).toBeVisible();
+        await page.goto('/external/authenticate?sig=expired-signature');
+        await expect(page.getByText('Lien expiré')).toBeVisible();
+        await expect(page.getByText(/7 jours après sa première ouverture/)).toBeVisible();
     });
 
     test('réponses soumises → écran merci', async ({ page }) => {
-        await page.route('**/api/external/mock/authenticate', (route) =>
-            json(route, { message: 'OK signature exists' }),
-        );
-        await page.route('**/api/external/inspect', (route) =>
-            json(route, { user: { referenceId: 2 } }),
-        );
+        await page.route('**/api/external/mock/authenticate', (route) => json(route, AUTH_OK));
         await page.route('**/api/external/mock/match/candidates', (route) => json(route, [CANDIDATE]));
         await page.route('**/api/external/mock/match/cv/*', (route) =>
             json(route, { filename: 'CV_candidat.pdf', contentType: 'application/pdf', content: 'aGVsbG8=' }),
@@ -72,8 +68,7 @@ test.describe('3.7 Comparateur public @external', () => {
         );
 
         await page.goto('/external/authenticate?sig=mock');
-        await page.getByPlaceholder('Code à 6 chiffres').fill('123456');
-        await page.getByRole('button', { name: 'Vérifier' }).click();
+        await expect(page).toHaveURL(/\/external\/matching\/mock$/);
 
         await page.getByRole('button', { name: 'Accepter' }).click();
         await page.getByRole('button', { name: 'Valider mes réponses' }).click();

@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { ExternalGuestRequest } from './guard';
 import { MatchAccessService, AnswerInput, SessionAlreadyCompletedError } from '../../services/MatchAccessService';
-import { MatchMailService } from '../../services/MatchMailService';
 import { CandidateService } from '../../services/CandidateService';
 import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
 import { UserService } from '../../services/UserService';
@@ -14,7 +13,6 @@ import { GeocodageService } from '../../external/insee/geocodage.service';
 import { assertConsent, hasConsent, ConsentType } from '../../services/consentGuard';
 
 const matchAccessService = new MatchAccessService();
-const matchMailService = new MatchMailService();
 const candidateService = new CandidateService();
 const candidateRepository = new CandidateRepository();
 const userService = new UserService();
@@ -136,27 +134,6 @@ export async function getCompletion(req: Request, res: Response): Promise<void> 
     } catch (error: any) {
         logger.error({ err: error }, 'Match: échec autocomplétion adresse');
         res.json({ status: 'KO', results: [] });
-    }
-}
-
-/** Notification RH quand une session de matching passe LOCKED (3 mauvais codes). */
-export async function notifyLockedMatch(signature: string): Promise<void> {
-    const context = await matchAccessService.getContext(signature);
-    if (!context || context.referenceId !== 2) return;
-    if (context.rhEmail && context.companyEmail) {
-        await matchMailService.sendLockAlert(context.rhEmail, context.companyEmail);
-    }
-    const rh = context.rhEmail ? await userService.findByEmail(context.rhEmail) : null;
-    if (rh) {
-        await notificationService.create({
-            userId: rh.id,
-            type: 'match_locked',
-            category: 'company',
-            level: 'warning',
-            title: 'Session entreprise bloquée',
-            message: `${context.companyEmail ?? 'L’entreprise'} a échoué 3 fois. Créez une nouvelle session.`,
-            link: `/rh/matching?offer=${context.offerUuid}`,
-        });
     }
 }
 

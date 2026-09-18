@@ -20,36 +20,6 @@ export interface UserRowJoined extends UserRow {
     permission_name?: string;
 }
 
-export interface MatchLinkRow {
-    signature: string;
-    code: string;
-    identifier: string;
-    rh_email: string;
-    company_email: string;
-    offer_uuid: string;
-    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
-    attempts: number;
-    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
-    expires_at: string | Date;
-    created_at?: string | Date;
-    updated_at?: string | Date;
-}
-
-export interface ExternalLinkRow {
-    id: number;
-    signature: string;
-    code: string;
-    external_email: string;
-    rh_email: string;
-    guest_type: 'COMPANY' | 'CANDIDATE';
-    external_uuid: string;
-    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
-    attempts: number;
-    expires_at: string | Date;
-    created_at?: string | Date;
-    updated_at?: string | Date;
-}
-
 export interface CompaniesRow {
     id: number;
     ab_id: string | null;
