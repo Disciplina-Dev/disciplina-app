@@ -202,6 +202,24 @@ function SwatchPanel({
   )
 }
 
+function ColorWheelInput({ onPick, onClose }: { onPick: (value: string) => void; onClose: () => void }) {
+  return (
+    <label
+      title="Autre couleur..."
+      className="h-5 w-5 cursor-pointer overflow-hidden rounded-full border-0 p-0 ring-1 ring-inset ring-black/10"
+      style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }}
+    >
+      <input
+        type="color"
+        className="h-full w-full cursor-pointer opacity-0"
+        onInput={(e) => onPick((e.target as HTMLInputElement).value)}
+        onChange={(e) => onPick(e.target.value)}
+        onBlur={onClose}
+      />
+    </label>
+  )
+}
+
 function ToolbarButton({
   onClick, active, title, children,
 }: {
@@ -369,18 +387,10 @@ export default function RichTextEditor({
               onPick={(v) => { editor.chain().focus().setColor(v).run(); setColorPanelOpen(false) }}
               onReset={() => { editor.chain().focus().unsetColor().run(); setColorPanelOpen(false) }}
               extra={
-                <label
-                  title="Autre couleur..."
-                  className="h-5 w-5 cursor-pointer overflow-hidden rounded-full border-0 p-0 ring-1 ring-inset ring-black/10"
-                  style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }}
-                >
-                  <input
-                    type="color"
-                    className="h-full w-full cursor-pointer opacity-0"
-                    onInput={(e) => editor.chain().focus().setColor((e.target as HTMLInputElement).value).run()}
-                    onBlur={() => setColorPanelOpen(false)}
-                  />
-                </label>
+                <ColorWheelInput
+                  onPick={(v) => editor.chain().focus().setColor(v).run()}
+                  onClose={() => setColorPanelOpen(false)}
+                />
               }
             />
           )}
@@ -427,6 +437,12 @@ export default function RichTextEditor({
               swatches={HIGHLIGHT_SWATCHES}
               onPick={(v) => { editor.chain().focus().setHighlightColor(v).run(); setHighlightPanelOpen(false) }}
               onReset={() => { editor.chain().focus().unsetHighlightColor().run(); setHighlightPanelOpen(false) }}
+              extra={
+                <ColorWheelInput
+                  onPick={(v) => editor.chain().focus().setHighlightColor(v).run()}
+                  onClose={() => setHighlightPanelOpen(false)}
+                />
+              }
             />
           )}
         </div>
