@@ -65,14 +65,42 @@ export async function createApp(): Promise<express.Express> {
     // laisserait n'importe qui forger son IP et contourner les rate limits.
     if (isProduction) app.set('trust proxy', 1);
 
+    // Les endpoints OAuth MCP sont à la racine de l'issuer et affichent la
+    // page de consentement (GET /authorize) dont le formulaire POSTe sur
+    // /authorize : le `form-action 'self'` du CSP Helmet par défaut bloque
+    // la soumission quand l'origine est opaque (iframe sandbox claude.ai,
+    // Origin: null — 'self' ne matche pas) ou redirigée vers le client.
+    // On leur donne donc leur propre CSP : mêmes défauts Helmet, seule
+    // `form-action` est élargie à l'issuer explicite + origines clientes.
+    const mcpOAuthRootPaths = new Set(['/authorize', '/token', '/register', '/revoke']);
+    const isMcpOAuthPath = (path: string): boolean =>
+        mcpOAuthRootPaths.has(path) || path.startsWith('/.well-known/oauth');
+    const mcpOAuthHelmet = helmet({
+        contentSecurityPolicy: isProduction
+            ? {
+                  directives: {
+                      'form-action': [
+                          "'self'",
+                          'https://app-reunion.disciplina.re/',
+                          'https://claude.ai/',
+                          'https://*.claude.ai',
+                      ],
+                  },
+              }
+            : false,
+        hsts: isProduction ? undefined : false,
+    });
+
     // CSP coupée hors production (elle casse la sandbox Apollo), HSTS aussi
     // (le navigateur mémorise l'en-tête et force ensuite https://localhost).
-    app.use(
-        helmet({
-            contentSecurityPolicy: isProduction ? undefined : false,
-            hsts: isProduction ? undefined : false,
-        }),
-    );
+    const defaultHelmet = helmet({
+        contentSecurityPolicy: isProduction ? undefined : false,
+        hsts: isProduction ? undefined : false,
+    });
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        if (isMcpOAuthPath(req.path)) return mcpOAuthHelmet(req, res, next);
+        return defaultHelmet(req, res, next);
+    });
 
     app.use(httpLogger);
 
@@ -90,10 +118,8 @@ export async function createApp(): Promise<express.Express> {
     // claude.ai web depuis une iframe sandbox (Origin: null) : le contrôle
     // d'origine CORS y est inapplicable et bloquerait le POST /authorize (500).
     // Le consentement reste protégé par MCP_API_KEY centrée sur le serveur.
-    const mcpOAuthRootPaths = new Set(['/authorize', '/token', '/register', '/revoke']);
     app.use((req: Request, res: Response, next: NextFunction) => {
-        const path = req.path;
-        if (mcpOAuthRootPaths.has(path) || path.startsWith('/.well-known/oauth')) {
+        if (isMcpOAuthPath(req.path)) {
             return next();
         }
         return corsMiddleware(req, res, next);
