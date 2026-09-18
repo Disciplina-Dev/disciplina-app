@@ -9,7 +9,7 @@ import {
     SystemTemplateError,
 } from '../../services/MailTemplateService';
 import { CommercialSignatureService } from '../../services/CommercialSignatureService';
-import { MailTemplateScope, PedaLevel, isPedaLevel } from '../../types/mailTemplate.types';
+import { MailTemplateScope, PedaLevel, isPedaLevel, MailThemeId, isMailThemeId } from '../../types/mailTemplate.types';
 
 const service = new MailTemplateService();
 const commercialSignatureService = new CommercialSignatureService();
@@ -24,6 +24,12 @@ function parseScope(raw: unknown): MailTemplateScope {
 function parsePedaLevel(raw: unknown): PedaLevel | null | undefined {
     if (raw === undefined || raw === null || raw === '') return null;
     return isPedaLevel(raw) ? raw : undefined; // undefined = valeur invalide
+}
+
+/** `theme` absent/vide ⇒ null (thème classique, pas d'enveloppe). */
+function parseTheme(raw: unknown): MailThemeId | null | undefined {
+    if (raw === undefined || raw === null || raw === '') return null;
+    return isMailThemeId(raw) ? raw : undefined; // undefined = valeur invalide
 }
 
 function handleError(err: unknown, res: Response): void {
@@ -58,7 +64,7 @@ export async function listTemplates(req: AuthRequest, res: Response): Promise<vo
 }
 
 export async function createTemplate(req: AuthRequest, res: Response): Promise<void> {
-    const { name, subject, body, pedaLevel } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, subject, body, pedaLevel, theme } = (req.body ?? {}) as Record<string, unknown>;
     if (!String(name ?? '').trim() || !String(subject ?? '').trim() || !String(body ?? '').trim()) {
         res.status(400).json({ error: 'name, subject et body sont requis' });
         return;
@@ -66,6 +72,11 @@ export async function createTemplate(req: AuthRequest, res: Response): Promise<v
     const level = parsePedaLevel(pedaLevel);
     if (level === undefined) {
         res.status(400).json({ error: 'pedaLevel invalide' });
+        return;
+    }
+    const parsedTheme = parseTheme(theme);
+    if (parsedTheme === undefined) {
+        res.status(400).json({ error: 'theme invalide' });
         return;
     }
     try {
@@ -74,6 +85,7 @@ export async function createTemplate(req: AuthRequest, res: Response): Promise<v
             subject: String(subject),
             body: String(body),
             pedaLevel: level,
+            theme: parsedTheme,
         });
         res.status(201).json({ template });
     } catch (err) {
@@ -82,7 +94,7 @@ export async function createTemplate(req: AuthRequest, res: Response): Promise<v
 }
 
 export async function updateTemplate(req: AuthRequest, res: Response): Promise<void> {
-    const { name, subject, body, pedaLevel } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, subject, body, pedaLevel, theme } = (req.body ?? {}) as Record<string, unknown>;
     if (!String(name ?? '').trim() || !String(subject ?? '').trim() || !String(body ?? '').trim()) {
         res.status(400).json({ error: 'name, subject et body sont requis' });
         return;
@@ -92,12 +104,18 @@ export async function updateTemplate(req: AuthRequest, res: Response): Promise<v
         res.status(400).json({ error: 'pedaLevel invalide' });
         return;
     }
+    const parsedTheme = parseTheme(theme);
+    if (parsedTheme === undefined) {
+        res.status(400).json({ error: 'theme invalide' });
+        return;
+    }
     try {
         const template = await service.update(Number(req.user.id), req.params.id, {
             name: String(name),
             subject: String(subject),
             body: String(body),
             pedaLevel: level,
+            theme: parsedTheme,
         });
         res.json({ template });
     } catch (err) {

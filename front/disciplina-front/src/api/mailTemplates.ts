@@ -21,12 +21,25 @@ export const PEDA_LEVEL_HINTS: Record<PedaLevel, string> = {
   nivPlus: 'absences 8, 9 et 10',
 }
 
+/** Thème visuel (cadre + fond pastel) appliqué au mail à l'envoi. */
+export type MailThemeId = 'classique' | 'bleu' | 'chaleureux' | 'nature' | 'elegant'
+
+/** Miroir de back/src/services/mailTheme.ts — mêmes couleurs, pour l'aperçu du sélecteur. */
+export const MAIL_THEMES: { id: MailThemeId; label: string; frameColor: string | null; contentBg: string }[] = [
+  { id: 'classique', label: 'Classique', frameColor: null, contentBg: '#ffffff' },
+  { id: 'bleu', label: 'Bleu Disciplina', frameColor: '#1130A7', contentBg: '#E8EBFA' },
+  { id: 'chaleureux', label: 'Chaleureux', frameColor: '#A65C00', contentBg: '#FEF3E2' },
+  { id: 'nature', label: 'Nature', frameColor: '#1A7A4A', contentBg: '#E6F4ED' },
+  { id: 'elegant', label: 'Élégant', frameColor: '#60207E', contentBg: '#F0E6F6' },
+]
+
 /** Données éditables d'un modèle (pedaLevel ignoré hors scope peda). */
 export interface MailTemplateInput {
   name: string
   subject: string
   body: string
   pedaLevel?: PedaLevel | null
+  theme?: MailThemeId | null
 }
 
 /** Métadonnées de PJ renvoyées par l'API (le contenu reste sur Drive). */
@@ -51,6 +64,7 @@ export interface MailTemplate {
   body: string
   pedaLevel: PedaLevel | null
   kind: MailTemplateKind | null
+  theme: MailThemeId | null
   attachment: MailTemplateAttachmentMeta | null
 }
 

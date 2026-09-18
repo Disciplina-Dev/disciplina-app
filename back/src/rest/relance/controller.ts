@@ -18,6 +18,7 @@ import { BulkRelanceService } from '../../services/BulkRelanceService';
 import { ExternalLinkService } from '../../services/ExternalLinkService';
 import { renderTemplate, usesVariable } from '../../services/renderTemplate';
 import { sanitizeMailHtml } from '../../services/sanitizeMailHtml';
+import { wrapWithTheme } from '../../services/mailTheme';
 
 const mailTemplateService = new MailTemplateService();
 const bulkRelanceService = new BulkRelanceService();
@@ -333,7 +334,7 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
                 {
                     to: candidate.identity.email!,
                     subject: resolvedSubject,
-                    html: `${resolvedBody}${signatureHtml}`,
+                    html: `${wrapWithTheme(resolvedBody, template.theme)}${signatureHtml}`,
                     text: htmlToText(resolvedBody),
                     listUnsubscribe,
                     attachments,

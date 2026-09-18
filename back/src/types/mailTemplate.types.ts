@@ -20,8 +20,23 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
  * `proposition_candidat` = mail d'invitation à la sélection de candidats (scope rh).
  * `interview_invitation`  = mail d'invitation à la réservation d'un créneau d'entretien (scope rh).
  */
-export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'ab_relance', 'proposition_candidat', 'external_access', 'external_link', 'interview_invitation'] as const;
+export const MAIL_TEMPLATE_KINDS = [
+    'ab_signature',
+    'ab_relance',
+    'proposition_candidat',
+    'external_access',
+    'external_link',
+    'interview_invitation',
+] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
+
+/** Thème visuel (cadre + fond pastel) appliqué au mail à l'envoi — cf. services/mailTheme.ts. */
+export const MAIL_THEME_IDS = ['classique', 'bleu', 'chaleureux', 'nature', 'elegant'] as const;
+export type MailThemeId = (typeof MAIL_THEME_IDS)[number];
+
+export function isMailThemeId(value: unknown): value is MailThemeId {
+    return typeof value === 'string' && (MAIL_THEME_IDS as readonly string[]).includes(value);
+}
 
 /** Libellés affichés (front + logs). */
 export const PEDA_LEVEL_LABELS: Record<PedaLevel, string> = {
@@ -49,6 +64,8 @@ export interface MailTemplate {
     peda_level: PedaLevel | null;
     /** Modèle système (ex. `ab_signature`) ; null pour les modèles créés par l'utilisateur. */
     kind: MailTemplateKind | null;
+    /** Cadre + fond appliqués à l'envoi ; null = classique (pas d'enveloppe). */
+    theme: MailThemeId | null;
     attachment: MailTemplateAttachment | null;
     created_at: Date;
     updated_at: Date;

@@ -7,6 +7,7 @@ import {
     MailTemplateAttachment,
     PedaLevel,
     MailTemplateKind,
+    MailThemeId,
 } from '../types/mailTemplate.types';
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
@@ -85,6 +86,8 @@ export interface MailTemplateDTO {
     pedaLevel: PedaLevel | null;
     /** Modèle système non supprimable (ex. `ab_signature`) ; null pour les modèles utilisateur. */
     kind: MailTemplateKind | null;
+    /** Cadre + fond appliqués à l'envoi ; null = classique (pas d'enveloppe). */
+    theme: MailThemeId | null;
     attachment: { filename: string; contentType: string } | null;
 }
 
@@ -94,6 +97,7 @@ export interface MailTemplateInput {
     subject: string;
     body: string;
     pedaLevel?: PedaLevel | null;
+    theme?: MailThemeId | null;
 }
 
 function toDTO(t: MailTemplate): MailTemplateDTO {
@@ -104,6 +108,7 @@ function toDTO(t: MailTemplate): MailTemplateDTO {
         body: t.body,
         pedaLevel: t.peda_level ?? null,
         kind: t.kind ?? null,
+        theme: t.theme ?? null,
         attachment: t.attachment ? { filename: t.attachment.filename, contentType: t.attachment.contentType } : null,
     };
 }
@@ -199,6 +204,7 @@ export class MailTemplateService {
             subject: data.subject,
             body: sanitizeMailHtml(data.body),
             peda_level: pedaLevel,
+            theme: data.theme ?? null,
             attachment: null,
             created_at: now,
             updated_at: now,
@@ -220,6 +226,7 @@ export class MailTemplateService {
                         subject: data.subject,
                         body: sanitizeMailHtml(data.body),
                         peda_level: pedaLevel,
+                        theme: data.theme ?? null,
                         updated_at: new Date(),
                     },
                 },

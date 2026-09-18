@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, X, Mail, Paperclip, Loader2, Save } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Mail, Paperclip, Loader2, Save, Eye, EyeOff } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
-import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel } from '@/api/mailTemplates'
+import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel, MAIL_THEMES, type MailThemeId } from '@/api/mailTemplates'
 import { cleanHtml } from '@/services/sanitizeHtml'
 
 const inputClass =
@@ -15,6 +15,8 @@ interface FormState {
   body: string
   // Niveau de relance (scope peda uniquement) ; '' = non rattaché.
   pedaLevel: PedaLevel | ''
+  // Cadre + fond appliqués à l'envoi ; 'classique' = pas d'enveloppe.
+  theme: MailThemeId
   // PJ déjà stockée sur Drive (métadonnées) ; null si aucune ou supprimée.
   existingAttachment: { filename: string; contentType: string } | null
   // Nouveau fichier à uploader (remplace l'existant) ; null sinon.
@@ -22,7 +24,7 @@ interface FormState {
   removeExisting: boolean
 }
 
-const EMPTY_FORM: FormState = { name: '', subject: '', body: '', pedaLevel: '', existingAttachment: null, newFile: null, removeExisting: false }
+const EMPTY_FORM: FormState = { name: '', subject: '', body: '', pedaLevel: '', theme: 'classique', existingAttachment: null, newFile: null, removeExisting: false }
 
 // Le fichier est zippé côté serveur puis stocké sur Drive — on tolère des PJ plus lourdes que l'ancien localStorage.
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -94,6 +96,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
   // Le modèle système « AB à signer » a ses propres variables.
   const editingKind = editing && editing !== 'new' ? editing.kind : null
   const templateVars =
@@ -124,10 +127,12 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   }
 
   function openEdit(t: MailTemplate) {
-    setForm({ name: t.name, subject: t.subject, body: t.body, pedaLevel: t.pedaLevel ?? '', existingAttachment: t.attachment, newFile: null, removeExisting: false })
+    setForm({ name: t.name, subject: t.subject, body: t.body, pedaLevel: t.pedaLevel ?? '', theme: t.theme ?? 'classique', existingAttachment: t.attachment, newFile: null, removeExisting: false })
     setEditing(t)
     setError(null)
   }
+
+  const activeTheme = MAIL_THEMES.find((theme) => theme.id === form.theme)
 
   const assignedLevels = new Set(templates.map((t) => t.pedaLevel).filter(Boolean) as PedaLevel[])
   const missingLevels = PEDA_LEVELS.filter((l) => !assignedLevels.has(l))
@@ -156,6 +161,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   function closeForm() {
     setEditing(null)
     setError(null)
+    setPreviewOpen(false)
   }
 
   async function handleSave() {
@@ -171,6 +177,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         subject: form.subject,
         body: form.body,
         pedaLevel: scope === 'peda' ? (form.pedaLevel || null) : null,
+        theme: form.theme,
       }
       if (editing === 'new') {
         await add(data, form.newFile)
@@ -225,9 +232,23 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
               <h3 className="text-sm font-semibold text-gray-800">
                 {editing === 'new' ? 'Nouveau modèle' : `Modifier · ${(editing as MailTemplate).name}`}
               </h3>
-              <button onClick={closeForm} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen((o) => !o)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    previewOpen
+                      ? 'border-purple bg-purple/5 text-purple'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {previewOpen ? <EyeOff size={13} /> : <Eye size={13} />}
+                  Aperçu du mail
+                </button>
+                <button onClick={closeForm} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -239,6 +260,37 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                 placeholder="Ex : Confirmation entretien DISCIPLINA"
                 className={inputClass}
               />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Thème visuel</label>
+              <div className="flex flex-wrap gap-2">
+                {MAIL_THEMES.map((theme) => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, theme: theme.id }))}
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      form.theme === theme.id
+                        ? 'border-purple bg-purple/5 text-purple'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <span
+                      className="h-4 w-4 shrink-0 rounded-full border border-black/10"
+                      style={{
+                        background: theme.frameColor
+                          ? `linear-gradient(135deg, ${theme.frameColor} 50%, ${theme.contentBg} 50%)`
+                          : theme.contentBg,
+                      }}
+                    />
+                    {theme.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400">
+                Cadre coloré et fond appliqués au mail à l’envoi. « Classique » n’ajoute aucune enveloppe.
+              </p>
             </div>
 
             {scope === 'peda' && (
@@ -277,12 +329,28 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">Corps du mail</label>
-              <RichTextEditor
-                value={form.body}
-                onChange={(html) => setForm((f) => ({ ...f, body: html }))}
-                placeholder="Rédigez votre modèle ici..."
-                minHeight="280px"
-              />
+              <div
+                className="transition-colors"
+                style={{
+                  backgroundColor: activeTheme?.frameColor ?? 'transparent',
+                  padding: activeTheme?.frameColor ? 24 : 0,
+                }}
+              >
+                <div
+                  className="rounded-lg transition-colors"
+                  style={{
+                    backgroundColor: activeTheme?.frameColor ? activeTheme.contentBg : 'transparent',
+                    padding: activeTheme?.frameColor ? 24 : 0,
+                  }}
+                >
+                  <RichTextEditor
+                    value={form.body}
+                    onChange={(html) => setForm((f) => ({ ...f, body: html }))}
+                    placeholder="Rédigez votre modèle ici..."
+                    minHeight="280px"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Variables disponibles */}
@@ -431,6 +499,43 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
           </div>
         )}
       </section>
+
+      {editing && previewOpen && (
+        <div
+          className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col border-l border-gray-100 bg-white shadow-2xl"
+          role="dialog"
+          aria-label="Aperçu du mail"
+        >
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+            <p className="text-sm font-semibold text-gray-800">Aperçu du mail</p>
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <p className="mb-3 truncate text-sm text-gray-500">
+              <span className="font-medium text-gray-700">Objet :</span> {form.subject || '(sans objet)'}
+            </p>
+            <div style={{ backgroundColor: activeTheme?.frameColor ?? 'transparent', padding: activeTheme?.frameColor ? 24 : 0 }}>
+              <div
+                className="rounded-lg text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+                style={{
+                  backgroundColor: activeTheme?.frameColor ? activeTheme.contentBg : '#ffffff',
+                  padding: activeTheme?.frameColor ? 24 : 0,
+                  borderRadius: activeTheme?.frameColor ? 8 : 0,
+                }}
+                dangerouslySetInnerHTML={{
+                  __html: cleanHtml(form.body || '<p class="text-gray-400">Le corps du mail apparaîtra ici…</p>'),
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
