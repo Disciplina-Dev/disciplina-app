@@ -86,11 +86,10 @@ const FontSize = Extension.create({
   },
 })
 
-const FONT_SIZES = [
-  { label: 'Petit', value: '12px' },
-  { label: 'Normal', value: null },
-  { label: 'Grand', value: '18px' },
-  { label: 'Très grand', value: '24px' },
+const FONT_SIZE_VALUES_PX = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
+const FONT_SIZES: { label: string; value: string | null }[] = [
+  { label: 'Normal (défaut)', value: null },
+  ...FONT_SIZE_VALUES_PX.map((px) => ({ label: String(px), value: `${px}px` })),
 ]
 
 const COLOR_SWATCHES = [
@@ -355,7 +354,7 @@ export default function RichTextEditor({
             <ALargeSmall size={14} />
           </ToolbarButton>
           {sizePanelOpen && (
-            <div className="absolute left-0 top-full z-10 mt-1 flex flex-col gap-0.5 rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
+            <div className="absolute left-0 top-full z-10 mt-1 flex max-h-64 flex-col gap-0.5 overflow-y-auto rounded-md border border-gray-100 bg-white p-1.5 shadow-md">
               {FONT_SIZES.map(({ label, value }) => (
                 <button
                   key={label}
