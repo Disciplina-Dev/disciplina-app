@@ -108,3 +108,9 @@ updates:
 - Front `npm audit` : 57 → **50**. Corrigés : `dompurify` → 3.4.15, override `brace-expansion@^5` → `^5.0.9`, `browserslist`/`js-yaml`/`baseline-browser-mapping`/`humanfs`/`nanoid` (via `npm audit fix`). Restent : viewer/`pdfjs` (L), Tiptap (L), `react-router` (M). `npm run build` OK ; `npm run lint` rouge **pré-existant** (77 erreurs `no-explicit-any`, setState-in-effect… — code + config inchangés par ce fix, CI ne le lance pas).
 - Back `npm test` non lancé : `sql-db` ne démarre pas (port hôte 3306 déjà occupé, conflit pré-existant).
 - Fichiers touchés : `back/package-lock.json`, `front/disciplina-front/package.json` (override), `front/disciplina-front/package-lock.json`.
+
+## 7. Chantier M — alignement react-router (2026-09-21)
+
+- `react-router ^8.3.0` → `^7.18.4`, `react-router-dom ^7.11.0` → `^7.18.4`, overrides `react-router`/`react-router-dom` supprimés (seul `brace-expansion` reste).
+- `npm ls` : `react-router-dom@7.18.4` → `react-router@7.18.4 deduped`, copie unique. Aucun import direct de `react-router` dans `src/` (46 imports tous via `react-router-dom`) → aucun changement de code.
+- `npm run build` OK. Audit inchangé (50, le mismatch n'était pas une CVE). E2E Playwright restant à lancer (stack complète requise).
