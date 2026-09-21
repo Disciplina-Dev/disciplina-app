@@ -128,3 +128,11 @@ updates:
 - Conflit peer (`@tiptap/*@3` exigent `@tiptap/pm@3.31.3` exact) résolu par `uninstall` complet du set v2 puis install v3 : `@tiptap/react`, `starter-kit`, `extension-underline`, `extension-text-align`, `extension-link`, `extensions` (nouveau), `pm` → **3.31.3**, arbre unique dédupliqué. `@tiptap/extension-placeholder` supprimé (remplacé par `{ Placeholder } from '@tiptap/extensions'`).
 - `src/components/rh/../ui/RichTextEditor.tsx` (seul usage, 1 fichier) : import Placeholder migré + `setContent(value, false)` → `setContent(value, { emitUpdate: false })` (signature v3 `(content, options)`, émission d'updates par défaut — comportement anti-boucle conservé).
 - `npm run build` OK, eslint : 1 warning pré-existant (`exhaustive-deps` sur le `useEffect` de sync, inchangé). **`npm audit` front : 28 → 0**. Contrôle visuel éditeur restant (aucune spec e2e).
+
+## 10. Front 100 % — minors + majors (2026-09-21)
+
+- Vague 1 (core) : `react`/`react-dom` 19.2.8→19.3.0 (+ `@types`), `@vitejs/plugin-react` 6.0.1→6.1.1, `zustand` 5.0.12→5.0.15, `@tanstack/react-query` 5.96.1→5.103.2, `urql` 5.0.2→5.0.4.
+- Vague 2 (UI/data) : `@radix-ui/react-dialog`→1.1.23, `react-hook-form`→7.88.0, `recharts`→3.10.1, `date-fns`→4.4.0, `@sentry/react`→10.75.0, `tailwindcss`+`@tailwindcss/vite`→4.3.3, `autoprefixer`→10.6.1. `lucide-react` 1.7.0→1.47.0 vérifié : les ~110 icônes utilisés existent tous en 1.47. `qrcode.react` déjà au latest (4.2.0, rien à faire).
+- Vague 3 (outillage) : `@playwright/test`→1.63.0, `@rolldown/plugin-babel`→0.2.4, `eslint-plugin-react-hooks`→7.1.1 (+0.5.7 refresh), `globals`→17.12.0, `@types/node` 24.12.0→26.6.2, `eslint` 9.39.5→10.11.0 (`@eslint/js`→10.0.1, flat config déjà en place), `@babel/core` 7.29.7→8.0.6 (peer OK avec `@rolldown/plugin-babel`), `typescript` 5.9.3→7.0.2 (+ fix `tsconfig.app.json` : `baseUrl` supprimé, `"@/*": ["./src/*"]` relativisé — TS 7 l'exige).
+- Effet de bord : `eslint-plugin-react-hooks` 7.1 ajoute la règle `setState-in-effect` → ~+29 erreurs sur du code pré-existant (lint déjà rouge, CI ne le lance pas ; à traiter hors scope).
+- État final front : `npm outdated` **vide**, `npm audit` **0**, `npm run build` **EXIT:0**.
