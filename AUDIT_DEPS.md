@@ -100,3 +100,11 @@ updates:
 
 - Activer aussi **Dependabot Security Updates** (alertes → PR auto) : couvre les P1-S (`multer`, `mysql2`, `dompurify`) sans attendre le passage hebdo.
 - Alternative : Renovate si besoin de règles plus fines (range `pdfjs`, auto-merge patchs CI verte).
+
+## 6. Correctifs S appliqués (2026-09-21)
+
+- Back `npm audit` : 11 → **3** (restent uniquement `vitest`/`@vitest/*`, fix = major 5, dev-only, hors scope S). Corrigés : `multer` → 2.4.0, `express` → 4.22.3, `qs` → 6.16.0 (dedupe), `mysql2` → 3.24.x, `fast-uri`/`hono`/`nanoid` (patchés via updates), OTel, `oxlint`, `express-rate-limit`. `npm run lint` OK, `npm run build` OK.
+- ⚠️ `npm update googleapis-common` (8.0.1 → 8.0.3) cassait `tsc` (double `google-auth-library` 10.5.0 niché) → **revert** à 8.0.1 (`--no-save`), build OK. Ne plus updater ce transitif isolément.
+- Front `npm audit` : 57 → **50**. Corrigés : `dompurify` → 3.4.15, override `brace-expansion@^5` → `^5.0.9`, `browserslist`/`js-yaml`/`baseline-browser-mapping`/`humanfs`/`nanoid` (via `npm audit fix`). Restent : viewer/`pdfjs` (L), Tiptap (L), `react-router` (M). `npm run build` OK ; `npm run lint` rouge **pré-existant** (77 erreurs `no-explicit-any`, setState-in-effect… — code + config inchangés par ce fix, CI ne le lance pas).
+- Back `npm test` non lancé : `sql-db` ne démarre pas (port hôte 3306 déjà occupé, conflit pré-existant).
+- Fichiers touchés : `back/package-lock.json`, `front/disciplina-front/package.json` (override), `front/disciplina-front/package-lock.json`.
