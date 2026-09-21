@@ -122,3 +122,9 @@ updates:
 - `src/components/rh/PdfViewer.tsx` réécrit : `<Document>/<Page>` canvas (propriété anti-iframe/JWT conservée), `options={{ cMapUrl, standardFontDataUrl, isEvalSupported: false }}`, toolbar maison (pages, zoom 50–300 %, plein écran, téléchargement) — recherche plein texte abandonnée (validé). Seul consommateur : `FicheCandidat.tsx:1826` (inchangé).
 - `vite.config.ts` : `vite-plugin-static-copy@^4.1.1` (dev) copie `cmaps/` (169) + `standard_fonts/` (16) dans `dist/` — aucun CDN externe, prod offline OK. Worker bundlé `dist/assets/pdf.worker.min-*.mjs`, smoke `vite preview` : `200` sur index, cmaps, fonts.
 - `npm run build` OK, `eslint` propre sur les 2 fichiers, `npm audit` : 50 → **28** (0 high, 0 critical ; reste Tiptap L + minors). E2E : aucune spec ne couvre le preview (17 specs existantes, à brancher cf. BACKLOG OPS-1/FE-7) — contrôle visuel manuel restant (Fiche candidat → aperçu CV).
+
+## 9. Chantier L — Tiptap 2→3 (2026-09-21)
+
+- Conflit peer (`@tiptap/*@3` exigent `@tiptap/pm@3.31.3` exact) résolu par `uninstall` complet du set v2 puis install v3 : `@tiptap/react`, `starter-kit`, `extension-underline`, `extension-text-align`, `extension-link`, `extensions` (nouveau), `pm` → **3.31.3**, arbre unique dédupliqué. `@tiptap/extension-placeholder` supprimé (remplacé par `{ Placeholder } from '@tiptap/extensions'`).
+- `src/components/rh/../ui/RichTextEditor.tsx` (seul usage, 1 fichier) : import Placeholder migré + `setContent(value, false)` → `setContent(value, { emitUpdate: false })` (signature v3 `(content, options)`, émission d'updates par défaut — comportement anti-boucle conservé).
+- `npm run build` OK, eslint : 1 warning pré-existant (`exhaustive-deps` sur le `useEffect` de sync, inchangé). **`npm audit` front : 28 → 0**. Contrôle visuel éditeur restant (aucune spec e2e).
