@@ -136,3 +136,28 @@ updates:
 - Vague 3 (outillage) : `@playwright/test`→1.63.0, `@rolldown/plugin-babel`→0.2.4, `eslint-plugin-react-hooks`→7.1.1 (+0.5.7 refresh), `globals`→17.12.0, `@types/node` 24.12.0→26.6.2, `eslint` 9.39.5→10.11.0 (`@eslint/js`→10.0.1, flat config déjà en place), `@babel/core` 7.29.7→8.0.6 (peer OK avec `@rolldown/plugin-babel`), `typescript` 5.9.3→7.0.2 (+ fix `tsconfig.app.json` : `baseUrl` supprimé, `"@/*": ["./src/*"]` relativisé — TS 7 l'exige).
 - Effet de bord : `eslint-plugin-react-hooks` 7.1 ajoute la règle `setState-in-effect` → ~+29 erreurs sur du code pré-existant (lint déjà rouge, CI ne le lance pas ; à traiter hors scope).
 - État final front : `npm outdated` **vide**, `npm audit` **0**, `npm run build` **EXIT:0**.
+
+## 11. Back — vitest 5 + googleapis 181 (2026-09-21)
+
+- `vitest` 3.2.7→5.0.1 + `@vitest/coverage-v8`→5.0.1 (exige `@types/node ^22||>=24` → `@types/node` 20→22). Conflit peer résolu en montant les deux ensemble. **`npm audit` back : 3 → 0**.
+- Config : Vitest ≥4 a supprimé `test.poolOptions` (warning `DEPRECATED`, option silencieusement ignorée → fichiers en parallèle → `EADDRINUSE :4000` + deadlocks). Migré vers `fileParallelism: false` dans `back/vitest.config.ts` (comportement séquentiel conservé, tests partagent l'état DB).
+- `googleapis` 171.4.0→181.0.0 : **fix durable** du double `google-auth-library` (8.0.3 nichait 10.5.0 vs 10.6.2 top-level → 9 erreurs TS). En 181, arbre unique (`googleapis-common@9.1.0` + `google-auth-library@11.1.0` dédupliqué). `npm run build` EXIT:0, aucune adaptation de code requise dans `src/external/google/`.
+- Tests : DBs via `docker-compose.test.yml` (`test-sql-db :3307`, `test-nosql-db :27018`) + env de la section `test-backend` adaptés à l'hôte (`MYSQL_HOST=localhost`, `MONGO_HOST=localhost`, creds `test-*`, `-u MONGO_URI -u MYSQL_URI` pour neutraliser le `.env` racine qui pointe prod Atlas/TiDB, `MCP_OAUTH_ISSUER_URL=http://localhost:4000` car `back/.env` local pointe ngrok). **427/427 verts** (66 fichiers + `oauth.test.ts` re-vérifié isolément : l'unique échec initial était le leak ngrok, pas une régression).
+- `npm run lint` (oxlint) EXIT:0, warnings pré-existants uniquement.
+
+## 12. Back — express 4→5 (2026-09-21)
+
+- `express` 4.22.3→5.2.1 + `@types/express`→5.0.6 + `@as-integrations/express4`→`@as-integrations/express5@1.1.2` (seul pont Apollo compatible express 5 ; import changé dans `src/index.ts`).
+- Types : 66 erreurs `string | string[]` (Express 5 type `req.params`/`req.query` en `string | string[]`) corrigées au pattern déjà établi (`as string` aux appels, cast au déstructurement — 12 fichiers `src/rest/`). Aucune route wildcard `*` dans le codebase.
+- Runtime : syntaxe `:param(\d{n})` rejetée par path-to-regexp v8 → `src/rest/sourcing/route.ts` (`:siren(\d{9})`, `:siret(\d{14})`) passée en params simples + gardes de format `/^\d{9}$/`/`/^\d{14}$/` → 404 dans `checkSiret`/`searchBySiren` (comportement 404 préservé).
+- **Suite complète : 67 fichiers, 427/427 verts** (même env hôte qu'en §11).
+- Bloqué : `graphql` 16→17 — `@apollo/server@5.5.1` (latest) peer `graphql ^16.11.0` uniquement ; forcer 17 dupliquerait graphql (2 copies = schemas cassés). À retenter quand Apollo supportera 17.
+
+## 13. Back — finitions : pdf-parse 2, zod 4, node 26, TS 7 (2026-09-21)
+
+- Vague minors : OTel (`exporter-trace-otlp-http`/`instrumentation-http`/`sdk-node`→0.222.0, `instrumentation-express`/`-graphql`→0.70.0, `-mongodb`→0.75.0, `-mysql2`/`-pino`→0.68.0, `resources`→2.11.0), `graphql-tag`→2.12.7, `mongoose`→9.10.1, `puppeteer-core`→25.11.0, `prettier`→3.9.8, `@types/multer`→2.2.0, `graphql`→16.14.2 (minor, peer Apollo OK). `exceljs` déjà au latest (4.4.0). Build OK.
+- `dotenv` 16→18, `uuid` 11→14 (aucun import direct en `src/`), `pdfkit` 0.18→0.20 (`PdfService.ts` uniquement) : build OK, zéro adaptation.
+- `pdf-parse` 1→2 : API `require('pdf-parse')(buffer)` → `new PDFParse({ data: buffer })` + `getText()` + `destroy()` (`src/rest/candidates/route.ts`, extraction CV non-bloquante) ; `src/types/pdf-parse.d.ts` supprimé (v2 typée nativement).
+- `zod` 3→4 : usage `src/mcp/` uniquement (convention OK), patterns basiques compatibles, SDK peer `^3.25 || ^4.0`. Build OK.
+- `@types/node` 22→26, `typescript` 5.9→7 : TS 7 exige `moduleResolution: node|node10` supprimé → `tsconfig.json` passé à `module: commonjs` (inchangé) + `moduleResolution: bundler` (résolution de types seule, emit CJS identique, `node dist/` et ts-node-dev inchangés). Le couple `module: node16` a été écarté (exigeait extensions `.js` + cassait l'import pdfkit).
+- **Suite complète finale : 67 fichiers, 427/427 verts.** État final back : `npm outdated` = `graphql` 17 seul (bloqué, cf. §12), `npm audit` **0**, `lint` EXIT:0, `build` EXIT:0.

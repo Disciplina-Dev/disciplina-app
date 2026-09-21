@@ -3,7 +3,7 @@ import './instrumentation'; // OpenTelemetry SDK (must be before any module that
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
 import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from './graphql/server';
-import { expressMiddleware } from '@as-integrations/express4';
+import { expressMiddleware } from '@as-integrations/express5';
 import { jwtContext, graphqlRegionMiddleware } from './graphql/context';
 import { connectMySQL, getPool } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
@@ -210,7 +210,7 @@ export async function createApp(): Promise<express.Express> {
         next();
     });
 
-    // Express 4 middleware d'Apollo : pas de CORS installé (contrairement à
+    // Express 5 middleware d'Apollo : pas de CORS installé (contrairement à
     // applyMiddleware en v3) → la config globale ci-dessus (cors + credentials)
     // s'applique sans être écrasée. Le parsing du corps JSON est aussi à notre
     // charge, d'où l'express.json() ci-dessous.

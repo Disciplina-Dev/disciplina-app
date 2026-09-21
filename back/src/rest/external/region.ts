@@ -8,7 +8,7 @@ import { regionFromExternalSignature, syncWithRegion } from '../../db/tenant';
  * liens créés côté Annemasse étaient cherchés dans la base Réunion.
  */
 export function resolveExternalRegion(req: Request, res: Response, next: NextFunction): void {
-    const signature = req.params?.signature ?? (req.body?.signature as string | undefined);
+    const signature = (req.params?.signature ?? req.body?.signature) as string | undefined;
     if (!signature) {
         next();
         return;
