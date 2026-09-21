@@ -71,7 +71,12 @@ export async function companiesByMulticriteria(req: AuthRequest, res: Response):
 
 export async function checkSiret(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const { siret } = req.params;
+        const { siret } = req.params as { siret: string };
+        // Ex-garde de route Express 4 `:siret(\d{14})` : format invalide → 404.
+        if (!/^\d{14}$/.test(siret)) {
+            res.status(404).json({ error: 'SIRET invalide' });
+            return;
+        }
         logger.info({ userId: req.user?.id, siret }, 'Sourcing: vérification SIRET');
         const siren = siret.slice(0, 9);
         const result = await sireneService.checkSiret(siret);
@@ -124,7 +129,12 @@ export async function additionalSearch(req: AuthRequest, res: Response): Promise
 
 export async function searchBySiren(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const { siren } = req.params;
+        const { siren } = req.params as { siren: string };
+        // Ex-garde de route Express 4 `:siren(\d{9})` : format invalide → 404.
+        if (!/^\d{9}$/.test(siren)) {
+            res.status(404).json({ error: 'SIREN invalide' });
+            return;
+        }
         logger.info({ userId: req.user?.id, siren }, 'Sourcing: recherche par SIREN');
 
         const { entries, allBlacklisted } = await companiesBlacklistService.findBySiren(siren);

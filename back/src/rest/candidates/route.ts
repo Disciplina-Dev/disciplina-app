@@ -55,7 +55,7 @@ router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => 
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
@@ -85,7 +85,7 @@ router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Resp
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
@@ -151,7 +151,7 @@ router.post(
             return;
         }
 
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const fileBuffer = req.body as Buffer;
         const mimeType = (req.headers['content-type'] ?? '').split(';')[0].trim();
         const ext = CV_MIME_EXT[mimeType];
@@ -214,7 +214,7 @@ router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response)
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -265,7 +265,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -334,7 +334,7 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
         return;
     }
 
-    const { id, fileId } = req.params;
+    const { id, fileId } = req.params as { id: string; fileId: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -385,7 +385,7 @@ router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest,
         return;
     }
 
-    const { id, fileId } = req.params;
+    const { id, fileId } = req.params as { id: string; fileId: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -430,7 +430,7 @@ router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async 
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
@@ -481,7 +481,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const file = req.file;
 
     if (!file || file.size === 0) {
@@ -569,7 +569,7 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
@@ -645,14 +645,14 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
 // Public: serve candidate avatar as an <img> source (no auth so it can be hot-linked).
 router.get('/:id/avatar', async (req, res: Response) => {
     try {
-        const candidate = await candidateService.findById(req.params.id);
+        const candidate = await candidateService.findById(req.params.id as string);
         if (!candidate) {
             res.status(404).end();
             return;
         }
         assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
 
-        const avatar = await getModels().CandidateAvatar.findOne({ candidate_id: req.params.id }).lean();
+        const avatar = await getModels().CandidateAvatar.findOne({ candidate_id: req.params.id as string }).lean();
         if (!avatar) {
             res.status(404).end();
             return;
@@ -682,7 +682,7 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
@@ -756,11 +756,11 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
                         // PDF uniquement (les CV importés sont en PDF)
                         if (meta.mimeType === 'application/pdf') {
                             const { buffer } = await driveService.downloadFile(fileId);
-                            const pdfParse: (
-                                buf: Buffer,
-                            ) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
-                            const parsed = await pdfParse(buffer);
+                            const { PDFParse } = require('pdf-parse');
+                            const parser = new PDFParse({ data: buffer });
+                            const parsed = await parser.getText();
                             cvText = parsed.text?.trim() || null;
+                            await parser.destroy();
                         }
                     }
                 } catch (cvErr) {

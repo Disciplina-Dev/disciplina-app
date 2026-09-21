@@ -103,7 +103,7 @@ export async function sendCvImportMail(req: AuthRequest, res: Response): Promise
 }
 
 export async function uploadCv(req: ExternalGuestRequest, res: Response): Promise<void> {
-    const { signature } = req.params;
+    const { signature } = req.params as { signature: string };
     const externalUuid = req.guest!.externalUuid;
     if (!externalUuid) {
         res.status(401).json({ error: 'Session invalide' });

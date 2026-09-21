@@ -41,7 +41,7 @@ function proposedCandidateToPublic(candidate: MatchingCandidate): object {
 }
 
 export async function getCandidates(req: ExternalGuestRequest, res: Response): Promise<void> {
-    const candidates = await matchAccessService.getProposedCandidates(req.params.signature);
+    const candidates = await matchAccessService.getProposedCandidates(req.params.signature as string);
     const ids = candidates.map((c) => c.id);
     const consentDocs = ids.length ? await candidateRepository.findConsentmentsByIds(ids) : [];
     const consentById = new Map(consentDocs.map((doc) => [doc._id, doc]));
@@ -59,17 +59,17 @@ export async function getCandidates(req: ExternalGuestRequest, res: Response): P
 }
 
 export async function getCv(req: ExternalGuestRequest, res: Response): Promise<void> {
-    const context = await matchAccessService.getContext(req.params.signature);
+    const context = await matchAccessService.getContext(req.params.signature as string);
     if (!context) {
         res.status(404).json({ error: 'Session introuvable' });
         return;
     }
-    const proposed = await matchAccessService.getProposedCandidates(req.params.signature);
-    if (!proposed.some((c) => c.id === req.params.candidateId)) {
+    const proposed = await matchAccessService.getProposedCandidates(req.params.signature as string);
+    if (!proposed.some((c) => c.id === req.params.candidateId as string)) {
         res.status(403).json({ error: 'Candidat non autorisé' });
         return;
     }
-    await streamCandidateCv(req.params.candidateId, context.rhEmail, res);
+    await streamCandidateCv(req.params.candidateId as string, context.rhEmail, res);
 }
 
 async function streamCandidateCv(candidateId: string, rhEmail: string | null, res: Response): Promise<void> {
@@ -106,8 +106,8 @@ export async function submitAnswers(req: ExternalGuestRequest, res: Response): P
         return;
     }
     try {
-        await matchAccessService.submitAnswers(req.params.signature, answers);
-        await notifyCompletion(req.params.signature);
+        await matchAccessService.submitAnswers(req.params.signature as string, answers);
+        await notifyCompletion(req.params.signature as string);
         res.json({ ok: true });
     } catch (err) {
         if (err instanceof SessionAlreadyCompletedError) {
