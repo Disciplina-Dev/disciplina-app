@@ -114,3 +114,11 @@ updates:
 - `react-router ^8.3.0` → `^7.18.4`, `react-router-dom ^7.11.0` → `^7.18.4`, overrides `react-router`/`react-router-dom` supprimés (seul `brace-expansion` reste).
 - `npm ls` : `react-router-dom@7.18.4` → `react-router@7.18.4 deduped`, copie unique. Aucun import direct de `react-router` dans `src/` (46 imports tous via `react-router-dom`) → aucun changement de code.
 - `npm run build` OK. Audit inchangé (50, le mismatch n'était pas une CVE). E2E Playwright restant à lancer (stack complète requise).
+
+## 8. Chantier L — migration viewer PDF (2026-09-21)
+
+- Retirés : `@react-pdf-viewer/core`, `@react-pdf-viewer/default-layout`, `pdfjs-dist@3.11.174` (RCE GHSA-wgrm-67xf-hhpq 8.8, `fixAvailable: false`).
+- Ajoutés : `react-pdf@^11.0.0` (peers React 19 OK) + `pdfjs-dist@6.3.289` exact, dédupliqué en copie unique avec le nested de react-pdf.
+- `src/components/rh/PdfViewer.tsx` réécrit : `<Document>/<Page>` canvas (propriété anti-iframe/JWT conservée), `options={{ cMapUrl, standardFontDataUrl, isEvalSupported: false }}`, toolbar maison (pages, zoom 50–300 %, plein écran, téléchargement) — recherche plein texte abandonnée (validé). Seul consommateur : `FicheCandidat.tsx:1826` (inchangé).
+- `vite.config.ts` : `vite-plugin-static-copy@^4.1.1` (dev) copie `cmaps/` (169) + `standard_fonts/` (16) dans `dist/` — aucun CDN externe, prod offline OK. Worker bundlé `dist/assets/pdf.worker.min-*.mjs`, smoke `vite preview` : `200` sur index, cmaps, fonts.
+- `npm run build` OK, `eslint` propre sur les 2 fichiers, `npm audit` : 50 → **28** (0 high, 0 critical ; reste Tiptap L + minors). E2E : aucune spec ne couvre le preview (17 specs existantes, à brancher cf. BACKLOG OPS-1/FE-7) — contrôle visuel manuel restant (Fiche candidat → aperçu CV).
