@@ -3,7 +3,6 @@ FROM node:alpine AS base
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
-#RUN --mount=type=cache,target=/root/.npm npm ci
 
 # --- dev: vite dev server (hot reload) ---
 FROM base AS dev
