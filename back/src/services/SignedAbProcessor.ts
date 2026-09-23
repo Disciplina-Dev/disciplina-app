@@ -46,11 +46,17 @@ function escapeHtml(s: string): string {
  * 'Catalogue Disciplina', ou le nom de l'AB générée. Le test précédent ne
  * distinguait que mandat vs reste, ce qui renommait le Catalogue en
  * `Analyse_Besoin_..._Signee.pdf` — on distingue désormais les trois cas.
+ *
+ * Le suffixe `abId` (8 premiers caractères) distingue les AB d'une même
+ * entreprise (une société peut avoir plusieurs AB) tout en restant stable pour
+ * une AB donnée — un rejeu du webhook produit exactement les mêmes noms, ce qui
+ * permet à l'archivage Drive de dédupliquer au lieu d'empiler des doublons.
  */
-function signedAbFilename(docName: string, safeName: string): string {
-    if (/mandat/i.test(docName)) return `Mandat_Publication_${safeName}_Signe.pdf`;
-    if (/catalogue/i.test(docName)) return `Catalogue_Disciplina_${safeName}_Signe.pdf`;
-    return `Analyse_Besoin_${safeName}_Signee.pdf`;
+function signedAbFilename(docName: string, safeName: string, abId: string): string {
+    const shortId = abId.slice(0, 8);
+    if (/mandat/i.test(docName)) return `Mandat_Publication_${safeName}_${shortId}_Signe.pdf`;
+    if (/catalogue/i.test(docName)) return `Catalogue_Disciplina_${safeName}_${shortId}_Signe.pdf`;
+    return `Analyse_Besoin_${safeName}_${shortId}_Signee.pdf`;
 }
 
 function signedAbLabel(filename: string): string {
@@ -89,6 +95,21 @@ async function resolveCommercialMailSender(commercial: any | null): Promise<any 
 }
 
 /**
+ * Garde anti-concurrence inter-livraisons : DocuSeal peut livrer le même
+ * `submission.completed` deux fois en parallèle (retry + livraison initiale).
+ * Le second appel attend la fin du premier puis relit la garde d'idempotence
+ * (`signed_notification_sent_at`) au lieu d'envoyer les mails en double.
+ */
+const inflightSubmissions = new Set<string>();
+
+async function waitForInflight(submissionId: string, timeoutMs = 30000): Promise<void> {
+    const start = Date.now();
+    while (inflightSubmissions.has(submissionId) && Date.now() - start < timeoutMs) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+}
+
+/**
  * Traitement commun quand une Analyse du Besoin est signée :
  * met à jour le statut, notifie le commercial en temps réel (SSE) et envoie le
  * PDF signé par email. Indépendant du fournisseur de signature.
@@ -97,9 +118,26 @@ async function resolveCommercialMailSender(commercial: any | null): Promise<any 
  * que dans UNE seule), puis on traite dans la région trouvée sous ALS — écritures
  * MySQL/Mongo et push SSE repartent vers la bonne base et la bonne clé de canal.
  *
+ * Idempotence : DocuSeal livre en « au moins une fois » (retries, double-clic
+ * de test). Un appel dont `signed_notification_sent_at` est déjà renseigné est
+ * un rejeu : on ne réécrit ni sur le Drive ni les deux mails de notification.
+ *
  * @returns true si une AB correspondante a été trouvée et traitée.
  */
 export async function processSignedAb(submissionId: string): Promise<boolean> {
+    if (inflightSubmissions.has(submissionId)) {
+        logger.info({ submissionId }, '[SignedAb] Concurrent webhook delivery, waiting for in-flight processing');
+        await waitForInflight(submissionId);
+    }
+    inflightSubmissions.add(submissionId);
+    try {
+        return await processSignedAbOnce(submissionId);
+    } finally {
+        inflightSubmissions.delete(submissionId);
+    }
+}
+
+async function processSignedAbOnce(submissionId: string): Promise<boolean> {
     let handled = false;
     await runForAllRegions(async () => {
         if (handled) return;
@@ -107,10 +145,34 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
             const abDoc = await needsAnalysisRepo.findBySignatureRequestId(submissionId);
             if (!abDoc) return;
             handled = true;
-            const analysis = toNeedsAnalysis(abDoc);
             const region = getRegion();
 
-            await needsAnalysisRepo.update(analysis.id, { status: NeedsAnalysisStatus.SIGNE });
+            // Rejeu du webhook (retry DocuSeal, double livraison) : le premier
+            // passage a déjà archivé sur le Drive et envoyé les deux mails.
+            if (abDoc.signed_notification_sent_at) {
+                logger.info(
+                    { region, analysisId: abDoc._id },
+                    '[SignedAb] Duplicate webhook ignored, notifications already sent',
+                );
+                return;
+            }
+            // AB déjà SIGNE sans trace de traitement automatisé : signature
+            // manuelle (`markSigned`) ou archive antérieure à la garde
+            // d'idempotence. On ne renvoie ni mails ni doublons Drive.
+            if (abDoc.status === NeedsAnalysisStatus.SIGNE && !abDoc.signed_at) {
+                logger.info(
+                    { region, analysisId: abDoc._id },
+                    '[SignedAb] Webhook ignored, AB already signed outside the automated flow',
+                );
+                return;
+            }
+
+            const analysis = toNeedsAnalysis(abDoc);
+
+            await needsAnalysisRepo.update(analysis.id, {
+                status: NeedsAnalysisStatus.SIGNE,
+                signed_at: new Date(),
+            });
             logger.info({ region, analysisId: analysis.id }, 'Needs Analysis status updated to SIGNE');
 
             // Notification temps réel in-app au commercial.
@@ -166,7 +228,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
             const safeName = companyName.replace(/\s+/g, '_');
             const driveLinks: string[] = [];
             for (const signedDoc of signedDocuments) {
-                const fname = signedAbFilename(signedDoc.name, safeName);
+                const fname = signedAbFilename(signedDoc.name, safeName, analysis.id);
                 const link = await abDriveConfigService.archiveAbPdf(
                     analysis.companyInfos?.sector,
                     'SIGNED',
@@ -180,7 +242,7 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
 
             const safeCompanyName = safeName;
             const attachments = signedDocuments.map((doc) => {
-                const filename = signedAbFilename(doc.name, safeCompanyName);
+                const filename = signedAbFilename(doc.name, safeCompanyName, analysis.id);
                 return {
                     content: doc.buffer.toString('base64'),
                     filename,
@@ -303,6 +365,11 @@ export async function processSignedAb(submissionId: string): Promise<boolean> {
                     }
                 }
             }
+
+            // Garde d'idempotence : tout rejeu ultérieur du webhook pour cette
+            // submission est ignoré (pas de doublons Drive ni de mails en double).
+            await needsAnalysisRepo.update(analysis.id, { signed_notification_sent_at: new Date() });
+            logger.info({ region, analysisId: analysis.id }, '[SignedAb] Signed-AB processing completed');
         } catch (err) {
             if (handled) throw err;
             logger.error({ err, region: getRegion() }, 'Signature lookup failed');

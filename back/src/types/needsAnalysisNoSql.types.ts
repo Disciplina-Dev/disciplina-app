@@ -166,6 +166,18 @@ export interface NeedsAnalysis {
     last_relance_at?: Date | null;
     /** Si vrai, la relance automatique de signature est désactivée (toggle commercial). */
     is_relance_disabled?: boolean;
+    /**
+     * Date de passage au statut SIGNE (webhook DocuSeal/Yousign).
+     * Reste null pour les AB signées manuellement via `markSigned`.
+     */
+    signed_at?: Date | null;
+    /**
+     * Date du premier traitement complet « AB signée » (notifs in-app + mails
+     * copie commerciale / entreprise). Garde d'idempotence : un rejeu du webhook
+     * `submission.completed` (retry DocuSeal, double livraison) avec ce champ
+     * renseigné ne doit ni réécrire sur le Drive ni renvoyer les mails.
+     */
+    signed_notification_sent_at?: Date | null;
     status?: NeedsAnalysisStatus;
     tags?: string[];
     /**

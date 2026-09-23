@@ -128,6 +128,24 @@ export class AbDriveConfigService {
                 kind === 'SIGNED' && companyName?.trim()
                     ? await this.resolveCompanyFolder(drive, folderId, companyName)
                     : folderId;
+            // Idempotence : la même AB peut être poussée deux fois (rejeu webhook,
+            // renvoi en signature, deux comptes commerciaux). Le nom de fichier est
+            // stable par AB → on supprime l'existant avant de réuploader au lieu
+            // d'empiler des doublons (même pattern que `ab-to-drive` candidat).
+            // Best-effort : un échec de listage n'empêche pas l'upload.
+            try {
+                const existing = await drive.listFolderFiles(targetFolderId);
+                const duplicates = existing.filter((f) => f.name === filename);
+                if (duplicates.length > 0) {
+                    logger.info(
+                        { sector, kind, filename, count: duplicates.length },
+                        '[AbDrive] Removing duplicate file(s) before re-upload',
+                    );
+                    await Promise.all(duplicates.map((f) => drive.deleteFile(f.id)));
+                }
+            } catch (err) {
+                logger.warn({ err, sector, kind, filename }, '[AbDrive] Duplicate check failed, uploading anyway');
+            }
             const uploaded = await drive.uploadFile(filename, 'application/pdf', buffer, targetFolderId);
             logger.info({ sector, kind, fileId: uploaded.id }, '[AbDrive] AB archivée sur le Drive');
             return uploaded.webViewLink;

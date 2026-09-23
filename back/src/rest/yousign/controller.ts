@@ -92,6 +92,24 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                 // 1. Find Needs Analysis in Mongo
                 const doc = await needsAnalysisRepo.findBySignatureRequestId(signatureRequestId);
                 if (!doc) return;
+                // Idempotence (même garde que le flux DocuSeal) : un rejeu du
+                // webhook ne doit ni renvoyer les mails ni recréer des notifs.
+                if (doc.signed_notification_sent_at) {
+                    logger.info(
+                        { region: getRegion(), analysisId: doc._id },
+                        '[Yousign] Duplicate webhook ignored, notifications already sent',
+                    );
+                    processed = true;
+                    return;
+                }
+                if (doc.status === NeedsAnalysisStatus.SIGNE && !doc.signed_at) {
+                    logger.info(
+                        { region: getRegion(), analysisId: doc._id },
+                        '[Yousign] Webhook ignored, AB already signed outside the automated flow',
+                    );
+                    processed = true;
+                    return;
+                }
                 processed = true;
                 const analysis = toNeedsAnalysis(doc);
                 const region = getRegion();
@@ -99,7 +117,10 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                 logger.info({ region, analysisId: analysis.id }, 'Found Needs Analysis record for Yousign request');
 
                 // 2. Update status in Database
-                await needsAnalysisRepo.update(analysis.id, { status: NeedsAnalysisStatus.SIGNE });
+                await needsAnalysisRepo.update(analysis.id, {
+                    status: NeedsAnalysisStatus.SIGNE,
+                    signed_at: new Date(),
+                });
                 logger.info({ region, analysisId: analysis.id }, 'Needs Analysis ID status updated to SIGNE');
 
                 // 3a. Notify commercial via SSE (real-time in-app)
@@ -237,6 +258,9 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                         }
                     }
                 }
+
+                // Garde d'idempotence : tout rejeu ultérieur du webhook est ignoré.
+                await needsAnalysisRepo.update(analysis.id, { signed_notification_sent_at: new Date() });
             } catch (err) {
                 if (processed) throw err;
                 logger.error({ err, region: getRegion() }, 'Yousign webhook lookup failed');
