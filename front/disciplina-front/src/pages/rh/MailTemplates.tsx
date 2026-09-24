@@ -504,7 +504,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
 
       {editing && previewOpen && (
         <div
-          className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col border-l border-gray-100 bg-white shadow-2xl"
+          className="fixed right-0 top-0 z-50 flex h-full w-full max-w-3xl flex-col border-l border-gray-100 bg-white shadow-2xl"
           role="dialog"
           aria-label="Aperçu du mail"
         >
@@ -518,22 +518,26 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
               <X size={18} />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
             <p className="mb-3 truncate text-sm text-gray-500">
               <span className="font-medium text-gray-700">Objet :</span> {form.subject || '(sans objet)'}
             </p>
-            <div style={{ backgroundColor: themeColor ?? 'transparent', padding: themeColor ? 24 : 0 }}>
-              <div
-                className="rounded-lg text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
-                style={{
-                  backgroundColor: themePastelBg ?? '#ffffff',
-                  padding: themeColor ? 24 : 0,
-                  borderRadius: themeColor ? 8 : 0,
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: cleanHtml(form.body || '<p class="text-gray-400">Le corps du mail apparaîtra ici…</p>'),
-                }}
-              />
+            {/* Largeur max 600px centrée : même contrainte que wrapWithTheme() à l'envoi,
+                sinon le HTML s'étale sur toute la largeur de la boîte de réception. */}
+            <div className="mx-auto max-w-[600px] bg-white shadow-sm">
+              <div style={{ backgroundColor: themeColor ?? 'transparent', padding: themeColor ? 24 : 0 }}>
+                <div
+                  className="rounded-lg text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+                  style={{
+                    backgroundColor: themePastelBg ?? '#ffffff',
+                    padding: themeColor ? 24 : 0,
+                    borderRadius: themeColor ? 8 : 0,
+                  }}
+                  dangerouslySetInnerHTML={{
+                    __html: cleanHtml(form.body || '<p class="text-gray-400">Le corps du mail apparaîtra ici…</p>'),
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

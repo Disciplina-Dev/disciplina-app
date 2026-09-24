@@ -108,12 +108,14 @@ describe('POST /api/relance/bulk — variables du modèle remplacées par candid
         expect(sendEmail).toHaveBeenCalledTimes(1);
         const [, options] = sendEmail.mock.calls[0] as [unknown, { subject: string; html: string; text: string }];
         expect(options.subject).toBe('Bonjour Marie');
-        expect(options.html).toBe('<p>Bonjour Marie Dupont,</p><p></p>');
+        expect(options.html).toBe(
+            '<div style="max-width:600px;margin:0 auto;"><p>Bonjour Marie Dupont,</p><p></p></div>',
+        );
         expect(options.html).not.toContain('{{');
         expect(options.text).toBe('Bonjour Marie Dupont,');
     });
 
-    it('génère un lien magique d\'import CV sans code quand le modèle référence {{lien_import}}', async () => {
+    it("génère un lien magique d'import CV sans code quand le modèle référence {{lien_import}}", async () => {
         const candidateId = await createCandidate('Marie Dupont', 'candidate@test.local');
         const templateId = await createTemplate(
             'Votre espace {{prenom}}',
@@ -132,24 +134,22 @@ describe('POST /api/relance/bulk — variables du modèle remplacées par candid
         expect(options.html).toContain(`${env.FRONTEND_BASE_URL}/external/authenticate?sig=`);
         expect(options.html).not.toContain('{{');
 
-        const [rows] = await pool.query(
-            'SELECT external_email FROM external_access WHERE external_email = ?',
-            ['candidate@test.local'],
-        );
+        const [rows] = await pool.query('SELECT external_email FROM external_access WHERE external_email = ?', [
+            'candidate@test.local',
+        ]);
         expect((rows as { external_email: string }[]).length).toBe(1);
     });
 
-    it('ne crée pas de lien d\'import si le modèle n\'utilise pas {{lien_import}}', async () => {
+    it("ne crée pas de lien d'import si le modèle n'utilise pas {{lien_import}}", async () => {
         const candidateId = await createCandidate('Marie Dupont', 'candidate@test.local');
         const templateId = await createTemplate('Bonjour {{prenom}}', '<p>Bonjour {{prenom}}</p>');
 
         const res = await postBulk([candidateId], templateId);
         expect(res.status).toBe(200);
 
-        const [rows] = await pool.query(
-            'SELECT external_email FROM external_access WHERE external_email = ?',
-            ['candidate@test.local'],
-        );
+        const [rows] = await pool.query('SELECT external_email FROM external_access WHERE external_email = ?', [
+            'candidate@test.local',
+        ]);
         expect((rows as { external_email: string }[]).length).toBe(0);
     });
 });

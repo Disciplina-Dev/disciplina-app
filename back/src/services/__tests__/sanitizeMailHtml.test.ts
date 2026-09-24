@@ -48,6 +48,7 @@ describe('sanitizeMailHtml', () => {
         const out = sanitizeMailHtml(html);
         expect(out).toContain('display:inline-block');
         expect(out).toContain('background-color:#1130A7');
+        expect(out).toContain('padding:10px 20px');
         expect(out).toContain('border-radius:6px');
         expect(out).toContain('text-decoration:none');
     });

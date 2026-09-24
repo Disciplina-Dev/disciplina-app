@@ -18,19 +18,23 @@ function pastelize(hex: string): string {
     return rgbToHex([mix(r), mix(g), mix(b)]);
 }
 
+const MAX_WIDTH_PX = 600;
+
 /**
- * Enveloppe le corps d'un mail dans un cadre de la couleur choisie + un fond pastel dérivé
- * automatiquement de cette couleur. `html` doit déjà avoir été sanitisé (sanitizeMailHtml) —
- * l'enveloppe elle-même est du HTML fixe côté serveur, jamais dérivée d'une entrée utilisateur,
- * donc pas besoin de la re-sanitiser.
+ * Enveloppe le corps d'un mail pour l'envoi : toujours une largeur maximale centrée
+ * (comme n'importe quelle newsletter — sans ça le HTML s'étale sur toute la largeur de la
+ * boîte de réception et casse la mise en page), et en plus un cadre de la couleur choisie +
+ * un fond pastel dérivé automatiquement de cette couleur si un thème est actif. `html` doit
+ * déjà avoir été sanitisé (sanitizeMailHtml) — l'enveloppe elle-même est du HTML fixe côté
+ * serveur, jamais dérivée d'une entrée utilisateur, donc pas besoin de la re-sanitiser.
  */
 export function wrapWithTheme(html: string, themeColor: string | null | undefined): string {
-    if (!themeColor || !isMailThemeColor(themeColor)) return html;
-    const contentBg = pastelize(themeColor);
-    return (
-        `<div style="background-color:${themeColor};padding:24px;">` +
-        `<div style="background-color:${contentBg};border-radius:8px;padding:24px;">` +
-        html +
-        '</div></div>'
-    );
+    const inner =
+        themeColor && isMailThemeColor(themeColor)
+            ? `<div style="background-color:${themeColor};padding:24px;">` +
+                `<div style="background-color:${pastelize(themeColor)};border-radius:8px;padding:24px;">` +
+                html +
+                '</div></div>'
+            : html;
+    return `<div style="max-width:${MAX_WIDTH_PX}px;margin:0 auto;">${inner}</div>`;
 }

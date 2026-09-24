@@ -3,7 +3,9 @@ import sanitizeHtml from 'sanitize-html';
 // Autorise juste assez de mise en forme pour des mails "plus jolis" (couleur de texte,
 // image inline en base64, bouton CTA stylé) sans ouvrir la porte à du HTML/CSS arbitraire.
 const HEX_OR_NAMED_COLOR = /^(#[0-9a-f]{3,8}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)|[a-z]+)$/i;
-const LENGTH_VALUE = /^\d{1,4}(px|%)$/;
+// Une à quatre valeurs (ex. `10px 20px` pour le padding du bouton CTA) — la forme
+// raccourcie standard des propriétés CSS box-model (haut/droite/bas/gauche).
+const LENGTH_VALUE = /^\d{1,4}(px|%)(\s+\d{1,4}(px|%)){0,3}$/;
 const KEYWORD_VALUE = /^[a-z-]+$/i;
 
 const OPTIONS: sanitizeHtml.IOptions = {
