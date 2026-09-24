@@ -300,12 +300,26 @@ export const typeDefs = gql`
         createdAt: String!
     }
 
+    """
+    Entreprise à laquelle un candidat a déjà été envoyé via le matching
+    (CV transmis à l'entreprise ou étape ultérieure).
+    """
+    type CandidateSentCompany {
+        offerId: String!
+        companyName: String
+        status: MatchedCandidateStatus
+        title: String
+        jobRole: String
+        needsAnalysisId: String
+    }
+
     type Query {
         offers: [Offer!]!
         matchOffer(id: String!): Offer!
         offerCompanyInfo(offerId: String!): OfferCompanyInfo!
         offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!
         candidateMatchedOfferIds(candidateId: String!): [String!]!
+        candidateSentCompanies(candidateId: String!): [CandidateSentCompany!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
         offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
         offerHistory(offerId: String!): [OfferHistoryEntry!]!

@@ -53,7 +53,6 @@ export type MailTemplateKind =
   | 'ab_signature'
   | 'ab_relance'
   | 'proposition_candidat'
-  | 'external_access'
   | 'external_link'
   | 'interview_invitation'
 

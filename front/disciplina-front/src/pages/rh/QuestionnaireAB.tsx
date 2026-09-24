@@ -68,6 +68,7 @@ interface FormState {
   desired_sectors: string[]; expected_company_skills: string[]
   // découverte
   discovery_source: string
+  job_search_platforms: string
   // synthèse
   feasibility_conclusion: string; pathway_relevance: string
   special_needs: string; peda_reco: PedaReco
@@ -138,6 +139,7 @@ function initForm(c: Candidate): FormState {
     desired_sectors: c.desired_sectors ?? [],
     expected_company_skills: c.expected_company_skills ?? [],
     discovery_source: c.job_info?.discovery_source ?? '',
+    job_search_platforms: c.job_info?.job_search_platforms ?? '',
     feasibility_conclusion: c.synthesis?.feasibility_conclusion ?? '',
     pathway_relevance: c.synthesis?.pathway_relevance ?? '',
     special_needs: c.synthesis?.special_needs ?? '',
@@ -234,6 +236,7 @@ function toGqlInput(f: FormState) {
       geographicMobility: f.geographic_mobility.length ? f.geographic_mobility : undefined,
       weekendWork: parseBool(f.weekend_work),
       discoverySource: f.discovery_source || undefined,
+      jobSearchPlatforms: f.job_search_platforms.trim() || undefined,
     },
     synthesis: {
       feasibilityConclusion: f.feasibility_conclusion || undefined,
@@ -772,6 +775,7 @@ export default function QuestionnaireAB() {
                 </label>
               ))}
             </div>
+            <Textarea label="Sur quels sites ou plateformes avez-vous l'habitude de rechercher et de postuler à des offres d'alternance ? (optionnel)" value={form.job_search_platforms} onChange={v => set('job_search_platforms', v)} rows={2} />
           </div>
         </Section>
 

@@ -177,6 +177,7 @@ export interface JobInfo {
     geographic_mobility?: Localisation[];
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
+    job_search_platforms?: string;
 }
 
 export interface PedagogicalRecommendations {

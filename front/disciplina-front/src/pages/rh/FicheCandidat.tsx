@@ -9,6 +9,7 @@ import {
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
+import CandidateSentCompaniesCallout from '@/features/candidats/components/CandidateSentCompaniesCallout'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -881,6 +882,9 @@ export default function FicheCandidat() {
           </div>
         )}
 
+        {/* ── Déjà envoyé en entreprise via le matching ── */}
+        {id && <CandidateSentCompaniesCallout candidateId={id} />}
+
         {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
           <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-orange-700 font-bold text-sm">
@@ -1671,6 +1675,15 @@ export default function FicheCandidat() {
                   ) : <p className={valueCls}>{formData.job_info?.discovery_source ? DISCOVERY_SOURCE_LABELS[formData.job_info.discovery_source] || prettyEnum(formData.job_info.discovery_source) : '—'}</p>}
                 </Field>
               </div>
+              <Field label="Sites / plateformes de recherche d'alternance">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.job_info?.job_search_platforms ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, job_info: { ...prev.job_info, job_search_platforms: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.job_info?.job_search_platforms || '—'}</p>}
+              </Field>
             </div>
           </Card>
 

@@ -41,7 +41,7 @@ export class InterviewMailService {
             `padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Choisir mon créneau</a>`;
         const signatureHtml = await this.mailTemplateService.getSignatureHtml(rh.id, 'rh').catch(() => '');
 
-        // Le code est généré et envoyé au chargement de la page : on retire du mail
+        // {{code}} est obsolète (lien magique sans code) : on retire du mail
         // un éventuel {{code}} laissé par un modèle édité.
         const resolvedSubject = subject.replaceAll('{{code}}', '');
         let resolvedBody = body

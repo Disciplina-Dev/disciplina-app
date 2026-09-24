@@ -3,26 +3,30 @@ import { encodeExternalAccessCursor, ExternalAccessFilter, ExternalAccessListRow
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { ExternalAccessRow } from '../types/db-rows.types';
 import { Connection } from './pagination';
-import { generateExternalSignature, generateNumericCode } from '../external/crypto';
+import { generateExternalSignature } from '../external/crypto';
 import { renderTemplate } from './renderTemplate';
 import { MailTemplateService } from './MailTemplateService';
 import { CandidateService } from './CandidateService';
-import { EXTERNAL_ACCESS_SUBJECT, EXTERNAL_ACCESS_BODY } from './externalAccessDefaultTemplate';
 import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { sendSystemEmail } from '../external/google/system-mail';
 import { withNoReply } from '../external/google/no-reply';
 import { logger } from '../external/logger';
 import { env } from '../config/env';
-import { MAX_ATTEMPTS } from './signedAccess';
 import { signAccessToken } from '../rest/middleware/tokenAuth';
 import { Permission, GuestRole } from '../types/user.types';
 import { appendRegion } from '../db/tenant';
 
-type SendCodeResult =
+// Durée de vie d'un lien externe : 7 jours à compter de sa première ouverture
+// (premier clic). Tant que le lien n'a jamais été ouvert, `expires_at` reste à
+// null et le lien ne périme pas.
+export const EXTERNAL_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type OpenLinkResult =
     | { status: 'NOT_FOUND'; httpCode: 404; message: string }
     | { status: 'COMPLETED'; httpCode: 200; message: string }
     | { status: 'BLOCKED'; httpCode: 200; message: string }
-    | { status: 'OK'; httpCode: 200; message: string };
+    | { status: 'EXPIRED'; httpCode: 410; message: string }
+    | { status: 'OK'; httpCode: 200; message: string; token: string; referenceId: number; expiresAt: Date };
 
 export interface GenerateInput {
     userId: number;
@@ -84,8 +88,8 @@ export class ExternalAccessService {
 
     /**
      * Crée une session externe sans envoyer de mail — le corps est composé et
-     * envoyé par l'appelant (ex. modèle « Import CV » saisi par le RH). Le code
-     * reste null : il est généré, persisté et envoyé au chargement de la page.
+     * envoyé par l'appelant (ex. modèle « Import CV » saisi par le RH). Lien
+     * magique sans code : la première ouverture authentifie directement.
      */
     async createInvite(
         input: GenerateInput,
@@ -148,7 +152,12 @@ export class ExternalAccessService {
         return this.generate(input);
     }
 
-    async sendCode(signature: string): Promise<SendCodeResult> {
+    /**
+     * Ouverture d'un lien magique (sans code) : la première ouverture arme
+     * l'expiration à J+7, puis un cookie invité est émis. Idempotent : les
+     * ouvertures suivantes réémettent un cookie tant que le lien n'a pas expiré.
+     */
+    async openLink(signature: string): Promise<OpenLinkResult> {
         const row = await this.repository.findBySignature(signature);
 
         if (!row) {
@@ -159,73 +168,41 @@ export class ExternalAccessService {
             return { status: 'COMPLETED', httpCode: 200, message: 'KO signature already completed' };
         }
 
-        if (row.status === 'EXPIRED' || row.status === 'LOCKED') {
-            return { status: 'BLOCKED', httpCode: 200, message: 'KO signature expired or locked' };
+        if (row.status === 'LOCKED') {
+            return { status: 'BLOCKED', httpCode: 200, message: 'KO signature locked' };
         }
 
-        const email = row.external_email ?? (await this.fallbackEmail(row));
-        if (!email) {
-            logger.warn({ signature, referenceId: row.reference_id }, '[external-access] could not resolve recipient email');
-            return { status: 'OK', httpCode: 200, message: 'OK signature exists' };
+        if (row.status === 'EXPIRED' || this.isExpired(row)) {
+            if (row.status !== 'EXPIRED') {
+                await this.repository.setStatus(signature, 'EXPIRED');
+            }
+            return { status: 'EXPIRED', httpCode: 410, message: 'KO signature expired' };
         }
 
-        const code = generateNumericCode(6);
-        const firstName = row.external_first_name ?? (await this.fallbackFirstName(row));
+        // Première ouverture : le lien devient valable 7 jours.
+        let expiresAt = row.expires_at ? new Date(row.expires_at) : null;
+        if (!expiresAt) {
+            expiresAt = new Date(Date.now() + EXTERNAL_LINK_TTL_MS);
+            await this.repository.setExpiresAt(signature, expiresAt);
+        }
 
-        await this.repository.setCode(signature, code);
+        const token = signAccessToken({
+            role: GuestRole.EXTERNAL_GUEST,
+            permission: Permission.GUEST,
+            signature,
+            referenceId: row.reference_id,
+        });
+        await this.repository.setToken(signature, token);
+        if (row.status !== 'AUTHENTICATED') {
+            await this.repository.setStatus(signature, 'AUTHENTICATED');
+        }
 
-        const template = await this.mailTemplateService.findRhTemplateByKind('external_access');
-        const subject = template?.subject ?? EXTERNAL_ACCESS_SUBJECT;
-        const body = template?.body ?? EXTERNAL_ACCESS_BODY;
-        const html = renderTemplate(body, { prenom: firstName, code });
-        const text = html.replace(/<[^>]*>/g, '');
-
-        await sendSystemEmail(withNoReply({ to: email, subject, html, text }));
-
-        await this.repository.setStatus(signature, 'PENDING');
-
-        return { status: 'OK', httpCode: 200, message: 'OK signature exists' };
+        return { status: 'OK', httpCode: 200, message: 'OK signature opened', token, referenceId: row.reference_id, expiresAt };
     }
 
-    async inspect(signature: string, code: string): Promise<GenerateResult> {
-        const row = await this.repository.findBySignature(signature);
-
-        if (!row) {
-            return { success: false, error: "KO signature doesn't exist" };
-        }
-
-        if (row.status === 'LOCKED') {
-            return { success: false, error: 'KO Max attemps external link locked', referenceId: row.reference_id };
-        }
-
-        if (row.status === 'AUTHENTICATED') {
-            return {
-                success: false,
-                error: 'KO signature already authenticated',
-                referenceId: row.reference_id,
-            };
-        }
-
-        if (row.code === code) {
-            const token = signAccessToken({
-                role: GuestRole.EXTERNAL_GUEST,
-                permission: Permission.GUEST,
-                signature,
-                referenceId: row.reference_id,
-            });
-            await this.repository.setToken(signature, token);
-            await this.repository.setStatus(signature, 'AUTHENTICATED');
-            return { success: true, token, referenceId: row.reference_id, referenceKey: row.reference_key };
-        }
-
-        const attempts = await this.repository.incrementAttempts(signature);
-
-        if (attempts >= MAX_ATTEMPTS) {
-            await this.repository.setStatus(signature, 'LOCKED');
-            return { success: false, error: 'KO Max attemps external link locked', referenceId: row.reference_id };
-        }
-
-        return { success: false, error: `KO Wrong code ${attempts} attempts` };
+    isExpired(row: { expires_at: string | Date | null }): boolean {
+        if (!row.expires_at) return false;
+        return new Date(row.expires_at).getTime() < Date.now();
     }
 
     /**

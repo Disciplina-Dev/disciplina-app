@@ -8,8 +8,8 @@
  *   {{link}}             → bouton d'accès à la session de matching
  *   {{hr_signature}}     → signature mail du RH (image)
  *
- * Le code de connexion n'est PAS dans ce mail : il est généré et envoyé
- * automatiquement au chargement de la page (workflow external access).
+ * Lien magique sans code, valable 7 jours après sa première ouverture
+ * (workflow external access).
  */
 export const PROPOSITION_CANDIDAT_SUBJECT = 'Disciplina - Proposition de candidats';
 

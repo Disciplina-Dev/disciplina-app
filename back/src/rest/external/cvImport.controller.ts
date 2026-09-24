@@ -77,7 +77,7 @@ export async function sendCvImportMail(req: AuthRequest, res: Response): Promise
         resolvedSubject = resolvedSubject.replaceAll(key, value);
         resolvedBody = resolvedBody.replaceAll(key, value);
     }
-    // Le code est généré et envoyé au chargement de la page : on retire du mail
+    // {{code}} est obsolète (lien magique sans code) : on retire du mail
     // un éventuel {{code}} laissé par un modèle édité.
     resolvedSubject = resolvedSubject.replaceAll('{{code}}', '');
     resolvedBody = resolvedBody.replaceAll('{{code}}', '');
