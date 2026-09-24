@@ -32,6 +32,19 @@ const LinkWithStyle = Link.extend({
     }
   },
 })
+
+// Pleine largeur par défaut : sans ça une image insérée à sa taille native déborde du
+// cadre 600px du mail à l'envoi (aucune CSS de l'éditeur ne voyage avec le HTML envoyé).
+const IMAGE_FULL_WIDTH_STYLE = 'width:100%;height:auto;display:block;'
+
+const ImageWithStyle = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      style: { default: null },
+    }
+  },
+})
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     fontSize: {
@@ -278,7 +291,7 @@ export default function RichTextEditor({
       Color,
       FontSize,
       HighlightColor,
-      Image,
+      ImageWithStyle,
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -324,7 +337,7 @@ export default function RichTextEditor({
       const reader = new FileReader()
       reader.onload = () => {
         const src = reader.result as string
-        editor.chain().focus().setImage({ src }).run()
+        editor.chain().focus().setImage({ src, style: IMAGE_FULL_WIDTH_STYLE } as { src: string }).run()
       }
       reader.readAsDataURL(file)
     },

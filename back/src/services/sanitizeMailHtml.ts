@@ -6,6 +6,9 @@ const HEX_OR_NAMED_COLOR = /^(#[0-9a-f]{3,8}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s
 // Une à quatre valeurs (ex. `10px 20px` pour le padding du bouton CTA) — la forme
 // raccourcie standard des propriétés CSS box-model (haut/droite/bas/gauche).
 const LENGTH_VALUE = /^\d{1,4}(px|%)(\s+\d{1,4}(px|%)){0,3}$/;
+// `width`/`height` seuls : en plus d'une longueur, `auto` (ex. une image en largeur 100%
+// dont la hauteur doit rester proportionnelle, pas étirée).
+const LENGTH_OR_AUTO_VALUE = /^(auto|\d{1,4}(px|%))$/;
 const KEYWORD_VALUE = /^[a-z-]+$/i;
 
 const OPTIONS: sanitizeHtml.IOptions = {
@@ -29,8 +32,8 @@ const OPTIONS: sanitizeHtml.IOptions = {
             // inline-block : nécessaire pour que le padding vertical du bouton CTA
             // s'applique réellement (un <a> reste inline sinon).
             display: [KEYWORD_VALUE],
-            width: [LENGTH_VALUE],
-            height: [LENGTH_VALUE],
+            width: [LENGTH_OR_AUTO_VALUE],
+            height: [LENGTH_OR_AUTO_VALUE],
         },
     },
     // `data:` reste nécessaire pour les images inline (mime.builder.ts les convertit en
