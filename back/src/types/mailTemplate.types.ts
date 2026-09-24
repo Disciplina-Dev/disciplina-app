@@ -29,12 +29,13 @@ export const MAIL_TEMPLATE_KINDS = [
 ] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
 
-/** Thème visuel (cadre + fond pastel) appliqué au mail à l'envoi — cf. services/mailTheme.ts. */
-export const MAIL_THEME_IDS = ['classique', 'bleu', 'chaleureux', 'nature', 'elegant'] as const;
-export type MailThemeId = (typeof MAIL_THEME_IDS)[number];
-
-export function isMailThemeId(value: unknown): value is MailThemeId {
-    return typeof value === 'string' && (MAIL_THEME_IDS as readonly string[]).includes(value);
+/**
+ * Couleur de cadre (hex `#rrggbb`) appliquée au mail à l'envoi — cf. services/mailTheme.ts.
+ * `null` = classique (pas d'enveloppe). Le fond pastel qui l'accompagne est dérivé
+ * automatiquement de cette couleur, pas stocké séparément.
+ */
+export function isMailThemeColor(value: unknown): value is string {
+    return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 }
 
 /** Libellés affichés (front + logs). */
@@ -63,8 +64,8 @@ export interface MailTemplate {
     peda_level: PedaLevel | null;
     /** Modèle système (ex. `ab_signature`) ; null pour les modèles créés par l'utilisateur. */
     kind: MailTemplateKind | null;
-    /** Cadre + fond appliqués à l'envoi ; null = classique (pas d'enveloppe). */
-    theme: MailThemeId | null;
+    /** Couleur de cadre hex appliquée à l'envoi ; null = classique (pas d'enveloppe). */
+    theme: string | null;
     attachment: MailTemplateAttachment | null;
     created_at: Date;
     updated_at: Date;

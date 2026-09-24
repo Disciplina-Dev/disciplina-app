@@ -7,7 +7,6 @@ import {
     MailTemplateAttachment,
     PedaLevel,
     MailTemplateKind,
-    MailThemeId,
 } from '../types/mailTemplate.types';
 import { PEDA_DEFAULT_TEMPLATES } from './pedaDefaultTemplates';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
@@ -84,8 +83,8 @@ export interface MailTemplateDTO {
     pedaLevel: PedaLevel | null;
     /** Modèle système non supprimable (ex. `ab_signature`) ; null pour les modèles utilisateur. */
     kind: MailTemplateKind | null;
-    /** Cadre + fond appliqués à l'envoi ; null = classique (pas d'enveloppe). */
-    theme: MailThemeId | null;
+    /** Couleur de cadre hex appliquée à l'envoi ; null = classique (pas d'enveloppe). */
+    theme: string | null;
     attachment: { filename: string; contentType: string } | null;
 }
 
@@ -95,7 +94,7 @@ export interface MailTemplateInput {
     subject: string;
     body: string;
     pedaLevel?: PedaLevel | null;
-    theme?: MailThemeId | null;
+    theme?: string | null;
 }
 
 function toDTO(t: MailTemplate): MailTemplateDTO {

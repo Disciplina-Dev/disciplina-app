@@ -6,7 +6,6 @@ import { MailTemplateService } from './MailTemplateService';
 import { RelanceHistoryRepository } from '../repositories/mysql/RelanceHistoryRepository';
 import { NotificationService } from './NotificationService';
 import type { Companies } from '../types/company.types';
-import type { MailThemeId } from '../types/mailTemplate.types';
 import { wrapWithTheme } from './mailTheme';
 
 export interface StartCompanyBulkOptions {
@@ -98,7 +97,7 @@ export class BulkRelanceService {
     private async processBulk(
         userId: number,
         companies: Companies[],
-        template: { subject: string; body: string; theme?: MailThemeId | null },
+        template: { subject: string; body: string; theme?: string | null },
         attachments: { filename: string; contentType: string; content: string }[] | undefined,
         signatureHtml: string,
         totalRequested: number,

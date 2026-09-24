@@ -9,7 +9,7 @@ import {
     SystemTemplateError,
 } from '../../services/MailTemplateService';
 import { CommercialSignatureService } from '../../services/CommercialSignatureService';
-import { MailTemplateScope, PedaLevel, isPedaLevel, MailThemeId, isMailThemeId } from '../../types/mailTemplate.types';
+import { MailTemplateScope, PedaLevel, isPedaLevel, isMailThemeColor } from '../../types/mailTemplate.types';
 
 const service = new MailTemplateService();
 const commercialSignatureService = new CommercialSignatureService();
@@ -27,9 +27,9 @@ function parsePedaLevel(raw: unknown): PedaLevel | null | undefined {
 }
 
 /** `theme` absent/vide ⇒ null (thème classique, pas d'enveloppe). */
-function parseTheme(raw: unknown): MailThemeId | null | undefined {
+function parseTheme(raw: unknown): string | null | undefined {
     if (raw === undefined || raw === null || raw === '') return null;
-    return isMailThemeId(raw) ? raw : undefined; // undefined = valeur invalide
+    return isMailThemeColor(raw) ? raw : undefined; // undefined = valeur invalide
 }
 
 function handleError(err: unknown, res: Response): void {

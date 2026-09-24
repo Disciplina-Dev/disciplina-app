@@ -1,37 +1,35 @@
-import { MailThemeId } from '../types/mailTemplate.types';
+import { isMailThemeColor } from '../types/mailTemplate.types';
 
-interface MailTheme {
-    id: MailThemeId;
-    label: string;
-    /** Couleur du cadre extérieur ; `null` pour "classique" (pas de cadre, fond blanc). */
-    frameColor: string | null;
-    /** Fond derrière le texte — toujours une nuance pâle de `frameColor` pour rester lisible. */
-    contentBg: string;
+const PASTEL_WHITE_MIX = 0.85;
+
+function hexToRgb(hex: string): [number, number, number] {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-// Couleurs reprises des tokens de marque (front/.../index.css) et des pastels déjà
-// utilisés pour le surlignage dans l'éditeur (cf. #747) — pas de nouvelle palette.
-export const MAIL_THEMES: MailTheme[] = [
-    { id: 'classique', label: 'Classique', frameColor: null, contentBg: '#ffffff' },
-    { id: 'bleu', label: 'Bleu Disciplina', frameColor: '#1130A7', contentBg: '#E8EBFA' },
-    { id: 'chaleureux', label: 'Chaleureux', frameColor: '#A65C00', contentBg: '#FEF3E2' },
-    { id: 'nature', label: 'Nature', frameColor: '#1A7A4A', contentBg: '#E6F4ED' },
-    { id: 'elegant', label: 'Élégant', frameColor: '#60207E', contentBg: '#F0E6F6' },
-];
+function rgbToHex([r, g, b]: [number, number, number]): string {
+    return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('');
+}
 
-const THEMES_BY_ID = new Map(MAIL_THEMES.map((t) => [t.id, t]));
+/** Éclaircit une couleur vers le blanc pour obtenir un fond pastel lisible derrière du texte. */
+function pastelize(hex: string): string {
+    const [r, g, b] = hexToRgb(hex);
+    const mix = (c: number) => Math.round(c + (255 - c) * PASTEL_WHITE_MIX);
+    return rgbToHex([mix(r), mix(g), mix(b)]);
+}
 
 /**
- * Enveloppe le corps d'un mail dans le cadre + fond du thème choisi. `html` doit déjà
- * avoir été sanitisé (sanitizeMailHtml) — l'enveloppe elle-même est du HTML fixe côté
- * serveur, jamais dérivée d'une entrée utilisateur, donc pas besoin de la re-sanitiser.
+ * Enveloppe le corps d'un mail dans un cadre de la couleur choisie + un fond pastel dérivé
+ * automatiquement de cette couleur. `html` doit déjà avoir été sanitisé (sanitizeMailHtml) —
+ * l'enveloppe elle-même est du HTML fixe côté serveur, jamais dérivée d'une entrée utilisateur,
+ * donc pas besoin de la re-sanitiser.
  */
-export function wrapWithTheme(html: string, themeId: MailThemeId | null | undefined): string {
-    const theme = themeId ? THEMES_BY_ID.get(themeId) : undefined;
-    if (!theme || !theme.frameColor) return html;
+export function wrapWithTheme(html: string, themeColor: string | null | undefined): string {
+    if (!themeColor || !isMailThemeColor(themeColor)) return html;
+    const contentBg = pastelize(themeColor);
     return (
-        `<div style="background-color:${theme.frameColor};padding:24px;">` +
-        `<div style="background-color:${theme.contentBg};border-radius:8px;padding:24px;">` +
+        `<div style="background-color:${themeColor};padding:24px;">` +
+        `<div style="background-color:${contentBg};border-radius:8px;padding:24px;">` +
         html +
         '</div></div>'
     );

@@ -1,11 +1,5 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
-import {
-    MailTemplate,
-    MailSignature,
-    PEDA_LEVELS,
-    MAIL_TEMPLATE_KINDS,
-    MAIL_THEME_IDS,
-} from '../../../types/mailTemplate.types';
+import { MailTemplate, MailSignature, PEDA_LEVELS, MAIL_TEMPLATE_KINDS } from '../../../types/mailTemplate.types';
 
 const attachmentSchema = new Schema(
     {
@@ -26,7 +20,7 @@ const mailTemplateSchema = new Schema<MailTemplate & Document>(
         body: { type: String, required: true },
         peda_level: { type: String, enum: [...PEDA_LEVELS, null], default: null },
         kind: { type: String, enum: [...MAIL_TEMPLATE_KINDS, null], default: null },
-        theme: { type: String, enum: [...MAIL_THEME_IDS, null], default: null },
+        theme: { type: String, match: /^#[0-9a-f]{6}$/i, default: null },
         attachment: { type: attachmentSchema, default: null },
         created_at: { type: Date, default: Date.now },
         updated_at: { type: Date, default: Date.now },

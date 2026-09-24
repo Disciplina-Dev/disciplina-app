@@ -21,17 +21,19 @@ export const PEDA_LEVEL_HINTS: Record<PedaLevel, string> = {
   nivPlus: 'absences 8, 9 et 10',
 }
 
-/** Thème visuel (cadre + fond pastel) appliqué au mail à l'envoi. */
-export type MailThemeId = 'classique' | 'bleu' | 'chaleureux' | 'nature' | 'elegant'
+/**
+ * Couleur de cadre (hex `#rrggbb`) appliquée au mail à l'envoi ; `null` = classique
+ * (pas d'enveloppe). Le fond pastel qui l'accompagne est dérivé automatiquement de
+ * cette couleur — miroir de back/src/services/mailTheme.ts, à garder identique.
+ */
+const PASTEL_WHITE_MIX = 0.85
 
-/** Miroir de back/src/services/mailTheme.ts — mêmes couleurs, pour l'aperçu du sélecteur. */
-export const MAIL_THEMES: { id: MailThemeId; label: string; frameColor: string | null; contentBg: string }[] = [
-  { id: 'classique', label: 'Classique', frameColor: null, contentBg: '#ffffff' },
-  { id: 'bleu', label: 'Bleu Disciplina', frameColor: '#1130A7', contentBg: '#E8EBFA' },
-  { id: 'chaleureux', label: 'Chaleureux', frameColor: '#A65C00', contentBg: '#FEF3E2' },
-  { id: 'nature', label: 'Nature', frameColor: '#1A7A4A', contentBg: '#E6F4ED' },
-  { id: 'elegant', label: 'Élégant', frameColor: '#60207E', contentBg: '#F0E6F6' },
-]
+export function pastelizeThemeColor(hex: string): string {
+  const n = parseInt(hex.slice(1), 16)
+  const mix = (c: number) => Math.round(c + (255 - c) * PASTEL_WHITE_MIX)
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(mix)
+  return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')
+}
 
 /** Données éditables d'un modèle (pedaLevel ignoré hors scope peda). */
 export interface MailTemplateInput {
@@ -39,7 +41,7 @@ export interface MailTemplateInput {
   subject: string
   body: string
   pedaLevel?: PedaLevel | null
-  theme?: MailThemeId | null
+  theme?: string | null
 }
 
 /** Métadonnées de PJ renvoyées par l'API (le contenu reste sur Drive). */
@@ -63,7 +65,7 @@ export interface MailTemplate {
   body: string
   pedaLevel: PedaLevel | null
   kind: MailTemplateKind | null
-  theme: MailThemeId | null
+  theme: string | null
   attachment: MailTemplateAttachmentMeta | null
 }
 
