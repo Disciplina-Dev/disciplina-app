@@ -244,62 +244,6 @@ CREATE TABLE IF NOT EXISTS `external_access` (
   CONSTRAINT `fk_ext_access_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
--- ──────────────────────────────────────────────────────────────────────────────
--- DÉPRECATED: les trois tables ci-dessous sont remplacées par external_access.
--- Elles restent ici temporairement pour permettre la migration des données.
--- À supprimer une fois la migration terminée.
--- ──────────────────────────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS `interview_access` (
-  `signature` char(64) NOT NULL,
-  `code` char(6) NOT NULL,
-  `offer_uuid` varchar(64) NOT NULL,
-  `candidate_id` varchar(64) NOT NULL,
-  `rh_email` varchar(255) NOT NULL,
-  `status` enum('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-  `attempts` tinyint NOT NULL DEFAULT '0',
-  `expires_at` timestamp NOT NULL,
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY `idx_interview_access_job` (`offer_uuid`),
-  KEY `idx_interview_access_candidate` (`candidate_id`),
-  PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
-CREATE TABLE IF NOT EXISTS `match_link` (
-  `signature` char(64) NOT NULL,
-  `code` char(6) NOT NULL,
-  `identifier` varchar(32) NOT NULL,
-  `rh_email` varchar(255) NOT NULL,
-  `company_email` varchar(255) NOT NULL,
-  `offer_uuid` varchar(64) NOT NULL,
-  `status` enum('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-  `attempts` tinyint NOT NULL DEFAULT '0',
-  `expires_at` timestamp NOT NULL,
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`signature`) /*T![clustered_index] CLUSTERED */
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
-CREATE TABLE IF NOT EXISTS `external_link` (
-  `id`             int           NOT NULL AUTO_INCREMENT,
-  `signature`      char(128)     NOT NULL,
-  `code`           char(6)      NOT NULL,
-  `external_email` varchar(255) NOT NULL,
-  `rh_email`       varchar(255) NOT NULL,
-  `guest_type`     enum('COMPANY','CANDIDATE') NOT NULL,
-  `external_uuid`  varchar(64)  NOT NULL,
-  `status`         enum('PENDING','AUTHENTICATED','COMPLETED','LOCKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-  `attempts`       tinyint      NOT NULL DEFAULT '0',
-  `expires_at`     timestamp    NOT NULL,
-  `created_at`     timestamp    DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`     timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
-  UNIQUE KEY `uk_signature` (`signature`),
-  KEY `idx_external_uuid` (`external_uuid`),
-  KEY `idx_guest_type` (`guest_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
 -- La table `needs_analysis` a été retirée le 2026-07-17 : l'entité vit désormais dans
 -- MongoDB (collection `needs_analysis`, cf. database/mongodb/mongo-schema.md). Aucun code
 -- du backend ne la lisait, et elle était vide. Voir docs/AUDIT.md §6.3.
@@ -445,8 +389,8 @@ CREATE TABLE IF NOT EXISTS `todos` (
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- BASE SECONDAIRE : disciplina_annemasse (multi-tenant — site Annemasse).
--- Mêmes tables que `disciplina` SAUF les trois tables deprecated, remplacées par
--- `external_access` (interview_access / match_link / external_link).
+-- Mêmes tables que `disciplina` (external_access et non plus les tables
+-- dépréciées, supprimées après la migration de 2026-08).
 --
 -- Stratégie de clonage : `CREATE TABLE ... LIKE` copie colonnes, clés,
 -- index et colonnes générées, mais PAS les contraintes de clés étrangères —
@@ -454,7 +398,7 @@ CREATE TABLE IF NOT EXISTS `todos` (
 -- référence (permissions, roles, external_references, sector_settings).
 --
 -- ATTENTION : ce bloc n'est joué que sur un volume vierge (initdb). Sur une
--- instance existante, appliquer database/mysql/migrations/2026-09-10-annemasse-schema.sql.
+-- instance existante, la base a été créée par la release 1.3.0.
 -- ──────────────────────────────────────────────────────────────────────────────
 CREATE DATABASE IF NOT EXISTS disciplina_annemasse;
 
@@ -549,8 +493,7 @@ INSERT IGNORE INTO disciplina_annemasse.external_references (id, name)
 -- matérialise en tables temporaires. DROP et tout privilège global sont retirés :
 -- sans DROP, `DROP DATABASE disciplina` est refusé.
 --
--- ATTENTION : ce fichier n'est joué que sur un volume vierge. Sur une base existante,
--- appliquer database/mysql/migrations/2026-08-06-app-user.sql.
+-- ATTENTION : ce fichier n'est joué que sur un volume vierge (initdb).
 REVOKE ALL PRIVILEGES ON `disciplina`.* FROM 'disciplina_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES
     ON `disciplina`.* TO 'disciplina_app'@'%';

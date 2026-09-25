@@ -361,10 +361,11 @@ queries use CTEs that MySQL materialises.
 requires `DROP` (use `DELETE`), and a `WITH` CTE requires `CREATE TEMPORARY TABLES`. The test
 suite runs under the same account, so a violation fails in CI rather than in production.
 
-`mysql-init.sql` only runs on a fresh volume: existing databases need
-`database/mysql/migrations/2026-08-06-app-user.sql` applied once, otherwise keep `MYSQL_USER=root`
-in `.env`. Credentials come from `MYSQL_USER` / `MYSQL_PASSWORD`; `MYSQL_PASSWORD` is unset means
-falling back to the root password (backwards compatibility, see `config/env.ts`).
+`mysql-init.sql` only runs on a fresh volume: for an existing database created before the
+least-privilege account existed, keep `MYSQL_USER=root` in `.env` until it is created (the
+canonical grant set lives in `mysql-init.sql`). Credentials come from `MYSQL_USER` /
+`MYSQL_PASSWORD`; `MYSQL_PASSWORD` is unset means falling back to the root password (backwards
+compatibility, see `config/env.ts`).
 
 ### MongoDB
 
