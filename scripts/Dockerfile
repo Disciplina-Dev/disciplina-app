@@ -5,12 +5,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY startup.py clean_companies.py import_company.py import_blacklist.py import_jobs.py ./
-COPY import_candidates.py ./
-COPY migrate_offers_to_ab.py migrate-position-desired-tp.js ./
-COPY normalize_legacy_offers.py sync_digiforma.py ./
+COPY delete_companies.py seed_annemasse_test_data.py ./
 COPY db/ ./db/
 COPY lib/ ./lib/
-COPY resources/ ./resources/
 
-CMD ["python", "-u", "startup.py"]
+# Legacy CSV seed (startup.py + import_*.py) was removed in #778. The image is
+# kept as a runner for the surviving admin scripts (cf. HOWTODEPLOY.md:
+# `docker compose run --rm startup-script python -u delete_companies.py ...`)
+# so the default command is a no-op that exits 0 instead of failing boot.
+CMD ["python", "-c", "print('CSV seed removed (#778): nothing to run on boot.')"]
