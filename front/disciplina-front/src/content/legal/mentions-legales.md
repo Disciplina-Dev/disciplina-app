@@ -1,6 +1,6 @@
 # Mentions légales
 
-**Version 2026-09-v1 — dernière mise à jour : 16 septembre 2026**
+**Version 2026-09-v1 — dernière mise à jour : 25 septembre 2026**
 
 Informations publiées en application de l'article 6 III de la loi n° 2004-575 du
 21 juin 2004 pour la confiance dans l'économie numérique (LCEN).
@@ -11,33 +11,33 @@ Informations publiées en application de l'article 6 III de la loi n° 2004-575 
 
 | | |
 |---|---|
-| Dénomination sociale | Disciplina |
+| Dénomination sociale | Disciplina Réunion |
 | Forme juridique | SARL |
 | Capital social | 1 000 € |
-| Siège social | Disciplina, 71 rue Roger Payet, 97438 Sainte-Marie |
+| Siège social | Disciplina Réunion, 71 rue Roger Payet, 97438 Sainte-Marie |
 | SIRET | 978 289 866 00011 |
 | RCS | 978 289 866 RCS Saint-Denis |
 | TVA intracommunautaire | FR71 978 289 866 |
-| Téléphone | [[TELEPHONE]] |
-| Email | [[EMAIL_CONTACT]] |
+| Téléphone | 0693 88 80 21 |
+| Email | contact@disciplina.re |
 
-**Directeur de la publication** : [[DIRECTEUR_PUBLICATION]]
+**Directeur de la publication** : Lorenzo ENCATASSAMY
 
 ## Activité de formation
 
-Disciplina est enregistré en qualité de prestataire d'actions concourant au
+Disciplina Réunion est enregistré en qualité de prestataire d'actions concourant au
 développement des compétences sous le numéro de déclaration d'activité
-**[[NDA_FORMATION]]** auprès du préfet de région. Cet enregistrement ne vaut pas
+**04 97 34841 97** auprès du préfet de région. Cet enregistrement ne vaut pas
 agrément de l'État.
 
 Certification qualité : Dispositif certifié Qualiopi — numéro de certification
-**[[N_QUALIOPI]]**.
+**595511-1**.
 
 ## Hébergeur
 
 | | |
 |---|---|
-| Hébergeur | Disciplina — auto-hébergement (Mac mini + Docker) |
+| Hébergeur | Disciplina Réunion — auto-hébergement (Mac mini + Docker) |
 | Adresse | 8 rue Pondichéry, 97438 Sainte-Marie |
 
 L'application et ses bases de données sont hébergées sur une infrastructure située
@@ -51,11 +51,11 @@ Le service est accessible à l'adresse https://app-reunion.disciplina.re.
 
 ## Protection des données personnelles
 
-Les traitements de données personnelles mis en œuvre par Disciplina sont
+Les traitements de données personnelles mis en œuvre par Disciplina Réunion sont
 décrits dans la [politique de confidentialité](/legal/confidentialite).
 
 Contact pour l'exercice des droits et toute question relative aux données
-personnelles : **[[EMAIL_DPO]]**, ou par courrier à Disciplina,
+personnelles : **contact@disciplina.re**, ou par courrier à Disciplina Réunion,
 71 rue Roger Payet, 97438 Sainte-Marie.
 
 Toute personne concernée peut introduire une réclamation auprès de la Commission
@@ -77,7 +77,7 @@ L'utilisation du service est régie par les
 L'ensemble des éléments composant le site — structure, code source, textes,
 interfaces, bases de données, marques, logos, éléments graphiques — est protégé par
 le Code de la propriété intellectuelle et demeure la propriété de
-Disciplina ou de ses concédants.
+Disciplina Réunion ou de ses concédants.
 
 Toute reproduction, représentation, modification, publication ou extraction, totale
 ou partielle, sans autorisation écrite préalable, est interdite et constitue une
@@ -90,14 +90,14 @@ de la relation de partenariat.
 
 ## Liens hypertextes
 
-Le site peut comporter des liens vers des sites tiers. Disciplina n'exerce
+Le site peut comporter des liens vers des sites tiers. Disciplina Réunion n'exerce
 aucun contrôle sur leur contenu et décline toute responsabilité à leur égard.
 
 ## Signalement de contenu illicite
 
 Conformément à l'article 6 I de la LCEN, tout contenu manifestement illicite
-présent sur le service peut être signalé à [[EMAIL_CONTACT]] ou par courrier à
-Disciplina, 71 rue Roger Payet, 97438 Sainte-Marie.
+présent sur le service peut être signalé à contact@disciplina.re ou par courrier à
+Disciplina Réunion, 71 rue Roger Payet, 97438 Sainte-Marie.
 
 Le signalement doit préciser la date de la notification, l'identité du notifiant,
 la description et la localisation précise du contenu litigieux, ainsi que les
@@ -110,19 +110,21 @@ d'emprisonnement et de 15 000 € d'amende.
 ## Signalement de vulnérabilité
 
 Toute vulnérabilité de sécurité découverte de bonne foi peut être signalée à
-[[EMAIL_CONTACT]]. Disciplina s'engage à en accuser réception et à traiter
+contact@disciplina.re. Disciplina Réunion s'engage à en accuser réception et à traiter
 le signalement avec diligence.
 
 ## Médiation de la consommation
 
 Conformément aux articles L. 611-1 et suivants du Code de la consommation, tout
-utilisateur agissant en qualité de consommateur peut recourir gratuitement au
-médiateur de la consommation dont relève Disciplina, après avoir tenté de
-résoudre le litige directement auprès de ses services.
+utilisateur agissant en qualité de consommateur peut recourir gratuitement à la
+médiatrice de la consommation dont relève Disciplina Réunion, après avoir tenté
+de résoudre le litige directement auprès de ses services.
 
-Coordonnées du médiateur : *à compléter — Disciplina doit désigner un
-médiateur de la consommation et faire figurer ici ses nom, adresse postale et
-adresse électronique.*
+Coordonnées de la médiatrice :
+- **Médiatrice** : Séverine DUGAIN
+- **Adresse électronique** : contact@disciplina.re
+- **Téléphone** : 0693 88 80 21
+- **Adresse postale** : *à compléter*
 
 Plateforme européenne de règlement en ligne des litiges :
 ec.europa.eu/consumers/odr.

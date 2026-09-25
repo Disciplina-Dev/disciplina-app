@@ -34,7 +34,7 @@ export async function listAccess(req: AuthRequest, res: Response): Promise<void>
 }
 
 export async function revokeAccess(req: AuthRequest, res: Response): Promise<void> {
-    const { signature } = req.params;
+    const { signature } = req.params as { signature: string };
     if (!signature) {
         res.status(400).json({ success: false, error: 'Signature requise' });
         return;
@@ -50,7 +50,7 @@ export async function revokeAccess(req: AuthRequest, res: Response): Promise<voi
 }
 
 export async function complete(req: ExternalGuestRequest, res: Response): Promise<void> {
-    const { signature } = req.params;
+    const { signature } = req.params as { signature: string };
     if (!signature) {
         res.status(400).json({ error: 'Signature requise' });
         return;
@@ -70,7 +70,7 @@ export async function complete(req: ExternalGuestRequest, res: Response): Promis
  * clic puis émet le cookie invité. Idempotent tant que le lien n'a pas expiré.
  */
 export async function openAccess(req: Request, res: Response): Promise<void> {
-    const { signature } = req.params;
+    const { signature } = req.params as { signature: string };
     if (!signature) {
         res.status(400).json({ error: 'Signature requise' });
         return;
@@ -95,7 +95,7 @@ export async function openAccess(req: Request, res: Response): Promise<void> {
 }
 
 export async function getProfile(req: ExternalGuestRequest, res: Response): Promise<void> {
-    const row = await new ExternalAccessRepository().findBySignature(req.params.signature);
+    const row = await new ExternalAccessRepository().findBySignature(req.params.signature as string);
     if (!row) {
         res.status(404).json({ error: 'Session introuvable' });
         return;
@@ -157,7 +157,7 @@ export async function regenerate(req: AuthRequest, res: Response): Promise<void>
         return;
     }
 
-    const { signature } = req.params;
+    const { signature } = req.params as { signature: string };
     if (!signature) {
         res.status(400).json({ success: false, error: 'Signature requise' });
         return;

@@ -62,9 +62,9 @@ test.describe('3.3 Candidats', () => {
         await page.getByRole('button', { name: /^Compléter$/ }).click();
         await expect(page.getByRole('heading', { name: /Compléter la fiche candidat/ })).toBeVisible();
         // Gate : renseigner les scores pour débloquer le formulaire
-        const written = page.getByLabel('Épreuve écrite (sur 20) *');
+        const written = page.getByLabel('Épreuve écrite (sur 10) *');
         if (await written.isVisible()) {
-            await written.fill('12');
+            await written.fill('6');
             const cmInput = page.getByLabel('ClassMarker (sur 20)');
             if (await cmInput.isVisible()) await cmInput.fill('12');
             await page.getByRole('button', { name: /Valider les résultats/ }).click();

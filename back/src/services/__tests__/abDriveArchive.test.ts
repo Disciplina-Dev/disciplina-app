@@ -13,12 +13,16 @@ describe('AB Drive archive', () => {
     let uploadFile: any;
     let findFolder: any;
     let createFolder: any;
+    let listFolderFiles: any;
+    let deleteFile: any;
     let originalFromTokens: any;
     let fromTokensArgs: any[] | null;
     let uploadFileCalls: any[][];
     let findFolderCalls: any[][];
     let createFolderCalls: any[][];
+    let deleteFileCalls: any[][];
     let findFolderResult: { id: string; webViewLink: string } | null;
+    let folderFiles: { id: string; name: string }[];
 
     async function createCommercial(label: string, oauthToken: string | null, refreshToken: string | null): Promise<number> {
         return new UserRepository().create({
@@ -41,7 +45,9 @@ describe('AB Drive archive', () => {
         uploadFileCalls = [];
         findFolderCalls = [];
         createFolderCalls = [];
+        deleteFileCalls = [];
         findFolderResult = null;
+        folderFiles = [];
         uploadFile = async (...args: any[]) => {
             uploadFileCalls.push(args);
             return { id: 'drive-file-id', webViewLink: 'https://drive.test/file' };
@@ -54,6 +60,10 @@ describe('AB Drive archive', () => {
             createFolderCalls.push(args);
             return { id: 'company-folder-id', webViewLink: 'https://drive.test/folder' };
         };
+        listFolderFiles = async () => folderFiles;
+        deleteFile = async (...args: any[]) => {
+            deleteFileCalls.push(args);
+        };
         originalFromTokens = googleDriveServiceAny.fromTokens;
         fromTokensArgs = null;
         // @ts-ignore manual test double for GoogleDriveService.fromTokens
@@ -63,6 +73,8 @@ describe('AB Drive archive', () => {
                 findFolder,
                 createFolder,
                 uploadFile,
+                listFolderFiles,
+                deleteFile,
             } as any;
         }) as any;
 
@@ -158,5 +170,54 @@ describe('AB Drive archive', () => {
 
         expect(link).toBeNull();
         expect(uploadFileCalls).toHaveLength(0);
+    });
+
+    it('deletes the same-name file before re-uploading (no Drive duplicates on replay)', async () => {
+        findFolderResult = { id: 'existing-company-folder', webViewLink: 'https://drive.test/existing-folder' };
+        folderFiles = [
+            { id: 'old-file-id', name: 'signed.pdf' },
+            { id: 'other-file-id', name: 'unrelated.pdf' },
+        ];
+
+        const actingUserId = await createCommercial('acting', 'tok-acting', 'refresh-acting');
+        const creatorId = await createCommercial('creator', 'tok-creator', 'refresh-creator');
+
+        const link = await service.archiveAbPdf(
+            CompanyRegion.SUD,
+            'SIGNED',
+            Buffer.from('pdf'),
+            'signed.pdf',
+            'ACME',
+            creatorId,
+            actingUserId,
+        );
+
+        expect(link).toBe('https://drive.test/file');
+        expect(deleteFileCalls).toEqual([['old-file-id']]);
+        expect(uploadFileCalls).toHaveLength(1);
+        expect(uploadFileCalls[0][0]).toBe('signed.pdf');
+        expect(uploadFileCalls[0][3]).toBe('existing-company-folder');
+    });
+
+    it('uploads without deleting when no same-name file exists', async () => {
+        findFolderResult = { id: 'existing-company-folder', webViewLink: 'https://drive.test/existing-folder' };
+        folderFiles = [{ id: 'other-file-id', name: 'unrelated.pdf' }];
+
+        const actingUserId = await createCommercial('acting', 'tok-acting', 'refresh-acting');
+        const creatorId = await createCommercial('creator', 'tok-creator', 'refresh-creator');
+
+        const link = await service.archiveAbPdf(
+            CompanyRegion.SUD,
+            'SIGNED',
+            Buffer.from('pdf'),
+            'signed.pdf',
+            'ACME',
+            creatorId,
+            actingUserId,
+        );
+
+        expect(link).toBe('https://drive.test/file');
+        expect(deleteFileCalls).toHaveLength(0);
+        expect(uploadFileCalls).toHaveLength(1);
     });
 });

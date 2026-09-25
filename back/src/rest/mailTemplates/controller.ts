@@ -93,7 +93,7 @@ export async function updateTemplate(req: AuthRequest, res: Response): Promise<v
         return;
     }
     try {
-        const template = await service.update(Number(req.user.id), req.params.id, {
+        const template = await service.update(Number(req.user.id), req.params.id as string, {
             name: String(name),
             subject: String(subject),
             body: String(body),
@@ -107,7 +107,7 @@ export async function updateTemplate(req: AuthRequest, res: Response): Promise<v
 
 export async function deleteTemplate(req: AuthRequest, res: Response): Promise<void> {
     try {
-        await service.remove(Number(req.user.id), req.params.id);
+        await service.remove(Number(req.user.id), req.params.id as string);
         res.status(204).end();
     } catch (err) {
         handleError(err, res);
@@ -124,7 +124,7 @@ export async function uploadAttachment(req: AuthRequest, res: Response): Promise
     try {
         const template = await service.setAttachment(
             Number(req.user.id),
-            req.params.id,
+            req.params.id as string,
             file.originalname,
             file.mimetype || 'application/octet-stream',
             file.buffer,
@@ -137,7 +137,7 @@ export async function uploadAttachment(req: AuthRequest, res: Response): Promise
 
 export async function deleteAttachment(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const template = await service.removeAttachment(Number(req.user.id), req.params.id);
+        const template = await service.removeAttachment(Number(req.user.id), req.params.id as string);
         res.json({ template });
     } catch (err) {
         handleError(err, res);
@@ -147,7 +147,7 @@ export async function deleteAttachment(req: AuthRequest, res: Response): Promise
 /** Renvoie le fichier original (décompressé, base64) pour l'attacher à un envoi. */
 export async function resolveAttachment(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const attachment = await service.resolveAttachment(Number(req.user.id), req.params.id);
+        const attachment = await service.resolveAttachment(Number(req.user.id), req.params.id as string);
         res.json({ attachment });
     } catch (err) {
         handleError(err, res);
