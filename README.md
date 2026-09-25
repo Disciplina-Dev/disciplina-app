@@ -278,23 +278,7 @@ MONGO_PORT=27017
 The application connects as `disciplina_app`, never as `root`. `MYSQL_PASSWORD` is **mandatory**: `docker-compose.yaml` declares it as `${MYSQL_PASSWORD:?}` and refuses to start without it.
 
 - **Fresh volume** — the account is created by the `mysql` image from `MYSQL_USER`/`MYSQL_PASSWORD`, then `database/mysql/mysql-init.sql` narrows its grants. Nothing to do.
-- **Existing database** — `mysql-init.sql` never re-runs, so the account does not exist yet and the backend would fail with `Access denied for user 'disciplina_app'`. Create it once with the command below (no data is touched, no table is dropped), or set `MYSQL_USER=root` to keep the previous behaviour.
-
-Creating the account on an existing database:
-
-```bash
-# 1. Set MYSQL_PASSWORD in the root .env, then substitute it into the migration script
-docker compose up -d sql-db
-sed "s/<MOT_DE_PASSE>/${MYSQL_PASSWORD}/" database/mysql/migrations/2026-08-06-app-user.sql \
-  | docker compose exec -T sql-db mysql -u root -p"${MYSQL_ROOT_PASSWORD}"
-
-# 2. Confirm the grants — no DROP, no global privilege beyond USAGE
-docker compose exec -T sql-db mysql -u root -p"${MYSQL_ROOT_PASSWORD}" \
-  -e "SHOW GRANTS FOR 'disciplina_app'@'%';"
-
-# 3. Restart the backend, which now connects as disciplina_app
-docker compose up -d backend
-```
+- **Existing database** — `mysql-init.sql` never re-runs, so a database that predates the least-privilege account does not have it and the backend would fail with `Access denied for user 'disciplina_app'`. On such a database set `MYSQL_USER=root` in `.env` until the account is created; the canonical grant set lives in `mysql-init.sql`.
 
 Load the root `.env` first (`set -a; source .env; set +a`) so `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` are set in your shell.
 

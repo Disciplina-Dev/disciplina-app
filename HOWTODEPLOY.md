@@ -174,3 +174,26 @@ curl -i https://app-reunion.disciplina.re/.well-known/oauth-protected-resource/a
 ```
 
 Both must return `application/json` (OAuth metadata) — not `text/html` (SPA).
+
+### Bulk company deletion by SIRET (manual, one-off)
+
+`scripts/delete_companies.py` deletes the companies listed in a text file (one
+SIRET per line) from one tenant, MySQL and MongoDB. It is a dry run unless
+`--execute` is passed. Companies still linked to live Mongo data (needs analyses,
+offers, candidates) are skipped unless `--cascade` is passed. Full details are in
+the script docstring.
+
+```bash
+./scripts/backup-db.sh                                                   # 1. full backup
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml stop backend   # 2. freeze writes
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml run --rm --no-deps \
+  -v "$PWD/scripts:/app" -v "$PWD/<siret_file>:/data/sirets.txt:ro" \
+  startup-script python -u delete_companies.py /data/sirets.txt --tenant reunion   # 3. dry run, read the report
+# 4. same command + --execute (and --cascade if needed), answer 'y'
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml start backend  # 5. restart and smoke test
+```
+
+The databases must be running and the backend stopped. A JSON copy of everything
+removed is written to `scripts/backups/` (it contains personal data). The script
+does not touch DocuSeal, Drive or `companies_blacklist`, so a later Digiforma
+import can re-create deleted companies.

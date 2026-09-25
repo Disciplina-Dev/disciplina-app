@@ -25,7 +25,7 @@ export function requireInterviewReference(req: ExternalGuestRequest, res: Respon
 
 export async function getSlots(req: Request, res: Response): Promise<void> {
     try {
-        const slots = await externalInterviewService.getSlots(req.params.signature);
+        const slots = await externalInterviewService.getSlots(req.params.signature as string);
         res.json(slots);
     } catch (err) {
         res.status(404).json({ error: (err as Error).message });
@@ -39,8 +39,8 @@ export async function bookSlot(req: Request, res: Response): Promise<void> {
         return;
     }
     try {
-        await externalInterviewService.bookSlot(req.params.signature, slot);
-        await notifyBooked(req.params.signature);
+        await externalInterviewService.bookSlot(req.params.signature as string, slot);
+        await notifyBooked(req.params.signature as string);
         res.json({ ok: true });
     } catch (err) {
         if (err instanceof SlotUnavailableError) {

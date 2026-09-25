@@ -285,8 +285,8 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
     const actor = await userService.findById(Number(req.user.id));
     try {
         const calendar = calendarForUser(owner);
-        const before = await calendar.getEvent(req.params.id);
-        const event = await calendar.setAttendance(req.params.id, status);
+        const before = await calendar.getEvent(req.params.id as string);
+        const event = await calendar.setAttendance(req.params.id as string, status);
         // KPI : venu / pas venu (tout créneau, entretien ou non), attribué à l'acteur.
         if (actor) {
             const delta = attendanceDelta(before.attendance, status);
@@ -321,8 +321,8 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
     const actor = await userService.findById(Number(req.user.id));
     const calendar = calendarForUser(owner);
     try {
-        const before = await calendar.getEvent(req.params.id);
-        const event = await calendar.updateEvent(req.params.id, input);
+        const before = await calendar.getEvent(req.params.id as string);
+        const event = await calendar.updateEvent(req.params.id as string, input);
         // KPI : rééquilibre le compteur « entretiens placés » si le flag ou la date a changé (acteur).
         const dayMoved = dayKey(before.start) !== dayKey(input.start);
         const toggled = before.isInterview !== input.isInterview;
@@ -354,8 +354,8 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
     const actor = await userService.findById(Number(req.user.id));
     const calendar = calendarForUser(owner);
     try {
-        const before = await calendar.getEvent(req.params.id);
-        await calendar.deleteEvent(req.params.id);
+        const before = await calendar.getEvent(req.params.id as string);
+        await calendar.deleteEvent(req.params.id as string);
         // KPI : on retire les compteurs portés par ce créneau (placé pour les entretiens, venu + no-show pour tous), acteur.
         if (actor) {
             const delta: Record<string, number> = {};

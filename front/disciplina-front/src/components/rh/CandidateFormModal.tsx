@@ -318,7 +318,7 @@ function candidateToForm(c: Candidate): ABForm {
     consentDataSharing: c.consentments?.data_sharing ?? false,
     consentAiProcessing: c.consentments?.ai_processing ?? false,
     consentPhotoProcessing: c.consentments?.photo_processing ?? false,
-    writtenTestScore: c.written_test_score != null ? String(c.written_test_score) : '',
+    writtenTestScore: c.written_test_score != null ? String(parseFloat((c.written_test_score / 2).toFixed(2))) : '',
     testAverage: c.test_average != null ? String(c.test_average) : '',
     testFailurePending: !!c.test_failure_pending,
   };
@@ -336,7 +336,9 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
     && prevConsent.data_sharing === f.consentDataSharing
     && prevConsent.ai_processing === f.consentAiProcessing
     && prevConsent.photo_processing === f.consentPhotoProcessing;
-  const wt = f.writtenTestScore !== '' ? parseFloat(f.writtenTestScore) : undefined;
+  // Épreuve écrite saisie sur 10 côté UI, stockée sur 20 côté serveur
+  // (conversion ×2) pour rester cohérent avec l'historique et la moyenne /20.
+  const wt = f.writtenTestScore !== '' ? parseFloat(f.writtenTestScore) * 2 : undefined;
   const avg = f.testAverage !== '' ? parseFloat(f.testAverage) : undefined;
   return {
     tpTypes: f.tpTypes, status: f.status,
@@ -596,19 +598,21 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     }
     return null;
   })();
-  const writtenScoreNum: number | null = (() => {
+  const writtenScore10: number | null = (() => {
     const v = parseFloat((form.writtenTestScore ?? '').replace(',', '.'));
     if (Number.isNaN(v)) return null;
     return v;
   })();
-  const testAverage: number | null = writtenScoreNum != null && classMarkerScore20 != null
-    ? (writtenScoreNum + classMarkerScore20) / 2
+  // Convertie sur 20 pour le calcul de la moyenne avec ClassMarker (/20).
+  const writtenScore20: number | null = writtenScore10 != null ? writtenScore10 * 2 : null;
+  const testAverage: number | null = writtenScore20 != null && classMarkerScore20 != null
+    ? (writtenScore20 + classMarkerScore20) / 2
     : null;
 
   const handleGateValidate = async () => {
     setGateError(null);
-    if (writtenScoreNum == null || writtenScoreNum < 0 || writtenScoreNum > 20) {
-      setGateError('Veuillez saisir le résultat de l’épreuve écrite (0–20).');
+    if (writtenScore10 == null || writtenScore10 < 0 || writtenScore10 > 10) {
+      setGateError('Veuillez saisir le résultat de l’épreuve écrite (0–10).');
       return;
     }
     if (classMarkerScore20 == null) {
@@ -637,7 +641,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           const input = toServerInput({ ...form, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true } as ABForm, candidate);
           // Force statut / scores même si toServerInput les normalise
           input.status = 'TEST_FAILED';
-          input.writtenTestScore = writtenScoreNum;
+          input.writtenTestScore = writtenScore10 * 2;
           input.testAverage = avg;
           input.testFailurePending = true;
           const res = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate._id, input });
@@ -666,7 +670,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           };
           const input: any = toServerInput(pendingForm, null);
           input.status = 'TEST_FAILED';
-          input.writtenTestScore = writtenScoreNum;
+          input.writtenTestScore = writtenScore10 * 2;
           input.testAverage = avg;
           input.testFailurePending = true;
           // Si l'utilisateur n'a pas coché le consentement, on le force pour l'échec (sinon 400)
@@ -932,7 +936,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
             <div className="rounded-xl border border-purple/20 bg-purple-50/50 p-4">
               <h3 className="text-sm font-bold text-purple">Étape préalable : résultats des tests</h3>
-              <p className="mt-1 text-xs text-gray-600">Saisissez la note de l’épreuve écrite et vérifiez le score ClassMarker. La moyenne doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / SA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
+              <p className="mt-1 text-xs text-gray-600">Saisissez la note de l’épreuve écrite (sur 10) et vérifiez le score ClassMarker (sur 20). La moyenne (/20) doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / SA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
             </div>
             {gateError && (
               <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
@@ -965,8 +969,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="gate-written" className="text-sm font-medium text-gray-700">Épreuve écrite (sur 20) *</label>
-                <input id="gate-written" type="number" min={0} max={20} step={0.5} placeholder="Ex: 12" value={form.writtenTestScore} onChange={e => set('writtenTestScore', e.target.value)} className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple" />
+                <label htmlFor="gate-written" className="text-sm font-medium text-gray-700">Épreuve écrite (sur 10) *</label>
+                <input id="gate-written" type="number" min={0} max={10} step={0.5} placeholder="Ex: 6" value={form.writtenTestScore} onChange={e => set('writtenTestScore', e.target.value)} className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="gate-classmarker" className="text-sm font-medium text-gray-700">ClassMarker (sur 20)</label>

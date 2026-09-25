@@ -116,8 +116,8 @@ services:
       - ./.env
     environment:
       # Compte applicatif à droits limités. Sur une base ANTÉRIEURE à sa création,
-      # mettre MYSQL_USER=root dans le .env le temps d'appliquer
-      # database/mysql/migrations/2026-08-06-app-user.sql.
+      # mettre MYSQL_USER=root dans le .env le temps de créer le compte applicatif
+      # (grant set canonique dans database/mysql/mysql-init.sql).
       MYSQL_USER: ${MYSQL_USER:-disciplina_app}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD}
       MYSQL_DATABASE: disciplina
