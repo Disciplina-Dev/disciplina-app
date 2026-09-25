@@ -138,14 +138,24 @@ export default function LoginPage() {
 
         {error && <p className="text-sm text-red-500">{error}</p>}
 
-        <Button
-          type="submit"
-          size="lg"
-          className="w-full rounded-[10px]"
-          disabled={fetching || !region}
-        >
-          {fetching ? 'Connexion...' : 'Se connecter'}
-        </Button>
+        <div className="group relative">
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full rounded-[10px]"
+            disabled={fetching || !region}
+          >
+            {fetching ? 'Connexion...' : 'Se connecter'}
+          </Button>
+          {!region && (
+            <p
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 mb-2 w-max max-w-full -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+            >
+              Veuillez sélectionner la région qui correspond à votre service
+            </p>
+          )}
+        </div>
       </form>
     </div>
   )
