@@ -134,6 +134,19 @@ describe('POST /api/webhooks/docuseal — signature auto-injection', () => {
         expect(sendEmail).toHaveBeenCalledTimes(1);
     });
 
+    it('sends a single mail on concurrent duplicate deliveries (no duplicate mails)', async () => {
+        const [first, second] = await Promise.all([postWebhook(), postWebhook()]);
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+
+        expect(sendEmail).toHaveBeenCalledTimes(1);
+
+        const needsAnalysisRepo = new NeedsAnalysisRepository();
+        const after = await needsAnalysisRepo.findBySignatureRequestId(submissionId);
+        expect(after?.status).toBe(NeedsAnalysisStatus.SIGNE);
+        expect(after?.signed_notification_sent_at).toBeDefined();
+    });
+
     it('notifies every commercial in the AB sector with an ab_signed notification', async () => {
         const sudCommercialId = await createCommercial('sud', ['Sud']);
         const nordCommercialId = await createCommercial('nord', ['Nord-Est']);

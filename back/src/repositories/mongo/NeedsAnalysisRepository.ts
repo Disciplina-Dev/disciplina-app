@@ -45,7 +45,8 @@ export class NeedsAnalysisRepository {
             }
         }
         const filter = conditions.length ? { $and: conditions } : {};
-        return getModels().NeedsAnalysis.find(filter)
+        return getModels()
+            .NeedsAnalysis.find(filter)
             .sort({ created_at: -1, _id: 1 })
             .limit(first + 1)
             .lean();
@@ -57,7 +58,9 @@ export class NeedsAnalysisRepository {
 
     async findByCompanyId(companyId: number): Promise<NeedsAnalysis[]> {
         // Les AB supprimées (inactives) n'apparaissent pas dans le portefeuille commercial.
-        return getModels().NeedsAnalysis.find({ 'company_infos.id': companyId, is_deleted: { $ne: true } }).lean();
+        return getModels()
+            .NeedsAnalysis.find({ 'company_infos.id': companyId, is_deleted: { $ne: true } })
+            .lean();
     }
 
     async findBySignatureRequestId(signatureRequestId: string): Promise<NeedsAnalysis | null> {
@@ -73,6 +76,41 @@ export class NeedsAnalysisRepository {
     async update(id: string, data: Partial<NeedsAnalysis>): Promise<NeedsAnalysis | null> {
         const { _id, ...patch } = data;
         return getModels().NeedsAnalysis.findOneAndUpdate({ _id: id }, { $set: patch }, { new: true }).lean();
+    }
+
+    /**
+     * Réservation atomique du traitement « AB signée » (mails copie commerciale /
+     * entreprise + notifs + archive Drive). Les webhooks de signature sont livrés
+     * en « au moins une fois » (retries, `procedure.signed` + `procedure.done` pour
+     * la même demande, double livraison parallèle) : le premier appel pose
+     * `signed_notification_sent_at` et gagne, les autres lisent un garde déjà
+     * renseigné et s'effacent. Le test lecture-puis-écriture ne suffit pas — deux
+     * livraisons concurrentes (voire deux instances du backend) liraient toutes
+     * deux un garde vide avant que l'une ait envoyé les mails.
+     *
+     * @returns true si la réservation a réussi (ce appel traite), false si un
+     * autre appel a déjà réservé/traité (rejeu à ignorer).
+     */
+    async claimSignedNotification(id: string): Promise<boolean> {
+        const claimed = await getModels()
+            .NeedsAnalysis.findOneAndUpdate(
+                { _id: id, signed_notification_sent_at: null },
+                { $set: { signed_notification_sent_at: new Date() } },
+                { new: false },
+            )
+            .lean();
+        return claimed !== null;
+    }
+
+    /**
+     * Libère une réservation posée par `claimSignedNotification`, pour laisser un
+     * rejeu du webhook réessayer. À n'utiliser que sur les échecs survenus AVANT
+     * toute tentative d'envoi de mail (ex. PDF signé introuvable) : après le
+     * premier mail, la réservation est conservée même en cas d'échec partiel
+     * (anti-spam : on ne renvoie jamais une copie déjà partie).
+     */
+    async releaseSignedNotification(id: string): Promise<void> {
+        await getModels().NeedsAnalysis.updateOne({ _id: id }, { $set: { signed_notification_sent_at: null } });
     }
 
     /**
@@ -117,10 +155,7 @@ export class NeedsAnalysisRepository {
         if (regions?.length) {
             filter['company_infos.sector'] = { $in: regions };
         }
-        return getModels().NeedsAnalysis.find(filter)
-            .sort({ created_at: -1 })
-            .limit(limit)
-            .lean();
+        return getModels().NeedsAnalysis.find(filter).sort({ created_at: -1 }).limit(limit).lean();
     }
 
     async countByStatusNotBrouillon(regions?: string[]): Promise<number> {
@@ -141,14 +176,15 @@ export class NeedsAnalysisRepository {
      */
     async findDueSignatureRelance(now: Date, delayMs: number): Promise<NeedsAnalysis[]> {
         const cutoff = new Date(now.getTime() - delayMs);
-        return getModels().NeedsAnalysis.find({
-            status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
-            is_deleted: { $ne: true },
-            is_relance_disabled: { $ne: true },
-            signature_sent_at: { $lte: cutoff, $ne: null },
-            last_relance_at: null,
-            signature_url: { $exists: true, $ne: null },
-        })
+        return getModels()
+            .NeedsAnalysis.find({
+                status: NeedsAnalysisStatus.EN_ATTENTE_SIGNATURE,
+                is_deleted: { $ne: true },
+                is_relance_disabled: { $ne: true },
+                signature_sent_at: { $lte: cutoff, $ne: null },
+                last_relance_at: null,
+                signature_url: { $exists: true, $ne: null },
+            })
             .sort({ signature_sent_at: 1 })
             .lean();
     }
@@ -159,7 +195,11 @@ export class NeedsAnalysisRepository {
         const wantsNonRenseigne = types.includes('NON_RENSEIGNE');
         if (wantsNonRenseigne && types.length === 1) {
             return getModels().NeedsAnalysis.distinct('_id', {
-                $or: [{ administration_type: 'NON_RENSEIGNE' }, { administration_type: { $exists: false } }, { administration_type: null }],
+                $or: [
+                    { administration_type: 'NON_RENSEIGNE' },
+                    { administration_type: { $exists: false } },
+                    { administration_type: null },
+                ],
             });
         }
         if (wantsNonRenseigne) {
