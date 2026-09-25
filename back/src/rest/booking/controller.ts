@@ -142,7 +142,7 @@ async function publicView(slug: string) {
 
 /** GET /api/booking/public/:slug — infos publiques de la page de réservation. */
 export async function getPublicBooking(req: Request, res: Response): Promise<void> {
-    const view = await publicView(req.params.slug);
+    const view = await publicView(req.params.slug as string);
     if (!view) {
         res.status(404).json({ error: 'Page de réservation introuvable ou désactivée' });
         return;
@@ -168,7 +168,7 @@ export async function getPublicSlots(req: Request, res: Response): Promise<void>
         res.status(400).json({ error: 'from et to (YYYY-MM-DD) requis' });
         return;
     }
-    const settings = await bookingService.findBySlug(req.params.slug);
+    const settings = await bookingService.findBySlug(req.params.slug as string);
     if (!settings || !settings.enabled) {
         res.status(404).json({ error: 'Réservation indisponible' });
         return;
@@ -200,7 +200,7 @@ export async function postBooking(req: Request, res: Response): Promise<void> {
         res.status(400).json({ error: 'start, name et email valides requis' });
         return;
     }
-    const settings = await bookingService.findBySlug(req.params.slug);
+    const settings = await bookingService.findBySlug(req.params.slug as string);
     if (!settings || !settings.enabled) {
         res.status(404).json({ error: 'Réservation indisponible' });
         return;

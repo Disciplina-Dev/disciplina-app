@@ -102,7 +102,7 @@ export class UserRepository {
         return query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(
                 ', ',
-            )}, ${USER_JOIN} WHERE u.is_interviewer = 1 OR r.name = 'RH' ORDER BY u.first_name, u.last_name`,
+            )}, ${USER_JOIN} WHERE (u.is_interviewer = 1 OR r.name = 'RH') AND ${USER_ACTIVE} ORDER BY u.first_name, u.last_name`,
         );
     }
 

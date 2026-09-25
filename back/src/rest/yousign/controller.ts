@@ -21,7 +21,29 @@ const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
 
 function escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * Garde anti-concurrence inter-livraisons (miroir de `SignedAbProcessor`) :
+ * Yousign émet plusieurs évènements pour une même demande (`procedure.signed`
+ * puis `procedure.done`, …) et rejoue en « au moins une fois ». Le second appel
+ * attend la fin du premier puis relit la garde d'idempotence
+ * (`signed_notification_sent_at`) au lieu d'envoyer les mails en double. La
+ * réservation atomique en base reste le garde-fou décisif (multi-instances).
+ */
+const inflightRequests = new Set<string>();
+
+async function waitForInflight(signatureRequestId: string, timeoutMs = 30000): Promise<void> {
+    const start = Date.now();
+    while (inflightRequests.has(signatureRequestId) && Date.now() - start < timeoutMs) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    }
 }
 
 async function resolveCommercialMailSender(commercial: any | null): Promise<any | null> {
@@ -32,7 +54,10 @@ async function resolveCommercialMailSender(commercial: any | null): Promise<any 
         const rcWithToken = responsables.filter((u: any) => u.role === JobRole.COMMERCIAL && u.oauthToken);
         const preferred = rcWithToken.find((u: any) => u.refreshToken) ?? rcWithToken[0];
         if (preferred) {
-            logger.info({ fallbackUserId: preferred.id, fallbackEmail: preferred.email }, '[Yousign] Using Responsable Commercial as mail sender');
+            logger.info(
+                { fallbackUserId: preferred.id, fallbackEmail: preferred.email },
+                '[Yousign] Using Responsable Commercial as mail sender',
+            );
             return preferred;
         }
     } catch (err) {
@@ -40,7 +65,10 @@ async function resolveCommercialMailSender(commercial: any | null): Promise<any 
     }
     const fallback = await userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
     if (fallback) {
-        logger.info({ fallbackUserId: fallback.id, fallbackEmail: fallback.email }, '[Yousign] Using fallback Commercial as mail sender');
+        logger.info(
+            { fallbackUserId: fallback.id, fallbackEmail: fallback.email },
+            '[Yousign] Using fallback Commercial as mail sender',
+        );
         return fallback;
     }
     return null;
@@ -72,6 +100,19 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
         return;
     }
 
+    if (inflightRequests.has(signatureRequestId)) {
+        logger.info({ signatureRequestId }, '[Yousign] Concurrent webhook delivery, waiting for in-flight processing');
+        await waitForInflight(signatureRequestId);
+    }
+    inflightRequests.add(signatureRequestId);
+    try {
+        await handleYousignWebhookOnce(res, signatureRequestId);
+    } finally {
+        inflightRequests.delete(signatureRequestId);
+    }
+}
+
+async function handleYousignWebhookOnce(res: Response, signatureRequestId: string): Promise<void> {
     try {
         // Le webhook n'a pas de JWT : l'AB n'existe que dans UNE des deux bases
         // régionales. On cherche dans les deux (ALS par région), puis on traite
@@ -88,19 +129,74 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
 
         await runForAllRegions(async () => {
             if (processed) return;
+            // Réservation posée par CET appel (pour la libérer si on échoue
+            // avant tout envoi de mail). Après le premier mail, on la conserve
+            // même en cas d'échec partiel : on ne renvoie jamais une copie
+            // déjà partie.
+            let claimedId: string | null = null;
+            let mailsAttempted = false;
             try {
                 // 1. Find Needs Analysis in Mongo
                 const doc = await needsAnalysisRepo.findBySignatureRequestId(signatureRequestId);
                 if (!doc) return;
+                // Idempotence (même garde que le flux DocuSeal) : un rejeu du
+                // webhook ne doit ni renvoyer les mails ni recréer des notifs.
+                if (doc.signed_notification_sent_at) {
+                    logger.info(
+                        { region: getRegion(), analysisId: doc._id },
+                        '[Yousign] Duplicate webhook ignored, notifications already sent',
+                    );
+                    processed = true;
+                    return;
+                }
+                if (doc.status === NeedsAnalysisStatus.SIGNE && !doc.signed_at) {
+                    logger.info(
+                        { region: getRegion(), analysisId: doc._id },
+                        '[Yousign] Webhook ignored, AB already signed outside the automated flow',
+                    );
+                    processed = true;
+                    return;
+                }
                 processed = true;
                 const analysis = toNeedsAnalysis(doc);
                 const region = getRegion();
 
                 logger.info({ region, analysisId: analysis.id }, 'Found Needs Analysis record for Yousign request');
 
+                // Réservation atomique AVANT tout I/O lent (téléchargement du
+                // PDF, Gmail) : Yousign émet plusieurs évènements pour une même
+                // demande (`procedure.signed` puis `procedure.done`) et rejoue
+                // en « au moins une fois ». Un doublon livré pendant l'envoi
+                // des mails — ou en parallèle depuis une autre instance — perd
+                // ici au lieu de renvoyer les mails.
+                const claimed = await needsAnalysisRepo.claimSignedNotification(analysis.id);
+                if (!claimed) {
+                    logger.info(
+                        { region, analysisId: analysis.id },
+                        '[Yousign] Duplicate webhook ignored, notifications already claimed',
+                    );
+                    return;
+                }
+                claimedId = analysis.id;
+
                 // 2. Update status in Database
-                await needsAnalysisRepo.update(analysis.id, { status: NeedsAnalysisStatus.SIGNE });
+                await needsAnalysisRepo.update(analysis.id, {
+                    status: NeedsAnalysisStatus.SIGNE,
+                    signed_at: new Date(),
+                });
                 logger.info({ region, analysisId: analysis.id }, 'Needs Analysis ID status updated to SIGNE');
+
+                // 3. Download the signed PDF from Yousign (avant SSE/notifs :
+                // un échec ici libère la réservation et le rejeu ne duplique
+                // rien, aucun mail ni notif n'étant parti).
+                const pdfBuffer = await yousignService.downloadSignedDocument(signatureRequestId);
+                if (!pdfBuffer) {
+                    logger.error({ region }, `Could not download signed PDF for request ${signatureRequestId}`);
+                    await needsAnalysisRepo.releaseSignedNotification(analysis.id);
+                    claimedId = null;
+                    respond(500, { error: 'Failed to download signed PDF' });
+                    return;
+                }
 
                 // 3a. Notify commercial via SSE (real-time in-app)
                 notifyUser(analysis.salerInfo?.id ?? 0, {
@@ -110,17 +206,11 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                     companyId: analysis.companyInfos?.id,
                 });
 
-                // 3. Download the signed PDF from Yousign
-                const pdfBuffer = await yousignService.downloadSignedDocument(signatureRequestId);
-                if (!pdfBuffer) {
-                    logger.error({ region }, `Could not download signed PDF for request ${signatureRequestId}`);
-                    respond(500, { error: 'Failed to download signed PDF' });
-                    return;
-                }
-
                 // 4. Fetch associated Commercial and Company details (decrypted tokens via UserService)
                 const commercial = analysis.salerInfo?.id ? await userService.findById(analysis.salerInfo.id) : null;
-                const company = analysis.companyInfos?.id ? await companiesService.findById(analysis.companyInfos.id) : null;
+                const company = analysis.companyInfos?.id
+                    ? await companiesService.findById(analysis.companyInfos.id)
+                    : null;
                 const companyName = company?.name || (analysis.companyInfos as any)?.name || 'Entreprise';
 
                 const safeName = companyName.replace(/\s+/g, '_');
@@ -132,21 +222,33 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                 const senderForCommercial = await resolveCommercialMailSender(commercial);
 
                 if (!commercialEmail) {
-                    logger.warn({ analysisId: analysis.id }, '[Yousign] No commercial email — skipping commercial copy');
+                    logger.warn(
+                        { analysisId: analysis.id },
+                        '[Yousign] No commercial email — skipping commercial copy',
+                    );
                 } else if (!senderForCommercial?.oauthToken) {
-                    logger.warn('[Yousign] No Google OAuth account available to dispatch the commercial copy. Status is still SIGNE.');
+                    logger.warn(
+                        '[Yousign] No Google OAuth account available to dispatch the commercial copy. Status is still SIGNE.',
+                    );
                 } else {
-                    const signatureHtml = await mailTemplateService.getSignatureHtml(senderForCommercial.id, 'commercial').catch(() => '');
-                    const positionsList = (analysis.positions ?? [])
-                        .map((p) => `${escapeHtml(p.title || 'Poste')} ${p.count ? `(x${p.count})` : ''}`.trim())
-                        .filter(Boolean)
-                        .join(', ') || '—';
+                    const signatureHtml = await mailTemplateService
+                        .getSignatureHtml(senderForCommercial.id, 'commercial')
+                        .catch(() => '');
+                    const positionsList =
+                        (analysis.positions ?? [])
+                            .map((p) => `${escapeHtml(p.title || 'Poste')} ${p.count ? `(x${p.count})` : ''}`.trim())
+                            .filter(Boolean)
+                            .join(', ') || '—';
                     const siret = (company as any)?.siret || (analysis.companyInfos as any)?.siret || '—';
                     const sectorLabel = (analysis.companyInfos as any)?.sector || '—';
                     const abId = analysis.id;
 
                     const persist = (uid: number) => async (refreshed: any) => {
-                        await userService.updateGoogleTokens(uid, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+                        await userService.updateGoogleTokens(
+                            uid,
+                            refreshed.access_token ?? null,
+                            refreshed.refresh_token ?? null,
+                        );
                     };
 
                     const commercialSubject = `[Disciplina] AB signée — ${companyName} — copie commerciale`;
@@ -186,11 +288,26 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                         `Cordialement, L'équipe Disciplina`,
                     ].join('\n');
 
+                    // À partir d'ici un mail peut partir : en cas d'exception on
+                    // conserve la réservation (anti-spam), même si la seconde
+                    // copie n'est pas encore partie.
+                    mailsAttempted = true;
                     try {
-                        logger.info(`Sending commercial copy from ${senderForCommercial.email} to ${commercialEmail}...`);
+                        logger.info(
+                            `Sending commercial copy from ${senderForCommercial.email} to ${commercialEmail}...`,
+                        );
                         await gmailService.sendEmail(
-                            { access_token: senderForCommercial.oauthToken!, refresh_token: senderForCommercial.refreshToken ?? undefined },
-                            withNoReply({ to: commercialEmail, subject: commercialSubject, html: commercialHtml, text: commercialText, attachments }),
+                            {
+                                access_token: senderForCommercial.oauthToken!,
+                                refresh_token: senderForCommercial.refreshToken ?? undefined,
+                            },
+                            withNoReply({
+                                to: commercialEmail,
+                                subject: commercialSubject,
+                                html: commercialHtml,
+                                text: commercialText,
+                                attachments,
+                            }),
                             persist(senderForCommercial.id),
                         );
                         logger.info('Commercial copy email sent successfully!');
@@ -227,18 +344,46 @@ export async function handleYousignWebhook(req: Request, res: Response): Promise
                             ${sigHtml2}
                         `;
                             await gmailService.sendEmail(
-                                { access_token: senderForCommercial.oauthToken!, refresh_token: senderForCommercial.refreshToken ?? undefined },
-                                withNoReply({ to: referentEmail, subject: companySubject, html: companyHtml, text: companyText, attachments }),
+                                {
+                                    access_token: senderForCommercial.oauthToken!,
+                                    refresh_token: senderForCommercial.refreshToken ?? undefined,
+                                },
+                                withNoReply({
+                                    to: referentEmail,
+                                    subject: companySubject,
+                                    html: companyHtml,
+                                    text: companyText,
+                                    attachments,
+                                }),
                                 persist(senderForCommercial.id),
                             );
-                            logger.info({ to: referentEmail }, 'Company notification email sent successfully (Yousign)');
+                            logger.info(
+                                { to: referentEmail },
+                                'Company notification email sent successfully (Yousign)',
+                            );
                         } catch (err: any) {
                             logger.error({ err }, 'Failed to send company notification email via Yousign flow');
                         }
                     }
                 }
+
+                // La réservation atomique posée en tête de traitement tient lieu
+                // de garde d'idempotence : tout rejeu ultérieur du webhook est
+                // ignoré.
             } catch (err) {
-                if (processed) throw err;
+                if (processed) {
+                    if (claimedId && !mailsAttempted) {
+                        // Échec avant tout envoi : on libère la réservation pour
+                        // que le prochain rejeu réessaie (aucun mail parti).
+                        await needsAnalysisRepo.releaseSignedNotification(claimedId).catch((releaseErr) => {
+                            logger.warn(
+                                { err: releaseErr, analysisId: claimedId },
+                                '[Yousign] Failed to release signed-notification claim',
+                            );
+                        });
+                    }
+                    throw err;
+                }
                 logger.error({ err, region: getRegion() }, 'Yousign webhook lookup failed');
             }
         });

@@ -11,11 +11,9 @@ export default defineConfig({
         globals: false,
         setupFiles: ['./test/setup.ts'],
         pool: 'threads',
-        poolOptions: {
-            threads: {
-                singleThread: true,
-            },
-        },
+        // Vitest ≥4 : `poolOptions` supprimé, fichiers séquentiels via fileParallelism.
+        // Les tests partagent l'état DB (cf. HOWTOTEST) : jamais de parallélisme.
+        fileParallelism: false,
         reporters: process.env.CI ? ['github-actions', 'verbose'] : ['dot', 'json'],
         outputFile: './test/output.json',
     },
