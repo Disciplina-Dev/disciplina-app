@@ -1,6 +1,13 @@
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useRegionStore } from '@/store/regionStore'
+import {
+  DEFAULT_LEGAL_REGION,
+  LEGAL_PROFILES,
+  fillLegal,
+  isLegalRegion,
+} from '@/lib/legalProfile'
 
 /**
  * Rendu des documents légaux (`src/content/legal/*.md`).
@@ -84,10 +91,15 @@ const components: Components = {
 }
 
 export default function LegalDocument({ source }: { source: string }) {
+  // Pages publiques : région = `?region=` (liens d'emails), sinon dernier tenant connu.
+  const [params] = useSearchParams()
+  const stored = useRegionStore((s) => s.region)
+  const queryRegion = params.get('region')
+  const region = isLegalRegion(queryRegion) ? queryRegion : (stored ?? DEFAULT_LEGAL_REGION)
   return (
     <article>
       <Markdown remarkPlugins={[remarkGfm]} components={components}>
-        {source}
+        {fillLegal(source, LEGAL_PROFILES[region])}
       </Markdown>
     </article>
   )
