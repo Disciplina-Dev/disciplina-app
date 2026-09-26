@@ -1,9 +1,20 @@
 import type { KpiMetricColumn, KpiMetrics, KpiSite } from '@/api/kpi';
-import { KPI_METRIC_COLUMNS } from '@/api/kpi';
+import { tenantHasSectors } from '@/lib/geoReferential';
+import { KPI_METRIC_COLUMNS, KPI_SITES } from '@/api/kpi';
 import { SECTEUR_LABELS } from '@/constants/secteurs';
 
 /** Libellés secteurs affichés (valeurs ENUM DB inchangées : NORD/OUEST/SUD). */
 export const SITE_LABELS: Record<KpiSite, string> = SECTEUR_LABELS;
+
+/** Sites KPI du tenant : Annemasse n'a pas de secteur, un seul site technique (`NORD`). */
+export function activeKpiSites(): KpiSite[] {
+  return tenantHasSectors() ? KPI_SITES : ['NORD'];
+}
+
+/** Libellé d'un site KPI : « Annemasse » pour le site technique unique du tenant sans secteur. */
+export function siteLabel(site: KpiSite): string {
+  return tenantHasSectors() ? SITE_LABELS[site] : 'Annemasse';
+}
 
 export interface KpiMetricDef {
   key: KpiMetricColumn;

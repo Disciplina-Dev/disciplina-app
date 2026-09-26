@@ -5,11 +5,10 @@ import { Globe2, Briefcase, ChevronRight } from 'lucide-react'
 import {
   fetchKpiCombined,
   fetchKpiLive,
-  KPI_SITES,
   type KpiMetricColumn,
   type KpiSiteOverview,
 } from '@/api/kpi'
-import { SITE_LABELS } from '../config'
+import { activeKpiSites, siteLabel } from '../config'
 
 /** Compteurs mis en avant sur chaque carte commercial. */
 const ANNUAL_CARD_METRICS: { key: KpiMetricColumn; label: string }[] = [
@@ -39,7 +38,7 @@ function KpiSectorGrid({ sites, cardMetrics }: SectorGridProps) {
           className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]"
         >
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-[14px] font-bold text-gray-900">{SITE_LABELS[site.site]}</h3>
+            <h3 className="text-[14px] font-bold text-gray-900">{siteLabel(site.site)}</h3>
             <span className="text-[12px] text-gray-400">
               {site.totals.count_oui.toLocaleString('fr-FR')} Oui ·{' '}
               {site.totals.total_appels.toLocaleString('fr-FR')} appels
@@ -150,14 +149,14 @@ export default function KpiOverviewSection({ year }: { year: number }) {
 
   useEffect(() => {
     let cancelled = false
-    Promise.allSettled(KPI_SITES.map((site) => fetchKpiCombined(year, site)))
+    Promise.allSettled(activeKpiSites().map((site) => fetchKpiCombined(year, site)))
       .then((results) => {
         if (cancelled) return
         const sites: KpiSiteOverview[] = results
           .map((r, i) => {
             if (r.status === 'fulfilled') {
               return {
-                site: KPI_SITES[i],
+                site: activeKpiSites()[i],
                 totals: r.value.summary.totals,
                 users: r.value.summary.users.map((u) => ({ userId: u.userId, userName: u.userName, totals: u.totals })),
               }

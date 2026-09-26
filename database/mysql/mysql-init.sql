@@ -518,6 +518,7 @@ INSERT IGNORE INTO sector_settings (sector, location) VALUES
     ('Ouest', 'Disciplina Ouest — Saint-Paul'),
     ('Sud', 'Disciplina Sud — Saint-Pierre');
 
--- Copie secteur Annemasse : doit suivre le seed disciplina ci-dessus.
+-- Annemasse n'a pas de secteur : une seule ligne, sous le secteur technique 'Nord-Est'
+-- (cf. back/src/db/mysql/migrations.ts). Lieu à renseigner par l'admin.
 INSERT IGNORE INTO disciplina_annemasse.sector_settings (sector, location)
-    SELECT sector, location FROM disciplina.sector_settings;
+    VALUES ('Nord-Est', 'Disciplina Annemasse');

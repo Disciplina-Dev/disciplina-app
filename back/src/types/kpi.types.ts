@@ -1,6 +1,7 @@
-export type KpiSite = 'NORD' | 'OUEST' | 'SUD' | 'ANNEMASSE';
+// Annemasse (sans secteur) utilise le site technique `NORD`, comme son secteur `Nord-Est`.
+export type KpiSite = 'NORD' | 'OUEST' | 'SUD';
 
-export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD', 'ANNEMASSE'];
+export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
 
 export interface KpiRow {
     user_id: number | null;

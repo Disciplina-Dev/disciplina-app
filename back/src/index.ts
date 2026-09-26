@@ -187,7 +187,7 @@ export async function createApp(): Promise<express.Express> {
     await runMysqlMigrations(async <T>(sql: string, params?: unknown[]): Promise<T> => {
         const [rows] = await getPool('annemasse').execute(sql as string, params as (string | number)[]);
         return rows as T;
-    }, TENANT_TIMEZONE.annemasse);
+    }, TENANT_TIMEZONE.annemasse, 'annemasse');
     await connectMongoDB();
 
     // Ex-tables commercial_kpi / rh_kpi (#513) : import vers Mongo `kpis` puis

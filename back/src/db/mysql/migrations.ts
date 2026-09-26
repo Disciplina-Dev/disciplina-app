@@ -1,3 +1,4 @@
+import type { Region } from '../../types/tenant';
 import { query as queryDefault } from './connection';
 import { logger } from '../../external/logger';
 import { TENANT_TIMEZONE } from '../../config/tenant';
@@ -382,12 +383,19 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
     },
 ];
 
-/** Lieux par défaut (modifiables ensuite par l'admin via l'interface). */
-const SECTOR_SETTINGS_DEFAULTS: { sector: string; location: string }[] = [
+/** Lieux par défaut (modifiables ensuite par l'admin via l'interface), par tenant. */
+const REUNION_SECTOR_SETTINGS: { sector: string; location: string }[] = [
     { sector: 'Nord-Est', location: 'Disciplina Nord-Est — Sainte-Marie' },
     { sector: 'Ouest', location: 'Disciplina Ouest — Saint-Paul' },
     { sector: 'Sud', location: 'Disciplina Sud — Saint-Pierre' },
 ];
+
+// Annemasse n'a pas de secteur : une seule ligne, sous le secteur technique `Nord-Est`
+// (cf. utils/sector.ts). Lieu à renseigner par l'admin (adresse du site inconnue).
+const SECTOR_SETTINGS_DEFAULTS: Record<Region, { sector: string; location: string }[]> = {
+    reunion: REUNION_SECTOR_SETTINGS,
+    annemasse: [{ sector: 'Nord-Est', location: 'Disciplina Annemasse' }],
+};
 
 /** Défaut historique de `booking_settings.timezone`, avant le lot 1 multi-tenant. */
 const LEGACY_BOOKING_TIMEZONE = 'Indian/Reunion';
@@ -395,6 +403,7 @@ const LEGACY_BOOKING_TIMEZONE = 'Indian/Reunion';
 export async function runMysqlMigrations(
     dbQuery: QueryFn = queryDefault,
     timezone: string = TENANT_TIMEZONE.reunion,
+    region: Region = 'reunion',
 ): Promise<void> {
     for (const { table, ddl } of REQUIRED_TABLES) {
         const rows = await dbQuery<{ count: number }[]>(
@@ -501,7 +510,19 @@ export async function runMysqlMigrations(
 
     // Seed des lieux de RDV par secteur. INSERT IGNORE : ne réécrit pas une valeur
     // déjà personnalisée par l'admin, crée seulement les lignes manquantes.
-    for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS) {
+    if (region !== 'reunion') {
+        // Base clonée depuis la Réunion (mysql-init.sql) : retire les lieux Réunion restés
+        // intacts. Une valeur personnalisée par l'admin n'est jamais touchée.
+        for (const { sector, location } of REUNION_SECTOR_SETTINGS) {
+            const own = SECTOR_SETTINGS_DEFAULTS[region].find((d) => d.sector === sector);
+            if (own) {
+                await dbQuery('UPDATE sector_settings SET location = ? WHERE sector = ? AND location = ?', [own.location, sector, location]);
+            } else {
+                await dbQuery('DELETE FROM sector_settings WHERE sector = ? AND location = ?', [sector, location]);
+            }
+        }
+    }
+    for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS[region]) {
         await dbQuery('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
     }
 

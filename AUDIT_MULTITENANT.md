@@ -450,6 +450,11 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 **Front — mode « pas de secteur » (2026-09-28)** : `tenantHasSectors()` (`lib/geoReferential.ts`) masque pour Annemasse les sélecteurs de secteur : inscription et édition user (secteur technique `Nord-Est` posé silencieusement pour ne pas casser la visibilité agenda `GEO-12`), fiche entreprise, création/édition entreprise, filtre portefeuille, filtres zone/secteur du `DashboardRH`, sélecteur `RhKpiPanel`, profil ; config Drive (AB et candidats) réduite à un dossier ; agenda : un seul groupe « Agendas ». Réunion inchangée. Build OK, lint front inexécutable, **rendu non vérifié en navigateur**.
 **Reste** : onglets KPI Nord/Ouest/Sud (`features/kpi/config.ts`, backend `LIVE_SECTOR_TO_SITE`), lieux de RDV par secteur (`sector_settings`, `GEO-11`), `Relance.tsx` (`ZoneKey`), `REGION_COMMUNES`, `COS-02`.
 
+**KPI et `sector_settings` (2026-09-28)** :
+- `GEO-04` KPI : le site `ANNEMASSE` ajouté à `KpiSite` au lot 3.2 était une erreur (`SITE_TO_LIVE_SECTOR` ne le connaît pas) → **retiré**. Annemasse utilise le site technique `NORD` (ses entreprises portent `Nord-Est`) ; le front (`features/kpi/config.ts` : `activeKpiSites()`, `siteLabel()`) n'affiche qu'un site « Annemasse » et n'interroge que lui (`KpiEntryModal`, `KpiOverviewSection`).
+- `GEO-11` : `SECTOR_SETTINGS_DEFAULTS` est par tenant ; Annemasse = une ligne `Nord-Est` / « Disciplina Annemasse » (lieu à renseigner). `runMysqlMigrations(…, region)` nettoie les lieux Réunion **restés intacts** dans une base Annemasse clonée (UPDATE/DELETE conditionnés à la valeur d'origine : une valeur personnalisée n'est jamais touchée) ; `mysql-init.sql` ne copie plus les 3 lignes Réunion. Vérifié sur un volume existant : Annemasse ramenée à 1 ligne, Réunion inchangée.
+- Suite backend 446/448 (mêmes 2 échecs préexistants), build front OK.
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.

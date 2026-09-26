@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 
-import { saveKpi, KPI_SITES, type KpiMetrics, type KpiSelectableUser, type KpiSite } from '@/api/kpi'
-import { KPI_METRICS, MONTH_FULL_LABELS, SITE_LABELS, emptyMetrics } from '../config'
+import { saveKpi, type KpiMetrics, type KpiSelectableUser, type KpiSite } from '@/api/kpi'
+import { KPI_METRICS, MONTH_FULL_LABELS, activeKpiSites, siteLabel, emptyMetrics } from '../config'
 
 export interface KpiEntryDraft {
   userId: number
@@ -139,8 +139,8 @@ export default function KpiEntryModal({ year, site, users, draft, onClose, onSav
                 onChange={(e) => setEntrySite(e.target.value as KpiSite)}
                 className="w-full rounded-lg border border-gray-100 bg-white px-3 py-2 text-[13px] text-gray-900 outline-none transition-colors focus:border-blue disabled:bg-gray-50 disabled:text-gray-500"
               >
-                {KPI_SITES.map((s) => (
-                  <option key={s} value={s}>{SITE_LABELS[s]}</option>
+                {activeKpiSites().map((s) => (
+                  <option key={s} value={s}>{siteLabel(s)}</option>
                 ))}
               </select>
             </label>
