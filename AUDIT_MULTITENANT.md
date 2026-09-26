@@ -401,6 +401,30 @@ Découpage en sous-étapes, **chacune validée séparément** :
 | 7 | Le tenant Réunion doit-il être **re-rempli** si ses `sector_settings` ont déjà été customized ? | `GEO-11` — `INSERT IGNORE` ne corrige rien ; faut-il un script de mise à jour ? |
 | 8 | Un administrateur doit-il pouvoir **éditer le référentiel** (communes, secteurs) depuis l'UI, ou est-il versionné en JSON dans le dépôt ? | Détermine si le Lot 3 sous-étape 2 s'arrête aux collections Mongo ou va jusqu'à un écran d'administration |
 
+### 8.1 Décisions actées (2026-09-27)
+
+| # | Décision |
+|---|---|
+| 1 | Forme juridique : **SARL**, identique Réunion. `EURL` du PDF mandat (`ID-05`) = erreur ; `DEBT-08` tranché côté légal. |
+| 2 | NDA / UAI / Qualiopi : **identiques Réunion**. |
+| 3 | Annemasse **n'a pas de secteur** : pas de multi-secteur (`GEO-12`/`GEO-14`), pas de fallback `Nord-Est` (`GEO-09`/`10`/`13`/`15`). |
+| 4 | **Un seul** site de formation Annemasse, adresse inconnue → placeholder à renseigner. |
+| 5 | Mandat et catalogue PDF : **restent Réunion** pour l'instant (`ID-05`/`ID-06` différés). |
+| 6 | Mobilité candidats : **une seule valeur `ANNEMASSE`**. |
+| 7 | `sector_settings` Annemasse : supprimer les 3 lignes Réunion, **1 ligne placeholder** ; seed par tenant. Réunion inchangé. |
+| 8 | Référentiel géographique : **JSON versionné par tenant**, pas d'UI admin. |
+
+### 8.2 Doutes / incohérences de l'audit à lever
+
+- Intro « 80+ constats » vs matrice §3 : **68**.
+- `DEBT-08`/`DEBT-09` : « COSMÉTIQUE » dans §4.5, comptés « DETTE » dans §3 → totaux à revérifier.
+- `ID-12` couvre deux sujets (table `tenant_profiles` et URLs par tenant) → scinder `ID-12a`/`ID-12b`.
+- `TZ-06` : « YouSign » vs « DocuSeal » dans le même constat → vérifier quel service porte `Europe/Paris`.
+- `GEO-07` : sens de l'asymétrie push/pull contradictoire (« push ajoute `communesForZones`, pull non » puis « pull plus strict ») → relire le code avant correction.
+- `ID-13`/`ID-15` (dev-only / observabilité) et `GEO-12`/`GEO-14` (« fonctionne par accident ») classés BLOQUANT → sévérité à réévaluer.
+- Numéros de ligne à revérifier après `7a30cf39` avant chaque lot.
+- Adresse du site Annemasse, lieu de RDV, SIRET/RCS/capital/siège Annemasse si distincts : **données manquantes**, à fournir.
+
 ---
 
 ## 9. Références croisées
