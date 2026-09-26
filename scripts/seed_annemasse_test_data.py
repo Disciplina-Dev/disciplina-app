@@ -243,7 +243,7 @@ def candidate(
             "consent_version": "2026-v1",
         },
         "status": status,
-        "training_site": "NORD_SAINTE_MARIE",
+        "training_site": "ANNEMASSE",
         "training_sites": [],
         "desired_sectors": [sector] if sector else [],
         "expected_company_skills": [],
@@ -318,21 +318,21 @@ CANDIDATES = [
     candidate(
         1, "Lucas Bernardi", "GARCON", 19, "ANNEMASSE", "74100",
         "lucas.bernardi@mail.fr", "06 12 45 78 90", "CC", "SEEKING", "BOULANGERIE",
-        ["SAINT_DENIS"], date(2026, 9, 1),
+        ["ANNEMASSE"], date(2026, 9, 1),
         "Lucas Bernardi — vise CC. Mobilité : St-Denis / Genève. Disponible immédiatement.",
         created=datetime(2026, 6, 12, 9, 0), discovery="SALON",
     ),
     candidate(
         2, "Sarah Moreau", "FILLE", 21, "ANNEMASSE", "74100",
         "sarah.moreau@mail.fr", "06 22 33 44 55", "CC", "SEEKING", "COSMETIQUE",
-        ["SAINT_DENIS"], date(2026, 8, 1),
+        ["ANNEMASSE"], date(2026, 8, 1),
         "Sarah Moreau — vise CC. Expérience boutique (été). Sérieuse, disponible.",
         created=datetime(2026, 7, 20, 10, 0),
     ),
     candidate(
         3, "Théo Maillard", "GARCON", 20, "GAILARD", "74240",
         "theo.maillard@mail.fr", "06 54 33 22 11", "CC", "CONTRACT", "BOULANGERIE",
-        ["SAINT_DENIS"], None,
+        ["ANNEMASSE"], None,
         "Théo Maillard — vise CC. Embauché en boulangerie (contrat signé).",
         contract={
             "company_id": 7,
@@ -345,7 +345,7 @@ CANDIDATES = [
     candidate(
         4, "Emma Bertrand", "FILLE", 22, "CRANVES-SALES", "74380",
         "emma.bertrand@mail.fr", "06 77 88 99 00", "CC", "IMMERSING", "BOULANGERIE",
-        ["SAINT_DENIS"], None,
+        ["ANNEMASSE"], None,
         "Emma Bertrand — vise CC. En immersion en boulangerie (validation contrat attendue).",
         immersion={
             "company_id": 7,
@@ -358,42 +358,42 @@ CANDIDATES = [
     candidate(
         5, "Nathan Charvet", "GARCON", 18, "ANNEMASSE", "74100",
         "nathan.charvet@mail.fr", "06 11 22 33 44", "NTC", "SEEKING", "AUTO",
-        ["SAINT_DENIS"], date(2026, 10, 1),
+        ["ANNEMASSE"], date(2026, 10, 1),
         "Nathan Charvet — vise NTC. Projet : commerce/mécanique. Pas d'expérience.",
         created=datetime(2026, 8, 1, 9, 30), education="CAP_BEP_WITH_1Y_EXP",
     ),
     candidate(
         6, "Léa Fontaine", "FILLE", 20, "AMBILY", "74100",
         "lea.fontaine@mail.fr", "06 98 76 54 32", "CC", "SEEKING", "COMMERCIAL",
-        ["SAINT_DENIS"], date(2026, 9, 1),
+        ["ANNEMASSE"], date(2026, 9, 1),
         "Léa Fontaine — vise CC. Positionnée en boucherie : CV non fourni à ce jour.",
         cv=False, no_cv=True, created=datetime(2026, 8, 10, 14, 0),
     ),
     candidate(
         7, "Noah Perrin", "GARCON", 18, "VILLAZ", "74370",
         "noah.perrin@mail.fr", "06 45 67 89 01", "CC", "NOT_SEEKING", "BOULANGERIE",
-        ["SAINT_DENIS"], None,
+        ["ANNEMASSE"], None,
         "Noah Perrin — vise CC. Se réoriente vers une autre formation (pas d'alternance 2026).",
         created=datetime(2026, 6, 25, 11, 0),
     ),
     candidate(
         8, "Inès Lambert", "FILLE", 24, "THONON-LES-BAINS", "74200",
         "ines.lambert@mail.fr", "06 20 30 40 50", "CC", "UNAVAILABLE", "MEDICAL",
-        ["SAINT_DENIS"], None,
+        ["ANNEMASSE"], None,
         "Inès Lambert — vise CC. Indisponible jusqu'à début 2027 (réorganisation familiale).",
         created=datetime(2026, 8, 15, 17, 0),
     ),
     candidate(
         9, "Malik Diallo", "GARCON", 19, "ANNEMASSE", "74100",
         "malik.diallo@mail.fr", "06 61 71 81 91", "CC", "SEEKING", "BOULANGERIE",
-        ["SAINT_DENIS"], date(2026, 9, 5),
+        ["ANNEMASSE"], date(2026, 9, 5),
         "Malik Diallo — vise CC. Permis B. Disponible, forte motivation vente.",
         created=datetime(2026, 6, 20, 10, 30), discovery="SALON",
     ),
     candidate(
         10, "Chloé Roussel", "FILLE", 21, "ANNEMASSE", "74100",
         "chloe.roussel@mail.fr", "06 12 98 76 43", "CC", "SEEKING", "MEDICAL",
-        ["SAINT_DENIS"], date(2026, 9, 1),
+        ["ANNEMASSE"], date(2026, 9, 1),
         "Chloé Roussel — vise CC. Proposition en attente de réponse chez un opticien.",
         created=datetime(2026, 8, 15, 15, 0),
     ),
@@ -488,7 +488,7 @@ def ab(ab_key, company_id, company_name, siret, ape, idcc, main_activity, opco,
 
 def position(tp, title, role, domain, sector, missions, age_min=18, age_max=29, soft_skills="Polie et souriante, aisance relationnelle"):
     return {
-        "localisation": ["SAINT_DENIS"],
+        "localisation": ["ANNEMASSE"],
         "desired_tp": [
             {
                 "tp_type": tp,
@@ -522,7 +522,7 @@ def position(tp, title, role, domain, sector, missions, age_min=18, age_max=29, 
 AB_CATALOG = [
     ab(
         "a", 1, "BOULANGERIE LE CROISSANT D'ANNEMASSE", "74293240500012", "1071C", "8434",
-        "Boulangerie-pâtisserie", "OPCOMMERCE", "NORD", ["BOULANGERIE"], "Annemasse", "74100",
+        "Boulangerie-pâtisserie", "OPCOMMERCE", "ANNEMASSE", ["BOULANGERIE"], "Annemasse", "74100",
         "Patrick Fuchs", "amandine.rossi@disciplina.fr",
         [position("CC", "Conseiller Commercial", "employé polyvalent", "VENTE", "BOULANGERIE", [
             "Accueil des clients (physique/téléphonique)",
@@ -536,7 +536,7 @@ AB_CATALOG = [
     ),
     ab(
         "b", 2, "PARFUMERIE BELLE ESSENCE", "74320157500031", "4775Z", "8685",
-        "Parfumerie — cosmétique", "AKTO", "NORD", ["COSMETIQUE"], "Annemasse", "74100",
+        "Parfumerie — cosmétique", "AKTO", "ANNEMASSE", ["COSMETIQUE"], "Annemasse", "74100",
         "Sonia Veyrat", "amandine.rossi@disciplina.fr",
         [position("CC", "Conseiller·ère vente parfumerie", "vendeur·se", "VENTE", "COSMETIQUE", [
             "Accueil et conseil client en parfumerie",
@@ -549,7 +549,7 @@ AB_CATALOG = [
     ),
     ab(
         "c", 4, "BOUCHERIE DES TROIS FONTAINES", "74293318000078", "4722Z", "8434",
-        "Boucherie-charcuterie", "UNIFORMATION", "NORD", ["COMMERCIAL"], "Annemasse", "74100",
+        "Boucherie-charcuterie", "UNIFORMATION", "ANNEMASSE", ["COMMERCIAL"], "Annemasse", "74100",
         "Roger Bizzocchi", "amandine.rossi@disciplina.fr",
         [position("CC", "Employé·e vente en boucherie", "employé polyvalent", "VENTE", "COMMERCIAL", [
             "Accueil et conseil à la clientèle",
@@ -562,7 +562,7 @@ AB_CATALOG = [
     ),
     ab(
         "d", 6, "OPTIQUE VISION CLAIRE", "74320157500055", "4778A", "1730",
-        "Optique — lunetterie", "OPCO_SANTE", "NORD", ["MEDICAL"], "Thonon-les-Bains", "74200",
+        "Optique — lunetterie", "OPCO_SANTE", "ANNEMASSE", ["MEDICAL"], "Thonon-les-Bains", "74200",
         "Hélène Charvin", "amandine.rossi@disciplina.fr",
         [position("CC", "Conseiller·ère optique", "vendeur·se conseil", "VENTE", "MEDICAL", [
             "Accueil et conseil en magasin d'optique",
@@ -575,7 +575,7 @@ AB_CATALOG = [
     ),
     ab(
         "e", 7, "BOULANGERIE LA FOURNÉE ANNEMASSIENNE", "74304500000050", "1071C", "8434",
-        "Boulangerie", "OPCOMMERCE", "NORD", ["BOULANGERIE"], "Cranves-Sales", "74380",
+        "Boulangerie", "OPCOMMERCE", "ANNEMASSE", ["BOULANGERIE"], "Cranves-Sales", "74380",
         "Carine Mugnier", "amandine.rossi@disciplina.fr",
         [position("CC", "Vendeur·se boulangerie", "employé polyvalent", "VENTE", "BOULANGERIE", [
             "Vente et encaissement",
@@ -597,7 +597,7 @@ def offer(offer_key, ab_key, company_id, company_name, sector, activities, title
         "company_infos": {"id": company_id, "name": company_name, "sector": sector, "activities": activities},
         "saler_info": {"id": 1, "email": "amandine.rossi@disciplina.fr"},
         "referents": {"is_same": True, "legal_referents": {"name": None, "phone": None, "email": None, "function": None}, "recruitment_referents": {}},
-        "localisation": localisation or ["SAINT_DENIS"],
+        "localisation": localisation or ["ANNEMASSE"],
         "desired_tp": [{"tp_type": "CC", "missions": ["Accueil client (physique/téléphonique)"], "description_missions": [], "other_missions": None, "other_description_missions": None}],
         "training_domain": domain,
         "job_role": role,
@@ -651,19 +651,19 @@ def mc(cid, status, extra=None):
 
 
 OFFERS = [
-    offer(1, "a", 1, "BOULANGERIE LE CROISSANT D'ANNEMASSE", "NORD", ["BOULANGERIE"],
+    offer(1, "a", 1, "BOULANGERIE LE CROISSANT D'ANNEMASSE", "ANNEMASSE", ["BOULANGERIE"],
           "Conseiller Commercial", "employé polyvalent", "VENTE", [], "NOT_MATCHED",
           datetime(2026, 8, 10, 9, 0)),
-    offer(2, "b", 2, "PARFUMERIE BELLE ESSENCE", "NORD", ["COSMETIQUE"],
+    offer(2, "b", 2, "PARFUMERIE BELLE ESSENCE", "ANNEMASSE", ["COSMETIQUE"],
           "Conseiller·ère vente parfumerie", "vendeur·se", "VENTE",
           [mc(2, "SEND", {"comment": "CV transmis, en attente de retour entreprise"})], "CV_SEND",
           datetime(2026, 8, 15, 9, 0)),
-    offer(3, "c", 4, "BOUCHERIE DES TROIS FONTAINES", "NORD", ["COMMERCIAL"],
+    offer(3, "c", 4, "BOUCHERIE DES TROIS FONTAINES", "ANNEMASSE", ["COMMERCIAL"],
           "Employé·e vente en boucherie", "employé polyvalent", "VENTE",
           [mc(6, "CV_SEND", {"comment": "CV non fourni — blocage de l'envoi"})], "CV_SEND",
           datetime(2026, 8, 25, 9, 0), interview_location="3 rue des Trois Fontaines, 74100 Annemasse"),
     offer(
-        4, "e", 7, "BOULANGERIE LA FOURNÉE ANNEMASSIENNE", "NORD", ["BOULANGERIE"],
+        4, "e", 7, "BOULANGERIE LA FOURNÉE ANNEMASSIENNE", "ANNEMASSE", ["BOULANGERIE"],
         "Vendeur·se boulangerie", "employé polyvalent", "VENTE",
         [
             mc(3, "CONTRACT", {
@@ -683,11 +683,11 @@ OFFERS = [
         ],
         "CONTRACT", datetime(2026, 7, 28, 9, 0),
     ),
-    offer(5, "d", 6, "OPTIQUE VISION CLAIRE", "NORD", ["MEDICAL"],
+    offer(5, "d", 6, "OPTIQUE VISION CLAIRE", "ANNEMASSE", ["MEDICAL"],
           "Conseiller·ère optique", "vendeur·se conseil", "VENTE",
           [mc(10, "PRE_SELECTED", {"comment": "Proposition à envoyer"})], "MATCHED",
           datetime(2026, 8, 15, 9, 0)),
-    offer(6, None, 8, "BOULANGERIE LE PAIN D'OR", "NORD", ["BOULANGERIE"],
+    offer(6, None, 8, "BOULANGERIE LE PAIN D'OR", "ANNEMASSE", ["BOULANGERIE"],
           "Vendeur·se boulangerie", "employé polyvalent", "VENTE", [], "NOT_MATCHED",
           datetime(2026, 4, 1, 9, 0), needs_analysis_id=None),
 ]

@@ -2,6 +2,7 @@ import mongoose, { type Connection, type Model } from 'mongoose';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 import { MailTemplateModel } from './schemas/mailTemplate.schema';
+import { TrainingSite } from '../../types/candidate.types';
 import { SHARED_RH_USER_ID } from '../../services/MailTemplateService';
 
 const MONGO_URI =
@@ -60,10 +61,10 @@ async function patchCandidatesValidator(conn: Connection): Promise<void> {
                         ],
                     },
                     tp_types: { bsonType: 'array', items: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] } },
-                    training_site: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },
+                    training_site: { enum: Object.values(TrainingSite) },
                     training_sites: {
                         bsonType: 'array',
-                        items: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },
+                        items: { enum: Object.values(TrainingSite) },
                     },
                     immersion_agreement: { bsonType: 'bool' },
                     // Free-text strings — no enum constraint
