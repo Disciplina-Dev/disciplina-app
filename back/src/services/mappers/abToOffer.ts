@@ -4,7 +4,7 @@ import { TitleProfessionalType } from '../../types/candidate.types';
 
 // Grande zone régionale de La Réunion, encore utilisée pour déduire
 // company_infos.sector à partir des communes d'un poste.
-export type Zone = 'NORD' | 'OUEST' | 'SUD';
+export type Zone = 'NORD' | 'OUEST' | 'SUD' | 'ANNEMASSE';
 
 // Zone → communes. Sert de référentiel pour la déduction inverse (commune → zone).
 // Doit couvrir tout l'enum Localisation : une commune absente retomberait sur le
@@ -43,6 +43,8 @@ export const ZONE_TO_COMMUNES: Record<Zone, Localisation[]> = {
         Localisation.CILAOS,
         Localisation.ENTRE_DEUX,
     ],
+    // Tenant annemasse : zone unique, sans secteur.
+    ANNEMASSE: [Localisation.ANNEMASSE],
 };
 
 // Domaine de formation de l'AB → Titre Professionnel du matching (fallback).

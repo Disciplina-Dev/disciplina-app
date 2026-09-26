@@ -5,6 +5,8 @@ export enum CompanyRegion {
     NORD = 'NORD',
     OUEST = 'OUEST',
     SUD = 'SUD',
+    // Tenant annemasse : pas de secteur, une seule zone
+    ANNEMASSE = 'ANNEMASSE',
 }
 
 export enum Opco {

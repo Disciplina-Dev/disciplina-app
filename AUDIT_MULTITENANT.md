@@ -427,6 +427,12 @@ Découpage en sous-étapes, **chacune validée séparément** :
 - Numéros de ligne à revérifier après `7a30cf39` avant chaque lot.
 - Adresse du site Annemasse, lieu de RDV, SIRET/RCS/capital/siège Annemasse si distincts : **données manquantes**, à fournir.
 
+### 8.5 Lot 3 — GEO-01..04 (approche additive, 2026-09-28)
+
+Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `TrainingSite`, `CompanyRegion`, `Zone`, `KpiSite` et aux 3 enums GraphQL ; `ZONE_TO_COMMUNES.ANNEMASSE`, `TRAINING_SITE_TO_ZONE` / `ZONE_TO_TRAINING_SITE`. Les validateurs Mongoose suivent (`Object.values`). `offerZones()` **journalise** désormais un secteur hors référentiel (`GEO-08`). `REGION_TO_SECTOR` / `SITE_TO_REGION` deviennent `Partial` : Annemasse n'a ni secteur ni région Drive.
+
+**Restent ouverts** : front (`Localisation` ×2, `secteurs.ts`, `reunionCommunes.ts` → `GEO-15/16`), fallbacks `Nord-Est` / `NORD` (`GEO-09/10/13`, KPI `LIVE_SECTOR_TO_SITE`), asymétrie push/pull (`GEO-07`), puis `SEED-01`. Migration vers un référentiel JSON par tenant : reportée.
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.

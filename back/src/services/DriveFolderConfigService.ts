@@ -10,7 +10,8 @@ export const DRIVE_REGIONS = ['NORD', 'OUEST', 'SUD'] as const;
 export type DriveRegion = (typeof DRIVE_REGIONS)[number];
 
 // Le site de formation du candidat détermine sa région.
-const SITE_TO_REGION: Record<TrainingSite, DriveRegion> = {
+// ANNEMASSE : pas de région Drive (pas de secteur) — résolue par le fallback.
+const SITE_TO_REGION: Partial<Record<TrainingSite, DriveRegion>> = {
     [TrainingSite.NORD_SAINTE_MARIE]: 'NORD',
     [TrainingSite.OUEST_SAINT_PAUL]: 'OUEST',
     [TrainingSite.SUD_SAINT_PIERRE]: 'SUD',

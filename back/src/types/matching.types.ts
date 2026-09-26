@@ -71,6 +71,8 @@ export enum Localisation {
     LA_PLAINE_DES_PALMISTES = 'LA_PLAINE_DES_PALMISTES',
     SALAZIE = 'SALAZIE',
     SAINTE_ANNE = 'SAINTE_ANNE',
+    // Tenant annemasse (Haute-Savoie)
+    ANNEMASSE = 'ANNEMASSE',
 }
 
 export enum Sector {

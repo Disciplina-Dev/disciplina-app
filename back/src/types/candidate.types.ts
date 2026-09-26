@@ -35,6 +35,8 @@ export enum TrainingSite {
     NORD_SAINTE_MARIE = 'NORD_SAINTE_MARIE',
     OUEST_SAINT_PAUL = 'OUEST_SAINT_PAUL',
     SUD_SAINT_PIERRE = 'SUD_SAINT_PIERRE',
+    // Tenant annemasse : un seul site de formation
+    ANNEMASSE = 'ANNEMASSE',
 }
 
 export enum SkillLevel {

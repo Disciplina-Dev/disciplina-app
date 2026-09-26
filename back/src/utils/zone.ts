@@ -1,3 +1,4 @@
+import { logger } from '../external/logger';
 import { ZONE_TO_COMMUNES, Zone } from '../services/mappers/abToOffer';
 import { TrainingSite } from '../types/candidate.types';
 import { Localisation } from '../types/matching.types';
@@ -7,12 +8,14 @@ export const TRAINING_SITE_TO_ZONE: Record<TrainingSite, Zone> = {
     [TrainingSite.NORD_SAINTE_MARIE]: 'NORD',
     [TrainingSite.OUEST_SAINT_PAUL]: 'OUEST',
     [TrainingSite.SUD_SAINT_PIERRE]: 'SUD',
+    [TrainingSite.ANNEMASSE]: 'ANNEMASSE',
 };
 
 export const ZONE_TO_TRAINING_SITE: Record<Zone, TrainingSite> = {
     NORD: TrainingSite.NORD_SAINTE_MARIE,
     OUEST: TrainingSite.OUEST_SAINT_PAUL,
     SUD: TrainingSite.SUD_SAINT_PIERRE,
+    ANNEMASSE: TrainingSite.ANNEMASSE,
 };
 
 export const COMMUNE_TO_ZONE = new Map<string, Zone>();
@@ -46,7 +49,8 @@ export function offerZones(offer: { company_infos?: { sector?: CompanyRegion | n
     const set = new Set<Zone>();
     if (offer.company_infos?.sector) {
         const sector = offer.company_infos.sector as unknown as Zone;
-        if (sector === 'NORD' || sector === 'OUEST' || sector === 'SUD') set.add(sector);
+        if (sector in ZONE_TO_COMMUNES) set.add(sector);
+        else logger.warn({ sector }, 'offerZones: secteur hors référentiel ignoré');
     }
     for (const z of zonesFromCommunes(offer.localisation)) set.add(z);
     return set;

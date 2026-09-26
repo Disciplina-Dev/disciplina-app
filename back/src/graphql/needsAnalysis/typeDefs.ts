@@ -28,6 +28,7 @@ export const typeDefs = gql`
         LA_PLAINE_DES_PALMISTES
         SALAZIE
         SAINTE_ANNE
+        ANNEMASSE
     }
 
     enum TrainingDomain {

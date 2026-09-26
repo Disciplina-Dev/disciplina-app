@@ -36,6 +36,7 @@ export const typeDefs = gql`
         LA_PLAINE_DES_PALMISTES
         SALAZIE
         SAINTE_ANNE
+        ANNEMASSE
     }
 
     enum SchoolLevel {
@@ -65,6 +66,7 @@ export const typeDefs = gql`
         NORD_SAINTE_MARIE
         OUEST_SAINT_PAUL
         SUD_SAINT_PIERRE
+        ANNEMASSE
     }
 
     enum SkillLevel {

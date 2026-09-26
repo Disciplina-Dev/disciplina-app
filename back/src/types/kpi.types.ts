@@ -1,6 +1,6 @@
-export type KpiSite = 'NORD' | 'OUEST' | 'SUD';
+export type KpiSite = 'NORD' | 'OUEST' | 'SUD' | 'ANNEMASSE';
 
-export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
+export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD', 'ANNEMASSE'];
 
 export interface KpiRow {
     user_id: number | null;
