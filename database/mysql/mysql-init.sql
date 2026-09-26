@@ -294,7 +294,7 @@ CREATE TABLE IF NOT EXISTS `mcp_oauth_refresh_tokens` (
   `id` int NOT NULL AUTO_INCREMENT,
   `client_id` varchar(128) NOT NULL,
   `user_id` int DEFAULT NULL,
-  `region` varchar(16) NOT NULL DEFAULT 'reunion',
+  `region` varchar(16) NOT NULL,
   `token_hash` varchar(64) NOT NULL,
   `expires_at` timestamp NOT NULL,
   `revoked_at` timestamp NULL DEFAULT NULL,

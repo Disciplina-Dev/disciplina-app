@@ -58,7 +58,7 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'mcp_oauth_clients', column: 'user_id', definition: 'INT DEFAULT NULL' },
     { table: 'mcp_oauth_clients', column: 'region', definition: 'VARCHAR(16) DEFAULT NULL' },
     { table: 'mcp_oauth_refresh_tokens', column: 'user_id', definition: 'INT DEFAULT NULL' },
-    { table: 'mcp_oauth_refresh_tokens', column: 'region', definition: "VARCHAR(16) NOT NULL DEFAULT 'reunion'" },
+    { table: 'mcp_oauth_refresh_tokens', column: 'region', definition: 'VARCHAR(16) NOT NULL' },
 ];
 
 /**
@@ -370,7 +370,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             id INT AUTO_INCREMENT PRIMARY KEY,
             client_id VARCHAR(128) NOT NULL,
             user_id INT DEFAULT NULL,
-            region VARCHAR(16) NOT NULL DEFAULT 'reunion',
+            region VARCHAR(16) NOT NULL,
             token_hash VARCHAR(64) NOT NULL,
             expires_at TIMESTAMP NOT NULL,
             revoked_at TIMESTAMP NULL DEFAULT NULL,

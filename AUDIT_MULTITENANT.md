@@ -280,7 +280,7 @@ Vérifié négativement : la règle attrape les 10 occurrences du code d'origine
 
 | ID | Sév. | Emplacement | Constat |
 |---|---|---|---|
-| `DEBT-01` | DETTE | `back/src/db/mysql/migrations.ts:60,372` | `mcp_oauth_refresh_tokens.region VARCHAR(16) NOT NULL DEFAULT 'reunion'`. Un insert omettant la colonne écrit `'reunion'` dans la base Annemasse. **Latent** : `back/src/index.ts:184-187` fait tourner les migrations sur le pool Annemasse et les deux chemins d'insert positionnent la colonne explicitement. |
+| `DEBT-01` | DETTE **(CORRIGÉ : défaut `reunion` retiré)** | `back/src/db/mysql/migrations.ts:60,372` | `mcp_oauth_refresh_tokens.region VARCHAR(16) NOT NULL DEFAULT 'reunion'`. Un insert omettant la colonne écrit `'reunion'` dans la base Annemasse. **Latent** : `back/src/index.ts:184-187` fait tourner les migrations sur le pool Annemasse et les deux chemins d'insert positionnent la colonne explicitement. |
 | `DEBT-02` | DETTE | `back/src/db/mysql/connection.ts:110` | `export default pools.reunion` — le **seul default export autorisé** par `CLAUDE.md` est figé sur le pool Réunion. Le code de production n'utilise que `query` / `getConnection` / `getPool` (qui routent par `getRegion()`), donc aucun impact en prod, mais **tous les fichiers de test** font `import pool from …` et écrivent donc dans la base Réunion sans le dire. Piège latent pour tout futur test Annemasse. |
 | `DEBT-03` | DETTE | 4 à 6 copies du vocabulaire | Voir tableau §5. |
 | `DEBT-04` | DETTE | `back/src/types/tenant.ts:1` vs `Region` dans `mcp_oauth_refresh_tokens` | Le schéma SQL utilise `VARCHAR(16)` libre là où le TS impose une union. Aucune contrainte DB. |
