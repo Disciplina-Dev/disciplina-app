@@ -76,6 +76,7 @@ const SITE_LABELS: Record<string, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} · Sainte-Marie`,
   [TrainingSite.OUEST_SAINT_PAUL]: `${SECTEUR_LABELS.OUEST} · Saint-Paul`,
   [TrainingSite.SUD_SAINT_PIERRE]: `${SECTEUR_LABELS.SUD} · Saint-Pierre`,
+  [TrainingSite.ANNEMASSE]: 'Annemasse',
 };
 
 const DISMISSED_AB_KEY = 'disciplina:dismissed-ab-ids';

@@ -469,6 +469,8 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 - `DEBT-08` **tranché** : SARL (§8.1) ; le PDF mandat (`ID-05`, « EURL ») est à corriger avec la décision mandat/catalogue. `DEBT-09` : les mentions légales n'ont plus qu'une source (`legalProfile.ts`) ; le NDA du `PdfService` (`04973484197`) ne diffère que par le formatage.
 - `DEBT-10` clos (`FE-3`).
 
+**ID-03/04, COS-01, Relance (2026-09-28)** : le `PdfService` connaît `ANNEMASSE` (site + commune, `ID-03`/`ID-04`) ; `DashboardRH` (`COS-01`) affiche « Annemasse » ; `Relance.tsx` masque le filtre de zone et affiche « Annemasse » pour un tenant sans secteur. Build front et `tsc` back OK.
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.

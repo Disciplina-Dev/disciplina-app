@@ -629,6 +629,7 @@ const TRAINING_SITE_LABELS: Record<string, string> = {
     NORD_SAINTE_MARIE: 'Nord — Sainte-Marie',
     OUEST_SAINT_PAUL: 'Ouest — Saint-Paul',
     SUD_SAINT_PIERRE: 'Sud — Saint-Pierre',
+    ANNEMASSE: 'Annemasse',
 };
 
 const DISCOVERY_LABELS: Record<string, string> = {
@@ -673,6 +674,7 @@ const LOCALISATION_LABELS: Record<string, string> = {
     LA_PLAINE_DES_PALMISTES: 'La Plaine-des-Palmistes',
     SALAZIE: 'Salazie',
     SAINTE_ANNE: 'Sainte-Anne',
+    ANNEMASSE: 'Annemasse',
 };
 
 function fmtDate(d?: Date | string | null): string {

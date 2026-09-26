@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { Send, CheckCircle, XCircle, Mail, Users, Clock, MapPin } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useCandidates } from '@/graphql/hooks'
@@ -276,6 +277,7 @@ export default function Relance() {
         </div>
 
         {/* Filtre par zone géographique */}
+        {tenantHasSectors() && (
         <div className="sm:col-span-2 flex flex-col gap-1.5">
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Zone géographique</span>
           <div className="flex flex-wrap gap-2">
@@ -308,6 +310,7 @@ export default function Relance() {
             )}
           </div>
         </div>
+        )}
 
         {/* Exclure les déjà relancés */}
         <div className="sm:col-span-2 flex items-center gap-2">
@@ -411,7 +414,7 @@ export default function Relance() {
               const responded = hasFreshResponse(c)
               const relanceDate = formatDate(c.last_relance_at)
               const responseDate = responded ? formatDate(c.relance_response_at) : null
-              const zone = ZONE_LABEL[zoneOf(c)]
+              const zone = tenantHasSectors() ? ZONE_LABEL[zoneOf(c)] : 'Annemasse'
               return (
                 <button
                   key={c._id}
