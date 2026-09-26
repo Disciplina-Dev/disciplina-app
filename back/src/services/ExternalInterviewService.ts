@@ -9,6 +9,7 @@ import { OfferHistoryService } from './OfferHistoryService';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { User } from '../types/user.types';
 import { UserService } from './UserService';
+import { tenantTimezone } from '../config/tenant';
 
 /** Marge de part et d'autre de la plage des créneaux pour la requête freebusy
  *  (couvre notamment les events journée entière aux bornes du fuseau de l'agenda). */
@@ -39,6 +40,8 @@ function slotOverlapsBusy(slotMs: number, busy: BusyInterval[]): boolean {
     });
 }
 
+/** Heure locale du tenant courant : l'ALS est posée par `resolveExternalRegion`
+ *  depuis la région suffixée de la signature (<sig>:<region>). */
 function formatFr(iso: string): string {
     return new Date(iso).toLocaleString('fr-FR', {
         weekday: 'long',
@@ -47,7 +50,7 @@ function formatFr(iso: string): string {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
-        timeZone: 'Indian/Reunion',
+        timeZone: tenantTimezone(),
     });
 }
 

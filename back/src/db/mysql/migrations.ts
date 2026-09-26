@@ -1,5 +1,6 @@
 import { query as queryDefault } from './connection';
 import { logger } from '../../external/logger';
+import { TENANT_TIMEZONE } from '../../config/tenant';
 
 type QueryFn = <T>(sql: string, params?: unknown[]) => Promise<T>;
 
@@ -388,7 +389,13 @@ const SECTOR_SETTINGS_DEFAULTS: { sector: string; location: string }[] = [
     { sector: 'Sud', location: 'Disciplina Sud — Saint-Pierre' },
 ];
 
-export async function runMysqlMigrations(dbQuery: QueryFn = queryDefault): Promise<void> {
+/** Défaut historique de `booking_settings.timezone`, avant le lot 1 multi-tenant. */
+const LEGACY_BOOKING_TIMEZONE = 'Indian/Reunion';
+
+export async function runMysqlMigrations(
+    dbQuery: QueryFn = queryDefault,
+    timezone: string = TENANT_TIMEZONE.reunion,
+): Promise<void> {
     for (const { table, ddl } of REQUIRED_TABLES) {
         const rows = await dbQuery<{ count: number }[]>(
             'SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
@@ -397,6 +404,45 @@ export async function runMysqlMigrations(dbQuery: QueryFn = queryDefault): Promi
         if (Number(rows[0]?.count) > 0) continue;
         await dbQuery(ddl);
         logger.info(`MySQL migration: created table ${table}`);
+    }
+
+    // Fuseau horaire des pages de réservation, par tenant (lot 1 — voir
+    // AUDIT_MULTITENANT.md). La colonne et les lignes créées avant le lot 1 portent
+    // le défaut Réunion figé : sur Annemasse les créneaux sortaient décalés de 2 h.
+    // mysql-init.sql ne joue que sur un volume neuf, d'où ce rattrapage ici.
+    // On n'accepte qu'une valeur issue de TENANT_TIMEZONE (table en dur, jamais
+    // d'une entrée utilisateur) : elle est interpolée dans le DDL, MySQL n'acceptant
+    // pas de paramètre lié dans une définition de colonne.
+    if (!Object.values(TENANT_TIMEZONE).includes(timezone)) {
+        throw new Error(`runMysqlMigrations: timezone "${timezone}" is not a known tenant timezone`);
+    }
+    const bookingTz = await dbQuery<{ COLUMN_DEFAULT: string | null }[]>(
+        "SELECT COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'booking_settings' AND COLUMN_NAME = 'timezone'",
+    );
+    // MySQL 8 renvoie la valeur par défaut d'une colonne VARCHAR entre apostrophes.
+    const currentTz = (bookingTz[0]?.COLUMN_DEFAULT ?? '').replace(/^'+|'+$/g, '');
+    if (bookingTz[0] && currentTz !== timezone) {
+        await dbQuery(`ALTER TABLE booking_settings MODIFY COLUMN timezone VARCHAR(64) NOT NULL DEFAULT '${timezone}'`);
+        logger.info(
+            { timezone, previous: currentTz },
+            'MySQL migration: booking_settings.timezone default set for tenant',
+        );
+    }
+
+    // Backfill des lignes déjà créées. Filtré sur l'ancien défaut : un fuseau choisi
+    // explicitement survit. Aucun champ timezone dans l'UI (seulement un PATCH API),
+    // donc aucune valeur existante n'est un choix délibéré.
+    if (timezone !== LEGACY_BOOKING_TIMEZONE) {
+        const updated = await dbQuery<{ affectedRows: number }>(
+            'UPDATE booking_settings SET timezone = ? WHERE timezone = ?',
+            [timezone, LEGACY_BOOKING_TIMEZONE],
+        );
+        if (Number(updated?.affectedRows) > 0) {
+            logger.info(
+                { timezone, rows: updated.affectedRows },
+                'MySQL migration: booking_settings.timezone backfilled from the legacy default',
+            );
+        }
     }
 
     // Lignes de lookup de external_references (1=IMPORT_CV, 2=MATCHING,
@@ -440,7 +486,6 @@ export async function runMysqlMigrations(dbQuery: QueryFn = queryDefault): Promi
         await dbQuery('CREATE INDEX idx_companies_siren ON companies (siren)');
         logger.info('MySQL migration: created index idx_companies_siren');
     }
-
 
     // Rôle PEDA (2026-07-08) : élargit l'ENUM users.role. mysql-init.sql ne
     // tourne que sur un volume neuf, les bases existantes sont migrées ici.

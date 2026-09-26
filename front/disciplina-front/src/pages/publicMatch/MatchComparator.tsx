@@ -12,6 +12,7 @@ import {
   type SubmitAnswerPayload,
 } from '@/api/match'
 import { getExternalProfile } from '@/api/external'
+import { REGION_TIMEZONE } from '@/lib/timezone'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 import CandidateComparator from '@/features/publicMatch/components/CandidateComparator'
 import AnswerControls from '@/features/publicMatch/components/AnswerControls'
@@ -36,6 +37,10 @@ export default function MatchComparator() {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  // Fuseau du tenant, nécessaire pour saisir les créneaux : cette page est
+  // hors session staff (/external/matching/:signature), donc AppUser.region
+  // n'est pas disponible ici.
+  const [timezone, setTimezone] = useState(REGION_TIMEZONE.reunion)
 
   useEffect(() => {
     getMatchCandidates(signature)
@@ -48,7 +53,10 @@ export default function MatchComparator() {
         setLoadError(e instanceof Error ? e.message : 'Erreur')
       })
     getExternalProfile(signature)
-      .then((profile) => setExpiresAt(profile.expiresAt))
+      .then((profile) => {
+        setExpiresAt(profile.expiresAt)
+        if (profile.timezone) setTimezone(profile.timezone)
+      })
       .catch(() => {})
   }, [signature, navigate])
 
@@ -230,6 +238,7 @@ export default function MatchComparator() {
               location={location}
               onLocationChange={setLocation}
               signature={signature}
+              timezone={timezone}
             />
           </div>
         )}
