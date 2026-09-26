@@ -230,10 +230,10 @@ Vérifié négativement : la règle attrape les 10 occurrences du code d'origine
 
 | ID | Sév. | Emplacement | Constat |
 |---|---|---|---|
-| `GEO-05` | **BLOQUANT** | `back/src/services/mappers/abToOffer.ts:5-46` | `ZONE_TO_COMMUNES` = référentiel fermé de 26 communes Réunion, sans dimension tenant. Inverti en `COMMUNE_TO_ZONE` (`back/src/utils/zone.ts:18-23`), consommé par `zonesFromCommunes()`, `candidateZones()`, `communesForZones()`. Le commentaire d'en-tête du module dit qu'il « doit couvrir tout l'enum `Localisation` » — c'est un ensemble fermé. |
-| `GEO-06` | **BLOQUANT** | `back/src/services/OfferService.ts:285-303` | **Le filtre géographique développe la zone en communes Réunion** : `ZONE_TO_TRAINING_SITE[z]` puis `communesForZones(offerZoneSet)`. Une offre Annemasse (`sector = NORD`) produit `mobility ∈ [10 communes nord réunionnaises] OR training_site ∈ [NORD_SAINTE_MARIE]`. → **Un candidat Annemasse réel n'est jamais proposé.** |
-| `GEO-07` | **BLOQUANT** | `back/src/services/CandidateService.ts:361-373` | Même filtre dans l'autre sens (`MatchedJobsList` de la fiche candidat). **Asymétrie** : la direction *push* (`GEO-06`) ajoute `communesForZones`, la direction *pull* non. Incohérence préexistante, indépendante de la géographie. |
-| `GEO-08` | **BLOQUANT** | `back/src/utils/zone.ts:45-53` | `offerZones()` **jette silencieusement** tout `company_infos.sector` hors des 3 clés — ni erreur, ni log. Un AB `HAUTE_SAVOIE` produirait un ensemble de zones vide, qui retombe ensuite sur un filtre plus faible. |
+| `GEO-05` | **BLOQUANT — CORRIGÉ / INFIRMÉ (voir §8.5)** | `back/src/services/mappers/abToOffer.ts:5-46` | `ZONE_TO_COMMUNES` = référentiel fermé de 26 communes Réunion, sans dimension tenant. Inverti en `COMMUNE_TO_ZONE` (`back/src/utils/zone.ts:18-23`), consommé par `zonesFromCommunes()`, `candidateZones()`, `communesForZones()`. Le commentaire d'en-tête du module dit qu'il « doit couvrir tout l'enum `Localisation` » — c'est un ensemble fermé. |
+| `GEO-06` | **BLOQUANT — CORRIGÉ / INFIRMÉ (voir §8.5)** | `back/src/services/OfferService.ts:285-303` | **Le filtre géographique développe la zone en communes Réunion** : `ZONE_TO_TRAINING_SITE[z]` puis `communesForZones(offerZoneSet)`. Une offre Annemasse (`sector = NORD`) produit `mobility ∈ [10 communes nord réunionnaises] OR training_site ∈ [NORD_SAINTE_MARIE]`. → **Un candidat Annemasse réel n'est jamais proposé.** |
+| `GEO-07` | **BLOQUANT — CORRIGÉ / INFIRMÉ (voir §8.5)** | `back/src/services/CandidateService.ts:361-373` | Même filtre dans l'autre sens (`MatchedJobsList` de la fiche candidat). **Asymétrie** : la direction *push* (`GEO-06`) ajoute `communesForZones`, la direction *pull* non. Incohérence préexistante, indépendante de la géographie. |
+| `GEO-08` | **BLOQUANT — CORRIGÉ / INFIRMÉ (voir §8.5)** | `back/src/utils/zone.ts:45-53` | `offerZones()` **jette silencieusement** tout `company_infos.sector` hors des 3 clés — ni erreur, ni log. Un AB `HAUTE_SAVOIE` produirait un ensemble de zones vide, qui retombe ensuite sur un filtre plus faible. |
 
 #### 4.3.c Secteurs — propagation
 
@@ -434,6 +434,11 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 **Restent ouverts** : front (`Localisation` ×2, `secteurs.ts`, `reunionCommunes.ts` → `GEO-15/16`), fallbacks `Nord-Est` / `NORD` (`GEO-09/10/13`, KPI `LIVE_SECTOR_TO_SITE`), asymétrie push/pull (`GEO-07`), puis `SEED-01`. Migration vers un référentiel JSON par tenant : reportée.
 
 **SEED-01 (corrigé)** : `seed_annemasse_test_data.py` utilise `training_site`/`localisation` = `ANNEMASSE` et `sector` AB/offres = `ANNEMASSE`. Le seed, rejoué sur la stack de test, a révélé une **5ᵉ copie** de l'enum `TrainingSite` : le validateur `$jsonSchema` de `candidates` (`db/mongo/connection.ts`, `collMod` à chaque boot) — désormais dérivé de `Object.values(TrainingSite)`. Test unitaire : `utils/__tests__/zone.annemasse.test.ts`. ⚠ Le seed est idempotent sans purge (`$setOnInsert`) : un volume Annemasse déjà seedé garde les anciennes valeurs Réunion → purger/reseeder. Les colonnes MySQL `sector` (`Nord-Est`) des entreprises seed sont inchangées (dépend de `GEO-09/10`).
+
+**GEO-05..08 (2026-09-28)** — relus dans le code :
+- `GEO-05/06` : le matching est générique sur `Zone` ; avec la zone `ANNEMASSE` (§8.5), une offre Annemasse propose bien des candidats Annemasse et exclut les candidats Réunion. Test d'intégration `graphql/offers/__tests__/matching.annemasse.test.ts` (tenant annemasse, vraies bases).
+- `GEO-07` : **l'asymétrie n'existe pas.** Push (`OfferService`) = mobilité ∈ communes de l'offre ∪ communes des zones de l'offre, ou site ∈ sites des zones ; pull (`CandidateService`) = commune commune, ou `candidateZones ∩ offerZones` (mobilité → zone incluse). Les deux sont équivalents (`mobilité ∈ communesForZones(z)` ⇔ `zonesFromCommunes(mobilité) ∋ z`). Constat de l'audit **infirmé**, rien à corriger.
+- `GEO-08` : `offerZones()` journalise les secteurs hors référentiel.
 
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
