@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
+import { getModels } from '../../src/db/mongo/tenant';
 import { Offer } from '../../src/types/offer.types';
 import { TitleProfessionalType } from '../../src/types/candidate.types';
 import { OfferStatus, Localisation, Sector, MatchingCandidate } from '../../src/types/matching.types';
@@ -56,6 +56,9 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
             interview_location: input.interview_location,
         },
     };
-    await OfferModel.create(offer);
+    // getModels() et non OfferModel directement : le helper doit écrire dans la
+    // base du tenant courant (ALS) comme le fait le code de production, sinon un
+    // seed sous syncWithRegion('annemasse') atterrissait dans la base Réunion.
+    await getModels().Offer.create(offer);
     return { _id: offerId };
 }

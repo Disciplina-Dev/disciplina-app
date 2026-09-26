@@ -7,6 +7,13 @@ Aucun code modifié. Toutes les constats sont référencés `fichier:ligne` et o
 - **Date** : 2026-09-26
 - **Documents liés** : `BACKLOG.md` (`DB-12`, `API-6`, `FE-3`), `docs/legal_mention_to_complete.md`, `RGPD.md`, `HOWTODEPLOY.md`
 
+> **Statut d'application.** L'audit est né en lecture seule, mais le **Lot 1 (`TZ-*`) est
+> maintenant implémenté** : `TZ-01` à `TZ-05`, `TZ-07` et `TZ-08` sont corrigés, `TZ-06` est acté
+> hors périmètre. Le détail des correctifs est en §4.1.a et §7 ; le reste du document décrit
+> l'état **antérieur** à correction et sert de référence pour les lots 2 (`ID-*`) et 3 (`GEO-*`),
+> qui restent ouverts.
+
+
 Légende sévérité :
 **BLOQUANT** = l'utilisateur Annemasse ne peut pas terminer le flux, ou une donnée est silencieusement fausse dans une décision métier ·
 **COSMÉTIQUE** = mauvais libellé / mauvaise adresse affichée, pas de rupture fonctionnelle ·
@@ -107,13 +114,57 @@ Le fuseau n'a jamais été centralisé : `Indian/Reunion` en dur à 3 endroits, 
 | ID | Sév. | Emplacement | Valeur en dur | Impact Annemasse |
 |---|---|---|---|---|
 | `TZ-01` | **BLOQUANT** | `database/mysql/mysql-init.sql:74` + `back/src/db/mysql/migrations.ts:205` | `booking_settings.timezone DEFAULT 'Indian/Reunion'` | `getOrCreate()` (`back/src/rest/booking/service.ts:130`) crée chaque page de réservation Annemasse en UTC+4. Le décalage se propage ensuite à 6 sites de rendu : `:215` (créneaux), `:257,267,268,289,297` (mail de confirmation, token `{{date}}`). |
-| `TZ-02` | **BLOQUANT** | `back/src/services/ExternalInterviewService.ts:47-51` | `timeZone: 'Indian/Reunion'` dans `formatFr()` | L'heure de rendez-vous proposée à un **candidat externe** est fausse. `region` est disponible sur la ligne `external_access` et n'est pas utilisé. |
+| `TZ-02` | **BLOQUANT** | `back/src/services/ExternalInterviewService.ts:47-51` | `timeZone: 'Indian/Reunion'` dans `formatFr()` | L'heure de rendez-vous proposée à un **candidat externe** est fausse. |
 | `TZ-03` | **BLOQUANT** | `front/.../src/pages/rh/Matching.tsx:1341,1374-1375,1554` | `timeZone: 'Indian/Reunion'` | Horodatage de la fiche de matching faux pour le RH Annemasse. `regionStore` est pourtant importé dans l'app. |
 | `TZ-04` | **BLOQUANT** | `front/.../src/pages/external/ExternalInterview.tsx:27` | `timeZone: 'Indian/Reunion'` | Idem, vue candidat externe. |
 | `TZ-05` | **BLOQUANT** | `front/.../src/features/publicMatch/components/InterviewProposalForm.tsx:16,84` | `timeZone: 'Indian/Reunion'` | Créneaux proposés faux sur le formulaire de proposition. |
 | `TZ-06` | **BLOQUANT** | `back/src/external/yousign/yousign.service.ts:47` | `timezone: 'Europe/Paris'` | **Défaut inverse** : faux pour la Réunion (2-3 h) sur l'enveloppe DocuSeal/YouSign. Preuve que le fuseau n'a jamais été centralisé. |
 | `TZ-07` | **BLOQUANT** | `back/src/rest/calendar/notifications.ts:12-13,84` | `DEFAULT_TZ = 'Indian/Reunion'` | Défaut de plateforme. Masqué en pratique par `settings.timezone` passé à l'unique site d'appel (`back/src/rest/calendar/controller.ts:264`) — mais reste le défaut si l'appelant omet l'argument. Le commentaire du fichier documente l'hypothèse Réunion. |
 | `TZ-08` | COSMÉTIQUE | `front/.../src/pages/rh/MailTemplates.tsx:33` | exemple `{ date: '... (Indian/Reunion)' }` | Exemple figé dans l'éditeur de templates, apprend la mauvaise zone au RH. Contraste : `front/.../src/pages/booking/PublicBooking.tsx:83` lit correctement `info.timezone` depuis l'API. |
+
+> **Correction d'audit sur `TZ-02`.** La première version de ce tableau affirmait « `region` est
+> disponible sur la ligne `external_access` et n'est pas utilisé ». C'est faux :
+> `external_access` n'a **aucune colonne `region`** (cf. `database/mysql/mysql-init.sql`).
+> La région d'un flux guest est déjà résolue par le middleware
+> `resolveExternalRegion` (`back/src/rest/external/region.ts`), qui la pose dans l'ALS à
+> partir du suffixe de la signature (`<sig>:<region>`). Le correctif de `TZ-02` n'a donc rien
+> ajouté : il consomme la région que ce middleware expose déjà.
+
+#### 4.1.a Résolution
+
+| ID | Statut | Correctif |
+|---|---|---|
+| `TZ-01` | **CORRIGÉ** | `runMysqlMigrations(dbQuery, timezone)` applique et backfill le fuseau du tenant ; appelé une fois par région dans `back/src/index.ts`. `mysql-init.sql` fixe explicitement `DEFAULT 'Europe/Paris'` sur la table clonée Annemasse. Validé sur volume frais **et** volume existant. |
+| `TZ-02` | **CORRIGÉ** | `formatFr()` s'appuie sur `tenantTimezone()` (ALS). |
+| `TZ-03` | **CORRIGÉ** | `Matching.tsx` lit `regionStore` et passe le fuseau résolu ; les 4 `timeZone: 'Indian/Reunion'` et l'offset `+04:00` ont disparu. |
+| `TZ-04` | **CORRIGÉ** | `ExternalInterview.tsx` lit `timezone` sur le profil. |
+| `TZ-05` | **CORRIGÉ** | `InterviewProposalForm` reçoit `timezone` en prop et convertit via `zonedWallClockToIso()`. |
+| `TZ-06` | **HORS PÉRIMÈTRE** | Non traité. Le défaut inverse est réel mais sort du lot fuseaux : le corriger engage la chaîne de signature YouSign/DocuSeal et son stockage, à traiter dans un lot dédié. Décision actée par le commandeur du lot. |
+| `TZ-07` | **CORRIGÉ** | `DEFAULT_TZ` devient une fonction `defaultTz()` évaluée **à chaque appel** — jamais une constante au chargement du module, l'ALS étant vide à l'import. |
+| `TZ-08` | **CORRIGÉ** | L'exemple `{{date}}` est calculé sur le fuseau du tenant connecté. |
+
+##### Source de vérité
+
+- Backend : `TENANT_TIMEZONE` (`back/src/config/tenant.ts`) + `tenantTimezone()` (`back/src/db/tenant.ts`).
+- Frontend : `REGION_TIMEZONE` / `regionTimezone()` / `zonedWallClockToIso()` / `isoToZonedWallClock()`
+  dans `front/disciplina-front/src/lib/timezone.ts` — **seul** fichier autorisé à contenir un
+  fuseau IANA ou un décalage UTC en dur.
+- Pages staff : `regionTimezone(useRegionStore((s) => s.region))`.
+- Pages guest : champ `timezone` de `GET /:signature/profile` (nouveau), qui lit l'ALS du tenant.
+
+##### Garde anti-régression
+
+`front/disciplina-front/eslint.config.js` porte un bloc `no-restricted-syntax` qui interdit,
+hors `src/lib/timezone.ts` : tout littéral contenant `Indian/Reunion` ou `Europe/Paris`, tout
+`TemplateElement` contenant un décalage UTC (`NN+0X:XX`), et tout littéral `+0X:XX`.
+Vérifié négativement : la règle attrape les 10 occurrences du code d'origine
+(`Matching.tsx` ×5, `InterviewProposalForm.tsx` ×3, `ExternalInterview.tsx` ×1,
+`MailTemplates.tsx` ×1) et ne produit aucun faux positif sur les 239 fichiers actuels.
+
+> Note : le sélecteur du fuseau est une **sous-chaîne** et non une égalité. L'exemple TZ-08
+> était `'lundi 22 juin 2026 à 14:30 (Indian/Reunion)'` — un littéral exact `'Indian/Reunion'`
+> ne l'aurait pas attrapé.
+
 
 ---
 
@@ -278,18 +329,26 @@ Le fuseau n'a jamais été centralisé : `Indian/Reunion` en dur à 3 endroits, 
 
 Format de `BACKLOG.md` : XS < 1 h · S ≈ ½ j · M ≈ 1-3 j · L > 3 j.
 
-### Lot 1 — Fuseaux horaires (`TZ-*`) · XS+S
+### Lot 1 — Fuseaux horaires (`TZ-*`) · XS+S — **TERMINÉ (`TZ-06` hors périmètre)**
 
 **Périmètre** : introduire une source unique de fuseau par tenant (sur le modèle de `back/src/scheduler/pedaDraftScheduler.ts:12-15`), l'exposer au frontend, puis substituer les 8 occurrences.
 
-- `TZ-07` source unique backend + injection dans le contexte tenant
-- `TZ-01` `TZ-02` substitution backend (dont le défaut MySQL via `migrations.ts`)
-- `TZ-06` correction du défaut inverse YouSign
-- `TZ-03` `TZ-04` `TZ-05` substitution frontend (le store de région est déjà disponible)
-- `TZ-08` exemple de template
+- [x] `TZ-07` source unique backend + injection dans le contexte tenant
+- [x] `TZ-01` `TZ-02` substitution backend (dont le défaut MySQL via `migrations.ts`)
+- [ ] `TZ-06` correction du défaut inverse YouSign — **sorti du lot**, à réintégrer dans un lot signature dédié
+- [x] `TZ-03` `TZ-04` `TZ-05` substitution frontend (le store de région est déjà disponible)
+- [x] `TZ-08` exemple de template
 
 **Dépendances** : aucune. **Recette** : réserver un créneau sur `app-annemasse`, mail de received conforme à `Europe/Paris` ; idem Réunion. Vérifier l'enveloppe de signature Réunion.
 **Pourquoi en premier** : correctif autonome, rapide, sur un défaut visible **chaque jour** aux deux tenants.
+
+**Livré en plus du périmètre initial** (trouvés pendant le lot) :
+
+- six routes `/:signature/*` dupliquées dans `back/src/rest/external/route.ts`, supprimées ;
+- `back/test/helpers/seedOffer.ts` écrivait l'offre via un modèle Mongo singleton, ignorant l'ALS : les offres de test partaient systématiquement en Réunion, ce qui masquait le défaut de fuseau ;
+- garde ESLint frontend interdisant tout fuseau IANA ou décalage UTC en dur hors `src/lib/timezone.ts` ;
+- `GET /:signature/profile` expose désormais `timezone` aux pages guest.
+
 
 ### Lot 2 — Profil tenant & identité (`ID-*`) · M
 

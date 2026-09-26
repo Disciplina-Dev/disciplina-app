@@ -3,6 +3,7 @@ import { ExternalAccessService } from '../../services/ExternalAccessService';
 import { ExternalAccessRepository } from '../../repositories/mysql/ExternalAccessRepository';
 import { setGuestCookies } from '../middleware/cookies';
 import { issueCsrfCookie } from '../middleware/csrf';
+import { tenantTimezone } from '../../config/tenant';
 import type { AuthRequest } from '../middleware/auth';
 import type { ExternalGuestRequest } from './guard';
 
@@ -105,6 +106,8 @@ export async function getProfile(req: ExternalGuestRequest, res: Response): Prom
         guestType: row.external_type,
         externalUuid: row.external_id,
         expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+        // Le guest n'a pas de session staff : `/api/auth/me` est indisponible, d'où ce carrier.
+        timezone: tenantTimezone(),
     });
 }
 
