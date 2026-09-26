@@ -107,4 +107,16 @@ export async function query<T>(sql: string, params?: unknown[]): Promise<T> {
     return rows as T;
 }
 
-export default pools.reunion;
+/**
+ * Export par défaut (seul default export autorisé) : proxy vers le pool du tenant courant
+ * (`getPool()`, ALS). Il était figé sur `pools.reunion`, si bien qu'un test sous
+ * `withRegion('annemasse')` écrivait silencieusement dans la base Réunion. Hors ALS, le
+ * tenant par défaut s'applique, comme avant.
+ */
+export default new Proxy({} as Pool, {
+    get(_target, prop) {
+        const pool = getPool();
+        const value = Reflect.get(pool, prop, pool);
+        return typeof value === 'function' ? value.bind(pool) : value;
+    },
+});

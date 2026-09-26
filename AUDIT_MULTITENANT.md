@@ -460,6 +460,15 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 **COS-03 / COS-04** : `Sidebar.tsx` (profil « Loic A. / loic@disciplina.fr » en dur) n'était utilisé que par `AppLayout.tsx`, lui-même importé nulle part → **code mort supprimé** (les layouts vivants lisent `useCurrentUser`). `mockCandidates.ts` supprimé plus tôt (§8.4/étape 1).
 **COS-07** : `mapCandidateToFilizStudent` — indicatif (`262` en dur + troncature de 3 chiffres qui aurait cassé un `+33`) et département par défaut désormais par tenant (`config/tenant.ts`), test `services/mappers/__tests__/filizStudent.test.ts`.
 
+**Lot 4 DEBT (2026-09-28)** :
+- `DEBT-01` corrigé (défaut `region` retiré). `DEBT-02` **corrigé** : l'export par défaut de `db/mysql/connection.ts` est un proxy vers `getPool()` (pool du tenant courant, ALS) ; les 17 fichiers de test n'ont pas changé ; test `db/mysql/__tests__/defaultPool.test.ts`. Suite : 449/451 (2 échecs préexistants).
+- `DEBT-05` **résolu par décision** : `'Nord-Est'` est le secteur technique d'Annemasse (§8.5) et le fuseau du clone est fixé (`TZ-01`).
+- `DEBT-04` **accepté** : `region` reste `VARCHAR(16)` sans `CHECK` (l'union TS `Region` et les deux seuls inserts explicites suffisent ; un `ALTER … CHECK` sur base existante n'apporte pas assez).
+- `DEBT-06` **sans objet** pour `HOWTODEPLOY.md` (URL unique) ; `RGPD.md` reste suivi par `BACKLOG.md` `RGPD-6`.
+- `DEBT-07` **différé** : `SAINT_PHILLIPE` est dans les données Mongo existantes et 3 enums GraphQL → migration de données à part.
+- `DEBT-08` **tranché** : SARL (§8.1) ; le PDF mandat (`ID-05`, « EURL ») est à corriger avec la décision mandat/catalogue. `DEBT-09` : les mentions légales n'ont plus qu'une source (`legalProfile.ts`) ; le NDA du `PdfService` (`04973484197`) ne diffère que par le formatage.
+- `DEBT-10` clos (`FE-3`).
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.
