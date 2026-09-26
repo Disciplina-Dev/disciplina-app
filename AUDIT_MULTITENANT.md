@@ -191,7 +191,7 @@ Vérifié négativement : la règle attrape les 10 occurrences du code d'origine
 | `ID-10` | **BLOQUANT — CORRIGÉ** (`lib/legalProfile.ts`) | `front/.../src/content/legal/politique-confidentialite.md:3,5,12,20-25` · `politique-cookies.md:3,6` · `cgu/annexe-candidat.md:3,6,63,95,109,136,137` · `cgu/annexe-entreprise.md:3,6,148` · `cgu/annexe-interne.md:3,6` · `cgu/socle.md:3,10,20,23,40,44,129,212,309,329,330,331,333` | ~40 `[[PLACEHOLDER]]` **visibles en production**. `docs/legal_mention_to_complete.md:43` pose la règle : « Aucun document ne doit être publié tant qu'un placeholder reste. » |
 | `ID-11` | **BLOQUANT — CORRIGÉ** (`lib/legalProfile.ts`) | `front/.../src/content/legal/_placeholders.md:24,26,53,54` | Registre des placeholders lui-même parsemé d'exemples Réunion (`Saint-Denis 123 456 789`, `97400 Saint-Denis`, `https://app-reunion.disciplina.re`) — à purger en même temps que la substitution est introduce. |
 
-#> **Légal (ID-08..11)** : placeholders substitués au rendu par `legalProfile.ts` (profil par tenant, région via `?region=` puis `regionStore`). Annemasse hérite de l'identité Réunion (même SARL). **À confirmer** : SIRET d'établissement, téléphone, hébergeur, URL `app-annemasse.disciplina.re` (supposée), adresse postale du médiateur (« à compléter » dans le texte).
+#> **Légal (ID-08..11)** : placeholders substitués au rendu par `legalProfile.ts` (profil par tenant, région via `?region=` puis `regionStore`). Annemasse hérite de l'identité Réunion (même SARL). **À confirmer** : SIRET d'établissement, téléphone, hébergeur, adresse postale du médiateur (« à compléter » dans le texte).
 
 ### 4.2.c URLs, domaines, runtime
 
@@ -426,6 +426,15 @@ Découpage en sous-étapes, **chacune validée séparément** :
 - `ID-13`/`ID-15` (dev-only / observabilité) et `GEO-12`/`GEO-14` (« fonctionne par accident ») classés BLOQUANT → sévérité à réévaluer.
 - Numéros de ligne à revérifier après `7a30cf39` avant chaque lot.
 - Adresse du site Annemasse, lieu de RDV, SIRET/RCS/capital/siège Annemasse si distincts : **données manquantes**, à fournir.
+
+### 8.3 À demander (2026-09-28)
+
+- URL : **identique à la Réunion** (`app-reunion.disciplina.re`) — décision actée.
+- SIRET d'établissement Annemasse (hérite du SIRET Réunion en attendant).
+- Téléphone, email de contact, hébergeur Annemasse (héritent de Réunion).
+- Adresse postale du médiateur (« à compléter » dans `mentions-legales.md`).
+- Adresse du site de formation et lieu de RDV par défaut Annemasse (placeholders).
+- SIRET/RCS/capital/siège si distincts (cf. §7).
 
 ---
 

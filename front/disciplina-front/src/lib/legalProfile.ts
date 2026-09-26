@@ -50,10 +50,9 @@ const REUNION: LegalProfile = {
 }
 
 // Annemasse = établissement de la même société : identité juridique partagée.
-// À confirmer : SIRET d'établissement, téléphone, hébergeur, URL.
+// À confirmer (cf. AUDIT_MULTITENANT.md §8.3) : SIRET d'établissement, téléphone, hébergeur.
 const ANNEMASSE: LegalProfile = {
   ...REUNION,
-  URL_APP: 'https://app-annemasse.disciplina.re',
 }
 
 export const LEGAL_PROFILES: Record<Region, LegalProfile> = {
