@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
@@ -589,7 +590,8 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
               );
             })}
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
+          {tenantHasSectors() && (
+<div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-semibold text-gray-500">Zone :</span>
             <button
               type="button"
@@ -613,6 +615,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
               </button>
             ))}
           </div>
+)}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-semibold text-gray-500">Secteur d'activité :</span>
             {DIRECTORY_ACTIVITY_SECTORS.map((sector) => {
@@ -846,7 +849,7 @@ export default function DashboardRH() {
         </div>
         <div className="flex items-center gap-2">
           {/* Filtre secteur global — réservé Admin/Resp ; RH voit uniquement son secteur. */}
-          {canViewAll && (
+          {canViewAll && tenantHasSectors() && (
             <div className="flex items-center gap-1 rounded-[10px] border border-gray-100 bg-white p-0.5 shadow-sm">
               <button
                 onClick={() => setSelectedSectors(null)}

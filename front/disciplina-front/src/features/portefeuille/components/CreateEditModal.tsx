@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { X, Building2, ArrowRight, AlertTriangle, Check } from 'lucide-react'
 import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
@@ -356,7 +357,8 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       placeholder="Rue, CP, Ville"
                       {...register('adresse')}
                     />
-                    <div className="flex flex-col gap-1.5">
+                    {tenantHasSectors() && (
+<div className="flex flex-col gap-1.5">
                       <label className="text-sm font-medium text-gray-700">
                         Secteur
                       </label>
@@ -384,6 +386,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                         <p className="text-xs text-danger">Sélectionnez au moins un secteur</p>
                       )}
                     </div>
+)}
                   </div>
                 </div>
 

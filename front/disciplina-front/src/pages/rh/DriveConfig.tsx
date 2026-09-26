@@ -4,10 +4,12 @@ import Button from '@/components/ui/Button'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_DRIVE_FOLDER_CONFIG, UPDATE_DRIVE_FOLDER_CONFIG } from '@/graphql/queries'
 import { SECTEUR_KEYS, SECTEUR_LABELS } from '@/constants/secteurs'
+import { tenantHasSectors } from '@/lib/geoReferential'
 
 // Obligation : abréviations seules (AD, CC, NTC, REM, SA), pas de libellé long.
 const TP_ORDER = ['AD', 'CC', 'NTC', 'REM', 'SA']
-const REGIONS = SECTEUR_KEYS
+// Annemasse : un seul dossier par TP, rangé sous la clé technique NORD.
+const activeRegions = () => (tenantHasSectors() ? SECTEUR_KEYS : SECTEUR_KEYS.slice(0, 1))
 const REGION_LABELS: Record<string, string> = SECTEUR_LABELS
 
 const folderKey = (tp: string, region: string) => `${tp}_${region}`
@@ -48,7 +50,7 @@ export default function DriveConfig() {
     setError(null)
     setSaved(false)
     const tpFolders = TP_ORDER.flatMap((tp) =>
-      REGIONS.map((region) => ({
+      activeRegions().map((region) => ({
         tp,
         region,
         folderId: (folders[folderKey(tp, region)] ?? '').trim() || null,
@@ -105,10 +107,10 @@ export default function DriveConfig() {
           <div key={tp}>
             <div className="mb-2 text-sm font-semibold text-gray-900">{tp}</div>
             <div className="grid gap-3 sm:grid-cols-3">
-              {REGIONS.map((region) => (
+              {activeRegions().map((region) => (
                 <div key={region}>
                   <label className="mb-1 block text-xs font-medium text-gray-500">
-                    {tp} - {REGION_LABELS[region]}
+                    {tp}{tenantHasSectors() ? ` - ${REGION_LABELS[region]}` : ''}
                   </label>
                   <input
                     className={inputClass}

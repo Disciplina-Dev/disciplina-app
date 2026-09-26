@@ -9,6 +9,7 @@ import {
   X,
   Check,
 } from 'lucide-react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { useState, useRef, useEffect } from 'react'
 import type { EntrepriseFilters, EntrepriseStatus, RelanceFilter, SalePerson } from '@/types/entreprise'
 import { fullName } from '@/store/authStore'
@@ -416,6 +417,7 @@ export default function FilterPanel({ filters, secteurs, salePersons, onChange, 
       </ChipDropdown>
 
       {/* Secteur */}
+      {tenantHasSectors() && (
       <ChipDropdown
         icon={<MapPin className="h-3.5 w-3.5" />}
         label="Secteur"
@@ -431,6 +433,7 @@ export default function FilterPanel({ filters, secteurs, salePersons, onChange, 
           onModeChange={(m) => onChange({ ...filters, secteurMode: m })}
         />
       </ChipDropdown>
+      )}
 
       {/* Création (date de création du dossier) */}
       <ChipDropdown

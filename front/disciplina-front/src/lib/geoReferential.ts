@@ -36,3 +36,14 @@ export function currentLocalisations(): Localisation[] {
 export function currentTrainingSites(): TrainingSite[] {
   return trainingSitesFor(useRegionStore.getState().region)
 }
+
+/**
+ * Vrai si le tenant courant découpe son activité en secteurs (Nord-Est / Ouest / Sud).
+ * Annemasse n'en a pas : ses écrans masquent les sélecteurs de secteur et les valeurs
+ * portent le secteur technique unique `DEFAULT_SECTEUR` (cf. back/src/utils/sector.ts).
+ */
+const TENANT_HAS_SECTORS: Record<Region, boolean> = { reunion: true, annemasse: false }
+
+export function tenantHasSectors(): boolean {
+  return TENANT_HAS_SECTORS[useRegionStore.getState().region ?? 'reunion']
+}

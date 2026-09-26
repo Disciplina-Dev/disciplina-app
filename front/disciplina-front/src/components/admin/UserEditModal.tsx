@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { X, Shield, User as UserIcon, Mail, MapPin, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import { Permission } from '@/store/authStore'
-import { SECTEUR_VALUES } from '@/types/entreprise'
+import { SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import { apiJson } from '@/api/httpClient'
 
 export interface ManagedUser {
@@ -44,7 +45,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
   const [email, setEmail] = useState(user.email)
   const [role, setRole] = useState(user.role)
   const [permission, setPermission] = useState(user.permission)
-  const [sectors, setSectors] = useState<string[]>(user.sectors ?? [])
+  const [sectors, setSectors] = useState<string[]>(user.sectors?.length || tenantHasSectors() ? (user.sectors ?? []) : [DEFAULT_SECTEUR])
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -196,7 +197,8 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          {tenantHasSectors() && (
+<div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Secteurs</label>
             <div className="flex flex-wrap gap-2">
               {SECTEUR_VALUES.map((secteur) => {
@@ -219,6 +221,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
               })}
             </div>
           </div>
+)}
 
           <PasswordInput
             label="Nouveau mot de passe (optionnel)"

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { useNavigate } from 'react-router-dom'
 import {
   CalendarPlus, CalendarClock, UserCheck, UserX, Briefcase, FileSignature, Unlink,
@@ -216,7 +217,7 @@ export default function RhKpiPanel({
               {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
           )}
-          {!hideSelector && sectors.length > 0 && (
+          {!hideSelector && tenantHasSectors() && sectors.length > 0 && (
             <div className="flex items-center gap-1 rounded-[10px] border border-gray-200 bg-white p-0.5">
               <button
                 onClick={() => setSelectedSectors(null)}

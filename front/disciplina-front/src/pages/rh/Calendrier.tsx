@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import DOMPurify from 'dompurify'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Layers, Loader2, AlertCircle, CalendarDays,
@@ -1102,7 +1103,18 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
   const withoutSector = users.filter((u) => u.sectors.length === 0)
   return (
     <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
-      {SECTEUR_VALUES.map((sector) => (
+      {!tenantHasSectors() && (
+        <AgendaGroup
+          label="Agendas"
+          users={users}
+          selfId={selfId}
+          visible={visible}
+          onToggle={onToggle}
+          onToggleGroup={onToggleGroup}
+          defaultCollapsed={false}
+        />
+      )}
+      {tenantHasSectors() && SECTEUR_VALUES.map((sector) => (
         <AgendaGroup
           key={sector}
           label={sector}
@@ -1114,7 +1126,7 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
           defaultCollapsed={false}
         />
       ))}
-      <AgendaGroup
+      {tenantHasSectors() && <AgendaGroup
         label="Sans secteur"
         users={withoutSector}
         selfId={selfId}
@@ -1122,7 +1134,7 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
         onToggle={onToggle}
         onToggleGroup={onToggleGroup}
         defaultCollapsed={false}
-      />
+      />}
       {users.length === 0 && <p className="px-1 text-[12px] text-gray-400">Aucun agenda</p>}
     </aside>
   )

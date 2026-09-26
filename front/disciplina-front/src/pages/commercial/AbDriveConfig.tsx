@@ -3,10 +3,12 @@ import { FolderCog, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { needsAnalysisGraphqlClient } from '@/graphql/client'
 import { GET_AB_DRIVE_CONFIG, UPDATE_AB_DRIVE_CONFIG } from '@/graphql/queries'
-import { SECTEUR_VALUES } from '@/constants/secteurs'
+import { SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/constants/secteurs'
+import { tenantHasSectors } from '@/lib/geoReferential'
 
 // Secteurs métier Disciplina (valeurs canoniques côté back : utils/sector.ts).
-const SECTORS = SECTEUR_VALUES
+// Annemasse : un seul dossier, rangé sous le secteur technique unique.
+const activeSectors = () => (tenantHasSectors() ? SECTEUR_VALUES : [DEFAULT_SECTEUR])
 const KINDS = ['UNSIGNED', 'SIGNED'] as const
 const KIND_LABELS: Record<string, string> = { UNSIGNED: 'Non signé', SIGNED: 'Signé' }
 
@@ -45,7 +47,7 @@ export default function AbDriveConfig() {
     setSaving(true)
     setError(null)
     setSaved(false)
-    const sectorFolders = SECTORS.flatMap((sector) =>
+    const sectorFolders = activeSectors().flatMap((sector) =>
       KINDS.map((kind) => ({
         sector,
         kind,
@@ -89,9 +91,9 @@ export default function AbDriveConfig() {
       </div>
 
       <div className="space-y-5 rounded-2xl border border-gray-100 bg-white p-6">
-        {SECTORS.map((sector) => (
+        {activeSectors().map((sector) => (
           <div key={sector}>
-            <div className="mb-2 text-sm font-semibold text-gray-900">{sector}</div>
+            <div className="mb-2 text-sm font-semibold text-gray-900">{tenantHasSectors() ? sector : 'Dossier Annemasse'}</div>
             <div className="grid gap-3 sm:grid-cols-2">
               {KINDS.map((kind) => (
                 <div key={kind}>

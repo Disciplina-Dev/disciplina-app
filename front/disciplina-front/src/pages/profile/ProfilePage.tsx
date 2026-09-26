@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { useMutation, gql } from 'urql'
 import { useLocation } from 'react-router-dom'
 import { useCurrentUser, useAuthStore, UserRole, Permission } from '@/store/authStore'
@@ -292,7 +293,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Sectors (RH / RESPONSABLE / ADMIN) */}
-        {showSectors && (
+        {showSectors && tenantHasSectors() && (
           <div className="mt-5 pt-5 border-t border-gray-50">
             <div className="flex items-center gap-1.5 mb-2.5">
               <MapPin size={14} style={{ color: accent }} />

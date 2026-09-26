@@ -18,6 +18,7 @@ import {
   Ban,
   PhoneCall,
 } from 'lucide-react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation, useBlocker } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -396,7 +397,7 @@ export default function EntreprisePage() {
               ) : (
                 <ReadField icon={<MapPin className="h-4 w-4" />} label="Adresse" value={draft.adresse} />
               )}
-              {canEdit ? (
+              {tenantHasSectors() && (canEdit ? (
                 <div className="flex gap-3">
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><MapPin className="h-4 w-4" /></span>
                   <div className="min-w-0 flex-1">
@@ -435,7 +436,7 @@ export default function EntreprisePage() {
                 </div>
               ) : (
                 <ReadField icon={<MapPin className="h-4 w-4" />} label="Secteur" value={draft.secteur} />
-              )}
+              ))}
               {canEdit ? (
                 <EditField icon={<Hash className="h-4 w-4" />} label="IDCC" value={draft.idcc ?? ''} onChange={(v) => set('idcc', v)} />
               ) : (

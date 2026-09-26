@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tenantHasSectors } from '@/lib/geoReferential'
 import { User, Mail, ShieldCheck, Shield, Globe, MapPin } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
@@ -6,7 +7,7 @@ import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
 import { UserRole, Permission } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
-import { SECTEUR_VALUES } from '@/types/entreprise'
+import { SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import { apiJson } from '@/api/httpClient'
 
 export default function RegisterPage() {
@@ -19,7 +20,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<UserRole>(UserRole.COMMERCIAL)
   const [permission, setPermission] = useState<Permission>(Permission.EMPLOYEE)
-  const [sectors, setSectors] = useState<string[]>([])
+  const [sectors, setSectors] = useState<string[]>(tenantHasSectors() ? [] : [DEFAULT_SECTEUR])
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [linkGoogle, setLinkGoogle] = useState(true)
@@ -159,7 +160,8 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        {tenantHasSectors() && (
+<div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Secteurs</label>
           <div className="flex flex-wrap gap-2">
             {SECTEUR_VALUES.map((secteur) => {
@@ -189,6 +191,7 @@ export default function RegisterPage() {
             Détermine le dossier Drive des candidats créés par cet utilisateur.
           </p>
         </div>
+)}
 
         <InputField
           label="Prénom"
