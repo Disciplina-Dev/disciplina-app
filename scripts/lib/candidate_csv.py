@@ -449,7 +449,7 @@ def build_candidate(row, columns, config, run_date):
     inserted_at = interview_date if interview_date and interview_date <= run_date else run_date
     age = parse_age(values["age"])
     city = normalize_city(values["city"])
-    tp_type, tp_types, formation_type = parse_formation(
+    _tp_type, tp_types, formation_type = parse_formation(
         values["formation"], config.get("tp_default", DEFAULT_TP)
     )
 
@@ -489,7 +489,6 @@ def build_candidate(row, columns, config, run_date):
         "training_site": config["training_site"],
         "training_sites": [config["training_site"]],
         "formation_type": formation_type,
-        "tp_type": tp_type,
         "tp_types": tp_types,
         "status": status,
         "identity": identity,
@@ -523,7 +522,7 @@ def build_contract_candidate(row, config, run_date):
     if not full_name or not re.search(r"[A-Za-z]", full_name):
         return None
 
-    tp_type, tp_types, formation_type = parse_formation(contract_cell("formation"))
+    _tp_type, tp_types, formation_type = parse_formation(contract_cell("formation"))
     entry_date = parse_fr_date(contract_cell("interview_date"))
     inserted_at = entry_date if entry_date and entry_date <= run_date else run_date
 
@@ -542,7 +541,6 @@ def build_contract_candidate(row, config, run_date):
         "training_site": config["training_site"],
         "training_sites": [config["training_site"]],
         "formation_type": formation_type,
-        "tp_type": tp_type,
         "tp_types": tp_types,
         "status": config["status"],
         "identity": {

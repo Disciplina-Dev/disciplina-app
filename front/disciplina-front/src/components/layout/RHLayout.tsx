@@ -1,9 +1,11 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog, MapPin, ListTodo, Settings, GraduationCap } from 'lucide-react'
+import { LayoutDashboard, Users, Repeat2, LogOut, User, Briefcase, UserPlus, Mail, BellRing, CalendarDays, FolderCog, MapPin, ListTodo, Settings, GraduationCap, Link2 } from 'lucide-react'
 import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
+import LegalLinks from './LegalLinks'
+import RegionBadge from './RegionBadge'
 import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
@@ -47,6 +49,8 @@ export default function RHLayout() {
           <p className="whitespace-nowrap text-[16px] font-extrabold text-gray-900 tracking-tight">Espace RH</p>
         </div>
 
+        <RegionBadge />
+
         {/* Scrollable nav */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
         {/* Main nav */}
@@ -54,6 +58,7 @@ export default function RHLayout() {
           <NavItem to="/rh" end icon={<LayoutDashboard size={18} />} label="Tableau de bord" />
           <NavItem to="/rh/candidats" icon={<Users size={18} />} label="Candidats" />
           <NavItem to="/rh/matching" icon={<Repeat2 size={18} />} label="Matching" />
+          <NavItem to="/rh/external-access" icon={<Link2 size={18} />} label="Accès externes" />
           <NavItem to="/rh/calendrier" icon={<CalendarDays size={18} />} label="Calendrier" />
           <NavItem to="/rh/relance" icon={<BellRing size={18} />} label="Relance" />
           <NavItem to="/rh/todos" icon={<ListTodo size={18} />} label="Mes tâches" />
@@ -128,6 +133,8 @@ export default function RHLayout() {
               </button>
             </div>
           </div>
+
+          <LegalLinks />
         </div>
       </aside>
 

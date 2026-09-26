@@ -1,5 +1,6 @@
 import { Briefcase, Users, GraduationCap, ClipboardList, Calendar, Hash } from 'lucide-react'
 import { formatTrainingDays } from '@/utils/trainingDays'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 export const AB_STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
@@ -9,10 +10,11 @@ export const AB_STATUS_BADGE: Record<string, { bg: string; text: string; label: 
 }
 
 const LABELS: Record<string, Record<string, string>> = {
-  localisation:       { NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud' },
+  localisation:       { ...SECTEUR_LABELS },
   trainingDomain:     { SECRETARIAT: 'Secrétariat', VENTE: 'Vente' },
   educationLevel:     { BAC: 'Bac', BAC_PLUS_2: 'Bac +2', BAC_PLUS_3: 'Bac +3' },
   drivingLicense:     { OUI: 'Oui', OPTIONNEL: 'Optionnel' },
+  hasVehicle:         { OUI: 'Oui', NON: 'Non' },
   experienceRequired: { DEBUTANT: 'Débutant accepté', OBLIGATOIRE: 'Expérience obligatoire' },
   recruitmentMethod:  { ALL_CV: 'Tous les CV', PRESELECTION: 'Présélection', PRE_INTERVIEW: 'Pré-entretien' },
   immersionPeriod:    { OUI: 'Oui', NON: 'Non', A_DISCUTER: 'À discuter' },
@@ -58,6 +60,7 @@ export interface AbDetail {
   recruitmentResponsibleEmail?: string | null
   companySectors?: string[]
   companyDescription?: string | null
+  administrationType?: string | null
   positionsCount?: number
   recruitmentMethod?: string
   immersionPeriod?: string
@@ -74,6 +77,7 @@ export interface AbDetail {
   additionalComments?: string | null
   educationLevel?: string
   drivingLicense?: string
+  hasVehicle?: string
   experienceRequired?: string
   ageRequirements?: string[]
   ageMin?: number | null
@@ -106,12 +110,13 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
         </Section>
       )}
 
-      {((ab.companySectors?.length ?? 0) > 0 || ab.companyDescription) && (
+      {((ab.companySectors?.length ?? 0) > 0 || ab.companyDescription || ab.administrationType) && (
         <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
           {(ab.companySectors?.length ?? 0) > 0 && (
             <Row label="Secteurs" value={ab.companySectors!.join(', ')} />
           )}
           <Row label="Description" value={ab.companyDescription} />
+          <Row label="Administration" value={ab.administrationType ? ({ NON_RENSEIGNE: 'Non renseigné', ADMINISTRATION_PUBLIQUE: 'Administration publique', ADMINISTRATION_PRIVEE: 'Administration privée' }[ab.administrationType] ?? ab.administrationType) : null} />
         </Section>
       )}
 
@@ -162,6 +167,9 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
       <Section icon={<GraduationCap className="h-3.5 w-3.5" />} title="Profil apprenti">
         <Row label="Niveau d'études" value={lbl(LABELS.educationLevel, ab.educationLevel)} />
         <Row label="Permis B"        value={lbl(LABELS.drivingLicense, ab.drivingLicense)} />
+        <div className="ml-3 pl-4 border-l-2 border-gray-100">
+          <Row label="Véhiculé"        value={lbl(LABELS.hasVehicle, ab.hasVehicle)} />
+        </div>
         <Row label="Expérience"      value={lbl(LABELS.experienceRequired, ab.experienceRequired)} />
         {(ab.ageMin || ab.ageMax) ? (
           <Row label="Âge" value={[ab.ageMin ? `de ${ab.ageMin} ans` : null, ab.ageMax ? `à ${ab.ageMax} ans` : null].filter(Boolean).join(' ')} />

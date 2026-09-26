@@ -22,6 +22,7 @@ import {
     ClassMarkerResult,
     CandidateOwner,
     EmergencyContact,
+    CandidateConsentments,
 } from '../../../types/candidate.types';
 import { Localisation } from '../../../types/matching.types';
 
@@ -41,6 +42,18 @@ const emergencyContactSchema = new Schema<EmergencyContact>(
         relationship: { type: String },
         phone: { type: String },
         email: { type: String },
+    },
+    { _id: false },
+);
+
+const consentmentsSchema = new Schema<CandidateConsentments>(
+    {
+        data_processing: { type: Boolean, required: true },
+        data_sharing: { type: Boolean, required: true },
+        ai_processing: { type: Boolean, required: true },
+        photo_processing: { type: Boolean, required: true },
+        consent_date: { type: Date, required: true },
+        consent_version: { type: String, required: true },
     },
     { _id: false },
 );
@@ -80,6 +93,27 @@ const identitySchema = new Schema<Identity>(
     },
     { _id: false },
 );
+
+// Unicité applicative de l'email : la base contient encore des doublons
+// historiques (cf. database/mongodb/mongo-init.js), donc pas d'index unique
+// Mongo pour l'instant — juste ce garde-fou côté Mongoose.
+identitySchema.path('email').validate({
+    async validator(this: mongoose.Query<unknown, unknown> | Document, email: string) {
+        if (!email) return true;
+        const normalized = email.trim();
+        const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const selfId =
+            this instanceof mongoose.Query
+                ? this.getQuery()._id
+                : (this as unknown as { $parent: () => { _id?: string } }).$parent()?._id;
+        const existing = await CandidateModel.findOne({
+            _id: { $ne: selfId },
+            'identity.email': { $regex: `^${escaped}$`, $options: 'i' },
+        }).lean();
+        return !existing;
+    },
+    message: (props) => `Un candidat existe déjà avec l'email ${props.value}`,
+});
 
 const educationSchema = new Schema<Education>(
     {
@@ -160,6 +194,7 @@ const jobInfoSchema = new Schema<JobInfo>(
         geographic_mobility: { type: [String], enum: Object.values(Localisation) },
         weekend_work: { type: Boolean },
         discovery_source: { type: String, enum: Object.values(DiscoverySource) },
+        job_search_platforms: { type: String },
     },
     { _id: false },
 );
@@ -217,11 +252,14 @@ const candidateSchema = new Schema<Candidate & Document>(
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
         owner: { type: ownerSchema },
-        tp_type: { type: String, enum: Object.values(TitleProfessionalType), required: true },
         tp_types: { type: [String], enum: Object.values(TitleProfessionalType), default: undefined },
         identity: { type: identitySchema, required: true },
         emergency_contact: { type: emergencyContactSchema },
+        consentments: { type: consentmentsSchema },
         status: { type: String, enum: Object.values(CandidateStatus), required: true },
+        written_test_score: { type: Number, min: 0, max: 20 },
+        test_average: { type: Number, min: 0, max: 20 },
+        test_failure_pending: { type: Boolean },
         training_site: { type: String, enum: Object.values(TrainingSite) },
         training_sites: { type: [String], enum: Object.values(TrainingSite), default: undefined },
         immersion_agreement: { type: Boolean },
@@ -250,6 +288,7 @@ const candidateSchema = new Schema<Candidate & Document>(
         cv_link: { type: String },
         drive_folder_id: { type: String },
         drive_folder_link: { type: String },
+        filiz_folder_id: { type: String },
         photo_link: { type: String },
         classmarker: { type: classMarkerResultSchema },
         created_at: { type: Date },
@@ -265,9 +304,18 @@ const candidateSchema = new Schema<Candidate & Document>(
 // seek O(log n) sur les bornes created_at. _id en tie-break déterministe.
 candidateSchema.index({ created_at: -1, _id: 1 });
 
-// Index full-text pour la recherche (candidatesPage → search) sur le résumé
-// auto-généré du candidat (nom, ville, métier visé, diplôme, mobilité...).
-candidateSchema.index({ 'identity.description': 'text' });
+// Index full-text pour la recherche (candidatesPage → search) :
+// - pondération 10× sur `identity.full_name` vs `identity.description` (le nom matche en tête)
+// - langue française (stemming « boulanger / boulangère », « patissier »)
+// - utilisé conjointement au `$regex` tokenisé (AND ordonné-indépendant) dans CandidateRepository.
+candidateSchema.index(
+    { 'identity.description': 'text', 'identity.full_name': 'text' },
+    {
+        default_language: 'french',
+        weights: { 'identity.full_name': 10, 'identity.description': 1 },
+        name: 'candidate_text_search',
+    },
+);
 
 export const CandidateModel = mongoose.models.Candidate || model<Candidate & Document>('Candidate', candidateSchema);
 

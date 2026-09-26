@@ -27,13 +27,13 @@ interface PedaReco {
 }
 
 interface FormState {
-  tp_type: TitleProfessionalType
   tp_types: TitleProfessionalType[]
   // identité
   full_name: string; email: string; phone: string
   date_of_birth: string; place_of_birth: string; age: string
   postal_code: string; city: string
   driving_license_b: string // 'true' | 'false' | 'en_cours' | ''
+  has_vehicle: string // 'true' | 'false' | ''
   transport_means: string; psh_referral_request: string // 'true' | 'false' | ''
   // éducation
   school_level: string; school_justification: string
@@ -68,6 +68,7 @@ interface FormState {
   desired_sectors: string[]; expected_company_skills: string[]
   // découverte
   discovery_source: string
+  job_search_platforms: string
   // synthèse
   feasibility_conclusion: string; pathway_relevance: string
   special_needs: string; peda_reco: PedaReco
@@ -76,14 +77,14 @@ interface FormState {
 }
 
 function initForm(c: Candidate): FormState {
-  const template = CANDIDATE_TEMPLATES[c.tp_type]
+  const tpTypes = c.tp_types?.length ? c.tp_types : []
+  const template = CANDIDATE_TEMPLATES[tpTypes[0] ?? TitleProfessionalType.CC]
   const skills = c.skills_assessment && c.skills_assessment.length > 0
     ? c.skills_assessment.map(s => ({ competence: s.competence, level: s.level }))
     : template.defaultSkillsAssessment.map(s => ({ competence: s.competence, level: s.level }))
 
   return {
-    tp_type: c.tp_type,
-    tp_types: c.tp_types?.length ? c.tp_types : (c.tp_type ? [c.tp_type] : []),
+    tp_types: tpTypes,
     full_name: c.identity.full_name ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
@@ -93,6 +94,7 @@ function initForm(c: Candidate): FormState {
     postal_code: c.identity.postal_code ?? '',
     city: c.identity.city ?? '',
     driving_license_b: c.identity.driving_license_b == null ? '' : String(c.identity.driving_license_b),
+    has_vehicle: c.identity.has_vehicle == null ? '' : String(c.identity.has_vehicle),
     transport_means: c.identity.transport_means ?? '',
     psh_referral_request: c.identity.psh_referral_request == null ? '' : String(c.identity.psh_referral_request),
     school_level: c.education?.school_level ?? '',
@@ -137,6 +139,7 @@ function initForm(c: Candidate): FormState {
     desired_sectors: c.desired_sectors ?? [],
     expected_company_skills: c.expected_company_skills ?? [],
     discovery_source: c.job_info?.discovery_source ?? '',
+    job_search_platforms: c.job_info?.job_search_platforms ?? '',
     feasibility_conclusion: c.synthesis?.feasibility_conclusion ?? '',
     pathway_relevance: c.synthesis?.pathway_relevance ?? '',
     special_needs: c.synthesis?.special_needs ?? '',
@@ -168,7 +171,7 @@ function toGqlInput(f: FormState) {
   const digitalSkills = f.digital_skills ? f.digital_skills.split(',').map(s => s.trim()).filter(Boolean) : []
 
   return {
-    tpType: f.tp_type,
+    tpType: f.tp_types[0],
     tpTypes: f.tp_types.length ? f.tp_types : undefined,
     trainingSites: f.training_sites,
     immersionAgreement: parseBool(f.immersion_agreement),
@@ -184,6 +187,7 @@ function toGqlInput(f: FormState) {
       postalCode: f.postal_code || undefined,
       city: f.city || undefined,
       drivingLicenseB: parseBool(f.driving_license_b),
+      hasVehicle: parseBool(f.has_vehicle),
       transportMeans: f.transport_means || undefined,
       pshReferralRequest: parseBool(f.psh_referral_request),
     },
@@ -232,6 +236,7 @@ function toGqlInput(f: FormState) {
       geographicMobility: f.geographic_mobility.length ? f.geographic_mobility : undefined,
       weekendWork: parseBool(f.weekend_work),
       discoverySource: f.discovery_source || undefined,
+      jobSearchPlatforms: f.job_search_platforms.trim() || undefined,
     },
     synthesis: {
       feasibilityConclusion: f.feasibility_conclusion || undefined,
@@ -340,14 +345,13 @@ export default function QuestionnaireAB() {
     if (candidate) setForm(initForm(candidate))
   }, [candidate])
 
-  const template = form ? CANDIDATE_TEMPLATES[form.tp_type] : null
+  const template = form ? CANDIDATE_TEMPLATES[form.tp_types[0] ?? TitleProfessionalType.CC] : null
 
   // Secteurs proposés : ceux de tous les TP du candidat, plus ceux déjà cochés
   // même s'ils ne sont plus au référentiel (aucune perte sur les fiches saisies).
   const sectorOptions: string[] = form
     ? Array.from(new Set([
-        ...(form.tp_types.length ? form.tp_types : [form.tp_type])
-          .flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? []),
+        ...form.tp_types.flatMap(tp => CANDIDATE_TEMPLATES[tp]?.availableSectors ?? []),
         ...form.desired_sectors,
       ]))
     : []
@@ -460,7 +464,7 @@ export default function QuestionnaireAB() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Analyse du besoin – {form.full_name}</h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            {(form.tp_types.length ? form.tp_types : [form.tp_type]).map(t => TP_TYPE_LABELS[t]).join(' · ')}
+            {form.tp_types.map(t => TP_TYPE_LABELS[t]).join(' · ')}
           </p>
         </div>
       </div>
@@ -495,6 +499,15 @@ export default function QuestionnaireAB() {
             onChange={v => set('driving_license_b', v)}
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]}
           />
+          <div className="ml-3 pl-4 border-l-2 border-gray-100">
+            <RadioGroup
+              label="Véhiculé"
+              name="has_vehicle"
+              value={form.has_vehicle}
+              onChange={v => set('has_vehicle', v)}
+              options={boolOpts}
+            />
+          </div>
           <InputField id="transport_means" label="Moyen de transport" value={form.transport_means} onChange={e => set('transport_means', e.target.value)} />
           <RadioGroup
             label="Souhaitez-vous être mis en relation avec notre Référent PSH ?"
@@ -762,6 +775,7 @@ export default function QuestionnaireAB() {
                 </label>
               ))}
             </div>
+            <Textarea label="Sur quels sites ou plateformes avez-vous l'habitude de rechercher et de postuler à des offres d'alternance ? (optionnel)" value={form.job_search_platforms} onChange={v => set('job_search_platforms', v)} rows={2} />
           </div>
         </Section>
 

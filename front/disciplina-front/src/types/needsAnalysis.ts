@@ -32,16 +32,23 @@ export interface Referents {
   recruitmentReferents?: ReferentDetails | null
 }
 
+export interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 export interface OfferCriteria {
   educationLevel?: string | null
   drivingLicense?: boolean | null
+  hasVehicle?: boolean | null
   experienceRequired?: boolean | null
   trainingDomain?: string | null
   ageMin?: number | null
   ageMax?: number | null
   desiredSex?: string | null
   softSkills?: string | null
-  scheduleOptions?: string[] | null
+  scheduleOptions?: ScheduleSlot[] | null
   conditions?: string | null
   additionalComments?: string | null
 }
@@ -64,6 +71,14 @@ export interface Position {
   criteria?: OfferCriteria | null
 }
 
+export type AdministrationType = 'NON_RENSEIGNE' | 'ADMINISTRATION_PUBLIQUE' | 'ADMINISTRATION_PRIVEE'
+
+export const ADMINISTRATION_LABELS: Record<AdministrationType, string> = {
+  NON_RENSEIGNE: 'Non renseigné',
+  ADMINISTRATION_PUBLIQUE: 'Administration publique',
+  ADMINISTRATION_PRIVEE: 'Administration privée',
+}
+
 export interface NeedsAnalysis {
   id: string
   companyInfos?: CompanyInfos | null
@@ -76,7 +91,15 @@ export interface NeedsAnalysis {
   trainingDays?: string | null
   yousignSignatureRequestID?: string | null
   status?: string | null
+  /** Statut d'onglet (liste matching RH) : forcé manuellement ou dérivé des offres. */
+  abStatus?: string | null
+  isRelanceDisabled?: boolean | null
+  administrationType?: AdministrationType | null
   tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null
+  /** Date du dernier passage au statut effectif ACTIVE (null = antérieur au suivi). */
+  lastActiveAt?: string | null
+  /** URL Drive du dossier contenant le mandat signé (uniquement si SIGNE). */
+  driveFolderUrl?: string | null
 }

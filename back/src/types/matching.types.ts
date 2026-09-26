@@ -22,6 +22,9 @@ export enum InterviewConclusion {
     REJECTED = 'REJECTED',
     IMMERSING = 'IMMERSING',
     CONTRACT = 'CONTRACT',
+    PRESENT = 'PRESENT',
+    ABSENT = 'ABSENT',
+    APPOINTMENT_CANCELLED = 'APPOINTMENT_CANCELLED',
 }
 
 export enum ImmersionConclusion {
@@ -112,6 +115,7 @@ export interface MatchingCandidate {
     description?: string;
     identity_description?: string;
     cv_webview?: string;
+    has_cv?: boolean;
     interview_location?: string;
     booked_interview_slot?: string;
     comment?: string;

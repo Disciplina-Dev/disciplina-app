@@ -15,9 +15,19 @@ interface HistoryModalProps {
   offerId: string
 }
 
+interface OfferHistoryEntry {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  text: string
+  ownerEmail: string | null
+  createdAt: string | null
+}
+
 export default function HistoryModal({ offerId }: HistoryModalProps) {
   const [expanded, setExpanded] = useState(false)
   const [text, setText] = useState('')
+  const [filter, setFilter] = useState<'all' | 'notes'>('all')
   const currentUser = useCurrentUser()
   const { history, loading, refetch } = useOfferHistory(expanded ? offerId : null)
   const { addEntry } = useAddOfferHistoryEntry()
@@ -36,6 +46,10 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
     await deleteEntry(id)
     refetch()
   }
+
+  const isManualEntry = (entry: OfferHistoryEntry) => entry.firstName !== null || entry.lastName !== null
+  const manualCount = history.filter(isManualEntry).length
+  const visibleHistory = filter === 'all' ? history : history.filter(isManualEntry)
 
   return (
     <div className="border-t border-gray-100 pt-4 mt-4">
@@ -81,40 +95,76 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
           )}
 
           {!loading && history.length > 0 && (
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {history.map((entry: any) => {
-                const isAuto = entry.firstName === null && entry.lastName === null
-                const canDelete = entry.ownerEmail !== null && entry.ownerEmail === currentUser?.email
-                return (
-                  <div key={entry.id} className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{entry.text}</p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          {formatDate(entry.createdAt)}
-                          {' · '}
-                          {isAuto
-                            ? 'Système'
-                            : entry.ownerEmail
-                              ? `${entry.firstName} ${entry.lastName} (${entry.ownerEmail})`
-                              : `${entry.firstName} ${entry.lastName}`}
-                        </p>
+            <>
+              <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit" role="tablist" aria-label="Filtrer l'historique">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === 'all'}
+                  onClick={() => setFilter('all')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors cursor-pointer ${
+                    filter === 'all' ? 'bg-white text-blue shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Tout ({history.length})
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === 'notes'}
+                  onClick={() => setFilter('notes')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors cursor-pointer ${
+                    filter === 'notes' ? 'bg-white text-blue shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Notes ({manualCount})
+                </button>
+              </div>
+
+              {visibleHistory.length === 0 ? (
+                <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600">Aucune note</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {visibleHistory.map((entry: OfferHistoryEntry) => {
+                    const isAuto = !isManualEntry(entry)
+                    const canDelete = entry.ownerEmail !== null && entry.ownerEmail === currentUser?.email
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`border rounded-lg px-4 py-3 ${isAuto ? 'bg-gray-50 border-gray-200' : 'bg-blue-light/60 border-blue-light'}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">{entry.text}</p>
+                            <p className="text-xs text-gray-600 mt-1">
+                              {formatDate(entry.createdAt)}
+                              {' · '}
+                              {isAuto
+                                ? 'Système'
+                                : entry.ownerEmail
+                                  ? `${entry.firstName} ${entry.lastName} (${entry.ownerEmail})`
+                                  : `${entry.firstName} ${entry.lastName}`}
+                            </p>
+                          </div>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(entry.id)}
+                              className="text-gray-400 hover:text-danger transition-colors cursor-pointer shrink-0"
+                              aria-label="Supprimer cette entrée"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      {canDelete && (
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(entry.id)}
-                          className="text-gray-400 hover:text-danger transition-colors cursor-pointer shrink-0"
-                          aria-label="Supprimer cette entrée"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
           )}
 
           <button

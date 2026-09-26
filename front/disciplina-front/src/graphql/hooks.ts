@@ -31,6 +31,8 @@ import {
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
+  UPDATE_NEEDS_ANALYSIS_AB_STATUS,
+  SET_AB_RELANCE_DISABLED,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
@@ -56,6 +58,8 @@ export interface CandidateServerFilters {
   statusIn?: CandidateStatus[]
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
+  /** Sexe du candidat (FILLE / GARCON), exclusif. */
+  sex?: string
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType[]
@@ -157,8 +161,6 @@ export function useCreateCompany() {
 
   const createCompany = (input: any) => {
     return executeMutation({ input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
@@ -201,8 +203,6 @@ export function useUpdateCompany() {
 
   const update = async (id: number, input: any) => {
     return executeMutation({ id, input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.updateCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.updateCompany.userID);
@@ -379,9 +379,11 @@ function fromGql(c: any): Candidate {
     owner: c.owner
       ? { user_id: c.owner.userId, name: c.owner.name, sector: c.owner.sector ?? undefined }
       : undefined,
-    tp_type: mapTpType(c.tpType),
     tp_types: (c.tpTypes?.length ? c.tpTypes : c.tpType ? [c.tpType] : []).map(mapTpType),
     status: c.status as CandidateStatus,
+    written_test_score: c.writtenTestScore ?? undefined,
+    test_average: c.testAverage ?? undefined,
+    test_failure_pending: c.testFailurePending ?? undefined,
     training_site: c.trainingSite,
     training_sites: c.trainingSites ?? (c.trainingSite ? [c.trainingSite] : []),
     immersion_agreement: c.immersionAgreement,
@@ -477,6 +479,7 @@ function fromGql(c: any): Candidate {
           geographic_mobility: c.jobInfo.geographicMobility,
           weekend_work: c.jobInfo.weekendWork,
           discovery_source: c.jobInfo.discoverySource,
+          job_search_platforms: c.jobInfo.jobSearchPlatforms ?? undefined,
         }
       : undefined,
     synthesis: c.synthesis
@@ -499,10 +502,12 @@ function fromGql(c: any): Candidate {
               }
             : undefined,
           other_recommendations: c.synthesis.otherRecommendations,
+          important_note: c.synthesis.importantNote,
           location: c.synthesis.location,
           date: c.synthesis.date,
           recruiter_signature: c.synthesis.recruiterSignature,
           candidate_signature: c.synthesis.candidateSignature,
+          interviewed_by: c.synthesis.interviewedBy,
         }
       : undefined,
     pdf_link: c.pdfLink,
@@ -522,15 +527,27 @@ function fromGql(c: any): Candidate {
           email: c.emergencyContact.email ?? undefined,
         }
       : undefined,
+    consentments: c.consentments
+      ? {
+          data_processing: c.consentments.dataProcessing,
+          data_sharing: c.consentments.dataSharing,
+          ai_processing: c.consentments.aiProcessing,
+          photo_processing: c.consentments.photoProcessing,
+          consent_date: c.consentments.consentDate,
+          consent_version: c.consentments.consentVersion,
+        }
+      : undefined,
   }
 }
 
 /** Maps frontend Candidate (snake_case) → GraphQL UpdateCandidateInput (camelCase) for mutation */
 function toGqlUpdateInput(c: Candidate): any {
   return {
-    tpType: c.tp_type,
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
+    ...(c.written_test_score !== undefined && { writtenTestScore: c.written_test_score }),
+    ...(c.test_average !== undefined && { testAverage: c.test_average }),
+    ...(c.test_failure_pending !== undefined && { testFailurePending: c.test_failure_pending }),
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
     ...(c.immersion_start_date !== undefined && { immersionStartDate: c.immersion_start_date }),
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
@@ -591,6 +608,12 @@ function toGqlUpdateInput(c: Candidate): any {
         ...(c.synthesis.other_recommendations !== undefined && {
           otherRecommendations: c.synthesis.other_recommendations,
         }),
+        ...(c.synthesis.important_note !== undefined && { importantNote: c.synthesis.important_note }),
+        ...(c.synthesis.location !== undefined && { location: c.synthesis.location }),
+        ...(c.synthesis.date !== undefined && { date: c.synthesis.date }),
+        ...(c.synthesis.recruiter_signature !== undefined && { recruiterSignature: c.synthesis.recruiter_signature }),
+        ...(c.synthesis.candidate_signature !== undefined && { candidateSignature: c.synthesis.candidate_signature }),
+        ...(c.synthesis.interviewed_by !== undefined && { interviewedBy: c.synthesis.interviewed_by }),
         ...(c.synthesis.pedagogical_recommendations && {
           pedagogicalRecommendations: {
             officeToolsReinforcement: !!c.synthesis.pedagogical_recommendations.office_tools_reinforcement,
@@ -665,14 +688,16 @@ export function useCandidates() {
   }
 }
 
+export type CandidateSearchField = 'NAME' | 'PHONE' | 'EMAIL';
+
 /**
  * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
  * Returns { candidates, pageInfo, totalCount, loading, error, refetch }.
  */
-export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters) {
+export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters, searchField?: CandidateSearchField) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATES_PAGE,
-    variables: { first, after, search, filters },
+    variables: { first, after, search, searchField, filters },
     context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
     requestPolicy: 'network-only',
   })
@@ -704,7 +729,7 @@ export function useUpdateCandidate() {
 }
 
 interface CreateCandidateInput {
-  tpType: string
+  tpTypes: string[]
   status: string
   identity: { fullName: string; email: string; phone: string; [key: string]: any }
   education?: { schoolLevel?: string | null; [key: string]: any } | null
@@ -939,13 +964,23 @@ export function useCreateContactLog() {
 }
 
 export function useNeedsAnalysis(id: string | null) {
-  const [result] = useQuery({
+  const [result, reexecuteQuery] = useQuery({
     query: GET_NEEDS_ANALYSIS,
     variables: { id: id ?? 0 },
     pause: id === null,
     context: { url: NEEDS_ANALYSIS_URL },
   })
-  return result
+  return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useUpdateNeedsAnalysisAbStatus() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_AB_STATUS)
+
+  const updateAbStatus = (id: string, abStatus: string | null) => {
+    return executeMutation({ id, abStatus }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateAbStatus, result }
 }
 
 export function useDeleteNeedsAnalysis() {
@@ -961,6 +996,21 @@ export function useDeleteNeedsAnalysis() {
   }
 
   return { deleteNeedsAnalysis, result }
+}
+
+export function useSetAbRelanceDisabled() {
+  const [result, executeMutation] = useMutation(SET_AB_RELANCE_DISABLED)
+
+  const setAbRelanceDisabled = (id: string, disabled: boolean) => {
+    return executeMutation({ id, disabled }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('setAbRelanceDisabled failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { setAbRelanceDisabled, result }
 }
 
 export function useUpdateNeedsAnalysis() {

@@ -9,6 +9,8 @@ export interface UserRow {
     sectors: string | string[] | null; // mysql2 v3 returns JSON columns as parsed objects
     oauth_token: string | null;
     refresh_token: string | null;
+    is_deleted?: number;
+    deleted_at?: string | null;
 }
 
 // Jointure avec les tables roles/permissions : le repository enrichit le UserRow
@@ -16,50 +18,6 @@ export interface UserRow {
 export interface UserRowJoined extends UserRow {
     role_name?: string;
     permission_name?: string;
-}
-
-export interface MatchLinkRow {
-    signature: string;
-    code: string;
-    identifier: string;
-    rh_email: string;
-    company_email: string;
-    offer_uuid: string;
-    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
-    attempts: number;
-    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
-    expires_at: string | Date;
-    created_at?: string | Date;
-    updated_at?: string | Date;
-}
-
-export interface InterviewAccessRow {
-    signature: string;
-    code: string;
-    offer_uuid: string;
-    candidate_id: string;
-    rh_email: string;
-    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
-    attempts: number;
-    // pool runs with dateStrings: true, so TIMESTAMP columns arrive as strings
-    expires_at: string | Date;
-    created_at?: string | Date;
-    updated_at?: string | Date;
-}
-
-export interface ExternalLinkRow {
-    id: number;
-    signature: string;
-    code: string;
-    external_email: string;
-    rh_email: string;
-    guest_type: 'COMPANY' | 'CANDIDATE';
-    external_uuid: string;
-    status: 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
-    attempts: number;
-    expires_at: string | Date;
-    created_at?: string | Date;
-    updated_at?: string | Date;
 }
 
 export interface CompaniesRow {
@@ -157,6 +115,24 @@ export interface RefreshTokenRow {
     expires_at: string | Date;
     revoked_at: string | Date | null;
     created_at?: string | Date;
+}
+
+export interface ExternalAccessRow {
+    signature: string;
+    code: string | null;
+    user_id: number;
+    external_id: string;
+    external_type: 'COMPANY' | 'CANDIDATE';
+    external_email: string | null;
+    external_first_name: string | null;
+    token: string | null;
+    reference_id: number;
+    reference_key: string;
+    status: 'SENDING' | 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
+    attempts: number;
+    expires_at: string | Date | null;
+    created_at?: string | Date;
+    updated_at?: string | Date;
 }
 
 export interface FilizRow {

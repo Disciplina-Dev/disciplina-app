@@ -29,7 +29,7 @@ export class GeocodageService {
 
             if (!response.ok) return null;
 
-            const data: GeocodageResponseRaw = await response.json();
+            const data = (await response.json()) as GeocodageResponseRaw;
 
             if (data.status !== 'OK') return null;
 
@@ -51,7 +51,7 @@ export class GeocodageService {
 
             if (!response.ok) return null;
 
-            const data: GeocodageResponseRaw = await response.json();
+            const data = (await response.json()) as GeocodageResponseRaw;
 
             if (data.status !== 'OK') return null;
 

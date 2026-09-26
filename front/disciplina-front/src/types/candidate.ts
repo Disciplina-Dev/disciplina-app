@@ -1,3 +1,5 @@
+import type { ScheduleSlot } from './needsAnalysis'
+
 export enum TitleProfessionalType {
     AD = "AD",       // Assistante de Direction
     CC = "CC",       // Conseiller Commercial
@@ -175,6 +177,7 @@ export interface JobInfo {
     geographic_mobility?: Localisation[];
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
+    job_search_platforms?: string;
 }
 
 export interface PedagogicalRecommendations {
@@ -227,6 +230,7 @@ export interface MatchedOffer {
     status?: string;
     title?: string;
     jobRole?: string;
+    schedule?: ScheduleSlot[];
 }
 
 export interface CandidateOwner {
@@ -243,14 +247,26 @@ export interface EmergencyContact {
     email?: string;
 }
 
+export interface CandidateConsentments {
+    data_processing: boolean;
+    data_sharing: boolean;
+    ai_processing: boolean;
+    photo_processing: boolean;
+    consent_date: string;
+    consent_version: string;
+}
+
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
-    tp_type: TitleProfessionalType; // legacy : 1er TP (dérivé), conservé pour Drive/stats/templates
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;
+    consentments?: CandidateConsentments;
     status: CandidateStatus;
+    written_test_score?: number | null;
+    test_average?: number | null;
+    test_failure_pending?: boolean | null;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
     immersion_agreement?: boolean;

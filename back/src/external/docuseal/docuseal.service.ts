@@ -25,6 +25,27 @@ export interface SignatureProcedure {
     signUrl: string | null;
 }
 
+/** Réponse de l'API DocuSeal lors de la création d'un template via /templates/pdf. */
+interface DocuSealTemplateResponse {
+    id: string;
+    documents?: Array<{ name?: string }>;
+    schema?: unknown[];
+}
+
+/** Submitter renvoyé par la création d'une submission DocuSeal. */
+interface DocuSealSubmitter {
+    submission_id?: string;
+    id?: string;
+    embed_src?: string | null;
+    slug?: string;
+}
+
+/** Submission DocuSeal complète (documents signés). */
+interface DocuSealSubmissionResponse {
+    documents?: Array<{ name?: string; url?: string }>;
+    combined_document_url?: string | null;
+}
+
 // Mandat de publication d'offre d'emploi, joint à l'Analyse du Besoin comme
 // document distinct et signé par le même signataire (rôle Responsable). Le PDF
 // est conservé tel quel ; seule une zone de signature est ajoutée (bas-gauche).
@@ -308,7 +329,7 @@ export class DocuSealService {
                 throw new Error(`Failed to create DocuSeal template: ${templateRes.status} ${errText}`);
             }
 
-            const template = await templateRes.json();
+            const template = (await templateRes.json()) as DocuSealTemplateResponse;
             const templateId = template.id;
             logger.info(
                 {
@@ -341,9 +362,10 @@ export class DocuSealService {
                 throw new Error(`Failed to create DocuSeal submission: ${submissionRes.status} ${errText}`);
             }
 
-            const submitters = await submissionRes.json();
+            const submitters = (await submissionRes.json()) as DocuSealSubmitter[] | DocuSealSubmitter;
             // L'endpoint renvoie la liste des submitters créés ; tous partagent le même submission_id.
-            const submitter = Array.isArray(submitters) && submitters.length > 0 ? submitters[0] : submitters;
+            const submitter: DocuSealSubmitter =
+                Array.isArray(submitters) && submitters.length > 0 ? submitters[0] : (submitters as DocuSealSubmitter);
             const submissionId = submitter?.submission_id ?? submitter?.id;
 
             if (!submissionId) {
@@ -389,7 +411,7 @@ export class DocuSealService {
                 throw new Error(`Failed to fetch DocuSeal submission: ${res.status}`);
             }
 
-            const submission = await res.json();
+            const submission = (await res.json()) as DocuSealSubmissionResponse;
             const documents: Array<{ name?: string; url?: string }> = submission.documents ?? [];
             logger.info(
                 {

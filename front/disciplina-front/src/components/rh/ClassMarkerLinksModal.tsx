@@ -15,7 +15,7 @@ interface ClassMarkerLinksModalProps {
   onClose: () => void;
   firstName: string;
   lastName: string;
-  tpType: TitleProfessionalType;
+  tpTypes: TitleProfessionalType[];
   candidateId?: string;
 }
 
@@ -29,7 +29,7 @@ export default function ClassMarkerLinksModal({
   onClose,
   firstName,
   lastName,
-  tpType,
+  tpTypes,
   candidateId,
 }: ClassMarkerLinksModalProps) {
   const [loading, setLoading] = useState(false);
@@ -67,7 +67,7 @@ export default function ClassMarkerLinksModal({
           const created = await quickCreateCandidate({
             first_name: firstName.trim(),
             last_name: lastName.trim(),
-            tp_type: tpType,
+            tp_types: tpTypes,
           });
           if (cancelled) return;
           id = created.id;
@@ -93,7 +93,7 @@ export default function ClassMarkerLinksModal({
 
     run();
     return () => { cancelled = true; };
-  }, [open, candidateId, firstName, lastName, tpType]);
+  }, [open, candidateId, firstName, lastName, tpTypes]);
 
   useEffect(() => {
     if (open) closeBtnRef.current?.focus();

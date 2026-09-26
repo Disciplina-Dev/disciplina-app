@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createHmac } from 'crypto';
 import { classmarkerWebhookGuard, yousignWebhookGuard, docusealWebhookGuard } from '../webhookSignature';
 
@@ -128,6 +128,12 @@ describe('yousignWebhookGuard', () => {
 });
 
 describe('docusealWebhookGuard', () => {
+    // DocuSeal : header `timestamp.signature`, HMAC-SHA256 sur `${timestamp}.${rawBody}`, hex.
+    function signDocuseal(secret: string, body: string, timestamp: number): string {
+        const sig = createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex');
+        return `${timestamp}.${sig}`;
+    }
+
     it('calls next when no secret configured (dev bypass)', () => {
         const [, verifier] = docusealWebhookGuard(undefined);
         const req = mockReq('{}');
@@ -137,11 +143,11 @@ describe('docusealWebhookGuard', () => {
         expect(next).toHaveBeenCalledOnce();
     });
 
-    it('passes with a valid signature', () => {
+    it('passes with a valid timestamp-prefixed signature', () => {
         const [, verifier] = docusealWebhookGuard(SECRET);
         const body = JSON.stringify({ event_type: 'submission.completed', data: { id: 42 } });
-        const sig = sign(SECRET, body, 'base64');
-        const req = mockReq(body, { 'x-docuseal-signature': sig });
+        const header = signDocuseal(SECRET, body, Math.floor(Date.now() / 1000));
+        const req = mockReq(body, { 'x-docuseal-signature': header });
         const res = mockRes();
         const next = vi.fn();
         verifier(req, res, next);
@@ -161,7 +167,29 @@ describe('docusealWebhookGuard', () => {
 
     it('rejects with 401 when signature is wrong', () => {
         const [, verifier] = docusealWebhookGuard(SECRET);
-        const req = mockReq('{}', { 'x-docuseal-signature': 'badsig==' });
+        const req = mockReq('{}', { 'x-docuseal-signature': `${Math.floor(Date.now() / 1000)}.badsig` });
+        const res = mockRes();
+        const next = vi.fn();
+        verifier(req, res, next);
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('rejects with 401 when the header has no timestamp prefix', () => {
+        const [, verifier] = docusealWebhookGuard(SECRET);
+        const req = mockReq('{}', { 'x-docuseal-signature': 'badsig' });
+        const res = mockRes();
+        const next = vi.fn();
+        verifier(req, res, next);
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('rejects a stale timestamp beyond the tolerance window', () => {
+        const [, verifier] = docusealWebhookGuard(SECRET);
+        const body = '{}';
+        const stale = signDocuseal(SECRET, body, Math.floor(Date.now() / 1000) - 10 * 60);
+        const req = mockReq(body, { 'x-docuseal-signature': stale });
         const res = mockRes();
         const next = vi.fn();
         verifier(req, res, next);

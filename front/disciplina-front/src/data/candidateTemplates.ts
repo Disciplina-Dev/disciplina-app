@@ -1,5 +1,6 @@
 import { TitleProfessionalType, SchoolLevel, SkillLevel } from '@/types/candidate'
 import { AD_SECTORS, COMMERCE_SECTORS } from './sectors'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 export interface SchoolLevelOption {
   value: SchoolLevel
@@ -209,7 +210,7 @@ export const DISCOVERY_SOURCE_LABELS = {
 }
 
 export const TRAINING_SITE_LABELS = {
-  NORD_SAINTE_MARIE: 'DISCIPLINA Nord – HUB Lizine, Sainte-Marie',
-  OUEST_SAINT_PAUL: 'DISCIPLINA Ouest – Lizine Savanna, Saint-Paul',
-  SUD_SAINT_PIERRE: 'DISCIPLINA Sud – Lizine Grand Bois, Saint-Pierre',
+  NORD_SAINTE_MARIE: `DISCIPLINA ${SECTEUR_LABELS.NORD} – HUB Lizine, Sainte-Marie`,
+  OUEST_SAINT_PAUL: `DISCIPLINA ${SECTEUR_LABELS.OUEST} – Lizine Savanna, Saint-Paul`,
+  SUD_SAINT_PIERRE: `DISCIPLINA ${SECTEUR_LABELS.SUD} – Lizine Grand Bois, Saint-Pierre`,
 }

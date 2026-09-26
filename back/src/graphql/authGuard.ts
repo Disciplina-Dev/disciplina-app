@@ -5,6 +5,7 @@ import { Permission } from '../types/user.types';
 // implicites par l'ordre de définition dans l'enum (les strings sont ordonnées
 // par l'ordre de déclaration dans le fichier — on utilise un mapping explicite).
 const PERMISSION_LEVEL: Record<string, number> = {
+    [Permission.GUEST]: 0,
     [Permission.EMPLOYEE]: 1,
     [Permission.RESPONSABLE]: 2,
     [Permission.ADMIN]: 3,

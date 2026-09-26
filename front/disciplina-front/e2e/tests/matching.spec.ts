@@ -9,7 +9,7 @@ test.describe('3.6 Matching @external', () => {
     test('page matching accessible', async ({ page }) => {
         await mockExternal(page);
         await page.goto('/rh/matching');
-        await expect(page).toHaveURL(/\/rh\/matching$/);
+        await expect(page).toHaveURL(/\/rh\/matching(\?.*)?$/);
         await expect(page.locator('main, [role="main"]').first()).toBeVisible();
     });
 });

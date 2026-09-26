@@ -46,27 +46,77 @@ function isSamePosition<TFilters>(url: UrlViewState<TFilters>, stored: ListViewS
   )
 }
 
+type EnumValues = readonly string[]
+
+// Rejette toute valeur persistée invalide, obsolète ou de type inattendu et retombe
+// sur la valeur par défaut — un `?v=` cassé ou de vieux filtres d'une version
+// précédente ne doivent jamais casser le rendu (crashes d'includes/map sur mauvais type).
+function sanitizeFilters<T extends object>(
+  raw: unknown,
+  defaults: T,
+  allowedValues?: Partial<Record<keyof T, EnumValues>>,
+  numericOrEmptyFields: (keyof T)[] = [],
+): T {
+  if (!raw || typeof raw !== 'object') return { ...defaults }
+  const src = raw as Record<string, unknown>
+  const out: Record<string, unknown> = { ...(defaults as Record<string, unknown>) }
+  for (const key of Object.keys(defaults) as (keyof T)[]) {
+    const value = src[key as string]
+    const fallback = defaults[key]
+    if (Array.isArray(fallback)) {
+      const allowed = allowedValues?.[key]
+      out[key as string] = Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string' && (allowed ? allowed.includes(item) : true))
+        : fallback
+      continue
+    }
+    if (fallback === null) {
+      out[key as string] = typeof value === 'number' && Number.isFinite(value) ? value : null
+      continue
+    }
+    if (typeof fallback === 'boolean') {
+      out[key as string] = typeof value === 'boolean' ? value : fallback
+      continue
+    }
+    if (typeof fallback === 'number') {
+      out[key as string] = typeof value === 'number' && Number.isFinite(value) ? value : fallback
+      continue
+    }
+    if (numericOrEmptyFields.includes(key)) {
+      out[key as string] = typeof value === 'number' && Number.isFinite(value) ? value : fallback
+      continue
+    }
+    const allowed = allowedValues?.[key]
+    if (allowed) {
+      out[key as string] = typeof value === 'string' && allowed.includes(value) ? value : fallback
+      continue
+    }
+    out[key as string] = typeof value === 'string' ? value : fallback
+  }
+  return out as T
+}
+
 // L'URL ne porte que la position courante (afterCursor/search/filters), pas cursorHistory
 // qui grossit sans limite au fil des pages — seul sessionStorage la conserve. Quand l'URL
 // et sessionStorage décrivent la même position (refresh dans le même onglet), on récupère
 // l'historique complet depuis sessionStorage ; sinon (lien partagé/modifié) on repart sans
 // pile "page précédente", faute de pouvoir la reconstruire pour un point d'entrée externe.
-function resolveInitialState<TFilters>(
+function resolveInitialState<TFilters extends object>(
   storageKey: string,
   searchParams: URLSearchParams,
   defaultFilters: TFilters,
+  allowedValues?: Partial<Record<keyof TFilters, EnumValues>>,
+  numericOrEmptyFields: (keyof TFilters)[] = [],
 ): ListViewState<TFilters> {
   const stored = readStoredState<TFilters>(storageKey)
   const fromUrl = readUrlState<TFilters>(searchParams)
-
-  // Fusion avec les défauts : un état persisté antérieur à l'ajout d'un filtre
-  // n'a pas ses clés → on les complète pour éviter un `undefined` côté consommateur.
-  const withDefaults = (filters: TFilters): TFilters => ({ ...defaultFilters, ...filters })
+  const sanitized = (filters: unknown): TFilters =>
+    sanitizeFilters(filters, defaultFilters, allowedValues, numericOrEmptyFields)
 
   if (fromUrl && stored && isSamePosition(fromUrl, stored))
-    return { ...stored, filters: withDefaults(stored.filters) }
-  if (stored) return { ...stored, filters: withDefaults(stored.filters) }
-  if (fromUrl) return { afterCursor: fromUrl.afterCursor, cursorHistory: [], search: fromUrl.search, filters: withDefaults(fromUrl.filters) }
+    return { ...stored, filters: sanitized(stored.filters) }
+  if (stored) return { ...stored, filters: sanitized(stored.filters) }
+  if (fromUrl) return { afterCursor: fromUrl.afterCursor, cursorHistory: [], search: fromUrl.search, filters: sanitized(fromUrl.filters) }
   return { afterCursor: undefined, cursorHistory: [], search: '', filters: defaultFilters }
 }
 
@@ -74,9 +124,16 @@ function resolveInitialState<TFilters>(
  * Pagination par curseur (relay-style) + recherche + filtres, persistés côté client
  * pour survivre à une navigation vers une page de détail (retour) ou un rechargement.
  */
-export function usePersistedListView<TFilters>(storageKey: string, defaultFilters: TFilters) {
+export function usePersistedListView<TFilters extends object>(
+  storageKey: string,
+  defaultFilters: TFilters,
+  allowedValues?: Partial<Record<keyof TFilters, EnumValues>>,
+  numericOrEmptyFields: (keyof TFilters)[] = [],
+) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [initial] = useState(() => resolveInitialState(storageKey, searchParams, defaultFilters))
+  const [initial] = useState(() =>
+    resolveInitialState(storageKey, searchParams, defaultFilters, allowedValues, numericOrEmptyFields),
+  )
 
   const [afterCursor, setAfterCursor] = useState<string | undefined>(initial.afterCursor)
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>(initial.cursorHistory)

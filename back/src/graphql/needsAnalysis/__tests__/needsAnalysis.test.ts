@@ -4,7 +4,7 @@ import { truncateMysql, dropMongo } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
-import { JobRole, Permission } from '../../../types/user.types';
+import { NeedsAnalysisModel } from '../../../db/mongo/schemas/needsAnalysis.schema';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/needs-analysis`;
 
@@ -371,5 +371,57 @@ describe('GraphQL Needs Analysis integration', () => {
         const offersJson = await offersRes.json();
         expect(offersJson.errors).toBeUndefined();
         expect(offersJson.data.offersByNeedsAnalysis.length).toBeGreaterThan(0);
+    });
+
+    it('serves legacy needs analyses whose positions predate the schedule field', async () => {
+        // Insertion brute (hors Mongoose) : un AB créé avant le passage aux créneaux
+        // structurés porte des `schedule_options: string[]`, ou aucun critère du tout.
+        await NeedsAnalysisModel.collection.insertOne({
+            _id: `ab-legacy-${suffix}`,
+            company_infos: { id: companyId, name: `Test Company ${suffix}` },
+            saler_info: { id: userId, email: `sp-${suffix}@test.local` },
+            referents: { is_same: true },
+            positions: [
+                {
+                    localisation: ['SAINT_DENIS'],
+                    title: 'Apprenti Legacy',
+                    desired_tp: [{ missions: ['Accueil client'] }],
+                    criteria: {
+                        education_level: 'BAC',
+                        schedule_options: ['Lundi : 8h-12h', 'Mardi : 14h-17h'],
+                    },
+                },
+                {
+                    localisation: ['SAINT_PIERRE'],
+                    title: 'Poste sans critères',
+                    desired_tp: [],
+                },
+            ],
+            recruitment_method: 'PRESELECTION',
+            immersion_period: 'OUI',
+            status: 'SIGNE',
+        });
+
+        const query = `
+            query FetchLegacy($id: ID!) {
+                needsAnalysis(id: $id) {
+                    id
+                    positions {
+                        title
+                        criteria { scheduleOptions { day startHour endHour } }
+                    }
+                }
+            }
+        `;
+        const { status, json } = await graphql(query, { id: `ab-legacy-${suffix}` });
+
+        expect(status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.needsAnalysis.id).toBe(`ab-legacy-${suffix}`);
+        expect(json.data.needsAnalysis.positions[0].criteria.scheduleOptions).toEqual([
+            { day: null, startHour: 'Lundi : 8h-12h', endHour: null },
+            { day: null, startHour: 'Mardi : 14h-17h', endHour: null },
+        ]);
+        expect(json.data.needsAnalysis.positions[1].criteria).toBeNull();
     });
 });

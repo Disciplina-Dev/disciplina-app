@@ -1,4 +1,4 @@
-import { OfferModel } from '../../db/mongo/schemas/offer.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { Offer, OfferAbFilter, AbStatus } from '../../types/offer.types';
 import {
     ImmersionConclusion,
@@ -13,16 +13,16 @@ const PLACEMENT_CONCLUSIONS = [InterviewConclusion.IMMERSING, InterviewConclusio
 // Retire les champs de proposition d'un candidat rebasculé en simple « retenu ».
 function resetProposal(candidate: MatchingCandidate): MatchingCandidate {
     const {
-        description,
-        cv_webview,
-        comment,
-        interview_location,
-        booked_interview_slot,
-        interview_conclusion,
-        immersion_start_date,
-        immersion_end_date,
-        immersion_location,
-        immersion_conclusion,
+        description: _description,
+        cv_webview: _cv_webview,
+        comment: _comment,
+        interview_location: _interview_location,
+        booked_interview_slot: _booked_interview_slot,
+        interview_conclusion: _interview_conclusion,
+        immersion_start_date: _immersion_start_date,
+        immersion_end_date: _immersion_end_date,
+        immersion_location: _immersion_location,
+        immersion_conclusion: _immersion_conclusion,
         ...identity
     } = candidate;
     return { ...identity, status: MatchedCandidateStatus.ACCEPTED };
@@ -48,7 +48,7 @@ export class OfferRepository {
     /** Ids des AB dont au moins une offre correspond au filtre. */
     async findNeedsAnalysisIdsByFilter(filter: OfferAbFilter): Promise<string[]> {
         const mongoFilter = buildOfferAbMongoFilter(filter);
-        return OfferModel.distinct('needs_analysis_id', mongoFilter);
+        return getModels().Offer.distinct('needs_analysis_id', mongoFilter);
     }
 
     /**
@@ -67,7 +67,7 @@ export class OfferRepository {
         ];
 
         if (abStatus === 'ARCHIVED') {
-            const rows = await OfferModel.aggregate([
+            const rows = await getModels().Offer.aggregate([
                 { $match: { needs_analysis_id: { $exists: true, $ne: null } } },
                 {
                     $group: {
@@ -96,44 +96,77 @@ export class OfferRepository {
         }
 
         // ACTIVE : au moins une offre pas encore en contrat.
-        return OfferModel.distinct('needs_analysis_id', {
+        return getModels().Offer.distinct('needs_analysis_id', {
             needs_analysis_id: { $exists: true, $ne: null },
             $nor: contractConditions,
         });
     }
 
     async findById(offerId: string): Promise<Offer | null> {
-        return OfferModel.findOne({ _id: offerId }).lean();
+        return getModels().Offer.findOne({ _id: offerId }).lean();
+    }
+
+    /** Statut dérivé d'une AB à partir de ses offres (miroir de findNeedsAnalysisIdsByAbStatus). */
+    async findDerivedAbStatus(needsAnalysisId: string): Promise<AbStatus> {
+        const offers = await getModels().Offer.find({ needs_analysis_id: needsAnalysisId }).lean();
+        if (offers.length === 0) return 'ACTIVE';
+        const contractStatus = OfferStatus.CONTRACT;
+        const contractCandidate = MatchedCandidateStatus.CONTRACT;
+        const allContracted = offers.every(
+            (offer) =>
+                offer.matching?.status === contractStatus ||
+                (offer.matching?.candidates ?? []).some((c: MatchingCandidate) => c.status === contractCandidate),
+        );
+        return allContracted ? 'ARCHIVED' : 'ACTIVE';
     }
 
     async findByNeedsAnalysisId(needsAnalysisId: string): Promise<Offer[]> {
-        return OfferModel.find({ needs_analysis_id: needsAnalysisId }).lean();
+        return getModels().Offer.find({ needs_analysis_id: needsAnalysisId }).lean();
     }
 
-    /** Toutes les offres à matcher (hors offres déjà contractualisées). */
+    /** Toutes les offres, y compris celles déjà contractualisées (hors AB inactives). */
+    async listAllOffers(): Promise<Offer[]> {
+        const inactiveIds: string[] = await getModels().NeedsAnalysis.distinct('_id', {
+            $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }],
+        });
+        const filter: Record<string, unknown> = {};
+        if (inactiveIds.length) {
+            (filter as Record<string, unknown>)['needs_analysis_id'] = { $nin: inactiveIds };
+        }
+        return getModels().Offer.find(filter).lean();
+    }
+
+    /** Toutes les offres à matcher (hors offres déjà contractualisées et hors AB inactives). */
     async listMatchingOffers(): Promise<Offer[]> {
-        return OfferModel.find({
+        const inactiveIds: string[] = await getModels().NeedsAnalysis.distinct('_id', {
+            $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }],
+        });
+        const filter: Record<string, unknown> = {
             $nor: [
                 { 'matching.status': OfferStatus.CONTRACT },
                 { 'matching.candidates': { $elemMatch: { status: MatchedCandidateStatus.CONTRACT } } },
             ],
-        }).lean();
+        };
+        if (inactiveIds.length) {
+            (filter as Record<string, unknown>)['needs_analysis_id'] = { $nin: inactiveIds };
+        }
+        return getModels().Offer.find(filter).lean();
     }
 
     /** Remplace le contenu (poste, entreprise, référents, saler) d'une offre sans toucher à `matching`. */
     async updateContent(offerId: string, offer: Partial<Offer>): Promise<Offer | null> {
-        const { _id, matching, ...patch } = offer;
-        return OfferModel.findOneAndUpdate({ _id: offerId }, { $set: patch }, { new: true }).lean();
+        const { _id, matching: _matching, ...patch } = offer;
+        return getModels().Offer.findOneAndUpdate({ _id: offerId }, { $set: patch }, { new: true }).lean();
     }
 
     async createMany(offers: Offer[]): Promise<Offer[]> {
         if (offers.length === 0) return [];
-        const docs = await OfferModel.insertMany(offers);
+        const docs = await getModels().Offer.insertMany(offers);
         return docs.map((doc) => doc.toObject() as Offer);
     }
 
     async addMatchedCandidate(offerId: string, candidate: MatchingCandidate): Promise<Offer | null> {
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': { $ne: candidate.id } },
             { $push: { 'matching.candidates': candidate } },
             { new: true },
@@ -141,7 +174,7 @@ export class OfferRepository {
     }
 
     async removeMatchedCandidate(offerId: string, candidateId: string): Promise<Offer | null> {
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId },
             { $pull: { 'matching.candidates': { id: candidateId } } },
             { new: true },
@@ -149,7 +182,7 @@ export class OfferRepository {
     }
 
     async clearMatchedCandidates(offerId: string): Promise<Offer | null> {
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId },
             { $set: { 'matching.candidates': [], 'matching.status': OfferStatus.NOT_MATCHED } },
             { new: true },
@@ -161,7 +194,7 @@ export class OfferRepository {
         candidateId: string,
         status: MatchedCandidateStatus,
     ): Promise<Offer | null> {
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: { 'matching.candidates.$.status': status } },
             { new: true },
@@ -169,7 +202,7 @@ export class OfferRepository {
     }
 
     async setOfferStatus(offerId: string, status: OfferStatus): Promise<Offer | null> {
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId },
             { $set: { 'matching.status': status } },
             { new: true },
@@ -196,7 +229,7 @@ export class OfferRepository {
             }
         }
 
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId },
             { $set: { 'matching.candidates': merged, 'matching.status': OfferStatus.CV_SEND } },
             { new: true },
@@ -205,14 +238,14 @@ export class OfferRepository {
 
     /** Ajoute (ou met à jour) un candidat proposé — utilisé pour la proposition manuelle. */
     async addProposedCandidate(offerId: string, candidate: MatchingCandidate): Promise<Offer | null> {
-        const updated = await OfferModel.findOneAndUpdate(
+        const updated = await getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidate.id },
             { $set: { 'matching.candidates.$': candidate } },
             { new: true },
         ).lean();
         if (updated) return updated;
 
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': { $ne: candidate.id } },
             { $push: { 'matching.candidates': candidate } },
             { new: true },
@@ -227,7 +260,7 @@ export class OfferRepository {
     ): Promise<Offer | null> {
         const update: Record<string, unknown> = { 'matching.candidates.$.status': status };
         if (comment) update['matching.candidates.$.comment'] = comment;
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: update },
             { new: true },
@@ -246,7 +279,7 @@ export class OfferRepository {
         if (immersionStartDate) update['matching.candidates.$.immersion_start_date'] = immersionStartDate;
         if (immersionEndDate) update['matching.candidates.$.immersion_end_date'] = immersionEndDate;
         if (status) update['matching.candidates.$.status'] = status;
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: update },
             { returnDocument: 'after' },
@@ -261,7 +294,7 @@ export class OfferRepository {
     ): Promise<Offer | null> {
         const update: Record<string, unknown> = { 'matching.candidates.$.immersion_conclusion': conclusion };
         if (status) update['matching.candidates.$.status'] = status;
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': candidateId },
             { $set: update },
             { returnDocument: 'after' },
@@ -271,12 +304,12 @@ export class OfferRepository {
     async setOfferInterviewSlots(offerId: string, slots: string[], location?: string): Promise<Offer | null> {
         const update: Record<string, unknown> = { 'matching.interview_slots': slots };
         if (location) update['matching.interview_location'] = location;
-        return OfferModel.findOneAndUpdate({ _id: offerId }, { $set: update }, { new: true }).lean();
+        return getModels().Offer.findOneAndUpdate({ _id: offerId }, { $set: update }, { new: true }).lean();
     }
 
     /** Atomique, race-safe : échoue (null) si le créneau est déjà pris ou le candidat déjà placé/invalide. */
     async bookInterviewSlot(offerId: string, candidateId: string, slot: string): Promise<Offer | null> {
-        return OfferModel.findOneAndUpdate(
+        return getModels().Offer.findOneAndUpdate(
             {
                 _id: offerId,
                 'matching.interview_slots': slot,
@@ -292,7 +325,7 @@ export class OfferRepository {
 
     /** Offres où le candidat a une conclusion d'entretien immersion ou contrat. */
     async findPlacementOffers(candidateId: string): Promise<Offer[]> {
-        return OfferModel.find({
+        return getModels().Offer.find({
             'matching.candidates': {
                 $elemMatch: { id: candidateId, interview_conclusion: { $in: PLACEMENT_CONCLUSIONS } },
             },
@@ -300,19 +333,32 @@ export class OfferRepository {
     }
 
     async findOfferIdsWithCandidate(candidateId: string): Promise<string[]> {
-        const offers = await OfferModel.find({ 'matching.candidates.id': candidateId }, { _id: 1 }).lean();
+        const offers = await getModels().Offer.find({ 'matching.candidates.id': candidateId }, { _id: 1 }).lean();
         return offers.map((offer) => String(offer._id)).filter(Boolean);
     }
 
     async findWithCandidate(candidateId: string): Promise<Offer[]> {
-        return OfferModel.find({ 'matching.candidates.id': candidateId }).lean();
+        return getModels().Offer.find({ 'matching.candidates.id': candidateId }).lean();
     }
 
     async deleteById(offerId: string): Promise<boolean> {
-        return (await OfferModel.deleteOne({ _id: offerId })).deletedCount > 0;
+        return (await getModels().Offer.deleteOne({ _id: offerId })).deletedCount > 0;
     }
 
     async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
-        return (await OfferModel.deleteMany({ needs_analysis_id: needsAnalysisId })).deletedCount;
+        return (await getModels().Offer.deleteMany({ needs_analysis_id: needsAnalysisId })).deletedCount;
+    }
+
+    /**
+     * Réassigne (ou détache) le commercial porteur de toutes les offres liées à
+     * un user supprimé. `saler = null` détache l'offre (elle vit sans commercial).
+     * Renvoie le nombre d'offres modifiées.
+     */
+    async reassignSaler(fromUserId: number, saler: { id: number; email: string } | null): Promise<number> {
+        const update = saler
+            ? { $set: { saler_info: { id: saler.id, email: saler.email } } }
+            : { $unset: { saler_info: '' } };
+        const res = await getModels().Offer.updateMany({ 'saler_info.id': fromUserId }, update);
+        return res.modifiedCount;
     }
 }

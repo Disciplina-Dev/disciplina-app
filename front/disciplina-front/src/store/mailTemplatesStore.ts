@@ -90,8 +90,12 @@ export const useCommercialMailTemplatesStore = createMailTemplatesStore('commerc
 export const usePedaMailTemplatesStore = createMailTemplatesStore('peda')
 
 export function useMailTemplatesStore(scope: MailTemplatesScope) {
-  // scope ne change jamais pour un même montage de page/modal → branche stable.
-  if (scope === 'commercial') return useCommercialMailTemplatesStore()
-  if (scope === 'peda') return usePedaMailTemplatesStore()
-  return useRhMailTemplatesStore()
+  // Les trois stores sont lus inconditionnellement (règle des hooks) ; seul le
+  // résultat rendu dépend du scope.
+  const commercial = useCommercialMailTemplatesStore()
+  const peda = usePedaMailTemplatesStore()
+  const rh = useRhMailTemplatesStore()
+  if (scope === 'commercial') return commercial
+  if (scope === 'peda') return peda
+  return rh
 }

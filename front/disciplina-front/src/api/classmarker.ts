@@ -17,7 +17,7 @@ export async function fetchClassMarkerLinks(): Promise<ClassMarkerLink[]> {
 export interface QuickCreateBody {
   first_name: string;
   last_name: string;
-  tp_type: TitleProfessionalType;
+  tp_types: TitleProfessionalType[];
 }
 
 export interface QuickCreateResult {

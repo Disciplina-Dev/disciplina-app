@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { startServer } from '../src/index';
 import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from '../src/graphql/server';
 import { dropMongo } from './helpers/db';
+import { closeMySQL } from '../src/db/mysql/connection';
 
 let server: http.Server;
 
@@ -34,4 +35,5 @@ afterAll(async () => {
             });
         });
     }
+    await timeout(closeMySQL(), 3000).catch(() => {});
 }, 20000);

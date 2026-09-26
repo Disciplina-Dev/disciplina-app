@@ -8,7 +8,14 @@ interface InterviewConclusionModalProps {
   onClose: () => void
 }
 
-const CONCLUSION_OPTIONS = [InterviewConclusion.REJECTED, InterviewConclusion.IMMERSING, InterviewConclusion.CONTRACT]
+const CONCLUSION_OPTIONS = [
+  InterviewConclusion.REJECTED,
+  InterviewConclusion.IMMERSING,
+  InterviewConclusion.CONTRACT,
+  InterviewConclusion.PRESENT,
+  InterviewConclusion.ABSENT,
+  InterviewConclusion.APPOINTMENT_CANCELLED,
+]
 
 export default function InterviewConclusionModal({ candidateName, onSubmit, onClose }: InterviewConclusionModalProps) {
   const [conclusion, setConclusion] = useState<InterviewConclusion | null>(null)

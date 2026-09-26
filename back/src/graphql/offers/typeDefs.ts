@@ -95,6 +95,9 @@ export const typeDefs = gql`
         REJECTED
         IMMERSING
         CONTRACT
+        PRESENT
+        ABSENT
+        APPOINTMENT_CANCELLED
     }
 
     enum ImmersionConclusion {
@@ -115,6 +118,7 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -137,6 +141,7 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -190,6 +195,12 @@ export const typeDefs = gql`
         otherDescriptionMissions: String
     }
 
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
     type Offer {
         needsAnalysisId: String
         id: String!
@@ -198,6 +209,7 @@ export const typeDefs = gql`
         desiredTp: [OfferTp!]!
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
@@ -213,6 +225,8 @@ export const typeDefs = gql`
         title: String
         jobRole: String
         softSkills: String
+        schedule: [ScheduleSlot]
+        relaxedCriteria: [String!]
     }
 
     input MatchingCandidateInput {
@@ -232,6 +246,7 @@ export const typeDefs = gql`
         ageRange: String
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
@@ -285,12 +300,26 @@ export const typeDefs = gql`
         createdAt: String!
     }
 
+    """
+    Entreprise à laquelle un candidat a déjà été envoyé via le matching
+    (CV transmis à l'entreprise ou étape ultérieure).
+    """
+    type CandidateSentCompany {
+        offerId: String!
+        companyName: String
+        status: MatchedCandidateStatus
+        title: String
+        jobRole: String
+        needsAnalysisId: String
+    }
+
     type Query {
         offers: [Offer!]!
         matchOffer(id: String!): Offer!
         offerCompanyInfo(offerId: String!): OfferCompanyInfo!
         offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!
         candidateMatchedOfferIds(candidateId: String!): [String!]!
+        candidateSentCompanies(candidateId: String!): [CandidateSentCompany!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
         offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
         offerHistory(offerId: String!): [OfferHistoryEntry!]!

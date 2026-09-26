@@ -9,6 +9,7 @@ import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
   type RhKpiColumn, type RhKpiMetrics, type RhKpiReport,
 } from '@/api/rhKpi'
+import { SECTEUR_VALUES } from '@/constants/secteurs'
 
 // Charte graphique (cf. index.css).
 const COLORS = {
@@ -42,7 +43,7 @@ const MONTHS = [
 ]
 
 // Secteurs canoniques toujours proposés (même sans données), comme les sites commerciaux.
-const CANON_SECTORS = ['Nord-Est', 'Ouest', 'Sud']
+const CANON_SECTORS = SECTEUR_VALUES
 
 type Granularity = 'week' | 'month' | 'year'
 

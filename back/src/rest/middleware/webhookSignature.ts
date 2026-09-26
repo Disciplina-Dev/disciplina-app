@@ -13,6 +13,11 @@ interface WebhookGuardConfig {
     header: string;
     encoding: 'hex' | 'base64';
     stripPrefix?: string;
+    // DocuSeal : header `timestamp.signature`, HMAC portant sur
+    // `${timestamp}.${rawBody}` (cf. docuseal.com/resources/use-webhooks).
+    // timestampToleranceSeconds = fenêtre de rejeu (seconds) ; absente = pas de contrôle.
+    timestampPrefixed?: boolean;
+    timestampToleranceSeconds?: number;
 }
 
 function rawJsonParser(): RawBodyParser {
@@ -52,11 +57,27 @@ function makeWebhookGuard(config: WebhookGuardConfig) {
                 return;
             }
 
-            const sig =
-                config.stripPrefix && header.startsWith(config.stripPrefix)
-                    ? header.slice(config.stripPrefix.length)
-                    : header;
-            if (!hmac.verify(secret, rawBody, sig, config.encoding)) {
+            let sig = header;
+            let payload = rawBody;
+            if (config.timestampPrefixed) {
+                const [timestamp, signature] = header.split('.', 2);
+                if (!signature) {
+                    res.status(401).json({ error: 'Invalid webhook signature' });
+                    return;
+                }
+                if (config.timestampToleranceSeconds !== undefined) {
+                    const ts = Number(timestamp);
+                    if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > config.timestampToleranceSeconds) {
+                        res.status(401).json({ error: 'Invalid webhook signature' });
+                        return;
+                    }
+                }
+                sig = signature;
+                payload = `${timestamp}.${rawBody}`;
+            } else if (config.stripPrefix && header.startsWith(config.stripPrefix)) {
+                sig = header.slice(config.stripPrefix.length);
+            }
+            if (!hmac.verify(secret, payload, sig, config.encoding)) {
                 res.status(401).json({ error: 'Invalid webhook signature' });
                 return;
             }
@@ -78,5 +99,7 @@ export const yousignWebhookGuard = makeWebhookGuard({
 
 export const docusealWebhookGuard = makeWebhookGuard({
     header: 'x-docuseal-signature',
-    encoding: 'base64',
+    encoding: 'hex',
+    timestampPrefixed: true,
+    timestampToleranceSeconds: 300,
 });

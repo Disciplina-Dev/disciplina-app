@@ -1,4 +1,6 @@
 import { DriveRegion } from '../services/DriveFolderConfigService';
+import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
+import { Permission } from '../types/user.types';
 
 /**
  * Secteurs géographiques Disciplina. Valeurs canoniques côté métier
@@ -35,8 +37,28 @@ export function regionFromSector(sector?: string | null): DriveRegion | undefine
     return isSector(sector) ? SECTOR_TO_REGION[sector] : undefined;
 }
 
+// Région de l'AB (NORD/OUEST/SUD) → secteur métier (Nord-Est/Ouest/Sud).
+const REGION_TO_SECTOR: Record<CompanyRegion, Sector> = {
+    [CompanyRegion.NORD]: 'Nord-Est',
+    [CompanyRegion.OUEST]: 'Ouest',
+    [CompanyRegion.SUD]: 'Sud',
+};
+
+/** Secteur métier d'une AB, déduit de la région de l'entreprise. */
+export function sectorFromRegion(region?: CompanyRegion | null): Sector | undefined {
+    return region ? REGION_TO_SECTOR[region] : undefined;
+}
+
 /** Vrai si les deux listes de secteurs ont au moins un secteur en commun. */
 export function shareSector(a?: string[] | null, b?: string[] | null): boolean {
     const sectorsB = new Set(sanitizeSectors(b));
     return sanitizeSectors(a).some((sector) => sectorsB.has(sector));
+}
+
+/**
+ * ADMIN/RESPONSABLE ont un accès multi-secteurs (tous les secteurs visibles) ;
+ * les autres niveaux (EMPLOYEE) sont restreints à leurs propres secteurs.
+ */
+export function canAccessAllSectors(permission?: string | null): boolean {
+    return permission === Permission.ADMIN || permission === Permission.RESPONSABLE;
 }

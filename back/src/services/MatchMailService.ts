@@ -1,23 +1,18 @@
 import { GoogleGmailService } from '../external/google/gmail.service';
+import { withNoReply } from '../external/google/no-reply';
 import { GoogleTokens } from '../external/google/types';
 import { UserService } from './UserService';
-import { SessionCredentials } from './MatchLinkService';
 import { MailTemplateService } from './MailTemplateService';
 import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
 import { User } from '../types/user.types';
 import { escapeHtml } from './html';
-import { env } from '../config/env';
 import { logger } from '../external/logger';
 
-const EXPIRATION_LABEL = '24 heures';
-
-function lockAlertHtml(): string {
-    return `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #b00020;">Trop de tentatives</h2>
-            <p>L'accès à la sélection de candidats a été bloqué après 3 tentatives incorrectes.</p>
-            <p>Une nouvelle session doit être créée par votre conseiller RH.</p>
-        </div>`;
+export interface MatchInvitation {
+    signature: string;
+    link: string;
+    rhEmail: string;
+    companyEmail: string;
 }
 
 export class MatchMailService {
@@ -27,10 +22,10 @@ export class MatchMailService {
         private readonly mailTemplateService = new MailTemplateService(),
     ) {}
 
-    async sendInvitation(credentials: SessionCredentials, templateId?: string): Promise<void> {
-        const rh = await this.userService.findByEmail(credentials.rhEmail);
+    async sendInvitation(invitation: MatchInvitation, templateId?: string): Promise<void> {
+        const rh = await this.userService.findByEmail(invitation.rhEmail);
         if (!rh?.oauthToken || !rh?.refreshToken) {
-            logger.warn({ rhEmail: credentials.rhEmail }, '[match] no Google credentials to send mail');
+            logger.warn({ rhEmail: invitation.rhEmail }, '[match] no Google credentials to send mail');
             return;
         }
 
@@ -40,38 +35,34 @@ export class MatchMailService {
         const subject = tpl?.subject ?? PROPOSITION_CANDIDAT_SUBJECT;
         const body = tpl?.body ?? PROPOSITION_CANDIDAT_BODY;
 
-        const link = `${env.FRONTEND_BASE_URL}/public/match?sig=${credentials.signature}`;
-        const linkText = escapeHtml(link);
-        const linkHtml = `<a href="${linkText}" style="color:#60207E;">${linkText}</a>`;
+        const linkText = escapeHtml(invitation.link);
+        const linkHtml =
+            `<a href="${linkText}" style="display:inline-block;background-color:#60207E;color:#fff;` +
+            `padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Accéder à la sélection</a>`;
         const hrName = [rh.firstName, rh.lastName].filter(Boolean).join(' ').trim() || rh.email;
         const signatureHtml = await this.mailTemplateService.getSignatureHtml(rh.id, 'rh').catch(() => '');
 
         const resolvedSubject = subject.replaceAll('{{hr_name}}', escapeHtml(hrName));
-        const resolvedBody = body
+        let resolvedBody = body
             .replaceAll('{{hr_name}}', escapeHtml(hrName))
             .replaceAll('{{link}}', linkHtml)
-            .replaceAll('{{id}}', escapeHtml(credentials.identifier))
-            .replaceAll('{{code}}', escapeHtml(credentials.code))
-            .replaceAll('{{expiration time}}', EXPIRATION_LABEL)
-            .replaceAll('{{hr_signature}}', signatureHtml);
+            .replaceAll('{{expiration time}}', '')
+            .replaceAll('{{hr_signature}}', signatureHtml)
+            // Code/identifiant obsolètes (lien magique sans code) : toujours retirés.
+            .replaceAll('{{code}}', '')
+            .replaceAll('{{id}}', '');
+
+        // Sécurité : l'entreprise doit toujours recevoir le lien, même si le modèle
+        // édité a supprimé {{link}}.
+        if (!resolvedBody.includes(invitation.link)) {
+            resolvedBody += `<p style="text-align:center;margin:24px 0">${linkHtml}</p>`;
+        }
 
         await this.sendAs(rh, {
-            to: credentials.companyEmail,
+            to: invitation.companyEmail,
             subject: resolvedSubject,
             text: resolvedBody.replace(/<[^>]*>/g, ''),
             html: resolvedBody,
-        });
-    }
-
-    async sendLockAlert(rhEmail: string, companyEmail: string): Promise<void> {
-        const rh = await this.userService.findByEmail(rhEmail);
-        if (!rh) return;
-        const signatureHtml = await this.mailTemplateService.getSignatureHtml(rh.id, 'rh').catch(() => '');
-        await this.sendAs(rh, {
-            to: `${companyEmail}, ${rhEmail}`,
-            subject: '[Disciplina] Accès bloqué après 3 tentatives',
-            text: "L'accès à la sélection de candidats a été bloqué après 3 tentatives incorrectes.",
-            html: lockAlertHtml() + signatureHtml,
         });
     }
 
@@ -86,6 +77,6 @@ export class MatchMailService {
         const creds: GoogleTokens = { access_token: rh.oauthToken, refresh_token: rh.refreshToken };
         const persist = (refreshed: GoogleTokens) =>
             this.userService.updateGoogleTokens(rh.id, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
-        await this.gmailService.sendEmail(creds, options, persist);
+        await this.gmailService.sendEmail(creds, withNoReply(options), persist);
     }
 }

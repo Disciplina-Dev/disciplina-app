@@ -4,12 +4,15 @@ import { Loader2, AlertCircle, ChevronLeft, ChevronRight, Check, Send } from 'lu
 import {
   getMatchCandidates,
   submitMatchAnswers,
+  MatchAuthError,
+  MatchCompletedError,
   PROPOSED_ANSWER_TO_STATUS,
   type ProposedCandidateView,
   type ProposedAnswer,
   type SubmitAnswerPayload,
 } from '@/api/match'
-import { useGuestMatchTokenStore } from '@/store/guestMatchTokenStore'
+import { getExternalProfile } from '@/api/external'
+import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 import CandidateComparator from '@/features/publicMatch/components/CandidateComparator'
 import AnswerControls from '@/features/publicMatch/components/AnswerControls'
 import InterviewProposalForm from '@/features/publicMatch/components/InterviewProposalForm'
@@ -22,8 +25,6 @@ function Centered({ children }: { children: React.ReactNode }) {
 export default function MatchComparator() {
   const { signature = '' } = useParams()
   const navigate = useNavigate()
-  const token = useGuestMatchTokenStore((s) => s.token)
-  const clearToken = useGuestMatchTokenStore((s) => s.clearToken)
 
   const [candidates, setCandidates] = useState<ProposedCandidateView[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -34,16 +35,22 @@ export default function MatchComparator() {
   const [comments, setComments] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) {
-      navigate(`/public/match?sig=${signature}`)
-      return
-    }
-    getMatchCandidates(signature, token)
+    getMatchCandidates(signature)
       .then(setCandidates)
-      .catch((e) => setLoadError(e instanceof Error ? e.message : 'Erreur'))
-  }, [signature, token, navigate])
+      .catch((e) => {
+        if (e instanceof MatchAuthError) {
+          navigate(`/external/authenticate?sig=${signature}`, { replace: true })
+          return
+        }
+        setLoadError(e instanceof Error ? e.message : 'Erreur')
+      })
+    getExternalProfile(signature)
+      .then((profile) => setExpiresAt(profile.expiresAt))
+      .catch(() => {})
+  }, [signature, navigate])
 
   const setAnswer = (candidateId: string, answer: ProposedAnswer) => {
     setAnswers((prev) => {
@@ -57,7 +64,7 @@ export default function MatchComparator() {
   }
 
   const submit = async () => {
-    if (!token || !candidates) return
+    if (!candidates) return
     setBusy(true)
     setLoadError(null)
     const cleanSlots = slots.map((s) => s.trim()).filter(Boolean)
@@ -75,15 +82,35 @@ export default function MatchComparator() {
       }
     })
     try {
-      await submitMatchAnswers(signature, token, payload)
-      clearToken()
+      await submitMatchAnswers(signature, payload)
       setDone(true)
     } catch (e) {
+      if (e instanceof MatchCompletedError) {
+        setDone(true)
+        return
+      }
       setLoadError(e instanceof Error ? e.message : 'Erreur')
     } finally {
       setBusy(false)
     }
   }
+
+  const total = candidates?.length ?? 0
+  const goPrev = () => setIndex((i) => Math.max(0, i - 1))
+  const goNext = () => setIndex((i) => Math.min(total - 1, i + 1))
+
+  useEffect(() => {
+    if (total === 0) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')) return
+      if (e.key === 'ArrowLeft') setIndex((i) => Math.max(0, i - 1))
+      else setIndex((i) => Math.min(total - 1, i + 1))
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [total])
 
   if (loadError) {
     return (
@@ -133,31 +160,62 @@ export default function MatchComparator() {
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-[20px] font-extrabold text-gray-900">Candidats proposés</h1>
+          <div>
+            <h1 className="text-[20px] font-extrabold text-gray-900">Candidats proposés</h1>
+            <ExternalExpiryNotice expiresAt={expiresAt} />
+          </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              onClick={goPrev}
               disabled={index === 0}
-              className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+              aria-label="Candidat précédent"
+              title="Candidat précédent"
+              className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-700 shadow-sm hover:border-purple hover:text-purple disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-700"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={20} />
             </button>
-            <span className="text-[13px] font-bold text-gray-700">
+            <span className="min-w-12 text-center text-[14px] font-bold text-gray-700">
               {index + 1} / {candidates.length}
             </span>
             <button
-              onClick={() => setIndex((i) => Math.min(candidates.length - 1, i + 1))}
+              onClick={goNext}
               disabled={index === candidates.length - 1}
-              className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+              aria-label="Candidat suivant"
+              title="Candidat suivant"
+              className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-700 shadow-sm hover:border-purple hover:text-purple disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-700"
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={20} />
             </button>
           </div>
         </div>
 
-        <CandidateComparator signature={signature} token={token!} candidate={current} />
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={goPrev}
+            disabled={index === 0}
+            aria-label="Candidat précédent"
+            title="Candidat précédent"
+            className="flex h-12 w-12 shrink-0 items-center justify-center self-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-md transition hover:border-purple hover:bg-purple hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:text-gray-700 sm:h-16 sm:w-16"
+          >
+            <ChevronLeft size={30} strokeWidth={2.5} />
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <CandidateComparator signature={signature} candidate={current} />
+          </div>
+
+          <button
+            onClick={goNext}
+            disabled={index === candidates.length - 1}
+            aria-label="Candidat suivant"
+            title="Candidat suivant"
+            className="flex h-12 w-12 shrink-0 items-center justify-center self-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-md transition hover:border-purple hover:bg-purple hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:text-gray-700 sm:h-16 sm:w-16"
+          >
+            <ChevronRight size={30} strokeWidth={2.5} />
+          </button>
+        </div>
 
         <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
           <p className="mb-2 text-[13px] font-bold text-gray-800">Votre décision pour {current.fullName ?? 'ce candidat'}</p>
@@ -172,7 +230,6 @@ export default function MatchComparator() {
               location={location}
               onLocationChange={setLocation}
               signature={signature}
-              token={token!}
             />
           </div>
         )}

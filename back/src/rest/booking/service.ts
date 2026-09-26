@@ -4,6 +4,7 @@ import { UserService } from '../../services/UserService';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { GoogleCalendarService, BusyInterval } from '../../external/google/calendar.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { withNoReply } from '../../external/google/no-reply';
 import { GoogleTokens } from '../../external/google/types';
 import { User } from '../../types/user.types';
 import { logger } from '../../external/logger';
@@ -306,7 +307,7 @@ export class BookingService {
         try {
             await gmailService.sendEmail(
                 { access_token: host.oauthToken ?? undefined, refresh_token: host.refreshToken ?? undefined },
-                { to: guest.email, subject, html, text },
+                withNoReply({ to: guest.email, subject, html, text }),
                 (refreshed) =>
                     userService.updateGoogleTokens(
                         host.id,

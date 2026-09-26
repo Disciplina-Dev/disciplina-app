@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
-import { ActivityEventRow, KpiRepository, LiveCallsRow, LiveStatusRow } from '../repositories/mysql/KpiRepository';
+import { ActivityEventRow, KpiActivityRepository, LiveCallsRow, LiveStatusRow } from '../repositories/mysql/KpiRepository';
+import { KpiRepository } from '../repositories/mongo/KpiRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 
 import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, KPI_SITES } from '../types/kpi.types';
@@ -236,6 +237,7 @@ type ParsedSheet = Map<string, ParsedEntry>;
 
 export class KpiService {
     private kpiRepository = new KpiRepository();
+    private activityRepository = new KpiActivityRepository();
     private userRepository = new UserRepository();
 
     async getAvailableYears(): Promise<number[]> {
@@ -278,8 +280,8 @@ export class KpiService {
      */
     async getLiveSnapshot(onlyUserId?: number): Promise<KpiLiveSnapshot> {
         const [statusRows, callRows] = await Promise.all([
-            this.kpiRepository.liveStatusCounts(),
-            this.kpiRepository.liveCallCounts(),
+            this.activityRepository.liveStatusCounts(),
+            this.activityRepository.liveCallCounts(),
         ]);
 
         const totals = emptyMetrics();
@@ -348,10 +350,10 @@ export class KpiService {
         // statut actuel.  C'est ce qui alimente les totaux du résumé (contrairement
         // aux events de company_history qui s'accumulent sans jamais décrémenter).
         const [statusRows, changes, creations, calls] = await Promise.all([
-            this.kpiRepository.portfolioStatusCounts(sector),
-            this.kpiRepository.activityStatusChanges(year, sector),
-            this.kpiRepository.activityCreations(year, sector),
-            this.kpiRepository.activityCalls(year, sector),
+            this.activityRepository.portfolioStatusCounts(sector),
+            this.activityRepository.activityStatusChanges(year, sector),
+            this.activityRepository.activityCreations(year, sector),
+            this.activityRepository.activityCalls(year, sector),
         ]);
 
         const summaryTotals = emptyMetrics();

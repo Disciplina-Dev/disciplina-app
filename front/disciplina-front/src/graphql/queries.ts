@@ -411,7 +411,9 @@ const CANDIDATE_FIELDS = gql`
       sector
     }
     status
-    tpType
+    writtenTestScore
+    testAverage
+    testFailurePending
     tpTypes
     trainingSite
     trainingSites
@@ -480,8 +482,8 @@ export const GET_CANDIDATES = gql`
 `
 
 export const GET_CANDIDATES_PAGE = gql`
-  query GetCandidatesPage($first: Int, $after: String, $search: String, $filters: CandidateFiltersInput) {
-    candidatesPage(first: $first, after: $after, search: $search, filters: $filters) {
+  query GetCandidatesPage($first: Int, $after: String, $search: String, $searchField: CandidateSearchField, $filters: CandidateFiltersInput) {
+    candidatesPage(first: $first, after: $after, search: $search, searchField: $searchField, filters: $filters) {
       edges {
         cursor
         node {
@@ -586,7 +588,9 @@ export const GET_CANDIDATE_BY_ID = gql`
         sector
       }
       status
-      tpType
+      writtenTestScore
+      testAverage
+      testFailurePending
       tpTypes
       trainingSite
       trainingSites
@@ -624,6 +628,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -696,6 +701,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       cvLink
@@ -721,7 +727,6 @@ export const UPDATE_CANDIDATE = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -763,6 +768,7 @@ export const UPDATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -834,6 +840,7 @@ export const UPDATE_CANDIDATE = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       createdAt
@@ -846,7 +853,6 @@ export const CREATE_CANDIDATE = gql`
     createCandidate(input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -867,6 +873,7 @@ export const CREATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
       }
@@ -902,7 +909,6 @@ export const GET_CANDIDATE_FULL = gql`
         sector
       }
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -941,6 +947,7 @@ export const GET_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education { schoolLevel justification }
       support {
         franceTravailRegistered
@@ -979,6 +986,7 @@ export const GET_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion
@@ -1038,7 +1046,6 @@ export const UPDATE_CANDIDATE_FULL = gql`
     updateCandidate(id: $id, input: $input) {
       id
       status
-      tpType
       tpTypes
       trainingSite
       trainingSites
@@ -1076,6 +1083,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -1125,6 +1133,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion
@@ -1219,10 +1228,12 @@ export const GET_OFFERS = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
       sector
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1268,11 +1279,13 @@ export const MATCH_OFFER = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
       sector
       softSkills
+      schedule { day startHour endHour }
       matchedCandidate {
         id
         fullName
@@ -1286,6 +1299,7 @@ export const MATCH_OFFER = gql`
         identityDescription
         comment
         cvWebview
+        hasCv
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1302,11 +1316,13 @@ export const MATCH_OFFER = gql`
         city
         email
         phone
+        hasCv
       }
       interviewSlots
       interviewLocation
       title
       jobRole
+      relaxedCriteria
       salerInfo {
         id
         email
@@ -1353,6 +1369,7 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         description
         identityDescription
         cvWebview
+        hasCv
       }
     }
   }
@@ -1513,6 +1530,7 @@ export const UNMATCH_OFFER = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
@@ -1599,11 +1617,13 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
       sector
       title
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1621,6 +1641,19 @@ export const GET_CANDIDATE_PLACEMENT = gql`
       kind
       since
       immersionEndDate
+    }
+  }
+`
+
+export const GET_CANDIDATE_SENT_COMPANIES = gql`
+  query GetCandidateSentCompanies($candidateId: String!) {
+    candidateSentCompanies(candidateId: $candidateId) {
+      offerId
+      companyName
+      status
+      title
+      jobRole
+      needsAnalysisId
     }
   }
 `
@@ -1681,6 +1714,7 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
       }
       positionsCount
       status
+      isRelanceDisabled
       createdAt
     }
   }
@@ -1694,8 +1728,12 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         node {
           id
           status
+          abStatus
           positionsCount
           createdAt
+          lastActiveAt
+          administrationType
+          driveFolderUrl
           companyInfos {
             name
             siret
@@ -1833,13 +1871,14 @@ export const GET_NEEDS_ANALYSIS = gql`
         criteria {
           educationLevel
           drivingLicense
+          hasVehicle
           experienceRequired
           trainingDomain
           ageMin
           ageMax
           desiredSex
           softSkills
-          scheduleOptions
+          scheduleOptions { day startHour endHour }
           conditions
           additionalComments
         }
@@ -1849,9 +1888,13 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      abStatus
+      isRelanceDisabled
+      administrationType
       tags
       createdAt
       updatedAt
+      driveFolderUrl
     }
   }
 `
@@ -1919,6 +1962,25 @@ export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
     markNeedsAnalysisSigned(id: $id) {
       id
       status
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
+  mutation UpdateNeedsAnalysisAbStatus($id: ID!, $abStatus: AbStatus) {
+    updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
+      id
+      abStatus
+    }
+  }
+`
+
+export const SET_AB_RELANCE_DISABLED = gql`
+  mutation SetAbRelanceDisabled($id: ID!, $disabled: Boolean!) {
+    setAbRelanceDisabled(id: $id, disabled: $disabled) {
+      id
+      status
+      isRelanceDisabled
     }
   }
 `

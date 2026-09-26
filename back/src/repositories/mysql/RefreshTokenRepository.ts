@@ -30,4 +30,19 @@ export class RefreshTokenRepository {
     async revokeAllForUser(userId: number): Promise<void> {
         await query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL', [userId]);
     }
+
+    /**
+     * Purge les tokens inutilisables depuis plus de `graceDays` jours : expirés, ou
+     * révoqués par la rotation d'un /refresh. Sans cela la table croît indéfiniment,
+     * une ligne étant créée à chaque rotation de session.
+     */
+    async deleteExpired(graceDays: number): Promise<number> {
+        const result = await query(
+            `DELETE FROM refresh_tokens
+             WHERE expires_at < NOW() - INTERVAL ? DAY
+                OR revoked_at < NOW() - INTERVAL ? DAY`,
+            [graceDays, graceDays],
+        );
+        return (result as unknown as { affectedRows: number }).affectedRows;
+    }
 }

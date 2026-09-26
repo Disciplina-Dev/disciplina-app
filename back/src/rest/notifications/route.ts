@@ -4,6 +4,8 @@ import { requireRoles } from '../middleware/roleGuard';
 import { authenticateStaffStream } from '../middleware/sseAuth';
 import { listNotifications, markNotificationRead, markAllNotificationsRead, createNotification } from './controller';
 import { addClient, removeClient } from './sse';
+import { sseKey } from '../shared/sseChannel';
+import { syncWithRegion } from '../../db/tenant';
 
 export const router: Router = Router();
 
@@ -21,26 +23,28 @@ router.post('/', express.json(), authenticate, requireRoles('AD', 'GESTION'), cr
 router.get('/stream', (req: AuthRequest, res: Response) => {
     const staff = authenticateStaffStream(req, res);
     if (!staff) return;
-    const userID = String(staff.id);
+    syncWithRegion(staff.region, () => {
+        const userID = String(staff.id);
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-    res.write(': connected\n\n');
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+        res.write(': connected\n\n');
 
-    addClient(userID, res);
-    const heartbeat = setInterval(() => {
-        try {
-            res.write(': ping\n\n');
-        } catch {
-            /* ignore */
-        }
-    }, 30000);
+        addClient(sseKey(staff.region, userID), res);
+        const heartbeat = setInterval(() => {
+            try {
+                res.write(': ping\n\n');
+            } catch {
+                /* ignore */
+            }
+        }, 30000);
 
-    req.on('close', () => {
-        clearInterval(heartbeat);
-        removeClient(userID, res);
+        req.on('close', () => {
+            clearInterval(heartbeat);
+            removeClient(sseKey(staff.region, userID), res);
+        });
     });
 });

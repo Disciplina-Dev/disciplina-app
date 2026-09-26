@@ -20,5 +20,7 @@ graphify-out
 scripts/resource
 ollama-data
 .vercel
+backups
 docs
 .playwright-mcp
+node_modules/

@@ -1,4 +1,5 @@
 import { CandidateService } from '../services/CandidateService';
+import { runForAllRegions, getRegion } from '../db/tenant';
 import { logger } from '../external/logger/logger';
 
 // Tick horaire : la granularité « jour » de la date de disponibilité ne nécessite
@@ -20,10 +21,15 @@ export function startUnavailableExpiryScheduler(): NodeJS.Timeout {
         if (running) return;
         running = true;
         try {
-            const reverted = await candidateService.processExpiredUnavailable();
-            if (reverted > 0) logger.info({ reverted }, 'unavailable-expiry: candidats repassés en recherche');
-        } catch (err) {
-            logger.error({ err }, 'unavailable-expiry: tick du scheduler en erreur');
+            await runForAllRegions(async () => {
+                const region = getRegion();
+                try {
+                    const reverted = await candidateService.processExpiredUnavailable();
+                    if (reverted > 0) logger.info({ region, reverted }, 'unavailable-expiry: candidats repassés en recherche');
+                } catch (err) {
+                    logger.error({ err, region }, 'unavailable-expiry: tick du scheduler en erreur');
+                }
+            });
         } finally {
             running = false;
         }

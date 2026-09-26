@@ -100,6 +100,12 @@ export const typeDefs = gql`
         INACTIVE
     }
 
+    enum AdministrationType {
+        NON_RENSEIGNE
+        ADMINISTRATION_PUBLIQUE
+        ADMINISTRATION_PRIVEE
+    }
+
     type CompanyInfos {
         id: Int
         name: String
@@ -137,26 +143,40 @@ export const typeDefs = gql`
     type OfferCriteria {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         trainingDomain: TrainingDomain
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]!
+        scheduleOptions: [ScheduleSlot!]!
         conditions: String
         additionalComments: String
+    }
+
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
+    input ScheduleSlotInput {
+        day: String
+        startHour: String
+        endHour: String
     }
 
     input OfferCriteriaInput {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]
+        scheduleOptions: [ScheduleSlotInput!]
         conditions: String
         additionalComments: String
     }
@@ -209,9 +229,17 @@ export const typeDefs = gql`
         trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
+        abStatus: AbStatus!
+        isRelanceDisabled: Boolean!
+        administrationType: AdministrationType!
         tags: [String!]
         createdAt: String
         updatedAt: String
+        # Date du dernier passage au statut effectif ACTIVE (création puis
+        # réactivations). Null pour les documents antérieurs au suivi.
+        lastActiveAt: String
+        # URL Drive du dossier contenant le mandat signé (uniquement si status = SIGNE).
+        driveFolderUrl: String
     }
 
     input NeedsAnalysisInput {
@@ -228,6 +256,7 @@ export const typeDefs = gql`
         referralSource: ReferralSource
         postalCode: String
         commune: String
+        administrationType: AdministrationType
         positions: [PositionInput!]
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
@@ -281,6 +310,7 @@ export const typeDefs = gql`
         sectors: [String!]
         localisations: [String!]
         abStatus: AbStatus
+        administrationTypes: [AdministrationType!]
     }
 
     type NeedsAnalysisDashboardItem {
@@ -312,5 +342,10 @@ export const typeDefs = gql`
         # Marque une AB comme signée sans passer par le flux Yousign : réservé au cas où le
         # contrat a été trouvé hors sourcing Disciplina (candidat ayant trouvé sa propre entreprise).
         markNeedsAnalysisSigned(id: ID!): NeedsAnalysis!
+        # Force le statut d'onglet d'une AB (Actif/Archivé/Inactif) ; abStatus à null le
+        # réinitialise au calcul automatique dérivé des offres.
+        updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
+        # Désactive/réactive la relance automatique de signature (non destructif, garde l'AB et ses offres).
+        setAbRelanceDisabled(id: ID!, disabled: Boolean!): NeedsAnalysis!
     }
 `;

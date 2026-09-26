@@ -1,4 +1,4 @@
-import { authGuard, authGuardRole } from '../authGuard';
+import { authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
@@ -14,7 +14,11 @@ import { decryptSsn } from '../../external/crypto/ssn-cipher';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
 import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { CandidateFilters, encodeCandidateCursor } from '../../repositories/mongo/CandidateRepository';
+import {
+    CandidateFilters,
+    CandidateSearchField,
+    encodeCandidateCursor,
+} from '../../repositories/mongo/CandidateRepository';
 
 /** Filtres reçus côté GraphQL : dates au format ISO (string), converties ensuite. */
 type CandidateFiltersInput = Omit<CandidateFilters, 'createdAfter' | 'createdBefore'> & {
@@ -36,12 +40,30 @@ function parseFilterDate(iso: string | undefined, endOfDay: boolean): Date | und
     if (endOfDay) d.setHours(23, 59, 59, 999);
     return d;
 }
-import { primarySector, regionFromSector } from '../../utils/sector';
+import { canAccessAllSectors, primarySector, regionFromSector, sanitizeSectors } from '../../utils/sector';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
 const rhKpiService = new RhKpiService();
 const candidateHistoryService = new CandidateHistoryService();
+
+/**
+ * Secteurs effectivement visibles pour les stats agrégées : ADMIN/RESPONSABLE
+ * voient tout (filtre client respecté) ; sinon on re-fetch le user (le JWT ne
+ * porte pas les secteurs) et on borne la demande à ses secteurs. Un user sans
+ * secteur assigné n'est pas restreint (convention historique).
+ */
+async function statsSectors(context: any, requested?: string[]): Promise<string[] | undefined> {
+    if (canAccessAllSectors(context.user.permission)) return requested;
+    const user = await userService.findById(Number(context.user.id));
+    const own = sanitizeSectors(user?.sectors);
+    if (own.length === 0) return requested;
+    const ownSet = new Set<string>(own);
+    const clamped = requested?.filter((s) => ownSet.has(s));
+    // Demande hors périmètre → on ignore la sur-filtrer et on reste sur ses secteurs
+    // (jamais de tableau vide : `stats([])` signifierait « tous » côté repository).
+    return clamped && clamped.length > 0 ? clamped : own;
+}
 
 function candidateHistoryToGql(entry: CandidateHistoryEntry): object {
     return {
@@ -74,6 +96,7 @@ async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
         const match = interviewers.find((u) => `${u.firstName} ${u.lastName}`.trim() === name);
         if (!match) return;
         await rhKpiService.bump(match.id, primarySector(match.sectors) ?? '', new Date(), {
+            interviews_placed: 1,
             interviews_attended: 1,
         });
     } catch (error) {
@@ -83,7 +106,7 @@ async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
 
 interface CreateCandidateInput {
     status: CandidateStatus;
-    tpType: TitleProfessionalType;
+    tpTypes: TitleProfessionalType[];
     identity: { fullName: string; email: string; phone: string; [key: string]: any };
     [key: string]: any;
 }
@@ -119,12 +142,18 @@ export const resolvers = {
                 first,
                 after,
                 search,
+                searchField,
                 filters: filtersInput,
-            }: PaginationArgs & { search?: string; filters?: CandidateFiltersInput },
+            }: PaginationArgs & {
+                search?: string;
+                searchField?: CandidateSearchField;
+                filters?: CandidateFiltersInput;
+            },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const searchFieldValue: CandidateSearchField | undefined = searchField ?? undefined;
             const filters: CandidateFilters | undefined = filtersInput
                 ? {
                       trainingSite: filtersInput.trainingSite,
@@ -132,6 +161,8 @@ export const resolvers = {
                       statusIn: filtersInput.statusIn?.length ? filtersInput.statusIn : undefined,
                       schoolLevel: filtersInput.schoolLevel,
                       drivingLicenseB: filtersInput.drivingLicenseB,
+                      hasVehicle: filtersInput.hasVehicle,
+                      sex: filtersInput.sex?.trim() || undefined,
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,
                       tpType: filtersInput.tpType?.length ? filtersInput.tpType : undefined,
@@ -152,8 +183,8 @@ export const resolvers = {
                       interviewedBy: filtersInput.interviewedBy?.trim() || undefined,
                   }
                 : undefined;
-            const candidates = await candidateService.findPage(pageSize, after, search, filters);
-            const totalCount = await candidateService.countPage(search, filters);
+            const candidates = await candidateService.findPage(pageSize, after, search, filters, searchFieldValue);
+            const totalCount = await candidateService.countPage(search, filters, searchFieldValue);
             const conn = buildConnection(
                 candidates,
                 encodeCandidateCursor,
@@ -167,7 +198,7 @@ export const resolvers = {
         },
         candidateStats: async (_: unknown, { sectors }: { sectors?: string[] }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            return candidateService.stats(sectors);
+            return candidateService.stats(await statsSectors(context, sectors));
         },
         candidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -222,7 +253,14 @@ export const resolvers = {
             const candidate = await candidateService.findById(id);
             const ssn = candidate?.identity?.social_security_number;
             if (!ssn) return null;
-            return decryptSsn(ssn);
+            try {
+                return decryptSsn(ssn);
+            } catch (err) {
+                logger.error({ err, candidateId: id }, 'SSN unmask failed');
+                throw new Error(
+                    'Le numéro de sécurité sociale de cette fiche est illisible : il a été enregistré avant la mise en place du chiffrement, ou avec une autre clé. Une migration est nécessaire.',
+                );
+            }
         },
     },
     Mutation: {
@@ -240,6 +278,10 @@ export const resolvers = {
                 }
             }
 
+            if (!input.consentments?.dataProcessing) {
+                throw new Error('Le consentement au traitement des données est obligatoire.');
+            }
+
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
             // Multi-sites : garde le single legacy training_site = 1er site choisi
@@ -247,13 +289,8 @@ export const resolvers = {
             if (Array.isArray(snakeInput.training_sites)) {
                 snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
             }
-            // Multi-TP : garde le single legacy tp_type = 1er titre (Drive/stats/templates).
-            if (Array.isArray(snakeInput.tp_types) && snakeInput.tp_types.length) {
-                snakeInput.tp_type = snakeInput.tp_types[0];
-            }
-
             if (!snakeInput.skills_assessment || snakeInput.skills_assessment.length === 0) {
-                const template = CANDIDATE_TEMPLATES[input.tpType];
+                const template = CANDIDATE_TEMPLATES[input.tpTypes[0]];
                 if (template) {
                     snakeInput.skills_assessment = template.default_skills_assessment;
                 }
@@ -294,7 +331,7 @@ export const resolvers = {
                     const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                         folderName,
                         await driveParentFolderForTp(
-                            newCandidate.tp_type,
+                            newCandidate.tp_types?.[0],
                             newCandidate.training_site,
                             regionFromSector(ownerSector),
                         ),
@@ -325,10 +362,6 @@ export const resolvers = {
             // Multi-sites : garde le single legacy training_site = 1er site choisi.
             if (Array.isArray(snakeInput.training_sites)) {
                 snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
-            }
-            // Multi-TP : garde le single legacy tp_type = 1er titre choisi.
-            if (Array.isArray(snakeInput.tp_types) && snakeInput.tp_types.length) {
-                snakeInput.tp_type = snakeInput.tp_types[0];
             }
             // État avant mise à jour : statut (transitions KPI) + interviewer (crédit
             // entretien une seule fois). On ne relit le dossier que si l'un des deux change.
@@ -386,7 +419,11 @@ export const resolvers = {
             const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
             const { id: folderId, webViewLink: folderLink } = await driveService.createFolder(
                 folderName,
-                await driveParentFolderForTp(candidate.tp_type, candidate.training_site, regionFromSector(ownerSector)),
+                await driveParentFolderForTp(
+                    candidate.tp_types?.[0],
+                    candidate.training_site,
+                    regionFromSector(ownerSector),
+                ),
             );
 
             // Backfill / rafraîchit l'owner (utile pour les candidats créés avant la feature secteurs).

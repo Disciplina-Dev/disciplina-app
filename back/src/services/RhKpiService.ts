@@ -1,4 +1,5 @@
-import { RhKpiRepository } from '../repositories/mysql/RhKpiRepository';
+import { RhKpiRepository } from '../repositories/mongo/RhKpiRepository';
+import { UserRepository } from '../repositories/mysql/UserRepository';
 import { RH_KPI_COLUMNS, RhKpiColumn, RhKpiMetrics, emptyRhMetrics } from '../types/rhKpi.types';
 import { logger } from '../external/logger';
 
@@ -53,6 +54,7 @@ function addInto(target: RhKpiMetrics, row: Record<RhKpiColumn, number>): void {
 
 export class RhKpiService {
     private repo = new RhKpiRepository();
+    private users = new UserRepository();
 
     /** Incrémente/décrémente des compteurs au bucket de `date`. Best-effort : ne jette jamais. */
     async bump(
@@ -79,8 +81,20 @@ export class RhKpiService {
      */
     async getReport(year: number, scopeUserIds?: number[]): Promise<RhKpiReport> {
         const rows = await this.repo.findWeekly(year, scopeUserIds);
+        // Noms d'affichage résolus depuis MySQL (les users n'ont pas migré).
+        // Actifs uniquement : même sémantique que l'ancien INNER JOIN, les
+        // buckets d'un user supprimé sortaient du rapport.
+        const nameById = new Map<number, string>();
+        if (rows.length > 0) {
+            const ids = [...new Set(rows.map((r) => r.user_id))];
+            for (const u of await this.users.findByIds(ids)) {
+                nameById.set(u.id, `${u.first_name} ${u.last_name}`);
+            }
+        }
         const byWeek = new Map<number, RhKpiWeek>();
         for (const r of rows) {
+            const userName = nameById.get(r.user_id);
+            if (userName === undefined) continue;
             let wk = byWeek.get(r.week);
             if (!wk) {
                 wk = { week: r.week, month: r.month, totals: emptyRhMetrics(), users: [] };
@@ -91,10 +105,13 @@ export class RhKpiService {
             // par secteur ou par RH/responsable selon le filtre choisi.
             wk.users.push({
                 userId: r.user_id,
-                userName: r.user_name,
+                userName,
                 sector: r.sector ?? '',
                 metrics: RH_KPI_COLUMNS.reduce((acc, c) => { acc[c] = Number(r[c]) || 0; return acc; }, emptyRhMetrics()),
             });
+        }
+        for (const wk of byWeek.values()) {
+            wk.users.sort((a, b) => a.userName.localeCompare(b.userName));
         }
         return {
             year,

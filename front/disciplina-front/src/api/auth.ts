@@ -14,11 +14,11 @@ export async function refreshSession(): Promise<boolean> {
   return res.ok
 }
 
-export async function login(email: string, passwordPlain: string): Promise<AppUser> {
+export async function login(email: string, passwordPlain: string, region: string): Promise<AppUser> {
   const body = await apiJson<{ user: AppUser }>('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, passwordPlain }),
+    body: JSON.stringify({ email, passwordPlain, region }),
   })
   return body.user
 }

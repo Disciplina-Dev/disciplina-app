@@ -9,7 +9,7 @@ import type { Candidate } from '@/types/candidate';
 export const mockCandidates: Candidate[] = [
   {
     _id: "cand-001",
-    tp_type: TitleProfessionalType.CC,
+    tp_types: [TitleProfessionalType.CC],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {
@@ -34,7 +34,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-002",
-    tp_type: TitleProfessionalType.NTC,
+    tp_types: [TitleProfessionalType.NTC],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
@@ -59,7 +59,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-003",
-    tp_type: TitleProfessionalType.AD,
+    tp_types: [TitleProfessionalType.AD],
     status: CandidateStatus.NOT_SEEKING,
     training_site: TrainingSite.OUEST_SAINT_PAUL,
     identity: {
@@ -84,7 +84,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-004",
-    tp_type: TitleProfessionalType.REM,
+    tp_types: [TitleProfessionalType.REM],
     status: CandidateStatus.CONTRACT,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {
@@ -109,7 +109,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-005",
-    tp_type: TitleProfessionalType.SA,
+    tp_types: [TitleProfessionalType.SA],
     status: CandidateStatus.CANCELLED,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
@@ -134,7 +134,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-006",
-    tp_type: TitleProfessionalType.CC,
+    tp_types: [TitleProfessionalType.CC],
     status: CandidateStatus.BANNED,
     training_site: TrainingSite.OUEST_SAINT_PAUL,
     identity: {
@@ -159,7 +159,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-007",
-    tp_type: TitleProfessionalType.NTC,
+    tp_types: [TitleProfessionalType.NTC],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {
@@ -184,7 +184,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-008",
-    tp_type: TitleProfessionalType.AD,
+    tp_types: [TitleProfessionalType.AD],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
@@ -209,7 +209,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-009",
-    tp_type: TitleProfessionalType.CC,
+    tp_types: [TitleProfessionalType.CC],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.OUEST_SAINT_PAUL,
     identity: {
@@ -234,7 +234,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-010",
-    tp_type: TitleProfessionalType.REM,
+    tp_types: [TitleProfessionalType.REM],
     status: CandidateStatus.CONTRACT,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {
@@ -259,7 +259,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-011",
-    tp_type: TitleProfessionalType.AD,
+    tp_types: [TitleProfessionalType.AD],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {
@@ -284,7 +284,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-012",
-    tp_type: TitleProfessionalType.NTC,
+    tp_types: [TitleProfessionalType.NTC],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
@@ -309,7 +309,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-013",
-    tp_type: TitleProfessionalType.CC,
+    tp_types: [TitleProfessionalType.CC],
     status: CandidateStatus.CONTRACT,
     training_site: TrainingSite.OUEST_SAINT_PAUL,
     identity: {
@@ -334,7 +334,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-014",
-    tp_type: TitleProfessionalType.SA,
+    tp_types: [TitleProfessionalType.SA],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
@@ -359,7 +359,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-015",
-    tp_type: TitleProfessionalType.REM,
+    tp_types: [TitleProfessionalType.REM],
     status: CandidateStatus.NOT_SEEKING,
     training_site: TrainingSite.NORD_SAINTE_MARIE,
     identity: {

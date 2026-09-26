@@ -1,23 +1,16 @@
-export type EntrepriseStatus = 'Oui' | 'Non' | 'À Réfléchir' | 'Relance' | 'Réponds pas' | 'Fermé'
+// « Oui OF » existe en base (flux KPI) mais reste volontairement hors de
+// STATUS_VALUES : il ne doit pas apparaître dans les selects/multi-selects,
+// car le resolver backend ne l'accepte pas à la sauvegarde.
+export type EntrepriseStatus = 'Oui' | 'Oui OF' | 'Non' | 'À Réfléchir' | 'Relance' | 'Réponds pas' | 'Fermé'
 
 export const STATUS_VALUES: EntrepriseStatus[] = ['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']
 
-export type Secteur = 'Nord-Est' | 'Ouest' | 'Sud'
+import { SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/constants/secteurs'
+import type { Secteur } from '@/constants/secteurs'
 
-export const SECTEUR_VALUES: Secteur[] = ['Nord-Est', 'Ouest', 'Sud']
-
-export const DEFAULT_SECTEUR: Secteur = 'Nord-Est'
+export { SECTEUR_VALUES, DEFAULT_SECTEUR }
+export type { Secteur }
 export type RelanceFilter = 'today' | 'past' | 'future'
-
-const saleUserData = [
-  { id: 1, name: 'Pas de commerciaux' },
-  { id: 2, name: 'Amanda' },
-  { id: 3, name: 'Emile' },
-  { id: 4, name: 'Brandon' },
-  { id: 5, name: 'Lorenzo' }
-] as const;
-
-export type UserId = typeof saleUserData[number]['name'];
 
 export interface SalePerson {
   id: number
@@ -110,13 +103,16 @@ export interface EntrepriseBlacklistee extends Entreprise {
   all_blacklist: boolean
 }
 
-export interface EntrepriseConflit extends Entreprise {}
+export type EntrepriseConflit = Entreprise
+
+export type SecteurMode = 'OR' | 'AND'
 
 export type EntrepriseFilters = {
   siret: string
   status: EntrepriseStatus[]
   commercial_id: number | null
-  secteur: string
+  secteur: string[]
+  secteurMode: SecteurMode
   relance: RelanceFilter | ''
   unassigned_only: boolean
   date_insertion_from: string

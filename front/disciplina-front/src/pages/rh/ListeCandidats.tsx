@@ -7,16 +7,17 @@ import {
 } from 'lucide-react';
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateAvatar from '@/components/rh/CandidateAvatar';
-import CandidateFormModal from '@/components/rh/CandidateFormModal';
+import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal';
 import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
 import { SECTOR_LABELS } from '@/data/sectors';
+import { secteurLabelOfTrainingSite } from '@/constants/secteurs';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
-import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters } from '@/graphql/hooks';
+import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters, type CandidateSearchField } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
 import { graphqlClient } from '@/graphql/client';
@@ -48,10 +49,7 @@ const getTpTypeColors = (tpType: TitleProfessionalType) => {
 
 const formatTrainingSite = (site?: TrainingSite) => {
   if (!site) return 'Non renseigné';
-  if (site === TrainingSite.NORD_SAINTE_MARIE) return 'Nord';
-  if (site === TrainingSite.OUEST_SAINT_PAUL) return 'Ouest';
-  if (site === TrainingSite.SUD_SAINT_PIERRE) return 'Sud';
-  return site;
+  return secteurLabelOfTrainingSite(site) ?? site;
 };
 
 // --- Tabs ---
@@ -77,11 +75,20 @@ const PAGE_SIZE = 20;
 
 type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
 
+const SEARCH_FIELD_LABELS: Record<CandidateSearchField, string> = {
+  NAME: 'Nom',
+  PHONE: 'Tél.',
+  EMAIL: 'Mail',
+};
+
+const SEARCH_FIELD_OPTIONS: CandidateSearchField[] = ['NAME', 'PHONE', 'EMAIL'];
+
 interface CandidateFilterState {
   trainingSite: TrainingSite | '';
   status: CandidateStatus | '';
   schoolLevel: SchoolLevel | '';
   permis: 'all' | 'yes' | 'no';
+  sex: 'FILLE' | 'GARCON' | '';
   ageMin: number | '';
   ageMax: number | '';
   tpType: TitleProfessionalType[];
@@ -98,6 +105,7 @@ const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   status: '',
   schoolLevel: '',
   permis: 'all',
+  sex: '',
   ageMin: '',
   ageMax: '',
   tpType: [],
@@ -127,6 +135,7 @@ function toServerFilters(filters: CandidateFilterState, activeTab: CandidateTab)
     statusIn: activeTab !== 'all' ? TAB_STATUS_MAP[activeTab] : undefined,
     schoolLevel: filters.schoolLevel || undefined,
     drivingLicenseB: filters.permis === 'all' ? undefined : filters.permis === 'yes',
+    sex: filters.sex || undefined,
     ageMin: filters.ageMin || undefined,
     ageMax: filters.ageMax || undefined,
     tpType: filters.tpType?.length ? filters.tpType : undefined,
@@ -155,10 +164,25 @@ export default function ListeCandidats() {
     cursorHistory,
     loadNextPage,
     loadPrevPage,
-  } = usePersistedListView<CandidateFilterState>('disciplina:list-view:candidats', EMPTY_CANDIDATE_FILTERS);
+  } = usePersistedListView<CandidateFilterState>(
+    'disciplina:list-view:candidats',
+    EMPTY_CANDIDATE_FILTERS,
+    {
+      trainingSite: [...Object.values(TrainingSite), ''],
+      status: [...Object.values(CandidateStatus), ''],
+      schoolLevel: [...Object.values(SchoolLevel), ''],
+      permis: ['all', 'yes', 'no'],
+      sex: ['FILLE', 'GARCON', ''],
+      tpType: Object.values(TitleProfessionalType),
+      geographicMobility: Object.values(Localisation),
+      dateMode: ['any', 'before', 'after', 'between', 'none'],
+    },
+    ['ageMin', 'ageMax'],
+  );
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [searchField, setSearchField] = useState<CandidateSearchField>('NAME');
   const [activeTab, setActiveTab] = useState<CandidateTab>('all');
 
   const handleTabChange = (tab: CandidateTab) => {
@@ -194,7 +218,7 @@ export default function ListeCandidats() {
 
   const serverFilters = useMemo(() => toServerFilters(filters, activeTab), [filters, activeTab]);
 
-  const { candidates, pageInfo, totalCount, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters);
+  const { candidates, pageInfo, totalCount, loading, error, refetch } = useCandidatesPage(PAGE_SIZE, afterCursor, debouncedSearch || undefined, serverFilters, searchField);
   const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
 
   // Sync server candidates into local state (enables optimistic edits)
@@ -289,7 +313,7 @@ export default function ListeCandidats() {
     (filters.dateMode === 'before' && !!filters.dateTo) ||
     (filters.dateMode === 'between' && (!!filters.dateFrom || !!filters.dateTo))
   );
-  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.tpType?.length ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
+  const activeFiltersCount = [filters.trainingSite, filters.schoolLevel, filters.status, filters.ageMin, filters.ageMax].filter(Boolean).length + (filters.permis !== 'all' ? 1 : 0) + (filters.sex ? 1 : 0) + (dateFilterActive ? 1 : 0) + (filters.tpType?.length ? 1 : 0) + (filters.geographicMobility?.length ? 1 : 0) + (filters.desiredSectors?.length ? 1 : 0) + (filters.interviewedBy ? 1 : 0);
   const hidePagination = !!debouncedSearch;
 
   const handleResetFilters = () => {
@@ -337,15 +361,27 @@ export default function ListeCandidats() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Rechercher (nom, ville, métier visé...)"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"
-            />
+          <div className="relative flex items-stretch">
+            <select
+              id="candidate-search-field"
+              value={searchField}
+              onChange={(e) => setSearchField(e.target.value as CandidateSearchField)}
+              className="border border-r-0 border-gray-100 bg-white rounded-l-xl pl-3 pr-7 py-2.5 text-sm font-medium text-gray-600 focus:outline-none focus:border-purple focus:ring-2 focus:ring-purple/20 shadow-sm transition-all cursor-pointer"
+            >
+              {SEARCH_FIELD_OPTIONS.map(f => (
+                <option key={f} value={f}>{SEARCH_FIELD_LABELS[f]}</option>
+              ))}
+            </select>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Rechercher…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-r-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"
+              />
+            </div>
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -424,6 +460,16 @@ export default function ListeCandidats() {
                 <option value="all">Indifférent</option>
                 <option value="yes">Oui</option>
                 <option value="no">Non</option>
+              </select>
+            </div>
+
+            {/* Sexe */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Sexe</label>
+              <select value={filters.sex} onChange={e => setFilters({ ...filters, sex: e.target.value as 'FILLE' | 'GARCON' | '' })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
+                <option value="">Tous les sexes</option>
+                <option value="FILLE">Femme</option>
+                <option value="GARCON">Homme</option>
               </select>
             </div>
 
@@ -576,6 +622,11 @@ export default function ListeCandidats() {
             onClick={() => navigate(`/rh/candidats/${candidate._id}`)}
             className="group relative bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-purple/30 transition-all cursor-pointer flex flex-col h-full overflow-hidden"
           >
+            {candidate.status === CandidateStatus.TEST_FAILED && candidate.test_failure_pending && (
+              <div className="absolute top-0 left-0 px-3 py-1 rounded-br-xl text-[9px] font-bold uppercase tracking-wider bg-orange-500 text-white z-10">
+                En attente
+              </div>
+            )}
             {/* Status Corner Badge */}
             <div className={`absolute top-0 right-0 px-4 py-1.5 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-opacity hover:opacity-90 cursor-pointer z-10 ${CANDIDATE_STATUS_BADGE_CLASS[candidate.status]}`}>
               <select
@@ -636,7 +687,7 @@ export default function ListeCandidats() {
                 {candidate.identity.full_name}
               </h3>
               <div className="mb-4 mt-1 flex gap-2 flex-wrap">
-                {(candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).map(tp => (
+                {(candidate.tp_types ?? []).map(tp => (
                   <span key={tp} className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ring-1 inset-ring ${getTpTypeColors(tp)}`}>
                     {tp}
                   </span>
@@ -767,11 +818,16 @@ export default function ListeCandidats() {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal — bare minimum (name/email/phone + RGPD) then navigate to fiche */}
       {showCreateModal && (
-        <CandidateFormModal
+        <CandidateQuickCreateModal
           onClose={() => setShowCreateModal(false)}
           onSaved={() => refetch()}
+          onCreated={(id) => {
+            setShowCreateModal(false)
+            refetch()
+            navigate(`/rh/candidats/${id}`)
+          }}
         />
       )}
 

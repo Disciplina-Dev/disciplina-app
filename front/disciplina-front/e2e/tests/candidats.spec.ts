@@ -51,14 +51,24 @@ test.describe('3.3 Candidats', () => {
     });
 
     // Édition : dépend d'un candidat seedé — skip proprement sinon.
+    // Le bouton « Modifier » est devenu « Compléter » : il ouvre d'abord la vérification des résultats (gate)
+    // puis le formulaire complet.
     test('édition — la fiche est pré-remplie', async ({ page }) => {
         await page.goto('/rh/candidats');
         const firstCard = page.locator('main .grid > div').first();
         test.skip((await firstCard.count()) === 0, 'aucun candidat seedé');
         await firstCard.click();
         await expect(page).toHaveURL(/\/rh\/candidats\/[^/]+$/);
-        await page.getByRole('button', { name: /^Modifier$/ }).click();
-        await expect(page.getByRole('heading', { name: /Modifier la fiche candidat/ })).toBeVisible();
+        await page.getByRole('button', { name: /^Compléter$/ }).click();
+        await expect(page.getByRole('heading', { name: /Compléter la fiche candidat/ })).toBeVisible();
+        // Gate : renseigner les scores pour débloquer le formulaire
+        const written = page.getByLabel('Épreuve écrite (sur 10) *');
+        if (await written.isVisible()) {
+            await written.fill('6');
+            const cmInput = page.getByLabel('ClassMarker (sur 20)');
+            if (await cmInput.isVisible()) await cmInput.fill('12');
+            await page.getByRole('button', { name: /Valider les résultats/ }).click();
+        }
         await expect(page.getByLabel('Nom et prénom *')).not.toHaveValue('');
     });
 

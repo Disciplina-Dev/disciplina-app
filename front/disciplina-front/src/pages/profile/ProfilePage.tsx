@@ -8,6 +8,7 @@ import {
   KeyRound, Eye, EyeOff, CheckCircle2, AlertCircle, User,
   ImagePlus, Save, Trash2, Mail, MapPin,
 } from 'lucide-react'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 const CHANGE_PASSWORD_MUTATION = gql`
   mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
@@ -24,11 +25,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.ENTREPRISE]: 'Entreprise',
 }
 
-const SECTOR_LABELS: Record<string, string> = {
-  NORD: 'Nord-Est',
-  OUEST: 'Ouest',
-  SUD: 'Sud',
-}
+const SECTOR_LABELS: Record<string, string> = SECTEUR_LABELS
 
 function useAccentColor() {
   const role = useAuthStore((s) => s.user?.role)

@@ -2,7 +2,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
-import Placeholder from '@tiptap/extension-placeholder'
+import { Placeholder } from '@tiptap/extensions'
 import Link from '@tiptap/extension-link'
 import { useEffect, useCallback } from 'react'
 import {
@@ -79,7 +79,7 @@ export default function RichTextEditor({
   useEffect(() => {
     if (!editor) return
     if (editor.getHTML() !== value) {
-      editor.commands.setContent(value, false)
+      editor.commands.setContent(value, { emitUpdate: false })
     }
   }, [value])
 

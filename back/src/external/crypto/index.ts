@@ -7,6 +7,6 @@ export {
     signGoogleState,
     verifyGoogleState,
 } from './signers';
-export { generateSignature, generateExternalSignature, generateNumericCode, generateIdentifier } from './generators';
+export { generateSignature, generateExternalSignature, generateIdentifier } from './generators';
 export { timingSafeEqualString } from './compare';
 export { sha256Hex } from './hash';

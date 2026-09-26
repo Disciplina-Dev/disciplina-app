@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { NO_REPLY_FOOTER_HTML, NO_REPLY_FOOTER_TEXT, withNoReply } from '../../external/google/no-reply';
 import { UserService } from '../../services/UserService';
 import { CandidateService } from '../../services/CandidateService';
 import { CompaniesService } from '../../services/CompaniesService';
@@ -14,16 +15,17 @@ import { logger } from '../../external/logger';
 import { confirmationPage } from '../shared/confirmationPage';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { BulkRelanceService } from '../../services/BulkRelanceService';
+import { ExternalAccessService } from '../../services/ExternalAccessService';
+import { renderTemplate, usesVariable } from '../../services/renderTemplate';
 
 const mailTemplateService = new MailTemplateService();
 const bulkRelanceService = new BulkRelanceService();
+const externalAccessService = new ExternalAccessService();
 const candidateService = new CandidateService();
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const companiesService = new CompaniesService();
 const relanceHistoryRepo = new RelanceHistoryRepository();
-
-const RELANCE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
 
 /**
  * Vérifie l'accès à l'entreprise pour une action de relance. Renvoie l'entreprise
@@ -191,7 +193,7 @@ export async function sendRelance(req: AuthRequest, res: Response) {
     const signatureHtml = await mailTemplateService.getSignatureHtml(req.user.id, 'rh').catch(() => '');
 
     // pied de page
-    const noReplyFootnote = `<p style="font-size:12px;color:#6b7280;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px;">Ceci est un message envoyé automatiquement par DISCIPLINA. Merci de ne pas répondre à cet e-mail.</p>`;
+    const noReplyFootnote = NO_REPLY_FOOTER_HTML;
 
     // NB : pas de header List-Unsubscribe ici. Ce mail vise une réponse individuelle
     // (Oui/Non) ; l'ajouter le fait classer « bulk » par Gmail et bascule en spam.
@@ -219,17 +221,17 @@ export async function sendRelance(req: AuthRequest, res: Response) {
   ${noReplyFootnote}
 </div>`;
 
-        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA\n\n---\nCeci est un message envoyé automatiquement par DISCIPLINA. Merci de ne pas répondre à cet e-mail.`;
+        const text = `Bonjour ${name},\n\nÊtes-vous toujours en recherche d'une alternance ?\n\nOui : ${ouiUrl}\nNon : ${nonUrl}\n\nCordialement,\nL'équipe DISCIPLINA${NO_REPLY_FOOTER_TEXT}`;
 
         try {
             await gmailService.sendEmail(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken },
-                {
+                withNoReply({
                     to: candidate.identity.email!,
                     subject: `${name}, êtes-vous toujours en recherche d'une alternance ?`,
                     html,
                     text,
-                },
+                }),
                 userService.googleTokenPersister(user.id),
             );
             // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;
@@ -247,9 +249,9 @@ export async function sendRelance(req: AuthRequest, res: Response) {
 }
 
 /**
- * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Contrairement
- * à `sendRelance` (relance de disponibilité codée en dur avec liens Oui/Non), le
- * corps provient d'un modèle RH partagé et part tel quel à chaque destinataire.
+ * Envoi groupé d'un modèle de mail RH à une sélection de candidats. Les variables
+ * {{prenom}}/{{nom}}/{{lien_import}} du modèle sont remplacées pour chaque
+ * destinataire ; les clés inconnues sont retirées (cf. booking/service.ts).
  */
 export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<void> {
     const user = await userService.findById(req.user.id);
@@ -286,8 +288,14 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
 
     // Désabonnement pointant vers la boîte du RH émetteur (Gmail bulk sender rules).
     const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
-    // Version texte dérivée du modèle HTML : évite un mail HTML-only (signal spam).
-    const bodyText = htmlToText(template.body);
+
+    // Un lien d'import CV (lien magique sans code, valable 7 jours après sa
+    // première ouverture) n'est généré que si le modèle le référence, pour ne
+    // pas créer de session externe sur des relances qui n'en ont pas besoin.
+    // Les éventuels {{code}} laissés par d'anciens modèles sont retirés par
+    // renderTemplate (clés inconnues → chaîne vide).
+    const templateText = `${template.subject}${template.body}`;
+    const needsImportLink = usesVariable(templateText, 'lien_import');
 
     const candidates = await candidateService.findAll();
     const recipients = candidates.filter((c) => c.identity?.email && ids.includes(c._id));
@@ -295,14 +303,44 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
     let sent = 0;
     let errors = 0;
     for (const candidate of recipients) {
+        const fullName = candidate.identity.full_name ?? '';
+        const spaceIdx = fullName.indexOf(' ');
+        const firstName = spaceIdx > 0 ? fullName.slice(0, spaceIdx) : fullName;
+        const lastName = spaceIdx > 0 ? fullName.slice(spaceIdx + 1) : '';
+
+        const vars: Record<string, string> = { prenom: firstName, nom: lastName };
+
+        if (needsImportLink && user.email) {
+            try {
+                const invite = await externalAccessService.createInvite({
+                    userId: req.user.id,
+                    externalId: candidate._id,
+                    externalType: 'CANDIDATE',
+                    externalEmail: candidate.identity.email!,
+                    externalFirstName: firstName || 'Client',
+                    referenceId: 1,
+                    referenceKey: candidate._id,
+                });
+                if (invite.success) {
+                    vars.lien_import = invite.link;
+                }
+            } catch (err) {
+                logger.error({ err, id: candidate._id }, '[relance] import link creation failed');
+            }
+        }
+
+        const resolvedSubject = renderTemplate(template.subject, vars);
+        // Version texte dérivée du HTML résolu : évite un mail HTML-only (signal spam).
+        const resolvedBody = renderTemplate(template.body, vars);
+
         try {
             await gmailService.sendEmail(
                 { access_token: user.oauthToken, refresh_token: user.refreshToken },
                 {
                     to: candidate.identity.email!,
-                    subject: template.subject,
-                    html: `${template.body}${signatureHtml}`,
-                    text: bodyText,
+                    subject: resolvedSubject,
+                    html: `${resolvedBody}${signatureHtml}`,
+                    text: htmlToText(resolvedBody),
                     listUnsubscribe,
                     attachments,
                 },

@@ -1,6 +1,8 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
-import { Offer } from '../types/offer.types';
+import { Offer, AbStatus } from '../types/offer.types';
+import { NeedsAnalysisService } from './NeedsAnalysisService';
+import { logger } from '../external/logger';
 import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
 import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
@@ -9,7 +11,6 @@ import { OfferHistoryService } from './OfferHistoryService';
 import {
     InterviewConclusion,
     ImmersionConclusion,
-    Localisation,
     OfferStatus,
     MatchedCandidateStatus,
     MatchingCandidate,
@@ -21,10 +22,11 @@ import { isInterviewDatePast } from '../utils/interview';
 import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { regionFromSector } from '../utils/sector';
-import { ZONE_TO_COMMUNES } from './mappers/abToOffer';
 import { offerTpCodes, positionTpToGql } from './mappers/offer.mapper';
-import type { DriveRegion } from './DriveFolderConfigService';
+import { toScheduleSlotGql } from './mappers/needsAnalysis.mapper';
 import { buildMatchingLink } from '../utils/matchingLink';
+import { offerZones, communesForZones, ZONE_TO_TRAINING_SITE } from '../utils/zone';
+import type { Zone } from './mappers/abToOffer';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
 const PROPOSED_STATUSES = [
@@ -39,6 +41,9 @@ const INTERVIEW_CONCLUSION_TO_CANDIDATE_STATUS: Record<InterviewConclusion, Cand
     [InterviewConclusion.REJECTED]: CandidateStatus.SEEKING,
     [InterviewConclusion.IMMERSING]: CandidateStatus.IMMERSING,
     [InterviewConclusion.CONTRACT]: CandidateStatus.CONTRACT,
+    [InterviewConclusion.PRESENT]: CandidateStatus.SEEKING,
+    [InterviewConclusion.ABSENT]: CandidateStatus.SEEKING,
+    [InterviewConclusion.APPOINTMENT_CANCELLED]: CandidateStatus.SEEKING,
 };
 
 const IMMERSION_CONCLUSION_TO_CANDIDATE_STATUS: Record<ImmersionConclusion, CandidateStatus> = {
@@ -58,7 +63,7 @@ const MATCHED_STATUS_LABELS: Partial<Record<MatchedCandidateStatus, string>> = {
     [MatchedCandidateStatus.CONTRACT]: 'embauché',
 };
 
-function matchingCandidateToGql(mc: MatchingCandidate): object {
+function matchingCandidateToGql(mc: MatchingCandidate, cvById?: Record<string, boolean>): object {
     return {
         id: mc.id,
         fullName: mc.full_name,
@@ -72,6 +77,7 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
         identityDescription: mc.identity_description,
         comment: mc.comment,
         cvWebview: mc.cv_webview,
+        hasCv: cvById?.[mc.id ?? ''] ?? Boolean(mc.has_cv),
         interviewLocation: mc.interview_location,
         bookedInterviewSlot: mc.booked_interview_slot,
         interviewConclusion: mc.interview_conclusion,
@@ -82,9 +88,9 @@ function matchingCandidateToGql(mc: MatchingCandidate): object {
     };
 }
 
-function proposedCandidateToGql(pc: MatchingCandidate): object {
+function proposedCandidateToGql(pc: MatchingCandidate, cvById?: Record<string, boolean>): object {
     return {
-        ...matchingCandidateToGql(pc),
+        ...matchingCandidateToGql(pc, cvById),
         description: pc.description,
         comment: pc.comment,
         interviewLocation: pc.interview_location,
@@ -97,7 +103,7 @@ function proposedCandidateToGql(pc: MatchingCandidate): object {
     };
 }
 
-function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object {
+function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[], cvById?: Record<string, boolean>): object {
     const ageMin = offer.criteria?.age_min;
     const ageMax = offer.criteria?.age_max;
     const ageRange = ageMin != null && ageMax != null ? `${ageMin}-${ageMax}` : undefined;
@@ -111,27 +117,42 @@ function toGql(offer: Offer, suggestedCandidates?: MatchingCandidate[]): object 
         desiredTp: (offer.desired_tp ?? []).map(positionTpToGql),
         desiredSex: offer.criteria?.desired_sex ?? 'MIXTE',
         drivingLicencseB: offer.criteria?.driving_license ?? false,
+        hasVehicle: offer.criteria?.has_vehicle ?? false,
         professionalExperience: offer.criteria?.experience_required ?? false,
         status: offer.matching?.status ?? OfferStatus.NOT_MATCHED,
         localisation: offer.localisation,
         sector: null,
         matched: false,
-        matchedCandidate: candidates.map(matchingCandidateToGql),
-        suggestedCandidates: suggestedCandidates?.map(matchingCandidateToGql),
+        matchedCandidate: candidates.map((mc) => matchingCandidateToGql(mc, cvById)),
+        suggestedCandidates: suggestedCandidates?.map((mc) => matchingCandidateToGql(mc, cvById)),
         proposedCandidate: candidates
             .filter((c) => c.status && PROPOSED_STATUSES.includes(c.status))
-            .map(proposedCandidateToGql),
+            .map((pc) => proposedCandidateToGql(pc, cvById)),
         interviewSlots: offer.matching?.interview_slots,
         interviewLocation: offer.matching?.interview_location,
         salerInfo: offer.saler_info,
         referents: offer.referents
-            ? {
-                  isSame: offer.referents.is_same,
-                  legalReferents: offer.referents.legal_referents,
-                  recruitmentReferents: offer.referents.recruitment_referents,
-              }
+            ? (() => {
+                  const legal = offer.referents.legal_referents as any
+                  const recruit = offer.referents.recruitment_referents as any
+                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
+                  const actuallySame = !hasRecruit || (
+                      (recruit?.name ?? null) === (legal?.name ?? null) &&
+                      (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+                      (recruit?.email ?? null) === (legal?.email ?? null) &&
+                      (recruit?.function ?? null) === (legal?.function ?? null)
+                  )
+                  // Override stale is_same flag: if actual contact data differs, treat as distinct so both are shown.
+                  const isSame = actuallySame ? (offer.referents.is_same ?? true) : false
+                  return {
+                      isSame,
+                      legalReferents: legal,
+                      recruitmentReferents: recruit,
+                  }
+              })()
             : undefined,
         softSkills: offer.criteria?.soft_skills,
+        schedule: (offer.criteria?.schedule_options ?? []).map(toScheduleSlotGql),
         companyInfos: offer.company_infos
             ? { id: offer.company_infos.id, name: offer.company_infos.name, activities: offer.company_infos.activities }
             : null,
@@ -151,6 +172,7 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
         sex: c.identity.sex as Sex,
         status: MatchedCandidateStatus.PRE_SELECTED,
         identity_description: c.identity.description,
+        has_cv: Boolean(c.cv_link),
     };
 }
 
@@ -173,9 +195,47 @@ export class OfferService {
     private companiesService = new CompaniesService();
     private notificationService = new NotificationService();
     private userRepository = new UserRepository();
+    private needsAnalysisService = new NeedsAnalysisService();
 
-    async findAll(): Promise<object[]> {
-        const offers = await this.offerRepository.listMatchingOffers();
+    /**
+     * Statut effectif de l'AB avant mutation (best-effort, null si indisponible).
+     * Sert à détecter une réactivation (retour à ACTIVE) pour horodater
+     * `last_active_at` sans jamais faire échouer la mutation appelante.
+     */
+    private async captureAbStatus(needsAnalysisId: string | undefined): Promise<AbStatus | null> {
+        if (!needsAnalysisId) return null;
+        try {
+            return await this.needsAnalysisService.getAbStatus(needsAnalysisId);
+        } catch {
+            return null;
+        }
+    }
+
+    private async captureAbStatusByOfferId(
+        offerId: string,
+    ): Promise<{ needsAnalysisId: string; before: AbStatus | null } | null> {
+        const offer = await this.offerRepository.findById(offerId);
+        const needsAnalysisId = offer?.needs_analysis_id;
+        if (!needsAnalysisId) return null;
+        return { needsAnalysisId, before: await this.captureAbStatus(needsAnalysisId) };
+    }
+
+    private async stampActivationIfReactivated(
+        needsAnalysisId: string | undefined,
+        before: AbStatus | null,
+    ): Promise<void> {
+        if (!needsAnalysisId || !before || before === 'ACTIVE') return;
+        try {
+            await this.needsAnalysisService.refreshActivationStamp(needsAnalysisId, before);
+        } catch (err) {
+            logger.error({ err, needsAnalysisId }, '[Offer] Failed to refresh AB activation stamp');
+        }
+    }
+
+    async findAll(includeClosed = false): Promise<object[]> {
+        const offers = includeClosed
+            ? await this.offerRepository.listAllOffers()
+            : await this.offerRepository.listMatchingOffers();
         return offers.map((offer) => toGql(offer));
     }
 
@@ -194,56 +254,123 @@ export class OfferService {
         const offer = await this.offerRepository.findById(id);
         if (!offer) return null;
 
-        const filter: Record<string, any> = {};
-        filter['status'] = { $ne: CandidateStatus.CONTRACT };
+        const buildFilter = async (includeSectors: boolean): Promise<Record<string, any>> => {
+            const baseFilter: Record<string, any> = {};
+            baseFilter['status'] = CandidateStatus.SEEKING;
 
-        const tps = offerTpCodes(offer);
-        if (tps.length) filter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
-        if (offer.criteria?.driving_license) filter['identity.driving_license_b'] = true;
+            const tps = offerTpCodes(offer);
+            if (tps.length) baseFilter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
+            if (offer.criteria?.driving_license) baseFilter['identity.driving_license_b'] = true;
+            if (offer.criteria?.has_vehicle) baseFilter['identity.has_vehicle'] = true;
 
-        if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
-            filter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
-        }
+            if (offer.criteria?.age_min != null && offer.criteria?.age_max != null) {
+                baseFilter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
+            }
 
-        if (offer.company_infos?.activities?.length) {
-            filter['desired_sectors'] = { $in: offer.company_infos.activities };
-        }
+            // Le secteur d'activité est un critère de matching relâchable : si les
+            // seuls secteurs portés par l'offre sont des secteurs libres (saisis à
+            // la main dans l'AB, donc inconnus du référentiel candidat), aucun
+            // candidat ne peut correspondre. Dans ce cas on relance la recherche
+            // sans ce critère plutôt que de renvoyer une liste vide.
+            if (includeSectors && offer.company_infos?.activities?.length) {
+                baseFilter['desired_sectors'] = { $in: offer.company_infos.activities };
+            }
 
-        let geoFilter: Localisation[] = [];
-        if (offer.localisation?.length) geoFilter = [...offer.localisation];
+            // Filtrage géographique : un candidat n'est suggéré que si sa zone
+            // correspond à celle de l'offre ou qu'une commune de sa mobilité
+            // recoupe une commune de l'offre. La zone d'une offre est déduite de
+            // son secteur (NORD/OUEST/SUD) et/ou de ses communes (via
+            // ZONE_TO_COMMUNES) ; celle d'un candidat de ses sites de formation
+            // et/ou de sa mobilité.
+            const offerZoneSet = offerZones(offer);
+            const offerCommunes: string[] = offer.localisation ?? [];
+            const allowedTrainingSites = [...offerZoneSet]
+                .map((z: Zone) => ZONE_TO_TRAINING_SITE[z])
+                .filter(Boolean);
+            const allowedZoneCommunes = communesForZones(offerZoneSet);
 
-        if (userId) {
-            const user = await this.userRepository.findById(userId);
-            const userSectors = user?.sectors ?? null;
-            const sectors =
-                typeof userSectors === 'string'
-                    ? (() => {
-                          try {
-                              return JSON.parse(userSectors);
-                          } catch {
-                              return [];
-                          }
-                      })()
-                    : userSectors;
-            if (sectors?.length) {
-                const userCommunes = (sectors as string[])
-                    .map((s) => regionFromSector(s))
-                    .filter((r): r is DriveRegion => r !== undefined)
-                    .flatMap((r: DriveRegion) => ZONE_TO_COMMUNES[r]);
-                if (userCommunes.length) {
-                    geoFilter = geoFilter.length ? geoFilter.filter((c) => userCommunes.includes(c)) : userCommunes;
+            const geoClauses: Record<string, any>[] = [];
+            if (offerZoneSet.size > 0 || offerCommunes.length > 0) {
+                const or: Record<string, any>[] = [];
+                if (offerCommunes.length) or.push({ 'job_info.geographic_mobility': { $in: offerCommunes } });
+                if (allowedTrainingSites.length) {
+                    or.push({ training_site: { $in: allowedTrainingSites } });
+                    or.push({ training_sites: { $in: allowedTrainingSites } });
+                }
+                if (allowedZoneCommunes.length) or.push({ 'job_info.geographic_mobility': { $in: allowedZoneCommunes } });
+                if (or.length === 1) geoClauses.push(or[0]);
+                else if (or.length > 1) geoClauses.push({ $or: or });
+            }
+
+            // Filtre utilisateur : si l'appelant a des secteurs (RH mono-secteur),
+            // le candidat doit aussi appartenir à la zone de l'utilisateur.
+            // Sans cette clause, un RH Nord verrait des candidats Sud pour une offre Nord.
+            // Si les zones offre/utilisateur sont disjointes, le $and rend le résultat vide — c'est voulu.
+            if (userId) {
+                const user = await this.userRepository.findById(userId);
+                const userSectorsRaw = user?.sectors ?? null;
+                const sectors =
+                    typeof userSectorsRaw === 'string'
+                        ? (() => {
+                              try {
+                                  return JSON.parse(userSectorsRaw);
+                              } catch {
+                                  return [];
+                              }
+                          })()
+                        : userSectorsRaw;
+                if (Array.isArray(sectors) && sectors.length) {
+                    const userZones = new Set<Zone>();
+                    for (const s of sectors as string[]) {
+                        const r = regionFromSector(s);
+                        if (r) userZones.add(r as unknown as Zone);
+                    }
+                    if (userZones.size) {
+                        const userTrainingSites = [...userZones]
+                            .map((z: Zone) => ZONE_TO_TRAINING_SITE[z])
+                            .filter(Boolean);
+                        const userZoneCommunes = communesForZones(userZones);
+                        const userOr: Record<string, any>[] = [];
+                        if (userTrainingSites.length) {
+                            userOr.push({ training_site: { $in: userTrainingSites } });
+                            userOr.push({ training_sites: { $in: userTrainingSites } });
+                        }
+                        if (userZoneCommunes.length) userOr.push({ 'job_info.geographic_mobility': { $in: userZoneCommunes } });
+                        if (userOr.length === 1) geoClauses.push(userOr[0]);
+                        else if (userOr.length > 1) geoClauses.push({ $or: userOr });
+                    }
                 }
             }
+
+            if (!geoClauses.length) return baseFilter;
+            // baseFilter peut déjà contenir un $or (TP) : on combine via $and pour ne pas écraser.
+            if (Object.keys(baseFilter).length === 0) {
+                return geoClauses.length === 1 ? geoClauses[0] : { $and: geoClauses };
+            }
+            return { $and: [baseFilter, ...geoClauses] };
+        };
+
+        const hasSectors = Boolean(offer.company_infos?.activities?.length);
+        let sectorRelaxed = false;
+        let candidates = await this.candidateRepository.findByfilter(await buildFilter(true));
+
+        // Secteurs portés par l'offre mais sans aucun candidat correspondant
+        // (typiquement des secteurs libres non référencés) → on relâche le critère.
+        if (hasSectors && candidates.length === 0) {
+            candidates = await this.candidateRepository.findByfilter(await buildFilter(false));
+            sectorRelaxed = true;
         }
 
-        if (geoFilter.length) {
-            filter['job_info.geographic_mobility'] = { $in: geoFilter };
-        }
-
-        const candidates = await this.candidateRepository.findByfilter(filter);
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
 
-        const result = toGql(offer, suggestedCandidates) as Record<string, unknown>;
+        // Statut CV en direct (source de vérité = fiche candidat) pour les
+        // candidats déjà retenus, même si le snapshot de matching est plus ancien.
+        const matchedIds = (offer.matching?.candidates ?? []).map((c) => c.id).filter(Boolean);
+        const cvDocs = matchedIds.length ? await this.candidateRepository.findCvLinksByIds(matchedIds) : [];
+        const cvById = Object.fromEntries(cvDocs.map((d) => [String(d._id), Boolean(d.cv_link)]));
+
+        const result = toGql(offer, suggestedCandidates, cvById) as Record<string, unknown>;
+        result.relaxedCriteria = sectorRelaxed ? ['sector'] : [];
 
         const companyId = offer.company_infos?.id;
         if (companyId) {
@@ -260,18 +387,26 @@ export class OfferService {
 
     async update(id: string, data: any): Promise<object | null> {
         if (data.status) {
+            const captured = await this.captureAbStatusByOfferId(id);
             const offer = await this.offerRepository.setOfferStatus(id, data.status as OfferStatus);
+            await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
             return offer ? toGql(offer) : null;
         }
         return null;
     }
 
     async delete(id: string): Promise<boolean> {
-        return this.offerRepository.deleteById(id);
+        const captured = await this.captureAbStatusByOfferId(id);
+        const deleted = await this.offerRepository.deleteById(id);
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
+        return deleted;
     }
 
     async deleteByNeedsAnalysisId(needsAnalysisId: string): Promise<number> {
-        return this.offerRepository.deleteByNeedsAnalysisId(needsAnalysisId);
+        const before = await this.captureAbStatus(needsAnalysisId);
+        const count = await this.offerRepository.deleteByNeedsAnalysisId(needsAnalysisId);
+        await this.stampActivationIfReactivated(needsAnalysisId, before);
+        return count;
     }
 
     async findByNeedsAnalysisId(needsAnalysisId: string): Promise<object[]> {
@@ -302,25 +437,47 @@ export class OfferService {
     async removeCandidate(offerId: string, candidateId: string): Promise<object | null> {
         const candidate = await this.candidateRepository.findById(candidateId);
         const name = candidate?.identity?.full_name ?? candidateId;
+        const captured = await this.captureAbStatusByOfferId(offerId);
         const offer = await this.offerRepository.removeMatchedCandidate(offerId, candidateId);
         if (!offer) return null;
 
         await this.offerHistoryService.recordAuto(offerId, `Candidat ${name} retiré de l'offre`);
 
         const synced = await this.syncDerivedStatus(offerId, offer);
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
         return toGql(synced);
     }
 
     async unmatchAll(offerId: string): Promise<object | null> {
+        const captured = await this.captureAbStatusByOfferId(offerId);
         const offer = await this.offerRepository.clearMatchedCandidates(offerId);
         if (offer) {
             await this.offerHistoryService.recordAuto(offerId, "Tous les candidats ont été retirés de l'offre");
         }
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
         return offer ? toGql(offer) : null;
     }
 
     async getMatchedOfferIds(candidateId: string): Promise<string[]> {
         return this.offerRepository.findOfferIdsWithCandidate(candidateId);
+    }
+
+    async getCandidateSentCompanies(candidateId: string): Promise<object[]> {
+        const offers = await this.offerRepository.findWithCandidate(candidateId);
+        const sent: object[] = [];
+        for (const offer of offers) {
+            const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
+            if (!candidate?.status || !PROPOSED_STATUSES.includes(candidate.status)) continue;
+            sent.push({
+                offerId: offer._id,
+                companyName: offer.company_infos?.name ?? null,
+                status: candidate.status,
+                title: offer.title ?? null,
+                jobRole: offer.job_role ?? null,
+                needsAnalysisId: offer.needs_analysis_id ?? null,
+            });
+        }
+        return sent;
     }
 
     async getCandidatePlacement(candidateId: string): Promise<object | null> {
@@ -352,10 +509,15 @@ export class OfferService {
         if (kind === 'IMMERSING') {
             since = hit.pc.immersion_start_date ?? null;
         } else {
-            const entries = await this.candidateHistoryService.findByCandidate(candidateId);
-            const company = hit.offer.company_infos?.name;
-            const entry = company ? entries.find((e) => e.description?.includes(`contrat avec ${company}`)) : undefined;
-            since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
+            const candidate = await this.candidateRepository.findById(candidateId);
+            if (candidate?.contract_start_date) {
+                since = new Date(candidate.contract_start_date).toISOString();
+            } else {
+                const entries = await this.candidateHistoryService.findByCandidate(candidateId);
+                const company = hit.offer.company_infos?.name;
+                const entry = company ? entries.find((e) => e.description?.includes(`contrat avec ${company}`)) : undefined;
+                since = entry?.created_at ? new Date(entry.created_at).toISOString() : null;
+            }
         }
 
         return {
@@ -367,6 +529,7 @@ export class OfferService {
     }
 
     async updateMatchedCandidateStatus(offerId: string, candidateId: string, status: string): Promise<object | null> {
+        const captured = await this.captureAbStatusByOfferId(offerId);
         const offer = await this.offerRepository.setMatchedCandidateStatus(
             offerId,
             candidateId,
@@ -395,6 +558,7 @@ export class OfferService {
         }
 
         const synced = await this.syncDerivedStatus(offerId, offer);
+        await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
         return toGql(synced);
     }
 
@@ -478,7 +642,7 @@ export class OfferService {
         const proposed: MatchingCandidate = {
             ...candidateToMatchingCandidate(candidate),
             status: MatchedCandidateStatus.INTERVIEW,
-            booked_interview_slot: new Date(`${interviewDate}T${interviewHour}`).toISOString(),
+            booked_interview_slot: new Date(`${interviewDate}T${interviewHour}:00+04:00`).toISOString(),
             interview_location: interviewLocation,
         };
 
@@ -566,6 +730,8 @@ export class OfferService {
             throw new Error("Les dates d'immersion sont requises pour cette conclusion");
         }
 
+        const before = await this.captureAbStatus(offer.needs_analysis_id);
+
         const status =
             conclusion === InterviewConclusion.IMMERSING
                 ? MatchedCandidateStatus.IMMERSING
@@ -573,7 +739,11 @@ export class OfferService {
                   ? MatchedCandidateStatus.REFUSED
                   : conclusion === InterviewConclusion.CONTRACT
                     ? MatchedCandidateStatus.CONTRACT
-                    : undefined;
+                    : conclusion === InterviewConclusion.ABSENT
+                      ? MatchedCandidateStatus.REFUSED
+                      : conclusion === InterviewConclusion.APPOINTMENT_CANCELLED
+                        ? MatchedCandidateStatus.REFUSED
+                        : undefined;
         const updated = await this.offerRepository.setProposedCandidateConclusion(
             offerId,
             candidateId,
@@ -617,6 +787,8 @@ export class OfferService {
             );
         }
 
+        await this.stampActivationIfReactivated(offer.needs_analysis_id, before);
+
         return toGql(updated);
     }
 
@@ -635,6 +807,8 @@ export class OfferService {
         if (proposed.interview_conclusion !== InterviewConclusion.IMMERSING) {
             throw new Error("Ce candidat n'est pas en immersion");
         }
+
+        const before = await this.captureAbStatus(offer.needs_analysis_id);
 
         const updated = await this.offerRepository.setProposedCandidateImmersionConclusion(
             offerId,
@@ -674,6 +848,8 @@ export class OfferService {
             );
         }
 
+        await this.stampActivationIfReactivated(offer.needs_analysis_id, before);
+
         return toGql(updated);
     }
 
@@ -712,6 +888,12 @@ export class OfferService {
                 return `Entretien de ${candidateName} conclu : immersion du ${immersionStartDate} au ${immersionEndDate}`;
             case InterviewConclusion.CONTRACT:
                 return `Entretien de ${candidateName} conclu : embauche`;
+            case InterviewConclusion.PRESENT:
+                return `Entretien de ${candidateName} conclu : présent`;
+            case InterviewConclusion.ABSENT:
+                return `Entretien de ${candidateName} conclu : absent`;
+            case InterviewConclusion.APPOINTMENT_CANCELLED:
+                return `Entretien de ${candidateName} conclu : rendez-vous annulé`;
         }
     }
 
@@ -729,6 +911,12 @@ export class OfferService {
                 return `L'entretien c'est soldé par une immersion du ${immersionStartDate} au ${immersionEndDate} avec ${companyName}`;
             case InterviewConclusion.CONTRACT:
                 return `L'entretien c'est soldé par un contrat avec ${companyName}`;
+            case InterviewConclusion.PRESENT:
+                return `L'entretien s'est soldé par une présence de ${candidateName} chez ${companyName}`;
+            case InterviewConclusion.ABSENT:
+                return `L'entretien s'est soldé par une absence de ${candidateName} chez ${companyName}`;
+            case InterviewConclusion.APPOINTMENT_CANCELLED:
+                return `Le rendez-vous d'entretien entre ${candidateName} et ${companyName} a été annulé`;
         }
     }
 

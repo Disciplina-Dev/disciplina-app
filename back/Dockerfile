@@ -32,5 +32,7 @@ ENV NODE_ENV=production
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 RUN useradd -ms /bin/sh -u 1001 app
 COPY --from=build --chown=app:app /app/dist /app/dist
+# PDF statiques (mandat / catalogue) servis par /api/needs-analysis/signature/*
+COPY --from=build --chown=app:app /app/assets /app/assets
 USER app
 CMD [ "node", "dist/index.js" ]

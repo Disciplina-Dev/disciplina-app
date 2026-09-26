@@ -10,6 +10,7 @@ export enum Permission {
     EMPLOYEE = 'EMPLOYEE',
     RESPONSABLE = 'RESPONSABLE',
     ADMIN = 'ADMIN',
+    GUEST = 'GUEST',
 }
 
 // Rôles JWT-only : vivent uniquement dans le JWT, jamais persistés en base.
@@ -32,6 +33,8 @@ export interface User {
     password?: string;
 }
 
+import type { Region } from './tenant';
+
 export interface UserResponse {
     id: number;
     email: string;
@@ -41,6 +44,7 @@ export interface UserResponse {
     permission: Permission;
     sectors: string[] | null;
     googleConnected: boolean;
+    region: Region;
 }
 
 export interface DirectoryEntry {

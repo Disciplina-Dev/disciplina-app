@@ -8,9 +8,11 @@ import {
     DuplicatePedaLevelError,
     SystemTemplateError,
 } from '../../services/MailTemplateService';
+import { CommercialSignatureService } from '../../services/CommercialSignatureService';
 import { MailTemplateScope, PedaLevel, isPedaLevel } from '../../types/mailTemplate.types';
 
 const service = new MailTemplateService();
+const commercialSignatureService = new CommercialSignatureService();
 
 function parseScope(raw: unknown): MailTemplateScope {
     if (raw === 'commercial') return 'commercial';
@@ -91,7 +93,7 @@ export async function updateTemplate(req: AuthRequest, res: Response): Promise<v
         return;
     }
     try {
-        const template = await service.update(Number(req.user.id), req.params.id, {
+        const template = await service.update(Number(req.user.id), req.params.id as string, {
             name: String(name),
             subject: String(subject),
             body: String(body),
@@ -105,7 +107,7 @@ export async function updateTemplate(req: AuthRequest, res: Response): Promise<v
 
 export async function deleteTemplate(req: AuthRequest, res: Response): Promise<void> {
     try {
-        await service.remove(Number(req.user.id), req.params.id);
+        await service.remove(Number(req.user.id), req.params.id as string);
         res.status(204).end();
     } catch (err) {
         handleError(err, res);
@@ -122,7 +124,7 @@ export async function uploadAttachment(req: AuthRequest, res: Response): Promise
     try {
         const template = await service.setAttachment(
             Number(req.user.id),
-            req.params.id,
+            req.params.id as string,
             file.originalname,
             file.mimetype || 'application/octet-stream',
             file.buffer,
@@ -135,7 +137,7 @@ export async function uploadAttachment(req: AuthRequest, res: Response): Promise
 
 export async function deleteAttachment(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const template = await service.removeAttachment(Number(req.user.id), req.params.id);
+        const template = await service.removeAttachment(Number(req.user.id), req.params.id as string);
         res.json({ template });
     } catch (err) {
         handleError(err, res);
@@ -145,7 +147,7 @@ export async function deleteAttachment(req: AuthRequest, res: Response): Promise
 /** Renvoie le fichier original (décompressé, base64) pour l'attacher à un envoi. */
 export async function resolveAttachment(req: AuthRequest, res: Response): Promise<void> {
     try {
-        const attachment = await service.resolveAttachment(Number(req.user.id), req.params.id);
+        const attachment = await service.resolveAttachment(Number(req.user.id), req.params.id as string);
         res.json({ attachment });
     } catch (err) {
         handleError(err, res);
@@ -186,6 +188,34 @@ export async function deleteSignature(req: AuthRequest, res: Response): Promise<
     try {
         await service.removeSignature(Number(req.user.id), parseScope(req.query.scope));
         res.status(204).end();
+    } catch (err) {
+        handleError(err, res);
+    }
+}
+
+// ── Signature commerciale textuelle (section ajoutée au mail AB à signer) ──
+export async function getCommercialSignature(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const body = await commercialSignatureService.getForUser(Number(req.user!.id));
+        res.json({ body });
+    } catch (err) {
+        handleError(err, res);
+    }
+}
+
+export async function putCommercialSignature(req: AuthRequest, res: Response): Promise<void> {
+    const rawBody = (req.body as Record<string, unknown>)?.body;
+    if (typeof rawBody !== 'string' || !rawBody.trim()) {
+        res.status(400).json({ error: 'body est requis' });
+        return;
+    }
+    if (rawBody.length > 50_000) {
+        res.status(400).json({ error: 'body trop volumineux (max 50 000 caractères)' });
+        return;
+    }
+    try {
+        const body = await commercialSignatureService.setForUser(Number(req.user!.id), rawBody);
+        res.json({ body });
     } catch (err) {
         handleError(err, res);
     }

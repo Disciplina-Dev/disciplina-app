@@ -1,6 +1,8 @@
 import { Localisation } from './jobEnums'
+import { SECTEUR_LABELS, SECTEUR_KEY_BY_LABEL } from '@/constants/secteurs'
+import type { Secteur, SecteurKey } from '@/constants/secteurs'
 
-export type Region = 'NORD' | 'OUEST' | 'SUD'
+export type Region = SecteurKey
 
 export const REGION_COMMUNES: Record<Region, Localisation[]> = {
   NORD: [
@@ -37,14 +39,6 @@ export const REGION_COMMUNES: Record<Region, Localisation[]> = {
   ],
 }
 
-export const SECTOR_TO_REGION: Record<string, Region> = {
-  'Nord-Est': 'NORD',
-  Ouest: 'OUEST',
-  Sud: 'SUD',
-}
+export const SECTOR_TO_REGION: Record<Secteur, Region> = SECTEUR_KEY_BY_LABEL
 
-export const REGION_LABELS: Record<Region, string> = {
-  NORD: 'Nord',
-  OUEST: 'Ouest',
-  SUD: 'Sud',
-}
+export const REGION_LABELS: Record<Region, string> = SECTEUR_LABELS

@@ -75,7 +75,7 @@ export class SireneService {
             throw new Error(`INSEE API error: ${response.status}`);
         }
 
-        const raw: SireneRawResponse = await response.json();
+        const raw = (await response.json()) as SireneRawResponse;
         return this.mapToDomain(raw);
     }
 

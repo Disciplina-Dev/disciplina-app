@@ -5,6 +5,11 @@ import { CandidateHistoryService } from '../../services/CandidateHistoryService'
 import { OfferService } from '../../services/OfferService';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
+import { mcpToolScope } from '../rbac';
+import { JobRole, Permission } from '../../types/user.types';
+
+// Candidats : donnée RH (miroir des guards GraphQL candidate, majoritairement `[RH]`).
+const CANDIDATE_SCOPE = mcpToolScope(Permission.EMPLOYEE, [JobRole.RH]);
 
 const candidates = new CandidateService();
 const candidateHistory = new CandidateHistoryService();
@@ -16,6 +21,7 @@ export function registerCandidateTools(server: McpServer): void {
         'get_candidate',
         'Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.',
         { id: z.string().describe('Id du candidat (ObjectId Mongo)') },
+        CANDIDATE_SCOPE,
         async ({ id }) => toolResult(await candidates.findById(id)),
     );
 
@@ -28,6 +34,7 @@ export function registerCandidateTools(server: McpServer): void {
             first: z.number().int().positive().max(200).optional().describe('Nombre max (défaut 50)'),
             after: z.string().optional().describe('Cursor de pagination'),
         },
+        CANDIDATE_SCOPE,
         async ({ search, first, after }) => toolResult(await candidates.findPage(first ?? 50, after, search)),
     );
 
@@ -36,6 +43,7 @@ export function registerCandidateTools(server: McpServer): void {
         'get_candidate_by_email',
         'Récupère un candidat par son adresse email.',
         { email: z.string().describe('Email du candidat') },
+        CANDIDATE_SCOPE,
         async ({ email }) => toolResult(await candidates.findByEmail(email)),
     );
 
@@ -44,6 +52,7 @@ export function registerCandidateTools(server: McpServer): void {
         'list_candidate_history',
         "Historique / suivi RH d'un candidat (événements automatiques et manuels).",
         { candidateId: z.string().describe('Id du candidat') },
+        CANDIDATE_SCOPE,
         async ({ candidateId }) => toolResult(await candidateHistory.findByCandidate(candidateId)),
     );
 
@@ -52,6 +61,7 @@ export function registerCandidateTools(server: McpServer): void {
         'candidate_placement',
         "Placement courant d'un candidat (immersion ou contrat) dérivé des offres.",
         { candidateId: z.string().describe('Id du candidat') },
+        CANDIDATE_SCOPE,
         async ({ candidateId }) => toolResult(await offerService.getCandidatePlacement(candidateId)),
     );
 
@@ -60,6 +70,7 @@ export function registerCandidateTools(server: McpServer): void {
         'candidate_matched_jobs',
         'Ids des offres sur lesquelles le candidat est retenu (matché).',
         { candidateId: z.string().describe('Id du candidat') },
+        CANDIDATE_SCOPE,
         async ({ candidateId }) => toolResult(await offerService.getMatchedOfferIds(candidateId)),
     );
 }

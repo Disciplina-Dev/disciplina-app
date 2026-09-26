@@ -1,18 +1,23 @@
 import { Response } from 'express';
 import { UserService, roleToId, permissionToId } from '../../services/UserService';
+import { UserDeletionService, UserDeletionError } from '../../services/UserDeletionService';
 import { googleOAuth } from '../../external/google/oauth-client';
 import { signGoogleState, verifyGoogleState } from '../../external/crypto';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
+import { syncWithRegion, getRegion } from '../../db/tenant';
 import { toUserResponse, toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { sanitizeSectors } from '../../utils/sector';
 import { isValidEmail } from '../../services/validation';
 import { JobRole, Permission } from '../../types/user.types';
+import { isRegion } from '../../types/tenant';
+import { env } from '../../config/env';
 import { setAuthCookies, clearAuthCookies } from '../middleware/cookies';
 import { issueCsrfCookie } from '../middleware/csrf';
 import { REFRESH_TOKEN_COOKIE } from '../middleware/tokenAuth';
 
 const userService = new UserService();
+const userDeletionService = new UserDeletionService();
 
 // Gestion des secteurs : réservée à l'admin et au responsable.
 const SECTOR_MANAGER_PERMISSIONS: Permission[] = [Permission.ADMIN, Permission.RESPONSABLE];
@@ -27,7 +32,7 @@ export async function listUsers(req: AuthRequest, res: Response): Promise<void> 
             return;
         }
         const users = await userService.findAll();
-        res.json(users.map(toUserResponse));
+        res.json(users.map((u) => toUserResponse(u)));
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: listUsers failed');
         res.status(500).json({ error: error.message });
@@ -77,9 +82,18 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
             res.status(400).json({ error: 'Email and password are required' });
             return;
         }
-        const result = await userService.login(email, passwordPlain);
-        setAuthCookies(res, result.accessToken, result.refreshToken, issueCsrfCookie());
-        res.json({ user: toUserResponse(result.user) });
+        const region = req.body?.region;
+        if (region !== undefined && region !== '' && !isRegion(region)) {
+            res.status(400).json({ error: 'Invalid region: must be "reunion" or "annemasse"' });
+            return;
+        }
+        const { accessToken, refreshToken, user, region: userRegion } = await userService.login(
+            email,
+            passwordPlain,
+            isRegion(region) ? region : env.DB_DEFAULT_TENANT,
+        );
+        setAuthCookies(res, accessToken, refreshToken, issueCsrfCookie());
+        res.json({ user: toUserResponse(user, userRegion) });
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: login failed');
         res.status(401).json({ error: error.message || 'Invalid credentials' });
@@ -110,7 +124,7 @@ export async function refresh(req: AuthRequest, res: Response): Promise<void> {
             return;
         }
         setAuthCookies(res, result.accessToken, result.refreshToken, issueCsrfCookie());
-        res.json({ user: toUserResponse(result.user) });
+        res.json({ user: toUserResponse(result.user, result.region) });
     } catch (error: any) {
         logger.error({ err: error }, 'Auth: refresh failed');
         res.status(500).json({ error: 'Internal error' });
@@ -210,11 +224,39 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
     }
 }
 
+export async function deleteUser(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        if (req.user?.permission !== Permission.ADMIN) {
+            res.status(403).json({ error: 'Only admins can delete users' });
+            return;
+        }
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            res.status(400).json({ error: 'Invalid user id' });
+            return;
+        }
+        const replacementUserId = req.body?.replacementUserId;
+        if (replacementUserId !== undefined && (!Number.isInteger(replacementUserId) || replacementUserId <= 0)) {
+            res.status(400).json({ error: 'Invalid replacement user id' });
+            return;
+        }
+        const summary = await userDeletionService.deleteUser(req.user.id, id, replacementUserId);
+        res.json({ message: 'User deleted', ...summary });
+    } catch (error: any) {
+        if (error instanceof UserDeletionError) {
+            res.status(error.status).json({ error: error.message });
+            return;
+        }
+        logger.error({ err: error }, 'Auth: deleteUser failed');
+        res.status(500).json({ error: 'Internal error' });
+    }
+}
+
 export async function generateGoogleUri(req: AuthRequest, res: Response): Promise<void> {
     try {
         const targetUserId =
             req.body?.userId && req.user.permission === Permission.ADMIN ? req.body.userId : req.user.id;
-        const state = signGoogleState(targetUserId);
+        const state = signGoogleState(targetUserId, getRegion());
         const url = googleOAuth.generateAuthUrl(state);
         res.json({ url });
     } catch (error: any) {
@@ -258,10 +300,18 @@ export async function handleGoogleToken(req: AuthRequest, res: Response): Promis
             res.status(400).json({ error: 'Invalid state parameter' });
             return;
         }
-        const tokens = await googleOAuth.exchangeCode(code);
-        await userService.updateGoogleTokens(result.userId, tokens.access_token ?? null, tokens.refresh_token ?? null);
-        const user = await userService.findById(result.userId);
-        res.json(user ? toUserResponse(user) : null);
+        // Route non authentifiée (pas de JWT) → la région ne peut venir que du state.
+        // On la re-établit dans l'ALS pour que l'écriture des tokens cible la bonne base.
+        await syncWithRegion(result.region, async () => {
+            const tokens = await googleOAuth.exchangeCode(code);
+            await userService.updateGoogleTokens(
+                result.userId,
+                tokens.access_token ?? null,
+                tokens.refresh_token ?? null,
+            );
+            const user = await userService.findById(result.userId);
+            res.json(user ? toUserResponse(user) : null);
+        });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

@@ -1,6 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL;
+import { apiFetch } from '@/api/httpClient'
 
-export type MatchStatus = 'PENDING' | 'AUTHENTICATED' | 'COMPLETED' | 'LOCKED' | 'EXPIRED';
 // Choix UI de l'entreprise sur un candidat.
 export type ProposedAnswer = 'REFUSED' | 'ACCEPTED' | 'FAVORITE';
 // Statut de matching envoyé au backend (Accepter → entretien, Coup de cœur → immersion).
@@ -11,16 +10,6 @@ export const PROPOSED_ANSWER_TO_STATUS: Record<ProposedAnswer, CompanyDecision> 
   ACCEPTED: 'INTERVIEW',
   FAVORITE: 'IMMERSING',
 };
-
-export interface MatchInspectResult {
-  exists: boolean;
-  expired: boolean;
-  status: MatchStatus | null;
-}
-
-export type AuthenticateMatchResult =
-  | { ok: true; token: string }
-  | { ok: false; reason: 'invalid' | 'locked' | 'expired'; remaining?: number };
 
 export interface ProposedCandidateView {
   id: string;
@@ -51,17 +40,6 @@ export interface MatchAddressCompletionResult {
   results: string[];
 }
 
-async function matchFetch(path: string, init?: RequestInit, token?: string): Promise<Response> {
-  return fetch(`${API_BASE}/api/match${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-}
-
 async function expectOk(res: Response, context: string): Promise<Response> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -70,46 +48,30 @@ async function expectOk(res: Response, context: string): Promise<Response> {
   return res;
 }
 
-export async function inspectMatch(signature: string): Promise<MatchInspectResult> {
-  const res = await expectOk(await matchFetch(`/${signature}/inspect`), 'Vérification du lien échouée');
-  return (await res.json()) as MatchInspectResult;
-}
-
-export async function regenerateMatch(signature: string): Promise<void> {
-  await expectOk(await matchFetch(`/${signature}/regenerate`, { method: 'POST' }), 'Régénération du lien échouée');
-}
-
-export async function authenticateMatch(
-  signature: string,
-  code: string,
-  identifier: string,
-): Promise<AuthenticateMatchResult> {
-  const res = await matchFetch(`/${signature}/authenticate`, {
-    method: 'POST',
-    body: JSON.stringify({ code, identifier }),
-  });
-  if (res.ok) {
-    const body = (await res.json()) as { token: string };
-    return { ok: true, token: body.token };
+export class MatchAuthError extends Error {
+  constructor() {
+    super('Session expirée')
+    this.name = 'MatchAuthError'
   }
-  if (res.status === 401) {
-    const body = (await res.json().catch(() => ({}))) as { reason: 'invalid' | 'locked' | 'expired'; remaining?: number };
-    return { ok: false, reason: body.reason, remaining: body.remaining };
+}
+
+export class MatchCompletedError extends Error {
+  constructor() {
+    super('Session déjà finalisée')
+    this.name = 'MatchCompletedError'
   }
-  throw new Error(`Authentification échouée (${res.status})`);
 }
 
-export async function getMatchCandidates(signature: string, token: string): Promise<ProposedCandidateView[]> {
-  const res = await expectOk(
-    await matchFetch(`/${signature}/candidates`, undefined, token),
-    'Chargement des candidats échoué',
-  );
-  return (await res.json()) as ProposedCandidateView[];
+export async function getMatchCandidates(signature: string): Promise<ProposedCandidateView[]> {
+  const res = await apiFetch(`/api/external/${signature}/match/candidates`)
+  if (res.status === 401) throw new MatchAuthError()
+  const ok = await expectOk(res, 'Chargement des candidats échoué')
+  return (await ok.json()) as ProposedCandidateView[];
 }
 
-export async function getMatchCv(signature: string, candidateId: string, token: string): Promise<MatchCvFile> {
+export async function getMatchCv(signature: string, candidateId: string): Promise<MatchCvFile> {
   const res = await expectOk(
-    await matchFetch(`/${signature}/cv/${candidateId}`, undefined, token),
+    await apiFetch(`/api/external/${signature}/match/cv/${candidateId}`),
     'Chargement du CV échoué',
   );
   return (await res.json()) as MatchCvFile;
@@ -117,24 +79,23 @@ export async function getMatchCv(signature: string, candidateId: string, token: 
 
 export async function getMatchAddressCompletion(
   signature: string,
-  token: string,
   input: string,
 ): Promise<MatchAddressCompletionResult> {
-  const res = await matchFetch(
-    `/${signature}/completion?input=${encodeURIComponent(input)}`,
-    undefined,
-    token,
+  const res = await apiFetch(
+    `/api/external/${signature}/match/completion?input=${encodeURIComponent(input)}`,
   );
   return (await res.json()) as MatchAddressCompletionResult;
 }
 
 export async function submitMatchAnswers(
   signature: string,
-  token: string,
   answers: SubmitAnswerPayload[],
 ): Promise<void> {
-  await expectOk(
-    await matchFetch(`/${signature}/answers`, { method: 'POST', body: JSON.stringify({ answers }) }, token),
-    'Envoi des réponses échoué',
-  );
+  const res = await apiFetch(`/api/external/${signature}/match/answers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers }),
+  })
+  if (res.status === 409) throw new MatchCompletedError()
+  await expectOk(res, 'Envoi des réponses échoué')
 }

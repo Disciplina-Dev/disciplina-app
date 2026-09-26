@@ -459,11 +459,9 @@ def process_siren_group(cursor, siren, dig_companies, users, user_index, fallbac
                                        user_index, conflicts, counts, apply_changes)
             seen_sirets.add(siret)
         elif siret in seen_sirets:
-            duplicate = detect_duplicate_digiforma_siret(dig_company)
-            conflicts.append(duplicate)
-            counts["to_conflict"] += 1
-            if apply_changes:
-                insert_company_conflict(cursor, dig_company, duplicate["type"], duplicate["message"])
+            # Doublon SIRET côté Digiforma : la fiche principale est déjà au portefeuille
+            # (même SIRET). Conflit purement informatif — on ne le met PAS en quarantaine.
+            conflicts.append(detect_duplicate_digiforma_siret(dig_company))
         else:
             _process_new_company(cursor, dig_company, effective_user, user_index,
                                   conflicts, counts, apply_changes)
@@ -483,11 +481,10 @@ def _process_existing_company(cursor, local_row, dig_company, effective_user, us
                                 conflicts, counts, apply_changes):
     chosen_user, conflict = resolve_company_commercial(dig_company, effective_user, user_index)
     if conflict:
+        # Conflit informatif (commercial incohérent / inconnu) : l'entreprise est déjà au
+        # portefeuille (même SIRET) et le commercial a été corrigé ci-dessous. On le garde
+        # dans le rapport mais on ne l'écrit PAS dans company_conflict (impossible à résoudre).
         conflicts.append(conflict)
-        counts["to_conflict"] += 1
-        if apply_changes:
-            insert_company_conflict(cursor, dig_company, conflict["type"], conflict["message"],
-                                     user_id=chosen_user["id"] if chosen_user else None)
 
     diff = build_field_diff(local_row, dig_company)
     if chosen_user and chosen_user["id"] != local_row["user_id"]:
@@ -503,11 +500,10 @@ def _process_new_company(cursor, dig_company, effective_user, user_index,
                           conflicts, counts, apply_changes):
     chosen_user, conflict = resolve_company_commercial(dig_company, effective_user, user_index)
     if conflict:
+        # Conflit informatif (commercial incohérent / inconnu) : la société est importée
+        # ci-dessous avec le commercial retenu. On le garde dans le rapport mais on ne
+        # l'écrit PAS dans company_conflict (impossible à résoudre, SIRET déjà au portefeuille).
         conflicts.append(conflict)
-        counts["to_conflict"] += 1
-        if apply_changes:
-            insert_company_conflict(cursor, dig_company, conflict["type"], conflict["message"],
-                                     user_id=chosen_user["id"] if chosen_user else None)
 
     counts["to_insert"] += 1
     if apply_changes:

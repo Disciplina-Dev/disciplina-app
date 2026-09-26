@@ -11,6 +11,7 @@ export interface JobFilters {
   desiredTPs: string[]
   sectors: string[]
   localisations: string[]
+  administrationTypes: string[]
   tab: AbTab
 }
 
@@ -20,6 +21,7 @@ export const EMPTY_JOB_FILTERS: JobFilters = {
   desiredTPs: [],
   sectors: [],
   localisations: [],
+  administrationTypes: [],
   tab: 'ALL',
 }
 
@@ -30,6 +32,7 @@ export interface OfferFilterInput {
   sectors?: string[]
   localisations?: string[]
   abStatus?: AbStatus
+  administrationTypes?: string[]
 }
 
 export function toOfferFilterInput(filters: JobFilters, search: string): OfferFilterInput | undefined {
@@ -40,6 +43,7 @@ export function toOfferFilterInput(filters: JobFilters, search: string): OfferFi
     filters.desiredTPs.length > 0 ||
     filters.sectors.length > 0 ||
     filters.localisations.length > 0 ||
+    filters.administrationTypes.length > 0 ||
     Boolean(abStatus)
   if (!hasFilter) return undefined
   return {
@@ -48,6 +52,7 @@ export function toOfferFilterInput(filters: JobFilters, search: string): OfferFi
     desiredTp: filters.desiredTPs.length > 0 ? filters.desiredTPs : undefined,
     sectors: filters.sectors.length > 0 ? filters.sectors : undefined,
     localisations: filters.localisations.length > 0 ? filters.localisations : undefined,
+    administrationTypes: filters.administrationTypes.length > 0 ? filters.administrationTypes : undefined,
     abStatus,
   }
 }
@@ -80,6 +85,12 @@ export function applyJobFilters(jobs: Job[], filters: JobFilters): Job[] {
       if (!job.localisation || !job.localisation.some((l) => filters.localisations.includes(l))) {
         return false
       }
+    }
+
+    // Administration filter only applied when job carries administrationType (AB context). Skip otherwise.
+    if (filters.administrationTypes.length > 0) {
+      const admin = (job as any).administrationType as string | undefined
+      if (admin && !filters.administrationTypes.includes(admin)) return false
     }
 
     return true

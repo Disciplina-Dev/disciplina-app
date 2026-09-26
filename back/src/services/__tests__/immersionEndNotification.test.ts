@@ -31,7 +31,7 @@ async function seedCandidate(
     await repo.create({
         _id: id,
         candidate_id: id,
-        tp_type: TitleProfessionalType.CC,
+        tp_types: [TitleProfessionalType.CC],
         status: CandidateStatus.IMMERSING,
         identity: {
             full_name: `Candidat ${suffix}`,

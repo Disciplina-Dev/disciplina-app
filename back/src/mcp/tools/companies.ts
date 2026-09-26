@@ -6,6 +6,11 @@ import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistServ
 import { RelanceHistoryRepository } from '../../repositories/mysql/RelanceHistoryRepository';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
+import { mcpToolScope } from '../rbac';
+import { JobRole, Permission } from '../../types/user.types';
+
+// Fiches entreprises : donnée commerciale (miroir des guards GraphQL company).
+const COMPANY_SCOPE = mcpToolScope(Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
 
 const companies = new CompaniesService();
 const contactLogs = new ContactLogService();
@@ -18,6 +23,7 @@ export function registerCompanyTools(server: McpServer): void {
         'get_company',
         "Récupère la fiche entreprise complète par son id (MySQL) : raison sociale, SIRET, APE, adresse, secteur, référent, statut, conclusion, notes, relance.",
         { id: z.number().int().describe("Id numérique de l'entreprise") },
+        COMPANY_SCOPE,
         async ({ id }) => toolResult(await companies.findById(id)),
     );
 
@@ -30,6 +36,7 @@ export function registerCompanyTools(server: McpServer): void {
             first: z.number().int().positive().max(200).optional().describe('Nombre max (défaut 50)'),
             after: z.string().optional().describe('Cursor de pagination'),
         },
+        COMPANY_SCOPE,
         async ({ search, first, after }) => toolResult(await companies.findAll(first ?? 50, after, search)),
     );
 
@@ -38,6 +45,7 @@ export function registerCompanyTools(server: McpServer): void {
         'get_company_by_siret',
         'Récupère une fiche entreprise par son numéro SIRET.',
         { siret: z.string().describe('Numéro SIRET (14 chiffres)') },
+        COMPANY_SCOPE,
         async ({ siret }) => toolResult(await companies.findBySiret(siret)),
     );
 
@@ -46,6 +54,7 @@ export function registerCompanyTools(server: McpServer): void {
         'list_company_history',
         "Historique des modifications d'une fiche entreprise (audit trail).",
         { companyId: z.number().int().describe("Id de l'entreprise") },
+        COMPANY_SCOPE,
         async ({ companyId }) => toolResult(await companies.getHistory(companyId)),
     );
 
@@ -54,6 +63,7 @@ export function registerCompanyTools(server: McpServer): void {
         'list_contact_logs',
         "Journal des contacts / comptes-rendus d'appels commerciaux pour une entreprise.",
         { companyId: z.number().int().describe("Id de l'entreprise") },
+        COMPANY_SCOPE,
         async ({ companyId }) => toolResult(await contactLogs.getByCompany(companyId)),
     );
 
@@ -62,6 +72,7 @@ export function registerCompanyTools(server: McpServer): void {
         'list_relances',
         'Historique des relances (mail/téléphone) envoyées à une entreprise.',
         { companyId: z.number().int().describe("Id de l'entreprise") },
+        COMPANY_SCOPE,
         async ({ companyId }) => toolResult(await relanceRepo.findByCompanyId(companyId)),
     );
 
@@ -74,6 +85,7 @@ export function registerCompanyTools(server: McpServer): void {
             first: z.number().int().positive().max(200).optional(),
             after: z.string().optional(),
         },
+        COMPANY_SCOPE,
         async ({ search, first, after }) => toolResult(await blacklist.findAll(first ?? 50, after, search)),
     );
 }

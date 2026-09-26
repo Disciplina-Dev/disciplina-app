@@ -12,9 +12,8 @@ export type RhKpiColumn = (typeof RH_KPI_COLUMNS)[number];
 
 export type RhKpiMetrics = Record<RhKpiColumn, number>;
 
-/** Ligne brute de la table rh_kpi. */
+/** Ligne brute d'un bucket rh_kpi. */
 export interface RhKpiRow extends RhKpiMetrics {
-    id: number;
     user_id: number;
     sector: string;
     year: number;

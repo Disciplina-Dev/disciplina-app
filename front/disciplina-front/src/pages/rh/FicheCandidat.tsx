@@ -9,19 +9,22 @@ import {
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
+import CandidateSentCompaniesCallout from '@/features/candidats/components/CandidateSentCompaniesCallout'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
-import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
+import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate, useAddCandidateHistoryEntry } from '@/graphql/hooks'
 import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN } from '@/graphql/queries'
-import type { MailAttachment } from '@/store/mailTemplatesStore'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
+import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
 import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
 import { computeAge, isSenior } from '@/utils/age'
+import { gateThresholdForTps } from '@/utils/testGateThreshold'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
@@ -61,9 +64,9 @@ const getStatusLabel = (status: CandidateStatus): string => CANDIDATE_STATUS_LAB
 const getStatusColor = (status: CandidateStatus): string => CANDIDATE_STATUS_BADGE_CLASS[status]
 
 const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
-  [TrainingSite.NORD_SAINTE_MARIE]: 'Nord – Sainte-Marie',
-  [TrainingSite.OUEST_SAINT_PAUL]:  'Ouest – Saint-Paul',
-  [TrainingSite.SUD_SAINT_PIERRE]:  'Sud – Saint-Pierre',
+  [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} – Sainte-Marie`,
+  [TrainingSite.OUEST_SAINT_PAUL]:  `${SECTEUR_LABELS.OUEST} – Saint-Paul`,
+  [TrainingSite.SUD_SAINT_PIERRE]:  `${SECTEUR_LABELS.SUD} – Saint-Pierre`,
 }
 
 // Met en forme un enum SCREAMING_SNAKE en libellé lisible ("SAINT_DENIS" → "Saint Denis").
@@ -78,7 +81,7 @@ function buildCandidateSummary(c: Candidate): string {
 
   // Profil : nom, âge, ville, titre(s) visé(s), niveau d'études.
   const age = computeAge(c.identity.date_of_birth) ?? c.identity.age
-  const tps = (c.tp_types?.length ? c.tp_types : c.tp_type ? [c.tp_type] : []).join(', ')
+  const tps = (c.tp_types ?? []).join(', ')
   const profil = [
     c.identity.full_name,
     age != null ? `${age} ans` : null,
@@ -232,6 +235,12 @@ export default function FicheCandidat() {
   const testPassed =
     !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
 
+  // Modèles RH (chargés une fois, dédupés par le store) : sert à préremplir le
+  // mail d'import CV avec le modèle « Import CV » par défaut.
+  const { templates: rhTemplates, load: loadRhTemplates } = useMailTemplatesStore('rh')
+  useEffect(() => { loadRhTemplates() }, [loadRhTemplates])
+  const cvImportTemplateId = rhTemplates.find((t) => t.name === 'Import CV')?.id
+
   const [formData, setFormData] = useState<Candidate | null>(null)
   // Édition de la fiche = même formulaire que la création (modal). L'édition inline
   // n'est plus déclenchable : isEditing reste false (branches d'affichage uniquement).
@@ -274,6 +283,12 @@ export default function FicheCandidat() {
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null)
   const [revealedSsn, setRevealedSsn] = useState<string | null>(null)
   const [revealingSsn, setRevealingSsn] = useState(false)
+  const [ssnError, setSsnError] = useState<string | null>(null)
+  const [showPendingComment, setShowPendingComment] = useState(false)
+  const [pendingComment, setPendingComment] = useState('')
+  const [pendingCommentLoading, setPendingCommentLoading] = useState(false)
+  const [pendingCommentError, setPendingCommentError] = useState<string | null>(null)
+  const { addHistoryEntry } = useAddCandidateHistoryEntry()
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -282,14 +297,29 @@ export default function FicheCandidat() {
   // Ne jamais laisser le SSN en clair d'une fiche fuiter sur une autre.
   useEffect(() => {
     setRevealedSsn(null)
+    setSsnError(null)
   }, [id])
 
   const handleRevealSsn = async () => {
     if (!formData) return
     setRevealingSsn(true)
+    setSsnError(null)
     try {
       const result = await candidateGraphqlClient.query(UNMASK_SSN, { id: formData._id }).toPromise()
-      setRevealedSsn(result.data?.unmaskCandidateSsn ?? null)
+      // Sans ce contrôle, une erreur serveur laissait le champ sur "[chiffré]" sans
+      // aucun signal, ni en console, ni à l'écran.
+      if (result.error) {
+        setSsnError(result.error.graphQLErrors[0]?.message ?? 'Échec du déchiffrement du numéro de sécurité sociale.')
+        return
+      }
+      const ssn = result.data?.unmaskCandidateSsn ?? null
+      if (!ssn) {
+        setSsnError('Aucun numéro de sécurité sociale déchiffrable pour cette fiche.')
+        return
+      }
+      setRevealedSsn(ssn)
+    } catch (err) {
+      setSsnError(err instanceof Error ? err.message : 'Échec du déchiffrement du numéro de sécurité sociale.')
     } finally {
       setRevealingSsn(false)
     }
@@ -610,8 +640,15 @@ export default function FicheCandidat() {
         attachments: mail.attachments.length ? mail.attachments : undefined,
       }),
     })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error ?? "L'envoi du mail a échoué")
+    if (!res.ok) {
+      // Un 413 (corps trop volumineux) ou une coupure de proxy peut renvoyer un
+      // corps vide : ne jamais parser sans garde, sinon l'erreur affichée est
+      // « Unexpected end of JSON input » au lieu de la vraie cause.
+      const body = (await res.json().catch(() => null)) as { error?: string | { message?: string } } | null
+      const raw = body?.error
+      const message = typeof raw === 'string' ? raw : raw?.message
+      throw new Error(message ?? `L'envoi du mail a échoué (${res.status})`)
+    }
   }
 
   const handleDownloadPdf = async () => {
@@ -735,7 +772,7 @@ export default function FicheCandidat() {
                       {getStatusLabel(formData.status)}
                     </span>
                   </div>
-                  {(formData.tp_types?.length ? formData.tp_types : [formData.tp_type]).map(t => (
+                  {(formData.tp_types ?? []).map(t => (
                     <span key={t} className={`px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${TP_COLORS[t]}`}>
                       {t}
                     </span>
@@ -787,7 +824,7 @@ export default function FicheCandidat() {
                       </span>
                     ) : null
                   })()}
-                  {formData.immersion_agreement && (
+                  {formData.status === CandidateStatus.IMMERSING && formData.immersion_agreement && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 ring-1 ring-green-200">
                       Convention immersion signée
                     </span>
@@ -825,7 +862,7 @@ export default function FicheCandidat() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="secondary" leftIcon={<Edit2 size={15} />} onClick={() => setEditOpen(true)}>
-              Modifier
+              Compléter
             </Button>
             <Button
               size="sm"
@@ -842,6 +879,28 @@ export default function FicheCandidat() {
           <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
             <AlertCircle size={16} className="shrink-0" />
             {saveError}
+          </div>
+        )}
+
+        {/* ── Déjà envoyé en entreprise via le matching ── */}
+        {id && <CandidateSentCompaniesCallout candidateId={id} />}
+
+        {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-orange-700 font-bold text-sm">
+              <AlertCircle size={16} /> En attente de finalisation
+            </div>
+            <p className="text-sm text-gray-700">
+              Ce candidat est en « Test non réussi » (moyenne {formData.test_average != null ? `${Number(formData.test_average).toFixed(2)} / 20` : `< ${gateThresholdForTps(formData.tp_types)} / 20`}). Un commentaire sur les actions entreprises doit être saisi pour finaliser la fiche. Tant que ce commentaire n’est pas enregistré, la fiche reste en attente.
+            </p>
+            <p className="text-xs text-gray-500">
+              Moyenne calculée à partir de l’épreuve écrite ({formData.written_test_score ?? '—'} / 20) et du score ClassMarker. Vous pouvez compléter à tout moment.
+            </p>
+            <div>
+              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white" onClick={() => setShowPendingComment(true)}>
+                Ajouter le commentaire
+              </Button>
+            </div>
           </div>
         )}
 
@@ -925,7 +984,7 @@ export default function FicheCandidat() {
             <MatchedJobsList
               candidateId={id ?? ''}
               confirmedJobIds={confirmedJobIds}
-              candidateTpTypes={formData.tp_types?.length ? formData.tp_types : [formData.tp_type]}
+              candidateTpTypes={formData.tp_types ?? []}
             />
           </div>
 
@@ -944,24 +1003,27 @@ export default function FicheCandidat() {
                   <input className={inputCls} value={formData.identity.social_security_number ?? ''}
                     onChange={e => updateIdentity('social_security_number', e.target.value)} />
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
-                    {formData.identity.social_security_number && (
-                      <button
-                        type="button"
-                        disabled={revealingSsn}
-                        onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
-                        {revealingSsn ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : revealedSsn ? (
-                          <EyeOff size={12} />
-                        ) : (
-                          <Eye size={12} />
-                        )}
-                        {revealedSsn ? 'Masquer' : 'Afficher'}
-                      </button>
-                    )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
+                      {formData.identity.social_security_number && (
+                        <button
+                          type="button"
+                          disabled={revealingSsn}
+                          onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                          {revealingSsn ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : revealedSsn ? (
+                            <EyeOff size={12} />
+                          ) : (
+                            <Eye size={12} />
+                          )}
+                          {revealedSsn ? 'Masquer' : 'Afficher'}
+                        </button>
+                      )}
+                    </div>
+                    {ssnError && <p className="mt-1 text-xs text-red-500">{ssnError}</p>}
                   </div>
                 )}
               </Field>
@@ -1005,16 +1067,16 @@ export default function FicheCandidat() {
                     onChange={e => updateIdentity('postal_code', e.target.value)} />
                 ) : <p className={valueCls}>{formData.identity.postal_code || '—'}</p>}
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Permis B">
-                  {isEditing ? (
-                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
-                        onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
-                      <span className="text-sm text-gray-700">Oui</span>
-                    </label>
-                  ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
-                </Field>
+              <Field label="Permis B">
+                {isEditing ? (
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
+                      onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
+                    <span className="text-sm text-gray-700">Oui</span>
+                  </label>
+                ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
+              </Field>
+              <div className="ml-3 pl-4 border-l-2 border-gray-100">
                 <Field label="Véhiculé">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">
@@ -1613,6 +1675,15 @@ export default function FicheCandidat() {
                   ) : <p className={valueCls}>{formData.job_info?.discovery_source ? DISCOVERY_SOURCE_LABELS[formData.job_info.discovery_source] || prettyEnum(formData.job_info.discovery_source) : '—'}</p>}
                 </Field>
               </div>
+              <Field label="Sites / plateformes de recherche d'alternance">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.job_info?.job_search_platforms ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, job_info: { ...prev.job_info, job_search_platforms: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.job_info?.job_search_platforms || '—'}</p>}
+              </Field>
             </div>
           </Card>
 
@@ -1817,6 +1888,7 @@ export default function FicheCandidat() {
       {editOpen && (
         <CandidateFormModal
           candidate={formData}
+          requireGate
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             setFormData(null)
@@ -1829,6 +1901,7 @@ export default function FicheCandidat() {
         <MailModal
           defaultTo={formData.identity.email}
           candidateName={formData.identity.full_name}
+          defaultTemplateId={mailMode === 'cv-import' ? cvImportTemplateId : undefined}
           onCustomSend={mailMode === 'cv-import' ? handleSendCvImportMail : undefined}
           onClose={() => setMailMode(null)}
         />
@@ -1855,7 +1928,7 @@ export default function FicheCandidat() {
           onClose={() => setShowClassMarker(false)}
           firstName={first}
           lastName={last}
-          tpType={formData.tp_type}
+          tpTypes={formData.tp_types ?? []}
           candidateId={formData._id}
         />
       )}
@@ -1972,6 +2045,45 @@ export default function FicheCandidat() {
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setAiSummaryOpen(false)}>Annuler</Button>
               <Button variant="primary" size="sm" disabled={!aiSummaryText.trim()} onClick={handleSaveAiSummary}>Enregistrer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPendingComment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPendingComment(false)}>
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">Finaliser le test – commentaire</h3>
+            <p className="mt-1 text-sm text-gray-500">Décris les actions prises suite à l’échec (recontact, orientation, remédiation...). Ce commentaire sera enregistré dans l’historique du candidat.</p>
+            <div className="mt-4">
+              <textarea className={inputCls + ' resize-none'} rows={4} value={pendingComment} onChange={e => setPendingComment(e.target.value)} placeholder="Ex: Candidat informé de l’échec, proposé atelier de remise à niveau, suivi prévu..." />
+            </div>
+            {pendingCommentError && <p className="mt-2 text-xs text-red-500">{pendingCommentError}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowPendingComment(false)}>Annuler</Button>
+              <Button size="sm" isLoading={pendingCommentLoading} disabled={!pendingComment.trim()} onClick={async () => {
+                if (!pendingComment.trim() || !id) return;
+                setPendingCommentLoading(true);
+                setPendingCommentError(null);
+                try {
+                  const addRes = await addHistoryEntry(id, pendingComment.trim());
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if ((addRes as any)?.error) throw new Error(((addRes as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'));
+                  // also try to read new history to confirm
+                  const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id, input: { testFailurePending: false } });
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if ((upd as any)?.error) throw new Error(((upd as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'));
+                  setFormData(prev => prev ? { ...prev, test_failure_pending: false } as Candidate : prev);
+                  setShowPendingComment(false);
+                  setPendingComment('');
+                } catch (err) {
+                  setPendingCommentError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement');
+                } finally {
+                  setPendingCommentLoading(false);
+                }
+              }} className="bg-purple hover:bg-purple-dark text-white">
+                Enregistrer
+              </Button>
             </div>
           </div>
         </div>

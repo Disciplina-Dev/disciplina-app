@@ -7,13 +7,13 @@ import { CandidateService } from '../../services/CandidateService';
 import { CandidateRepository } from '../../repositories/mongo/CandidateRepository';
 import { PdfService } from '../../services/PdfService';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
+import { assertConsent, hasConsent, ConsentType } from '../../services/consentGuard';
 import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
 import { OllamaService } from '../../external/ollama/ollama.service';
-import { CandidateAvatarModel } from '../../db/mongo/schemas/candidate.schema';
+import { getModels } from '../../db/mongo/tenant';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
-import { file } from 'pdfkit';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -55,7 +55,7 @@ router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => 
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
@@ -85,7 +85,7 @@ router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Resp
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
@@ -151,7 +151,7 @@ router.post(
             return;
         }
 
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const fileBuffer = req.body as Buffer;
         const mimeType = (req.headers['content-type'] ?? '').split(';')[0].trim();
         const ext = CV_MIME_EXT[mimeType];
@@ -214,7 +214,7 @@ router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response)
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -265,7 +265,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -296,13 +296,17 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         // stockée (avatar_updated_at peut mentir sur des fiches legacy sans bytes
         // en base), on cherche un fichier "Photo_*" dans le dossier Drive et on
         // le met en cache comme avatar.
-        const hasStoredAvatar = await CandidateAvatarModel.exists({ candidate_id: id });
-        if (!hasStoredAvatar && !candidate.identity.drive_avatar_file_id) {
+        const hasStoredAvatar = await getModels().CandidateAvatar.exists({ candidate_id: id });
+        if (
+            !hasStoredAvatar &&
+            !candidate.identity.drive_avatar_file_id &&
+            hasConsent(candidate, [ConsentType.PHOTO_PROCESSING])
+        ) {
             const photoFile = files.find((f) => f.mimeType.startsWith('image/') && /^photo_/i.test(f.name));
             if (photoFile) {
                 try {
                     const { buffer, mimeType } = await driveService.downloadFile(photoFile.id);
-                    await CandidateAvatarModel.findOneAndUpdate(
+                    await getModels().CandidateAvatar.findOneAndUpdate(
                         { candidate_id: id },
                         { candidate_id: id, data: buffer, content_type: mimeType, updated_at: new Date() },
                         { upsert: true, new: true },
@@ -330,7 +334,7 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
         return;
     }
 
-    const { id, fileId } = req.params;
+    const { id, fileId } = req.params as { id: string; fileId: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -381,7 +385,7 @@ router.delete('/:id/drive-files/:fileId', authenticate, async (req: AuthRequest,
         return;
     }
 
-    const { id, fileId } = req.params;
+    const { id, fileId } = req.params as { id: string; fileId: string };
 
     try {
         const candidate = await candidateService.findById(id);
@@ -426,7 +430,7 @@ router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async 
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
@@ -477,7 +481,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const file = req.file;
 
     if (!file || file.size === 0) {
@@ -496,10 +500,11 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
             res.status(404).json({ error: 'Candidate not found' });
             return;
         }
+        assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
 
         const now = new Date();
 
-        await CandidateAvatarModel.findOneAndUpdate(
+        await getModels().CandidateAvatar.findOneAndUpdate(
             { candidate_id: id },
             { candidate_id: id, data: file.buffer, content_type: detectedMime, updated_at: now },
             { upsert: true, new: true },
@@ -522,7 +527,7 @@ router.post('/:id/avatar', authenticate, upload.single('photo'), async (req: Aut
                     const folderName = `${candidate.identity.full_name} - ${id.substring(0, 8)}`;
                     const folder = await driveService.createFolder(
                         folderName,
-                        await driveParentFolderForTp(candidate.tp_type, candidate.training_site),
+                        await driveParentFolderForTp(candidate.tp_types?.[0], candidate.training_site),
                     );
                     folderId = folder.id;
                     driveUpdate.drive_folder_id = folder.id;
@@ -564,9 +569,16 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
-        const cached = await CandidateAvatarModel.findOne({ candidate_id: id }).lean();
+        const candidate = await candidateService.findById(id);
+        if (!candidate) {
+            res.status(404).end();
+            return;
+        }
+        assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+
+        const cached = await getModels().CandidateAvatar.findOne({ candidate_id: id }).lean();
         if (cached) {
             const raw = cached.data as unknown as { buffer?: Buffer };
             const buf = Buffer.isBuffer(cached.data) ? cached.data : Buffer.from(raw.buffer ?? (cached.data as never));
@@ -574,12 +586,6 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
             res.setHeader('Content-Length', buf.length);
             res.setHeader('Cache-Control', 'private, max-age=3600');
             res.end(buf);
-            return;
-        }
-
-        const candidate = await candidateService.findById(id);
-        if (!candidate) {
-            res.status(404).end();
             return;
         }
 
@@ -614,7 +620,7 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
         // Cache for future requests (incl. the public route) — best-effort.
         try {
             const now = new Date();
-            await CandidateAvatarModel.findOneAndUpdate(
+            await getModels().CandidateAvatar.findOneAndUpdate(
                 { candidate_id: id },
                 { candidate_id: id, data: buffer, content_type: mimeType, updated_at: now },
                 { upsert: true },
@@ -639,7 +645,14 @@ router.get('/:id/avatar-file', authenticate, async (req: AuthRequest, res: Respo
 // Public: serve candidate avatar as an <img> source (no auth so it can be hot-linked).
 router.get('/:id/avatar', async (req, res: Response) => {
     try {
-        const avatar = await CandidateAvatarModel.findOne({ candidate_id: req.params.id }).lean();
+        const candidate = await candidateService.findById(req.params.id as string);
+        if (!candidate) {
+            res.status(404).end();
+            return;
+        }
+        assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+
+        const avatar = await getModels().CandidateAvatar.findOne({ candidate_id: req.params.id as string }).lean();
         if (!avatar) {
             res.status(404).end();
             return;
@@ -669,11 +682,18 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
             res.status(404).json({ error: 'Candidate not found' });
+            return;
+        }
+
+        try {
+            assertConsent(candidate, [ConsentType.AI_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+        } catch (err) {
+            res.status(403).json({ error: (err as Error).message });
             return;
         }
 
@@ -687,7 +707,7 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         if (i.driving_license_b) parts.push('Permis B : oui');
         if (i.has_vehicle) parts.push('Véhicule : oui');
 
-        const tps = (candidate.tp_types?.length ? candidate.tp_types : candidate.tp_type ? [candidate.tp_type] : []).join(', ');
+        const tps = (candidate.tp_types ?? []).join(', ');
         if (tps) parts.push(`Titres visés : ${tps}`);
 
         if (candidate.education?.school_level) parts.push(`Niveau d'études : ${candidate.education.school_level}`);
@@ -713,7 +733,8 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
         if (pp?.apprenticeship_motivation) parts.push(`Motivation : ${pp.apprenticeship_motivation}`);
 
         const j = candidate.job_info;
-        if (j?.availability_date) parts.push(`Disponible le : ${new Date(j.availability_date).toLocaleDateString('fr-FR')}`);
+        if (j?.availability_date)
+            parts.push(`Disponible le : ${new Date(j.availability_date).toLocaleDateString('fr-FR')}`);
         if (j?.geographic_mobility?.length) {
             const mob = j.geographic_mobility.join(', ');
             parts.push(`Mobilité : ${mob}`);
@@ -735,9 +756,11 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
                         // PDF uniquement (les CV importés sont en PDF)
                         if (meta.mimeType === 'application/pdf') {
                             const { buffer } = await driveService.downloadFile(fileId);
-                            const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
-                            const parsed = await pdfParse(buffer);
+                            const { PDFParse } = require('pdf-parse');
+                            const parser = new PDFParse({ data: buffer });
+                            const parsed = await parser.getText();
                             cvText = parsed.text?.trim() || null;
+                            await parser.destroy();
                         }
                     }
                 } catch (cvErr) {
@@ -748,20 +771,22 @@ router.post('/:id/generate-summary', authenticate, async (req: AuthRequest, res:
 
         const prompt = parts.join('\n') + (cvText ? `\n\n--- CONTENU DU CV ---\n${cvText}` : '');
         const systemRole = `You are an HR and recruitment assistant.
-
 Your task is to generate a professional summary of a candidate based exclusively on the information provided, including profile fields and the extracted contents of their resume/CV.
 
 Requirements:
+- Do not answer with a list.
 - Write in French.
 - Write in the third person.
 - Target the summary toward recruiters and companies.
-- Highlight the candidate's skills, experience, strengths, technologies, achievements, and professional value.
-- Make the summary compelling while remaining factual. Never invent, infer, or exaggerate information.
+- Structure the summary so that it follows this exact order of information: nom, prénom, âge, lieu d'habitation, titre préparé, mobilité (ex : possède le permis B, se déplace en transports en commun, etc.), un résumé de ses expériences, puis sa disponibilité (ex : à partir du 20/08/2026, disponible immédiatement, etc.).
+- Weave these elements into a smooth, natural paragraph rather than a list — the order matters, but the writing should still read as a coherent, flowing summary.
+- Highlight the candidate's skills, experience, strengths, technologies, achievements, and professional value within the "résumé des expériences" portion.
+- Make the summary compelling while remaining factual. Never invent, infer, or exaggerate information, base yourself only on the given information.
 - Use only professionally relevant information. Ignore personal details unless they directly relate to the candidate's professional profile.
 - Keep the summary concise (approximately 100-200 words).
 - Return only the summary text, without titles, bullet points, comments, or explanations.
 
-If the available information is insufficient, generate the best possible summary using only the provided professional data without mentioning missing information.`;
+If the available information is insufficient, generate the best possible summary using only the provided professional data without mentioning missing information. If a specific element (e.g., mobilité or disponibilité) is not available, simply omit it rather than noting its absence.`;
 
         const summary = await ollama.chat(prompt, systemRole, 'qwen2.5:3b');
 
@@ -785,13 +810,17 @@ router.post('/quick-create', express.json(), authenticate, async (req: AuthReque
         return;
     }
 
-    const { first_name, last_name, tp_type } = req.body ?? {};
+    const { first_name, last_name, tp_types } = req.body ?? {};
     if (!first_name?.trim() || !last_name?.trim()) {
         res.status(400).json({ error: 'first_name and last_name are required' });
         return;
     }
-    if (!Object.values(TitleProfessionalType).includes(tp_type)) {
-        res.status(400).json({ error: 'Invalid tp_type' });
+    if (
+        !Array.isArray(tp_types) ||
+        !tp_types.length ||
+        !tp_types.every((tp) => Object.values(TitleProfessionalType).includes(tp))
+    ) {
+        res.status(400).json({ error: 'Invalid tp_types' });
         return;
     }
     const fullName = `${first_name.trim()} ${last_name.trim()}`;
@@ -809,7 +838,7 @@ router.post('/quick-create', express.json(), authenticate, async (req: AuthReque
         const created = await candidateService.create({
             _id: id,
             candidate_id: id,
-            tp_type,
+            tp_types,
             status: CandidateStatus.SEEKING,
             identity: {
                 full_name: fullName,

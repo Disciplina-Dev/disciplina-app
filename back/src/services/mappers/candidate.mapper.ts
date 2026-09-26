@@ -43,8 +43,10 @@ export function candidateToGql(candidate: Candidate): any {
         // Rétro-compat : le statut "MATCHED" a été retiré ; les fiches legacy le portant
         // sont ramenées à "SEEKING" à la lecture (l'enum GraphQL ne l'accepte plus).
         status: (candidate.status as string) === 'MATCHED' ? CandidateStatus.SEEKING : candidate.status,
-        tpType: candidate.tp_type,
-        tpTypes: candidate.tp_types ?? (candidate.tp_type ? [candidate.tp_type] : []),
+        writtenTestScore: candidate.written_test_score ?? null,
+        testAverage: candidate.test_average ?? null,
+        testFailurePending: candidate.test_failure_pending ?? null,
+        tpTypes: candidate.tp_types ?? [],
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,
@@ -65,6 +67,16 @@ export function candidateToGql(candidate: Candidate): any {
               }
             : null,
         emergencyContact: candidate.emergency_contact ? snakeToCamelCase(candidate.emergency_contact) : null,
+        consentments: candidate.consentments
+            ? {
+                  ...snakeToCamelCase(candidate.consentments),
+                  // fiches legacy sans date/version : les champs GraphQL sont non-null
+                  consentDate: candidate.consentments.consent_date
+                      ? new Date(candidate.consentments.consent_date).toISOString()
+                      : '',
+                  consentVersion: candidate.consentments.consent_version ?? '',
+              }
+            : null,
         education: candidate.education ? snakeToCamelCase(candidate.education) : null,
         support: candidate.support ? snakeToCamelCase(candidate.support) : null,
         background: candidate.background ? snakeToCamelCase(candidate.background) : null,

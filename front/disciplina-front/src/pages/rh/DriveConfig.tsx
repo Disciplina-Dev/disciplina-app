@@ -3,11 +3,12 @@ import { FolderCog, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_DRIVE_FOLDER_CONFIG, UPDATE_DRIVE_FOLDER_CONFIG } from '@/graphql/queries'
+import { SECTEUR_KEYS, SECTEUR_LABELS } from '@/constants/secteurs'
 
 // Obligation : abréviations seules (AD, CC, NTC, REM, SA), pas de libellé long.
 const TP_ORDER = ['AD', 'CC', 'NTC', 'REM', 'SA']
-const REGIONS = ['NORD', 'OUEST', 'SUD']
-const REGION_LABELS: Record<string, string> = { NORD: 'Nord', OUEST: 'Ouest', SUD: 'Sud' }
+const REGIONS = SECTEUR_KEYS
+const REGION_LABELS: Record<string, string> = SECTEUR_LABELS
 
 const folderKey = (tp: string, region: string) => `${tp}_${region}`
 

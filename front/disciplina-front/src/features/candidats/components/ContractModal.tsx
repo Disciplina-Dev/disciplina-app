@@ -10,6 +10,7 @@ import {
 } from '@/graphql/queries'
 import { MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { OfferStatus } from '@/features/matching/constants/jobEnums'
+import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import { CompanySearchModal } from '@/features/matching/components/CompanySearchModal'
 import { useCurrentUser } from '@/store/authStore'
 import { useUpdateCandidate } from '@/graphql/hooks'
@@ -30,11 +31,12 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
 
   const [step, setStep] = useState<Step>('offer')
   const [selectedOffer, setSelectedOffer] = useState<MatchedOffer | null>(null)
+  const [isNonRenseigne, setIsNonRenseigne] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const candidateTpTypes = candidate.tp_types?.length ? candidate.tp_types : [candidate.tp_type]
+  const candidateTpTypes = candidate.tp_types ?? []
 
   const handleAbCreated = async (needsAnalysisId: string) => {
     setLoading(true)
@@ -47,6 +49,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
       const offer = result.data?.offersByNeedsAnalysis?.[0]
       if (!offer) throw new Error("Aucune offre n'a été créée pour cette AB.")
       setSelectedOffer(offer)
+      setIsNonRenseigne(false)
       setStep('date')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la création de l\'offre')
@@ -56,11 +59,32 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
     }
   }
 
+  const handleNonRenseigne = () => {
+    setSelectedOffer(null)
+    setIsNonRenseigne(true)
+    setStep('date')
+  }
+
   const handleConfirm = async () => {
-    if (!selectedOffer) return
+    if (!selectedOffer && !isNonRenseigne) return
     setLoading(true)
     setError('')
     try {
+      if (isNonRenseigne || !selectedOffer) {
+        const updated: Candidate = {
+          ...candidate,
+          status: CandidateStatus.CONTRACT,
+          contract_offer_id: undefined,
+          contract_company_id: undefined,
+          contract_company_name: 'Non renseigné',
+          contract_start_date: startDate || undefined,
+        }
+        await persistCandidate(candidate._id, updated)
+        onSuccess(updated)
+        onClose()
+        return
+      }
+
       const offerId = selectedOffer.id
       await offerGraphqlClient.mutation(ADD_CANDIDATE_TO_OFFER, { offerId, candidateId: candidate._id }).toPromise()
       await offerGraphqlClient
@@ -94,10 +118,13 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
         excludedJobIds={new Set()}
         candidateTpTypes={candidateTpTypes}
         singleSelect
+        allowAnyTpOnSearch
         footerAction={{ label: 'Offre introuvable ? Créer une entreprise', onClick: () => setStep('company') }}
+        onNonRenseigne={handleNonRenseigne}
         onConfirm={(jobs) => {
           if (jobs[0]) {
             setSelectedOffer(jobs[0])
+            setIsNonRenseigne(false)
             setStep('date')
           }
         }}
@@ -128,7 +155,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
         </div>
 
         <div className="flex flex-col gap-4 p-5">
-          {loading && step === 'date' && !selectedOffer ? (
+          {loading && step === 'date' && !selectedOffer && !isNonRenseigne ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 size={20} className="animate-spin text-blue" />
             </div>
@@ -138,9 +165,26 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-light text-blue">
                   <Briefcase className="h-4 w-4" />
                 </span>
-                <p className="text-sm font-semibold text-gray-900">
-                  {selectedOffer?.companyInfos?.name ?? selectedOffer?.companyName ?? 'Entreprise'}
-                </p>
+                <div className="flex flex-col">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {isNonRenseigne ? 'Non renseigné' : (selectedOffer?.companyInfos?.name ?? selectedOffer?.companyName ?? 'Entreprise')}
+                  </p>
+                  {!isNonRenseigne && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {(selectedOffer?.desiredTp ?? []).map(
+                        (tp) =>
+                          tp.tpType && (
+                            <span
+                              key={tp.tpType}
+                              className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                            >
+                              {TP_TYPE_LABELS[tp.tpType]}
+                            </span>
+                          ),
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -160,7 +204,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
 
         <div className="flex justify-between gap-2 border-t border-gray-100 p-4">
           <button
-            onClick={() => setStep('offer')}
+            onClick={() => { setIsNonRenseigne(false); setStep('offer') }}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
           >
             Retour

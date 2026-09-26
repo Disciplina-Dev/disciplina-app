@@ -10,9 +10,6 @@ const MAX_EMAIL_FIELD = 50_000;
 
 const needsAnalysisService = new NeedsAnalysisService();
 
-const SIGNATURE_PERMISSIONS: Permission[] = [Permission.RESPONSABLE, Permission.ADMIN];
-const SIGNATURE_JOB_ROLES: JobRole[] = [JobRole.COMMERCIAL];
-
 export async function downloadPdf(req: AuthRequest, res: Response): Promise<void> {
     const role = req.user?.role;
     const permission = req.user?.permission;
@@ -23,7 +20,7 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
         return;
     }
 
-    const id = req.params.id;
+    const id = req.params.id as string;
     if (!id) {
         res.status(400).json({ error: 'Invalid needs analysis ID' });
         return;
@@ -110,7 +107,7 @@ export async function sendSignature(req: AuthRequest, res: Response): Promise<vo
         return;
     }
 
-    const id = req.params.id;
+    const id = req.params.id as string;
     if (!id) {
         res.status(400).json({ error: 'Invalid needs analysis ID' });
         return;
