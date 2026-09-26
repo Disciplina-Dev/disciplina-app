@@ -40,7 +40,7 @@ docker compose up
 ### First startup
 
 1. DB init scripts run automatically (MySQL schema + MongoDB collections with `$jsonSchema`)
-2. `startup-script` seeds data from CSV files into both databases
+2. `startup-script` no longer seeds CSV data (tooling container only)
 3. Backend starts (4 Apollo GraphQL servers + REST routes)
 4. Frontend starts (React + Vite)
 
@@ -201,9 +201,7 @@ disciplina-app/
 ├── database/
 │   ├── mysql/            MySQL init SQL + persistent data volume
 │   └── mongodb/          MongoDB init JS with $jsonSchema validation
-├── scripts/              Python data import scripts
-│   ├── startup.py        Consolidated seed script (Docker entrypoint)
-│   └── resource/         CSV data files
+├── scripts/              Python tooling (seed annemasse test data, delete_companies)
 └── docker-compose.yaml   Orchestrates all 6 services
 ```
 
@@ -253,7 +251,7 @@ The ports shown are the **container** ports. Host-side ports come from `.env`
 ### Startup sequence
 
 1. **sql-db** + **nosql-db** initialize (schemas + collections created via `docker-entrypoint-initdb.d/`)
-2. **startup-script** runs — reads CSV files from `scripts/resource/`, imports data into both databases, then exits
+2. **startup-script** starts and exits immediately (no default job; tooling container)
 3. **backend** starts — 4 Apollo GraphQL servers + REST routes mounted on Express
 4. **frontend** starts — Vite dev server proxies requests to backend
 

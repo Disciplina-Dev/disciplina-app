@@ -5,12 +5,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY startup.py clean_companies.py import_company.py import_blacklist.py import_jobs.py ./
-COPY import_candidates.py ./
-COPY migrate_offers_to_ab.py migrate-position-desired-tp.js ./
-COPY normalize_legacy_offers.py sync_digiforma.py ./
+COPY delete_companies.py seed_annemasse_test_data.py ./
 COPY db/ ./db/
-COPY lib/ ./lib/
-COPY resources/ ./resources/
 
-CMD ["python", "-u", "startup.py"]
+# Plus de seed CSV au démarrage : le service sert de conteneur d'outillage
+# (`docker compose run --rm startup-script python -u <script>.py`, cf. HOWTODEPLOY.md).
+CMD ["python", "-c", "print('startup-script: aucun job par defaut - lancer delete_companies.py ou seed_annemasse_test_data.py')"]

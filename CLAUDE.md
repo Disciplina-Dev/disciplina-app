@@ -8,7 +8,7 @@ Polyrepo, no root package.json:
 - `back/` — Node.js + TypeScript, Express + 4 Apollo GraphQL servers + MCP server (`src/mcp/`, `POST /api/mcp`)
 - `front/disciplina-front/` — React 19 + Vite + TypeScript + Tailwind v4 + urql + Zustand + React Router v7
 - `database/` — MySQL (`database/mysql/`) and MongoDB (`database/mongodb/`) init scripts, seeds, migrations
-- `scripts/` — Python 3.12+ data import/seed scripts (`startup.py` is the Docker seed entrypoint)
+- `scripts/` — Python 3.12+ tooling: `seed_annemasse_test_data.py` (tenant annemasse test data) and `delete_companies.py`; no CSV seed at startup anymore (`startup.py` and `scripts/lib/` were removed)
 - `veille/` — separate side tooling (n8n + FreshRSS), not part of the main stack
 
 Always `cd back` or `cd front/disciplina-front` before running npm scripts — there is no root package.json.
@@ -35,7 +35,7 @@ Frontend (`front/disciplina-front/`):
 
 - `cp .env.example .env` (root, DB creds) — a second env file `back/.env.back.example` → `back/.env` holds app secrets (JWT_SECRET, MCP_API_KEY must be ≥32 chars, OAuth, DOCUSEAL, etc.)
 - `MYSQL_PASSWORD` is **required** in the root `.env` — the app runs as `disciplina_app`, not `root`. On a database created before that account existed, set `MYSQL_USER=root` until the account is created (`database/mysql/mysql-init.sql` carries the canonical grant set). See `back/CONVENTION.md` → *Least-privilege account* for the grant set and the two queries it forbids.
-- `docker compose up` — services: sql-db (MySQL), nosql-db (MongoDB), ollama (pulls `qwen2.5:3b`, slow first boot), backend, startup-script (idempotent CSV seed), frontend
+- `docker compose up` — services: sql-db (MySQL), nosql-db (MongoDB), ollama (pulls `qwen2.5:3b`, slow first boot), backend, startup-script (tooling container, no default job — run scripts with `docker compose run --rm startup-script python -u <script>.py`), frontend
 - Backend tests require live Dockerized DBs: `docker compose up -d sql-db nosql-db` first
 - **MySQL port gotcha**: three different ports depending on context — `sql-db:3306` inside the compose network, `3307` in `docker-compose.test.yml`/CI, `5001` for local host dev per `.env.back.example`. Mismatched ports are the most common cause of `npm test` failing in `back/`.
 
