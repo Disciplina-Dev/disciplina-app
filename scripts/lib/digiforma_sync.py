@@ -11,6 +11,10 @@ import unicodedata
 
 import requests
 
+# Secteur des entreprises synchronisees : secteur technique unique (annemasse n'a pas
+# de secteur metier, cf. AUDIT_MULTITENANT.md ; a revoir pour un multi-secteur reunion).
+DEFAULT_SECTOR = "Nord-Est"
+
 FALLBACK_USER_FIRST_NAME = "Disciplina"
 
 GRAPHQL_QUERY = """
@@ -382,7 +386,7 @@ def insert_company(cursor, dig_company, effective_user):
         normalize_phone(dig_company.get("phone")),
         dig_company.get("email") or None,
         build_address(dig_company),
-        "Nord-Est",
+        DEFAULT_SECTOR,
         dig_company.get("nace") or None,
         dig_siret,
         normalize_idcc(dig_company.get("idcc")),
@@ -412,7 +416,7 @@ def insert_company_conflict(cursor, dig_company, conflict_type, message, user_id
         normalize_phone(dig_company.get("phone")),
         dig_company.get("email") or None,
         build_address(dig_company) or None,
-        "Nord-Est",
+        DEFAULT_SECTOR,
         dig_company.get("nace") or None,
         dig_company.get("siret") or None,
         normalize_idcc(dig_company.get("idcc")),

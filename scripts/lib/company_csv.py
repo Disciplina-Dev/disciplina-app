@@ -9,6 +9,7 @@ placeholder when missing).
 import hashlib
 import re
 import unicodedata
+import warnings
 
 ZONE_NORD_EST = "Nord-Est"
 ZONE_OUEST = "Ouest"
@@ -16,7 +17,11 @@ ZONE_SUD = "Sud"
 DEFAULT_ZONE = ZONE_NORD_EST
 
 # Postal code -> commercial zone (validated against the data actually present in
-# the CSVs). Unknown/absent codes fall back to Nord-Est.
+# the CSVs). Absent/unknown 974xx codes fall back to Nord-Est WITH a warning; a
+# Haute-Savoie code (74xxx, tenant annemasse) maps to the technical sector Nord-Est
+# (annemasse has no business sector, cf. AUDIT_MULTITENANT.md); any other postal
+# code is out of scope and is reported by a warning (not a hard failure: the Docker
+# seed re-runs at every boot and the source CSVs are not versioned).
 POSTAL_TO_ZONE = {
     "97400": ZONE_NORD_EST, "97417": ZONE_NORD_EST, "97489": ZONE_NORD_EST,
     "97490": ZONE_NORD_EST, "97438": ZONE_NORD_EST, "97441": ZONE_NORD_EST,
@@ -109,10 +114,23 @@ def extract_fields(headers, values):
 
 
 def postal_to_zone(secteur_raw):
-    match = re.search(r"\b(974\d{2})\b", secteur_raw or "")
-    if not match:
+    text = secteur_raw or ""
+    match = re.search(r"\b(974\d{2})\b", text)
+    if match:
+        zone = POSTAL_TO_ZONE.get(match.group(1))
+        if zone is None:
+            warnings.warn(f"Code postal {match.group(1)} inconnu, secteur par defaut {DEFAULT_ZONE}")
+            return DEFAULT_ZONE
+        return zone
+    if re.search(r"\b74\d{3}\b", text):
         return DEFAULT_ZONE
-    return POSTAL_TO_ZONE.get(match.group(1), DEFAULT_ZONE)
+    other = re.search(r"\b\d{5}\b", text)
+    if other:
+        warnings.warn(f"Code postal hors perimetre (974xx / 74xxx) : {other.group(0)} dans {text!r}, secteur par defaut {DEFAULT_ZONE}")
+        return DEFAULT_ZONE
+    if text.strip():
+        warnings.warn(f"Aucun code postal dans {text!r}, secteur par defaut {DEFAULT_ZONE}")
+    return DEFAULT_ZONE
 
 
 def build_company_notes(secteur_raw, note_raw):

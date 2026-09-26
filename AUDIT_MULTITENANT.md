@@ -455,6 +455,13 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 - `GEO-11` : `SECTOR_SETTINGS_DEFAULTS` est par tenant ; Annemasse = une ligne `Nord-Est` / « Disciplina Annemasse » (lieu à renseigner). `runMysqlMigrations(…, region)` nettoie les lieux Réunion **restés intacts** dans une base Annemasse clonée (UPDATE/DELETE conditionnés à la valeur d'origine : une valeur personnalisée n'est jamais touchée) ; `mysql-init.sql` ne copie plus les 3 lignes Réunion. Vérifié sur un volume existant : Annemasse ramenée à 1 ligne, Réunion inchangée.
 - Suite backend 446/448 (mêmes 2 échecs préexistants), build front OK.
 
+**SEED-02..06 (2026-09-28)** : ces scripts n'ont pas de notion de tenant (ils alimentent la base Réunion ; seul `delete_companies.py` a `--tenant`). Le `Nord-Est` de repli n'est **pas faux pour Annemasse** (secteur technique unique, §8.5) mais il était silencieux :
+- `SEED-02` `company_csv.postal_to_zone` : 974xx connu → zone ; 74xxx → secteur technique ; code inconnu / hors périmètre / absent → repli **avec `warnings.warn`**. Volontairement pas d'exception : le seed CSV Docker rejoue à chaque boot et les CSV source ne sont pas versionnés (impossible de vérifier qu'aucune ligne ne planterait) — à durcir si tu le souhaites.
+- `SEED-03` `candidate_csv` : commune hors référentiel → avertissement au lieu du `'974'` silencieux (le référentiel candidat reste Réunion : import candidats Annemasse non supporté, à faire avec le référentiel par tenant).
+- `SEED-04` `recruitment_csv` : non modifié (4ᵉ copie des communes, import Réunion-only).
+- `SEED-05` `digiforma_sync` : `"Nord-Est"` extrait en constante `DEFAULT_SECTOR` documentée.
+- `SEED-06` `blacklist_csv` : `sud` ajouté.
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.
