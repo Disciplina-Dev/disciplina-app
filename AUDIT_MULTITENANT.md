@@ -175,7 +175,7 @@ Vérifié négativement : la règle attrape les 10 occurrences du code d'origine
 | ID | Sév. | Emplacement | Valeur en dur | Impact Annemasse |
 |---|---|---|---|---|
 | `ID-01` | **BLOQUANT** | `back/src/services/PdfService.ts:186-188` | `71 rue Roger Payet, Sainte-Marie 97438` · SIRET `97828986600011` · NDA `04973484197` · *« Préfet de région de Réunion »* · date de révision `25/02/2026` figée | Chaque PDF de convention / attestation Annemasse porte l'identité légale Réunion. |
-| `ID-02` | **BLOQUANT** | `back/src/services/PdfService.ts:508-546` | 3 sites (Sainte-Marie / Saint-Paul / Saint-Pierre) + **20 salariés nommés** avec emails `*.commercial@` / `*.rh@` / `*.administration@` / `*.pedagogie@` / `*.of@disciplina.re` et portables `0693…` | Page « Contacts » des PDF de besoin d'analyse : Annemasse reçoit les coordonnées du personnel réunionnais. |
+| `ID-02` | **BLOQUANT — CORRIGÉ** | `back/src/services/PdfService.ts:508-546` | 3 sites (Sainte-Marie / Saint-Paul / Saint-Pierre) + **20 salariés nommés** avec emails `*.commercial@` / `*.rh@` / `*.administration@` / `*.pedagogie@` / `*.of@disciplina.re` et portables `0693…` | Page « Contacts » des PDF de besoin d'analyse : Annemasse reçoit les coordonnées du personnel réunionnais. |
 | `ID-03` | **BLOQUANT** | `back/src/services/PdfService.ts:614-616` | `NORD_SAINTE_MARIE: 'Nord — Sainte-Marie'`, etc. | Les valeurs Annemasse tombent sur la clé d'énum brute. |
 | `ID-04` | **BLOQUANT** | `back/src/services/PdfService.ts:636-657` | map `SAINT_DENIS: 'Saint-Denis'` … 26 communes | `formatCommune()` dégrade proprement pour l'affichage, mais toute valeur Annemasse s'affiche en `ANNEMASSE` brut. |
 | `ID-05` | **BLOQUANT** | `back/assets/Mandat pour la publication d'une offre d'emploi (1).pdf` | `EURL DISCIPLINA`, SIRET `978 289 866 00011`, NDA `04 97 34841 97`, UAI `9741905C`, `71 rue Roger Payet … 97438` | Pièce jointe des enveloppes de signature, non substituable. **Contradiction interne** : le PDF dit `EURL`, la page légale `ID-09` dit `SARL`. |
@@ -426,6 +426,14 @@ Découpage en sous-étapes, **chacune validée séparément** :
 - `ID-13`/`ID-15` (dev-only / observabilité) et `GEO-12`/`GEO-14` (« fonctionne par accident ») classés BLOQUANT → sévérité à réévaluer.
 - Numéros de ligne à revérifier après `7a30cf39` avant chaque lot.
 - Adresse du site Annemasse, lieu de RDV, SIRET/RCS/capital/siège Annemasse si distincts : **données manquantes**, à fournir.
+
+### 8.4 Ajustements du Lot 2 (2026-09-28)
+
+- **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.
+- **Pas de table `tenant_profiles`** : même société, valeurs identiques ; un profil en code (`config/tenant.ts`, comme `TENANT_TIMEZONE`) suffit tant qu'aucune valeur ne diverge. À réévaluer quand les réponses §8.3 arrivent.
+- `ID-01` : SIRET/NDA/siège = ceux de la société (identiques) → pas un défaut tant que l'établissement n'a pas d'identité propre.
+- `ID-02` **CORRIGÉ** (`PdfService.contactsHtml()`) : Annemasse n'affiche plus que la fonction centrale ; ses contacts sont à fournir.
+- `ID-20` : requalifié en DETTE négligeable — backfill par email exact, une seule fois à la création de la colonne ; ne matche aucun user Annemasse.
 
 ### 8.3 À demander (2026-09-28)
 
