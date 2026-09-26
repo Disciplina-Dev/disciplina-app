@@ -11,7 +11,6 @@ positional map.
 
 import csv
 import re
-import warnings
 from datetime import datetime
 
 from lib.company_csv import remove_accents
@@ -133,15 +132,6 @@ def normalize_city(city):
 def normalize_token(value):
     cleaned = remove_accents(value or "").upper().replace('"', " ").replace("'", " ").replace("-", " ")
     return "_".join(cleaned.split())
-
-
-def _postal_code_for(city):
-    """Code postal d'une commune Reunion ; repli explicite (avertissement) sur '974'."""
-    postal = POSTAL_CODE_MAP.get(city)
-    if postal is None:
-        warnings.warn(f"Commune {city!r} hors referentiel Reunion, code postal '974' par defaut")
-        return "974"
-    return postal
 
 
 def normalize_loc_part(part):
@@ -472,7 +462,7 @@ def build_candidate(row, columns, config, run_date):
         "full_name": full_name,
         "city": city,
         "age": age,
-        "postal_code": _postal_code_for(city),
+        "postal_code": POSTAL_CODE_MAP.get(city, "974"),
         "phone": values["phone"].replace(" ", ""),
         "email": parse_email(values["email"]),
         "driving_license_b": is_yes(values["licence"]),

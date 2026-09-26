@@ -1,4 +1,6 @@
 import { Candidate, CandidateStatus } from '../../types/candidate.types';
+import { TENANT_DEFAULT_BIRTH_DEPARTMENT, TENANT_DIAL_CODE } from '../../config/tenant';
+import { getRegion } from '../../db/tenant';
 import { Offer } from '../../types/offer.types';
 import { FilizStudentInfos } from '../../external/filiz/type';
 import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
@@ -108,7 +110,9 @@ export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentIn
     const lastName = spaceIndex >= 0 ? fullName.slice(spaceIndex + 1) : '';
 
     const rawPhone = candidate.identity.phone ?? '';
-    const phoneNumber = rawPhone.replace(/\s/g, '').replace(/^(\+|00)\d{3}/, '');
+    const dialCode = TENANT_DIAL_CODE[getRegion()];
+    // Retire l'indicatif international du tenant (+262 / 0033…) ; un numéro national reste intact.
+    const phoneNumber = rawPhone.replace(/\s/g, '').replace(new RegExp(`^(\\+|00)${dialCode}`), '');
 
     const birthDate = candidate.identity.date_of_birth
         ? new Date(candidate.identity.date_of_birth).toLocaleDateString('en-US', {
@@ -132,9 +136,9 @@ export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentIn
         },
         birthDate,
         cityOfBirth: candidate.identity.place_of_birth ?? '',
-        departmentOfBirth: candidate.identity.department_of_birth ?? '97400',
+        departmentOfBirth: candidate.identity.department_of_birth ?? TENANT_DEFAULT_BIRTH_DEPARTMENT[getRegion()],
         nationality: 1,
-        phoneNumber: { dialCode: '262', number: phoneNumber },
+        phoneNumber: { dialCode, number: phoneNumber },
         sexe,
     };
 }

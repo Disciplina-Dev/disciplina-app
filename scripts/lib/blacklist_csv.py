@@ -11,7 +11,7 @@ import re
 
 from lib.company_csv import clean_text, remove_accents
 
-FILENAME_TO_ZONE = {"nord": "Nord-Est", "ouest": "Ouest", "sud": "Sud"}
+FILENAME_TO_ZONE = {"nord": "Nord-Est", "ouest": "Ouest"}
 
 NAME_MAX_LENGTH = 255
 
