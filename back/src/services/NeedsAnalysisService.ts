@@ -1,3 +1,5 @@
+import { sectorFromRegion } from '../utils/sector';
+import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
 import { randomUUID } from 'crypto';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
@@ -45,17 +47,10 @@ function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
     );
 }
 
-// Région de l'AB (NORD/OUEST/SUD) → libellé du secteur des users (Nord-Est/Ouest/Sud).
-const REGION_TO_USER_SECTOR: Record<string, string> = {
-    NORD: 'Nord-Est',
-    OUEST: 'Ouest',
-    SUD: 'Sud',
-};
-
 /** Vrai si l'utilisateur est rattaché au secteur de l'AB (ou n'a pas de secteur défini). */
 function userBelongsToSector(user: { sectors?: string | string[] | null }, region: string | undefined): boolean {
     if (!region) return true;
-    const sector = REGION_TO_USER_SECTOR[region];
+    const sector = sectorFromRegion(region as CompanyRegion);
     if (!sector) return true;
     const raw = user.sectors;
     const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? (JSON.parse(raw) as string[]) : [];

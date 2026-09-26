@@ -38,11 +38,14 @@ export function regionFromSector(sector?: string | null): DriveRegion | undefine
 }
 
 // Région de l'AB (NORD/OUEST/SUD) → secteur métier (Nord-Est/Ouest/Sud).
-// ANNEMASSE : pas de secteur (tenant sans découpage géographique).
-const REGION_TO_SECTOR: Partial<Record<CompanyRegion, Sector>> = {
+const REGION_TO_SECTOR: Record<CompanyRegion, Sector> = {
     [CompanyRegion.NORD]: 'Nord-Est',
     [CompanyRegion.OUEST]: 'Ouest',
     [CompanyRegion.SUD]: 'Sud',
+    // Annemasse n'a pas de secteur métier : ses users et entreprises portent la valeur
+    // technique unique 'Nord-Est' (défaut de colonne). On la mappe explicitement pour que
+    // Drive, notifications et liens AB fonctionnent, au lieu d'un repli silencieux.
+    [CompanyRegion.ANNEMASSE]: 'Nord-Est',
 };
 
 /** Secteur métier d'une AB, déduit de la région de l'entreprise. */

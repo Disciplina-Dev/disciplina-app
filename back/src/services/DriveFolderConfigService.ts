@@ -10,11 +10,12 @@ export const DRIVE_REGIONS = ['NORD', 'OUEST', 'SUD'] as const;
 export type DriveRegion = (typeof DRIVE_REGIONS)[number];
 
 // Le site de formation du candidat détermine sa région.
-// ANNEMASSE : pas de région Drive (pas de secteur) — résolue par le fallback.
-const SITE_TO_REGION: Partial<Record<TrainingSite, DriveRegion>> = {
+const SITE_TO_REGION: Record<TrainingSite, DriveRegion> = {
     [TrainingSite.NORD_SAINTE_MARIE]: 'NORD',
     [TrainingSite.OUEST_SAINT_PAUL]: 'OUEST',
     [TrainingSite.SUD_SAINT_PIERRE]: 'SUD',
+    // Annemasse : dossier unique, stocké sous la région technique NORD (cf. utils/sector.ts).
+    [TrainingSite.ANNEMASSE]: 'NORD',
 };
 
 /** Clé de stockage d'un dossier dans tpFolders : `${TP}_${REGION}` (ex: AD_NORD). */

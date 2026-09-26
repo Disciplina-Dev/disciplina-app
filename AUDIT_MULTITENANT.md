@@ -440,6 +440,10 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 - `GEO-07` : **l'asymétrie n'existe pas.** Push (`OfferService`) = mobilité ∈ communes de l'offre ∪ communes des zones de l'offre, ou site ∈ sites des zones ; pull (`CandidateService`) = commune commune, ou `candidateZones ∩ offerZones` (mobilité → zone incluse). Les deux sont équivalents (`mobilité ∈ communesForZones(z)` ⇔ `zonesFromCommunes(mobilité) ∋ z`). Constat de l'audit **infirmé**, rien à corriger.
 - `GEO-08` : `offerZones()` journalise les secteurs hors référentiel.
 
+**GEO-09..14 (2026-09-28) — correction d'une régression de mon lot 3.2 et décision « secteur technique unique »** : rendre `REGION_TO_SECTOR` partiel (Annemasse « sans secteur ») aurait fait perdre à Annemasse le lien Drive de l'AB signé et les notifications `ab_signed` (`sectorFromRegion` → `undefined`). Annemasse n'a pas de secteur *métier*, mais ses users/entreprises portent la valeur technique `Nord-Est` (défaut de colonne) ; elle est maintenant **mappée explicitement** (`CompanyRegion.ANNEMASSE → 'Nord-Est'`, `TrainingSite.ANNEMASSE → 'NORD'` pour le Drive) au lieu d'un repli silencieux. La 3ᵉ copie `REGION_TO_USER_SECTOR` est supprimée (`NeedsAnalysisService` utilise `sectorFromRegion`) ; `company/resolvers.ts` dérive ses secteurs de `SECTORS`. Suite backend : 446/448 (2 échecs préexistants, cf. plus haut).
+
+**Reste pour un vrai « sans secteur »** : sélecteurs de secteur front (`GEO-15`), onglets KPI Nord/Ouest/Sud (`GEO-04` côté KPI : `LIVE_SECTOR_TO_SITE`), `sector_settings` Annemasse (`GEO-11`), agenda (`GEO-12`, dégénère correctement à 1 secteur).
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.

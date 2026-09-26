@@ -1,3 +1,4 @@
+import { SECTORS, type Sector } from '../../utils/sector';
 import { CompaniesService } from '../../services/CompaniesService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
 import { CompanyConflictService } from '../../services/CompanyConflictService';
@@ -55,8 +56,8 @@ interface CompanyConflictInput {
     userId?: number | null;
 }
 
-const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
-const DEFAULT_SECTOR = 'Nord-Est';
+const ALLOWED_SECTORS = new Set<string>(SECTORS);
+const DEFAULT_SECTOR: Sector = 'Nord-Est';
 const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const DEFAULT_STATUS = 'À Réfléchir';
 
