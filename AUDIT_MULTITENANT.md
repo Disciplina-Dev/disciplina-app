@@ -457,6 +457,9 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 
 **SEED-02..06 (2026-09-28) — sans objet, code mort.** Vérification faite sur remarque de l'utilisateur : `startup.py` (cité dans `CLAUDE.md`) **n'existe plus** et `scripts/lib/{company_csv,candidate_csv,recruitment_csv,blacklist_csv,digiforma_sync,company_match,candidate_matcher}.py` ne sont importés par aucun point d'entrée (seulement entre eux). Une première correction de ces modules a été **annulée** (aucune valeur sur du code mort). Seuls `seed_annemasse_test_data.py` (`SEED-01`, corrigé) et `delete_companies.py` sont vivants. → `SEED-02..06` **clos** ; tout `scripts/lib/` **supprimé** (aucun consommateur vivant) ; `scripts/Dockerfile` réparé (il `COPY`ait des fichiers disparus depuis #785, le build échouait) ; `CLAUDE.md` et `README.md` mis à jour.
 
+**COS-03 / COS-04** : `Sidebar.tsx` (profil « Loic A. / loic@disciplina.fr » en dur) n'était utilisé que par `AppLayout.tsx`, lui-même importé nulle part → **code mort supprimé** (les layouts vivants lisent `useCurrentUser`). `mockCandidates.ts` supprimé plus tôt (§8.4/étape 1).
+**COS-07** : `mapCandidateToFilizStudent` — indicatif (`262` en dur + troncature de 3 chiffres qui aurait cassé un `+33`) et département par défaut désormais par tenant (`config/tenant.ts`), test `services/mappers/__tests__/filizStudent.test.ts`.
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.
