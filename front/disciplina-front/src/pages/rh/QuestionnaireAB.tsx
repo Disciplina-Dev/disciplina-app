@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { currentLocalisations, currentTrainingSites } from '@/lib/geoReferential'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Save, CheckCircle } from 'lucide-react'
 import InputField from '@/components/ui/InputField'
@@ -545,7 +546,7 @@ export default function QuestionnaireAB() {
         <Section title="Positionnement sur les sites de formation">
           <p className="mb-2 text-sm text-gray-500">Plusieurs sites possibles.</p>
           <div className="space-y-2">
-            {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([value, label]) => (
+            {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).filter(([k]) => currentTrainingSites().includes(k)).map(([value, label]) => (
               <label key={value} className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -724,7 +725,7 @@ export default function QuestionnaireAB() {
             <MultiSelectField
               id="geographic_mobility"
               label="Mobilité géographique"
-              options={Object.values(Localisation)}
+              options={currentLocalisations()}
               value={form.geographic_mobility}
               onChange={vals => set('geographic_mobility', vals as Localisation[])}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}

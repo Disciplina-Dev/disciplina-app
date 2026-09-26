@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { currentLocalisations, currentTrainingSites } from '@/lib/geoReferential'
 import { User, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
@@ -1160,7 +1161,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Site(s) de formation — choix multiple */}
           <ABSectionTitle title="Site de formation DISCIPLINA" />
           <div className="space-y-2">
-            {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([val, label]) => (
+            {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).filter(([k]) => currentTrainingSites().includes(k)).map(([val, label]) => (
               <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
                 <input
                   type="checkbox"
@@ -1274,7 +1275,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             <MultiSelectField
               id="cn-mob"
               label="Mobilité géographique"
-              options={Object.values(Localisation)}
+              options={currentLocalisations()}
               value={form.geographicMobility}
               onChange={vals => set('geographicMobility', vals as Localisation[])}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}

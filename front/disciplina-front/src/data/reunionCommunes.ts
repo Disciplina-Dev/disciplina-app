@@ -67,9 +67,19 @@ export const REUNION_POSTAL_TO_CITY: Record<string, string> = {
   '97438': 'Sainte-Marie',
 }
 
+/** Haute-Savoie (74) — communes des sites Annemasse (le formulaire propose aussi l'autocomplétion nationale). */
+export const ANNEMASSE_POSTAL_TO_CITY: Record<string, string> = {
+  '74100': 'Annemasse',
+  '74240': 'Gaillard',
+  '74380': 'Cranves-Sales',
+  '74200': 'Thonon-les-Bains',
+  '74500': 'Évian-les-Bains',
+}
+
 /** Renvoie la commune correspondant au code postal saisi, ou undefined. */
 export function cityFromPostalCode(postalCode: string): string | undefined {
-  return REUNION_POSTAL_TO_CITY[postalCode.trim()]
+  const code = postalCode.trim()
+  return REUNION_POSTAL_TO_CITY[code] ?? ANNEMASSE_POSTAL_TO_CITY[code]
 }
 
 /** Libellés FR des communes de La Réunion, indexés par l'enum `Localisation` (mobilité géographique). */
@@ -100,6 +110,7 @@ export const LOCALISATION_LABELS: Record<Localisation, string> = {
   [Localisation.LA_PLAINE_DES_PALMISTES]: 'La Plaine-des-Palmistes',
   [Localisation.SALAZIE]: 'Salazie',
   [Localisation.SAINTE_ANNE]: 'Sainte-Anne',
+  [Localisation.ANNEMASSE]: 'Annemasse',
 }
 
 /**

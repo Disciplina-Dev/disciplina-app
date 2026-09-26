@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { currentLocalisations } from '@/lib/geoReferential'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
@@ -18,8 +19,6 @@ import { ALL_SECTORS, SECTOR_LABELS } from '@/data/sectors'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-const COMMUNES = Object.values(Localisation)
 
 type DayStatus = 'OUI' | 'NON' | 'PREFERE'
 type TrainingDomain = 'SECRETARIAT' | 'VENTE'
@@ -1235,7 +1234,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     ))}
 
                     <CheckboxGroup label="Localisation du poste (communes) *"
-                      options={COMMUNES}
+                      options={currentLocalisations()}
                       selected={poste.localisation}
                       onChange={(v) => updatePoste(index, { localisation: v as Localisation[] })}
                       renderLabel={formatCommune}

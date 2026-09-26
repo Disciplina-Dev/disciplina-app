@@ -50,6 +50,7 @@ function parseSecteurValue(raw: string | null | undefined): string[] {
   if (!raw) return [DEFAULT_SECTEUR]
   const parts = raw.split(',').map((s) => s.trim()).filter(Boolean)
   const valid = parts.filter((s) => (SECTEUR_VALUES as string[]).includes(s))
+  if (!valid.length) console.warn(`[secteur] valeur hors référentiel remplacée par ${DEFAULT_SECTEUR} : ${raw}`)
   return valid.length ? valid : [DEFAULT_SECTEUR]
 }
 

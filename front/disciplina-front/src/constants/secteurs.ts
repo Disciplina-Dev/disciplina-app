@@ -39,6 +39,8 @@ export const TRAINING_SITE_SECTEUR_KEYS: Record<TrainingSite, SecteurKey> = {
   [TrainingSite.NORD_SAINTE_MARIE]: 'NORD',
   [TrainingSite.OUEST_SAINT_PAUL]: 'OUEST',
   [TrainingSite.SUD_SAINT_PIERRE]: 'SUD',
+  // Annemasse : pas de secteur métier ; clé technique unique (cf. back/src/utils/sector.ts).
+  [TrainingSite.ANNEMASSE]: 'NORD',
 }
 
 /** Clé secteur brute d'un site de formation (ou null si inconnu). */
@@ -48,6 +50,8 @@ export function secteurKeyOfTrainingSite(site?: TrainingSite | null): SecteurKey
 
 /** Libellé canonique du secteur d'un site de formation (ou null si inconnu). */
 export function secteurLabelOfTrainingSite(site?: TrainingSite | null): string | null {
+  // Annemasse n'a pas de secteur métier : on affiche le site, pas « Nord-Est ».
+  if (site === TrainingSite.ANNEMASSE) return 'Annemasse'
   const key = secteurKeyOfTrainingSite(site)
   return key ? SECTEUR_LABELS[key] : null
 }

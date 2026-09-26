@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { currentLocalisations, currentTrainingSites } from '@/lib/geoReferential'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
@@ -431,7 +432,7 @@ export default function ListeCandidats() {
               <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Secteur</label>
               <select value={filters.trainingSite} onChange={e => setFilters({ ...filters, trainingSite: e.target.value as TrainingSite })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
                 <option value="">Tous les secteurs</option>
-                {Object.values(TrainingSite).map(site => <option key={site} value={site}>{formatTrainingSite(site)}</option>)}
+                {currentTrainingSites().map(site => <option key={site} value={site}>{formatTrainingSite(site)}</option>)}
               </select>
             </div>
 
@@ -516,7 +517,7 @@ export default function ListeCandidats() {
               variant="filter"
               id="filter-geographic-mobility"
               label="Ville demandée (mobilité)"
-              options={Object.values(Localisation)}
+              options={currentLocalisations()}
               value={filters.geographicMobility ?? []}
               onChange={vals => setFilters({ ...filters, geographicMobility: vals as Localisation[] })}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}

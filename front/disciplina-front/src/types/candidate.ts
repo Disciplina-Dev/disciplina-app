@@ -47,7 +47,8 @@ export const SCHOOL_LEVEL_LABELS: Record<SchoolLevel, string> = {
 export enum TrainingSite {
     NORD_SAINTE_MARIE = "NORD_SAINTE_MARIE",
     OUEST_SAINT_PAUL = "OUEST_SAINT_PAUL",
-    SUD_SAINT_PIERRE = "SUD_SAINT_PIERRE"
+    SUD_SAINT_PIERRE = "SUD_SAINT_PIERRE",
+    ANNEMASSE = "ANNEMASSE"
 }
 
 export enum Localisation {
@@ -76,7 +77,8 @@ export enum Localisation {
     SAINT_ANDRE = "SAINT_ANDRE",
     LA_PLAINE_DES_PALMISTES = "LA_PLAINE_DES_PALMISTES",
     SALAZIE = "SALAZIE",
-    SAINTE_ANNE = "SAINTE_ANNE"
+    SAINTE_ANNE = "SAINTE_ANNE",
+    ANNEMASSE = "ANNEMASSE"
 }
 
 export enum SkillLevel {

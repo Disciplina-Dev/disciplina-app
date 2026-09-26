@@ -74,6 +74,7 @@ export enum Localisation {
   LA_PLAINE_DES_PALMISTES = 'LA_PLAINE_DES_PALMISTES',
   SALAZIE = 'SALAZIE',
   SAINTE_ANNE = 'SAINTE_ANNE',
+  ANNEMASSE = 'ANNEMASSE',
 }
 
 export const formatEnumLabel = (value: string): string => {

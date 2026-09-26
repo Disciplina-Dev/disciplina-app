@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { currentTrainingSites } from '@/lib/geoReferential'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
@@ -67,6 +68,7 @@ const TRAINING_SITE_LABELS: Record<TrainingSite, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} – Sainte-Marie`,
   [TrainingSite.OUEST_SAINT_PAUL]:  `${SECTEUR_LABELS.OUEST} – Saint-Paul`,
   [TrainingSite.SUD_SAINT_PIERRE]:  `${SECTEUR_LABELS.SUD} – Saint-Pierre`,
+  [TrainingSite.ANNEMASSE]:         'Annemasse',
 }
 
 // Met en forme un enum SCREAMING_SNAKE en libellé lisible ("SAINT_DENIS" → "Saint Denis").
@@ -1220,7 +1222,7 @@ export default function FicheCandidat() {
               <Field label="Site(s) de formation">
                 {isEditing ? (
                   <div className="flex flex-col gap-1.5">
-                    {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([k, v]) => {
+                    {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).filter(([k]) => currentTrainingSites().includes(k)).map(([k, v]) => {
                       const current = formData.training_sites ?? (formData.training_site ? [formData.training_site] : [])
                       const checked = current.includes(k)
                       return (

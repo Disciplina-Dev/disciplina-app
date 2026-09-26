@@ -444,6 +444,9 @@ Ajout de la valeur `ANNEMASSE` (zone unique, sans secteur) à `Localisation`, `T
 
 **Reste pour un vrai « sans secteur »** : sélecteurs de secteur front (`GEO-15`), onglets KPI Nord/Ouest/Sud (`GEO-04` côté KPI : `LIVE_SECTOR_TO_SITE`), `sector_settings` Annemasse (`GEO-11`), agenda (`GEO-12`, dégénère correctement à 1 secteur).
 
+**Front GEO-15/16 (2026-09-28, partiel)** : `ANNEMASSE` ajouté à `Localisation` (×2) et `TrainingSite` ; nouveau `lib/geoReferential.ts` (`currentLocalisations()` / `currentTrainingSites()`) qui ne propose à chaque tenant que sa part (Annemasse : 1 commune, 1 site ; Réunion : inchangé) dans les sélecteurs mobilité / site de formation (`CandidateFormModal`, `QuestionnaireAB`, `ListeCandidats`, `FicheCandidat`, `NeedsAnalysisModal`). `cityFromPostalCode` connaît 5 codes 74xxx. Libellé de site Annemasse = « Annemasse » (plus « Nord-Est », `COS-01` partiel). `parseSecteurValue` journalise la valeur hors référentiel (`GEO-15`). Build front OK ; **lint front non exécutable** (typescript-eslint vs TS 7) et **rendu non vérifié en navigateur**.
+**Reste** : sélecteurs de **secteur** (12 écrans) encore Nord-Est/Ouest/Sud pour Annemasse ; `REGION_COMMUNES` / `Relance.tsx` (`ZoneKey`) ; `DashboardRH` / KPI ; `COS-02` adresse du site ; les 3 autres `Localisation` non filtrées (`JobFilters`, `MatchedJobsList`, `JobSearchModal` affichent seulement des libellés, pas de liste).
+
 ### 8.4 Ajustements du Lot 2 (2026-09-28)
 
 - **URL unique** (décision §8.3) : les deux tenants sont servis par le même hôte → `ID-12` (URLs par tenant), `ID-13`, `ID-14`, `ID-15` **sans objet** ; `APP_BASE_URL`/`FRONTEND_BASE_URL` restent process-globaux. La région des liens externes est déjà portée par le suffixe de signature.
