@@ -202,6 +202,21 @@ export async function searchBySiren(req: AuthRequest, res: Response): Promise<vo
     }
 }
 
+export async function searchBySirenOrSiret(req: AuthRequest, res: Response): Promise<void> {
+    const { sirenOrSiret } = req.params as { sirenOrSiret: string };
+    if (/^\d{9}$/.test(sirenOrSiret)) {
+        (req.params as Record<string, string>).siren = sirenOrSiret;
+        await searchBySiren(req, res);
+        return;
+    }
+    if (/^\d{14}$/.test(sirenOrSiret)) {
+        (req.params as Record<string, string>).siret = sirenOrSiret;
+        await checkSiret(req, res);
+        return;
+    }
+    res.status(404).json({ error: 'SIREN ou SIRET invalide' });
+}
+
 export async function getCompletion(req: AuthRequest, res: Response): Promise<void> {
     try {
         const { input } = req.query;
