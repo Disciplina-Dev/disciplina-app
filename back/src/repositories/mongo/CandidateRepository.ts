@@ -174,6 +174,8 @@ export class CandidateRepository {
         if (filters?.schoolLevel) conditions.push({ 'education.school_level': filters.schoolLevel });
         if (filters?.drivingLicenseB !== undefined)
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
+        if (filters?.hasVehicle !== undefined) conditions.push({ 'identity.has_vehicle': filters.hasVehicle });
+        if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
         if (filters?.tpType?.length) conditions.push({ tp_types: { $in: filters.tpType } });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).

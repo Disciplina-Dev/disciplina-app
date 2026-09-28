@@ -12,6 +12,11 @@ import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { logger } from '../../external/logger';
+import { getRegion } from '../../db/tenant';
+import {
+    DEFAULT_ANNEMASSE_COMPANY_SECTOR,
+    sanitizeCompanySectors,
+} from '../../utils/sector';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
@@ -55,21 +60,13 @@ interface CompanyConflictInput {
     userId?: number | null;
 }
 
-const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
 const DEFAULT_SECTOR = 'Nord-Est';
 const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const DEFAULT_STATUS = 'À Réfléchir';
 
 function normalizeSector(raw: string | string[] | null | undefined): string {
-    let parts: string[] = [];
-    if (Array.isArray(raw)) {
-        parts = raw.map((s) => String(s).trim()).filter(Boolean);
-    } else if (typeof raw === 'string') {
-        parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
-    }
-    const valid = parts.filter((s) => ALLOWED_SECTORS.has(s));
-    const unique = [...new Set(valid)];
-    if (unique.length === 0) return DEFAULT_SECTOR;
+    const unique = [...new Set(sanitizeCompanySectors(raw))];
+    if (unique.length === 0) return getRegion() === 'annemasse' ? DEFAULT_ANNEMASSE_COMPANY_SECTOR : DEFAULT_SECTOR;
     return unique.join(', ');
 }
 
@@ -84,8 +81,7 @@ function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConf
         if (input.sector === null || input.sector === '') {
             row.sector = null;
         } else {
-            const parts = String(input.sector).split(',').map((s) => s.trim()).filter(Boolean);
-            const valid = parts.filter((s) => ALLOWED_SECTORS.has(s));
+            const valid = sanitizeCompanySectors(input.sector);
             row.sector = [...new Set(valid)].join(', ') || null;
         }
     }
@@ -302,6 +298,10 @@ export const resolvers = {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const rowData = mapInputToRow(input);
+            // Secteur omis : défaut du tenant (la colonne MySQL retomberait
+            // sinon sur 'Nord-Est' même pour Annemasse). En update, un secteur
+            // omis ne doit au contraire jamais écraser la valeur stockée.
+            if (rowData.sector === undefined) rowData.sector = normalizeSector(undefined);
             if (context.user.role === JobRole.COMMERCIAL) {
                 rowData.user_id = context.user.id;
             } else if (rowData.user_id === undefined) {

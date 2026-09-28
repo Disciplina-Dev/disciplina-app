@@ -24,7 +24,9 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
-import { STATUS_VALUES, SECTEUR_VALUES } from '@/types/entreprise'
+import { STATUS_VALUES } from '@/types/entreprise'
+import { ALL_COMPANY_SECTEURS, companySecteursForRegion } from '@/constants/secteurs'
+import { useRegionStore } from '@/store/regionStore'
 import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
@@ -164,6 +166,8 @@ export default function EntreprisePage() {
   const [banOpen, setBanOpen] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
   const [contactRefresh, setContactRefresh] = useState(0)
+  const region = useRegionStore((s) => s.region)
+  const secteurOptions = companySecteursForRegion(region)
 
   const stateEntreprise = location.state?.entreprise as Entreprise | undefined
   const baseEntreprise: Entreprise | undefined =
@@ -402,7 +406,7 @@ export default function EntreprisePage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Secteur</p>
                     <div className="flex flex-wrap gap-2">
-                      {SECTEUR_VALUES.map((s) => {
+                      {secteurOptions.map((s) => {
                         const secteurs = (draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean)
                         const active = secteurs.includes(s)
                         return (
@@ -411,9 +415,14 @@ export default function EntreprisePage() {
                             type="button"
                             onClick={() => {
                               const current = (draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean)
-                              const valid = current.filter((x) => (SECTEUR_VALUES as string[]).includes(x))
+                              const valid = current.filter((x) => (ALL_COMPANY_SECTEURS as string[]).includes(x))
                               const next = active ? valid.filter((x) => x !== s) : [...valid, s]
-                              const ordered = SECTEUR_VALUES.filter((v) => next.includes(v))
+                              // Valeurs du tenant d'abord, puis les valeurs stockées
+                              // hors vocabulaire (jamais perdues à l'édition).
+                              const ordered = [
+                                ...secteurOptions.filter((v) => next.includes(v)),
+                                ...next.filter((v) => !secteurOptions.includes(v)),
+                              ]
                               set('secteur', ordered.length ? ordered.join(', ') : '')
                             }}
                             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
