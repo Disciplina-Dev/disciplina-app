@@ -71,24 +71,24 @@ export default function KpiYearComparison({ year, current, previous }: Props) {
   return (
     <div className="space-y-4">
       {/* ─── Tableau comparatif ──────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
+      <div className="overflow-hidden rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/60">
-                <th className="px-4 py-3 text-left font-semibold text-gray-500">Année</th>
+              <tr className="border-b border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+                <th className="px-4 py-3 text-left font-semibold text-[var(--ds-text-subtle)]">Année</th>
                 {MONTH_LABELS.map((m) => (
-                  <th key={m} className="whitespace-nowrap px-3 py-3 text-right font-semibold uppercase text-gray-500">
+                  <th key={m} className="whitespace-nowrap px-3 py-3 text-right font-semibold uppercase text-[var(--ds-text-subtle)]">
                     {m}
                   </th>
                 ))}
-                <th className="whitespace-nowrap px-4 py-3 text-right font-semibold uppercase text-gray-500">Total</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right font-semibold uppercase text-[var(--ds-text-subtle)]">Total</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.label} className="border-b border-gray-50 last:border-0">
-                  <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-gray-900">{row.label}</td>
+                <tr key={row.label} className="border-b border-[var(--ds-border)] last:border-0">
+                  <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-[var(--ds-text)]">{row.label}</td>
                   {[...row.values, row.total].map((value, i) => (
                     <td
                       key={i}
@@ -107,7 +107,7 @@ export default function KpiYearComparison({ year, current, previous }: Props) {
       </div>
 
       {/* ─── Diagramme en bâtons N-1 vs N ────────────────────────────────── */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
+      <div className="rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }} barGap={2}>
@@ -153,6 +153,6 @@ function formatCell(kind: 'value' | 'delta' | 'percent', value: number | null): 
 }
 
 function cellColor(kind: 'value' | 'delta' | 'percent', value: number | null): string {
-  if (kind === 'value' || value == null || value === 0) return value === 0 && kind !== 'value' ? 'text-gray-300' : 'text-gray-900'
-  return value > 0 ? 'text-success' : 'text-danger'
+  if (kind === 'value' || value == null || value === 0) return value === 0 && kind !== 'value' ? 'text-[var(--ds-text-subtle)]' : 'text-[var(--ds-text)]'
+  return value > 0 ? 'text-[var(--ds-success)]' : 'text-[var(--ds-danger)]'
 }

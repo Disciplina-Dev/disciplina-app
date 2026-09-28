@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useQuery, useMutation } from 'urql'
-import { Search, Plus, Folder, X, ChevronDown } from 'lucide-react'
+import { IconChevronDown, IconClose, IconFolder, IconPlus, IconSearch } from '@/components/ui/icons'
 import type { TodoGroup } from './types'
 import {
   MY_TODO_GROUPS_QUERY,
@@ -102,10 +102,10 @@ export default function GroupSelector({ value, onChange, forUserId, accent = '#1
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-between rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm text-[var(--ds-text)] bg-[var(--ds-surface)] focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <span className="flex items-center gap-2 truncate">
-          <Folder size={12} className="text-gray-400 flex-shrink-0" />
+          <IconFolder width={12} height={12} className="text-[var(--ds-text-subtle)] flex-shrink-0" />
           <span className="truncate">{selectedGroup ? selectedGroup.name : 'Sans groupe'}</span>
         </span>
         <span className="flex items-center gap-1 flex-shrink-0 ml-2">
@@ -123,28 +123,28 @@ export default function GroupSelector({ value, onChange, forUserId, accent = '#1
                   onChange(null)
                 }
               }}
-              className="p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+              className="p-0.5 rounded hover:bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
               title="Retirer le groupe"
             >
-              <X size={12} />
+              <IconClose width={12} height={12} />
             </span>
           )}
-          <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <IconChevronDown width={14} height={14} className={`text-[var(--ds-text-subtle)] transition-transform ${open ? 'rotate-180' : ''}`} />
         </span>
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="absolute z-20 mt-1 w-full bg-[var(--ds-surface)] rounded-xl shadow-lg border border-[var(--ds-border)] overflow-hidden">
           {/* Search bar + + button */}
-          <div className="flex items-center gap-1 p-2 border-b border-gray-100">
+          <div className="flex items-center gap-1 p-2 border-b border-[var(--ds-border)]">
             <div className="relative flex-1">
-              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+              <IconSearch width={12} height={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--ds-text-subtle)]" />
               <input
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Rechercher..."
-                className="w-full pl-7 pr-2 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-1 placeholder-gray-400"
+                className="w-full pl-7 pr-2 py-1.5 text-sm rounded-lg border border-[var(--ds-border)] focus:outline-none focus:ring-1 placeholder-gray-400"
                 style={{}}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && canCreate) {
@@ -162,14 +162,14 @@ export default function GroupSelector({ value, onChange, forUserId, accent = '#1
               style={{ backgroundColor: accent }}
               title={canCreate ? `Créer "${search.trim()}"` : 'Saisissez un nouveau nom'}
             >
-              <Plus size={16} />
+              <IconPlus width={16} height={16} />
             </button>
           </div>
 
           {/* List */}
           <div className="max-h-48 overflow-auto py-1">
             {fetching && groups.length === 0 && (
-              <div className="px-3 py-2 text-xs text-gray-400">Chargement...</div>
+              <div className="px-3 py-2 text-xs text-[var(--ds-text-subtle)]">Chargement...</div>
             )}
 
             {/* Ungrouped option */}
@@ -179,9 +179,9 @@ export default function GroupSelector({ value, onChange, forUserId, accent = '#1
                 onChange(null)
                 setOpen(false)
               }}
-              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2 ${value == null ? 'bg-gray-50 font-semibold' : 'text-gray-700'}`}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--ds-surface-sunken)] flex items-center gap-2 ${value == null ? 'bg-[var(--ds-surface-sunken)] font-semibold' : 'text-[var(--ds-text-muted)]'}`}
             >
-              <span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-[var(--ds-border-strong)] flex-shrink-0" />
               Sans groupe
             </button>
 
@@ -193,15 +193,15 @@ export default function GroupSelector({ value, onChange, forUserId, accent = '#1
                   onChange(g.id)
                   setOpen(false)
                 }}
-                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2 truncate ${value === g.id ? 'bg-gray-50 font-semibold text-gray-900' : 'text-gray-700'}`}
+                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--ds-surface-sunken)] flex items-center gap-2 truncate ${value === g.id ? 'bg-[var(--ds-surface-sunken)] font-semibold text-[var(--ds-text)]' : 'text-[var(--ds-text-muted)]'}`}
               >
-                <Folder size={12} className="text-gray-400 flex-shrink-0" />
+                <IconFolder width={12} height={12} className="text-[var(--ds-text-subtle)] flex-shrink-0" />
                 <span className="truncate">{g.name}</span>
               </button>
             ))}
 
             {filtered.length === 0 && !fetching && (
-              <div className="px-3 py-3 text-xs text-gray-400 text-center">
+              <div className="px-3 py-3 text-xs text-[var(--ds-text-subtle)] text-center">
                 Aucun groupe
                 {canCreate && <div className="mt-1">Appuyez sur + pour créer "{search.trim()}"</div>}
               </div>

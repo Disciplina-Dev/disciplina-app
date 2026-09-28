@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, History, Trash2 } from 'lucide-react'
+import { IconChevronDown, IconHistory, IconTrash } from '@/components/ui/icons'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useOfferHistory, useAddOfferHistoryEntry, useDeleteOfferHistoryEntry } from '@/graphql/hooks'
@@ -52,10 +52,10 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
   const visibleHistory = filter === 'all' ? history : history.filter(isManualEntry)
 
   return (
-    <div className="border-t border-gray-100 pt-4 mt-4">
+    <div className="border-t border-[var(--ds-border)] pt-4 mt-4">
       <div className="flex items-center gap-3 mb-3">
-        <History className="w-5 h-5 text-blue" />
-        <h3 className="text-base font-semibold text-gray-900">Historique du poste</h3>
+        <IconHistory className="w-5 h-5 text-blue" />
+        <h3 className="text-base font-semibold text-[var(--ds-text)]">Historique du poste</h3>
       </div>
 
       {!expanded ? (
@@ -64,7 +64,7 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
           onClick={handleToggle}
           className="flex items-center gap-2 text-blue font-semibold text-sm py-2 px-3 rounded-lg border border-blue-light bg-blue-light/50 hover:bg-blue-light cursor-pointer transition-colors"
         >
-          <ChevronDown className="w-4 h-4" />
+          <IconChevronDown className="w-4 h-4" />
           Voir l'historique
         </button>
       ) : (
@@ -75,7 +75,7 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
               onChange={(e) => setText(e.target.value)}
               placeholder="Ajouter une note à l'historique..."
               rows={2}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue/20 resize-none"
+              className="w-full rounded-lg border border-[var(--ds-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue/20 resize-none"
             />
             <Button size="sm" onClick={handleAddNote} disabled={!text.trim()}>
               Ajouter
@@ -89,21 +89,21 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
           )}
 
           {!loading && history.length === 0 && (
-            <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Aucun historique</p>
+            <div className="text-center py-6 px-4 bg-[var(--ds-surface-sunken)] rounded-lg">
+              <p className="text-sm text-[var(--ds-text-muted)]">Aucun historique</p>
             </div>
           )}
 
           {!loading && history.length > 0 && (
             <>
-              <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit" role="tablist" aria-label="Filtrer l'historique">
+              <div className="flex items-center gap-1 bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg p-1 w-fit" role="tablist" aria-label="Filtrer l'historique">
                 <button
                   type="button"
                   role="tab"
                   aria-selected={filter === 'all'}
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors cursor-pointer ${
-                    filter === 'all' ? 'bg-white text-blue shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
+                    filter === 'all' ? 'bg-[var(--ds-surface)] text-blue shadow-sm border border-[var(--ds-border)]' : 'text-[var(--ds-text-muted)] hover:text-[var(--ds-text)]'
                   }`}
                 >
                   Tout ({history.length})
@@ -114,7 +114,7 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
                   aria-selected={filter === 'notes'}
                   onClick={() => setFilter('notes')}
                   className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors cursor-pointer ${
-                    filter === 'notes' ? 'bg-white text-blue shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
+                    filter === 'notes' ? 'bg-[var(--ds-surface)] text-blue shadow-sm border border-[var(--ds-border)]' : 'text-[var(--ds-text-muted)] hover:text-[var(--ds-text)]'
                   }`}
                 >
                   Notes ({manualCount})
@@ -122,8 +122,8 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
               </div>
 
               {visibleHistory.length === 0 ? (
-                <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Aucune note</p>
+                <div className="text-center py-6 px-4 bg-[var(--ds-surface-sunken)] rounded-lg">
+                  <p className="text-sm text-[var(--ds-text-muted)]">Aucune note</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -133,12 +133,12 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
                     return (
                       <div
                         key={entry.id}
-                        className={`border rounded-lg px-4 py-3 ${isAuto ? 'bg-gray-50 border-gray-200' : 'bg-blue-light/60 border-blue-light'}`}
+                        className={`border rounded-lg px-4 py-3 ${isAuto ? 'bg-[var(--ds-surface-sunken)] border-[var(--ds-border)]' : 'bg-blue-light/60 border-blue-light'}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">{entry.text}</p>
-                            <p className="text-xs text-gray-600 mt-1">
+                            <p className="text-sm font-medium text-[var(--ds-text)]">{entry.text}</p>
+                            <p className="text-xs text-[var(--ds-text-muted)] mt-1">
                               {formatDate(entry.createdAt)}
                               {' · '}
                               {isAuto
@@ -152,10 +152,10 @@ export default function HistoryModal({ offerId }: HistoryModalProps) {
                             <button
                               type="button"
                               onClick={() => handleDelete(entry.id)}
-                              className="text-gray-400 hover:text-danger transition-colors cursor-pointer shrink-0"
+                              className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)] transition-colors cursor-pointer shrink-0"
                               aria-label="Supprimer cette entrée"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <IconTrash className="w-4 h-4" />
                             </button>
                           )}
                         </div>

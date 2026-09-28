@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, FolderPlus, Loader2, AlertCircle } from 'lucide-react'
+import { IconAlert, IconClose, IconFolderPlus, IconLoader } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { useFilizDegrees, useFilizClasses, useCreateFilizFolder } from '@/graphql/hooks'
 import { useAuthStore } from '@/store/authStore'
@@ -66,49 +66,49 @@ export default function FilizFolderModal({ open, onClose, candidateId, onSuccess
       aria-labelledby="filiz-modal-title"
     >
       <div
-        className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--ds-text)] backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div className="relative w-full max-w-md bg-[var(--ds-surface)] rounded-2xl shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--ds-border)]">
           <div className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ backgroundColor: 'var(--color-purple-light)' }}
             >
-              <FolderPlus size={18} style={{ color: 'var(--color-purple)' }} />
+              <IconFolderPlus width={18} height={18} style={{ color: 'var(--color-purple)' }} />
             </div>
-            <h2 id="filiz-modal-title" className="text-lg font-bold text-gray-900">
+            <h2 id="filiz-modal-title" className="text-lg font-bold text-[var(--ds-text)]">
               Créer dossier Filiz
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] rounded-full transition-colors"
             aria-label="Fermer"
           >
-            <X size={20} />
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
         <div className="p-6 flex flex-col gap-4">
           {error && (
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-danger-bg text-danger text-sm">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] text-sm">
+              <IconAlert width={16} height={16} className="shrink-0 mt-0.5" />
               {error}
             </div>
           )}
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Formation</label>
+            <label className="text-sm font-medium text-[var(--ds-text-muted)]">Formation</label>
             {loadingDegrees ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Loader2 size={14} className="animate-spin" /> Chargement…
+              <div className="flex items-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+                <IconLoader width={14} height={14} className="animate-spin" /> Chargement…
               </div>
             ) : (
               <select
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className="w-full border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
                 value={selectedDegreeId ?? ''}
                 onChange={e => handleDegreeChange(e.target.value)}
               >
@@ -123,14 +123,14 @@ export default function FilizFolderModal({ open, onClose, candidateId, onSuccess
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Promotion</label>
+            <label className="text-sm font-medium text-[var(--ds-text-muted)]">Promotion</label>
             {loadingClasses ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Loader2 size={14} className="animate-spin" /> Chargement…
+              <div className="flex items-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+                <IconLoader width={14} height={14} className="animate-spin" /> Chargement…
               </div>
             ) : (
               <select
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 disabled:opacity-50"
+                className="w-full border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 disabled:opacity-50"
                 value={selectedClassId}
                 onChange={e => setSelectedClassId(e.target.value)}
                 disabled={!selectedDegreeId}
@@ -146,14 +146,14 @@ export default function FilizFolderModal({ open, onClose, candidateId, onSuccess
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Responsable du dossier</label>
-            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+            <label className="text-sm font-medium text-[var(--ds-text-muted)]">Responsable du dossier</label>
+            <p className="text-sm text-[var(--ds-text-muted)] bg-[var(--ds-surface-sunken)] rounded-lg px-3 py-2">
               {`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim()} — {user?.email}
             </p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[var(--ds-border)]">
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
             Annuler
           </Button>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { IconAlert, IconLoader } from '@/components/ui/icons'
 import { openExternalLink } from '@/api/external'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 
@@ -34,7 +34,7 @@ const STATE_MESSAGES: Record<LinkState, { title: string; text: string }> = {
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">{children}</div>
+  return <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">{children}</div>
 }
 
 export default function ExternalAuthenticate() {
@@ -73,28 +73,28 @@ export default function ExternalAuthenticate() {
 
   return (
     <Centered>
-      <div className="w-full max-w-sm rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6 shadow-sm">
         <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
-        <h1 className="mt-1 text-[20px] font-extrabold text-gray-900">Accès à votre espace</h1>
+        <h1 className="mt-1 text-[20px] font-extrabold text-[var(--ds-text)]">Accès à votre espace</h1>
 
         {linkState === 'loading' && (
           <div className="mt-8 flex flex-col items-center gap-3">
-            <Loader2 size={28} className="animate-spin text-purple" />
-            <p className="text-[13px] text-gray-500">Ouverture de votre lien sécurisé…</p>
+            <IconLoader width={28} height={28} className="animate-spin text-purple" />
+            <p className="text-[13px] text-[var(--ds-text-subtle)]">Ouverture de votre lien sécurisé…</p>
           </div>
         )}
 
         {linkState !== 'loading' && (
           <div className="mt-5 flex flex-col items-center gap-3 text-center">
-            <AlertCircle size={32} className="text-danger" />
-            <p className="text-[15px] font-bold text-gray-800">{STATE_MESSAGES[linkState].title}</p>
-            <p className="text-[13px] text-gray-500">{STATE_MESSAGES[linkState].text}</p>
+            <IconAlert width={32} height={32} className="text-[var(--ds-danger)]" />
+            <p className="text-[15px] font-bold text-[var(--ds-text)]">{STATE_MESSAGES[linkState].title}</p>
+            <p className="text-[13px] text-[var(--ds-text-subtle)]">{STATE_MESSAGES[linkState].text}</p>
           </div>
         )}
 
-        <div className="mt-5 border-t border-gray-100 pt-3 text-center">
+        <div className="mt-5 border-t border-[var(--ds-border)] pt-3 text-center">
           {expiresAt ? (
-            <p className="text-[12px] text-gray-500">
+            <p className="text-[12px] text-[var(--ds-text-subtle)]">
               Ce lien est valable 7 jours après sa première ouverture — il expire le{' '}
               {formatExpiryDate(expiresAt)}.
             </p>

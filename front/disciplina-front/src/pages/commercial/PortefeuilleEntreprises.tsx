@@ -1,10 +1,4 @@
-import {
-  Search,
-  Plus,
-  Building2,
-  X,
-  SlidersHorizontal,
-} from 'lucide-react'
+import { IconClose, IconCompany, IconPlus, IconSearch, IconSliders } from '@/components/ui/icons'
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { EntrepriseFilters } from '@/types/entreprise'
@@ -27,6 +21,7 @@ import type { Entreprise } from '@/types/entreprise'
 import { STATUS_VALUES } from '@/types/entreprise'
 import { ALL_COMPANY_SECTEURS, companySecteursForRegion } from '@/constants/secteurs'
 import { useRegionStore } from '@/store/regionStore'
+import Tabs from '@/components/ui/Tabs'
 
 const PAGE_SIZE = 20
 
@@ -218,7 +213,7 @@ export default function PortefeuilleEntreprises() {
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-blue border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">Chargement des données...</p>
+          <p className="text-[var(--ds-text-subtle)] text-sm">Chargement des données...</p>
         </div>
       </div>
     )
@@ -233,13 +228,13 @@ export default function PortefeuilleEntreprises() {
           {/* Top row: title + actions */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--ds-text-subtle)] mb-1">
                 CRM Commercial
               </p>
-              <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-gray-900">
+              <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-[var(--ds-text)]">
                 Portefeuille entreprises
               </h1>
-              <p className="mt-1.5 text-[13px] text-gray-400">
+              <p className="mt-1.5 text-[13px] text-[var(--ds-text-subtle)]">
                 {isFlatMode ? (
                   <>
                     {shownCompanies.toLocaleString('fr-FR')} entreprise{shownCompanies !== 1 ? 's' : ''} trouvée{shownCompanies !== 1 ? 's' : ''} sur {totalCount.toLocaleString('fr-FR')}
@@ -248,7 +243,7 @@ export default function PortefeuilleEntreprises() {
                   <>
                     {shownSirens.toLocaleString('fr-FR')} SIREN trouvé{shownSirens !== 1 ? 's' : ''} sur {totalCount.toLocaleString('fr-FR')}
                     {shownCompanies > 0 && (
-                      <span className="text-gray-400"> — {shownCompanies.toLocaleString('fr-FR')} entreprise{shownCompanies !== 1 ? 's' : ''}</span>
+                      <span className="text-[var(--ds-text-subtle)]"> — {shownCompanies.toLocaleString('fr-FR')} entreprise{shownCompanies !== 1 ? 's' : ''}</span>
                     )}
                   </>
                 )}
@@ -260,16 +255,16 @@ export default function PortefeuilleEntreprises() {
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
-                <Search className="pointer-events-none absolute inset-y-0 left-3.5 my-auto h-4 w-4 text-gray-300" />
+                <IconSearch className="pointer-events-none absolute inset-y-0 left-3.5 my-auto h-4 w-4 text-[var(--ds-text-subtle)]" />
                 <input
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Recherche par nom ou SIRET…"
                   className={[
-                    'w-64 rounded-xl border bg-white py-2.5 pl-10 pr-8 text-[13px] text-gray-900',
-                    'placeholder:text-gray-300 outline-none transition-all duration-150',
-                    searchInput ? 'border-blue/30' : 'border-gray-100',
+                    'w-64 rounded-xl border bg-[var(--ds-surface)] py-2.5 pl-10 pr-8 text-[13px] text-[var(--ds-text)]',
+                    'placeholder:text-[var(--ds-text-subtle)] outline-none transition-all duration-150',
+                    searchInput ? 'border-blue/30' : 'border-[var(--ds-border)]',
                     'focus:border-blue focus:shadow-[0_0_0_3px_rgba(17,48,167,0.06)]',
                     'shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]',
                   ].join(' ')}
@@ -277,14 +272,14 @@ export default function PortefeuilleEntreprises() {
                 {searchInput && (
                   <button
                     onClick={() => setSearchInput('')}
-                    className="absolute inset-y-0 right-3 my-auto flex h-5 w-5 items-center justify-center rounded-full text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                    className="absolute inset-y-0 right-3 my-auto flex h-5 w-5 items-center justify-center rounded-full text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] transition-colors"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <IconClose className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
               <Button
-                leftIcon={<Plus className="h-4 w-4" />}
+                leftIcon={<IconPlus className="h-4 w-4" />}
                 onClick={() => openCreate()}
                 className="rounded-xl shadow-[0_2px_8px_-2px_rgba(17,48,167,0.30)]"
               >
@@ -295,11 +290,11 @@ export default function PortefeuilleEntreprises() {
 
           {/* Filter toolbar */}
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--ds-text-subtle)]">
+              <IconSliders className="h-3.5 w-3.5" />
               Filtres
             </div>
-            <div className="h-4 w-px bg-gray-200" />
+            <div className="h-4 w-px bg-[var(--ds-surface-sunken)]" />
             <FilterPanel
               filters={filters}
               secteurs={secteurs}
@@ -311,32 +306,29 @@ export default function PortefeuilleEntreprises() {
           </div>
         </div>
 
-        {/* ─── Status tabs ─────────────────────────────────────────── */}
-        <div className="mb-6 flex gap-1 rounded-xl bg-white border border-gray-100 p-1 shadow-sm">
-          {(Object.keys(TAB_LABELS) as CompanyTab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => handleTabChange(tab)}
-              className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                activeTab === tab ? 'bg-blue text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-              }`}
-            >
-              {TAB_LABELS[tab]}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          className="mb-6"
+          label="Filtrer le portefeuille par statut"
+          tone="accent"
+          value={activeTab}
+          onChange={handleTabChange}
+          options={(Object.keys(TAB_LABELS) as CompanyTab[]).map((tab) => ({
+            value: tab,
+            label: TAB_LABELS[tab],
+          }))}
+        />
 
         {/* ─── Cards grid ──────────────────────────────────────────── */}
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center py-32 gap-5">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-light border border-blue/10">
-              <Building2 className="h-7 w-7 text-blue" />
+              <IconCompany className="h-7 w-7 text-blue" />
             </div>
             <div className="text-center">
-              <p className="text-[15px] font-semibold text-gray-900">
+              <p className="text-[15px] font-semibold text-[var(--ds-text)]">
                 Aucune entreprise trouvée
               </p>
-              <p className="text-[13px] text-gray-400 mt-1 max-w-xs">
+              <p className="text-[13px] text-[var(--ds-text-subtle)] mt-1 max-w-xs">
                 {activeFilterCount > 0
                   ? 'Essayez de modifier ou supprimer vos filtres actifs.'
                   : 'Commencez par créer une première fiche entreprise.'}
@@ -351,7 +343,7 @@ export default function PortefeuilleEntreprises() {
                 Voir toutes les entreprises
               </Button>
             ) : (
-              <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => openCreate()}>
+              <Button size="sm" leftIcon={<IconPlus className="h-4 w-4" />} onClick={() => openCreate()}>
                 Créer une fiche
               </Button>
             )}
@@ -377,12 +369,12 @@ export default function PortefeuilleEntreprises() {
 
         {/* ─── Pagination ──────────────────────────────────────────── */}
         {!hidePagination && (
-          <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+          <div className="mt-8 flex items-center justify-between rounded-xl bg-[var(--ds-surface)] border border-[var(--ds-border)] px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
             <button
               type="button"
               onClick={loadPrevPage}
               disabled={cursorHistory.length === 0 || loading}
-              className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               ← Page précédente
             </button>
@@ -390,7 +382,7 @@ export default function PortefeuilleEntreprises() {
               type="button"
               onClick={() => loadNextPage(pageInfo)}
               disabled={!pageInfo?.hasNextPage || loading}
-              className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Page suivante →
             </button>

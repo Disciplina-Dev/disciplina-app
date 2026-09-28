@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Briefcase, Loader2 } from 'lucide-react'
+import { IconClose, IconJob, IconLoader } from '@/components/ui/icons'
 import { offerGraphqlClient, needsAnalysisGraphqlClient } from '@/graphql/client'
 import {
   ADD_CANDIDATE_TO_OFFER,
@@ -146,27 +146,27 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
-          <h2 className="text-base font-bold text-gray-900">Passer le candidat en contrat</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50">
-            <X size={18} />
+      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] p-5">
+          <h2 className="text-base font-bold text-[var(--ds-text)]">Passer le candidat en contrat</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]">
+            <IconClose width={18} height={18} />
           </button>
         </div>
 
         <div className="flex flex-col gap-4 p-5">
           {loading && step === 'date' && !selectedOffer && !isNonRenseigne ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 size={20} className="animate-spin text-blue" />
+              <IconLoader width={20} height={20} className="animate-spin text-blue" />
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+              <div className="flex items-center gap-3 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] px-4 py-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-light text-blue">
-                  <Briefcase className="h-4 w-4" />
+                  <IconJob className="h-4 w-4" />
                 </span>
                 <div className="flex flex-col">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-[var(--ds-text)]">
                     {isNonRenseigne ? 'Non renseigné' : (selectedOffer?.companyInfos?.name ?? selectedOffer?.companyName ?? 'Entreprise')}
                   </p>
                   {!isNonRenseigne && (
@@ -176,7 +176,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
                           tp.tpType && (
                             <span
                               key={tp.tpType}
-                              className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                              className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]"
                             >
                               {TP_TYPE_LABELS[tp.tpType]}
                             </span>
@@ -188,24 +188,24 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-800">Date de début de contrat</label>
+                <label className="mb-2 block text-sm font-semibold text-[var(--ds-text)]">Date de début de contrat</label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue"
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
               </div>
             </>
           )}
 
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p className="text-xs text-[var(--ds-danger)]">{error}</p>}
         </div>
 
-        <div className="flex justify-between gap-2 border-t border-gray-100 p-4">
+        <div className="flex justify-between gap-2 border-t border-[var(--ds-border)] p-4">
           <button
             onClick={() => { setIsNonRenseigne(false); setStep('offer') }}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--ds-border)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
           >
             Retour
           </button>

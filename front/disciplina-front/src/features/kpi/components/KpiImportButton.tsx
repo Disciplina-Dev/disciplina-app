@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { IconUpload } from '@/components/ui/icons'
 
 import { importKpiExcel, type KpiImportResult, type KpiSite } from '@/api/kpi'
 
@@ -39,9 +39,9 @@ export default function KpiImportButton({ site, onImported, onError }: Props) {
       <button
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        className="flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3.5 py-2 text-[13px] font-semibold text-gray-700 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)] transition-colors hover:bg-gray-50 disabled:opacity-50"
+        className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3.5 py-2 text-[13px] font-semibold text-[var(--ds-text-muted)] shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)] transition-colors hover:bg-[var(--ds-surface-sunken)] disabled:opacity-50"
       >
-        <Upload className="h-4 w-4" />
+        <IconUpload className="h-4 w-4" />
         {uploading ? 'Import en cours…' : 'Importer Excel'}
       </button>
     </>

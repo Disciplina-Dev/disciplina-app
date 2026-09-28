@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, MapPin } from 'lucide-react'
+import { IconMail, IconMapPin } from '@/components/ui/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useRegionStore, type Region } from '@/store/regionStore'
 import { login } from '@/api/auth'
+import { toFrenchError } from '@/lib/errorMessages'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
+import Logo from '@/components/ui/Logo'
 
 const REGIONS: { id: Region; label: string; accent: string }[] = [
   { id: 'reunion', label: 'La Réunion', accent: '#1130A7' },
@@ -61,26 +63,28 @@ export default function LoginPage() {
         navigate('/')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur réseau')
+      // Traduit en français et reformulé : le message brut du back n'atteint
+      // jamais l'écran de connexion.
+      setError(toFrenchError(err))
     } finally {
       setFetching(false)
     }
   }
 
   return (
-    <div className="w-full max-w-md mx-auto bg-white rounded-[20px] p-8 shadow-sm">
-      <div className="flex justify-center mb-6">
-        <img src="/logo-disciplina.svg" alt="Disciplina" className="h-10" />
+    <div className="ds-glass-strong mx-auto w-full max-w-md rounded-[var(--radius-2xl)] p-8">
+      <div className="mb-6 flex justify-center">
+        <Logo className="h-10" alt="Disciplina" />
       </div>
 
-      <div className="text-center mb-6">
-        <h2>Bon retour</h2>
-        <p className="mt-1 text-sm text-gray-500">Connectez-vous à votre espace</p>
+      <div className="mb-7 text-center">
+        <h1 className="text-[26px] font-extrabold tracking-[-0.03em]">Bon retour</h1>
+        <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Connectez-vous à votre espace</p>
       </div>
 
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <fieldset className="flex flex-col gap-1.5">
-          <legend className="text-sm font-medium text-gray-700 mb-1.5">Région</legend>
+          <legend className="mb-1.5 text-[13px] font-semibold text-[var(--ds-text-muted)]">Région</legend>
           <div className="grid grid-cols-2 gap-2">
             {REGIONS.map(({ id, label, accent }) => {
               const selected = region === id
@@ -91,13 +95,16 @@ export default function LoginPage() {
                   onClick={() => handlePickRegion(id)}
                   aria-pressed={selected}
                   className={[
-                    'flex items-center justify-center gap-2 rounded-[10px] border px-3 py-2.5',
-                    'text-sm font-medium transition-colors outline-none',
-                    selected ? 'text-white' : 'border-gray-100 bg-white text-gray-500 hover:border-gray-300',
+                    'flex items-center justify-center gap-2 rounded-[var(--radius-md)] border px-3 py-2.5',
+                    'text-sm font-semibold transition-colors',
+                    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-accent)]',
+                    selected
+                      ? 'text-white shadow-[var(--shadow-sm)]'
+                      : 'border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-subtle)] hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]',
                   ].join(' ')}
                   style={selected ? { background: accent, borderColor: accent } : undefined}
                 >
-                  <MapPin size={16} />
+                  <IconMapPin width={16} height={16} />
                   {label}
                 </button>
               )
@@ -111,7 +118,7 @@ export default function LoginPage() {
           name="email"
           type="email"
           placeholder="vous@exemple.fr"
-          icon={<Mail size={18} />}
+          icon={<IconMail width={18} height={18} />}
           autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -130,27 +137,36 @@ export default function LoginPage() {
             required
           />
           <div className="flex justify-end">
-            <Link to="/forgot-password" className="text-sm text-blue">
+            <Link to="/forgot-password" className="text-[13px] font-medium text-[var(--ds-accent)]">
               Mot de passe oublié ?
             </Link>
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && (
+          // role="alert" : l'échec de connexion est annoncé immédiatement.
+          <p
+            role="alert"
+            className="rounded-[var(--radius-md)] bg-[var(--ds-danger-bg)] px-3.5 py-2.5 text-[13px] font-medium text-[var(--ds-danger)]"
+          >
+            {error}
+          </p>
+        )}
 
         <div className="group relative">
           <Button
             type="submit"
             size="lg"
-            className="w-full rounded-[10px]"
-            disabled={fetching || !region}
+            className="w-full"
+            isLoading={fetching}
+            disabled={!region}
           >
-            {fetching ? 'Connexion...' : 'Se connecter'}
+            Se connecter
           </Button>
           {!region && (
             <p
               role="tooltip"
-              className="pointer-events-none absolute bottom-full left-1/2 mb-2 w-max max-w-full -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+              className="pointer-events-none absolute bottom-full left-1/2 mb-2 w-max max-w-full -translate-x-1/2 rounded-lg bg-[var(--ds-text)] px-3 py-2 text-center text-xs font-medium text-[var(--ds-text-inverse)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
             >
               Veuillez sélectionner la région qui correspond à votre service
             </p>

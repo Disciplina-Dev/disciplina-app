@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, AlertTriangle, MapPin } from 'lucide-react'
+import { IconArrowLeft, IconMapPin, IconWarning } from '@/components/ui/icons'
 
 import { useCurrentUser, Permission } from '@/store/authStore'
 import {
@@ -19,6 +19,7 @@ import KpiSummaryCards from '@/features/kpi/components/KpiSummaryCards'
 import KpiTable from '@/features/kpi/components/KpiTable'
 import KpiWeeklyTable from '@/features/kpi/components/KpiWeeklyTable'
 import KpiEntryModal, { type KpiEntryDraft } from '@/features/kpi/components/KpiEntryModal'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 /**
  * Page de profil KPI d'un commercial. ADMIN/RESPONSABLE consultent n'importe
@@ -94,8 +95,8 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
     return (
       <div className="mx-auto max-w-screen-xl px-4 py-8 sm:px-6 lg:px-8">
         {showBack && <BackLink />}
-        <div className="mt-6 flex items-center gap-2 rounded-xl bg-danger-bg px-4 py-3 text-[13px] text-danger">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
+        <div className="mt-6 flex items-center gap-2 rounded-xl bg-[var(--ds-danger-bg)] px-4 py-3 text-[13px] text-[var(--ds-danger)]">
+          <IconWarning className="h-4 w-4 shrink-0" />
           {error}
         </div>
       </div>
@@ -127,33 +128,27 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
         {/* ─── Header ──────────────────────────────────────────────────────── */}
         <div className="mb-8 mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--ds-text-subtle)]">
               {showBack ? 'Profil KPI commercial' : 'Mes KPI'}
             </p>
-            <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-gray-900">
+            <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-[var(--ds-text)]">
               {detail.userName}
             </h1>
-            <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-gray-400">
-              <MapPin className="h-3.5 w-3.5" />
+            <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-[var(--ds-text-subtle)]">
+              <IconMapPin className="h-3.5 w-3.5" />
               {detail.sites.length > 0
                 ? detail.sites.map((s) => SITE_LABELS[s.site]).join(' · ')
                 : 'Aucun secteur avec des données cette année'}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.04)]">
-            {selectableYears.map((y) => (
-              <button
-                key={y}
-                onClick={() => setYear(y)}
-                className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                  y === year ? 'bg-blue text-white' : 'text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                {y}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            label="Année"
+            tone="accent"
+            value={year}
+            onChange={setYear}
+            options={selectableYears.map((y) => ({ value: y, label: String(y) }))}
+          />
         </div>
 
         <div className="space-y-8">
@@ -162,12 +157,12 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
 
           {/* ─── Totaux annuels tous secteurs ─────────────────────────────── */}
           <section>
-            <h2 className="mb-4 text-[17px] font-bold text-gray-900">KPI annuels — {year}</h2>
+            <h2 className="mb-4 text-[17px] font-bold text-[var(--ds-text)]">KPI annuels — {year}</h2>
             <KpiSummaryCards totals={detail.totals} />
           </section>
 
           {detail.sites.length === 0 && (
-            <p className="rounded-2xl border border-gray-100 bg-white px-4 py-10 text-center text-[13px] text-gray-400">
+            <p className="rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-10 text-center text-[13px] text-[var(--ds-text-subtle)]">
               Aucune donnée KPI pour {detail.userName} en {year}.
             </p>
           )}
@@ -175,7 +170,7 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
           {/* ─── Détail par secteur ───────────────────────────────────────── */}
           {detail.sites.map((site) => (
             <section key={site.site}>
-              <h2 className="mb-4 text-[17px] font-bold text-gray-900">
+              <h2 className="mb-4 text-[17px] font-bold text-[var(--ds-text)]">
                 Secteur {SITE_LABELS[site.site]}
               </h2>
               <div className="space-y-6">
@@ -234,9 +229,9 @@ function LivePortfolioSection({ live, userId }: { live: KpiLiveSnapshot | null; 
 
   return (
     <section>
-      <h2 className="mb-4 text-[17px] font-bold text-gray-900">
+      <h2 className="mb-4 text-[17px] font-bold text-[var(--ds-text)]">
         Portefeuille — valeurs actuelles
-        <span className="ml-2 text-[12px] font-medium text-gray-400">
+        <span className="ml-2 text-[12px] font-medium text-[var(--ds-text-subtle)]">
           {sites.map((s) => SITE_LABELS[s.site]).join(' · ')} ·{' '}
           {totals.total_trie.toLocaleString('fr-FR')} entreprise(s)
         </span>
@@ -250,9 +245,9 @@ function BackLink() {
   return (
     <Link
       to="/commercial"
-      className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-gray-500 transition-colors hover:text-gray-900"
+      className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--ds-text-subtle)] transition-colors hover:text-[var(--ds-text)]"
     >
-      <ArrowLeft className="h-4 w-4" />
+      <IconArrowLeft className="h-4 w-4" />
       Tableau de bord Commercial
     </Link>
   )

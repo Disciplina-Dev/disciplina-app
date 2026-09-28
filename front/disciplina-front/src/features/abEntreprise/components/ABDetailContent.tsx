@@ -1,12 +1,12 @@
-import { Briefcase, Users, GraduationCap, ClipboardList, Calendar, Hash } from 'lucide-react'
+import { IconCalendar, IconHash, IconJob, IconTaskList, IconTraining, IconUsers } from '@/components/ui/icons'
 import { formatTrainingDays } from '@/utils/trainingDays'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 export const AB_STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
-  EN_ATTENTE_SIGNATURE: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'En attente de signature' },
-  SIGNE:                { bg: 'bg-green-100',  text: 'text-green-700',  label: 'Signé' },
-  EXPIRE:               { bg: 'bg-red-100',    text: 'text-red-600',    label: 'Expiré' },
+  BROUILLON:            { bg: 'bg-[var(--ds-surface-sunken)]',   text: 'text-[var(--ds-text-muted)]',   label: 'Brouillon' },
+  EN_ATTENTE_SIGNATURE: { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'En attente de signature' },
+  SIGNE:                { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  label: 'Signé' },
+  EXPIRE:               { bg: 'bg-[var(--ds-danger-bg)]',    text: 'text-[var(--ds-danger)]',    label: 'Expiré' },
 }
 
 const LABELS: Record<string, Record<string, string>> = {
@@ -25,9 +25,9 @@ const lbl = (map: Record<string, string>, v?: string | null) => (v ? map[v] ?? v
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null
   return (
-    <div className="flex justify-between gap-4 py-2 border-b border-gray-100 last:border-0">
-      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide shrink-0">{label}</span>
-      <span className="text-sm text-gray-900 text-right">{value}</span>
+    <div className="flex justify-between gap-4 py-2 border-b border-[var(--ds-border)] last:border-0">
+      <span className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide shrink-0">{label}</span>
+      <span className="text-sm text-[var(--ds-text)] text-right">{value}</span>
     </div>
   )
 }
@@ -35,10 +35,10 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-2">
         {icon}{title}
       </p>
-      <div className="bg-gray-50 rounded-xl px-4 py-1">
+      <div className="bg-[var(--ds-surface-sunken)] rounded-xl px-4 py-1">
         {children}
       </div>
     </div>
@@ -96,13 +96,13 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
   return (
     <div className="space-y-5">
       {ab.legalRepFunction && (
-        <Section icon={<Users className="h-3.5 w-3.5" />} title="Représentant légal">
+        <Section icon={<IconUsers className="h-3.5 w-3.5" />} title="Représentant légal">
           <Row label="Fonction" value={ab.legalRepFunction} />
         </Section>
       )}
 
       {(ab.recruitmentResponsibleName || ab.recruitmentResponsibleEmail) && (
-        <Section icon={<Users className="h-3.5 w-3.5" />} title="Responsable recrutement">
+        <Section icon={<IconUsers className="h-3.5 w-3.5" />} title="Responsable recrutement">
           <Row label="Nom"      value={ab.recruitmentResponsibleName} />
           <Row label="Fonction" value={ab.recruitmentResponsibleFunction} />
           <Row label="Tél"      value={ab.recruitmentResponsiblePhone} />
@@ -111,7 +111,7 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
       )}
 
       {((ab.companySectors?.length ?? 0) > 0 || ab.companyDescription || ab.administrationType) && (
-        <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
+        <Section icon={<IconJob className="h-3.5 w-3.5" />} title="Entreprise">
           {(ab.companySectors?.length ?? 0) > 0 && (
             <Row label="Secteurs" value={ab.companySectors!.join(', ')} />
           )}
@@ -120,7 +120,7 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
         </Section>
       )}
 
-      <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Poste">
+      <Section icon={<IconJob className="h-3.5 w-3.5" />} title="Poste">
         <Row label="Postes"              value={ab.positionsCount ? `${ab.positionsCount} poste${ab.positionsCount > 1 ? 's' : ''}` : undefined} />
         <Row label="Méthode recrutement" value={lbl(LABELS.recruitmentMethod, ab.recruitmentMethod)} />
         <Row label="Immersion"           value={lbl(LABELS.immersionPeriod, ab.immersionPeriod)} />
@@ -129,7 +129,7 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
       {positions.map((p, i, arr) => (
         <Section
           key={i}
-          icon={<ClipboardList className="h-3.5 w-3.5" />}
+          icon={<IconTaskList className="h-3.5 w-3.5" />}
           title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
         >
           <Row label="Intitulé"     value={p.jobTitle} />
@@ -139,7 +139,7 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
             <div className="py-2">
               <ul className="list-disc list-inside space-y-0.5">
                 {p.selectedMissions!.map((m) => (
-                  <li key={m} className="text-sm text-gray-900">{m}</li>
+                  <li key={m} className="text-sm text-[var(--ds-text)]">{m}</li>
                 ))}
               </ul>
             </div>
@@ -148,7 +148,7 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
       ))}
 
       {((ab.jobDescriptionMissions?.length ?? 0) > 0 || ab.jobDescriptionOther || ab.otherMissions) && (
-        <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Missions complémentaires">
+        <Section icon={<IconTaskList className="h-3.5 w-3.5" />} title="Missions complémentaires">
           {(ab.jobDescriptionMissions?.length ?? 0) > 0 && (
             <Row label="Types" value={ab.jobDescriptionMissions!.join(', ')} />
           )}
@@ -158,16 +158,16 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
       )}
 
       {(ab.conditions || (ab.scheduleOptions?.length ?? 0) > 0 || ab.additionalComments) && (
-        <Section icon={<ClipboardList className="h-3.5 w-3.5" />} title="Conditions & commentaires">
+        <Section icon={<IconTaskList className="h-3.5 w-3.5" />} title="Conditions & commentaires">
           <Row label="Conditions" value={ab.conditions ?? ((ab.scheduleOptions?.length ?? 0) > 0 ? ab.scheduleOptions!.join(', ') : null)} />
           <Row label="Commentaires" value={ab.additionalComments} />
         </Section>
       )}
 
-      <Section icon={<GraduationCap className="h-3.5 w-3.5" />} title="Profil apprenti">
+      <Section icon={<IconTraining className="h-3.5 w-3.5" />} title="Profil apprenti">
         <Row label="Niveau d'études" value={lbl(LABELS.educationLevel, ab.educationLevel)} />
         <Row label="Permis B"        value={lbl(LABELS.drivingLicense, ab.drivingLicense)} />
-        <div className="ml-3 pl-4 border-l-2 border-gray-100">
+        <div className="ml-3 pl-4 border-l-2 border-[var(--ds-border)]">
           <Row label="Véhiculé"        value={lbl(LABELS.hasVehicle, ab.hasVehicle)} />
         </div>
         <Row label="Expérience"      value={lbl(LABELS.experienceRequired, ab.experienceRequired)} />
@@ -180,13 +180,13 @@ export function ABDetailContent({ ab }: { ab: AbDetail }) {
       </Section>
 
       {trainingDaysDisplay && (
-        <Section icon={<Calendar className="h-3.5 w-3.5" />} title="Jours de formation">
-          <div className="py-2 text-sm text-gray-900">{trainingDaysDisplay}</div>
+        <Section icon={<IconCalendar className="h-3.5 w-3.5" />} title="Jours de formation">
+          <div className="py-2 text-sm text-[var(--ds-text)]">{trainingDaysDisplay}</div>
         </Section>
       )}
 
       {ab.yousignSignatureRequestID && (
-        <Section icon={<Hash className="h-3.5 w-3.5" />} title="Signature électronique">
+        <Section icon={<IconHash className="h-3.5 w-3.5" />} title="Signature électronique">
           <Row label="Référence" value={ab.yousignSignatureRequestID} />
         </Section>
       )}

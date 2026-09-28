@@ -63,7 +63,7 @@ export function AddressAutocomplete({ label, id, value, onChange, apiEndpoint, p
 
   return (
     <div ref={containerRef} className="flex flex-col gap-1.5 relative">
-      <label htmlFor={id} className="text-sm font-medium text-gray-700">{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</label>
       <input
         id={id}
         type="text"
@@ -71,15 +71,15 @@ export function AddressAutocomplete({ label, id, value, onChange, apiEndpoint, p
         onChange={handleChange}
         placeholder={placeholder}
         autoComplete="off"
-        className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 transition-colors"
+        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)] transition-colors"
       />
       {open && suggestions.length > 0 && (
-        <ul className="absolute top-full left-0 right-0 z-50 mt-1 max-h-52 overflow-auto rounded-xl border border-gray-100 bg-white shadow-lg">
+        <ul className="absolute top-full left-0 right-0 z-50 mt-1 max-h-52 overflow-auto rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg">
           {suggestions.map((s) => (
             <li
               key={s}
               onMouseDown={() => handleSelect(s)}
-              className="cursor-pointer px-4 py-2.5 text-sm text-gray-800 hover:bg-blue-50 hover:text-blue"
+              className="cursor-pointer px-4 py-2.5 text-sm text-[var(--ds-text)] hover:bg-[var(--ds-accent-soft)] hover:text-blue"
             >
               {s}
             </li>

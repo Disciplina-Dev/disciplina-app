@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Mail, ShieldCheck, Shield, Globe, MapPin } from 'lucide-react'
+import { IconGlobe, IconMail, IconMapPin, IconShield, IconShieldCheck, IconUser } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
@@ -86,25 +86,25 @@ export default function RegisterPage() {
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col gap-5">
-      <div className="w-full bg-white rounded-[20px] p-8 shadow-sm">
+      <div className="w-full bg-[var(--ds-surface)] rounded-[20px] p-8 shadow-sm">
       <div className="text-center mb-6">
         <h2>Créer un utilisateur</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">
           Ajouter un nouveau membre à la plateforme
         </p>
       </div>
 
       {success && (
-        <div className="mb-6 p-4 bg-green-50 text-green-700 rounded-lg text-sm border border-green-200">
+        <div className="mb-6 p-4 bg-[var(--ds-success-bg)] text-[var(--ds-success)] rounded-lg text-sm border border-[var(--ds-success)]">
           <p className="font-medium">L'utilisateur a été créé avec succès.</p>
           {googleStatus === 'connected' && (
             <p className="mt-1">Compte Google connecté.</p>
           )}
           {googleStatus === 'skipped' && (
-            <p className="mt-1 text-gray-600">Connexion Google ignorée.</p>
+            <p className="mt-1 text-[var(--ds-text-muted)]">Connexion Google ignorée.</p>
           )}
           {googleStatus === 'failed' && (
-            <p className="mt-1 text-amber-600">Connexion Google annulée ou indisponible.</p>
+            <p className="mt-1 text-[var(--ds-warning)]">Connexion Google annulée ou indisponible.</p>
           )}
           {googleStatus === 'pending' && (
             <p className="mt-1">Connexion Google en cours...</p>
@@ -114,18 +114,18 @@ export default function RegisterPage() {
 
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="role" className="text-sm font-medium text-gray-700">
+          <label htmlFor="role" className="text-sm font-medium text-[var(--ds-text-muted)]">
             Rôle
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-              <Shield size={18} />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[var(--ds-text-subtle)]">
+              <IconShield width={18} height={18} />
             </div>
             <select
               id="role"
               value={role}
               onChange={(e) => setRole(e.target.value as UserRole)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-[10px] text-sm text-gray-900 focus:ring-2 focus:ring-blue focus:border-blue transition-colors appearance-none"
+              className="w-full pl-10 pr-4 py-2.5 bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-[10px] text-sm text-[var(--ds-text)] focus:ring-2 focus:ring-blue focus:border-blue transition-colors appearance-none"
               required
             >
               <option value={UserRole.AD}>Administrateur</option>
@@ -138,18 +138,18 @@ export default function RegisterPage() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="permission" className="text-sm font-medium text-gray-700">
+          <label htmlFor="permission" className="text-sm font-medium text-[var(--ds-text-muted)]">
             Niveau de permission
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-              <Shield size={18} />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[var(--ds-text-subtle)]">
+              <IconShield width={18} height={18} />
             </div>
             <select
               id="permission"
               value={permission}
               onChange={(e) => setPermission(e.target.value as Permission)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-[10px] text-sm text-gray-900 focus:ring-2 focus:ring-blue focus:border-blue transition-colors appearance-none"
+              className="w-full pl-10 pr-4 py-2.5 bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-[10px] text-sm text-[var(--ds-text)] focus:ring-2 focus:ring-blue focus:border-blue transition-colors appearance-none"
               required
             >
               <option value={Permission.EMPLOYEE}>Employé</option>
@@ -160,7 +160,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Secteurs</label>
+          <label className="text-sm font-medium text-[var(--ds-text-muted)]">Secteurs</label>
           <div className="flex flex-wrap gap-2">
             {SECTEUR_VALUES.map((secteur) => {
               const active = sectors.includes(secteur)
@@ -176,16 +176,16 @@ export default function RegisterPage() {
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${
                     active
                       ? 'bg-blue text-white border-blue'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-blue'
+                      : 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] border-[var(--ds-border)] hover:border-blue'
                   }`}
                 >
-                  <MapPin size={14} />
+                  <IconMapPin width={14} height={14} />
                   {secteur}
                 </button>
               )
             })}
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-[var(--ds-text-subtle)]">
             Détermine le dossier Drive des candidats créés par cet utilisateur.
           </p>
         </div>
@@ -195,7 +195,7 @@ export default function RegisterPage() {
           id="firstname"
           type="text"
           placeholder="Jean"
-          icon={<User size={18} />}
+          icon={<IconUser width={18} height={18} />}
           value={firstname}
           onChange={(e) => setFirstname(e.target.value)}
           required
@@ -206,7 +206,7 @@ export default function RegisterPage() {
           id="lastname"
           type="text"
           placeholder="Dupont"
-          icon={<User size={18} />}
+          icon={<IconUser width={18} height={18} />}
           value={lastname}
           onChange={(e) => setLastname(e.target.value)}
           required
@@ -217,7 +217,7 @@ export default function RegisterPage() {
           id="email"
           type="email"
           placeholder="vous@exemple.fr"
-          icon={<Mail size={18} />}
+          icon={<IconMail width={18} height={18} />}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -240,7 +240,7 @@ export default function RegisterPage() {
           id="confirm-password"
           type="password"
           placeholder="••••••••"
-          icon={<ShieldCheck size={18} />}
+          icon={<IconShieldCheck width={18} height={18} />}
           error={confirmError}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
@@ -252,13 +252,13 @@ export default function RegisterPage() {
             type="checkbox"
             checked={linkGoogle}
             onChange={(e) => setLinkGoogle(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-blue focus:ring-blue"
+            className="h-4 w-4 rounded border-[var(--ds-border-strong)] text-blue focus:ring-blue"
           />
-          <Globe size={16} className="text-gray-400" />
-          <span className="text-sm text-gray-600">Connecter un compte Google</span>
+          <IconGlobe width={16} height={16} className="text-[var(--ds-text-subtle)]" />
+          <span className="text-sm text-[var(--ds-text-muted)]">Connecter un compte Google</span>
         </label>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-[var(--ds-danger)]">{error}</p>}
 
         <Button
           type="submit"

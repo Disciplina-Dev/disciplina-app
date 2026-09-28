@@ -47,7 +47,7 @@ function ToolbarButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="rounded p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+      className="rounded p-1.5 text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] disabled:opacity-30"
     >
       {children}
     </button>
@@ -76,9 +76,9 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
   return (
     <div
       ref={containerRef}
-      className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-gray-100 bg-white"
+      className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)]"
     >
-      <div className="flex items-center gap-0.5 border-b border-gray-100 px-2 py-1">
+      <div className="flex items-center gap-0.5 border-b border-[var(--ds-border)] px-2 py-1">
         <ToolbarButton
           label="Page précédente"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -86,7 +86,7 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
         >
           <ChevronLeft size={18} />
         </ToolbarButton>
-        <span className="min-w-16 text-center text-xs text-gray-600">
+        <span className="min-w-16 text-center text-xs text-[var(--ds-text-muted)]">
           {numPages === 0 ? '…' : `${page} / ${numPages}`}
         </span>
         <ToolbarButton
@@ -96,7 +96,7 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
         >
           <ChevronRight size={18} />
         </ToolbarButton>
-        <span className="mx-1 h-5 w-px bg-gray-200" />
+        <span className="mx-1 h-5 w-px bg-[var(--ds-border)]" />
         <ToolbarButton
           label="Zoom arrière"
           onClick={() => setScale((s) => Math.max(0.5, +(s - 0.25).toFixed(2)))}
@@ -104,7 +104,7 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
         >
           <ZoomOut size={18} />
         </ToolbarButton>
-        <span className="min-w-12 text-center text-xs text-gray-600">
+        <span className="min-w-12 text-center text-xs text-[var(--ds-text-muted)]">
           {Math.round(scale * 100)} %
         </span>
         <ToolbarButton
@@ -114,7 +114,7 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
         >
           <ZoomIn size={18} />
         </ToolbarButton>
-        <span className="mx-1 h-5 w-px bg-gray-200" />
+        <span className="mx-1 h-5 w-px bg-[var(--ds-border)]" />
         <ToolbarButton label="Plein écran" onClick={toggleFullscreen}>
           <Maximize size={18} />
         </ToolbarButton>
@@ -123,23 +123,23 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
           download
           aria-label="Télécharger le PDF"
           title="Télécharger le PDF"
-          className="rounded p-1.5 text-gray-600 hover:bg-gray-100"
+          className="rounded p-1.5 text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
         >
           <Download size={18} />
         </a>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto bg-gray-50">
+      <div className="min-h-0 flex-1 overflow-auto bg-[var(--ds-surface-sunken)]">
         <Document
           file={fileUrl}
           onLoadSuccess={onLoadSuccess}
           options={OPTIONS}
           loading={
-            <div className="flex items-center justify-center gap-2 p-8 text-sm text-gray-500">
+            <div className="flex items-center justify-center gap-2 p-8 text-sm text-[var(--ds-text-subtle)]">
               <Loader2 size={18} className="animate-spin" /> Chargement du PDF…
             </div>
           }
           error={
-            <div className="flex items-center justify-center gap-2 p-8 text-sm text-red-600">
+            <div className="flex items-center justify-center gap-2 p-8 text-sm text-[var(--ds-danger)]">
               <FileWarning size={18} /> Impossible d'afficher ce PDF.
             </div>
           }

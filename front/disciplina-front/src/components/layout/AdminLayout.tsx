@@ -1,11 +1,16 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Users, UserPlus, MapPin, LogOut, User, ArrowLeft, Briefcase, GraduationCap } from 'lucide-react'
+import { IconArrowLeft, IconLogout, IconMapPin, IconUser, IconUserPlus, IconUsers } from '@/components/ui/icons'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
-import LegalLinks from './LegalLinks'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+import CollapsibleSidebar, { SidebarLabel, SidebarSectionTitle } from './CollapsibleSidebar'
+import SpaceSwitcher from './SpaceSwitcher'
+import SidebarPinButton from './SidebarPinButton'
 import RegionBadge from './RegionBadge'
 import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
+import Logo from '@/components/ui/Logo'
+import AppFooter from './AppFooter'
 
 function NavItem({
   to,
@@ -24,15 +29,17 @@ function NavItem({
       end={end}
       className={({ isActive }) =>
         [
-          'flex items-center gap-3 rounded-[10px] py-2.5 px-3 text-[14px] transition-all duration-150 cursor-pointer no-underline',
+          'group flex items-center gap-3 overflow-hidden rounded-full px-[14px] py-2.5 text-[14px] no-underline',
+          'transition-colors duration-150',
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-accent)]',
           isActive
-            ? 'bg-blue-light text-blue font-bold shadow-[0_1px_2px_rgba(17,48,167,0.05)]'
-            : 'text-gray-500 font-medium hover:bg-gray-50 hover:text-gray-900',
+            ? 'bg-[var(--ds-accent)] text-[var(--ds-text-inverse)] font-semibold shadow-[var(--shadow-xs)]'
+            : 'text-[var(--ds-text-subtle)] font-medium hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]',
         ].join(' ')
       }
     >
-      {icon}
-      {label}
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
+      <SidebarLabel>{label}</SidebarLabel>
     </NavLink>
   )
 }
@@ -48,103 +55,93 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
-      <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
-        {/* Module Header */}
-        <div className="shrink-0 flex items-center gap-3 p-6 pb-4">
-          <span className="flex items-center gap-3 after:content-[''] after:h-6 after:w-px after:bg-gray-200">
-            <img src="/icon-logo.png" alt="Disciplina" className="h-8 w-8" />
-          </span>
-          <p className="whitespace-nowrap text-[16px] font-extrabold text-gray-900 tracking-tight">Espace Admin</p>
-        </div>
+    <div className="relative flex h-screen overflow-hidden">
+      <a href="#contenu-principal" className="ds-skip-link">
+        Aller au contenu principal
+      </a>
+
+      <CollapsibleSidebar label="Navigation de l'administration">
+        <SpaceSwitcher current="admin" mark={<Logo variant="mark" className="h-8 w-8" />} />
 
         <RegionBadge />
 
         {/* Scrollable nav */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
         {/* Gestion des utilisateurs */}
-        <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-          Gestion des utilisateurs
-        </div>
+        <SidebarSectionTitle>Gestion des utilisateurs</SidebarSectionTitle>
         <nav className="flex flex-col gap-1 px-3">
-          <NavItem to="/admin/utilisateurs" end icon={<Users size={18} />} label="Utilisateurs" />
+          <NavItem to="/admin/utilisateurs" end icon={<IconUsers width={18} height={18} />} label="Utilisateurs" />
           <NavItem
             to="/admin/utilisateurs/nouveau"
-            icon={<UserPlus size={18} />}
+            icon={<IconUserPlus width={18} height={18} />}
             label="Créer un utilisateur"
           />
         </nav>
 
         {/* Configuration */}
-        <div className="mx-3 my-4 border-t border-gray-100" />
-        <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-          Configuration
-        </div>
+        <SidebarSectionTitle>Configuration</SidebarSectionTitle>
         <nav className="flex flex-col gap-1 px-3">
-          <NavItem to="/rh/config-secteurs" icon={<MapPin size={18} />} label="Secteurs" />
+          <NavItem to="/rh/config-secteurs" icon={<IconMapPin width={18} height={18} />} label="Secteurs" />
         </nav>
 
-        {/* Espaces */}
-        <div className="mx-3 my-4 border-t border-gray-100" />
-        <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-          Espaces
-        </div>
-        <nav className="flex flex-col gap-1 px-3">
-          <NavItem to="/commercial" icon={<Briefcase size={18} />} label="Espace Commercial" />
-          <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
-          <NavItem to="/peda" icon={<GraduationCap size={18} />} label="Espace Péda" />
-        </nav>
+        {/* Le changement d'espace se fait par le sélecteur en tête de barre. */}
         </div>
 
         {/* Retour espaces */}
-        <div className="shrink-0 border-t border-gray-100 p-4 flex flex-col gap-4">
+        <div className="shrink-0 border-t border-[var(--ds-border)] p-3 flex flex-col gap-3">
+          <SidebarPinButton />
           <button
             onClick={() => navigate('/commercial')}
-            className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900"
+            className="flex items-center gap-3 overflow-hidden rounded-full px-[14px] py-2 text-[13px] font-medium text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]"
           >
-            <ArrowLeft size={16} />
-            Retour à l'application
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+              <IconArrowLeft width={16} height={16} />
+            </span>
+            <SidebarLabel>Retour à l'application</SidebarLabel>
           </button>
 
-          <div className="h-px w-full bg-gray-100" />
-          <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-gray-50 transition-colors">
+          <div className="h-px w-full bg-[var(--ds-surface-sunken)]" />
+          <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-[var(--ds-surface-sunken)] transition-colors">
             <div
               className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
               style={{ backgroundColor: '#1130A7' }}
             >
-              <User size={18} />
+              <IconUser width={18} height={18} />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">
+            <SidebarLabel className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-bold text-[var(--ds-text)] leading-tight">
                 {`${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim()}
               </p>
-              <p className="truncate text-[11px] font-medium text-gray-400 capitalize">
+              <p className="truncate text-[11px] font-medium text-[var(--ds-text-subtle)] capitalize">
                 {currentUser?.role?.toLowerCase()}
               </p>
-            </div>
+            </SidebarLabel>
             <button
               onClick={handleLogout}
-              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+              className="invisible flex-shrink-0 rounded-full p-1.5 text-[var(--ds-text-subtle)] opacity-0 transition-[opacity,color,background-color] duration-200 hover:bg-[var(--ds-danger-bg)] hover:text-[var(--ds-danger)] group-data-[open=true]/sidebar:visible group-data-[open=true]/sidebar:opacity-100"
+              aria-label="Se déconnecter"
               title="Se déconnecter"
             >
-              <LogOut size={16} />
+              <IconLogout width={16} height={16} />
             </button>
           </div>
-
-          <LegalLinks />
         </div>
-      </aside>
+      </CollapsibleSidebar>
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white px-6">
+        <header className="ds-glass-flush relative z-30 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-[var(--ds-glass-border)] px-6">
           <RouteBreadcrumb accent="#1130A7" />
-          <NotificationBell accent="#1130A7" />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <NotificationBell accent="#1130A7" />
+          </div>
         </header>
         <GoogleReconnectBanner />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-8">
+        <main id="contenu-principal" tabIndex={-1} className="ds-scroll flex-1 overflow-y-auto overflow-x-hidden p-8">
           <Outlet />
         </main>
+        <AppFooter />
       </div>
     </div>
   )

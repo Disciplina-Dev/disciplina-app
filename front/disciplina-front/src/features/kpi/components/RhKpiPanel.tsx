@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  CalendarPlus, CalendarClock, UserCheck, UserX, Briefcase, FileSignature, Unlink,
-  Loader2, AlertCircle, RefreshCw, ExternalLink,
-} from 'lucide-react'
+import { IconAlert, IconCalendarPlus, IconExternalLink, IconJob, IconLoader, IconRefresh, IconSchedule, IconSignature, IconUnlink, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
 import { useAuthStore, Permission } from '@/store/authStore'
 import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
   type RhKpiColumn, type RhKpiMetrics, type RhKpiReport,
 } from '@/api/rhKpi'
 import { SECTEUR_VALUES } from '@/constants/secteurs'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import ChipGroup from '@/components/ui/ChipGroup'
+import Select from '@/components/ui/Select'
 
 // Charte graphique (cf. index.css).
 const COLORS = {
@@ -19,17 +19,17 @@ const COLORS = {
 
 /** Carte/colonne KPI. `derived` = calculée (pas une colonne stockée). */
 type CardDef =
-  | { key: RhKpiColumn; derived?: false; label: string; icon: typeof CalendarPlus; color: string; aggregateOnly?: boolean }
-  | { key: 'upcoming'; derived: true; label: string; icon: typeof CalendarPlus; color: string; aggregateOnly?: boolean }
+  | { key: RhKpiColumn; derived?: false; label: string; icon: typeof IconCalendarPlus; color: string; aggregateOnly?: boolean }
+  | { key: 'upcoming'; derived: true; label: string; icon: typeof IconCalendarPlus; color: string; aggregateOnly?: boolean }
 
 const CARDS: CardDef[] = [
-  { key: 'interviews_placed', label: 'Entretiens placés', icon: CalendarPlus, color: COLORS.blue },
-  { key: 'upcoming', derived: true, label: 'À venir', icon: CalendarClock, color: COLORS.slate },
-  { key: 'interviews_attended', label: 'Venus', icon: UserCheck, color: COLORS.success, aggregateOnly: true },
-  { key: 'interviews_noshow', label: 'Pas venus', icon: UserX, color: COLORS.danger, aggregateOnly: true },
-  { key: 'immersions', label: 'Immersions', icon: Briefcase, color: COLORS.pink },
-  { key: 'contracts', label: 'Contrats', icon: FileSignature, color: COLORS.purple },
-  { key: 'ruptures', label: 'Ruptures', icon: Unlink, color: COLORS.warning },
+  { key: 'interviews_placed', label: 'Entretiens placés', icon: IconCalendarPlus, color: COLORS.blue },
+  { key: 'upcoming', derived: true, label: 'À venir', icon: IconSchedule, color: COLORS.slate },
+  { key: 'interviews_attended', label: 'Venus', icon: IconUserCheck, color: COLORS.success, aggregateOnly: true },
+  { key: 'interviews_noshow', label: 'Pas venus', icon: IconUserRemove, color: COLORS.danger, aggregateOnly: true },
+  { key: 'immersions', label: 'Immersions', icon: IconJob, color: COLORS.pink },
+  { key: 'contracts', label: 'Contrats', icon: IconSignature, color: COLORS.purple },
+  { key: 'ruptures', label: 'Ruptures', icon: IconUnlink, color: COLORS.warning },
 ]
 
 /** Valeur d'une carte pour un jeu de métriques (gère le dérivé « à venir »). */
@@ -200,106 +200,120 @@ export default function RhKpiPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Indicateurs RH</h2>
-          <p className="text-sm text-gray-500">{periodLabel} · {scopeLabel} · {sectorLabel}</p>
+          <h2 className="text-lg font-bold text-[var(--ds-text)]">Indicateurs RH</h2>
+          <p className="text-sm text-[var(--ds-text-subtle)]">{periodLabel} · {scopeLabel} · {sectorLabel}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {gran === 'week' && (
-            <select value={week} onChange={(e) => setWeek(Number(e.target.value))} className={selectCls}>
-              {Array.from({ length: 53 }, (_, i) => i + 1).map((w) => (
-                <option key={w} value={w}>Sem. {w}</option>
-              ))}
-            </select>
+            <Select
+              size="sm"
+              ariaLabel="Semaine"
+              className="w-32"
+              value={week}
+              onChange={setWeek}
+              options={Array.from({ length: 53 }, (_, i) => i + 1).map((w) => ({
+                value: w,
+                label: `Sem. ${w}`,
+              }))}
+            />
           )}
           {gran === 'month' && (
-            <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className={selectCls}>
-              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-            </select>
+            <Select
+              size="sm"
+              ariaLabel="Mois"
+              className="w-36"
+              value={month}
+              onChange={setMonth}
+              options={MONTHS.map((m, i) => ({ value: i + 1, label: m }))}
+            />
           )}
           {!hideSelector && sectors.length > 0 && (
-            <div className="flex items-center gap-1 rounded-[10px] border border-gray-200 bg-white p-0.5">
-              <button
-                onClick={() => setSelectedSectors(null)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${!selectedSectors ? 'bg-purple text-white' : 'text-gray-500 hover:text-gray-800'}`}
-              >
-                Tous
-              </button>
-              {sectors.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => toggleSector(s)}
-                  className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${selectedSectors && isSectorOn(s) ? 'bg-purple text-white' : 'text-gray-500 hover:text-gray-800'}`}
-                >
-                  {s}
-                </button>
-              ))}
+            <div className="flex items-center gap-1 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] p-0.5">
+              <ChipGroup
+                label="Secteurs affichés"
+                tone="purple"
+                selected={selectedSectors ? sectors.filter((s) => isSectorOn(s)) : []}
+                onSelectAll={() => setSelectedSectors(null)}
+                onToggle={toggleSector}
+                options={sectors.map((s) => ({ value: s, label: s }))}
+              />
             </div>
           )}
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={selectCls}>
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <button onClick={load} className="flex items-center gap-2 rounded-[10px] border border-gray-100 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50">
-            <RefreshCw size={16} />
+          <Select
+            size="sm"
+            ariaLabel="Année"
+            className="w-28"
+            value={year}
+            onChange={setYear}
+            options={years.map((y) => ({ value: y, label: String(y) }))}
+          />
+          <button onClick={load} className="flex items-center gap-2 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-medium text-[var(--ds-text-muted)] shadow-sm transition hover:bg-[var(--ds-surface-sunken)]">
+            <IconRefresh width={16} height={16} />
           </button>
           {/* Granularité — en dernier (calé à droite) pour ne pas se décaler quand le select valeur apparaît. */}
-          <div className="flex rounded-[10px] border border-gray-200 bg-white p-0.5">
-            {(['week', 'month', 'year'] as Granularity[]).map((g) => (
-              <button key={g} onClick={() => setGran(g)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${gran === g ? 'bg-purple text-white' : 'text-gray-500 hover:text-gray-800'}`}>
-                {g === 'week' ? 'Semaine' : g === 'month' ? 'Mois' : 'Année'}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            label="Granularité des indicateurs"
+            tone="purple"
+            size="sm"
+            value={gran}
+            onChange={setGran}
+            options={[
+              { value: 'week' as Granularity, label: 'Semaine' },
+              { value: 'month' as Granularity, label: 'Mois' },
+              { value: 'year' as Granularity, label: 'Année' },
+            ]}
+          />
         </div>
       </div>
 
       {loading ? (
         <div className="flex h-40 items-center justify-center">
-          <Loader2 className="animate-spin text-purple" size={28} />
+          <IconLoader className="animate-spin text-purple" width={28} height={28} />
         </div>
       ) : error ? (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-bg p-3 text-sm text-danger">
-          <AlertCircle size={16} /> {error}
+        <div className="flex items-center gap-2 rounded-xl bg-[var(--ds-danger-bg)] p-3 text-sm text-[var(--ds-danger)]">
+          <IconAlert width={16} height={16} /> {error}
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleCards.map((m) => (
-              <div key={m.key} className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+              <div key={m.key} className="flex items-center gap-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
                   style={{ backgroundColor: `${m.color}14`, color: m.color }}>
-                  <m.icon size={24} />
+                  <m.icon width={24} height={24} />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-500">{m.label}</p>
-                  <p className="text-2xl font-extrabold text-black">{cardValue(m, displayTotals)}</p>
+                  <p className="truncate text-sm font-medium text-[var(--ds-text-subtle)]">{m.label}</p>
+                  <p className="text-2xl font-extrabold text-[var(--ds-text)]">{cardValue(m, displayTotals)}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {isAggregate && perUser.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-sm">
               <div className="flex items-center justify-between px-4 pt-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
                   Détail par RH / responsable
                 </span>
                 {perUser.length > 1 && (
-                  <select
-                    value={selectedUserId ?? ''}
-                    onChange={(e) => setSelectedUserId(e.target.value ? Number(e.target.value) : null)}
-                    className={selectCls}
-                  >
-                    <option value="">Tous les RH</option>
-                    {perUser.map((u) => (
-                      <option key={u.userId} value={u.userId}>{u.name}</option>
-                    ))}
-                  </select>
+                  <Select
+                    size="sm"
+                    ariaLabel="Chargé RH"
+                    className="w-44"
+                    value={selectedUserId ?? ALL_RH}
+                    onChange={(id) => setSelectedUserId(id === ALL_RH ? null : id)}
+                    options={[
+                      { value: ALL_RH, label: 'Tous les RH' },
+                      ...perUser.map((u) => ({ value: u.userId, label: u.name })),
+                    ]}
+                  />
                 )}
               </div>
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                  <tr className="border-b border-[var(--ds-border)] text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
                     <th className="px-4 py-3">RH</th>
                     {visibleCards.map((m) => <th key={m.key} className="px-3 py-3 text-right">{m.label}</th>)}
                     <th className="px-3 py-3 text-right">Actions</th>
@@ -307,10 +321,10 @@ export default function RhKpiPanel({
                 </thead>
                 <tbody>
                   {filteredPerUser.map((u) => (
-                    <tr key={u.userId} className="border-b border-gray-50 last:border-0">
-                      <td className="px-4 py-2.5 font-semibold text-gray-700">{u.name}</td>
+                    <tr key={u.userId} className="border-b border-[var(--ds-border)] last:border-0">
+                      <td className="px-4 py-2.5 font-semibold text-[var(--ds-text-muted)]">{u.name}</td>
                       {visibleCards.map((m) => (
-                        <td key={m.key} className="px-3 py-2.5 text-right tabular-nums text-gray-600">{cardValue(m, u.metrics)}</td>
+                        <td key={m.key} className="px-3 py-2.5 text-right tabular-nums text-[var(--ds-text-muted)]">{cardValue(m, u.metrics)}</td>
                       ))}
                       <td className="px-3 py-2.5 text-right">
                         <button
@@ -318,7 +332,7 @@ export default function RhKpiPanel({
                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:text-purple-dark transition-colors"
                           title="Voir les candidats de ce RH"
                         >
-                          Voir <ExternalLink size={12} />
+                          Voir <IconExternalLink width={12} height={12} />
                         </button>
                       </td>
                     </tr>
@@ -333,4 +347,6 @@ export default function RhKpiPanel({
   )
 }
 
-const selectCls = 'rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-[13px] font-bold text-gray-700 outline-none focus:border-purple'
+/** Sentinelle « Tous les RH » : aucun utilisateur n'a l'identifiant 0. */
+const ALL_RH = 0
+
