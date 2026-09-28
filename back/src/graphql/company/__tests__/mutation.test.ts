@@ -3,6 +3,7 @@ import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
+import { syncWithRegion } from '../../../db/tenant';
 import pool from '../../../db/mysql/connection';
 import { SireneService } from '../../../external/insee/sirene.service';
 
@@ -111,6 +112,136 @@ describe('GraphQL company mutations', () => {
             });
             const vjson = await verify.json();
             expect(vjson.data.companyBySiret.name).toBe(`Test Corp ${suffix}`);
+        });
+
+        it('stores an Annemasse company sector verbatim instead of resetting to Nord-Est', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const siret = `${suffix}2222222222`.slice(0, 14);
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($input: CompanyInput!) {
+                            createCompany(input: $input) {
+                                id sector
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            name: `Annemasse Corp ${suffix}`,
+                            siret,
+                            address: '18 Av. de la République, 74100 Annemasse',
+                            sector: 'Arve',
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.createCompany.sector).toBe('Arve');
+
+            // The sector filter accepts the new vocabulary too
+            const repo = new CompanyRepository();
+            const found = await repo.findAll(50, undefined, undefined, { sectors: ['Arve'] });
+            expect(found.some((c) => c.siret === siret)).toBe(true);
+        });
+
+        it('falls back to the default sector for unknown values', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const siret = `${suffix}3333333333`.slice(0, 14);
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($input: CompanyInput!) {
+                            createCompany(input: $input) {
+                                id sector
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            name: `Unknown Sector Corp ${suffix}`,
+                            siret,
+                            address: '123 Rue de Paris',
+                            sector: 'Atlantide',
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.createCompany.sector).toBe('Nord-Est');
+        });
+
+        it('defaults to Genève / Frontière on the annemasse tenant when sector is missing', async () => {
+            const auth = mintAuthCookies({
+                id: 1,
+                email: 'admin@test.local',
+                role: 'COMMERCIAL',
+                permission: 'ADMIN',
+                region: 'annemasse',
+            });
+            const suffix = Date.now();
+            const siret = `${suffix}4444444444`.slice(0, 14);
+            let createdId: number | null = null;
+
+            try {
+                const res = await fetch(ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Cookie: auth.cookieHeader,
+                        'x-csrf-token': auth.csrfHeader,
+                    },
+                    body: JSON.stringify({
+                        query: `
+                            mutation($input: CompanyInput!) {
+                                createCompany(input: $input) {
+                                    id sector
+                                }
+                            }
+                        `,
+                        variables: {
+                            input: {
+                                name: `Annemasse Default Corp ${suffix}`,
+                                siret,
+                                address: '18 Av. de la République, 74100 Annemasse',
+                            },
+                        },
+                    }),
+                });
+                const json = await res.json();
+
+                expect(res.status).toBe(200);
+                expect(json.errors).toBeUndefined();
+                expect(json.data.createCompany.sector).toBe('Genève / Frontière');
+                createdId = json.data.createCompany.id;
+            } finally {
+                // truncateMysql only clears the reunion database
+                if (createdId !== null) {
+                    await syncWithRegion('annemasse', () => new CompanyRepository().delete(createdId as number));
+                }
+            }
         });
 
         it('creates a company with all optional fields', async () => {

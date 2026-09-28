@@ -1,4 +1,5 @@
-// La Réunion (974) — code postal → commune, et liste des communes pour la mobilité.
+// La Réunion (974) + Haute-Savoie / Annemasse (74) — code postal → commune,
+// et liste des communes pour la mobilité.
 
 import { Localisation } from '@/types/candidate'
 
@@ -67,12 +68,53 @@ export const REUNION_POSTAL_TO_CITY: Record<string, string> = {
   '97438': 'Sainte-Marie',
 }
 
-/** Renvoie la commune correspondant au code postal saisi, ou undefined. */
-export function cityFromPostalCode(postalCode: string): string | undefined {
-  return REUNION_POSTAL_TO_CITY[postalCode.trim()]
+/**
+ * Haute-Savoie — tenant Annemasse (74). Un code postal partagé par plusieurs
+ * communes pointe vers la commune principale (bureau distributeur), comme
+ * pour la carte Réunion ci-dessus (ex. 97460 → Saint-Paul).
+ */
+export const ANNEMASSE_POSTAL_TO_CITY: Record<string, string> = {
+  // Secteur Genève / frontière
+  '74100': 'Annemasse',
+  '74240': 'Gaillard',
+  '74380': 'Cranves-Sales',
+  '74140': 'Douvaine',
+  '74890': 'Bons-en-Chablais',
+  '74200': 'Thonon-les-Bains',
+  '74500': 'Évian-les-Bains',
+  // Secteur Saint-Julien / Genevois
+  '74160': 'Saint-Julien-en-Genevois',
+  '74580': 'Viry',
+  '74520': 'Valleiry',
+  // Secteur Arve
+  '74930': 'Reignier-Ésery',
+  '74130': 'Bonneville',
+  '74970': 'Marignier',
+  '74300': 'Cluses',
+  '74950': 'Scionzier',
+  '74460': 'Marnaz',
+  // Secteur Faucigny / La Roche
+  '74800': 'La Roche-sur-Foron',
+  // Secteur Annecy
+  '74000': 'Annecy',
+  '74370': 'Pringy',
+  '74330': 'Épagny Metz-Tessy',
+  '74960': 'Meythet',
+  '74600': 'Seynod',
+  // Secteur Chablais
+  '74550': 'Perrignier',
+  '74420': 'Boëge',
+  '74250': 'Fillinges',
+  '74490': 'Saint-Jeoire',
 }
 
-/** Libellés FR des communes de La Réunion, indexés par l'enum `Localisation` (mobilité géographique). */
+/** Renvoie la commune correspondant au code postal saisi, ou undefined. */
+export function cityFromPostalCode(postalCode: string): string | undefined {
+  const code = postalCode.trim()
+  return REUNION_POSTAL_TO_CITY[code] ?? ANNEMASSE_POSTAL_TO_CITY[code]
+}
+
+/** Libellés FR des communes de La Réunion et de Haute-Savoie (Annemasse), indexés par l'enum `Localisation` (mobilité géographique). */
 export const LOCALISATION_LABELS: Record<Localisation, string> = {
   [Localisation.SAINT_DENIS]: 'Saint-Denis',
   [Localisation.SAINTE_MARIE]: 'Sainte-Marie',
@@ -100,6 +142,71 @@ export const LOCALISATION_LABELS: Record<Localisation, string> = {
   [Localisation.LA_PLAINE_DES_PALMISTES]: 'La Plaine-des-Palmistes',
   [Localisation.SALAZIE]: 'Salazie',
   [Localisation.SAINTE_ANNE]: 'Sainte-Anne',
+  // Haute-Savoie — secteur Genève / frontière.
+  [Localisation.ANNEMASSE]: 'Annemasse',
+  [Localisation.AMBILLY]: 'Ambilly',
+  [Localisation.GAILLARD]: 'Gaillard',
+  [Localisation.VILLE_LA_GRAND]: 'Ville-la-Grand',
+  [Localisation.VETRAZ_MONTHOUX]: 'Vétraz-Monthoux',
+  [Localisation.ETREMBIERES]: 'Étrembières',
+  [Localisation.CRANVES_SALES]: 'Cranves-Sales',
+  [Localisation.SAINT_CERGUES]: 'Saint-Cergues',
+  [Localisation.JUVIGNY]: 'Juvigny',
+  [Localisation.BONNE]: 'Bonne',
+  [Localisation.MACHILLY]: 'Machilly',
+  [Localisation.DOUVAINE]: 'Douvaine',
+  [Localisation.VEIGY_FONCENEX]: 'Veigy-Foncenex',
+  [Localisation.BONS_EN_CHABLAIS]: 'Bons-en-Chablais',
+  [Localisation.SCIEZ]: 'Sciez',
+  [Localisation.THONON_LES_BAINS]: 'Thonon-les-Bains',
+  [Localisation.EVIAN_LES_BAINS]: 'Évian-les-Bains',
+  // Haute-Savoie — secteur Saint-Julien / Genevois.
+  [Localisation.SAINT_JULIEN_EN_GENEVOIS]: 'Saint-Julien-en-Genevois',
+  [Localisation.ARCHAMPS]: 'Archamps',
+  [Localisation.NEYDENS]: 'Neydens',
+  [Localisation.COLLONGES_SOUS_SALEVE]: 'Collonges-sous-Salève',
+  [Localisation.PRESILLY]: 'Présilly',
+  [Localisation.BEAUMONT]: 'Beaumont',
+  [Localisation.FEIGERES]: 'Feigères',
+  [Localisation.VIRY]: 'Viry',
+  [Localisation.VALLEIRY]: 'Valleiry',
+  [Localisation.VULBENS]: 'Vulbens',
+  [Localisation.CHENEX]: 'Chênex',
+  // Haute-Savoie — secteur Arve.
+  [Localisation.REIGNIER_ESERY]: 'Reignier-Ésery',
+  [Localisation.ARENTHON]: 'Arenthon',
+  [Localisation.CONTAMINE_SUR_ARVE]: 'Contamine-sur-Arve',
+  [Localisation.BONNEVILLE]: 'Bonneville',
+  [Localisation.AYSE]: 'Ayse',
+  [Localisation.MARIGNIER]: 'Marignier',
+  [Localisation.VOUGY]: 'Vougy',
+  [Localisation.CLUSES]: 'Cluses',
+  [Localisation.SCIONZIER]: 'Scionzier',
+  [Localisation.MARNAZ]: 'Marnaz',
+  // Haute-Savoie — secteur Faucigny / La Roche.
+  [Localisation.LA_ROCHE_SUR_FORON]: 'La Roche-sur-Foron',
+  [Localisation.AMANCY]: 'Amancy',
+  [Localisation.SAINT_PIERRE_EN_FAUCIGNY]: 'Saint-Pierre-en-Faucigny',
+  [Localisation.ETAUX]: 'Éteaux',
+  [Localisation.CORNIER]: 'Cornier',
+  [Localisation.PERS_JUSSY]: 'Pers-Jussy',
+  [Localisation.SCIENTRIER]: 'Scientrier',
+  [Localisation.ARBUSIGNY]: 'Arbusigny',
+  // Haute-Savoie — secteur Annecy.
+  [Localisation.ANNECY]: 'Annecy',
+  [Localisation.PRINGY]: 'Pringy',
+  [Localisation.EPAGNY_METZ_TESSY]: 'Épagny Metz-Tessy',
+  [Localisation.POISY]: 'Poisy',
+  [Localisation.MEYTHET]: 'Meythet',
+  [Localisation.SEYNOD]: 'Seynod',
+  [Localisation.CRAN_GEVRIER]: 'Cran-Gevrier',
+  [Localisation.ARGONAY]: 'Argonay',
+  // Haute-Savoie — secteur Chablais.
+  [Localisation.PERRIGNIER]: 'Perrignier',
+  [Localisation.BOEGE]: 'Boëge',
+  [Localisation.FILLINGES]: 'Fillinges',
+  [Localisation.VIUZ_EN_SALLAZ]: 'Viuz-en-Sallaz',
+  [Localisation.SAINT_JEOIRE]: 'Saint-Jeoire',
 }
 
 /**

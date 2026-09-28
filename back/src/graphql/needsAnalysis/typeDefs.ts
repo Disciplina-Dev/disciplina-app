@@ -28,6 +28,65 @@ export const typeDefs = gql`
         LA_PLAINE_DES_PALMISTES
         SALAZIE
         SAINTE_ANNE
+        ANNEMASSE
+        AMBILLY
+        GAILLARD
+        VILLE_LA_GRAND
+        VETRAZ_MONTHOUX
+        ETREMBIERES
+        CRANVES_SALES
+        SAINT_CERGUES
+        JUVIGNY
+        BONNE
+        MACHILLY
+        DOUVAINE
+        VEIGY_FONCENEX
+        BONS_EN_CHABLAIS
+        SCIEZ
+        THONON_LES_BAINS
+        EVIAN_LES_BAINS
+        SAINT_JULIEN_EN_GENEVOIS
+        ARCHAMPS
+        NEYDENS
+        COLLONGES_SOUS_SALEVE
+        PRESILLY
+        BEAUMONT
+        FEIGERES
+        VIRY
+        VALLEIRY
+        VULBENS
+        CHENEX
+        REIGNIER_ESERY
+        ARENTHON
+        CONTAMINE_SUR_ARVE
+        BONNEVILLE
+        AYSE
+        MARIGNIER
+        VOUGY
+        CLUSES
+        SCIONZIER
+        MARNAZ
+        LA_ROCHE_SUR_FORON
+        AMANCY
+        SAINT_PIERRE_EN_FAUCIGNY
+        ETAUX
+        CORNIER
+        PERS_JUSSY
+        SCIENTRIER
+        ARBUSIGNY
+        ANNECY
+        PRINGY
+        EPAGNY_METZ_TESSY
+        POISY
+        MEYTHET
+        SEYNOD
+        CRAN_GEVRIER
+        ARGONAY
+        PERRIGNIER
+        BOEGE
+        FILLINGES
+        VIUZ_EN_SALLAZ
+        SAINT_JEOIRE
     }
 
     enum TrainingDomain {

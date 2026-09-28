@@ -472,6 +472,65 @@ All values are non-negative integers; unknown keys are ignored at read time (met
 | LA_PLAINE_DES_PALMISTES | Commune in Réunion |
 | SALAZIE | Commune in Réunion |
 | SAINTE_ANNE | Commune in Réunion |
+| ANNEMASSE | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| AMBILLY | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| GAILLARD | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| VILLE_LA_GRAND | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| VETRAZ_MONTHOUX | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| ETREMBIERES | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| CRANVES_SALES | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| SAINT_CERGUES | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| JUVIGNY | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| BONNE | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| MACHILLY | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| DOUVAINE | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| VEIGY_FONCENEX | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| BONS_EN_CHABLAIS | Commune in Haute-Savoie (Annemasse — Genève / frontière + Chablais) |
+| SCIEZ | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| THONON_LES_BAINS | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| EVIAN_LES_BAINS | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| SAINT_JULIEN_EN_GENEVOIS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| ARCHAMPS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| NEYDENS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| COLLONGES_SOUS_SALEVE | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| PRESILLY | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| BEAUMONT | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| FEIGERES | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| VIRY | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| VALLEIRY | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| VULBENS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| CHENEX | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| REIGNIER_ESERY | Commune in Haute-Savoie (Annemasse — Arve) |
+| ARENTHON | Commune in Haute-Savoie (Annemasse — Arve) |
+| CONTAMINE_SUR_ARVE | Commune in Haute-Savoie (Annemasse — Arve) |
+| BONNEVILLE | Commune in Haute-Savoie (Annemasse — Arve) |
+| AYSE | Commune in Haute-Savoie (Annemasse — Arve) |
+| MARIGNIER | Commune in Haute-Savoie (Annemasse — Arve) |
+| VOUGY | Commune in Haute-Savoie (Annemasse — Arve) |
+| CLUSES | Commune in Haute-Savoie (Annemasse — Arve) |
+| SCIONZIER | Commune in Haute-Savoie (Annemasse — Arve) |
+| MARNAZ | Commune in Haute-Savoie (Annemasse — Arve) |
+| LA_ROCHE_SUR_FORON | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| AMANCY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| SAINT_PIERRE_EN_FAUCIGNY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| ETAUX | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| CORNIER | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| PERS_JUSSY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| SCIENTRIER | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| ARBUSIGNY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| ANNECY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| PRINGY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| EPAGNY_METZ_TESSY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| POISY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| MEYTHET | Commune in Haute-Savoie (Annemasse — Annecy) |
+| SEYNOD | Commune in Haute-Savoie (Annemasse — Annecy) |
+| CRAN_GEVRIER | Commune in Haute-Savoie (Annemasse — Annecy) |
+| ARGONAY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| PERRIGNIER | Commune in Haute-Savoie (Annemasse — Chablais) |
+| BOEGE | Commune in Haute-Savoie (Annemasse — Chablais) |
+| FILLINGES | Commune in Haute-Savoie (Annemasse — Chablais) |
+| VIUZ_EN_SALLAZ | Commune in Haute-Savoie (Annemasse — Chablais) |
+| SAINT_JEOIRE | Commune in Haute-Savoie (Annemasse — Chablais) |
 
 ### Sex
 
