@@ -16,3 +16,22 @@ export const TENANT_TIMEZONE: Record<Region, string> = {
 export function tenantTimezone(region: Region = getRegion()): string {
     return TENANT_TIMEZONE[region];
 }
+
+/**
+ * Lieux de RDV par secteur (`sector_settings`), par tenant. Les 3 clés de
+ * secteur (`Nord-Est`/`Ouest`/`Sud`) sont un référentiel fermé (voir
+ * `GEO-09`/`GEO-10`, AUDIT_MULTITENANT.md) : seul le libellé affiché change
+ * par tenant, pas les clés.
+ */
+export const TENANT_SECTOR_LOCATIONS: Record<Region, { sector: string; location: string }[]> = {
+    reunion: [
+        { sector: 'Nord-Est', location: 'Disciplina Nord-Est — Sainte-Marie' },
+        { sector: 'Ouest', location: 'Disciplina Ouest — Saint-Paul' },
+        { sector: 'Sud', location: 'Disciplina Sud — Saint-Pierre' },
+    ],
+    annemasse: [
+        { sector: 'Nord-Est', location: 'Disciplina Annemasse — Annemasse' },
+        { sector: 'Ouest', location: 'Disciplina Annemasse — Ambilly' },
+        { sector: 'Sud', location: 'Disciplina Annemasse — Ville-la-Grand' },
+    ],
+};
