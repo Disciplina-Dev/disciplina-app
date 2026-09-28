@@ -3,10 +3,10 @@ import { query, getConnection } from '../../db/mysql/connection';
 import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
+import { isCompanySector } from '../../utils/sector';
 
 const ALLOWED_STATUSES = new Set(['Oui', 'Oui OF', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const ALLOWED_RELANCE = new Set(['today', 'past', 'future']);
-const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
 
 export interface CompanyFilters {
     status?: string[];
@@ -78,7 +78,7 @@ export class CompanyRepository {
             else rawSectors.push(String(filters.sector));
         }
         if (filters?.sectors?.length) rawSectors.push(...filters.sectors);
-        const validSectors = [...new Set(rawSectors.filter((s) => ALLOWED_SECTORS.has(s)))];
+        const validSectors = [...new Set(rawSectors.filter((s) => isCompanySector(s)))];
         const mode = (filters?.sectorMode === 'AND' || filters?.sectorsMode === 'AND') ? 'AND' : 'OR';
         if (validSectors.length === 1) {
             conditions.push('sector LIKE CONCAT("%", ?, "%")');

@@ -38,6 +38,8 @@ import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobE
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
 import { useCurrentUser, Permission } from '@/store/authStore'
+import { useRegionStore } from '@/store/regionStore'
+import { regionTimezone, zonedWallClockToIso } from '@/lib/timezone'
 import { apiFetch } from '@/api/httpClient'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
@@ -253,6 +255,7 @@ function CandidateRow({
   interviewSlots?: string[] | null
   interviewLocation?: string | null
 }) {
+  const timezone = regionTimezone(useRegionStore((s) => s.region))
   return (
     <div className="rounded-lg border border-gray-100 p-3">
       <div className="flex items-center justify-between gap-2 mb-1">
@@ -287,7 +290,7 @@ function CandidateRow({
 
       {candidate.bookedInterviewSlot && (
         <div className="mb-2 rounded-md bg-green-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
-          <p><CalendarClock size={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot)}</p>
+          <p><CalendarClock size={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot, timezone)}</p>
           <p>{candidate.interviewLocation || interviewLocation || 'Lieu non précisé'}</p>
         </div>
       )}
@@ -298,7 +301,7 @@ function CandidateRow({
           <div className="flex flex-wrap gap-1">
             {interviewSlots.map((slot) => (
               <span key={slot} className="rounded bg-white px-1.5 py-0.5 text-[15px] text-gray-500">
-                {formatSlot(slot)}
+                {formatSlot(slot, timezone)}
               </span>
             ))}
           </div>
@@ -1336,9 +1339,9 @@ function buildOfferMailBody(
 </html>`
 }
 
-function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
+function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string, tz: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
+  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1369,10 +1372,10 @@ function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: stri
 </html>`
 }
 
-function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string): string {
+function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string, tz: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
-  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Indian/Reunion' })
+  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz })
+  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1550,13 +1553,16 @@ function MatchingSection({
 
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
-function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Indian/Reunion' })
+function formatSlot(iso: string, tz: string): string {
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz })
 }
 
 
 
 function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void }) {
+  // Fuseau du tenant : regionStore est la source de vérité (persistée au login
+  // par LoginPage.tsx), plutôt que AppUser qui peut être null au 1er rendu.
+  const region = useRegionStore((s) => s.region)
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
   const [showCompanyInfo, setShowCompanyInfo] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
@@ -1799,7 +1805,10 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           candidateName,
           type: 'interview',
           interviewLocation: location,
-          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}:00+04:00`).toISOString(),
+          bookedInterviewSlot: zonedWallClockToIso(
+            `${dateOrStartDate}T${hourOrEndDate}`,
+            regionTimezone(region),
+          ),
         })
       } else {
         const result = await offerGraphqlClient
@@ -2184,6 +2193,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
                 datesMailState.fullName,
                 datesMailState.bookedInterviewSlot,
                 datesMailState.interviewLocation || jobData?.interviewLocation || '',
+                regionTimezone(region),
               )
               : ''
           }
@@ -2207,12 +2217,14 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
                   notifyMailState.candidateName,
                   notifyMailState.bookedInterviewSlot ?? '',
                   notifyMailState.interviewLocation ?? '',
+                  regionTimezone(region),
                 )
               : buildImmersionMailBody(
                   notifyMailState.candidateName,
                   notifyMailState.immersionStartDate ?? '',
                   notifyMailState.immersionEndDate ?? '',
                   notifyMailState.interviewLocation ?? '',
+                  regionTimezone(region),
                 )
           }
           scope="rh"

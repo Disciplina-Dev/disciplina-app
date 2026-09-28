@@ -2,9 +2,9 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { Search, ChevronDown, X, Check, Briefcase, Building2, MapPin, Landmark } from 'lucide-react'
 import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
-import { OfferStatus, DesiredTP, Sector, formatEnumLabel } from '../constants/jobEnums'
+import { OfferStatus, DesiredTP, Sector, Localisation, formatEnumLabel } from '../constants/jobEnums'
 import { JOB_STATUS_LABELS } from '@/constants/jobStatus'
-import { REGION_COMMUNES, REGION_LABELS, type Region } from '../constants/regions'
+import { REGION_COMMUNES, REGION_LABELS, ANNEMASSE_REGION_COMMUNES, ANNEMASSE_REGION_LABELS, type Region, type AnnemasseRegion } from '../constants/regions'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 
 interface Props {
@@ -122,7 +122,28 @@ function MultiSelectContent({
 
 // ─── Region-sorted commune multi-select content ─────────────────────────────
 const ALL_REGIONS: Region[] = ['NORD', 'OUEST', 'SUD']
-const ALL_COMMUNES = ALL_REGIONS.flatMap((r) => REGION_COMMUNES[r])
+const ANNEMASSE_REGIONS: AnnemasseRegion[] = [
+  'GENEVE_FRONTIERE',
+  'GENEVOIS',
+  'ARVE',
+  'FAUCIGNY',
+  'ANNECY',
+  'CHABLAIS',
+]
+const ALL_COMMUNES = [
+  ...ALL_REGIONS.flatMap((r) => REGION_COMMUNES[r]),
+  ...ANNEMASSE_REGIONS.flatMap((r) => ANNEMASSE_REGION_COMMUNES[r]),
+]
+
+/** Sections du filtre commune : 3 zones Réunion puis 6 secteurs Annemasse. */
+const COMMUNE_SECTIONS: { key: string; communes: Localisation[]; label: string }[] = [
+  ...ALL_REGIONS.map((r) => ({ key: r, communes: [...REGION_COMMUNES[r]], label: REGION_LABELS[r] })),
+  ...ANNEMASSE_REGIONS.map((r) => ({
+    key: r,
+    communes: [...ANNEMASSE_REGION_COMMUNES[r]],
+    label: ANNEMASSE_REGION_LABELS[r],
+  })),
+]
 
 function RegionMultiSelectContent({
   selected,
@@ -144,13 +165,12 @@ function RegionMultiSelectContent({
       </button>
       <div className="border-t border-gray-100 my-1" />
 
-      {ALL_REGIONS.map((region) => {
-        const communes = REGION_COMMUNES[region]
+      {COMMUNE_SECTIONS.map(({ key, communes, label }) => {
         const regionSelected = communes.every((c) => selected.includes(c))
         const regionPartial = communes.some((c) => selected.includes(c)) && !regionSelected
 
         return (
-          <div key={region}>
+          <div key={key}>
             {/* Region toggle */}
             <button
               onClick={() =>
@@ -162,7 +182,7 @@ function RegionMultiSelectContent({
               }
               className="flex w-full items-center gap-3 px-3.5 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors border-b border-gray-50"
             >
-              <span className="flex-1 text-left">{REGION_LABELS[region]}</span>
+              <span className="flex-1 text-left">{label}</span>
               <span className="text-[11px] text-gray-400 font-normal">{communes.length} communes</span>
               {regionSelected && <Check className="h-3.5 w-3.5 text-blue shrink-0" />}
               {regionPartial && <div className="h-3.5 w-3.5 rounded-sm border-2 border-blue" />}
@@ -207,11 +227,11 @@ export function JobFilters({ filters, onChange, hideSearch = false }: Props) {
 
   const communeActiveLabel = useMemo(() => {
     if (filters.localisations.length === 0) return undefined
-    const activeRegions = ALL_REGIONS.filter((r) =>
-      REGION_COMMUNES[r].every((c) => filters.localisations.includes(c)),
+    const activeSections = COMMUNE_SECTIONS.filter((s) =>
+      s.communes.every((c) => filters.localisations.includes(c)),
     )
-    if (activeRegions.length > 0) {
-      return activeRegions.map((r) => REGION_LABELS[r]).join(', ')
+    if (activeSections.length > 0) {
+      return activeSections.map((s) => s.label).join(', ')
     }
     return `${filters.localisations.length} commune${filters.localisations.length > 1 ? 's' : ''}`
   }, [filters.localisations])

@@ -2,8 +2,18 @@ import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { env } from '../../src/config/env';
 import { ACCESS_TOKEN_COOKIE, CSRF_COOKIE, CSRF_HEADER } from '../../src/rest/middleware/tokenAuth';
+import type { Region } from '../../src/types/tenant';
 
-export function mintToken(user: { id: number; email: string; role: string; permission?: string }): string {
+/** `region` porte le tenant cible : `authenticate` le renvoie dans l'ALS via syncWithRegion. */
+export interface TestUser {
+    id: number;
+    email: string;
+    role: string;
+    permission?: string;
+    region?: Region;
+}
+
+export function mintToken(user: TestUser): string {
     return jwt.sign(user, env.JWT_SECRET, { expiresIn: '1h' });
 }
 
@@ -12,7 +22,7 @@ export function mintToken(user: { id: number; email: string; role: string; permi
  * `cookieHeader` goes on the `Cookie` header, `csrfHeader` on `x-csrf-token`
  * (required by `authenticate`/`jwtContext` for any non-GET request).
  */
-export function mintAuthCookies(user: { id: number; email: string; role: string; permission?: string }): {
+export function mintAuthCookies(user: TestUser): {
     cookieHeader: string;
     csrfHeader: string;
 } {

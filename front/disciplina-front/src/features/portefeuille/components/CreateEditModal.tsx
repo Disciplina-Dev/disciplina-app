@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { X, Building2, ArrowRight, AlertTriangle, Check } from 'lucide-react'
 import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
-import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
+import { STATUS_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
+import {
+  ALL_COMPANY_SECTEURS,
+  companySecteursForRegion,
+  defaultCompanySecteurForRegion,
+} from '@/constants/secteurs'
+import { useRegionStore } from '@/store/regionStore'
 
 import type { AppUser } from '@/store/authStore'
 import { fullName } from '@/store/authStore'
@@ -46,11 +52,14 @@ type FormValues = {
   relance_channel: string
 }
 
-function parseSecteurValue(raw: string | null | undefined): string[] {
-  if (!raw) return [DEFAULT_SECTEUR]
+function parseSecteurValue(raw: string | null | undefined, fallback: string = DEFAULT_SECTEUR): string[] {
+  if (!raw) return [fallback]
   const parts = raw.split(',').map((s) => s.trim()).filter(Boolean)
-  const valid = parts.filter((s) => (SECTEUR_VALUES as string[]).includes(s))
-  return valid.length ? valid : [DEFAULT_SECTEUR]
+  // Valide contre l'union des vocabulaires : une fiche existante ne perd
+  // jamais son secteur en changeant de tenant (ex. « Nord-Est » stocké avant
+  // l'arrivée des secteurs Annemasse).
+  const valid = parts.filter((s) => (ALL_COMPANY_SECTEURS as string[]).includes(s))
+  return valid.length ? valid : [fallback]
 }
 
 interface Props {
@@ -77,6 +86,10 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       ? currentUser.id
       : String(initial?.proprietaire_id ?? currentUser.id)
 
+  const region = useRegionStore((s) => s.region)
+  const secteurOptions = companySecteursForRegion(region)
+  const secteurFallback = defaultCompanySecteurForRegion(region)
+
   const { register, handleSubmit, setValue, watch, getValues, formState: { errors, isSubmitting } } = useForm<FormValues>({
     defaultValues: {
       nom_commercial: initial?.nom_commercial ?? '',
@@ -84,7 +97,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       telephone: initial?.telephone ?? '',
       email: initial?.email ?? '',
       adresse: initial?.adresse ?? '',
-      secteur: parseSecteurValue(initial?.secteur),
+      secteur: parseSecteurValue(initial?.secteur, secteurFallback),
       metier: initial?.metier ?? '',
       representant_legal: initial?.representant_legal ?? '',
       idcc: initial?.idcc ?? '',
@@ -360,7 +373,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                         Secteur
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {SECTEUR_VALUES.map((s) => {
+                        {secteurOptions.map((s) => {
                           const active = selectedSecteurs.includes(s)
                           return (
                             <button

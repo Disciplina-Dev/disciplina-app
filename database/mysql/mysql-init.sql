@@ -473,6 +473,15 @@ ALTER TABLE disciplina_annemasse.todos
   ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES disciplina_annemasse.todo_groups (id) ON DELETE SET NULL;
 
+-- `CREATE TABLE ... LIKE` copie les valeurs par défaut : booking_settings.timezone
+-- arrive ici en 'Indian/Reunion' (cf. la CREATE TABLE de `disciplina` plus haut) alors
+-- qu'Annemasse est en Europe/Paris. Sans cet ALTER, chaque page de réservation créée
+-- par getOrCreate() afficherait des créneaux décalés de 2 h. La table est vide à ce
+-- stade (volume neuf) : corriger le DEFAULT suffit, le backfill des lignes existantes
+-- est fait par back/src/db/mysql/migrations.ts sur les bases déjà en service.
+ALTER TABLE disciplina_annemasse.booking_settings
+  MODIFY COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'Europe/Paris';
+
 -- Données de référence : copiées depuis `disciplina` (mêmes ids => même RBAC).
 -- NB: sector_settings est copié en fin de fichier, après le seed disciplina.
 INSERT IGNORE INTO disciplina_annemasse.permissions (id, name)
