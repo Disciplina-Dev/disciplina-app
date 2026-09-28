@@ -4,7 +4,7 @@ import { truncateMysql } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import { syncWithRegion } from '../../../db/tenant';
-import pool from '../../../db/mysql/connection';
+import pool, { getPool } from '../../../db/mysql/connection';
 import { SireneService } from '../../../external/insee/sirene.service';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/companies`;
@@ -204,6 +204,21 @@ describe('GraphQL company mutations', () => {
             const suffix = Date.now();
             const siret = `${suffix}4444444444`.slice(0, 14);
             let createdId: number | null = null;
+
+            // Les users vivent dans une base par tenant : le JWT `annemasse`
+            // (id 1) doit exister dans `disciplina_annemasse.users`, sinon la
+            // FK `fk_companies_user_id` rejette l'insert (user seedé en reunion
+            // uniquement par le beforeEach). Insert idempotent : la base
+            // annemasse n'est pas vidée entre les tests.
+            const annemasseConn = await getPool('annemasse').getConnection();
+            try {
+                await annemasseConn.execute(
+                    'INSERT INTO users (id, email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email=VALUES(email)',
+                    [1, 'admin@test.local', 'Admin', 'User', 'password', 1, 3],
+                );
+            } finally {
+                annemasseConn.release();
+            }
 
             try {
                 const res = await fetch(ENDPOINT, {
