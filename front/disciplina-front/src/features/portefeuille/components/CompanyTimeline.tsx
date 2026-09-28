@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, History, PhoneCall, ArrowRight } from 'lucide-react'
+import { IconArrowRight, IconChevronDown, IconHistory, IconPhone } from '@/components/ui/icons'
 import { useCompanyHistory, useContactLogs } from '@/graphql/hooks'
 import { fullName } from '@/store/authStore'
 import { useStaffDirectory, type StaffMember } from '@/hooks/useStaffDirectory'
@@ -139,10 +139,10 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   return (
-    <div className="border-t border-gray-100 pt-6 mt-6">
+    <div className="border-t border-[var(--ds-border)] pt-6 mt-6">
       <div className="flex items-center gap-3 mb-4">
-        <History className="w-5 h-5 text-blue" />
-        <h3 className="text-lg font-semibold text-gray-900">Historique de l'entreprise</h3>
+        <IconHistory className="w-5 h-5 text-blue" />
+        <h3 className="text-lg font-semibold text-[var(--ds-text)]">Historique de l'entreprise</h3>
         {expanded && events.length > 0 && (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-light text-blue">
             {events.length}
@@ -156,7 +156,7 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
           onClick={() => setExpanded(true)}
           className="flex items-center gap-2 text-blue font-semibold text-sm py-2 px-3 rounded-lg border border-blue-light bg-blue-light/50 hover:bg-blue-light cursor-pointer transition-colors"
         >
-          <ChevronDown className="w-4 h-4" />
+          <IconChevronDown className="w-4 h-4" />
           Voir l'historique
         </button>
       ) : (
@@ -168,8 +168,8 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
           )}
 
           {!fetching && events.length === 0 && (
-            <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Aucun événement</p>
+            <div className="text-center py-6 px-4 bg-[var(--ds-surface-sunken)] rounded-lg">
+              <p className="text-sm text-[var(--ds-text-muted)]">Aucun événement</p>
             </div>
           )}
 
@@ -179,12 +179,12 @@ export default function CompanyTimeline({ companyID, refreshKey = 0 }: CompanyTi
                 e.kind === 'contact' ? (
                   <div key={`c-${e.id}`} className="bg-blue-light/30 border border-blue-light rounded-lg px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
-                      <PhoneCall className="w-4 h-4 text-blue shrink-0" />
-                      <span className="text-sm font-semibold text-gray-900">{authorName(directory, e.userID)}</span>
-                      <span className="text-xs text-gray-400">a pris contact</span>
-                      <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{formatDate(e.date)}</span>
+                      <IconPhone className="w-4 h-4 text-blue shrink-0" />
+                      <span className="text-sm font-semibold text-[var(--ds-text)]">{authorName(directory, e.userID)}</span>
+                      <span className="text-xs text-[var(--ds-text-subtle)]">a pris contact</span>
+                      <span className="ml-auto text-xs text-[var(--ds-text-subtle)] whitespace-nowrap">{formatDate(e.date)}</span>
                     </div>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed pl-6">{e.comment}</p>
+                    <p className="text-sm text-[var(--ds-text-muted)] whitespace-pre-wrap leading-relaxed pl-6">{e.comment}</p>
                   </div>
                 ) : (
                   <ModificationCard key={`m-${e.id}`} event={e} />
@@ -215,7 +215,7 @@ function formatValue(directory: Record<string, StaffMember>, column: string, val
 
 function ChangeValue({ value }: { value: string | null }) {
   if (value == null) {
-    return <span className="italic text-gray-400">vide</span>
+    return <span className="italic text-[var(--ds-text-subtle)]">vide</span>
   }
   return <span className="break-words">{value}</span>
 }
@@ -226,25 +226,25 @@ function ModificationCard({ event }: { event: ModificationEvent }) {
   const hasDetail = event.changes.length > 0
   const fields = formatColumns(event.updatedColumn)
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+    <div className="bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-4 py-3">
       <div className="flex items-center gap-2 mb-1">
-        <History className="w-4 h-4 text-gray-400 shrink-0" />
-        <span className="text-sm text-gray-900">
+        <IconHistory className="w-4 h-4 text-[var(--ds-text-subtle)] shrink-0" />
+        <span className="text-sm text-[var(--ds-text)]">
           <span className="font-semibold">{authorName(directory, event.modifiedBy)}</span>
-          {fields ? <> a modifié <span className="font-medium text-gray-700">{fields}</span></> : ' a modifié la fiche'}
+          {fields ? <> a modifié <span className="font-medium text-[var(--ds-text-muted)]">{fields}</span></> : ' a modifié la fiche'}
         </span>
-        <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{formatDate(event.date)}</span>
+        <span className="ml-auto text-xs text-[var(--ds-text-subtle)] whitespace-nowrap">{formatDate(event.date)}</span>
       </div>
 
       {hasDetail && (
         <ul className="mt-2 space-y-1.5 pl-6">
           {event.changes.map((c, i) => (
             <li key={`${c.column}-${i}`} className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="font-medium text-gray-600">{COLUMN_LABELS[c.column] ?? c.column} :</span>
-              <span className="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-gray-500 line-through decoration-gray-400">
+              <span className="font-medium text-[var(--ds-text-muted)]">{COLUMN_LABELS[c.column] ?? c.column} :</span>
+              <span className="inline-flex items-center rounded-md bg-[var(--ds-surface-sunken)] px-1.5 py-0.5 text-[var(--ds-text-subtle)] line-through decoration-gray-400">
                 <ChangeValue value={formatValue(directory, c.column, c.from)} />
               </span>
-              <ArrowRight className="h-3 w-3 shrink-0 text-gray-400" />
+              <IconArrowRight className="h-3 w-3 shrink-0 text-[var(--ds-text-subtle)]" />
               <span className="inline-flex items-center rounded-md bg-blue-light px-1.5 py-0.5 font-medium text-blue">
                 <ChangeValue value={formatValue(directory, c.column, c.to)} />
               </span>

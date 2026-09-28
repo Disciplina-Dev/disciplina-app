@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, LogIn } from 'lucide-react'
+import { IconLoader, IconLogin } from '@/components/ui/icons'
 import { inspectExternal, sendCodeExternal } from '@/api/external'
 
 const RESEND_COOLDOWN_SECONDS = 30
@@ -83,23 +83,23 @@ export default function ExternalCodeForm({
         placeholder="Code à 6 chiffres"
         inputMode="numeric"
         maxLength={6}
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-center text-[16px] tracking-[0.4em] outline-none focus:border-purple"
+        className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-center text-[16px] tracking-[0.4em] outline-none focus:border-purple"
       />
 
-      {error && <p className="text-center text-[12px] text-danger">{error}</p>}
+      {error && <p className="text-center text-[12px] text-[var(--ds-danger)]">{error}</p>}
 
       <button
         onClick={submit}
         disabled={busy}
         className="flex items-center justify-center gap-2 rounded-lg bg-purple px-4 py-2.5 text-[14px] font-bold text-white hover:bg-purple-dark disabled:opacity-60"
       >
-        {busy ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />} Vérifier
+        {busy ? <IconLoader width={16} height={16} className="animate-spin" /> : <IconLogin width={16} height={16} />} Vérifier
       </button>
 
       <button
         onClick={resend}
         disabled={resending || cooldown > 0}
-        className="text-[12px] font-medium text-purple underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+        className="text-[12px] font-medium text-purple underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-[var(--ds-text-subtle)] disabled:no-underline"
       >
         {resending
           ? 'Envoi...'

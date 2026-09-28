@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { IconAlert, IconClose, IconPlus, IconTrash, IconUser } from '@/components/ui/icons'
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
 import Button from '@/components/ui/Button';
@@ -36,8 +36,8 @@ const PEDA_OPTIONS: { camel: string; snake: keyof PedagogicalRecommendations; la
 
 function ABSectionTitle({ title }: { title: string }) {
   return (
-    <div className="border-t border-gray-100 pt-5 pb-1">
-      <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+    <div className="border-t border-[var(--ds-border)] pt-5 pb-1">
+      <h3 className="text-sm font-semibold text-[var(--ds-text)]">{title}</h3>
     </div>
   );
 }
@@ -45,10 +45,10 @@ function ABSectionTitle({ title }: { title: string }) {
 function ABRadio({ label, name, value, onChange, options }: { label: string; name: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
     <div>
-      <p className="text-sm font-medium text-gray-700 mb-2">{label}</p>
+      <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">{label}</p>
       <div className="flex flex-wrap gap-4">
         {options.map(opt => (
-          <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
             <input type="radio" name={name} value={opt.value} checked={value === opt.value} onChange={() => onChange(opt.value)} className="accent-blue-600" />
             {opt.label}
           </label>
@@ -61,9 +61,9 @@ function ABRadio({ label, name, value, onChange, options }: { label: string; nam
 function ABTextarea({ label, value, onChange, rows = 2 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</label>
       <textarea rows={rows} value={value} onChange={e => onChange(e.target.value)}
-        className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 resize-none" />
+        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)] resize-none" />
     </div>
   );
 }
@@ -71,9 +71,9 @@ function ABTextarea({ label, value, onChange, rows = 2 }: { label: string; value
 function ABSelectField({ id, label, value, onChange, children }: { id: string; label: string; value: string; onChange: (v: string) => void; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-gray-700">{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</label>
       <select id={id} value={value} onChange={e => onChange(e.target.value)}
-        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-blue transition-colors">
+        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-blue transition-colors">
         {children}
       </select>
     </div>
@@ -900,26 +900,26 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[92vh] animate-[fadeIn_0.2s_ease-out]">
+      <div className="absolute inset-0 bg-[var(--ds-text)] backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-[var(--ds-surface)] rounded-2xl shadow-2xl flex flex-col max-h-[92vh] animate-[fadeIn_0.2s_ease-out]">
 
         {/* Header fixe */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--ds-border)] shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-purple-light flex items-center justify-center">
-              <User size={18} className="text-purple" />
+              <IconUser width={18} height={18} className="text-purple" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="text-lg font-bold text-[var(--ds-text)]">
                 {isEdit ? (requireGate ? 'Compléter la fiche candidat' : 'Modifier la fiche candidat') : 'Analyse du besoin – Nouveau candidat'}
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-[var(--ds-text-subtle)]">
                 {isEdit ? (requireGate ? 'Vérification des résultats puis formulaire complet' : 'Vos modifications non enregistrées sont conservées automatiquement') : 'Remplissez les champs correspondant au profil'}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="p-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] rounded-full transition-colors">
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
@@ -928,23 +928,23 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
             <div className="rounded-xl border border-purple/20 bg-purple-50/50 p-4">
               <h3 className="text-sm font-bold text-purple">Étape préalable : résultats des tests</h3>
-              <p className="mt-1 text-xs text-gray-600">Saisissez la note de l’épreuve écrite et vérifiez le score ClassMarker. La moyenne doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / SA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
+              <p className="mt-1 text-xs text-[var(--ds-text-muted)]">Saisissez la note de l’épreuve écrite et vérifiez le score ClassMarker. La moyenne doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / SA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
             </div>
             {gateError && (
-              <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
-                <AlertCircle size={16} className="shrink-0" />{gateError}
+              <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">
+                <IconAlert width={16} height={16} className="shrink-0" />{gateError}
               </div>
             )}
             {/* TP évalué : détermine la moyenne minimale requise (CC → 10, autres → 12) */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="gate-tp" className="text-sm font-medium text-gray-700">Titre professionnel visé *</label>
+              <label htmlFor="gate-tp" className="text-sm font-medium text-[var(--ds-text-muted)]">Titre professionnel visé *</label>
               <select id="gate-tp" value={gateTp} onChange={e => setGateTp(e.target.value as TitleProfessionalType)}
-                className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple">
+                className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple">
                 {Object.values(TitleProfessionalType).map(t => (
                   <option key={t} value={t}>{t} — {TP_TYPE_LABELS[t]} (≥ {gateThresholdForTp(t)})</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400">Moyenne minimale requise pour {gateTp} : {gateThreshold} / 20.</p>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Moyenne minimale requise pour {gateTp} : {gateThreshold} / 20.</p>
             </div>
             {/* Identité minimale requise pour un éventuel échec */}
             {!isEdit && (
@@ -955,28 +955,28 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
                   <InputField id="gate-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
                 </div>
                 {emailDup && (
-                  <p className="flex items-center gap-1.5 text-xs text-red-500"><AlertCircle size={13} className="shrink-0" />Une fiche existe déjà pour cet email ({emailDup.fullName}).</p>
+                  <p className="flex items-center gap-1.5 text-xs text-[var(--ds-danger)]"><IconAlert width={13} height={13} className="shrink-0" />Une fiche existe déjà pour cet email ({emailDup.fullName}).</p>
                 )}
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="gate-written" className="text-sm font-medium text-gray-700">Épreuve écrite (sur 20) *</label>
-                <input id="gate-written" type="number" min={0} max={20} step={0.5} placeholder="Ex: 12" value={form.writtenTestScore} onChange={e => set('writtenTestScore', e.target.value)} className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple" />
+                <label htmlFor="gate-written" className="text-sm font-medium text-[var(--ds-text-muted)]">Épreuve écrite (sur 20) *</label>
+                <input id="gate-written" type="number" min={0} max={20} step={0.5} placeholder="Ex: 12" value={form.writtenTestScore} onChange={e => set('writtenTestScore', e.target.value)} className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="gate-classmarker" className="text-sm font-medium text-gray-700">ClassMarker (sur 20)</label>
+                <label htmlFor="gate-classmarker" className="text-sm font-medium text-[var(--ds-text-muted)]">ClassMarker (sur 20)</label>
                 {gateClassMarkerResult && typeof gateClassMarkerResult.percentage === 'number' ? (
-                  <div className="w-full rounded-[10px] border border-gray-100 bg-gray-50 py-2.5 px-3 text-sm text-gray-700">
-                    {classMarkerScore20?.toFixed(2)} / 20 <span className="text-xs text-gray-400">({gateClassMarkerResult.percentage.toFixed(1)}%) – rempli automatiquement</span>
+                  <div className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] py-2.5 px-3 text-sm text-[var(--ds-text-muted)]">
+                    {classMarkerScore20?.toFixed(2)} / 20 <span className="text-xs text-[var(--ds-text-subtle)]">({gateClassMarkerResult.percentage.toFixed(1)}%) – rempli automatiquement</span>
                   </div>
                 ) : (
-                  <input id="gate-classmarker" type="number" min={0} max={20} step={0.5} placeholder="Saisir le score ClassMarker /20" value={manualClassMarkerScore} onChange={e => setManualClassMarkerScore(e.target.value)} className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple" />
+                  <input id="gate-classmarker" type="number" min={0} max={20} step={0.5} placeholder="Saisir le score ClassMarker /20" value={manualClassMarkerScore} onChange={e => setManualClassMarkerScore(e.target.value)} className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple" />
                 )}
               </div>
             </div>
             {testAverage != null && (
-              <div className={`rounded-lg p-3 text-sm font-medium ${testAverage >= gateThreshold ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-orange-50 text-orange-700 border border-orange-200'}`}>
+              <div className={`rounded-lg p-3 text-sm font-medium ${testAverage >= gateThreshold ? 'bg-[var(--ds-success-bg)] text-[var(--ds-success)] border border-[var(--ds-success)]' : 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)] border border-[var(--ds-warning)]'}`}>
                 Moyenne : {testAverage.toFixed(2)} / 20 — {testAverage >= gateThreshold ? 'Admis : le formulaire sera accessible et le candidat passera en « Recherche ».' : 'Non admis : le candidat passera en « Test non réussi », un commentaire sera demandé.'}
               </div>
             )}
@@ -990,37 +990,37 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           </div>
         ) : gateStep === 'failedComment' ? (
           <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
-            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-              <h3 className="text-sm font-bold text-orange-700">Candidat en « Test non réussi »</h3>
-              <p className="mt-1 text-xs text-gray-600">Moyenne {testAverage?.toFixed(2) ?? '—'} / 20 — inférieure à {gateThreshold}. Le candidat <span className="font-semibold">{failedCandidateName || form.fullName}</span> est enregistré en « Test non réussi » (en attente de finalisation). Veuillez saisir un commentaire sur les actions prises — il sera enregistré dans l’historique du candidat.</p>
+            <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4">
+              <h3 className="text-sm font-bold text-[var(--ds-warning)]">Candidat en « Test non réussi »</h3>
+              <p className="mt-1 text-xs text-[var(--ds-text-muted)]">Moyenne {testAverage?.toFixed(2) ?? '—'} / 20 — inférieure à {gateThreshold}. Le candidat <span className="font-semibold">{failedCandidateName || form.fullName}</span> est enregistré en « Test non réussi » (en attente de finalisation). Veuillez saisir un commentaire sur les actions prises — il sera enregistré dans l’historique du candidat.</p>
             </div>
             {gateError && (
-              <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
-                <AlertCircle size={16} className="shrink-0" />{gateError}
+              <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">
+                <IconAlert width={16} height={16} className="shrink-0" />{gateError}
               </div>
             )}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="gate-comment" className="text-sm font-medium text-gray-700">Commentaire — actions prises *</label>
-              <textarea id="gate-comment" rows={4} value={failureComment} onChange={e => setFailureComment(e.target.value)} placeholder="Ex: Candidat recontacté, proposé remédiation, orientation..." className="w-full rounded-[10px] border border-gray-100 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-purple resize-none" />
+              <label htmlFor="gate-comment" className="text-sm font-medium text-[var(--ds-text-muted)]">Commentaire — actions prises *</label>
+              <textarea id="gate-comment" rows={4} value={failureComment} onChange={e => setFailureComment(e.target.value)} placeholder="Ex: Candidat recontacté, proposé remédiation, orientation..." className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-purple resize-none" />
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="secondary" type="button" onClick={() => { onSaved(); if (failedCandidateId && onCreated) onCreated(failedCandidateId); onClose(); }}>Plus tard</Button>
+              <Button variant="secondary" type="button" onClick={() => { onSaved(); if (failedCandidateId && onCreated) onCreated(failedCandidateId); onClose(); }}>IconPlus tard</Button>
               <Button type="button" isLoading={gateLoading} disabled={!failureComment.trim()} onClick={handleFailureCommentSubmit} className="bg-purple hover:bg-purple-dark text-white">Enregistrer le commentaire</Button>
             </div>
-            <p className="text-xs text-gray-400">Vous pourrez revenir sur la fiche candidat pour compléter ce commentaire tant qu’il n’a pas été saisi.</p>
+            <p className="text-xs text-[var(--ds-text-subtle)]">Vous pourrez revenir sur la fiche candidat pour compléter ce commentaire tant qu’il n’a pas été saisi.</p>
           </div>
         ) : (
           <>
           <form id="ab-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
 
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
-              <AlertCircle size={16} className="shrink-0" />{error}
+            <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">
+              <IconAlert width={16} height={16} className="shrink-0" />{error}
             </div>
           )}
 
           {draftRestored && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-100 bg-[var(--ds-warning-bg)] px-4 py-2.5 text-sm text-[var(--ds-warning)]">
               <span>
                 {isEdit
                   ? 'Modifications non enregistrées récupérées — votre saisie en cours a été restaurée.'
@@ -1029,7 +1029,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <button
                 type="button"
                 onClick={resetDraft}
-                className="shrink-0 font-medium text-amber-700 underline hover:text-amber-900"
+                className="shrink-0 font-medium text-[var(--ds-warning)] underline hover:text-[var(--ds-warning)]"
               >
                 {isEdit ? 'Revenir à la version enregistrée' : 'Repartir de zéro'}
               </button>
@@ -1039,10 +1039,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Type(s) TP (multi) + Statut */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type(s) TP *</label>
+              <label className="block text-sm font-medium text-[var(--ds-text-muted)] mb-1">Type(s) TP *</label>
               <div className="flex flex-wrap gap-3 pt-1.5">
                 {Object.values(TitleProfessionalType).map(t => (
-                  <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
+                  <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                     <input
                       type="checkbox"
                       className="accent-blue-600 h-4 w-4"
@@ -1078,8 +1078,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             <div>
               <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
               {emailDup && (
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-red-500">
-                  <AlertCircle size={13} className="shrink-0" />
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--ds-danger)]">
+                  <IconAlert width={13} height={13} className="shrink-0" />
                   Une fiche candidat est déjà enregistrée pour cet email ({emailDup.fullName}).
                 </p>
               )}
@@ -1094,7 +1094,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             {/* <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} /> */}
             <AddressAutocomplete id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={v => set('placeOfBirth', v)} apiEndpoint="/api/sourcing/completion" />
             <AddressAutocomplete id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)} apiEndpoint="/api/sourcing/departement" />
-            <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-gray-50 text-gray-500" />
+            <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]" />
             <div className="col-span-2">
               <AddressAutocomplete id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={v => set('address', v)} apiEndpoint="/api/sourcing/completion" />
             </div>
@@ -1112,7 +1112,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Situation personnelle" />
           <ABRadio label="Permis B" name="driv" value={form.drivingLicenseB} onChange={v => set('drivingLicenseB', v)}
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]} />
-          <div className="ml-2 pl-4 border-l-2 border-gray-100">
+          <div className="ml-2 pl-4 border-l-2 border-[var(--ds-border)]">
             <ABRadio label="Véhiculé" name="vehicule" value={form.hasVehicle} onChange={v => set('hasVehicle', v)} options={boolOpts} />
           </div>
           <InputField id="cn-transport" label="Moyen de transport" value={form.transportMeans} onChange={e => set('transportMeans', e.target.value)} />
@@ -1137,10 +1137,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Prérequis */}
           <ABSectionTitle title="Parcours et prérequis" />
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Niveau de formation</p>
+            <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">Niveau de formation</p>
             <div className="space-y-2">
               {template.schoolLevels.map(opt => (
-                <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                   <input type="radio" name="schoolLevel" value={opt.value} checked={form.schoolLevel === opt.value} onChange={() => set('schoolLevel', opt.value)} className="accent-blue-600" />
                   {opt.label}
                 </label>
@@ -1153,7 +1153,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Site de formation DISCIPLINA" />
           <div className="space-y-2">
             {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([val, label]) => (
-              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   name="site"
@@ -1192,15 +1192,15 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABTextarea label="Formations suivies auparavant" value={form.previousTrainings} onChange={v => set('previousTrainings', v)} />
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-700">Expériences professionnelles</p>
-              <button type="button" onClick={addExp} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                <Plus size={13} /> Ajouter
+              <p className="text-sm font-medium text-[var(--ds-text-muted)]">Expériences professionnelles</p>
+              <button type="button" onClick={addExp} className="text-xs text-[var(--ds-accent)] hover:text-blue-800 flex items-center gap-1">
+                <IconPlus width={13} height={13} /> Ajouter
               </button>
             </div>
             <div className="space-y-3">
               {form.experiences.map((exp, i) => (
-                <div key={i} className="rounded-lg border border-gray-100 p-3 relative">
-                  <button type="button" onClick={() => removeExp(i)} className="absolute top-2 right-2 text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
+                <div key={i} className="rounded-lg border border-[var(--ds-border)] p-3 relative">
+                  <button type="button" onClick={() => removeExp(i)} className="absolute top-2 right-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)]"><IconTrash width={13} height={13} /></button>
                   <div className="grid grid-cols-2 gap-2">
                     <InputField id={`ep${i}pos`} label="Poste" value={exp.position} onChange={e => updateExp(i, 'position', e.target.value)} />
                     <InputField id={`ep${i}co`} label="Entreprise" value={exp.company} onChange={e => updateExp(i, 'company', e.target.value)} />
@@ -1209,7 +1209,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
                   </div>
                 </div>
               ))}
-              {form.experiences.length === 0 && <p className="text-xs text-gray-400 italic">Aucune expérience ajoutée</p>}
+              {form.experiences.length === 0 && <p className="text-xs text-[var(--ds-text-subtle)] italic">Aucune expérience ajoutée</p>}
             </div>
           </div>
 
@@ -1242,13 +1242,13 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
 
           {/* Compétences */}
           <ABSectionTitle title="Analyse des compétences" />
-          <p className="text-xs text-gray-400">A = Acquis · ECA = En cours · NA = Non acquis · NE = Non évalué</p>
+          <p className="text-xs text-[var(--ds-text-subtle)]">A = Acquis · ECA = En cours · NA = Non acquis · NE = Non évalué</p>
           <div className="space-y-2">
             {form.skills.map((skill, i) => (
               <div key={i} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-gray-700 flex-1">{skill.competence}</span>
+                <span className="text-sm text-[var(--ds-text-muted)] flex-1">{skill.competence}</span>
                 <select value={skill.level} onChange={e => updateSkillLevel(i, e.target.value as SkillLevel)}
-                  className="w-36 shrink-0 rounded-lg border border-gray-100 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500">
+                  className="w-36 shrink-0 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm outline-none focus:border-[var(--ds-accent)]">
                   {Object.entries(SKILL_LEVEL_LABELS).map(([val, lbl]) => (
                     <option key={val} value={val}>{val} – {lbl}</option>
                   ))}
@@ -1277,20 +1277,20 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Secteurs + compétences attendues */}
           <ABSectionTitle title="Secteurs d'activité et compétences attendues" />
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Secteurs souhaités</p>
+            <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">Secteurs souhaités</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {template.availableSectors.map(s => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                   <input type="checkbox" checked={form.desiredSectors.includes(s)} onChange={() => toggleSector(s)} className="accent-blue-600 h-4 w-4" />{SECTOR_LABELS[s] ?? s}
                 </label>
               ))}
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Compétences attendues en entreprise</p>
+            <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">Compétences attendues en entreprise</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {template.availableExpectedSkills.map(s => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                   <input type="checkbox" checked={form.expectedCompanySkills.includes(s)} onChange={() => toggleSkill(s)} className="accent-blue-600 h-4 w-4" />{s}
                 </label>
               ))}
@@ -1301,7 +1301,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Comment a-t-il connu DISCIPLINA ?" />
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {Object.entries(DISCOVERY_SOURCE_LABELS).map(([val, lbl]) => (
-              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input type="radio" name="discovery" value={val} checked={form.discoverySource === val} onChange={() => set('discoverySource', val)} className="accent-blue-600" />{lbl}
               </label>
             ))}
@@ -1311,7 +1311,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Préconisations pédagogiques" />
           <div className="grid grid-cols-1 gap-y-2">
             {PEDA_OPTIONS.map(o => (
-              <label key={o.camel} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <label key={o.camel} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   className="accent-blue-600 h-4 w-4"
@@ -1355,11 +1355,11 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
 
           {/* Consentements RGPD */}
           <ABSectionTitle title="Consentements RGPD" />
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[var(--ds-text-subtle)]">
             En tant que centre de formation, nous traitons ces données pour accompagner le candidat dans sa recherche d'alternance.
           </p>
           <div className="flex flex-col gap-2">
-            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
               <input
                 type="checkbox"
                 required
@@ -1369,7 +1369,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               />
               Le candidat consent au traitement de ses données personnelles dans le cadre de son accompagnement (obligatoire).
             </label>
-            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
               <input
                 type="checkbox"
                 className="accent-blue-600 h-4 w-4 mt-0.5"
@@ -1378,7 +1378,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               />
               Le candidat accepte que ses données soient partagées avec des entreprises partenaires dans le cadre de la recherche d'alternance.
             </label>
-            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
               <input
                 type="checkbox"
                 className="accent-blue-600 h-4 w-4 mt-0.5"
@@ -1387,7 +1387,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               />
               Le candidat accepte le traitement de ses données par intelligence artificielle locale pour générer un résumé de profil.
             </label>
-            <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
               <input
                 type="checkbox"
                 className="accent-blue-600 h-4 w-4 mt-0.5"
@@ -1409,16 +1409,16 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
         </form>
 
         {/* Footer fixe */}
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0 space-y-3">
+        <div className="px-6 py-4 border-t border-[var(--ds-border)] shrink-0 space-y-3">
           {driveStatus && (
-            <div className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
-              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-500 border-r-transparent" />
+            <div className="flex items-center gap-2 p-3 bg-[var(--ds-accent-soft)] text-[var(--ds-accent)] rounded-lg text-sm">
+              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--ds-accent)] border-r-transparent" />
               {driveStatus}
             </div>
           )}
           {driveWarning && (
-            <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-lg text-sm">
-              <AlertCircle size={16} className="shrink-0" />
+            <div className="flex items-center gap-2 p-3 bg-[var(--ds-warning-bg)] text-[var(--ds-warning)] rounded-lg text-sm">
+              <IconAlert width={16} height={16} className="shrink-0" />
               Candidat créé, mais AB non enregistré dans le Drive ({driveWarning}).
             </div>
           )}
@@ -1430,7 +1430,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             ) : (
               <>
                 <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
-                <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
+                <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<IconPlus width={16} height={16} />}>
                   {isEdit ? (requireGate ? 'Compléter la fiche' : 'Enregistrer les modifications') : 'Créer le candidat'}
                 </Button>
               </>

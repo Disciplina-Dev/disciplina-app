@@ -4,11 +4,9 @@ import { useLocation } from 'react-router-dom'
 import { useCurrentUser, useAuthStore, UserRole, Permission } from '@/store/authStore'
 import { useMailTemplatesStore } from '@/store/mailTemplatesStore'
 import type { MailTemplatesScope } from '@/store/mailTemplatesStore'
-import {
-  KeyRound, Eye, EyeOff, CheckCircle2, AlertCircle, User,
-  ImagePlus, Save, Trash2, Mail, MapPin,
-} from 'lucide-react'
+import { IconAlert, IconCheckCircle, IconEye, IconEyeOff, IconImagePlus, IconKey, IconLink, IconMail, IconMapPin, IconSave, IconTrash, IconUser } from '@/components/ui/icons'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
+import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 
 const CHANGE_PASSWORD_MUTATION = gql`
   mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
@@ -55,7 +53,7 @@ function PasswordInput({
   const [show, setShow] = useState(false)
   return (
     <div>
-      <label className="block text-xs font-semibold text-gray-700 mb-1">{label}</label>
+      <label className="block text-xs font-semibold text-[var(--ds-text-muted)] mb-1">{label}</label>
       <div className="relative">
         <input
           type={show ? 'text' : 'password'}
@@ -63,15 +61,15 @@ function PasswordInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           autoComplete="new-password"
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 pr-10 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
+          className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 pr-10 text-sm text-[var(--ds-text)] placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
         />
         <button
           type="button"
           onClick={() => setShow((p) => !p)}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors"
           tabIndex={-1}
         >
-          {show ? <EyeOff size={15} /> : <Eye size={15} />}
+          {show ? <IconEyeOff width={15} height={15} /> : <IconEye width={15} height={15} />}
         </button>
       </div>
     </div>
@@ -136,14 +134,14 @@ function SignatureEditor({
   }
 
   if (loading && !loaded) {
-    return <div className="text-sm text-gray-400 py-4 text-center">Chargement…</div>
+    return <div className="text-sm text-[var(--ds-text-subtle)] py-4 text-center">Chargement…</div>
   }
 
   return (
     <div className="flex flex-col gap-4">
       {/* Drop zone / preview */}
       {preview ? (
-        <div className="relative group rounded-xl border border-gray-100 bg-gray-50 p-4 flex items-center justify-center min-h-[100px]">
+        <div className="relative group rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-4 flex items-center justify-center min-h-[100px]">
           <img
             src={preview}
             alt="Signature"
@@ -151,7 +149,7 @@ function SignatureEditor({
           />
           {/* overlay on hover */}
           <label className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 rounded-xl bg-black/0 group-hover:bg-black/40 transition-all cursor-pointer opacity-0 group-hover:opacity-100">
-            <ImagePlus size={20} className="text-white" />
+            <IconImagePlus width={20} height={20} className="text-white" />
             <span className="text-xs font-semibold text-white">Remplacer</span>
             <input
               type="file"
@@ -162,8 +160,8 @@ function SignatureEditor({
           </label>
         </div>
       ) : (
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-200 py-10 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors">
-          <ImagePlus size={24} />
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[var(--ds-border)] py-10 text-[var(--ds-text-subtle)] hover:border-gray-400 hover:text-[var(--ds-text-muted)] transition-colors">
+          <IconImagePlus width={24} height={24} />
           <div className="text-center">
             <p className="text-sm font-medium">Importer votre signature</p>
             <p className="text-xs mt-0.5">PNG, JPG, GIF, WebP</p>
@@ -179,8 +177,8 @@ function SignatureEditor({
       )}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
-          <AlertCircle size={13} /> {error}
+        <div className="flex items-center gap-2 rounded-lg bg-[var(--ds-danger-bg)] border border-[var(--ds-danger)] px-3 py-2 text-xs text-[var(--ds-danger)]">
+          <IconAlert width={13} height={13} /> {error}
         </div>
       )}
 
@@ -189,9 +187,9 @@ function SignatureEditor({
         {preview && (
           <button
             onClick={handleRemove}
-            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-[var(--ds-danger)] transition-colors"
           >
-            <Trash2 size={13} /> Supprimer
+            <IconTrash width={13} height={13} /> Supprimer
           </button>
         )}
         <button
@@ -200,7 +198,7 @@ function SignatureEditor({
           className="ml-auto flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-lg transition-opacity disabled:opacity-40 hover:opacity-90"
           style={{ backgroundColor: accent }}
         >
-          <Save size={13} />
+          <IconSave width={13} height={13} />
           {saving ? 'Enregistrement…' : saved ? 'Enregistré !' : 'Enregistrer'}
         </button>
       </div>
@@ -264,24 +262,24 @@ export default function ProfilePage() {
     <div className="max-w-xl mx-auto px-4 py-8 space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Mon profil</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Informations et paramètres de compte</p>
+        <h1 className="text-xl font-bold text-[var(--ds-text)]">Mon profil</h1>
+        <p className="text-sm text-[var(--ds-text-subtle)] mt-0.5">Informations et paramètres de compte</p>
       </div>
 
       {/* ── Identity ── */}
-      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <section className="bg-[var(--ds-surface)] rounded-2xl border border-[var(--ds-border)] shadow-sm p-6">
         <div className="flex items-center gap-4">
           <div
             className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow-md"
             style={{ backgroundColor: accent }}
           >
-            {user.initials ?? <User size={24} />}
+            {user.initials ?? <IconUser width={24} height={24} />}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-base font-bold text-gray-900 truncate">
+            <p className="text-base font-bold text-[var(--ds-text)] truncate">
               {user.firstName} {user.lastName}
             </p>
-            <p className="text-sm text-gray-500 truncate">{user.email}</p>
+            <p className="text-sm text-[var(--ds-text-subtle)] truncate">{user.email}</p>
             <span
               className="mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-white"
               style={{ backgroundColor: accent }}
@@ -293,10 +291,10 @@ export default function ProfilePage() {
 
         {/* Sectors (RH / RESPONSABLE / ADMIN) */}
         {showSectors && (
-          <div className="mt-5 pt-5 border-t border-gray-50">
+          <div className="mt-5 pt-5 border-t border-[var(--ds-border)]">
             <div className="flex items-center gap-1.5 mb-2.5">
-              <MapPin size={14} style={{ color: accent }} />
-              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Secteurs assignés</span>
+              <IconMapPin width={14} height={14} style={{ color: accent }} />
+              <span className="text-xs font-semibold text-[var(--ds-text-muted)] uppercase tracking-wide">Secteurs assignés</span>
             </div>
             {user.sectors && user.sectors.length > 0 ? (
               <div className="flex flex-wrap gap-2">
@@ -311,29 +309,43 @@ export default function ProfilePage() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Aucun secteur assigné</p>
+              <p className="text-sm text-[var(--ds-text-subtle)]">Aucun secteur assigné</p>
             )}
           </div>
         )}
       </section>
 
-      {/* ── Signature mail ── */}
-      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      {/* ── Compte Google ──
+          Regroupé ici avec la signature : les deux dépendent du même compte
+          Google, et la barre latérale n'a pas à porter des réglages. */}
+      <section className="bg-[var(--ds-surface)] rounded-2xl border border-[var(--ds-border)] shadow-sm p-6">
         <div className="flex items-center gap-2 mb-1">
-          <Mail size={16} style={{ color: accent }} />
-          <h2 className="text-base font-bold text-gray-800">Signature mail</h2>
+          <IconLink width={16} height={16} style={{ color: accent }} />
+          <h2 className="text-base font-bold text-[var(--ds-text)]">Compte Google</h2>
         </div>
-        <p className="text-xs text-gray-400 mb-5">
+        <p className="text-xs text-[var(--ds-text-subtle)] mb-5">
+          Nécessaire aux envois de mail, au Drive et au calendrier
+        </p>
+        <GoogleDriveConnect theme={scope === 'rh' ? 'purple' : 'blue'} />
+      </section>
+
+      {/* ── Signature mail ── */}
+      <section className="bg-[var(--ds-surface)] rounded-2xl border border-[var(--ds-border)] shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <IconMail width={16} height={16} style={{ color: accent }} />
+          <h2 className="text-base font-bold text-[var(--ds-text)]">Signature mail</h2>
+        </div>
+        <p className="text-xs text-[var(--ds-text-subtle)] mb-5">
           Ajoutée automatiquement à vos mails · stockée sur votre Drive Google
         </p>
         <SignatureEditor accent={accent} scope={scope} />
       </section>
 
       {/* ── Password ── */}
-      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <section className="bg-[var(--ds-surface)] rounded-2xl border border-[var(--ds-border)] shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
-          <KeyRound size={16} style={{ color: accent }} />
-          <h2 className="text-base font-bold text-gray-800">Changer le mot de passe</h2>
+          <IconKey width={16} height={16} style={{ color: accent }} />
+          <h2 className="text-base font-bold text-[var(--ds-text)]">Changer le mot de passe</h2>
         </div>
 
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
@@ -350,7 +362,7 @@ export default function ProfilePage() {
             placeholder="8 caractères minimum"
           />
           {newPassword.length > 0 && newPassword.length < 8 && (
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-[var(--ds-warning)]">
               {8 - newPassword.length} caractère{8 - newPassword.length > 1 ? 's' : ''} manquant{8 - newPassword.length > 1 ? 's' : ''}
             </p>
           )}
@@ -362,14 +374,14 @@ export default function ProfilePage() {
           />
 
           {pwError && (
-            <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-700">
-              <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+            <div className="flex items-start gap-2 rounded-lg bg-[var(--ds-danger-bg)] border border-[var(--ds-danger)] px-3 py-2.5 text-sm text-[var(--ds-danger)]">
+              <IconAlert width={15} height={15} className="mt-0.5 flex-shrink-0" />
               {pwError}
             </div>
           )}
           {pwSuccess && (
-            <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2.5 text-sm text-green-700">
-              <CheckCircle2 size={15} className="flex-shrink-0" />
+            <div className="flex items-center gap-2 rounded-lg bg-[var(--ds-success-bg)] border border-[var(--ds-success)] px-3 py-2.5 text-sm text-[var(--ds-success)]">
+              <IconCheckCircle width={15} height={15} className="flex-shrink-0" />
               Mot de passe modifié avec succès
             </div>
           )}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { IconRefresh } from '@/components/ui/icons'
 import { regenerateExternalAccess } from '@/api/externalAccess'
 
 interface ExternalRegenerateButtonProps {
@@ -35,12 +35,12 @@ export default function ExternalRegenerateButton({ signature, allowed, onRegener
         onClick={handleClick}
         disabled={!allowed || loading}
         title={allowed ? "Régénérer le lien" : "Seuls les liens expirés ou bloqués peuvent être régénérés"}
-        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--ds-warning)] hover:bg-[var(--ds-warning-bg)] transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed"
       >
-        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+        <IconRefresh width={14} height={14} className={loading ? 'animate-spin' : ''} />
         Régénérer
       </button>
-      {error && <span className="text-[11px] text-danger">{error}</span>}
+      {error && <span className="text-[11px] text-[var(--ds-danger)]">{error}</span>}
     </div>
   )
 }

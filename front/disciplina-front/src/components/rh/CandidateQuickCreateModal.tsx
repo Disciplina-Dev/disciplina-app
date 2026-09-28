@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, X, AlertCircle, Plus } from 'lucide-react'
+import { IconAlert, IconClose, IconPlus, IconUser } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { candidateGraphqlClient } from '@/graphql/client'
@@ -115,31 +115,31 @@ export default function CandidateQuickCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[92vh] animate-[fadeIn_0.2s_ease-out]">
+      <div className="absolute inset-0 bg-[var(--ds-text)] backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-[var(--ds-surface)] rounded-2xl shadow-2xl flex flex-col max-h-[92vh] animate-[fadeIn_0.2s_ease-out]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--ds-border)] shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-purple-light flex items-center justify-center">
-              <User size={18} className="text-purple" />
+              <IconUser width={18} height={18} className="text-purple" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Nouveau candidat</h2>
-              <p className="text-xs text-gray-400">Renseignez les informations minimales</p>
+              <h2 className="text-lg font-bold text-[var(--ds-text)]">Nouveau candidat</h2>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Renseignez les informations minimales</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] rounded-full transition-colors"
           >
-            <X size={20} />
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
         <form id="quick-create-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
-              <AlertCircle size={16} className="shrink-0" />
+            <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">
+              <IconAlert width={16} height={16} className="shrink-0" />
               {error}
             </div>
           )}
@@ -162,8 +162,8 @@ export default function CandidateQuickCreateModal({
             onChange={(e) => setEmail(e.target.value)}
           />
           {emailDup && (
-            <p className="flex items-center gap-1.5 text-xs text-red-500">
-              <AlertCircle size={13} className="shrink-0" />
+            <p className="flex items-center gap-1.5 text-xs text-[var(--ds-danger)]">
+              <IconAlert width={13} height={13} className="shrink-0" />
               Une fiche existe déjà pour cet email ({emailDup.fullName}).
             </p>
           )}
@@ -178,14 +178,14 @@ export default function CandidateQuickCreateModal({
           />
 
           {/* RGPD */}
-          <div className="border-t border-gray-100 pt-5 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-800">Consentements RGPD</h3>
-            <p className="text-sm text-gray-500">
+          <div className="border-t border-[var(--ds-border)] pt-5 space-y-3">
+            <h3 className="text-sm font-semibold text-[var(--ds-text)]">Consentements RGPD</h3>
+            <p className="text-sm text-[var(--ds-text-subtle)]">
               En tant que centre de formation, nous traitons ces données pour accompagner le candidat dans sa recherche
               d&apos;alternance.
             </p>
             <div className="flex flex-col gap-2">
-              <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   required
@@ -196,7 +196,7 @@ export default function CandidateQuickCreateModal({
                 Le candidat consent au traitement de ses données personnelles dans le cadre de son accompagnement
                 (obligatoire).
               </label>
-              <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   className="accent-blue-600 h-4 w-4 mt-0.5"
@@ -206,7 +206,7 @@ export default function CandidateQuickCreateModal({
                 Le candidat accepte que ses données soient partagées avec des entreprises partenaires dans le cadre de la
                 recherche d&apos;alternance.
               </label>
-              <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   className="accent-blue-600 h-4 w-4 mt-0.5"
@@ -216,7 +216,7 @@ export default function CandidateQuickCreateModal({
                 Le candidat accepte le traitement de ses données par intelligence artificielle locale pour générer un résumé
                 de profil.
               </label>
-              <label className="flex items-start gap-2 cursor-pointer text-sm text-gray-700">
+              <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   className="accent-blue-600 h-4 w-4 mt-0.5"
@@ -229,7 +229,7 @@ export default function CandidateQuickCreateModal({
           </div>
         </form>
 
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-[var(--ds-border)] shrink-0 flex justify-end gap-3">
           <Button variant="secondary" type="button" onClick={onClose}>
             Annuler
           </Button>
@@ -239,7 +239,7 @@ export default function CandidateQuickCreateModal({
             isLoading={loading}
             disabled={!!emailDup}
             className="bg-purple hover:bg-purple-dark text-white"
-            leftIcon={<Plus size={16} />}
+            leftIcon={<IconPlus width={16} height={16} />}
           >
             Créer le candidat
           </Button>

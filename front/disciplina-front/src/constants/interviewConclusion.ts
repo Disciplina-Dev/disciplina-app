@@ -22,5 +22,5 @@ export const INTERVIEW_CONCLUSION_BADGE_CLASS: Record<InterviewConclusion, strin
   [InterviewConclusion.CONTRACT]: 'bg-success text-white',
   [InterviewConclusion.PRESENT]: 'bg-success text-white',
   [InterviewConclusion.ABSENT]: 'bg-warning text-white',
-  [InterviewConclusion.APPOINTMENT_CANCELLED]: 'bg-gray-200 text-gray-700',
+  [InterviewConclusion.APPOINTMENT_CANCELLED]: 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]',
 }

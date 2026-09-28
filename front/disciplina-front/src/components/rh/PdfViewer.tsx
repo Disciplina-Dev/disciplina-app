@@ -12,7 +12,7 @@ import '@react-pdf-viewer/default-layout/lib/styles/index.css'
 export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
   const layout = defaultLayoutPlugin()
   return (
-    <div className="h-full w-full overflow-hidden rounded-lg border border-gray-100">
+    <div className="h-full w-full overflow-hidden rounded-lg border border-[var(--ds-border)]">
       <Worker workerUrl={workerUrl}>
         <Viewer fileUrl={fileUrl} plugins={[layout]} />
       </Worker>

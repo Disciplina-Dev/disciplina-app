@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, Loader2 } from 'lucide-react'
+import { IconLoader, IconSearch } from '@/components/ui/icons'
 import { apiJson } from '@/api/httpClient'
 
 interface LocationAutocompleteInputProps {
@@ -62,10 +62,10 @@ export default function LocationAutocompleteInput({ label, value, onChange }: Lo
 
   return (
     <div>
-      <label className="block mb-2 text-sm font-semibold text-gray-800">{label}</label>
+      <label className="block mb-2 text-sm font-semibold text-[var(--ds-text)]">{label}</label>
       <div className="relative">
-        <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
-          <Search size={16} className="text-gray-400" />
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 py-2">
+          <IconSearch width={16} height={16} className="text-[var(--ds-text-subtle)]" />
           <input
             type="text"
             placeholder="Rechercher une adresse..."
@@ -78,15 +78,15 @@ export default function LocationAutocompleteInput({ label, value, onChange }: Lo
               }
             }}
             disabled={locationKO}
-            className="flex-1 bg-transparent outline-none text-sm disabled:text-gray-400"
+            className="flex-1 bg-transparent outline-none text-sm disabled:text-[var(--ds-text-subtle)]"
           />
-          {locationLoading && <Loader2 size={14} className="animate-spin text-gray-400" />}
+          {locationLoading && <IconLoader width={14} height={14} className="animate-spin text-[var(--ds-text-subtle)]" />}
         </div>
 
-        {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
+        {locationError && <p className="mt-1 text-xs text-[var(--ds-danger)]">{locationError}</p>}
 
         {locationResults.length > 0 && !locationKO && (
-          <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-gray-200 bg-white shadow-sm z-10">
+          <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-sm z-10">
             {locationResults.map((loc, idx) => (
               <button
                 key={idx}
@@ -95,7 +95,7 @@ export default function LocationAutocompleteInput({ label, value, onChange }: Lo
                   setLocationSearch(loc)
                   setLocationResults([])
                 }}
-                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"
+                className="w-full px-3 py-2 text-left text-sm text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] first:rounded-t-lg last:rounded-b-lg"
               >
                 {loc}
               </button>

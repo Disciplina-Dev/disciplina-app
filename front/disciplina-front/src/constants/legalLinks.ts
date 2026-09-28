@@ -1,9 +1,9 @@
 /**
  * Destinations légales, partagées par le `Footer` (page de connexion, pages
- * légales) et par `LegalLinks` (bas de sidebar des espaces authentifiés).
+ * légales) et par `AppFooter` (pied de page des espaces authentifiés).
  *
- * `label` est volontairement court : `LegalLinks` est rendu dans une sidebar
- * de 256px. `title` porte l'intitulé complet, utilisé tel quel par `Footer`.
+ * `title` porte l'intitulé complet, affiché par les deux pieds de page ;
+ * `label` reste une forme courte, pour les contextes étroits.
  */
 export const LEGAL_LINKS = [
   { to: '/legal/mentions', label: 'Mentions', title: 'Mentions légales' },

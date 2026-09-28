@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderCog, Save, Loader2, CheckCircle2 } from 'lucide-react'
+import { IconCheckCircle, IconFolderSettings, IconLoader, IconSave } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_DRIVE_FOLDER_CONFIG, UPDATE_DRIVE_FOLDER_CONFIG } from '@/graphql/queries'
@@ -13,7 +13,7 @@ const REGION_LABELS: Record<string, string> = SECTEUR_LABELS
 const folderKey = (tp: string, region: string) => `${tp}_${region}`
 
 const inputClass =
-  'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors font-mono'
+  'w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] outline-none focus:border-purple transition-colors font-mono'
 
 export default function DriveConfig() {
   const [rootFolderId, setRootFolderId] = useState('')
@@ -67,8 +67,8 @@ export default function DriveConfig() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-gray-400">
-        <Loader2 className="animate-spin" size={22} />
+      <div className="flex items-center justify-center py-20 text-[var(--ds-text-subtle)]">
+        <IconLoader className="animate-spin" width={22} height={22} />
       </div>
     )
   }
@@ -77,20 +77,20 @@ export default function DriveConfig() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple/10 text-purple">
-          <FolderCog size={20} />
+          <IconFolderSettings width={20} height={20} />
         </div>
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Dossiers Drive candidats</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-xl font-semibold text-[var(--ds-text)]">Dossiers Drive candidats</h1>
+          <p className="text-sm text-[var(--ds-text-subtle)]">
             Un dossier Drive par Titre Professionnel et par région. Un nouveau candidat est classé dans le
             dossier de son TP × région (sinon le dossier racine).
           </p>
         </div>
       </div>
 
-      <div className="space-y-5 rounded-2xl border border-gray-100 bg-white p-6">
+      <div className="space-y-5 rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Dossier racine (fallback)</label>
+          <label className="mb-1 block text-sm font-medium text-[var(--ds-text-muted)]">Dossier racine (fallback)</label>
           <input
             className={inputClass}
             placeholder="ex: 1HhoKUftO46faUSDJRFpOHLOZxCa9FJXe"
@@ -99,15 +99,15 @@ export default function DriveConfig() {
           />
         </div>
 
-        <div className="h-px bg-gray-100" />
+        <div className="h-px bg-[var(--ds-surface-sunken)]" />
 
         {TP_ORDER.map((tp) => (
           <div key={tp}>
-            <div className="mb-2 text-sm font-semibold text-gray-900">{tp}</div>
+            <div className="mb-2 text-sm font-semibold text-[var(--ds-text)]">{tp}</div>
             <div className="grid gap-3 sm:grid-cols-3">
               {REGIONS.map((region) => (
                 <div key={region}>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-[var(--ds-text-subtle)]">
                     {tp} - {REGION_LABELS[region]}
                   </label>
                   <input
@@ -124,21 +124,21 @@ export default function DriveConfig() {
           </div>
         ))}
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-[var(--ds-danger)]">{error}</p>}
 
         <div className="flex items-center gap-3 pt-2">
-          <Button onClick={handleSave} disabled={saving} isLoading={saving} leftIcon={<Save size={16} />}>
+          <Button onClick={handleSave} disabled={saving} isLoading={saving} leftIcon={<IconSave width={16} height={16} />}>
             Enregistrer
           </Button>
           {saved && (
-            <span className="flex items-center gap-1 text-sm text-green-600">
-              <CheckCircle2 size={16} /> Enregistré
+            <span className="flex items-center gap-1 text-sm text-[var(--ds-success)]">
+              <IconCheckCircle width={16} height={16} /> Enregistré
             </span>
           )}
         </div>
       </div>
 
-      <p className="mt-4 text-xs text-gray-400">
+      <p className="mt-4 text-xs text-[var(--ds-text-subtle)]">
         Astuce : l'ID se trouve dans l'URL du dossier Drive, après <code>/folders/</code>.
       </p>
     </div>

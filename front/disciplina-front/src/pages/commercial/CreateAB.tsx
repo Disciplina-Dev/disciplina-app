@@ -42,16 +42,16 @@ export default function CreateAB() {
       />
       <ul className="border rounded-lg divide-y max-h-96 overflow-y-auto">
         {filtered.length === 0 && (
-          <li className="px-4 py-3 text-gray-500 text-sm">Aucune entreprise trouvée</li>
+          <li className="px-4 py-3 text-[var(--ds-text-subtle)] text-sm">Aucune entreprise trouvée</li>
         )}
         {filtered.map((c) => (
           <li
             key={c.id}
             onClick={() => setSelected(c)}
-            className="px-4 py-3 cursor-pointer hover:bg-blue-50 transition-colors"
+            className="px-4 py-3 cursor-pointer hover:bg-[var(--ds-accent-soft)] transition-colors"
           >
             <span className="font-medium">{c.nom_commercial}</span>
-            {c.siret && <span className="ml-2 text-xs text-gray-400">SIRET {c.siret}</span>}
+            {c.siret && <span className="ml-2 text-xs text-[var(--ds-text-subtle)]">SIRET {c.siret}</span>}
           </li>
         ))}
       </ul>

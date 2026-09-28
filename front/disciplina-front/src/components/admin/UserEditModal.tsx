@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Shield, User as UserIcon, Mail, MapPin, Loader2 } from 'lucide-react'
+import { IconClose, IconLoader, IconMail, IconMapPin, IconShield, IconUser } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
@@ -107,18 +107,18 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white rounded-[20px] p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-md bg-[var(--ds-surface)] rounded-[20px] p-6 shadow-xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold text-gray-900">Modifier l'utilisateur</h3>
+          <h3 className="text-lg font-bold text-[var(--ds-text)]">Modifier l'utilisateur</h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 transition-colors"
+            className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors"
             aria-label="Fermer"
           >
-            <X size={20} />
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
@@ -127,14 +127,14 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
             <InputField
               label="Prénom"
               id="edit-firstname"
-              icon={<UserIcon size={18} />}
+              icon={<IconUser width={18} height={18} />}
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
             />
             <InputField
               label="Nom"
               id="edit-lastname"
-              icon={<UserIcon size={18} />}
+              icon={<IconUser width={18} height={18} />}
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
             />
@@ -144,25 +144,25 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
             label="Email"
             id="edit-email"
             type="email"
-            icon={<Mail size={18} />}
+            icon={<IconMail width={18} height={18} />}
             value={email}
             error={emailError}
             onChange={(e) => setEmail(e.target.value)}
           />
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-role" className="text-sm font-medium text-gray-700">
+            <label htmlFor="edit-role" className="text-sm font-medium text-[var(--ds-text-muted)]">
               Rôle
             </label>
             <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
-                <Shield size={18} />
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--ds-text-subtle)]">
+                <IconShield width={18} height={18} />
               </span>
               <select
                 id="edit-role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-[10px] text-sm text-gray-900 focus:border-blue outline-none transition-colors appearance-none"
+                className="w-full pl-10 pr-4 py-2.5 bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[10px] text-sm text-[var(--ds-text)] focus:border-blue outline-none transition-colors appearance-none"
               >
                 {ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -174,18 +174,18 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-permission" className="text-sm font-medium text-gray-700">
+            <label htmlFor="edit-permission" className="text-sm font-medium text-[var(--ds-text-muted)]">
               Niveau de permission
             </label>
             <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
-                <Shield size={18} />
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--ds-text-subtle)]">
+                <IconShield width={18} height={18} />
               </span>
               <select
                 id="edit-permission"
                 value={permission}
                 onChange={(e) => setPermission(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-[10px] text-sm text-gray-900 focus:border-blue outline-none transition-colors appearance-none"
+                className="w-full pl-10 pr-4 py-2.5 bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[10px] text-sm text-[var(--ds-text)] focus:border-blue outline-none transition-colors appearance-none"
               >
                 {PERMISSIONS.map((p) => (
                   <option key={p.value} value={p.value}>
@@ -197,7 +197,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Secteurs</label>
+            <label className="text-sm font-medium text-[var(--ds-text-muted)]">Secteurs</label>
             <div className="flex flex-wrap gap-2">
               {SECTEUR_VALUES.map((secteur) => {
                 const active = sectors.includes(secteur)
@@ -209,10 +209,10 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${
                       active
                         ? 'bg-blue text-white border-blue'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-blue'
+                        : 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] border-[var(--ds-border)] hover:border-blue'
                     }`}
                   >
-                    <MapPin size={14} />
+                    <IconMapPin width={14} height={14} />
                     {secteur}
                   </button>
                 )
@@ -229,7 +229,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-[var(--ds-danger)]">{error}</p>}
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>
@@ -238,7 +238,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
             <Button size="sm" onClick={handleSave} disabled={saving}>
               {saving ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={14} className="animate-spin" /> Enregistrement…
+                  <IconLoader width={14} height={14} className="animate-spin" /> Enregistrement…
                 </span>
               ) : (
                 'Enregistrer'

@@ -1,11 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
-  QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, Download, FileText,
-  File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera, HardDriveUpload,
-  Eye, EyeOff,
-} from 'lucide-react'
+import { IconAlert, IconArrowLeft, IconCamera, IconClipboardCheck, IconDownload, IconEdit, IconExternalLink, IconEye, IconEyeOff, IconFile, IconFolderPlus, IconImage, IconLoader, IconMail, IconQrCode, IconRefresh, IconSpreadsheet, IconTrash, IconUpload, IconUser } from '@/components/ui/icons'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
@@ -180,18 +175,18 @@ function googleEmbedUrl(file: DriveFile): string {
 }
 
 function DriveFileIcon({ mimeType }: { mimeType: string }) {
-  if (mimeType === 'application/pdf') return <FileText size={15} className="shrink-0 text-red-400" />
-  if (mimeType.startsWith('image/')) return <FileImage size={15} className="shrink-0 text-blue-400" />
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <FileSpreadsheet size={15} className="shrink-0 text-green-500" />
-  return <File size={15} className="shrink-0 text-gray-400" />
+  if (mimeType === 'application/pdf') return <IconFile width={15} height={15} className="shrink-0 text-red-400" />
+  if (mimeType.startsWith('image/')) return <IconImage width={15} height={15} className="shrink-0 text-blue-400" />
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <IconSpreadsheet width={15} height={15} className="shrink-0 text-[var(--ds-success)]" />
+  return <IconFile width={15} height={15} className="shrink-0 text-[var(--ds-text-subtle)]" />
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const inputCls = 'mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-purple focus:outline-none focus:ring-2 focus:ring-purple/20 transition-colors'
+const inputCls = 'mt-1 w-full rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm text-[var(--ds-text)] focus:border-purple focus:outline-none focus:ring-2 focus:ring-purple/20 transition-colors'
 const selectCls = inputCls
-const labelCls = 'block text-[11px] font-bold uppercase tracking-wider text-gray-500'
-const valueCls = 'mt-1 text-sm font-medium text-gray-900'
+const labelCls = 'block text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]'
+const valueCls = 'mt-1 text-sm font-medium text-[var(--ds-text)]'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -213,7 +208,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-gray-100 bg-white p-5 ${className}`}>
+    <div className={`rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 ${className}`}>
       {children}
     </div>
   )
@@ -459,8 +454,8 @@ export default function FicheCandidat() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center gap-3 text-gray-400 text-sm">
-        <Loader2 size={20} className="animate-spin" />
+      <div className="flex h-64 items-center justify-center gap-3 text-[var(--ds-text-subtle)] text-sm">
+        <IconLoader width={20} height={20} className="animate-spin" />
         Chargement…
       </div>
     )
@@ -469,10 +464,10 @@ export default function FicheCandidat() {
   if (error || !candidate) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center px-4">
-        <AlertCircle size={32} className="text-danger" />
-        <p className="text-sm font-medium text-gray-700">Candidat introuvable</p>
-        {error && <p className="text-xs text-gray-400 max-w-md">{error}</p>}
-        <p className="text-xs text-gray-400 font-mono">{id}</p>
+        <IconAlert width={32} height={32} className="text-[var(--ds-danger)]" />
+        <p className="text-sm font-medium text-[var(--ds-text-muted)]">Candidat introuvable</p>
+        {error && <p className="text-xs text-[var(--ds-text-subtle)] max-w-md">{error}</p>}
+        <p className="text-xs text-[var(--ds-text-subtle)] font-mono">{id}</p>
         <Button variant="secondary" onClick={() => navigate(-1)}>Retour</Button>
       </div>
     )
@@ -725,9 +720,9 @@ export default function FicheCandidat() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)] transition-colors"
             >
-              <ArrowLeft size={18} />
+              <IconArrowLeft width={18} height={18} />
             </button>
 
             <div className="flex items-center gap-3">
@@ -749,11 +744,11 @@ export default function FicheCandidat() {
                   onClick={() => setCapturingPhoto(true)}
                   className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-purple text-white flex items-center justify-center ring-2 ring-white hover:bg-purple/90"
                 >
-                  <Camera size={11} />
+                  <IconCamera width={11} height={11} />
                 </button>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 leading-tight">
+                <h1 className="text-xl font-bold text-[var(--ds-text)] leading-tight">
                   {formData.identity.full_name}
                 </h1>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -777,7 +772,7 @@ export default function FicheCandidat() {
                     </span>
                   ))}
                   {isSenior(computeAge(formData.identity.date_of_birth) ?? formData.identity.age) && (
-                    <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+                    <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-[var(--ds-warning-bg)] text-[var(--ds-warning)] ring-1 ring-amber-200">
                       Senior
                     </span>
                   )}
@@ -818,39 +813,39 @@ export default function FicheCandidat() {
                         ? [formData.training_site]
                         : []
                     return sites.length ? (
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-[var(--ds-text-subtle)]">
                         {sites.map((s) => TRAINING_SITE_LABELS[s]).join(' · ')}
                       </span>
                     ) : null
                   })()}
                   {formData.status === CandidateStatus.IMMERSING && formData.immersion_agreement && (
-                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 ring-1 ring-green-200">
+                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--ds-success-bg)] text-[var(--ds-success)] ring-1 ring-[var(--ds-success)]">
                       Convention immersion signée
                     </span>
                   )}
                   {formData.owner && (
-                    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                      <User size={12} />
+                    <span className="inline-flex items-center gap-1 text-xs text-[var(--ds-text-subtle)]">
+                      <IconUser width={12} height={12} />
                       Créé par {formData.owner.name}
                       {formData.owner.sector && (
-                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] font-medium">
                           {formData.owner.sector}
                         </span>
                       )}
                     </span>
                   )}
                   {formData.created_at && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-[var(--ds-text-subtle)]">
                       Créé le {new Date(formData.created_at).toLocaleDateString('fr-FR')}
                     </span>
                   )}
                   {formData.last_relance_at && (
-                    <span className="text-xs text-amber-600">
+                    <span className="text-xs text-[var(--ds-warning)]">
                       Dernière relance : {new Date(formData.last_relance_at).toLocaleDateString('fr-FR')}
                     </span>
                   )}
                   {formData.relance_response_at && (
-                    <span className="text-xs text-green-600">
+                    <span className="text-xs text-[var(--ds-success)]">
                       Réponse à la relance : {new Date(formData.relance_response_at).toLocaleDateString('fr-FR')}
                     </span>
                   )}
@@ -860,12 +855,12 @@ export default function FicheCandidat() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="secondary" leftIcon={<Edit2 size={15} />} onClick={() => setEditOpen(true)}>
+            <Button size="sm" variant="secondary" leftIcon={<IconEdit width={15} height={15} />} onClick={() => setEditOpen(true)}>
               Compléter
             </Button>
             <Button
               size="sm"
-              leftIcon={<Trash2 size={15} />}
+              leftIcon={<IconTrash width={15} height={15} />}
               onClick={() => setShowDeleteModal(true)}
               style={{ backgroundColor: 'var(--color-danger)', color: 'white' }}
             >
@@ -876,20 +871,20 @@ export default function FicheCandidat() {
 
         {saveError && (
           <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
-            <AlertCircle size={16} className="shrink-0" />
+            <IconAlert width={16} height={16} className="shrink-0" />
             {saveError}
           </div>
         )}
 
         {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
-          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2 text-orange-700 font-bold text-sm">
-              <AlertCircle size={16} /> En attente de finalisation
+          <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-[var(--ds-warning)] font-bold text-sm">
+              <IconAlert width={16} height={16} /> En attente de finalisation
             </div>
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-[var(--ds-text-muted)]">
               Ce candidat est en « Test non réussi » (moyenne {formData.test_average != null ? `${Number(formData.test_average).toFixed(2)} / 20` : `< ${gateThresholdForTps(formData.tp_types)} / 20`}). Un commentaire sur les actions entreprises doit être saisi pour finaliser la fiche. Tant que ce commentaire n’est pas enregistré, la fiche reste en attente.
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-[var(--ds-text-subtle)]">
               Moyenne calculée à partir de l’épreuve écrite ({formData.written_test_score ?? '—'} / 20) et du score ClassMarker. Vous pouvez compléter à tout moment.
             </p>
             <div>
@@ -903,13 +898,13 @@ export default function FicheCandidat() {
         {/* ── Actions rapides ── */}
         <div className="flex flex-wrap gap-2">
           {formData.drive_folder_id ? (
-            <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={15} style={{ color: 'var(--color-purple)' }} />}
+            <Button variant="secondary" size="sm" leftIcon={<IconExternalLink width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={() => window.open(`https://drive.google.com/drive/folders/${formData.drive_folder_id}`, '_blank')}>
               Drive
             </Button>
           ) : (
             <Button variant="secondary" size="sm" isLoading={creatingFolder}
-              leftIcon={<FolderPlus size={15} style={{ color: 'var(--color-purple)' }} />}
+              leftIcon={<IconFolderPlus width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={handleCreateDriveFolder}>
               Créer dossier Drive
             </Button>
@@ -919,7 +914,7 @@ export default function FicheCandidat() {
               <input id="cv-upload" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
               <div className="relative">
                 <Button variant="secondary" size="sm" isLoading={uploadingCV}
-                  leftIcon={<Upload size={15} style={{ color: 'var(--color-purple)' }} />}
+                  leftIcon={<IconUpload width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
                   onClick={() => setCvChoiceOpen(cvChoiceOpen === 'top' ? null : 'top')}>
                   Importer CV
                 </Button>
@@ -934,39 +929,39 @@ export default function FicheCandidat() {
             </>
           )}
           {formData.filiz_folder_id ? (
-            <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={15} style={{ color: 'var(--color-purple)' }} />}
+            <Button variant="secondary" size="sm" leftIcon={<IconExternalLink width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={() => window.open(`https://app.filiz.io/folders/${formData.filiz_folder_id}`, '_blank')}>
               Dossier Filiz
             </Button>
           ) : (
-            <Button variant="secondary" size="sm" leftIcon={<FolderPlus size={15} style={{ color: 'var(--color-purple)' }} />}
+            <Button variant="secondary" size="sm" leftIcon={<IconFolderPlus width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={() => setShowFilizModal(true)}>
               Créer dossier Filiz
             </Button>
           )}
-          <Button variant="secondary" size="sm" leftIcon={<ClipboardCheck size={15} style={{ color: 'var(--color-purple)' }} />}
+          <Button variant="secondary" size="sm" leftIcon={<IconClipboardCheck width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             disabled={!testPassed}
             title={testPassed ? undefined : "Indisponible : le candidat n'a réussi aucun test (moyenne < 50%)"}
             onClick={() => navigate(`/rh/candidats/${formData._id}/questionnaire`)}>
             Analyse de Besoin
           </Button>
           <Button variant="secondary" size="sm" isLoading={downloadingPdf}
-            leftIcon={<Download size={15} style={{ color: 'var(--color-purple)' }} />}
+            leftIcon={<IconDownload width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={handleDownloadPdf}>
             Télécharger le PDF
           </Button>
           <Button variant="secondary" size="sm" isLoading={savingAbToDrive}
             disabled={!formData.drive_folder_id}
             title={formData.drive_folder_id ? undefined : "Crée d'abord le dossier Drive du candidat"}
-            leftIcon={<HardDriveUpload size={15} style={{ color: 'var(--color-purple)' }} />}
+            leftIcon={<IconUpload width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={handleSaveAbToDrive}>
             Enregistrer l'AB dans le Drive
           </Button>
-          <Button variant="secondary" size="sm" leftIcon={<Mail size={15} style={{ color: 'var(--color-purple)' }} />}
+          <Button variant="secondary" size="sm" leftIcon={<IconMail width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={() => setMailMode('regular')}>
             Envoyer un mail
           </Button>
-          <Button variant="secondary" size="sm" leftIcon={<QrCode size={15} style={{ color: 'var(--color-purple)' }} />}
+          <Button variant="secondary" size="sm" leftIcon={<IconQrCode width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={() => setShowClassMarker(true)}>
             Liens de test
           </Button>
@@ -1009,17 +1004,17 @@ export default function FicheCandidat() {
                           onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
                           {revealingSsn ? (
-                            <Loader2 size={12} className="animate-spin" />
+                            <IconLoader width={12} height={12} className="animate-spin" />
                           ) : revealedSsn ? (
-                            <EyeOff size={12} />
+                            <IconEyeOff width={12} height={12} />
                           ) : (
-                            <Eye size={12} />
+                            <IconEye width={12} height={12} />
                           )}
                           {revealedSsn ? 'Masquer' : 'Afficher'}
                         </button>
                       )}
                     </div>
-                    {ssnError && <p className="mt-1 text-xs text-red-500">{ssnError}</p>}
+                    {ssnError && <p className="mt-1 text-xs text-[var(--ds-danger)]">{ssnError}</p>}
                   </div>
                 )}
               </Field>
@@ -1068,17 +1063,17 @@ export default function FicheCandidat() {
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
                       onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
-                    <span className="text-sm text-gray-700">Oui</span>
+                    <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                   </label>
                 ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
               </Field>
-              <div className="ml-3 pl-4 border-l-2 border-gray-100">
+              <div className="ml-3 pl-4 border-l-2 border-[var(--ds-border)]">
                 <Field label="Véhiculé">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" className="rounded" checked={!!formData.identity.has_vehicle}
                         onChange={e => updateIdentity('has_vehicle', e.target.checked)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.identity.has_vehicle ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1094,7 +1089,7 @@ export default function FicheCandidat() {
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="rounded" checked={!!formData.identity.had_apprenticeship_contract}
                       onChange={e => updateIdentity('had_apprenticeship_contract', e.target.checked)} />
-                    <span className="text-sm text-gray-700">Oui</span>
+                    <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                   </label>
                 ) : <p className={valueCls}>{formData.identity.had_apprenticeship_contract ? 'Oui' : 'Non'}</p>}
               </Field>
@@ -1151,7 +1146,7 @@ export default function FicheCandidat() {
                     </div>
                   </div>
                 {aiSummaryError && (
-                  <p className="mt-1 text-xs text-red-500">{aiSummaryError}</p>
+                  <p className="mt-1 text-xs text-[var(--ds-danger)]">{aiSummaryError}</p>
                 )}
                 {isEditing ? (
                   <textarea className={inputCls} rows={4} value={formData.identity.description ?? ''}
@@ -1269,7 +1264,7 @@ export default function FicheCandidat() {
                 ) : (
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.profile?.qualities?.length ? formData.profile.qualities.map((q, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{q}</span>
+                      <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{q}</span>
                     )) : <p className={valueCls}>—</p>}
                   </div>
                 )}
@@ -1282,7 +1277,7 @@ export default function FicheCandidat() {
                 ) : (
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.profile?.defects?.length ? formData.profile.defects.map((d, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-md">{d}</span>
+                      <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs rounded-md">{d}</span>
                     )) : <p className={valueCls}>—</p>}
                   </div>
                 )}
@@ -1315,7 +1310,7 @@ export default function FicheCandidat() {
                 ) : (
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.profile?.other_languages?.length ? formData.profile.other_languages.map((l, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{l}</span>
+                      <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{l}</span>
                     )) : <p className={valueCls}>—</p>}
                   </div>
                 )}
@@ -1325,7 +1320,7 @@ export default function FicheCandidat() {
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="rounded" checked={!!formData.profile?.ready_for_challenges}
                       onChange={e => updateProfile('ready_for_challenges', e.target.checked)} />
-                    <span className="text-sm text-gray-700">Oui</span>
+                    <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                   </label>
                 ) : <p className={valueCls}>{formData.profile?.ready_for_challenges ? 'Oui' : 'Non'}</p>}
               </Field>
@@ -1381,8 +1376,8 @@ export default function FicheCandidat() {
               <SectionTitle>Évaluation des compétences</SectionTitle>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {formData.skills_assessment.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                    <span className="text-sm font-medium text-gray-800">{a.competence}</span>
+                  <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] px-3 py-2">
+                    <span className="text-sm font-medium text-[var(--ds-text)]">{a.competence}</span>
                     <span className="text-xs font-bold px-2 py-0.5 rounded-md border" style={{ color: 'var(--color-purple)', borderColor: 'var(--color-purple-light)', backgroundColor: 'var(--color-purple-light)' }}>
                       {a.level}
                     </span>
@@ -1398,13 +1393,13 @@ export default function FicheCandidat() {
               <SectionTitle>Expériences professionnelles</SectionTitle>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {formData.background.professional_experiences.map((exp, i) => (
-                  <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                    <p className="text-sm font-semibold text-gray-900">{exp.position || '—'}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                  <div key={i} className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3">
+                    <p className="text-sm font-semibold text-[var(--ds-text)]">{exp.position || '—'}</p>
+                    <p className="text-xs text-[var(--ds-text-subtle)] mt-0.5">
                       {exp.company}{exp.duration ? ` · ${exp.duration}` : ''}
                     </p>
                     {exp.responsibilities && (
-                      <p className="text-xs text-gray-600 mt-2">{exp.responsibilities}</p>
+                      <p className="text-xs text-[var(--ds-text-muted)] mt-2">{exp.responsibilities}</p>
                     )}
                   </div>
                 ))}
@@ -1424,7 +1419,7 @@ export default function FicheCandidat() {
                       ...prev, synthesis: { ...prev.synthesis, feasibility_conclusion: e.target.value }
                     } : prev)} />
                 ) : (
-                  <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">
+                  <p className="mt-1 text-sm text-[var(--ds-text)] bg-[var(--ds-surface-sunken)] p-3 rounded-lg border border-[var(--ds-border)] whitespace-pre-wrap">
                     {formData.synthesis?.feasibility_conclusion || 'Aucune synthèse renseignée.'}
                   </p>
                 )}
@@ -1468,7 +1463,7 @@ export default function FicheCandidat() {
                             },
                           } : prev)}
                         />
-                        <span className="text-sm text-gray-700">{label}</span>
+                        <span className="text-sm text-[var(--ds-text-muted)]">{label}</span>
                       </label>
                     ))}
                   </div>
@@ -1478,7 +1473,7 @@ export default function FicheCandidat() {
                       .filter(([key]) => formData.synthesis?.pedagogical_recommendations?.[key])
                       .map(([, label]) => label)
                     return on.length
-                      ? <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">{on.map(l => <li key={l}>{l}</li>)}</ul>
+                      ? <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-[var(--ds-text)]">{on.map(l => <li key={l}>{l}</li>)}</ul>
                       : <p className={valueCls}>—</p>
                   })()
                 )}
@@ -1544,7 +1539,7 @@ export default function FicheCandidat() {
                         onChange={e => setFormData(prev => prev ? {
                           ...prev, support: { ...prev.support, france_travail_registered: e.target.checked }
                         } : prev)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.support?.france_travail_registered ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1555,7 +1550,7 @@ export default function FicheCandidat() {
                         onChange={e => setFormData(prev => prev ? {
                           ...prev, support: { ...prev.support, mission_locale_registered: e.target.checked }
                         } : prev)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.support?.mission_locale_registered ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1604,7 +1599,7 @@ export default function FicheCandidat() {
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.desired_sectors?.length
                       ? formData.desired_sectors.map((s, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{s}</span>
+                          <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{s}</span>
                         ))
                       : <p className={valueCls}>—</p>}
                   </div>
@@ -1621,7 +1616,7 @@ export default function FicheCandidat() {
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.expected_company_skills?.length
                       ? formData.expected_company_skills.map((s, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{s}</span>
+                          <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{s}</span>
                         ))
                       : <p className={valueCls}>—</p>}
                   </div>
@@ -1653,7 +1648,7 @@ export default function FicheCandidat() {
                         onChange={e => setFormData(prev => prev ? {
                           ...prev, job_info: { ...prev.job_info, weekend_work: e.target.checked }
                         } : prev)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.job_info?.weekend_work ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1746,7 +1741,7 @@ export default function FicheCandidat() {
                   <input id="cv-upload-bottom" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
                   <div className="relative">
                     <Button variant="secondary" size="sm" isLoading={uploadingCV}
-                      leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
+                      leftIcon={<IconUpload width={14} height={14} style={{ color: 'var(--color-purple)' }} />}
                       onClick={() => setCvChoiceOpen(cvChoiceOpen === 'bottom' ? null : 'bottom')}>
                       {formData.cv_link ? 'Remplacer CV' : 'Importer CV'}
                     </Button>
@@ -1760,12 +1755,12 @@ export default function FicheCandidat() {
                   </div>
                   <input id="drive-upload" type="file" multiple className="hidden" onChange={handleDriveUpload} />
                   <Button variant="secondary" size="sm" isLoading={uploadingFiles}
-                    leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
+                    leftIcon={<IconUpload width={14} height={14} style={{ color: 'var(--color-purple)' }} />}
                     onClick={() => document.getElementById('drive-upload')?.click()}>
                     Ajouter fichiers
                   </Button>
                   <Button variant="secondary" size="sm" isLoading={loadingFiles}
-                    leftIcon={<RefreshCw size={14} style={{ color: 'var(--color-purple)' }} />}
+                    leftIcon={<IconRefresh width={14} height={14} style={{ color: 'var(--color-purple)' }} />}
                     onClick={() => id && fetchDriveFiles(id)}>
                     Actualiser
                   </Button>
@@ -1781,17 +1776,17 @@ export default function FicheCandidat() {
                         key={selectedFile.id}
                         src={googleEmbedUrl(selectedFile)}
                         title={selectedFile.name}
-                        className="w-full h-full rounded-lg border border-gray-100"
+                        className="w-full h-full rounded-lg border border-[var(--ds-border)]"
                       />
                     ) : previewLoading ? (
-                      <div className="flex flex-col items-center justify-center h-full gap-2 rounded-lg border border-gray-100 bg-gray-50 text-gray-400">
-                        <Loader2 size={24} className="animate-spin" />
+                      <div className="flex flex-col items-center justify-center h-full gap-2 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]">
+                        <IconLoader width={24} height={24} className="animate-spin" />
                         <p className="text-sm">Chargement de l'aperçu…</p>
                       </div>
                     ) : previewError ? (
-                      <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
-                        <AlertCircle size={28} className="text-gray-300" />
-                        <p className="text-sm text-gray-400">{previewError}</p>
+                      <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+                        <IconAlert width={28} height={28} className="text-[var(--ds-text-subtle)]" />
+                        <p className="text-sm text-[var(--ds-text-subtle)]">{previewError}</p>
                         {selectedFile.webViewLink && (
                           <a href={selectedFile.webViewLink} target="_blank" rel="noopener noreferrer"
                             className="text-xs text-purple hover:underline">Ouvrir dans Google Drive</a>
@@ -1799,7 +1794,7 @@ export default function FicheCandidat() {
                       </div>
                     ) : previewUrl ? (
                       selectedFile.mimeType.startsWith('image/') ? (
-                        <div className="flex h-full w-full items-center justify-center rounded-lg border border-gray-100 bg-gray-50">
+                        <div className="flex h-full w-full items-center justify-center rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
                           <img
                             key={selectedFile.id}
                             src={previewUrl}
@@ -1814,30 +1809,30 @@ export default function FicheCandidat() {
                       )
                     ) : null
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
-                      <FileText size={32} className="text-gray-300" />
-                      <p className="text-sm text-gray-400">Sélectionner un fichier</p>
+                    <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+                      <IconFile width={32} height={32} className="text-[var(--ds-text-subtle)]" />
+                      <p className="text-sm text-[var(--ds-text-subtle)]">Sélectionner un fichier</p>
                     </div>
                   )}
                 </div>
 
                 {/* File list */}
-                <div className="w-64 shrink-0 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50">
+                <div className="w-64 shrink-0 overflow-y-auto rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
                   {loadingFiles ? (
-                    <div className="flex items-center justify-center h-20 gap-2 text-gray-400 text-xs">
-                      <Loader2 size={14} className="animate-spin" />
+                    <div className="flex items-center justify-center h-20 gap-2 text-[var(--ds-text-subtle)] text-xs">
+                      <IconLoader width={14} height={14} className="animate-spin" />
                       Chargement…
                     </div>
                   ) : driveFiles.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-20 gap-2 text-gray-400 text-xs">
-                      <File size={20} />
+                    <div className="flex flex-col items-center justify-center h-20 gap-2 text-[var(--ds-text-subtle)] text-xs">
+                      <IconFile width={20} height={20} />
                       Dossier vide
                     </div>
                   ) : (
-                    <ul className="divide-y divide-gray-100">
+                    <ul className="divide-y divide-[var(--ds-border)]">
                       {driveFiles.map(file => (
-                        <li key={file.id} className={`group flex items-center transition-colors hover:bg-white ${
-                          selectedFile?.id === file.id ? 'bg-white shadow-sm' : ''
+                        <li key={file.id} className={`group flex items-center transition-colors hover:bg-[var(--ds-surface)] ${
+                          selectedFile?.id === file.id ? 'bg-[var(--ds-surface)] shadow-sm' : ''
                         }`}>
                           <button
                             onClick={() => setSelectedFile(file)}
@@ -1845,9 +1840,9 @@ export default function FicheCandidat() {
                           >
                             <DriveFileIcon mimeType={file.mimeType} />
                             <div className="min-w-0">
-                              <p className="text-xs font-medium text-gray-800 truncate leading-tight">{file.name}</p>
+                              <p className="text-xs font-medium text-[var(--ds-text)] truncate leading-tight">{file.name}</p>
                               {file.modifiedTime && (
-                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                <p className="text-[10px] text-[var(--ds-text-subtle)] mt-0.5">
                                   {new Date(file.modifiedTime).toLocaleDateString('fr-FR')}
                                 </p>
                               )}
@@ -1856,9 +1851,9 @@ export default function FicheCandidat() {
                           <button
                             onClick={() => handleDeleteFile(file)}
                             title="Supprimer"
-                            className="shrink-0 p-2 text-gray-300 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="shrink-0 p-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)] opacity-0 group-hover:opacity-100 transition-opacity"
                           >
-                            <Trash2 size={14} />
+                            <IconTrash width={14} height={14} />
                           </button>
                         </li>
                       ))}
@@ -1936,9 +1931,9 @@ export default function FicheCandidat() {
 
       {immersionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModalOpen(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
-            <p className="mt-1 text-sm text-gray-500">Renseigne l'entreprise et les dates de début et de fin de l'immersion.</p>
+          <div className="w-full max-w-sm rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Passage en immersion</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Renseigne l'entreprise et les dates de début et de fin de l'immersion.</p>
             <div className="mt-4 space-y-3">
               <div className="relative">
                 <label className={labelCls} htmlFor="imm-company">Entreprise</label>
@@ -1955,12 +1950,12 @@ export default function FicheCandidat() {
                 {companyListOpen && (() => {
                   const filtered = companyOptions.filter(c => c.name?.toLowerCase().includes(companyQuery.toLowerCase()))
                   return (
-                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg">
                       {filtered.slice(0, 50).map(c => (
                         <li key={c.id}>
                           <button
                             type="button"
-                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100"
+                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--ds-surface-sunken)]"
                             onClick={() => { setImmersionCompanyId(String(c.id)); setCompanyQuery(c.name); setCompanyListOpen(false) }}
                           >
                             {c.name}
@@ -1968,7 +1963,7 @@ export default function FicheCandidat() {
                         </li>
                       ))}
                       {filtered.length === 0 && (
-                        <li className="px-3 py-1.5 text-sm text-gray-400">Aucune entreprise</li>
+                        <li className="px-3 py-1.5 text-sm text-[var(--ds-text-subtle)]">Aucune entreprise</li>
                       )}
                     </ul>
                   )
@@ -1993,9 +1988,9 @@ export default function FicheCandidat() {
 
       {unavailableModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setUnavailableModalOpen(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Indisponible jusqu'au</h3>
-            <p className="mt-1 text-sm text-gray-500">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
+          <div className="w-full max-w-sm rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Indisponible jusqu'au</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
             <div className="mt-4">
               <label className={labelCls} htmlFor="fiche-avail-date">Date de disponibilité</label>
               <input id="fiche-avail-date" type="date" className={inputCls} value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
@@ -2021,14 +2016,14 @@ export default function FicheCandidat() {
 
       {aiSummaryOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAiSummaryOpen(false)}>
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Résumé IA</h3>
-            <p className="mt-1 text-sm text-gray-500">Modifie le résumé généré par l'IA si nécessaire, puis enregistre.</p>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Résumé IA</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Modifie le résumé généré par l'IA si nécessaire, puis enregistre.</p>
             <div className="mt-4">
               <textarea className={inputCls} rows={6} value={aiSummaryText}
                 onChange={e => setAiSummaryText(e.target.value)} />
             </div>
-            {aiSummaryError && <p className="mt-2 text-xs text-red-500">{aiSummaryError}</p>}
+            {aiSummaryError && <p className="mt-2 text-xs text-[var(--ds-danger)]">{aiSummaryError}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setAiSummaryOpen(false)}>Annuler</Button>
               <Button variant="primary" size="sm" disabled={!aiSummaryText.trim()} onClick={handleSaveAiSummary}>Enregistrer</Button>
@@ -2039,13 +2034,13 @@ export default function FicheCandidat() {
 
       {showPendingComment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPendingComment(false)}>
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Finaliser le test – commentaire</h3>
-            <p className="mt-1 text-sm text-gray-500">Décris les actions prises suite à l’échec (recontact, orientation, remédiation...). Ce commentaire sera enregistré dans l’historique du candidat.</p>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Finaliser le test – commentaire</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Décris les actions prises suite à l’échec (recontact, orientation, remédiation...). Ce commentaire sera enregistré dans l’historique du candidat.</p>
             <div className="mt-4">
               <textarea className={inputCls + ' resize-none'} rows={4} value={pendingComment} onChange={e => setPendingComment(e.target.value)} placeholder="Ex: Candidat informé de l’échec, proposé atelier de remise à niveau, suivi prévu..." />
             </div>
-            {pendingCommentError && <p className="mt-2 text-xs text-red-500">{pendingCommentError}</p>}
+            {pendingCommentError && <p className="mt-2 text-xs text-[var(--ds-danger)]">{pendingCommentError}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setShowPendingComment(false)}>Annuler</Button>
               <Button size="sm" isLoading={pendingCommentLoading} disabled={!pendingComment.trim()} onClick={async () => {
@@ -2085,13 +2080,13 @@ function CvChoiceDropdown({ onUpload, onSendMail, onClose }: {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
-        <button onClick={onUpload} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-          <Upload size={16} className="text-gray-400" />
+      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg overflow-hidden">
+        <button onClick={onUpload} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] transition-colors">
+          <IconUpload width={16} height={16} className="text-[var(--ds-text-subtle)]" />
           <span>Uploader un fichier</span>
         </button>
-        <button onClick={onSendMail} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100">
-          <Mail size={16} className="text-gray-400" />
+        <button onClick={onSendMail} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] transition-colors border-t border-[var(--ds-border)]">
+          <IconMail width={16} height={16} className="text-[var(--ds-text-subtle)]" />
           <span>Envoyer un mail au candidat</span>
         </button>
       </div>

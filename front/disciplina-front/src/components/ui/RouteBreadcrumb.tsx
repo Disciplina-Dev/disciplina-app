@@ -1,5 +1,5 @@
 import { useMatches, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronRight } from 'lucide-react'
+import { IconArrowLeft, IconChevronRight } from '@/components/ui/icons'
 
 /** Signature d'un libellé dynamique (ex: dépend d'un :param). */
 export type CrumbResolver = (match: {
@@ -46,9 +46,9 @@ export default function RouteBreadcrumb({ accent }: { accent?: string }) {
         type="button"
         onClick={goBack}
         aria-label="Retour"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-gray-100 bg-white text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-900"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-subtle)] transition-colors hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]"
       >
-        <ArrowLeft size={16} />
+        <IconArrowLeft width={16} height={16} />
       </button>
 
       <nav aria-label="Fil d'Ariane" className="min-w-0">
@@ -68,12 +68,12 @@ export default function RouteBreadcrumb({ accent }: { accent?: string }) {
                 ) : (
                   <Link
                     to={crumb.to}
-                    className="truncate text-gray-500 no-underline transition-colors hover:text-gray-900"
+                    className="truncate text-[var(--ds-text-subtle)] no-underline transition-colors hover:text-[var(--ds-text)]"
                   >
                     {crumb.label}
                   </Link>
                 )}
-                {!last && <ChevronRight size={14} className="shrink-0 text-gray-300" />}
+                {!last && <IconChevronRight width={14} height={14} className="shrink-0 text-[var(--ds-text-subtle)]" />}
               </li>
             )
           })}

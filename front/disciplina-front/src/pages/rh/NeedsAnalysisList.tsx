@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { Loader2, Search, X, Plus } from 'lucide-react'
+import { IconClose, IconLoader, IconPlus, IconSearch } from '@/components/ui/icons'
 import { usePersistedListView } from '@/hooks/usePersistedListView'
 import { useNeedsAnalysesPage } from '@/graphql/hooks'
 import { useCurrentUser, Permission } from '@/store/authStore'
@@ -11,6 +11,7 @@ import { EMPTY_JOB_FILTERS, toOfferFilterInput } from '@/features/matching/servi
 import type { JobFilters as JobFiltersType, AbTab } from '@/features/matching/services/jobFilters'
 import { TitleProfessionalType } from '@/types/candidate'
 import Matching from '@/pages/rh/Matching'
+import Tabs from '@/components/ui/Tabs'
 
 const PAGE_SIZE = 25
 
@@ -59,52 +60,44 @@ function AbListView() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
       <div className="mb-6 flex items-baseline justify-between gap-3">
-        <h1 className="text-xl font-bold text-gray-900">Analyses de besoin</h1>
+        <h1 className="text-xl font-bold text-[var(--ds-text)]">Analyses de besoin</h1>
         {canAddCompany && (
           <button
             onClick={() => setShowCompanySearch(true)}
-            className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-gray-500 transition hover:border-gray-400 hover:text-gray-700"
+            className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--ds-border-strong)] px-4 py-2 text-sm text-[var(--ds-text-subtle)] transition hover:border-gray-400 hover:text-[var(--ds-text-muted)]"
           >
-            <Plus size={16} />
+            <IconPlus width={16} height={16} />
             Ajouter des entreprises
           </button>
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 flex gap-1 rounded-xl bg-white border border-gray-100 p-1 shadow-sm">
-        {AB_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setFilters({ ...filters, tab: tab.value })}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-              filters.tab === tab.value
-                ? 'bg-purple text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        className="mb-6"
+        label="Filtrer les analyses de besoin"
+        tone="purple"
+        value={filters.tab}
+        onChange={(tab) => setFilters({ ...filters, tab })}
+        options={AB_TABS.map((tab) => ({ value: tab.value, label: tab.label }))}
+      />
 
       <div className="mb-6 space-y-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ds-text-subtle)]" />
           <input
             type="text"
             placeholder="Rechercher par entreprise..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full rounded-lg border border-gray-100 py-2 pl-9 pr-9 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue"
+            className="w-full rounded-lg border border-[var(--ds-border)] py-2 pl-9 pr-9 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue"
           />
           {searchInput && (
             <button
               type="button"
               onClick={() => setSearchInput('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
             >
-              <X className="h-4 w-4" />
+              <IconClose className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -113,15 +106,15 @@ function AbListView() {
 
       {loading && items.length === 0 ? (
         <div className="flex h-64 flex-col items-center justify-center gap-3">
-          <Loader2 size={28} className="animate-spin text-blue" />
-          <p className="text-sm text-gray-400">Chargement des analyses de besoin…</p>
+          <IconLoader width={28} height={28} className="animate-spin text-blue" />
+          <p className="text-sm text-[var(--ds-text-subtle)]">Chargement des analyses de besoin…</p>
         </div>
       ) : error ? (
-        <div className="mx-auto max-w-lg px-4 py-16 text-center text-sm text-danger">
+        <div className="mx-auto max-w-lg px-4 py-16 text-center text-sm text-[var(--ds-danger)]">
           Erreur lors du chargement des analyses de besoin.
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-gray-100 bg-white px-6 py-16 text-center text-sm text-gray-400">
+        <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-6 py-16 text-center text-sm text-[var(--ds-text-subtle)]">
           Aucune analyse de besoin.
         </div>
       ) : (
@@ -136,12 +129,12 @@ function AbListView() {
         </div>
       )}
 
-      <div className="mt-8 flex items-center justify-between rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+      <div className="mt-8 flex items-center justify-between rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-5 py-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
         <button
           type="button"
           onClick={loadPrevPage}
           disabled={cursorHistory.length === 0 || loading}
-          className="cursor-pointer rounded-[8px] border border-gray-200 bg-white px-4 py-2 text-[13px] font-semibold text-gray-700 transition-all hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-40"
+          className="cursor-pointer rounded-[8px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2 text-[13px] font-semibold text-[var(--ds-text-muted)] transition-all hover:border-[var(--ds-border-strong)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           ← Page précédente
         </button>
@@ -149,7 +142,7 @@ function AbListView() {
           type="button"
           onClick={() => loadNextPage(pageInfo)}
           disabled={!pageInfo?.hasNextPage || loading}
-          className="cursor-pointer rounded-[8px] border border-gray-200 bg-white px-4 py-2 text-[13px] font-semibold text-gray-700 transition-all hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-40"
+          className="cursor-pointer rounded-[8px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2 text-[13px] font-semibold text-[var(--ds-text-muted)] transition-all hover:border-[var(--ds-border-strong)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           Page suivante →
         </button>

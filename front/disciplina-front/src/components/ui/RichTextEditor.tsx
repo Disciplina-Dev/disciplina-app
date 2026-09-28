@@ -5,12 +5,7 @@ import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import { useEffect, useCallback } from 'react'
-import {
-  Bold, Italic, Underline as UnderlineIcon,
-  List, ListOrdered,
-  AlignLeft, AlignCenter, AlignRight,
-  Heading2, Link2, Unlink,
-} from 'lucide-react'
+import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconBold, IconHeading, IconItalic, IconLink, IconList, IconListOrdered, IconUnderline, IconUnlink } from '@/components/ui/icons'
 
 interface RichTextEditorProps {
   value: string
@@ -36,7 +31,7 @@ function ToolbarButton({
         'flex h-7 w-7 items-center justify-center rounded-md text-sm transition-colors',
         active
           ? 'bg-purple/10 text-purple'
-          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800',
+          : 'text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]',
       ].join(' ')}
     >
       {children}
@@ -45,7 +40,7 @@ function ToolbarButton({
 }
 
 function Divider() {
-  return <div className="h-5 w-px bg-gray-200 mx-0.5" />
+  return <div className="h-5 w-px bg-[var(--ds-surface-sunken)] mx-0.5" />
 }
 
 export default function RichTextEditor({
@@ -70,7 +65,7 @@ export default function RichTextEditor({
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
-        class: 'outline-none min-h-[inherit] px-4 py-3 text-sm text-gray-900',
+        class: 'outline-none min-h-[inherit] px-4 py-3 text-sm text-[var(--ds-text)]',
       },
     },
   })
@@ -102,22 +97,22 @@ export default function RichTextEditor({
 
   const btn = (label: string, action: () => void, active?: boolean) => (
     <ToolbarButton key={label} onClick={action} active={active} title={label}>
-      {label === 'Gras' && <Bold size={14} />}
-      {label === 'Italique' && <Italic size={14} />}
-      {label === 'Souligné' && <UnderlineIcon size={14} />}
-      {label === 'Titre' && <Heading2 size={14} />}
-      {label === 'Liste' && <List size={14} />}
-      {label === 'Liste numérotée' && <ListOrdered size={14} />}
-      {label === 'Gauche' && <AlignLeft size={14} />}
-      {label === 'Centre' && <AlignCenter size={14} />}
-      {label === 'Droite' && <AlignRight size={14} />}
+      {label === 'Gras' && <IconBold width={14} height={14} />}
+      {label === 'Italique' && <IconItalic width={14} height={14} />}
+      {label === 'Souligné' && <IconUnderline width={14} height={14} />}
+      {label === 'Titre' && <IconHeading width={14} height={14} />}
+      {label === 'Liste' && <IconList width={14} height={14} />}
+      {label === 'Liste numérotée' && <IconListOrdered width={14} height={14} />}
+      {label === 'Gauche' && <IconAlignLeft width={14} height={14} />}
+      {label === 'Centre' && <IconAlignCenter width={14} height={14} />}
+      {label === 'Droite' && <IconAlignRight width={14} height={14} />}
     </ToolbarButton>
   )
 
   return (
-    <div className="rounded-[10px] border border-gray-100 bg-white focus-within:border-blue transition-colors overflow-hidden">
+    <div className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] focus-within:border-blue transition-colors overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 border-b border-gray-100 px-2 py-1.5 flex-wrap">
+      <div className="flex items-center gap-0.5 border-b border-[var(--ds-border)] px-2 py-1.5 flex-wrap">
         {btn('Gras', () => editor.chain().focus().toggleBold().run(), editor.isActive('bold'))}
         {btn('Italique', () => editor.chain().focus().toggleItalic().run(), editor.isActive('italic'))}
         {btn('Souligné', () => editor.chain().focus().toggleUnderline().run(), editor.isActive('underline'))}
@@ -127,13 +122,13 @@ export default function RichTextEditor({
         {btn('Liste numérotée', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'))}
         <Divider />
         <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Insérer un lien">
-          <Link2 size={14} />
+          <IconLink width={14} height={14} />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
           title="Retirer le lien"
         >
-          <Unlink size={14} />
+          <IconUnlink width={14} height={14} />
         </ToolbarButton>
         <Divider />
         {btn('Gauche', () => editor.chain().focus().setTextAlign('left').run(), editor.isActive({ textAlign: 'left' }))}

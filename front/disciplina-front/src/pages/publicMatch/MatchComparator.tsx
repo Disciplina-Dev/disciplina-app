@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Loader2, AlertCircle, ChevronLeft, ChevronRight, Check, Send } from 'lucide-react'
+import { IconAlert, IconCheck, IconChevronLeft, IconChevronRight, IconLoader, IconSend } from '@/components/ui/icons'
 import {
   getMatchCandidates,
   submitMatchAnswers,
@@ -17,7 +17,7 @@ import InterviewProposalForm from '@/features/publicMatch/components/InterviewPr
 import RefusalCommentForm from '@/features/publicMatch/components/RefusalCommentForm'
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">{children}</div>
+  return <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">{children}</div>
 }
 
 export default function MatchComparator() {
@@ -93,8 +93,8 @@ export default function MatchComparator() {
     return (
       <Centered>
         <div className="flex flex-col items-center gap-3 text-center">
-          <AlertCircle size={32} className="text-danger" />
-          <p className="text-[13px] text-gray-500">{loadError}</p>
+          <IconAlert width={32} height={32} className="text-[var(--ds-danger)]" />
+          <p className="text-[13px] text-[var(--ds-text-subtle)]">{loadError}</p>
         </div>
       </Centered>
     )
@@ -104,11 +104,11 @@ export default function MatchComparator() {
     return (
       <Centered>
         <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-600">
-            <Check size={30} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--ds-success-bg)] text-[var(--ds-success)]">
+            <IconCheck width={30} height={30} />
           </div>
-          <p className="text-[17px] font-extrabold text-gray-900">Merci pour vos réponses</p>
-          <p className="text-[13px] text-gray-500">Votre conseiller a été notifié et reviendra vers vous.</p>
+          <p className="text-[17px] font-extrabold text-[var(--ds-text)]">Merci pour vos réponses</p>
+          <p className="text-[13px] text-[var(--ds-text-subtle)]">Votre conseiller a été notifié et reviendra vers vous.</p>
         </div>
       </Centered>
     )
@@ -117,7 +117,7 @@ export default function MatchComparator() {
   if (!candidates) {
     return (
       <Centered>
-        <Loader2 size={28} className="animate-spin text-purple" />
+        <IconLoader width={28} height={28} className="animate-spin text-purple" />
       </Centered>
     )
   }
@@ -125,7 +125,7 @@ export default function MatchComparator() {
   if (candidates.length === 0) {
     return (
       <Centered>
-        <p className="text-[13px] text-gray-500">Aucun candidat à afficher.</p>
+        <p className="text-[13px] text-[var(--ds-text-subtle)]">Aucun candidat à afficher.</p>
       </Centered>
     )
   }
@@ -136,40 +136,40 @@ export default function MatchComparator() {
   const isCurrentRefused = answers[current.id] === 'REFUSED'
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
+    <div className="min-h-screen bg-[var(--ds-surface-sunken)] px-4 py-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-[20px] font-extrabold text-gray-900">Candidats proposés</h1>
+          <h1 className="text-[20px] font-extrabold text-[var(--ds-text)]">Candidats proposés</h1>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIndex((i) => Math.max(0, i - 1))}
               disabled={index === 0}
-              className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+              className="rounded-lg border border-[var(--ds-border)] p-2 text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] disabled:opacity-40"
             >
-              <ChevronLeft size={16} />
+              <IconChevronLeft width={16} height={16} />
             </button>
-            <span className="text-[13px] font-bold text-gray-700">
+            <span className="text-[13px] font-bold text-[var(--ds-text-muted)]">
               {index + 1} / {candidates.length}
             </span>
             <button
               onClick={() => setIndex((i) => Math.min(candidates.length - 1, i + 1))}
               disabled={index === candidates.length - 1}
-              className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+              className="rounded-lg border border-[var(--ds-border)] p-2 text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] disabled:opacity-40"
             >
-              <ChevronRight size={16} />
+              <IconChevronRight width={16} height={16} />
             </button>
           </div>
         </div>
 
         <CandidateComparator signature={signature} candidate={current} />
 
-        <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-          <p className="mb-2 text-[13px] font-bold text-gray-800">Votre décision pour {current.fullName ?? 'ce candidat'}</p>
+        <div className="mt-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
+          <p className="mb-2 text-[13px] font-bold text-[var(--ds-text)]">Votre décision pour {current.fullName ?? 'ce candidat'}</p>
           <AnswerControls value={answers[current.id] ?? null} onChange={(a) => setAnswer(current.id, a)} />
         </div>
 
         {hasSelection && (
-          <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="mt-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
             <InterviewProposalForm
               slots={slots}
               onChange={setSlots}
@@ -181,7 +181,7 @@ export default function MatchComparator() {
         )}
 
         {isCurrentRefused && (
-          <div className="mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="mt-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
             <RefusalCommentForm
               value={comments[current.id] ?? ''}
               onChange={(comment) => setComments((prev) => ({ ...prev, [current.id]: comment }))}
@@ -190,13 +190,13 @@ export default function MatchComparator() {
         )}
 
         <div className="mt-6 flex items-center justify-end gap-3">
-          {!allAnswered && <p className="text-[12px] text-gray-400">Répondez à tous les candidats pour valider.</p>}
+          {!allAnswered && <p className="text-[12px] text-[var(--ds-text-subtle)]">Répondez à tous les candidats pour valider.</p>}
           <button
             onClick={submit}
             disabled={busy || !allAnswered}
             className="flex items-center gap-2 rounded-lg bg-purple px-5 py-2.5 text-[14px] font-bold text-white hover:bg-purple-dark disabled:opacity-50"
           >
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Valider mes réponses
+            {busy ? <IconLoader width={16} height={16} className="animate-spin" /> : <IconSend width={16} height={16} />} Valider mes réponses
           </button>
         </div>
       </div>
