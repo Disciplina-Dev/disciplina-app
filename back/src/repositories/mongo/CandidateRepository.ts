@@ -176,13 +176,7 @@ export class CandidateRepository {
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
         if (filters?.hasVehicle !== undefined) conditions.push({ 'identity.has_vehicle': filters.hasVehicle });
         if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
-        // tp_type legacy encore présent sur d'anciens documents non nettoyés (cf.
-        // scripts/cleanup_candidate_tp_type.py) : $or transitoire, à retirer une fois
-        // la migration terminée et le script de nettoyage passé.
-        if (filters?.tpType?.length)
-            conditions.push({
-                $or: [{ tp_types: { $in: filters.tpType } }, { tp_type: { $in: filters.tpType } }],
-            });
+        if (filters?.tpType?.length) conditions.push({ tp_types: { $in: filters.tpType } });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
         if (filters?.geographicMobility?.length)

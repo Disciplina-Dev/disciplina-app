@@ -7,6 +7,7 @@ import { expressMiddleware } from '@as-integrations/express5';
 import { jwtContext, graphqlRegionMiddleware } from './graphql/context';
 import { connectMySQL, getPool } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
+import { TENANT_TIMEZONE } from './config/tenant';
 import { connectMongoDB } from './db/mongo/connection';
 import { migrateLegacyKpiTables } from './db/mongo/legacyKpiImport';
 import { query } from './db/mysql/connection';
@@ -178,13 +179,15 @@ export async function createApp(): Promise<express.Express> {
     app.use(errorHandler);
 
     await connectMySQL();
-    await runMysqlMigrations();
+    await runMysqlMigrations(undefined, TENANT_TIMEZONE.reunion);
     // Les migrations tournent aussi sur la base annemasse : même schéma, même
-    // exigence de colonnes. getPool('annemasse') est hors ALS (boot, pas requête).
+    // exigence de colonnes, mais le fuseau des pages de réservation est celui du
+    // tenant. getPool('annemasse') est hors ALS (boot, pas requête), d'où la
+    // région passée explicitement.
     await runMysqlMigrations(async <T>(sql: string, params?: unknown[]): Promise<T> => {
         const [rows] = await getPool('annemasse').execute(sql as string, params as (string | number)[]);
         return rows as T;
-    });
+    }, TENANT_TIMEZONE.annemasse);
     await connectMongoDB();
 
     // Ex-tables commercial_kpi / rh_kpi (#513) : import vers Mongo `kpis` puis

@@ -9,10 +9,13 @@ export const TRAINING_SITE_TO_ZONE: Record<TrainingSite, Zone> = {
     [TrainingSite.SUD_SAINT_PIERRE]: 'SUD',
 };
 
-export const ZONE_TO_TRAINING_SITE: Record<Zone, TrainingSite> = {
+export const ZONE_TO_TRAINING_SITE: Partial<Record<Zone, TrainingSite>> = {
     NORD: TrainingSite.NORD_SAINTE_MARIE,
     OUEST: TrainingSite.OUEST_SAINT_PAUL,
     SUD: TrainingSite.SUD_SAINT_PIERRE,
+    // Les 6 zones du tenant Annemasse (Haute-Savoie) n'ont pas de site de
+    // formation dédié : le matching géographique s'y fait par recouvrement
+    // de communes (zonesFromCommunes / communesForZones), pas par site.
 };
 
 export const COMMUNE_TO_ZONE = new Map<string, Zone>();

@@ -11,12 +11,13 @@ import {
 } from '@/api/externalInterview'
 import { getExternalProfile } from '@/api/external'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
+import { REGION_TIMEZONE } from '@/lib/timezone'
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">{children}</div>
 }
 
-function formatSlot(iso: string): string {
+function formatSlot(iso: string, tz: string): string {
   return new Date(iso).toLocaleString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -24,7 +25,7 @@ function formatSlot(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: 'Indian/Reunion',
+    timeZone: tz,
   })
 }
 
@@ -49,6 +50,9 @@ export default function ExternalInterview() {
   const [busySlot, setBusySlot] = useState<string | null>(null)
   const [bookedSlot, setBookedSlot] = useState<string | null>(null)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  // Fuseau du tenant : le candidat externe n'a pas de session staff, donc
+  // /api/auth/me est indisponible. /:signature/profile est le porteur.
+  const [timezone, setTimezone] = useState(REGION_TIMEZONE.reunion)
 
   const load = () => {
     getInterviewSlots(signature)
@@ -69,7 +73,10 @@ export default function ExternalInterview() {
     }
     load()
     getExternalProfile(signature)
-      .then((profile) => setExpiresAt(profile.expiresAt))
+      .then((profile) => {
+        setExpiresAt(profile.expiresAt)
+        if (profile.timezone) setTimezone(profile.timezone)
+      })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature, navigate])
@@ -142,7 +149,7 @@ export default function ExternalInterview() {
               } disabled:opacity-60`}
             >
               <span className="flex items-center gap-2">
-                <CalendarClock size={15} /> {formatSlot(slot)}
+                <CalendarClock size={15} /> {formatSlot(slot, timezone)}
               </span>
               {taken ? (
                 <span className="text-[11px] font-semibold text-gray-400">Pris</span>

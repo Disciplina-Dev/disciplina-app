@@ -5,6 +5,10 @@ export interface ExternalProfile {
   guestType: string
   externalUuid: string
   expiresAt: string | null
+  /** Fuseau IANA du tenant (renvoyé par GET /:signature/profile). Le guest
+   *  n'a pas de session staff, donc /api/auth/me est indisponible : c'est le
+   *  seul endpoint porteur du fuseau pour les pages externes. */
+  timezone?: string
 }
 
 export class ExternalAuthError extends Error {}

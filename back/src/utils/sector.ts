@@ -10,6 +10,26 @@ import { Permission } from '../types/user.types';
 export const SECTORS = ['Nord-Est', 'Ouest', 'Sud'] as const;
 export type Sector = (typeof SECTORS)[number];
 
+/**
+ * Secteurs entreprise du tenant Annemasse (Haute-Savoie) : les 6 secteurs
+ * opérationnels du référentiel communes (cf. ZONE_TO_COMMUNES dans
+ * services/mappers/abToOffer.ts). Vocabulaire **entreprise uniquement** :
+ * les secteurs *utilisateurs* (agenda, notifications AB, KPI) restent
+ * volontairement sur `SECTORS` pour les deux tenants.
+ */
+export const ANNEMASSE_COMPANY_SECTORS = [
+    'Genève / Frontière',
+    'Saint-Julien / Genevois',
+    'Arve',
+    'Faucigny / La Roche',
+    'Annecy',
+    'Chablais',
+] as const;
+export type AnnemasseCompanySector = (typeof ANNEMASSE_COMPANY_SECTORS)[number];
+
+/** Secteur entreprise par défaut du tenant Annemasse (Annemasse y est rattachée). */
+export const DEFAULT_ANNEMASSE_COMPANY_SECTOR: AnnemasseCompanySector = 'Genève / Frontière';
+
 // Un secteur métier ↔ une région de dossiers Drive (NORD/OUEST/SUD).
 const SECTOR_TO_REGION: Record<Sector, DriveRegion> = {
     'Nord-Est': 'NORD',
@@ -30,6 +50,26 @@ export function sanitizeSectors(sectors?: unknown): Sector[] {
 /** Secteur principal d'un user : premier secteur valide assigné, sinon undefined. */
 export function primarySector(sectors?: string[] | null): Sector | undefined {
     return sectors?.find(isSector);
+}
+
+/**
+ * Valeurs acceptées pour le champ `sector` d'une entreprise (MySQL) :
+ * vocabulaire Réunion + 6 secteurs Annemasse. Le filtrage acceptereste
+ * global (pas par tenant) : les bases sont étanches par tenant, et un filtre
+ * par région rejetterait des lignes légitimes au lieu de les classer.
+ */
+const COMPANY_SECTORS = new Set<string>([...SECTORS, ...ANNEMASSE_COMPANY_SECTORS]);
+
+/** Vrai si la valeur est un secteur entreprise connu (tous tenants). */
+export function isCompanySector(value: unknown): boolean {
+    return typeof value === 'string' && COMPANY_SECTORS.has(value);
+}
+
+/** Ne garde que les secteurs entreprise valides d'une liste libre. */
+export function sanitizeCompanySectors(sectors?: unknown): string[] {
+    if (Array.isArray(sectors)) return sectors.filter(isCompanySector).map(String);
+    if (typeof sectors === 'string') return sectors.split(',').map((s) => s.trim()).filter(isCompanySector);
+    return [];
 }
 
 /** Région Drive déduite d'un secteur métier. */

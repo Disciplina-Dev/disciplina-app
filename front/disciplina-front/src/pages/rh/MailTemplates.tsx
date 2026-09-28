@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Plus, Pencil, Trash2, X, Mail, Paperclip, Loader2, Save } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
+import { useRegionStore } from '@/store/regionStore'
+import { regionTimezone } from '@/lib/timezone'
 import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel } from '@/api/mailTemplates'
 import { cleanHtml } from '@/services/sanitizeHtml'
 
@@ -30,7 +32,7 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 // Variables remplacées à l'envoi du mail de confirmation (cf. back/src/rest/booking/service.ts).
 const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boolean }[] = [
   { token: 'nom', label: 'Nom de l’invité', example: 'Marie Dupont' },
-  { token: 'date', label: 'Date et heure complètes', example: 'lundi 22 juin 2026 à 14:30 (Indian/Reunion)', date: true },
+  { token: 'date', label: 'Date et heure complètes', example: '', date: true },
   { token: 'jour', label: 'Jour de la semaine', example: 'lundi', date: true },
   { token: 'date_longue', label: 'Date en toutes lettres (sans heure)', example: 'lundi 22 juin 2026', date: true },
   { token: 'date_courte', label: 'Date numérique', example: '22/06/2026', date: true },
@@ -89,6 +91,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const { templates, loading, loaded, error: storeError, load, add, update, remove } =
     useMailTemplatesStore(scope)
   const [editing, setEditing] = useState<MailTemplate | 'new' | null>(null)
+  const region = useRegionStore((s) => s.region)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -107,6 +110,15 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
             : scope === 'peda'
               ? PEDA_TEMPLATE_VARS
               : TEMPLATE_VARS
+
+  const displayedVars = useMemo(() => {
+    const tz = regionTimezone(region)
+    return templateVars.map((v) =>
+      v.token === 'date'
+        ? { ...v, example: `lundi 22 juin 2026 à 14:30 (${tz})` }
+        : v,
+    )
+  }, [templateVars, region])
 
   useEffect(() => { load() }, [load])
 
@@ -291,7 +303,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                 Insérez-les dans l’objet ou le corps : elles seront remplacées à l’envoi. Cliquez pour copier.
               </p>
               <div className="mt-2 flex flex-col gap-1">
-                {templateVars.map((v) => (
+                {displayedVars.map((v) => (
                   <button
                     key={v.token}
                     type="button"
