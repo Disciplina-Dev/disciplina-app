@@ -179,22 +179,29 @@ export async function createApp(): Promise<express.Express> {
     app.use(errorHandler);
 
     await connectMySQL();
-    await runMysqlMigrations(undefined, TENANT_TIMEZONE.reunion);
+    await runMysqlMigrations(undefined, TENANT_TIMEZONE.reunion, 'reunion');
     // Les migrations tournent aussi sur la base annemasse : même schéma, même
-    // exigence de colonnes, mais le fuseau des pages de réservation est celui du
-    // tenant. getPool('annemasse') est hors ALS (boot, pas requête), d'où la
-    // région passée explicitement.
-    await runMysqlMigrations(async <T>(sql: string, params?: unknown[]): Promise<T> => {
-        const [rows] = await getPool('annemasse').execute(sql as string, params as (string | number)[]);
-        return rows as T;
-    }, TENANT_TIMEZONE.annemasse);
+    // exigence de colonnes, mais le fuseau des pages de réservation et les
+    // libellés sector_settings sont ceux du tenant. getPool('annemasse') est
+    // hors ALS (boot, pas requête), d'où la région passée explicitement.
+    await runMysqlMigrations(
+        async <T>(sql: string, params?: unknown[]): Promise<T> => {
+            const [rows] = await getPool('annemasse').execute(sql as string, params as (string | number)[]);
+            return rows as T;
+        },
+        TENANT_TIMEZONE.annemasse,
+        'annemasse',
+    );
     await connectMongoDB();
 
     // Ex-tables commercial_kpi / rh_kpi (#513) : import vers Mongo `kpis` puis
     // drop. Best-effort : en cas d'échec les tables sont conservées et le
     // retry repart au prochain boot ; ne doit jamais bloquer le démarrage.
     try {
-        const legacy = await migrateLegacyKpiTables({ all: (sql, params) => query(sql as never, params) }, { dropAfter: true });
+        const legacy = await migrateLegacyKpiTables(
+            { all: (sql, params) => query(sql as never, params) },
+            { dropAfter: true },
+        );
         if (legacy.commercial || legacy.rh || legacy.dropped.length > 0) {
             logger.info(
                 { commercial: legacy.commercial, rh: legacy.rh, dropped: legacy.dropped },

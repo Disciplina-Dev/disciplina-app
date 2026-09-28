@@ -1,6 +1,7 @@
 import { query as queryDefault } from './connection';
 import { logger } from '../../external/logger';
-import { TENANT_TIMEZONE } from '../../config/tenant';
+import { TENANT_TIMEZONE, TENANT_SECTOR_LOCATIONS } from '../../config/tenant';
+import type { Region } from '../../types/tenant';
 
 type QueryFn = <T>(sql: string, params?: unknown[]) => Promise<T>;
 
@@ -382,12 +383,13 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
     },
 ];
 
-/** Lieux par défaut (modifiables ensuite par l'admin via l'interface). */
-const SECTOR_SETTINGS_DEFAULTS: { sector: string; location: string }[] = [
-    { sector: 'Nord-Est', location: 'Disciplina Nord-Est — Sainte-Marie' },
-    { sector: 'Ouest', location: 'Disciplina Ouest — Saint-Paul' },
-    { sector: 'Sud', location: 'Disciplina Sud — Saint-Pierre' },
-];
+/**
+ * Ancien défaut Réunion, figé dans mysql-init.sql/le seed ci-dessous avant que
+ * `sector_settings` devienne tenant-aware (GEO-11, AUDIT_MULTITENANT.md). Sert
+ * à identifier, pour backfill, une ligne annemasse jamais personnalisée par un
+ * admin plutôt qu'une valeur éditée volontairement.
+ */
+const LEGACY_SECTOR_SETTINGS_DEFAULTS = TENANT_SECTOR_LOCATIONS.reunion;
 
 /** Défaut historique de `booking_settings.timezone`, avant le lot 1 multi-tenant. */
 const LEGACY_BOOKING_TIMEZONE = 'Indian/Reunion';
@@ -395,6 +397,7 @@ const LEGACY_BOOKING_TIMEZONE = 'Indian/Reunion';
 export async function runMysqlMigrations(
     dbQuery: QueryFn = queryDefault,
     timezone: string = TENANT_TIMEZONE.reunion,
+    region: Region = 'reunion',
 ): Promise<void> {
     for (const { table, ddl } of REQUIRED_TABLES) {
         const rows = await dbQuery<{ count: number }[]>(
@@ -499,10 +502,34 @@ export async function runMysqlMigrations(
         logger.info('MySQL migration: added PEDA to users.role enum');
     }
 
-    // Seed des lieux de RDV par secteur. INSERT IGNORE : ne réécrit pas une valeur
-    // déjà personnalisée par l'admin, crée seulement les lignes manquantes.
-    for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS) {
+    // Seed des lieux de RDV par secteur, par tenant. INSERT IGNORE : ne réécrit
+    // pas une valeur déjà personnalisée par l'admin, crée seulement les lignes
+    // manquantes.
+    const sectorDefaults = TENANT_SECTOR_LOCATIONS[region];
+    for (const { sector, location } of sectorDefaults) {
         await dbQuery('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
+    }
+
+    // Backfill GEO-11 (AUDIT_MULTITENANT.md) : la base annemasse a été amorcée
+    // (mysql-init.sql puis le seed ci-dessus, avant que ce dernier devienne
+    // tenant-aware) avec les libellés Réunion. INSERT IGNORE n'a jamais corrigé
+    // les lignes déjà présentes. On ne réécrit que si la valeur est encore
+    // l'ancien défaut Réunion exact — une valeur éditée par un admin survit.
+    if (region === 'annemasse') {
+        for (const { sector, location } of sectorDefaults) {
+            const legacy = LEGACY_SECTOR_SETTINGS_DEFAULTS.find((d) => d.sector === sector)?.location;
+            if (!legacy || legacy === location) continue;
+            const updated = await dbQuery<{ affectedRows: number }>(
+                'UPDATE sector_settings SET location = ? WHERE sector = ? AND location = ?',
+                [location, sector, legacy],
+            );
+            if (Number(updated?.affectedRows) > 0) {
+                logger.info(
+                    { sector, location, previous: legacy },
+                    'MySQL migration: sector_settings.location backfilled from the legacy Réunion default',
+                );
+            }
+        }
     }
 
     // Marqueur « fait passer les entretiens » (2026-07-09) : la liste « Entretien

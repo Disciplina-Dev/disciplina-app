@@ -175,6 +175,29 @@ curl -i https://app-reunion.disciplina.re/.well-known/oauth-protected-resource/a
 
 Both must return `application/json` (OAuth metadata) — not `text/html` (SPA).
 
+### Annemasse `sector_settings` backfill (automatic, on next backend boot)
+
+`back/src/db/mysql/migrations.ts` (`runMysqlMigrations`) corrects the 3
+`sector_settings` rows on the `disciplina_annemasse` database: they were
+seeded with the Réunion labels (`Sainte-Marie` / `Saint-Paul` / `Saint-Pierre`)
+via `INSERT IGNORE`, which never rewrites a row that already exists — so any
+Annemasse database created before this fix keeps the wrong labels forever
+without an explicit backfill (tracked as `GEO-11` in `AUDIT_MULTITENANT.md`).
+
+No manual action is needed: the backfill runs automatically as part of the
+existing migration step at backend startup (`await runMysqlMigrations(...)` in
+`back/src/index.ts`), the same way it already does for the `main` MySQL
+schema. It only rewrites a row whose `location` still matches the exact old
+Réunion default — a label an admin already edited via the *Sector Settings*
+screen is left untouched.
+
+```bash
+# nothing to run manually — verify after the deploy instead:
+docker compose exec sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina_annemasse \
+  -e "SELECT sector, location FROM sector_settings;"
+# expect Annemasse labels (Disciplina Annemasse — …), not Sainte-Marie/Saint-Paul/Saint-Pierre
+```
+
 ### Bulk company deletion by SIRET (manual, one-off)
 
 `scripts/delete_companies.py` deletes the companies listed in a text file (one
