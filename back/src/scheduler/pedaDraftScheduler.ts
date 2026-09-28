@@ -2,21 +2,17 @@ import { PedaDraftService } from '../services/PedaDraftService';
 import { PedaService, PEDA_DRAFT_LAST_RUN_KEY } from '../services/PedaService';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { runForAllRegions, getRegion } from '../db/tenant';
-import type { Region } from '../types/tenant';
+import { tenantTimezone } from '../config/tenant';
 import { logger } from '../external/logger';
 
 const TICK_MS = 60_000;
 
 // Heure locale du tenant : l'heure configurée (`peda_draft_hour`) est une heure
 // murale réglée par chaque site, donc calculée dans le fuseau de sa région.
-const REGION_TIMEZONE: Record<Region, string> = {
-    reunion: 'Indian/Reunion',
-    annemasse: 'Europe/Paris',
-};
-
-function nowInRegion(region: Region): { date: string; time: string } {
+// La table vit dans config/tenant.ts — ne pas la redéclarer ici.
+function nowInRegion(): { date: string; time: string } {
     const parts = new Intl.DateTimeFormat('fr-CA', {
-        timeZone: REGION_TIMEZONE[region],
+        timeZone: tenantTimezone(),
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -50,7 +46,7 @@ export function startPedaDraftScheduler(): NodeJS.Timeout {
             await runForAllRegions(async () => {
                 const region = getRegion();
                 try {
-                    const { date, time } = nowInRegion(region);
+                    const { date, time } = nowInRegion();
                     const configuredHour = await pedaService.getDraftHour();
                     if (time < configuredHour) return;
                     const lastRun = await settingsRepo.get(PEDA_DRAFT_LAST_RUN_KEY);

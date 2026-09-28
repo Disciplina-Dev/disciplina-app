@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2, Loader2, Search } from 'lucide-react'
 import { getMatchAddressCompletion } from '@/api/match'
+import { isoToZonedWallClock, zonedWallClockToIso } from '@/lib/timezone'
 
 const ADDRESS_SEARCH_MIN_LENGTH = 10
 
-function formatSlotPreview(iso: string): string {
+function formatSlotPreview(iso: string, tz: string): string {
   if (!iso) return ''
   return new Date(iso).toLocaleString('fr-FR', {
     day: '2-digit',
@@ -13,7 +14,7 @@ function formatSlotPreview(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: 'Indian/Reunion',
+    timeZone: tz,
   })
 }
 
@@ -23,12 +24,15 @@ export default function InterviewProposalForm({
   location,
   onLocationChange,
   signature,
+  timezone,
 }: {
   slots: string[]
   onChange: (slots: string[]) => void
   location: string
   onLocationChange: (location: string) => void
   signature: string
+  /** Fuseau IANA du tenant, passé par MatchComparator depuis /:signature/profile. */
+  timezone: string
 }) {
   const [locationSearch, setLocationSearch] = useState(location)
   const [locationResults, setLocationResults] = useState<string[]>([])
@@ -74,25 +78,13 @@ export default function InterviewProposalForm({
 
   const updateSlot = (index: number, localValue: string) => {
     const next = [...slots]
-    next[index] = localValue ? new Date(`${localValue}:00+04:00`).toISOString() : ''
+    // L'input est une heure murale : elle doit être interprétée dans le fuseau
+    // du tenant, pas dans celui du navigateur.
+    next[index] = localValue ? zonedWallClockToIso(localValue, timezone) : ''
     onChange(next)
   }
 
-  const toLocalInput = (iso: string): string => {
-    if (!iso) return ''
-    const parts = new Date(iso).toLocaleString('en-CA', {
-      timeZone: 'Indian/Reunion',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-    // en-CA gives "2026-08-20, 10:30"
-    const [datePart, timePart] = parts.split(', ')
-    return `${datePart}T${timePart}`
-  }
+  const toLocalInput = (iso: string): string => isoToZonedWallClock(iso, timezone)
 
   return (
     <div className="flex flex-col gap-4">
@@ -151,7 +143,7 @@ export default function InterviewProposalForm({
                 onChange={(e) => updateSlot(index, e.target.value)}
                 className="rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple"
               />
-              {slot && <p className="text-[12px] text-gray-500">{formatSlotPreview(slot)}</p>}
+              {slot && <p className="text-[12px] text-gray-500">{formatSlotPreview(slot, timezone)}</p>}
             </div>
             <button
               onClick={() => onChange(slots.filter((_, i) => i !== index))}
