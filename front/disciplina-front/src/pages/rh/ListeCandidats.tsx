@@ -7,6 +7,14 @@ import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal
 import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
+import {
+  REGION_COMMUNES,
+  REGION_LABELS,
+  ANNEMASSE_REGION_COMMUNES,
+  ANNEMASSE_REGION_LABELS,
+  type Region,
+  type AnnemasseRegion,
+} from '@/features/matching/constants/regions';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { secteurLabelOfTrainingSite } from '@/constants/secteurs';
@@ -50,6 +58,33 @@ const formatTrainingSite = (site?: TrainingSite) => {
   if (!site) return 'Non renseigné';
   return secteurLabelOfTrainingSite(site) ?? site;
 };
+
+// --- Commune sections (same grouping as Matching filters: 3 Réunion zones + 6 Annemasse sectors) ---
+// Both `Localisation` enums (candidate + matching) share identical string values,
+// so the matching referential can be reused here via string casting.
+
+const CANDIDATE_COMMUNE_REGIONS: Region[] = ['NORD', 'OUEST', 'SUD'];
+const CANDIDATE_ANNEMASSE_REGIONS: AnnemasseRegion[] = [
+  'GENEVE_FRONTIERE',
+  'GENEVOIS',
+  'ARVE',
+  'FAUCIGNY',
+  'ANNECY',
+  'CHABLAIS',
+];
+
+const COMMUNE_SECTIONS: { key: string; label: string; options: string[] }[] = [
+  ...CANDIDATE_COMMUNE_REGIONS.map(r => ({
+    key: r,
+    label: REGION_LABELS[r],
+    options: [...(REGION_COMMUNES[r] as unknown as string[])],
+  })),
+  ...CANDIDATE_ANNEMASSE_REGIONS.map(r => ({
+    key: r,
+    label: ANNEMASSE_REGION_LABELS[r],
+    options: [...(ANNEMASSE_REGION_COMMUNES[r] as unknown as string[])],
+  })),
+];
 
 // --- Tabs ---
 
@@ -529,6 +564,7 @@ export default function ListeCandidats() {
               onChange={vals => setFilters({ ...filters, geographicMobility: vals as Localisation[] })}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
               placeholder="Toutes les villes"
+              sections={COMMUNE_SECTIONS}
             />
             <MultiSelectField
               variant="filter"
