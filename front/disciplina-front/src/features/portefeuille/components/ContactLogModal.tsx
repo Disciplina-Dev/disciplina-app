@@ -40,20 +40,41 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
     setError(null)
     setSaving(true)
 
+    // Patch des champs réellement modifiés (calculé avant les inserts
+    // pour détecter le « double comptage » ci-dessous).
+    const patch: Record<string, unknown> = {}
+    if (status !== entreprise.status) patch.status = status
+    if ((typeRelance ?? null) !== (entreprise.type_relance ?? null)) patch.relanceType = typeRelance
+    if ((dateRelance || null) !== (entreprise.date_relance ?? null)) patch.relanceDate = dateRelance || null
+
+    // Statut passé à « Non » ET relance posée dans le même appel : compte double.
+    // Un seul des deux → compte simple (un seul insert).
+    const didSetNon = patch.status === 'Non'
+    const finalHasRelance = typeRelance != null && (dateRelance?.trim() ?? '') !== ''
+    const didTouchRelance = patch.relanceType !== undefined || patch.relanceDate !== undefined
+    const doubleCount = didSetNon && didTouchRelance && finalHasRelance
+
     // 1) Enregistre la prise de contact (commentaire obligatoire).
-    const logRes = await createContactLog(Number(entreprise.id), comment.trim())
+    const trimmedComment = comment.trim()
+    const logRes = await createContactLog(Number(entreprise.id), trimmedComment)
     if (logRes.error) {
       setError(logRes.error.message)
       setSaving(false)
       return
     }
 
-    // 2) Applique uniquement les champs réellement modifiés sur la fiche.
-    const patch: Record<string, unknown> = {}
-    if (status !== entreprise.status) patch.status = status
-    if ((typeRelance ?? null) !== (entreprise.type_relance ?? null)) patch.relanceType = typeRelance
-    if ((dateRelance || null) !== (entreprise.date_relance ?? null)) patch.relanceDate = dateRelance || null
+    // 1b) Double comptage : un second log identique pour que tous les compteurs
+    // (timeline, contactLogStats, KPI total_appels en COUNT(*)) voient 2 appels.
+    if (doubleCount) {
+      const secondRes = await createContactLog(Number(entreprise.id), trimmedComment)
+      if (secondRes.error) {
+        setError(secondRes.error.message)
+        setSaving(false)
+        return
+      }
+    }
 
+    // 2) Applique uniquement les champs réellement modifiés sur la fiche.
     if (Object.keys(patch).length > 0) {
       const updRes = await update(Number(entreprise.id), patch)
       if (updRes.error) {
