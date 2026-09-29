@@ -30,6 +30,8 @@ export interface CreateSessionInput {
     rhEmail: string;
     companyEmail: string;
     companyName?: string;
+    /** Copies carbone du mail d'invitation (non stockées, transmises au mail uniquement). */
+    cc?: string[];
     candidates: { id: string; description?: string }[];
 }
 
@@ -38,6 +40,7 @@ export interface SessionCredentials {
     link: string;
     rhEmail: string;
     companyEmail: string;
+    cc?: string[];
     offerUuid: string;
 }
 
@@ -124,6 +127,7 @@ export class MatchAccessService {
             link: invite.link,
             rhEmail: input.rhEmail,
             companyEmail: input.companyEmail,
+            cc: input.cc?.length ? input.cc : undefined,
             offerUuid: input.offerId,
         };
     }
