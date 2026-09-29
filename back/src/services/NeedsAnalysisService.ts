@@ -22,6 +22,8 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
 import { JobRole, Permission } from '../types/user.types';
+import { getRegion } from '../db/tenant';
+import { isSector } from '../utils/sector';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { sendSystemEmail } from '../external/google/system-mail';
 import { withNoReply } from '../external/google/no-reply';
@@ -55,11 +57,15 @@ const REGION_TO_USER_SECTOR: Record<string, string> = {
 /** Vrai si l'utilisateur est rattaché au secteur de l'AB (ou n'a pas de secteur défini). */
 function userBelongsToSector(user: { sectors?: string | string[] | null }, region: string | undefined): boolean {
     if (!region) return true;
-    const sector = REGION_TO_USER_SECTOR[region];
-    if (!sector) return true;
     const raw = user.sectors;
     const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? (JSON.parse(raw) as string[]) : [];
-    return list.length === 0 || list.includes(sector);
+    if (list.length === 0) return true;
+    // Tenant Annemasse : dossier Drive et notifications uniques — tout secteur
+    // connu du tenant (les 6 opérationnels comme les 3 historiques) appartient.
+    if (getRegion() === 'annemasse') return list.some((s) => isSector(s));
+    const sector = REGION_TO_USER_SECTOR[region];
+    if (!sector) return true;
+    return list.includes(sector);
 }
 
 async function countPdfPages(buffer: Buffer): Promise<number> {

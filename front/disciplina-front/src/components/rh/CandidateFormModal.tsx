@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { IconAlert, IconClose, IconPlus, IconTrash, IconUser } from '@/components/ui/icons'
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
@@ -11,6 +11,8 @@ import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_
 import { apiFetch } from '@/api/httpClient';
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
+import { communeSectionsForRegion } from '@/features/matching/constants/regions';
+import { useRegionStore } from '@/store/regionStore';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS, TP_TYPE_LABELS } from '@/data/candidateTemplates';
 import { gateThresholdForTp } from '@/utils/testGateThreshold';
@@ -505,6 +507,9 @@ function isDraftMeaningful(d: Partial<ABForm> | null): d is Partial<ABForm> {
 
 export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated, requireGate }: CandidateFormModalProps) {
   const isEdit = !!candidate;
+  // Sections de mobilité selon le tenant (3 zones Réunion, 6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region);
+  const communeSections = useMemo(() => communeSectionsForRegion(region), [region]);
   // Clé de brouillon : par candidat en édition, unique en création.
   const draftKey = candidate ? editDraftKey(candidate._id) : CREATE_DRAFT_KEY;
   const [form, setForm] = useState<ABForm>(() => {
@@ -1275,6 +1280,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               id="cn-mob"
               label="Mobilité géographique"
               options={Object.values(Localisation)}
+              sections={communeSections}
               value={form.geographicMobility}
               onChange={vals => set('geographicMobility', vals as Localisation[])}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}

@@ -14,11 +14,12 @@ import { toast } from '@/store/toastStore'
 import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
 import { useCurrentUser, Permission } from '@/store/authStore'
+import { useRegionStore } from '@/store/regionStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { useContactLogStats } from '@/graphql/hooks'
 import {
   fetchKpiUsers,
-  KPI_SITES,
+  kpiSitesForRegion,
   type KpiAnnualSummary,
   type KpiImportResult,
   type KpiMetricColumn,
@@ -105,9 +106,16 @@ function ContactStatsSection() {
 
 function KpiDashboard() {
   const currentYear = new Date().getFullYear()
+  const region = useRegionStore((s) => s.region)
+  // Sites KPI selon le tenant : NORD/OUEST/SUD (Réunion) ou les 6 secteurs
+  // opérationnels (Annemasse).
+  const sites = useMemo(() => kpiSitesForRegion(region), [region])
 
   const [year, setYear] = useState(currentYear)
   const [site, setSite] = useState<KpiSite>('NORD')
+  // Secteur effectif : repli sur le premier secteur du référentiel courant
+  // quand le tenant change (ex. NORD → ANNEMASSE).
+  const effectiveSite = sites.includes(site) ? site : sites[0]
   // Source des chiffres : Combiné (défaut), portefeuille seul ou Excel/saisie seul
   const [source, setSource] = useState<KpiSource>('combine')
   const [chartMode, setChartMode] = useState<ChartMode>('commercial')
@@ -119,7 +127,7 @@ function KpiDashboard() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [selectableUsers, setSelectableUsers] = useState<KpiSelectableUser[]>([])
 
-  const { years, summary, previousSummary, weekly, fetching, error, refresh } = useKpiDashboard(year, site, source)
+  const { years, summary, previousSummary, weekly, fetching, error, refresh } = useKpiDashboard(year, effectiveSite, source)
   // Édition/import seulement quand la source affichée est exactement la table éditée (Excel).
   const isEditableSource = source === 'excel'
 
@@ -220,14 +228,14 @@ function KpiDashboard() {
           title="Tableau de bord commercial"
           description={
             selectedUserId != null && viewSummary?.users[0]
-              ? `${viewSummary.users[0].userName} — secteur ${SITE_LABELS[site]}, ${year}.`
-              : `Résultats annuels par commercial — secteur ${SITE_LABELS[site]}, ${year}.`
+              ? `${viewSummary.users[0].userName} — secteur ${SITE_LABELS[effectiveSite]}, ${year}.`
+              : `Résultats annuels par commercial — secteur ${SITE_LABELS[effectiveSite]}, ${year}.`
           }
           actions={
             isEditableSource && (
               <>
                 <KpiImportButton
-                  site={site}
+                  site={effectiveSite}
                   onImported={handleImported}
                   onError={(text) => toast.errorMessage("L'import a échoué", text)}
                 />
@@ -261,9 +269,9 @@ function KpiDashboard() {
           />
           <SegmentedControl
             label="Secteur"
-            value={site}
+            value={effectiveSite}
             onChange={selectSite}
-            options={KPI_SITES.map((s) => ({ value: s, label: SITE_LABELS[s] }))}
+            options={sites.map((s) => ({ value: s, label: SITE_LABELS[s] }))}
           />
         </div>
 
@@ -402,7 +410,7 @@ function KpiDashboard() {
       {modalDraft !== null && (
         <KpiEntryModal
           year={year}
-          site={site}
+          site={effectiveSite}
           users={selectableUsers}
           draft={modalDraft === 'new' ? null : modalDraft}
           onClose={() => setModalDraft(null)}

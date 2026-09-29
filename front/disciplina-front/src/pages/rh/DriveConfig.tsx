@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { IconCheckCircle, IconFolderSettings, IconLoader, IconSave } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_DRIVE_FOLDER_CONFIG, UPDATE_DRIVE_FOLDER_CONFIG } from '@/graphql/queries'
-import { SECTEUR_KEYS, SECTEUR_LABELS } from '@/constants/secteurs'
+import { DRIVE_REGION_LABELS, driveRegionsForRegion } from '@/constants/secteurs'
+import { useRegionStore } from '@/store/regionStore'
 
 // Obligation : abréviations seules (AD, CC, NTC, REM, SA), pas de libellé long.
 const TP_ORDER = ['AD', 'CC', 'NTC', 'REM', 'SA']
-const REGIONS = SECTEUR_KEYS
-const REGION_LABELS: Record<string, string> = SECTEUR_LABELS
 
 const folderKey = (tp: string, region: string) => `${tp}_${region}`
 
@@ -16,6 +15,10 @@ const inputClass =
   'w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] outline-none focus:border-purple transition-colors font-mono'
 
 export default function DriveConfig() {
+  // Tenant Annemasse : un seul dossier par TP (cf. back/DriveFolderConfigService).
+  const region = useRegionStore((s) => s.region)
+  const REGIONS = useMemo(() => driveRegionsForRegion(region), [region])
+  const REGION_LABELS: Record<string, string> = DRIVE_REGION_LABELS
   const [rootFolderId, setRootFolderId] = useState('')
   const [folders, setFolders] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)

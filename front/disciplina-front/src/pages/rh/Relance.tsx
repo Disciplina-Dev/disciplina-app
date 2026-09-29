@@ -9,6 +9,9 @@ import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus'
 import { cleanHtml } from '@/services/sanitizeHtml'
 import { SECTEUR_LABELS, secteurKeyOfTrainingSite } from '@/constants/secteurs'
+import { ANNEMASSE_SECTEUR } from '@/constants/secteurs'
+import { useRegionStore } from '@/store/regionStore'
+import type { Region } from '@/store/regionStore'
 
 interface SendResult {
   sent: number
@@ -19,15 +22,22 @@ interface SendResult {
 // Type d'envoi : relance de disponibilité (Oui/Non codée en dur) ou un modèle RH.
 const AVAILABILITY = 'availability'
 
-// Zones géographiques dérivées du site de formation du candidat.
-type ZoneKey = 'NORD' | 'OUEST' | 'SUD' | 'AUTRE'
+// Zones géographiques : sites de formation Réunion, secteur unique Annemasse.
+type ZoneKey = 'NORD' | 'OUEST' | 'SUD' | 'ANNEMASSE' | 'AUTRE'
 
 const ZONE_LABEL: Record<ZoneKey, string> = {
   ...SECTEUR_LABELS,
+  ANNEMASSE: ANNEMASSE_SECTEUR,
   AUTRE: 'Non renseigné',
 }
 
-function zoneOf(candidate: Candidate): ZoneKey {
+/** Zones proposées selon le tenant (Annemasse : secteur unique). */
+function zonesForRegion(region: Region | null | undefined): ZoneKey[] {
+  return region === 'annemasse' ? ['ANNEMASSE'] : ['NORD', 'OUEST', 'SUD', 'AUTRE']
+}
+
+function zoneOf(candidate: Candidate, region?: Region | null): ZoneKey {
+  if (region === 'annemasse') return 'ANNEMASSE'
   return secteurKeyOfTrainingSite(candidate.training_site) ?? 'AUTRE'
 }
 
@@ -80,6 +90,8 @@ export default function Relance() {
   const { candidates, loading } = useCandidates()
   const templates = useRhMailTemplatesStore((s) => s.templates)
   const loadTemplates = useRhMailTemplatesStore((s) => s.load)
+  const region = useRegionStore((s) => s.region)
+  const zoneKeys = useMemo(() => zonesForRegion(region), [region])
 
   const [sendType, setSendType] = useState<string>(AVAILABILITY)
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | 'ALL'>(CandidateStatus.SEEKING)
@@ -104,11 +116,11 @@ export default function Relance() {
         if (!c.identity.email) return false
         if (statusFilter !== 'ALL' && c.status !== statusFilter) return false
         if (tpFilter.size > 0 && !tpsOf(c).some((tp) => tpFilter.has(tp))) return false
-        if (zoneFilter.size > 0 && !zoneFilter.has(zoneOf(c))) return false
+        if (zoneFilter.size > 0 && !zoneFilter.has(zoneOf(c, region))) return false
         if (!showRelanced && (c.last_relance_at || hasFreshResponse(c))) return false
         return true
       }),
-    [candidates, statusFilter, tpFilter, zoneFilter, showRelanced],
+    [candidates, statusFilter, tpFilter, zoneFilter, showRelanced, region],
   )
 
   // Nettoie la sélection quand le filtre change (des candidats disparaissent de la liste).
@@ -279,8 +291,8 @@ export default function Relance() {
         <div className="sm:col-span-2 flex flex-col gap-1.5">
           <span className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide">Zone géographique</span>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(ZONE_LABEL).map(([key, label]) => {
-              const k = key as ZoneKey
+            {zoneKeys.map((k) => {
+              const label = ZONE_LABEL[k]
               const active = zoneFilter.has(k)
               return (
                 <button
@@ -411,7 +423,7 @@ export default function Relance() {
               const responded = hasFreshResponse(c)
               const relanceDate = formatDate(c.last_relance_at)
               const responseDate = responded ? formatDate(c.relance_response_at) : null
-              const zone = ZONE_LABEL[zoneOf(c)]
+              const zone = ZONE_LABEL[zoneOf(c, region)]
               return (
                 <button
                   key={c._id}

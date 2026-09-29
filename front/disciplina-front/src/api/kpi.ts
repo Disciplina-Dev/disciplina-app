@@ -1,7 +1,26 @@
 import { apiFetch } from '@/api/httpClient';
+import type { Region } from '@/store/regionStore';
 
-export type KpiSite = 'NORD' | 'OUEST' | 'SUD';
+export type KpiSite = 'NORD' | 'OUEST' | 'SUD' | AnnemasseKpiSite;
 export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
+
+/** Site KPI unique du tenant Annemasse (pilotage à la maille du tenant). */
+export type AnnemasseKpiSite = 'ANNEMASSE';
+
+export const ANNEMASSE_KPI_SITES: AnnemasseKpiSite[] = ['ANNEMASSE'];
+
+/** Sites KPI proposés selon le tenant (region null → Réunion par défaut). */
+export function kpiSitesForRegion(region: Region | null | undefined): KpiSite[] {
+  return region === 'annemasse' ? [...ANNEMASSE_KPI_SITES] : [...KPI_SITES];
+}
+
+/** Libellés d'affichage des sites KPI. */
+export const KPI_SITE_LABELS: Record<KpiSite, string> = {
+  NORD: 'Nord-Est',
+  OUEST: 'Ouest',
+  SUD: 'Sud',
+  ANNEMASSE: 'Annemasse',
+};
 
 export const KPI_METRIC_COLUMNS = [
   'count_oui',

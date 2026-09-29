@@ -1,14 +1,15 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { IconChevronRight, IconGlobe, IconJob } from '@/components/ui/icons'
 
 import {
   fetchKpiCombined,
   fetchKpiLive,
-  KPI_SITES,
+  kpiSitesForRegion,
   type KpiMetricColumn,
   type KpiSiteOverview,
 } from '@/api/kpi'
+import { useRegionStore } from '@/store/regionStore'
 import { SITE_LABELS } from '../config'
 
 /** Compteurs mis en avant sur chaque carte commercial. */
@@ -145,19 +146,21 @@ export function KpiLiveSection() {
  * commerciaux regroupés par secteur, chaque carte renvoie vers la page profil.
  */
 export default function KpiOverviewSection({ year }: { year: number }) {
+  const region = useRegionStore((s) => s.region)
+  const tenantSites = useMemo(() => kpiSitesForRegion(region), [region])
   const [sites, setSites] = useState<KpiSiteOverview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    Promise.allSettled(KPI_SITES.map((site) => fetchKpiCombined(year, site)))
+    Promise.allSettled(tenantSites.map((site) => fetchKpiCombined(year, site)))
       .then((results) => {
         if (cancelled) return
         const sites: KpiSiteOverview[] = results
           .map((r, i) => {
             if (r.status === 'fulfilled') {
               return {
-                site: KPI_SITES[i],
+                site: tenantSites[i],
                 totals: r.value.summary.totals,
                 users: r.value.summary.users.map((u) => ({ userId: u.userId, userName: u.userName, totals: u.totals })),
               }
@@ -174,7 +177,7 @@ export default function KpiOverviewSection({ year }: { year: number }) {
     return () => {
       cancelled = true
     }
-  }, [year])
+  }, [year, tenantSites])
 
   if (error) return <p className="text-[13px] text-[var(--ds-danger)]">{error}</p>
   if (!sites || sites.every((s) => s.users.length === 0)) return null

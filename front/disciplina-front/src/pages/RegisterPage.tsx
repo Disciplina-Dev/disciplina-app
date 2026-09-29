@@ -5,12 +5,16 @@ import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
 import { UserRole, Permission } from '@/store/authStore'
+import { useRegionStore } from '@/store/regionStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
-import { SECTEUR_VALUES } from '@/types/entreprise'
+import { userSecteursForRegion } from '@/constants/secteurs'
 import { apiJson } from '@/api/httpClient'
 
 export default function RegisterPage() {
   const { connectGoogle, isLoading: googleLoading } = useGoogleOAuthPopup()
+  const region = useRegionStore((s) => s.region)
+  // Secteurs assignables selon le tenant (Annemasse : 6 opérationnels).
+  const secteurOptions = userSecteursForRegion(region)
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -162,7 +166,7 @@ export default function RegisterPage() {
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-[var(--ds-text-muted)]">Secteurs</label>
           <div className="flex flex-wrap gap-2">
-            {SECTEUR_VALUES.map((secteur) => {
+            {secteurOptions.map((secteur) => {
               const active = sectors.includes(secteur)
               return (
                 <button

@@ -22,7 +22,8 @@ import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
-import { SECTEUR_LABELS, SECTEUR_VALUES, SECTEUR_KEYS, type SecteurKey } from '@/constants/secteurs';
+import { SECTEUR_LABELS, SECTEUR_KEYS, userSecteursForRegion, type SecteurKey } from '@/constants/secteurs';
+import { useRegionStore } from '@/store/regionStore';
 import { Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
 import ChipGroup from '@/components/ui/ChipGroup'
 
@@ -56,9 +57,6 @@ const TP_COLORS: Record<string, string> = {
 };
 
 const TP_ORDER = Object.values(TitleProfessionalType) as string[];
-
-// Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
-const CANON_SECTORS: string[] = SECTEUR_VALUES;
 
 const SITE_LABELS: Record<string, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} · Sainte-Marie`,
@@ -685,8 +683,12 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
 export default function DashboardRH() {
   const currentUser = useCurrentUser();
   const canViewAll = currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE;
+  // Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
+  // Réunion : Nord-Est/Ouest/Sud ; Annemasse : les 6 secteurs opérationnels.
+  const region = useRegionStore((s) => s.region);
+  const canonSectors = useMemo(() => userSecteursForRegion(region), [region]);
 
-  // Filtre secteur global : null = tous ; sinon 1, 2 ou 3 secteurs cumulés.
+  // Filtre secteur global : null = tous ; sinon les secteurs cochés cumulés.
   // Pilote à la fois les indicateurs candidats, les diagrammes et les KPI RH.
   // RH -> restreint à son secteur ; Admin/Resp -> libre (tous par défaut).
   const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(
@@ -706,7 +708,7 @@ export default function DashboardRH() {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s); else next.add(s);
       // Plus rien coché, ou tout coché = retour à « Tous ».
-      if (next.size === 0 || next.size === CANON_SECTORS.length) return null;
+      if (next.size === 0 || next.size === canonSectors.length) return null;
       return next;
     });
   const isSectorOn = (s: string) => !selectedSectors || selectedSectors.has(s);
@@ -803,10 +805,10 @@ export default function DashboardRH() {
             <ChipGroup
               label="Secteurs affichés"
               tone="accent"
-              selected={selectedSectors ? CANON_SECTORS.filter((s) => isSectorOn(s)) : []}
+              selected={selectedSectors ? canonSectors.filter((s) => isSectorOn(s)) : []}
               onSelectAll={() => setSelectedSectors(null)}
               onToggle={toggleSector}
-              options={CANON_SECTORS.map((s) => ({ value: s, label: s }))}
+              options={canonSectors.map((s) => ({ value: s, label: s }))}
             />
           )}
           <button

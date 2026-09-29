@@ -39,7 +39,7 @@ export function registerKpiTools(server: McpServer): void {
         'Résumé annuel des KPI commerciaux pour un site donné.',
         {
             year: z.number().int().describe('Année'),
-            site: z.string().describe('Site (ex: NORD, SUD)'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
         },
         COMMERCIAL_KPI_SCOPE,
         async ({ year, site }) => toolResult(await kpi.getAnnualSummary(year, site)),
@@ -51,7 +51,7 @@ export function registerKpiTools(server: McpServer): void {
         "Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.",
         {
             year: z.number().int().describe('Année'),
-            site: z.string().describe('Site (ex: NORD, SUD)'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
             userId: z.number().int().optional().describe('Filtrer sur un commercial précis'),
         },
         COMMERCIAL_KPI_SCOPE,
