@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconCheck, IconClose, IconCopy, IconExternalLink, IconFile, IconLoader, IconSend, IconSparkles, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
+import { IconCheck, IconClose, IconCopy, IconExternalLink, IconFile, IconLoader, IconPlus, IconSend, IconSparkles, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
 import { apiFetch } from '@/api/httpClient'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 
@@ -32,14 +32,20 @@ interface SendToCompanyModalProps {
   job: MatchJobResult
   candidates: MatchedCandidate[]
   onClose: () => void
-  onSubmit: (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string) => Promise<string>
+  onSubmit: (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string, cc?: string[]) => Promise<string>
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAX_CC = 10
 
 export default function SendToCompanyModal({ job, candidates, onClose, onSubmit }: SendToCompanyModalProps) {
   const { templates, load: loadTemplates } = useRhMailTemplatesStore()
   const [companyEmail, setCompanyEmail] = useState(
     job.referents?.recruitmentReferents?.email ?? job.companyInfos?.email ?? '',
   )
+  const [ccList, setCcList] = useState<string[]>([])
+  const [ccInput, setCcInput] = useState('')
+  const [ccError, setCcError] = useState<string | null>(null)
   const [templateId, setTemplateId] = useState<string>('')
   const [descriptions, setDescriptions] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
@@ -78,6 +84,35 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
     })
   }
 
+  const handleAddCc = () => {
+    const addr = ccInput.trim().toLowerCase()
+    if (!addr) return
+    if (!EMAIL_RE.test(addr)) {
+      setCcError('Adresse email invalide')
+      return
+    }
+    if (addr === companyEmail.trim().toLowerCase()) {
+      setCcError('Cette adresse est déjà le destinataire principal')
+      return
+    }
+    if (ccList.includes(addr)) {
+      setCcError('Cette adresse est déjà en copie')
+      return
+    }
+    if (ccList.length >= MAX_CC) {
+      setCcError(`Maximum ${MAX_CC} adresses en copie`)
+      return
+    }
+    setCcList((prev) => [...prev, addr])
+    setCcInput('')
+    setCcError(null)
+  }
+
+  const handleRemoveCc = (addr: string) => {
+    setCcList((prev) => prev.filter((c) => c !== addr))
+    setCcError(null)
+  }
+
   const handleGenerateAiSummary = async (candidateId: string) => {
     setAiLoading((prev) => new Set(prev).add(candidateId))
     setAiErrors((prev) => { const n = { ...prev }; delete n[candidateId]; return n })
@@ -113,6 +148,7 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
           description: descriptions[c.id] ?? '',
         })),
         templateId || undefined,
+        ccList.length ? ccList : undefined,
       )
       setSuccess({ signature })
     } catch (err) {
@@ -222,6 +258,58 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
             />
             <p className="text-xs text-[var(--ds-text-subtle)] mt-1">
               L'invitation à la session de matching sera envoyée à cette adresse.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-[var(--ds-text-muted)] mb-1.5 block">
+              Copie (Cc) <span className="font-normal text-[var(--ds-text-subtle)]">— optionnel</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={ccInput}
+                onChange={(e) => { setCcInput(e.target.value); setCcError(null) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCc() } }}
+                placeholder="collegue@entreprise.fr"
+                disabled={ccList.length >= MAX_CC}
+                className="flex-1 rounded-lg border border-[var(--ds-border)] px-3 py-2.5 text-sm outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={handleAddCc}
+                disabled={!ccInput.trim() || ccList.length >= MAX_CC}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-medium text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <IconPlus width={14} height={14} />
+                Ajouter
+              </button>
+            </div>
+            {ccError && (
+              <p className="text-xs text-[var(--ds-danger)] mt-1">{ccError}</p>
+            )}
+            {ccList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {ccList.map((addr) => (
+                  <span
+                    key={addr}
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-light px-2.5 py-1 text-xs font-medium text-blue"
+                  >
+                    {addr}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCc(addr)}
+                      className="rounded-full p-0.5 hover:bg-blue/10 transition-colors"
+                      title={`Retirer ${addr}`}
+                    >
+                      <IconClose width={12} height={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-[var(--ds-text-subtle)] mt-1">
+              Ces adresses recevront le mail en copie visible des autres destinataires.
             </p>
           </div>
 

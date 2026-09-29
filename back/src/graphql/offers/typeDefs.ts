@@ -409,6 +409,7 @@ export const typeDefs = gql`
             companyEmail: String!
             candidates: [ProposedCandidateInput!]!
             templateId: String
+            cc: [String!]
         ): String!
         setInterviewConclusion(
             offerId: String!

@@ -237,20 +237,24 @@ export const resolvers = {
                 companyEmail,
                 candidates,
                 templateId,
+                cc,
             }: {
                 offerId: string;
                 companyEmail: string;
                 candidates: { id: string; description?: string }[];
                 templateId?: string;
+                cc?: string[];
             },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const ccList = normalizeCcList(cc, companyEmail);
             const invitation = await matchAccessService.createSession({
                 offerId,
                 rhUserId: context.user.id,
                 rhEmail: context.user.email,
                 companyEmail,
+                cc: ccList.length ? ccList : undefined,
                 candidates,
             });
             await matchMailService.sendInvitation(invitation, templateId ?? undefined);
@@ -258,3 +262,25 @@ export const resolvers = {
         },
     },
 };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_CC_RECIPIENTS = 10;
+
+/**
+ * Normalise les CC : trim, minuscules, dédoublonnés, email principal exclu,
+ * adresses invalides rejetées. Plafonné pour éviter les abus.
+ */
+function normalizeCcList(cc: string[] | undefined, companyEmail: string): string[] {
+    if (!cc?.length) return [];
+    const main = companyEmail.trim().toLowerCase();
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of cc) {
+        const addr = raw.trim().toLowerCase();
+        if (!addr || !EMAIL_RE.test(addr) || addr === main || seen.has(addr)) continue;
+        seen.add(addr);
+        out.push(addr);
+        if (out.length >= MAX_CC_RECIPIENTS) break;
+    }
+    return out;
+}
