@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { IconCheck, IconChevronDown, IconChevronRight, IconClose, IconEdit, IconJob, IconMinus, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
+import { useRegionStore } from '@/store/regionStore'
+import { communeSectionsForRegion } from '@/features/matching/constants/regions'
 import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
@@ -16,8 +18,6 @@ import { ALL_SECTORS, SECTOR_LABELS } from '@/data/sectors'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-const COMMUNES = Object.values(Localisation)
 
 type DayStatus = 'OUI' | 'NON' | 'PREFERE'
 type TrainingDomain = 'SECRETARIAT' | 'VENTE'
@@ -658,6 +658,15 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   // ou envoyer en signature.
   const intentRef = useRef<'download' | 'sign' | 'save'>('download')
 
+  // Localisation du poste bornée au tenant (3 zones Réunion, 6 secteurs
+  // Annemasse) pour ne pas mélanger les communes des deux tenants.
+  const region = useRegionStore((s) => s.region)
+  const communeSections = useMemo(() => communeSectionsForRegion(region), [region])
+  const tenantCommunes = useMemo(
+    () => new Set(communeSections.flatMap((s) => s.options)),
+    [communeSections],
+  )
+
   // En duplication, on préremplit avec `initialData` mais on reste en mode création.
   const isEditing = !!initialData && !isDuplicate
   const { createNeedsAnalysis, result: createResult } = useCreateNeedsAnalysis()
@@ -1232,12 +1241,40 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       />
                     ))}
 
-                    <CheckboxGroup label="Localisation du poste (communes) *"
-                      options={COMMUNES}
-                      selected={poste.localisation}
-                      onChange={(v) => updatePoste(index, { localisation: v as Localisation[] })}
-                      renderLabel={formatCommune}
-                      columns={2} />
+                    <div className="flex flex-col gap-3">
+                      <p className="text-sm font-medium text-[var(--ds-text-muted)]">Localisation du poste (communes) *</p>
+                      {communeSections.map((section) => {
+                        const sectionSelected = poste.localisation.filter((v) => section.options.includes(v))
+                        return (
+                          <CheckboxGroup key={section.key}
+                            label={`${section.label} (${section.options.length})`}
+                            options={section.options}
+                            selected={sectionSelected}
+                            onChange={(v) => updatePoste(index, {
+                              localisation: [
+                                ...poste.localisation.filter((c) => !section.options.includes(c as string)),
+                                ...(v as Localisation[]),
+                              ],
+                            })}
+                            renderLabel={formatCommune}
+                            columns={2} />
+                        )
+                      })}
+                      {poste.localisation.some((c) => !tenantCommunes.has(c as string)) && (
+                        <CheckboxGroup
+                          label="Autres communes (hors tenant, déjà sélectionnées)"
+                          options={poste.localisation.filter((c) => !tenantCommunes.has(c as string))}
+                          selected={poste.localisation.filter((c) => !tenantCommunes.has(c as string))}
+                          onChange={(v) => updatePoste(index, {
+                            localisation: [
+                              ...poste.localisation.filter((c) => tenantCommunes.has(c as string)),
+                              ...(v as Localisation[]),
+                            ],
+                          })}
+                          renderLabel={formatCommune}
+                          columns={2} />
+                      )}
+                    </div>
 
                     <CheckboxGroup
                       label="Compétences et savoir-être attendus"
