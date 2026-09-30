@@ -159,6 +159,7 @@ export default function ListeCandidats() {
   const {
     searchInput,
     setSearchInput,
+    clearSearch,
     debouncedSearch,
     filters,
     setFilters,
@@ -371,6 +372,7 @@ export default function ListeCandidats() {
           <CandidateSearchBar
             value={searchInput}
             onChange={setSearchInput}
+            onClear={clearSearch}
             field={searchField}
             onFieldChange={setSearchField}
             searching={searchInput.trim() !== debouncedSearch.trim() || (loading && !!debouncedSearch)}

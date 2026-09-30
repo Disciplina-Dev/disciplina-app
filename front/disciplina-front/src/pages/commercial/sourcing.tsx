@@ -172,7 +172,11 @@ function SirenSearchBar({
       <input
         className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
         inputMode="numeric"
+        name="siren-search"
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
         placeholder="Entrez un numéro SIREN (9 chiffres)"
         value={value}
         onChange={(e) => onChange(e.target.value)}
