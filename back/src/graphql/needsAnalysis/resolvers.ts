@@ -2,7 +2,8 @@ import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { UserService } from '../../services/UserService';
-import { regionFromSector, sectorFromRegion } from '../../utils/sector';
+import { ANNEMASSE_DRIVE_SECTOR, regionFromSector, sectorFromRegion } from '../../utils/sector';
+import { getRegion } from '../../db/tenant';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
@@ -42,7 +43,8 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
             if (parent.status !== 'SIGNE') return null;
             const region = parent.companyInfos?.sector ?? (parent as any).company_infos?.sector ?? null;
-            const sector = sectorFromRegion(region as any);
+            // Tenant Annemasse : dossier unique, pas de déclinaison par région.
+            const sector = getRegion() === 'annemasse' ? ANNEMASSE_DRIVE_SECTOR : sectorFromRegion(region as any);
             if (!sector) return null;
             const folderId = await abDriveConfigService.resolveFolder(sector, 'SIGNED');
             if (!folderId) return null;

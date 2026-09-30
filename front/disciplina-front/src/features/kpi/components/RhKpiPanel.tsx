@@ -6,7 +6,8 @@ import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
   type RhKpiColumn, type RhKpiMetrics, type RhKpiReport,
 } from '@/api/rhKpi'
-import { SECTEUR_VALUES } from '@/constants/secteurs'
+import { userSecteursForRegion, normalizeUserSecteurForRegion } from '@/constants/secteurs'
+import { useRegionStore } from '@/store/regionStore'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import ChipGroup from '@/components/ui/ChipGroup'
 import Select from '@/components/ui/Select'
@@ -42,8 +43,10 @@ const MONTHS = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
 ]
 
-// Secteurs canoniques toujours proposés (même sans données), comme les sites commerciaux.
-const CANON_SECTORS = SECTEUR_VALUES
+// Secteurs canoniques toujours proposés (même sans données), selon le tenant :
+// Nord-Est/Ouest/Sud (Réunion) ou les 6 secteurs opérationnels (Annemasse).
+const canonSectorsForRegion = (region: 'reunion' | 'annemasse' | null | undefined) =>
+  userSecteursForRegion(region)
 
 type Granularity = 'week' | 'month' | 'year'
 
@@ -78,12 +81,15 @@ export default function RhKpiPanel({
   const navigate = useNavigate()
 
   const now = useMemo(() => new Date(), [])
+  const region = useRegionStore((s) => s.region)
+  // Secteurs canoniques du tenant + tout secteur présent dans les données.
+  const canonSectors = useMemo(() => canonSectorsForRegion(region), [region])
   const [year, setYear] = useState(now.getFullYear())
   const [years, setYears] = useState<number[]>([now.getFullYear()])
   const [gran, setGran] = useState<Granularity>('month')
   const [month, setMonth] = useState(now.getMonth() + 1) // 1-12
   const [week, setWeek] = useState(isoWeek(now))
-  // Secteurs sélectionnés (multi). null = tous ; sinon affiche 1, 2 ou 3 secteurs cumulés.
+  // Secteurs sélectionnés (multi). null = tous ; sinon les secteurs cochés cumulés.
   const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(null)
   // RH individuel sélectionné. null = tous les RH.
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
@@ -119,12 +125,19 @@ export default function RhKpiPanel({
     return report.weeks.filter((w) => w.week === week)
   }, [report, gran, month, week])
 
-  // Secteurs proposés au filtre : canoniques + tout secteur présent dans les données.
+  // Secteurs proposés au filtre : canoniques + tout secteur présent dans les
+  // données (normalisé vers le secteur unique sur Annemasse).
   const sectors = useMemo(() => {
-    const set = new Set<string>(CANON_SECTORS)
-    if (report) for (const w of report.weeks) for (const u of w.users) if (u.sector) set.add(u.sector)
+    const set = new Set<string>(canonSectors)
+    if (report) {
+      for (const w of report.weeks) {
+        for (const u of w.users) {
+          if (u.sector) set.add(normalizeUserSecteurForRegion(u.sector, region))
+        }
+      }
+    }
     return [...set].sort((a, b) => a.localeCompare(b))
-  }, [report])
+  }, [report, canonSectors, region])
 
   const toggleSector = (s: string) => {
     setSelectedSectors((prev) => {
@@ -149,9 +162,9 @@ export default function RhKpiPanel({
   const entries = useMemo(() => {
     const flat = selectedWeeks.flatMap((w) => w.users)
     if (!effectiveSectors) return flat
-    const set = new Set(effectiveSectors)
-    return flat.filter((u) => set.has(u.sector))
-  }, [selectedWeeks, effectiveSectors])
+    const set = new Set(effectiveSectors.map((s) => normalizeUserSecteurForRegion(s, region)))
+    return flat.filter((u) => set.has(normalizeUserSecteurForRegion(u.sector, region)))
+  }, [selectedWeeks, effectiveSectors, region])
 
   // Détail par RH / responsable (somme par utilisateur) — uniquement en vue agrégée.
   const perUser = useMemo(() => {

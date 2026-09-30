@@ -1,6 +1,7 @@
 import { DriveRegion } from '../services/DriveFolderConfigService';
 import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
 import { Permission } from '../types/user.types';
+import { getRegion } from '../db/tenant';
 
 /**
  * Secteurs géographiques Disciplina. Valeurs canoniques côté métier
@@ -13,9 +14,9 @@ export type Sector = (typeof SECTORS)[number];
 /**
  * Secteurs entreprise du tenant Annemasse (Haute-Savoie) : les 6 secteurs
  * opérationnels du référentiel communes (cf. ZONE_TO_COMMUNES dans
- * services/mappers/abToOffer.ts). Vocabulaire **entreprise uniquement** :
- * les secteurs *utilisateurs* (agenda, notifications AB, KPI) restent
- * volontairement sur `SECTORS` pour les deux tenants.
+ * services/mappers/abToOffer.ts). Vocabulaire **entreprise et mobilité
+ * candidats uniquement** : utilisateurs, dashboards, Drive et notifications
+ * partagent le secteur unique `ANNEMASSE_SECTOR` sur ce tenant.
  */
 export const ANNEMASSE_COMPANY_SECTORS = [
     'Genève / Frontière',
@@ -30,6 +31,28 @@ export type AnnemasseCompanySector = (typeof ANNEMASSE_COMPANY_SECTORS)[number];
 /** Secteur entreprise par défaut du tenant Annemasse (Annemasse y est rattachée). */
 export const DEFAULT_ANNEMASSE_COMPANY_SECTOR: AnnemasseCompanySector = 'Genève / Frontière';
 
+/**
+ * Secteur Drive unique du tenant Annemasse : un seul dossier par couple
+ * TP (candidats) ou par type (AB signée / non signée), pas un par secteur
+ * opérationnel. C'est aussi le secteur utilisateur, dashboard et notifications
+ * unique du tenant : Annemasse est mono-secteur, les 6 secteurs restent le
+ * vocabulaire entreprise (companies.sector) et candidats (mobilité).
+ */
+export const ANNEMASSE_SECTOR = 'Annemasse';
+
+/** Alias historique (Drive) du secteur unique Annemasse. */
+export const ANNEMASSE_DRIVE_SECTOR = ANNEMASSE_SECTOR;
+
+/** Secteurs Drive AB proposés selon le tenant (region null → Réunion par défaut). */
+export function abDriveSectorsForTenant(region?: string | null): string[] {
+    return region === 'annemasse' ? [ANNEMASSE_SECTOR] : [...SECTORS];
+}
+
+/** Secteurs utilisateurs proposés selon le tenant (region null → Réunion par défaut). */
+export function userSectorsForTenant(region?: string | null): string[] {
+    return region === 'annemasse' ? [ANNEMASSE_SECTOR] : [...SECTORS];
+}
+
 // Un secteur métier ↔ une région de dossiers Drive (NORD/OUEST/SUD).
 const SECTOR_TO_REGION: Record<Sector, DriveRegion> = {
     'Nord-Est': 'NORD',
@@ -37,19 +60,34 @@ const SECTOR_TO_REGION: Record<Sector, DriveRegion> = {
     Sud: 'SUD',
 };
 
-export function isSector(value: unknown): value is Sector {
-    return typeof value === 'string' && (SECTORS as readonly string[]).includes(value);
+export function isSector(value: unknown, region?: string | null): value is Sector {
+    if (typeof value !== 'string') return false;
+    if ((SECTORS as readonly string[]).includes(value)) return true;
+    // Tenant Annemasse : secteur unique + valeurs historiques (transition).
+    // Hors tenant Annemasse, ces valeurs restent invalides.
+    const tenant = region ?? getRegion();
+    return (
+        tenant === 'annemasse' &&
+        (value === ANNEMASSE_SECTOR || (ANNEMASSE_COMPANY_SECTORS as readonly string[]).includes(value))
+    );
 }
 
 /** Ne garde que les secteurs valides d'une liste libre (défense en profondeur). */
-export function sanitizeSectors(sectors?: unknown): Sector[] {
+export function sanitizeSectors(sectors?: unknown, region?: string | null): string[] {
     if (!Array.isArray(sectors)) return [];
-    return sectors.filter(isSector);
+    const tenant = region ?? getRegion();
+    return sectors.filter((s) => isSector(s, tenant)).map(String);
 }
 
-/** Secteur principal d'un user : premier secteur valide assigné, sinon undefined. */
-export function primarySector(sectors?: string[] | null): Sector | undefined {
-    return sectors?.find(isSector);
+/**
+ * Secteur principal d'un user : sur Annemasse (mono-secteur), tout user doté
+ * d'un secteur connu remonte `ANNEMASSE_SECTOR` (snapshots owner, KPI) ;
+ * sinon premier secteur valide assigné, sinon undefined.
+ */
+export function primarySector(sectors?: string[] | null, region?: string | null): string | undefined {
+    const tenant = region ?? getRegion();
+    if (tenant === 'annemasse') return sanitizeSectors(sectors, tenant).length > 0 ? ANNEMASSE_SECTOR : undefined;
+    return sectors?.find((s) => isSector(s, tenant));
 }
 
 /**
@@ -72,9 +110,16 @@ export function sanitizeCompanySectors(sectors?: unknown): string[] {
     return [];
 }
 
-/** Région Drive déduite d'un secteur métier. */
+/** Région Drive déduite d'un secteur métier (Réunion ou Annemasse). */
 export function regionFromSector(sector?: string | null): DriveRegion | undefined {
-    return isSector(sector) ? SECTOR_TO_REGION[sector] : undefined;
+    if (isSector(sector, 'reunion')) return SECTOR_TO_REGION[sector as Sector];
+    // Secteur unique et 6 secteurs Annemasse → l'unique région Drive du tenant.
+    if (
+        typeof sector === 'string' &&
+        (sector === ANNEMASSE_SECTOR || (ANNEMASSE_COMPANY_SECTORS as readonly string[]).includes(sector))
+    )
+        return 'ANNEMASSE';
+    return undefined;
 }
 
 // Région de l'AB (NORD/OUEST/SUD) → secteur métier (Nord-Est/Ouest/Sud).
@@ -89,10 +134,17 @@ export function sectorFromRegion(region?: CompanyRegion | null): Sector | undefi
     return region ? REGION_TO_SECTOR[region] : undefined;
 }
 
-/** Vrai si les deux listes de secteurs ont au moins un secteur en commun. */
-export function shareSector(a?: string[] | null, b?: string[] | null): boolean {
-    const sectorsB = new Set(sanitizeSectors(b));
-    return sanitizeSectors(a).some((sector) => sectorsB.has(sector));
+/**
+ * Vrai si les deux listes de secteurs ont au moins un secteur en commun.
+ * Sur Annemasse (mono-secteur), deux users dotés d'un secteur connu
+ * partagent toujours le secteur unique (tolérance legacy incluse).
+ */
+export function shareSector(a?: string[] | null, b?: string[] | null, region?: string | null): boolean {
+    const tenant = region ?? getRegion();
+    if (tenant === 'annemasse')
+        return sanitizeSectors(a, tenant).length > 0 && sanitizeSectors(b, tenant).length > 0;
+    const sectorsB = new Set(sanitizeSectors(b, tenant));
+    return sanitizeSectors(a, tenant).some((sector) => sectorsB.has(sector));
 }
 
 /**

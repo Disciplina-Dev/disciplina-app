@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { IconArrowLeft, IconCheckCircle, IconPlus, IconSave, IconTrash } from '@/components/ui/icons'
 import InputField from '@/components/ui/InputField'
 import MultiSelectField from '@/components/ui/MultiSelectField'
 import Button from '@/components/ui/Button'
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes'
+import { communeSectionsForRegion } from '@/features/matching/constants/regions'
+import { useRegionStore } from '@/store/regionStore'
 import { SkillLevel, TitleProfessionalType, TrainingSite, Localisation } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
 import { useCandidateFull } from '@/graphql/hooks'
@@ -340,6 +342,9 @@ export default function QuestionnaireAB() {
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [driveStatus, setDriveStatus] = useState<string | null>(null)
+  // Sections de mobilité selon le tenant (3 zones Réunion, 6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region)
+  const communeSections = useMemo(() => communeSectionsForRegion(region), [region])
 
   useEffect(() => {
     if (candidate) setForm(initForm(candidate))
@@ -725,6 +730,7 @@ export default function QuestionnaireAB() {
               id="geographic_mobility"
               label="Mobilité géographique"
               options={Object.values(Localisation)}
+              sections={communeSections}
               value={form.geographic_mobility}
               onChange={vals => set('geographic_mobility', vals as Localisation[])}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}

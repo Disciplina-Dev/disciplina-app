@@ -4,7 +4,8 @@ import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import { Permission } from '@/store/authStore'
-import { SECTEUR_VALUES } from '@/types/entreprise'
+import { useRegionStore } from '@/store/regionStore'
+import { userSecteursForRegion } from '@/constants/secteurs'
 import { apiJson } from '@/api/httpClient'
 
 export interface ManagedUser {
@@ -39,6 +40,10 @@ interface Props {
 }
 
 export default function UserEditModal({ user, onClose, onSaved }: Props) {
+  const region = useRegionStore((s) => s.region)
+  // Secteurs assignables selon le tenant (Annemasse : 6 opérationnels).
+  // Les secteurs déjà assignés restent affichés même hors référentiel.
+  const secteurOptions = [...new Set([...userSecteursForRegion(region), ...(user.sectors ?? [])])]
   const [firstName, setFirstName] = useState(user.firstName)
   const [lastName, setLastName] = useState(user.lastName)
   const [email, setEmail] = useState(user.email)
@@ -199,7 +204,7 @@ export default function UserEditModal({ user, onClose, onSaved }: Props) {
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--ds-text-muted)]">Secteurs</label>
             <div className="flex flex-wrap gap-2">
-              {SECTEUR_VALUES.map((secteur) => {
+              {secteurOptions.map((secteur) => {
                 const active = sectors.includes(secteur)
                 return (
                   <button

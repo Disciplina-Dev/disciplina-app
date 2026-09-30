@@ -4,7 +4,8 @@ import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
 import { OfferStatus, DesiredTP, Sector, Localisation, formatEnumLabel } from '../constants/jobEnums'
 import { JOB_STATUS_LABELS } from '@/constants/jobStatus'
-import { REGION_COMMUNES, REGION_LABELS, ANNEMASSE_REGION_COMMUNES, ANNEMASSE_REGION_LABELS, type Region, type AnnemasseRegion } from '../constants/regions'
+import { communeSectionsForRegion } from '../constants/regions'
+import { useRegionStore } from '@/store/regionStore'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 
 interface Props {
@@ -121,29 +122,24 @@ function MultiSelectContent({
 }
 
 // ─── Region-sorted commune multi-select content ─────────────────────────────
-const ALL_REGIONS: Region[] = ['NORD', 'OUEST', 'SUD']
-const ANNEMASSE_REGIONS: AnnemasseRegion[] = [
-  'GENEVE_FRONTIERE',
-  'GENEVOIS',
-  'ARVE',
-  'FAUCIGNY',
-  'ANNECY',
-  'CHABLAIS',
-]
-const ALL_COMMUNES = [
-  ...ALL_REGIONS.flatMap((r) => REGION_COMMUNES[r]),
-  ...ANNEMASSE_REGIONS.flatMap((r) => ANNEMASSE_REGION_COMMUNES[r]),
-]
-
-/** Sections du filtre commune : 3 zones Réunion puis 6 secteurs Annemasse. */
-const COMMUNE_SECTIONS: { key: string; communes: Localisation[]; label: string }[] = [
-  ...ALL_REGIONS.map((r) => ({ key: r, communes: [...REGION_COMMUNES[r]], label: REGION_LABELS[r] })),
-  ...ANNEMASSE_REGIONS.map((r) => ({
-    key: r,
-    communes: [...ANNEMASSE_REGION_COMMUNES[r]],
-    label: ANNEMASSE_REGION_LABELS[r],
-  })),
-]
+// Sections selon le tenant (3 zones Réunion, 6 secteurs Annemasse).
+function useTenantCommuneSections(): {
+  allCommunes: Localisation[]
+  sections: { key: string; communes: Localisation[]; label: string }[]
+} {
+  const region = useRegionStore((s) => s.region)
+  return useMemo(() => {
+    const shared = communeSectionsForRegion(region)
+    return {
+      allCommunes: shared.flatMap((s) => s.options) as Localisation[],
+      sections: shared.map((s) => ({
+        key: s.key,
+        communes: [...(s.options as unknown as Localisation[])],
+        label: s.label,
+      })),
+    }
+  }, [region])
+}
 
 function RegionMultiSelectContent({
   selected,
@@ -152,6 +148,7 @@ function RegionMultiSelectContent({
   selected: string[]
   onChange: (localisations: string[]) => void
 }) {
+  const { allCommunes: ALL_COMMUNES, sections: COMMUNE_SECTIONS } = useTenantCommuneSections()
   const allSelected = ALL_COMMUNES.every((c) => selected.includes(c))
 
   return (
@@ -225,6 +222,7 @@ export function JobFilters({ filters, onChange, hideSearch = false }: Props) {
     .filter((s) => s !== Sector.NONE)
     .map((s) => ({ label: formatEnumLabel(s), value: s }))
 
+  const { sections: COMMUNE_SECTIONS } = useTenantCommuneSections()
   const communeActiveLabel = useMemo(() => {
     if (filters.localisations.length === 0) return undefined
     const activeSections = COMMUNE_SECTIONS.filter((s) =>
@@ -234,7 +232,7 @@ export function JobFilters({ filters, onChange, hideSearch = false }: Props) {
       return activeSections.map((s) => s.label).join(', ')
     }
     return `${filters.localisations.length} commune${filters.localisations.length > 1 ? 's' : ''}`
-  }, [filters.localisations])
+  }, [filters.localisations, COMMUNE_SECTIONS])
 
   const administrationOptions = [
     { label: 'Non renseigné', value: 'NON_RENSEIGNE' },

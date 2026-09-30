@@ -8,13 +8,9 @@ import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import {
-  REGION_COMMUNES,
-  REGION_LABELS,
-  ANNEMASSE_REGION_COMMUNES,
-  ANNEMASSE_REGION_LABELS,
-  type Region,
-  type AnnemasseRegion,
+  communeSectionsForRegion,
 } from '@/features/matching/constants/regions';
+import { useRegionStore } from '@/store/regionStore';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { secteurLabelOfTrainingSite } from '@/constants/secteurs';
@@ -59,32 +55,11 @@ const formatTrainingSite = (site?: TrainingSite) => {
   return secteurLabelOfTrainingSite(site) ?? site;
 };
 
-// --- Commune sections (same grouping as Matching filters: 3 Réunion zones + 6 Annemasse sectors) ---
-// Both `Localisation` enums (candidate + matching) share identical string values,
-// so the matching referential can be reused here via string casting.
-
-const CANDIDATE_COMMUNE_REGIONS: Region[] = ['NORD', 'OUEST', 'SUD'];
-const CANDIDATE_ANNEMASSE_REGIONS: AnnemasseRegion[] = [
-  'GENEVE_FRONTIERE',
-  'GENEVOIS',
-  'ARVE',
-  'FAUCIGNY',
-  'ANNECY',
-  'CHABLAIS',
-];
-
-const COMMUNE_SECTIONS: { key: string; label: string; options: string[] }[] = [
-  ...CANDIDATE_COMMUNE_REGIONS.map(r => ({
-    key: r,
-    label: REGION_LABELS[r],
-    options: [...(REGION_COMMUNES[r] as unknown as string[])],
-  })),
-  ...CANDIDATE_ANNEMASSE_REGIONS.map(r => ({
-    key: r,
-    label: ANNEMASSE_REGION_LABELS[r],
-    options: [...(ANNEMASSE_REGION_COMMUNES[r] as unknown as string[])],
-  })),
-];
+// --- Commune sections selon le tenant (3 zones Réunion, 6 secteurs Annemasse) ---
+function useCommuneSections(): { key: string; label: string; options: string[] }[] {
+  const region = useRegionStore((s) => s.region);
+  return useMemo(() => communeSectionsForRegion(region), [region]);
+}
 
 // --- Tabs ---
 
@@ -208,7 +183,12 @@ export default function ListeCandidats() {
   );
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  // Tenant Annemasse : pas de sites de formation — le filtre « Secteur »
+  // (sites Réunion) est masqué, la granularité passe par la mobilité
+  // (6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region);
+  const isAnnemasse = region === 'annemasse';
+  const communeSections = useCommuneSections();  const [showFilters, setShowFilters] = useState(false);
   const [searchField, setSearchField] = useState<CandidateSearchField>('NAME');
   const [activeTab, setActiveTab] = useState<CandidateTab>('all');
 
@@ -434,7 +414,8 @@ export default function ListeCandidats() {
         <div className="mb-6 p-4 bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-2xl shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] animate-[fadeIn_0.15s_ease-out]">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
 
-            {/* Secteur */}
+            {/* Secteur (sites de formation Réunion — masqué sur Annemasse) */}
+            {!isAnnemasse && (
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Secteur</label>
               <Select
@@ -449,6 +430,7 @@ export default function ListeCandidats() {
                 ]}
               />
             </div>
+            )}
 
             {/* Statut */}
             <div className="flex flex-col gap-1.5">
@@ -564,7 +546,7 @@ export default function ListeCandidats() {
               onChange={vals => setFilters({ ...filters, geographicMobility: vals as Localisation[] })}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
               placeholder="Toutes les villes"
-              sections={COMMUNE_SECTIONS}
+              sections={communeSections}
             />
             <MultiSelectField
               variant="filter"

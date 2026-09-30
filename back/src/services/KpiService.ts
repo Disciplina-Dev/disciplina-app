@@ -3,8 +3,16 @@ import { ActivityEventRow, KpiActivityRepository, LiveCallsRow, LiveStatusRow } 
 import { KpiRepository } from '../repositories/mongo/KpiRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 
-import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, KPI_SITES } from '../types/kpi.types';
+import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, ALL_KPI_SITES, kpiSitesForTenant } from '../types/kpi.types';
+import { SECTORS, ANNEMASSE_COMPANY_SECTORS } from '../utils/sector';
+import { getRegion } from '../db/tenant';
 import { logger } from '../external/logger';
+
+/** Site KPI du snapshot live pour un secteur entreprise, selon le tenant. */
+function liveSiteForSector(sector: string): KpiSite | null {
+    if (getRegion() === 'annemasse') return ANNEMASSE_LIVE_SECTORS.has(sector) ? 'ANNEMASSE' : null;
+    return LIVE_SECTOR_TO_SITE[sector] ?? null;
+}
 
 /** Numéro de semaine ISO 8601 (1-53), cohérent avec WEEK(date, 3) de MySQL. */
 function isoWeek(date: Date): number {
@@ -188,12 +196,19 @@ const NAME_COLUMN_TERMINATORS = /^(total|global|comparatif|ecart|evolution)/;
  */
 const NAME_COLUMN_IGNORED = /^(immersion|non employe)/;
 
-/** companies.sector (libellé) → site KPI. */
+/** companies.sector (libellé) → site KPI Réunion. */
 const LIVE_SECTOR_TO_SITE: Record<string, KpiSite> = {
     'Nord-Est': 'NORD',
     Ouest: 'OUEST',
     Sud: 'SUD',
 };
+
+/**
+ * Secteurs entreprise rattachés au site KPI unique Annemasse : les 6 secteurs
+ * opérationnels + les 3 libellés historiques (données legacy classées
+ * « Nord-Est » avant la compression mono-secteur).
+ */
+const ANNEMASSE_LIVE_SECTORS = new Set<string>([...SECTORS, ...ANNEMASSE_COMPANY_SECTORS]);
 
 /** site KPI → companies.sector (libellé). */
 const SITE_TO_LIVE_SECTOR: Record<string, string> = Object.fromEntries(
@@ -286,7 +301,7 @@ export class KpiService {
 
         const totals = emptyMetrics();
         const bySite = new Map<KpiSite, KpiSiteOverview>(
-            KPI_SITES.map((site) => [site, { site, totals: emptyMetrics(), users: [] }]),
+            kpiSitesForTenant(getRegion()).map((site) => [site, { site, totals: emptyMetrics(), users: [] }]),
         );
 
         const userOf = (siteEntry: KpiSiteOverview, row: LiveStatusRow | LiveCallsRow) => {
@@ -314,7 +329,7 @@ export class KpiService {
 
         for (const row of statusRows) {
             if (onlyUserId !== undefined && row.user_id !== onlyUserId) continue;
-            const site = LIVE_SECTOR_TO_SITE[row.sector] ?? null;
+            const site = liveSiteForSector(row.sector);
             const nb = Number(row.nb) || 0;
             const column = LIVE_STATUS_TO_COLUMN[row.status];
             if (column) bump(site, row, column, nb);
@@ -326,7 +341,7 @@ export class KpiService {
 
         for (const row of callRows) {
             if (onlyUserId !== undefined && row.user_id !== onlyUserId) continue;
-            const site = LIVE_SECTOR_TO_SITE[row.sector] ?? null;
+            const site = liveSiteForSector(row.sector);
             bump(site, row, 'total_appels', Number(row.nb) || 0);
         }
 
@@ -343,17 +358,21 @@ export class KpiService {
      * mois où il a eu lieu, attribué au propriétaire du portefeuille.
      */
     async getActivity(year: number, site: string, onlyUserId?: number): Promise<KpiActivity> {
-        const sector = SITE_TO_LIVE_SECTOR[site];
-        if (!sector) throw new Error(`Invalid site '${site}', expected one of ${KPI_SITES.join(', ')}`);
+        // Site unique Annemasse : l'activité couvre tous les secteurs entreprise
+        // du tenant (6 opérationnels + libellés historiques).
+        const sectors: string | string[] =
+            site === 'ANNEMASSE' ? [...ANNEMASSE_LIVE_SECTORS] : (SITE_TO_LIVE_SECTOR[site] ?? '');
+        if (!sectors || sectors.length === 0)
+            throw new Error(`Invalid site '${site}', expected one of ${ALL_KPI_SITES.join(', ')}`);
 
         // Current portfolio state : chaque entreprise compte une fois avec son
         // statut actuel.  C'est ce qui alimente les totaux du résumé (contrairement
         // aux events de company_history qui s'accumulent sans jamais décrémenter).
         const [statusRows, changes, creations, calls] = await Promise.all([
-            this.activityRepository.portfolioStatusCounts(sector),
-            this.activityRepository.activityStatusChanges(year, sector),
-            this.activityRepository.activityCreations(year, sector),
-            this.activityRepository.activityCalls(year, sector),
+            this.activityRepository.portfolioStatusCounts(sectors),
+            this.activityRepository.activityStatusChanges(year, sectors),
+            this.activityRepository.activityCreations(year, sectors),
+            this.activityRepository.activityCalls(year, sectors),
         ]);
 
         const summaryTotals = emptyMetrics();
@@ -601,12 +620,12 @@ export class KpiService {
         };
     }
 
-    /** Vue globale : tous les secteurs, un total par commercial dans chacun. */
+    /** Vue globale : tous les secteurs du tenant, un total par commercial dans chacun. */
     async getOverview(year: number): Promise<KpiOverview> {
         const rows = await this.kpiRepository.findMonthlyByYear(year);
         const totals = emptyMetrics();
         const bySite = new Map<KpiSite, KpiSiteOverview>(
-            KPI_SITES.map((site) => [site, { site, totals: emptyMetrics(), users: [] }]),
+            kpiSitesForTenant(getRegion()).map((site) => [site, { site, totals: emptyMetrics(), users: [] }]),
         );
 
         for (const row of rows) {
@@ -734,8 +753,8 @@ export class KpiService {
      * jumping backwards (`S01 - Fin Déc. début Janv.`) rolls into the next year.
      */
     async importFromExcel(buffer: Buffer, site: string): Promise<KpiImportResult> {
-        if (!KPI_SITES.includes(site as KpiSite)) {
-            throw new Error(`Invalid site '${site}', expected one of ${KPI_SITES.join(', ')}`);
+        if (!ALL_KPI_SITES.includes(site as KpiSite)) {
+            throw new Error(`Invalid site '${site}', expected one of ${ALL_KPI_SITES.join(', ')}`);
         }
         const workbook = new ExcelJS.Workbook();
         // Cast : drift de types entre @types/node (Buffer<ArrayBufferLike>) et la signature ExcelJS.
@@ -959,7 +978,7 @@ export class KpiService {
         if (data.week != null && (!Number.isInteger(data.week) || data.week < 0 || data.week > 53)) {
             throw new Error('Invalid week (0 = monthly, 1-53)');
         }
-        if (!KPI_SITES.includes(data.site)) throw new Error(`Invalid site, expected one of ${KPI_SITES.join(', ')}`);
+        if (!ALL_KPI_SITES.includes(data.site)) throw new Error(`Invalid site, expected one of ${ALL_KPI_SITES.join(', ')}`);
         for (const c of KPI_METRIC_COLUMNS) {
             const value = data[c];
             if (value != null && (!Number.isInteger(value) || value < 0))

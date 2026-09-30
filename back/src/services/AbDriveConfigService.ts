@@ -2,7 +2,8 @@ import { AbDriveConfig, AbDriveConfigRepository } from '../repositories/mongo/Ab
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
-import { SECTORS, sectorFromRegion } from '../utils/sector';
+import { ANNEMASSE_DRIVE_SECTOR, abDriveSectorsForTenant, sectorFromRegion } from '../utils/sector';
+import { getRegion } from '../db/tenant';
 import { JobRole, User } from '../types/user.types';
 import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
 import { logger } from '../external/logger';
@@ -83,8 +84,13 @@ export class AbDriveConfigService {
         actingUserId?: number,
     ): Promise<string | null> {
         try {
-            // Secteur de l'AB d'abord ; si absent, Nord-Est par défaut.
-            const sector = sectorFromRegion(region) ?? 'Nord-Est';
+            // Secteur de l'AB d'abord ; à défaut, défaut du tenant
+            // (Nord-Est pour Réunion, « Annemasse » pour Annemasse — un seul
+            // dossier par type, pas un par secteur opérationnel).
+            const sector =
+                getRegion() === 'annemasse'
+                    ? ANNEMASSE_DRIVE_SECTOR
+                    : (sectorFromRegion(region) ?? 'Nord-Est');
             const creator = creatorId ? await this.userService.findById(creatorId) : null;
             const actingUser =
                 actingUserId && actingUserId !== creatorId ? await this.userService.findById(actingUserId) : null;
@@ -178,9 +184,10 @@ export class AbDriveConfigService {
 export const abDriveConfigService = new AbDriveConfigService();
 
 /** Renvoie une entrée par couple secteur × type (même vide), pour piloter le formulaire de config. */
-export function abDriveConfigToGql(config: AbDriveConfig) {
+export function abDriveConfigToGql(config: AbDriveConfig, sectors?: string[]) {
+    const list = sectors ?? abDriveSectorsForTenant(getRegion());
     return {
-        sectorFolders: SECTORS.flatMap((sector) =>
+        sectorFolders: list.flatMap((sector) =>
             AB_FOLDER_KINDS.map((kind) => ({
                 sector,
                 kind,

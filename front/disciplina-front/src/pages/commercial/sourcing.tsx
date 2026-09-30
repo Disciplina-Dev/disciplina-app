@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import type { CompanyWithSalePerson } from "@/types/entreprise";
 import { IconArrowRight, IconCheck, IconClock, IconClose, IconCompany, IconCopy, IconExternalLink, IconMail, IconPhone, IconSearch, IconWarning } from '@/components/ui/icons'
 import { apiFetch } from "@/api/httpClient";
+import { useRegionStore } from "@/store/regionStore";
+import { ANNEMASSE_COMMUNES } from "@/data/reunionCommunes";
 import NAF_CODES from "@socialgouv/codes-naf";
 import {
   normalizeSiret,
@@ -117,7 +119,7 @@ async function fetchCompaniesByCriteria(
   return (await res.json()) as SireneListResult;
 }
 
-function buildCriteria(commune: string, naf: string, isReunionOnly: boolean): SireneCriterion[] {
+function buildCriteria(commune: string, naf: string, deptPrefix: string | null): SireneCriterion[] {
   const criteria: SireneCriterion[] = [];
   if (commune.trim()) {
     criteria.push({
@@ -128,8 +130,9 @@ function buildCriteria(commune: string, naf: string, isReunionOnly: boolean): Si
   if (naf.trim()) {
     criteria.push({ paramName: "activitePrincipaleUniteLegale", value: naf.trim() });
   }
-  if (isReunionOnly) {
-    criteria.push({ paramName: "codeCommuneEtablissement", value: "974*" });
+  // Filtre départemental : 974* (La Réunion) ou 74* (Haute-Savoie / Annemasse).
+  if (deptPrefix) {
+    criteria.push({ paramName: "codeCommuneEtablissement", value: deptPrefix });
   }
   return criteria;
 }
@@ -688,23 +691,27 @@ function ModeTab({
 function MulticriteriaSearchBar({
   communeValue,
   onCommuneChange,
+  communeOptions,
   nafValue,
   onNafChange,
-  isReunionOnly,
-  onIsReunionOnlyChange,
+  isLocalOnly,
+  onIsLocalOnlyChange,
+  localLabel,
   onSubmit,
   busy,
 }: {
   communeValue: string;
   onCommuneChange: (v: string) => void;
+  communeOptions: string[];
   nafValue: string;
   onNafChange: (v: string) => void;
-  isReunionOnly: boolean;
-  onIsReunionOnlyChange: (v: boolean) => void;
+  isLocalOnly: boolean;
+  onIsLocalOnlyChange: (v: boolean) => void;
+  localLabel: string;
   onSubmit: () => void;
   busy: boolean;
 }) {
-  const hasValue = !!(communeValue.trim() || nafValue.trim() || isReunionOnly);
+  const hasValue = !!(communeValue.trim() || nafValue.trim() || isLocalOnly);
   return (
     <form
       className="flex flex-col gap-3 bg-[var(--ds-surface)] border-[1.5px] border-[var(--ds-border)] rounded-[14px] p-4 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
@@ -723,7 +730,7 @@ function MulticriteriaSearchBar({
           onChange={(e) => onCommuneChange(e.target.value)}
         >
           <option value="">Sélectionnez une commune</option>
-          {REUNION_COMMUNES.map((commune) => (
+          {communeOptions.map((commune) => (
             <option key={commune} value={commune}>
               {commune
                 .split("-")
@@ -756,12 +763,12 @@ function MulticriteriaSearchBar({
         <label className="flex items-center gap-2 cursor-pointer px-3 py-2 bg-[var(--ds-surface-sunken)] rounded-[10px] hover:bg-[var(--ds-surface-sunken)] transition-colors">
           <input
             type="checkbox"
-            checked={isReunionOnly}
-            onChange={(e) => onIsReunionOnlyChange(e.target.checked)}
+            checked={isLocalOnly}
+            onChange={(e) => onIsLocalOnlyChange(e.target.checked)}
             className="w-4 h-4 cursor-pointer accent-blue"
           />
-          <span className="text-[14px] font-medium text-[var(--ds-text-muted)] whitespace-nowrap">
-            Entreprise Réunionaise
+          <span className="text-[14px] font-medium text-[var(--ds-text-subtle)] whitespace-nowrap">
+            {localLabel}
           </span>
         </label>
         {hasValue && (
@@ -771,7 +778,7 @@ function MulticriteriaSearchBar({
             onClick={() => {
               onCommuneChange("");
               onNafChange("");
-              onIsReunionOnlyChange(false);
+              onIsLocalOnlyChange(false);
             }}
             aria-label="Effacer"
           >
@@ -952,10 +959,16 @@ export default function Sourcing() {
     value: string;
   }> | null>(null);
 
-  // Commune mode state
+  // Commune mode state — communes et filtre départemental selon le tenant
+  // (Réunion : 974* ; Annemasse : 74* Haute-Savoie).
+  const region = useRegionStore((s) => s.region);
+  const isAnnemasse = region === "annemasse";
+  const communeOptions = isAnnemasse ? ANNEMASSE_COMMUNES : REUNION_COMMUNES;
+  const localLabel = isAnnemasse ? "Entreprise Haut-Savoyarde" : "Entreprise Réunionaise";
   const [communeQuery, setCommuneQuery] = useState("");
   const [nafCode, setNafCode] = useState("");
-  const [isReunionOnly, setIsReunionOnly] = useState(false);
+  const [isLocalOnly, setIsLocalOnly] = useState(false);
+  const deptPrefix = isLocalOnly ? (isAnnemasse ? "74*" : "974*") : null;
   const [communeView, setCommuneView] = useState<CommuneView>("empty");
   const [communeResult, setCommuneResult] = useState<SireneListResult | null>(
     null,
@@ -979,6 +992,16 @@ export default function Sourcing() {
       /* ignore */
     }
   }, [recents]);
+
+  // Changement de tenant : la commune sélectionnée appartient à l'autre
+  // référentiel — on repart d'une recherche vide.
+  useEffect(() => {
+    setCommuneQuery("");
+    setIsLocalOnly(false);
+    setCommuneView("empty");
+    setCommuneResult(null);
+    setSelectedCommune(null);
+  }, [region]);
 
   const pushRecent = useCallback((data: SirenSearchResult) => {
     const name =
@@ -1033,7 +1056,7 @@ export default function Sourcing() {
 
   const runCommune = useCallback(
     async () => {
-      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
+      const criteria = buildCriteria(communeQuery, nafCode, deptPrefix);
       if (criteria.length === 0) return;
       setCommuneView("loading");
       setOffsetHistory([]);
@@ -1047,13 +1070,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly],
+    [communeQuery, nafCode, deptPrefix],
   );
 
   const loadNextPage = useCallback(
     async () => {
       if (!communeResult) return;
-      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
+      const criteria = buildCriteria(communeQuery, nafCode, deptPrefix);
       if (criteria.length === 0) return;
       const nextOffset =
         communeResult.header.offset + communeResult.etablissements.length;
@@ -1069,13 +1092,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly, communeResult],
+    [communeQuery, nafCode, deptPrefix, communeResult],
   );
 
   const loadPrevPage = useCallback(
     async () => {
       if (!communeResult || offsetHistory.length === 0) return;
-      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
+      const criteria = buildCriteria(communeQuery, nafCode, deptPrefix);
       if (criteria.length === 0) return;
       const prevOffset = offsetHistory[offsetHistory.length - 1];
       setOffsetHistory((h) => h.slice(0, -1));
@@ -1090,7 +1113,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly, communeResult, offsetHistory],
+    [communeQuery, nafCode, deptPrefix, communeResult, offsetHistory],
   );
 
   const submit = () => run(query);
@@ -1288,6 +1311,7 @@ export default function Sourcing() {
                   setContacts(null);
                   setSelectedCommune(null);
                 }}
+                communeOptions={communeOptions}
                 nafValue={nafCode}
                 onNafChange={(v) => {
                   setNafCode(v);
@@ -1295,13 +1319,14 @@ export default function Sourcing() {
                   setContacts(null);
                   setSelectedCommune(null);
                 }}
-                isReunionOnly={isReunionOnly}
-                onIsReunionOnlyChange={(v) => {
-                  setIsReunionOnly(v);
+                isLocalOnly={isLocalOnly}
+                onIsLocalOnlyChange={(v) => {
+                  setIsLocalOnly(v);
                   if (communeView !== "empty") setCommuneView("empty");
                   setContacts(null);
                   setSelectedCommune(null);
                 }}
+                localLabel={localLabel}
                 onSubmit={() => runCommune()}
                 busy={communeView === "loading"}
               />

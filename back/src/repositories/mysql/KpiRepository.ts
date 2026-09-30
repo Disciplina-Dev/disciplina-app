@@ -33,6 +33,12 @@ export interface ActivityEventRow {
  * contact_logs, company_history et users — pas la table KPI. Les buckets
  * commercial_kpi/rh_kpi ont migré vers MongoDB (voir repositories/mongo).
  */
+
+/** Clause de filtre secteur : `= ?` mono-secteur ou `IN (?)` multi-secteurs (site unique Annemasse). */
+function sectorClause(sector: string | string[]): [string, (string | string[])[]] {
+    if (Array.isArray(sector)) return ['c.sector IN (?)', [sector]];
+    return ['c.sector = ?', [sector]];
+}
 export class KpiActivityRepository {
     /** Snapshot portefeuille : nombre d'entreprises par secteur / commercial / statut. */
     async liveStatusCounts(): Promise<LiveStatusRow[]> {
@@ -48,14 +54,15 @@ export class KpiActivityRepository {
      * secteur/commercial/statut. Contrairement à activityStatusChanges (compte les
      * transitions chaque fois), celui-ci ne compte chaque entreprise qu'une fois
      * avec son statut actuel. */
-    async portfolioStatusCounts(sector: string): Promise<LiveStatusRow[]> {
+    async portfolioStatusCounts(sector: string | string[]): Promise<LiveStatusRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<LiveStatusRow[]>(
             `SELECT c.sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
              FROM companies c
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE c.sector = ?
+             WHERE ${clause}
              GROUP BY c.sector, c.user_id, u.first_name, u.last_name, c.status`,
-            [sector],
+            params,
         );
     }
 
@@ -74,7 +81,8 @@ export class KpiActivityRepository {
      * Changements de statut datés (company_history), attribués au propriétaire
      * du portefeuille. WEEK(..., 3) = semaine ISO.
      */
-    async activityStatusChanges(year: number, sector: string): Promise<ActivityEventRow[]> {
+    async activityStatusChanges(year: number, sector: string | string[]): Promise<ActivityEventRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<ActivityEventRow[]>(
             `SELECT c.user_id, u.first_name, u.last_name,
                     MONTH(h.updated_at) AS month, WEEK(h.updated_at, 3) AS week,
@@ -82,10 +90,10 @@ export class KpiActivityRepository {
              FROM company_history h
              JOIN companies c ON c.id = h.company_id
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE YEAR(h.updated_at) = ? AND c.sector = ?
+             WHERE YEAR(h.updated_at) = ? AND ${clause}
                AND (h.previous_status IS NULL OR h.previous_status <> h.status)
              GROUP BY c.user_id, u.first_name, u.last_name, MONTH(h.updated_at), WEEK(h.updated_at, 3), h.status`,
-            [year, sector],
+            [year, ...params],
         );
     }
 
@@ -93,7 +101,8 @@ export class KpiActivityRepository {
      * Créations d'entreprises datées : le statut initial est reconstitué depuis
      * le previous_status de la première ligne d'historique, sinon le statut actuel.
      */
-    async activityCreations(year: number, sector: string): Promise<ActivityEventRow[]> {
+    async activityCreations(year: number, sector: string | string[]): Promise<ActivityEventRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<ActivityEventRow[]>(
             `WITH first_hist AS (
                  SELECT company_id, previous_status,
@@ -106,14 +115,15 @@ export class KpiActivityRepository {
              FROM companies c
              LEFT JOIN first_hist f ON f.company_id = c.id AND f.rn = 1
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE YEAR(c.created_at) = ? AND c.sector = ?
+             WHERE YEAR(c.created_at) = ? AND ${clause}
              GROUP BY c.user_id, u.first_name, u.last_name, MONTH(c.created_at), WEEK(c.created_at, 3), COALESCE(f.previous_status, c.status)`,
-            [year, sector],
+            [year, ...params],
         );
     }
 
     /** Prises de contact datées (contact_logs), attribuées au propriétaire du portefeuille. */
-    async activityCalls(year: number, sector: string): Promise<ActivityEventRow[]> {
+    async activityCalls(year: number, sector: string | string[]): Promise<ActivityEventRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<ActivityEventRow[]>(
             `SELECT c.user_id, u.first_name, u.last_name,
                     MONTH(l.created_at) AS month, WEEK(l.created_at, 3) AS week,
@@ -121,9 +131,9 @@ export class KpiActivityRepository {
              FROM contact_logs l
              JOIN companies c ON c.id = l.company_id
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE YEAR(l.created_at) = ? AND c.sector = ?
+             WHERE YEAR(l.created_at) = ? AND ${clause}
              GROUP BY c.user_id, u.first_name, u.last_name, MONTH(l.created_at), WEEK(l.created_at, 3)`,
-            [year, sector],
+            [year, ...params],
         );
     }
 }

@@ -815,7 +815,7 @@ export default function FicheCandidat() {
                         : []
                     return sites.length ? (
                       <span className="text-xs text-[var(--ds-text-subtle)]">
-                        {sites.map((s) => TRAINING_SITE_LABELS[s]).join(' · ')}
+                        {sites.map((s) => TRAINING_SITE_LABELS[s] ?? prettyEnum(s)).join(' · ')}
                       </span>
                     ) : null
                   })()}

@@ -1,6 +1,6 @@
 import mongoose, { Document, model, Schema } from 'mongoose';
 import { KpiDoc } from '../../../types/kpiDoc.types';
-import { KPI_SITES } from '../../../types/kpi.types';
+import { ALL_KPI_SITES } from '../../../types/kpi.types';
 
 const kpiSchema = new Schema<KpiDoc & Document>(
     {
@@ -10,7 +10,7 @@ const kpiSchema = new Schema<KpiDoc & Document>(
         year: { type: Number, required: true },
         month: { type: Number, required: true },
         week: { type: Number, required: true },
-        site: { type: String, enum: KPI_SITES },
+        site: { type: String, enum: ALL_KPI_SITES },
         sector: { type: String },
         user_name: { type: String },
         // Compteurs à géométrie variable (union typée côté TS, sanitize à la
