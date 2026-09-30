@@ -26,6 +26,8 @@ const DONE_FLASH_MS = 1600
 type Props = {
   value: string
   onChange: (value: string) => void
+  /** Effacement synchrone (write-through immédiat) — si absent, onChange('') est utilisé. */
+  onClear?: () => void
   field: CandidateSearchField
   onFieldChange: (field: CandidateSearchField) => void
   /** Vrai tant que la saisie n'est pas encore appliquée ou que la requête tourne. */
@@ -33,7 +35,7 @@ type Props = {
   resultCount: number
 }
 
-export default function CandidateSearchBar({ value, onChange, field, onFieldChange, searching, resultCount }: Props) {
+export default function CandidateSearchBar({ value, onChange, onClear, field, onFieldChange, searching, resultCount }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const startedAtRef = useRef(0)
   const [held, setHeld] = useState(false)
@@ -69,7 +71,8 @@ export default function CandidateSearchBar({ value, onChange, field, onFieldChan
   const showDone = done && !busy && value.trim() !== ''
 
   const clear = () => {
-    onChange('')
+    if (onClear) onClear()
+    else onChange('')
     inputRef.current?.focus()
   }
 
@@ -93,6 +96,7 @@ export default function CandidateSearchBar({ value, onChange, field, onFieldChan
         <input
           ref={inputRef}
           type="text"
+          name="candidats-search"
           aria-label="Rechercher un candidat"
           placeholder={FIELD_PLACEHOLDERS[field]}
           value={value}
@@ -100,9 +104,15 @@ export default function CandidateSearchBar({ value, onChange, field, onFieldChan
           onKeyDown={(e) => {
             if (e.key === 'Escape' && value) {
               e.preventDefault()
-              onChange('')
+              clear()
             }
           }}
+          // Désactive la restauration/autofill Safari, qui repeint une valeur native
+          // désynchronisée du state React contrôlé (champ « impossible à effacer »).
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           className="h-full min-w-0 flex-1 bg-transparent pr-2 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] focus:outline-none"
         />
 

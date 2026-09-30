@@ -103,9 +103,14 @@ export default function JobSearchModal({
             <IconSearch width={16} height={16} className="text-[var(--ds-text-subtle)]" />
             <input
               type="text"
+              name="job-search"
               placeholder="Rechercher par nom d'entreprise..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="flex-1 bg-transparent outline-none text-sm"
             />
           </div>

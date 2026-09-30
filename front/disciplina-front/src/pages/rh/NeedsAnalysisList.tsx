@@ -42,6 +42,7 @@ function AbListView() {
   const {
     searchInput,
     setSearchInput,
+    clearSearch,
     debouncedSearch,
     filters,
     setFilters,
@@ -86,15 +87,20 @@ function AbListView() {
           <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ds-text-subtle)]" />
           <input
             type="text"
+            name="ab-search"
             placeholder="Rechercher par entreprise..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             className="w-full rounded-lg border border-[var(--ds-border)] py-2 pl-9 pr-9 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue"
           />
           {searchInput && (
             <button
               type="button"
-              onClick={() => setSearchInput('')}
+              onClick={clearSearch}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
             >
               <IconClose className="h-4 w-4" />

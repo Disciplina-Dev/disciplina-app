@@ -29,6 +29,17 @@ export default function ListeNoire() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [searchInput])
 
+  const clearSearch = () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    setSearchInput('')
+    setDebouncedSearch('')
+    setAfterCursor(undefined)
+    setCursorHistory([])
+  }
+
   const { loading, pageInfo } = useInitializeBlacklist(PAGE_SIZE, afterCursor, debouncedSearch || undefined)
 
   const loadNextPage = () => {
@@ -82,9 +93,14 @@ export default function ListeNoire() {
               <IconSearch className="pointer-events-none absolute inset-y-0 left-3.5 my-auto h-4 w-4 text-[var(--ds-text-subtle)]" />
               <input
                 type="text"
+                name="liste-noire-search"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Recherche par nom ou SIRET…"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className={[
                   'w-64 rounded-xl border bg-[var(--ds-surface)] py-2.5 pl-10 pr-8 text-[13px] text-[var(--ds-text)]',
                   'placeholder:text-[var(--ds-text-subtle)] outline-none transition-all duration-150',
@@ -95,7 +111,7 @@ export default function ListeNoire() {
               />
               {searchInput && (
                 <button
-                  onClick={() => setSearchInput('')}
+                  onClick={clearSearch}
                   className="absolute inset-y-0 right-3 my-auto flex h-5 w-5 items-center justify-center rounded-full text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] transition-colors"
                 >
                   <IconClose className="h-3.5 w-3.5" />

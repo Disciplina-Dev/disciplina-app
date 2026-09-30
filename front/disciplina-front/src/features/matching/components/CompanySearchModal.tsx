@@ -153,10 +153,15 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
             <div>
               <input
                 type="text"
+                name="siret-lookup"
                 value={siret}
                 onChange={(e) => { setSiret(e.target.value.replace(/\D/g, '').slice(0, 14)); setSiretStatus('idle') }}
                 placeholder="SIRET (14 chiffres)"
                 maxLength={14}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSiretLookup() }}
@@ -263,9 +268,14 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
             <IconSearch width={14} height={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ds-text-subtle)]" />
             <input
               type="text"
+              name="company-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Rechercher par nom..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="w-full rounded-lg border border-[var(--ds-border)] py-2 pl-9 pr-3 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
               autoFocus
             />

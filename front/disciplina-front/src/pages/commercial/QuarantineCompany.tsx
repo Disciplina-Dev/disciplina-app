@@ -115,9 +115,14 @@ export default function QuarantineCompany() {
                 <IconSearch className="pointer-events-none absolute inset-y-0 left-3.5 my-auto h-4 w-4 text-[var(--ds-text-subtle)]" />
                 <input
                   type="text"
+                  name="quarantaine-search"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Recherche par nom ou SIRET…"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   className={[
                     'w-full sm:w-64 rounded-xl border bg-[var(--ds-surface)] py-2.5 pl-10 pr-8 text-[13px] text-[var(--ds-text)]',
                     'placeholder:text-[var(--ds-text-subtle)] outline-none transition-all duration-150',
