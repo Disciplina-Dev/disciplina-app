@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Building2, ArrowRight, AlertTriangle, Check } from 'lucide-react'
+import { IconArrowRight, IconCheck, IconClose, IconCompany, IconWarning } from '@/components/ui/icons'
 import { useForm, type SubmitHandler } from 'react-hook-form'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
@@ -203,22 +203,22 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
       <div
-        className="relative z-10 w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative z-10 w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl bg-[var(--ds-surface)] shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-100">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--ds-border)]">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-light">
-              <Building2 className="h-5 w-5 text-blue" />
+              <IconCompany className="h-5 w-5 text-blue" />
             </div>
-            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+            <h2 className="text-lg font-bold text-[var(--ds-text)]">{title}</h2>
           </div>
           <button
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]"
           >
-            <X className="h-5 w-5" />
+            <IconClose className="h-5 w-5" />
           </button>
         </div>
 
@@ -226,11 +226,11 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
           <>
             {/* Lookup body */}
             <div className="p-6 flex-1 flex flex-col gap-4">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-[var(--ds-text-subtle)]">
                 Entrez le numéro SIRET de l'entreprise pour pré-remplir la fiche depuis le registre INSEE.
               </p>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="siret-lookup">
+                <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="siret-lookup">
                   Numéro SIRET
                 </label>
                 <div className="flex gap-2">
@@ -244,7 +244,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                     value={siretInput}
                     onChange={(e) => { setSiretInput(e.target.value.replace(/\D/g, '')); setLookupStatus('idle') }}
                     onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-                    className="flex-1 rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue font-mono tracking-wider"
+                    className="flex-1 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue font-mono tracking-wider"
                   />
                   <Button
                     onClick={handleLookup}
@@ -254,23 +254,23 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                     Rechercher
                   </Button>
                 </div>
-                <p className="text-xs text-gray-400 font-mono">{siretInput.replace(/\D/g, '').length}/14</p>
+                <p className="text-xs text-[var(--ds-text-subtle)] font-mono">{siretInput.replace(/\D/g, '').length}/14</p>
 
                 {lookupStatus === 'notfound' && (
-                  <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
-                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--ds-warning)]">
+                    <IconWarning className="h-3.5 w-3.5 flex-shrink-0" />
                     SIRET introuvable dans le registre INSEE
                   </p>
                 )}
                 {lookupStatus === 'error' && (
-                  <p className="flex items-center gap-1.5 text-xs font-medium text-danger">
-                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--ds-danger)]">
+                    <IconWarning className="h-3.5 w-3.5 flex-shrink-0" />
                     Erreur lors de la recherche — réessayez
                   </p>
                 )}
                 {lookupStatus === 'exists' && (
-                  <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
-                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--ds-warning)]">
+                    <IconWarning className="h-3.5 w-3.5 flex-shrink-0" />
                     Cette entreprise est déjà dans le portefeuille
                   </p>
                 )}
@@ -278,13 +278,13 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
             </div>
 
             {/* Lookup footer */}
-            <div className="flex items-center justify-between gap-3 p-6 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between gap-3 p-6 pt-4 border-t border-[var(--ds-border)]">
               <button
                 type="button"
                 onClick={goToFormManually}
-                className="text-sm font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors"
+                className="text-sm font-medium text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] flex items-center gap-1 transition-colors"
               >
-                Remplir manuellement <ArrowRight className="h-3.5 w-3.5" />
+                Remplir manuellement <IconArrowRight className="h-3.5 w-3.5" />
               </button>
               <Button variant="secondary" onClick={onClose}>Annuler</Button>
             </div>
@@ -295,16 +295,16 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
             <form onSubmit={handleSubmit(onSubmit)} className="overflow-y-auto flex-1 p-6">
               <div className="space-y-5">
                 {submitError && (
-                  <div className="rounded-xl border border-danger/20 bg-danger-bg px-4 py-2.5 text-sm text-danger">
+                  <div className="rounded-xl border border-danger/20 bg-[var(--ds-danger-bg)] px-4 py-2.5 text-sm text-[var(--ds-danger)]">
                     {submitError}
                   </div>
                 )}
                 {/* Section: Identité */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-3 flex items-center gap-2">
                     Identité
                     {fromRegistry && (
-                      <span className="text-[10px] font-semibold normal-case tracking-normal text-success bg-success-bg px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-semibold normal-case tracking-normal text-[var(--ds-success)] bg-[var(--ds-success-bg)] px-2 py-0.5 rounded-full">
                         Données INSEE
                       </span>
                     )}
@@ -360,7 +360,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                 {/* Section: Localisation */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Localisation</p>
+                  <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-3">Localisation</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <InputField
                       id="adresse"
@@ -369,7 +369,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                       {...register('adresse')}
                     />
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]">
                         Secteur
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -383,17 +383,17 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                                 active
                                   ? 'border-blue bg-blue text-white'
-                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900'
+                                  : 'border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]'
                               }`}
                             >
-                              {active && <Check className="h-3 w-3" />}
+                              {active && <IconCheck className="h-3 w-3" />}
                               {s}
                             </button>
                           )
                         })}
                       </div>
                       {selectedSecteurs.length === 0 && (
-                        <p className="text-xs text-danger">Sélectionnez au moins un secteur</p>
+                        <p className="text-xs text-[var(--ds-danger)]">Sélectionnez au moins un secteur</p>
                       )}
                     </div>
                   </div>
@@ -401,7 +401,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                 {/* Section: Contact */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Contact</p>
+                  <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-3">Contact</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <InputField
                       id="telephone"
@@ -427,16 +427,16 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                 {/* Section: Suivi */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Suivi commercial</p>
+                  <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-3">Suivi commercial</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Status */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="status">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="status">
                         Statut
                       </label>
                       <select
                         id="status"
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue"
                         {...register('status')}
                       >
                         {STATUS_OPTIONS.map((s) => (
@@ -447,12 +447,12 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                     {/* Propriétaire */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="proprietaire_id">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="proprietaire_id">
                         Propriétaire du contact
                       </label>
                       <select
                         id="proprietaire_id"
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue"
                         {...register('proprietaire_id')}
                       >
                         {staffMembers.length === 0 && (
@@ -468,12 +468,12 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                     {/* Canal de relance */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="relance_channel">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="relance_channel">
                         Canal de relance
                       </label>
                       <select
                         id="relance_channel"
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue"
                         {...register('relance_channel')}
                       >
                         <option value="">— Aucun —</option>
@@ -484,12 +484,12 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                     {/* Type de relance — recalcule la date */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="type_relance">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="type_relance">
                         Type de relance
                       </label>
                       <select
                         id="type_relance"
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue"
                         {...register('type_relance', {
                           onChange: (e) => {
                             const typeId = e.target.value ? Number(e.target.value) : null
@@ -507,25 +507,25 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                     {/* Date relance */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="date_relance">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="date_relance">
                         Date de relance
                       </label>
                       <input
                         id="date_relance"
                         type="date"
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue"
                         {...register('date_relance')}
                       />
                     </div>
 
                     {/* Mail type de relance — seulement si canal = MAIL */}
                     <div className={`flex flex-col gap-1.5 ${relanceChannel === 'MAIL' ? '' : 'hidden'}`}>
-                      <label className="text-sm font-medium text-gray-700" htmlFor="relance_template_id">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="relance_template_id">
                         Mail type de relance
                       </label>
                       <select
                         id="relance_template_id"
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue"
                         {...register('relance_template_id')}
                       >
                         <option value="">— Aucun —</option>
@@ -534,7 +534,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
                         ))}
                       </select>
                       {mailTemplates.length === 0 && (
-                        <p className="text-xs text-gray-500">Aucun modèle — créez-en dans « Modèles mail »</p>
+                        <p className="text-xs text-[var(--ds-text-subtle)]">Aucun modèle — créez-en dans « Modèles mail »</p>
                       )}
                     </div>
                   </div>
@@ -542,29 +542,29 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
 
                 {/* Notes */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Notes</p>
+                  <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-3">Notes</p>
                   <div className="space-y-3">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="note">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="note">
                         Note personnelle
                       </label>
                       <textarea
                         id="note"
                         rows={3}
                         placeholder="Observations, contexte..."
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue resize-none"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue resize-none"
                         {...register('note')}
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700" htmlFor="conclusion">
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="conclusion">
                         Conclusion
                       </label>
                       <textarea
                         id="conclusion"
                         rows={3}
                         placeholder="Résultat des échanges..."
-                        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue resize-none"
+                        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue resize-none"
                         {...register('conclusion')}
                       />
                     </div>
@@ -574,7 +574,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
             </form>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-3 p-6 pt-4 border-t border-[var(--ds-border)]">
               <Button variant="secondary" onClick={onClose}>
                 Annuler
               </Button>

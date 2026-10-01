@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Pencil } from 'lucide-react'
+import { IconChevronDown, IconChevronRight, IconEdit } from '@/components/ui/icons'
 
 import type { KpiMetrics, KpiWeekEntry } from '@/api/kpi'
 import { KPI_METRICS, MONTH_FULL_LABELS } from '../config'
@@ -18,7 +18,7 @@ function MetricCells({ metrics, muted = false }: { metrics: KpiMetrics; muted?: 
         <td
           key={m.key}
           className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${
-            metrics[m.key] === 0 ? 'text-gray-300' : muted ? 'text-gray-500' : 'text-gray-900'
+            metrics[m.key] === 0 ? 'text-[var(--ds-text-subtle)]' : muted ? 'text-[var(--ds-text-subtle)]' : 'text-[var(--ds-text)]'
           }`}
         >
           {metrics[m.key].toLocaleString('fr-FR')}
@@ -42,14 +42,14 @@ export default function KpiWeeklyTable({ weeks, onEdit, readOnly = false }: Prop
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
+    <div className="overflow-hidden rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
       <div className="overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="px-4 py-3 text-left font-semibold text-gray-500">Semaine</th>
+            <tr className="border-b border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+              <th className="px-4 py-3 text-left font-semibold text-[var(--ds-text-subtle)]">Semaine</th>
               {KPI_METRICS.map((m) => (
-                <th key={m.key} className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-500">
+                <th key={m.key} className="whitespace-nowrap px-3 py-3 text-right font-semibold text-[var(--ds-text-subtle)]">
                   {m.label}
                 </th>
               ))}
@@ -59,7 +59,7 @@ export default function KpiWeeklyTable({ weeks, onEdit, readOnly = false }: Prop
           <tbody>
             {weeks.length === 0 && (
               <tr>
-                <td colSpan={KPI_METRICS.length + 2} className="px-4 py-10 text-center text-gray-400">
+                <td colSpan={KPI_METRICS.length + 2} className="px-4 py-10 text-center text-[var(--ds-text-subtle)]">
                   Aucune donnée hebdomadaire pour cette année. Importez le fichier Excel (feuilles « C.R Sem. »).
                 </td>
               </tr>
@@ -100,16 +100,16 @@ function WeekRows({
 }) {
   return (
     <>
-      <tr className="border-b border-gray-50 transition-colors hover:bg-gray-50/40">
+      <tr className="border-b border-[var(--ds-border)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
         <td className="whitespace-nowrap px-4 py-2.5">
           <button
             onClick={onToggle}
-            className="flex items-center gap-1.5 font-semibold text-gray-900"
+            className="flex items-center gap-1.5 font-semibold text-[var(--ds-text)]"
             aria-expanded={isOpen}
           >
-            {isOpen ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+            {isOpen ? <IconChevronDown className="h-4 w-4 text-[var(--ds-text-subtle)]" /> : <IconChevronRight className="h-4 w-4 text-[var(--ds-text-subtle)]" />}
             S{entry.week}
-            <span className="font-normal text-gray-400">· {MONTH_FULL_LABELS[entry.month - 1]}</span>
+            <span className="font-normal text-[var(--ds-text-subtle)]">· {MONTH_FULL_LABELS[entry.month - 1]}</span>
           </button>
         </td>
         <MetricCells metrics={entry.totals} />
@@ -118,11 +118,11 @@ function WeekRows({
 
       {isOpen &&
         entry.users.map((user) => (
-          <tr key={user.userName} className="border-b border-gray-50 bg-gray-50/30">
-            <td className="py-2 pl-11 pr-4 text-gray-500">
+          <tr key={user.userName} className="border-b border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+            <td className="py-2 pl-11 pr-4 text-[var(--ds-text-subtle)]">
               {user.userName}
               {user.userId == null && (
-                <span className="ml-1.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                <span className="ml-1.5 rounded-md bg-[var(--ds-surface-sunken)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ds-text-subtle)]">
                   archivé
                 </span>
               )}
@@ -132,10 +132,10 @@ function WeekRows({
               {user.userId != null && !readOnly && (
                 <button
                   onClick={() => onEdit(user.userId!, user.userName, entry.month, entry.week, user.metrics)}
-                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
                   title="Modifier cette semaine"
                 >
-                  <Pencil className="h-3.5 w-3.5" />
+                  <IconEdit className="h-3.5 w-3.5" />
                 </button>
               )}
             </td>

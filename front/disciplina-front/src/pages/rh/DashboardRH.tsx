@@ -13,19 +13,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
-import {
-  Users,
-  FileSignature,
-  Search,
-  Briefcase,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
-  Bell,
-  X,
-  Building2,
-  ChevronDown,
-} from 'lucide-react';
+import { IconAlert, IconBell, IconChevronDown, IconClose, IconCompany, IconJob, IconLoader, IconRefresh, IconSearch, IconSignature, IconUsers } from '@/components/ui/icons'
 import { useCurrentUser, Permission } from '@/store/authStore';
 import { useCandidateStats, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
 import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY } from '@/graphql/queries';
@@ -34,8 +22,10 @@ import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
-import { SECTEUR_LABELS, SECTEUR_VALUES, SECTEUR_KEYS, type SecteurKey } from '@/constants/secteurs';
+import { SECTEUR_LABELS, SECTEUR_KEYS, userSecteursForRegion, type SecteurKey } from '@/constants/secteurs';
+import { useRegionStore } from '@/store/regionStore';
 import { Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
+import ChipGroup from '@/components/ui/ChipGroup'
 
 // --- Charte graphique (cf. index.css) ---
 const COLORS = {
@@ -67,9 +57,6 @@ const TP_COLORS: Record<string, string> = {
 };
 
 const TP_ORDER = Object.values(TitleProfessionalType) as string[];
-
-// Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
-const CANON_SECTORS: string[] = SECTEUR_VALUES;
 
 const SITE_LABELS: Record<string, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} · Sainte-Marie`,
@@ -111,12 +98,12 @@ function AbCallout() {
   }
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+    <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <Bell className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <IconBell className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ds-warning)]" />
           <div>
-            <p className="text-sm font-bold text-amber-900">
+            <p className="text-sm font-bold text-[var(--ds-warning)]">
               {totalCount > visible.length
                 ? `${visible.length} analyse${visible.length > 1 ? 's' : ''} de besoin récente${visible.length > 1 ? 's' : ''} à traiter`
                 : `${visible.length} analyse${visible.length > 1 ? 's' : ''} de besoin à traiter`}
@@ -126,17 +113,17 @@ function AbCallout() {
                 <li key={item.id} className="group flex items-center justify-between gap-2">
                   <button
                     onClick={() => navigate(`/rh/matching?needsAnalysis=${item.id}`)}
-                    className="flex items-center gap-2 text-left text-sm text-amber-800 underline-offset-2 hover:underline"
+                    className="flex items-center gap-2 text-left text-sm text-[var(--ds-warning)] underline-offset-2 hover:underline"
                   >
                     <span className="font-medium">{item.companyName ?? 'Entreprise'}</span>
-                    <span className="text-amber-600">· {item.positionsCount} poste{item.positionsCount > 1 ? 's' : ''}</span>
+                    <span className="text-[var(--ds-warning)]">· {item.positionsCount} poste{item.positionsCount > 1 ? 's' : ''}</span>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); dismiss(item.id) }}
-                    className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition hover:text-amber-600 group-hover:opacity-100"
+                    className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition hover:text-[var(--ds-warning)] group-hover:opacity-100"
                     title="Ignorer"
                   >
-                    <X size={14} />
+                    <IconClose width={14} height={14} />
                   </button>
                 </li>
               ))}
@@ -154,22 +141,22 @@ function KpiCard({
   value,
   accent,
 }: {
-  icon: typeof Users;
+  icon: typeof IconUsers;
   label: string;
   value: number;
   accent: string;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="flex items-center gap-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
       <div
         className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: `${accent}14`, color: accent }}
       >
-        <Icon size={24} />
+        <Icon width={24} height={24} />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-gray-500">{label}</p>
-        <p className="text-2xl font-extrabold text-black">{value}</p>
+        <p className="truncate text-sm font-medium text-[var(--ds-text-subtle)]">{label}</p>
+        <p className="text-2xl font-extrabold text-[var(--ds-text)]">{value}</p>
       </div>
     </div>
   );
@@ -177,8 +164,8 @@ function KpiCard({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-lg font-bold text-gray-900">{title}</h3>
+    <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
+      <h3 className="mb-4 text-lg font-bold text-[var(--ds-text)]">{title}</h3>
       {children}
     </div>
   );
@@ -268,20 +255,20 @@ function formatDirectoryDate(iso?: string | null): string {
 function AbActiveBadge({ status }: { status?: string | null }) {
   if (status === 'ACTIVE') {
     return (
-      <span className="inline-flex shrink-0 items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-200">
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
         Active
       </span>
     );
   }
   if (status === 'ARCHIVED') {
     return (
-      <span className="inline-flex shrink-0 items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-warning-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-warning)] ring-1 ring-inset ring-amber-200">
         Archivée
       </span>
     );
   }
   return (
-    <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-200">
+    <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]">
       Inactive
     </span>
   );
@@ -438,9 +425,9 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id); }}
-          className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-200"
+          className="inline-flex items-center gap-1 rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-1 text-xs font-semibold text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)]"
         >
-          Historique <ChevronDown size={12} />
+          Historique <IconChevronDown width={12} height={12} />
         </button>
       );
     }
@@ -454,15 +441,15 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
           onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id); }}
           className="inline-flex items-center gap-1 text-xs font-semibold text-blue hover:underline"
         >
-          Masquer <ChevronDown size={12} className="rotate-180" />
+          Masquer <IconChevronDown width={12} height={12} className="rotate-180" />
         </button>
         {state.loading ? (
-          <p className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Loader2 size={12} className="animate-spin" /> Chargement…
+          <p className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)]">
+            <IconLoader width={12} height={12} className="animate-spin" /> Chargement…
           </p>
         ) : state.error ? (
           <div className="space-y-1">
-            <p className="text-xs text-danger">Erreur de chargement.</p>
+            <p className="text-xs text-[var(--ds-danger)]">Erreur de chargement.</p>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); void loadHistory(analysis.id); }}
@@ -472,7 +459,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         ) : state.offers.length === 0 ? (
-          <p className="text-xs text-gray-400">Aucune offre — pas d'historique.</p>
+          <p className="text-xs text-[var(--ds-text-subtle)]">Aucune offre — pas d'historique.</p>
         ) : (
           <>
             {state.offers.length > 1 && (
@@ -487,7 +474,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                     [analysis.id]: { ...(prev[analysis.id] ?? freshHistoryState()), selectedOfferId, textOpen: false },
                   }));
                 }}
-                className="w-full rounded-md border border-gray-200 px-1.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue"
+                className="w-full rounded-md border border-[var(--ds-border)] px-1.5 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
                 aria-label="Choisir l'offre dont voir l'historique"
               >
                 {state.offers.map((offer, i) => (
@@ -499,10 +486,10 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
             )}
             {selectedEntry ? (
               <div className="space-y-0.5">
-                <p className="text-[11px] font-medium text-gray-400">
+                <p className="text-[11px] font-medium text-[var(--ds-text-subtle)]">
                   {historyAuthor(selectedEntry)} · {formatDirectoryDate(selectedEntry.createdAt)}
                 </p>
-                <p className={`text-xs text-gray-700 ${state.textOpen ? '' : 'line-clamp-2'}`}>
+                <p className={`text-xs text-[var(--ds-text-muted)] ${state.textOpen ? '' : 'line-clamp-2'}`}>
                   {selectedEntry.text}
                 </p>
                 {selectedEntry.text.length > 120 && (
@@ -522,7 +509,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                 )}
               </div>
             ) : (
-              <p className="text-xs text-gray-400">Aucune entrée pour cette offre.</p>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Aucune entrée pour cette offre.</p>
             )}
           </>
         )}
@@ -533,11 +520,11 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Liste des entreprises">
       <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
-      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
+      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-5 py-4">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Entreprises</h2>
-            <p className="text-xs text-gray-500">
+            <h2 className="text-base font-bold text-[var(--ds-text)]">Entreprises</h2>
+            <p className="text-xs text-[var(--ds-text-subtle)]">
               Triées par TP puis par date d'activation · {rows.length} entreprise{rows.length > 1 ? 's' : ''}
               {hasActiveFilters && items.length > 0 ? ` sur ${items.length}` : ''}
             </p>
@@ -545,116 +532,80 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
             title="Fermer"
           >
-            <X size={18} />
+            <IconClose width={18} height={18} />
           </button>
         </div>
 
-        <div className="space-y-2 border-b border-gray-100 px-5 py-3">
+        <div className="space-y-2 border-b border-[var(--ds-border)] px-5 py-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500">TP :</span>
-            {TP_ORDER.map((tp) => {
-              const active = selectedTps.has(tp);
-              return (
-                <button
-                  key={tp}
-                  type="button"
-                  onClick={() => toggleTp(tp)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                    active ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {tp}
-                </button>
-              );
-            })}
+            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">TP :</span>
+            <ChipGroup
+              label="Filtrer par TP"
+              tone="accent"
+              selected={[...selectedTps]}
+              onToggle={toggleTp}
+              options={TP_ORDER.map((tp) => ({ value: tp, label: tp }))}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500">Statut :</span>
-            {DIRECTORY_STATUSES.map((s) => {
-              const active = selectedStatuses.has(s);
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => toggleStatus(s)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                    active ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {DIRECTORY_STATUS_LABELS[s]}
-                </button>
-              );
-            })}
+            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Statut :</span>
+            <ChipGroup
+              label="Filtrer par statut"
+              tone="accent"
+              selected={[...selectedStatuses]}
+              onToggle={toggleStatus}
+              options={DIRECTORY_STATUSES.map((s) => ({ value: s, label: DIRECTORY_STATUS_LABELS[s] }))}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500">Zone :</span>
-            <button
-              type="button"
-              onClick={() => setSelectedZone(null)}
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                selectedZone === null ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Toutes
-            </button>
-            {SECTEUR_KEYS.map((zone) => (
-              <button
-                key={zone}
-                type="button"
-                onClick={() => setSelectedZone((prev) => (prev === zone ? null : zone))}
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                  selectedZone === zone ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {SECTEUR_LABELS[zone]}
-              </button>
-            ))}
+            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Zone :</span>
+            <ChipGroup
+              label="Filtrer par zone"
+              tone="accent"
+              allLabel="Toutes"
+              selected={selectedZone ? [selectedZone] : []}
+              onSelectAll={() => setSelectedZone(null)}
+              onToggle={(zone) => setSelectedZone((prev) => (prev === zone ? null : zone))}
+              options={SECTEUR_KEYS.map((zone) => ({ value: zone, label: SECTEUR_LABELS[zone] }))}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500">Secteur d'activité :</span>
-            {DIRECTORY_ACTIVITY_SECTORS.map((sector) => {
-              const active = selectedActivities.has(sector);
-              return (
-                <button
-                  key={sector}
-                  type="button"
-                  onClick={() => toggleActivity(sector)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                    active ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {formatEnumLabel(sector)}
-                </button>
-              );
-            })}
+            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Secteur d'activité :</span>
+            <ChipGroup
+              label="Filtrer par secteur d'activité"
+              tone="accent"
+              selected={[...selectedActivities]}
+              onToggle={toggleActivity}
+              options={DIRECTORY_ACTIVITY_SECTORS.map((sector) => ({ value: sector, label: formatEnumLabel(sector) }))}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500">Activée entre :</span>
+            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Activée entre :</span>
             <input
               type="date"
               value={minDate}
               max={maxDate || undefined}
               onChange={(e) => setMinDate(e.target.value)}
-              className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue"
+              className="rounded-md border border-[var(--ds-border)] px-2 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
               aria-label="Date d'activation minimale"
             />
-            <span className="text-xs text-gray-400">et</span>
+            <span className="text-xs text-[var(--ds-text-subtle)]">et</span>
             <input
               type="date"
               value={maxDate}
               min={minDate || undefined}
               onChange={(e) => setMaxDate(e.target.value)}
-              className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue"
+              className="rounded-md border border-[var(--ds-border)] px-2 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
               aria-label="Date d'activation maximale"
             />
             {hasActiveFilters && (
               <button
                 type="button"
                 onClick={resetFilters}
-                className="ml-auto rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
+                className="ml-auto rounded-full border border-[var(--ds-border)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] transition hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]"
               >
                 Réinitialiser
               </button>
@@ -664,28 +615,28 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {loading && rows.length === 0 ? (
-            <div className="flex h-48 items-center justify-center gap-2 text-sm text-gray-500">
-              <Loader2 size={18} className="animate-spin text-blue" /> Chargement des entreprises…
+            <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+              <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des entreprises…
             </div>
           ) : error ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-danger">
+            <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-[var(--ds-danger)]">
               <p className="font-medium">Erreur de chargement des entreprises</p>
               <button
                 onClick={() => refetch()}
                 className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
               >
-                <RefreshCw size={16} /> Réessayer
+                <IconRefresh width={16} height={16} /> Réessayer
               </button>
             </div>
           ) : rows.length === 0 ? (
-            <p className="py-12 text-center text-sm text-gray-400">
+            <p className="py-12 text-center text-sm text-[var(--ds-text-subtle)]">
               {hasActiveFilters ? 'Aucune entreprise ne correspond aux filtres.' : 'Aucune entreprise.'}
             </p>
           ) : (
             <>
-              <div className="overflow-x-auto rounded-lg border border-gray-100">
+              <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Entreprise</th>
                       <th className="px-4 py-2.5 font-semibold">TP</th>
@@ -694,17 +645,17 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                       <th className="px-4 py-2.5 font-semibold">Historique</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-[var(--ds-border)]">
                     {rows.map(({ analysis, tp }) => (
                       <tr
                         key={analysis.id}
                         onClick={() => navigate(`/rh/matching?needsAnalysis=${analysis.id}`)}
-                        className="cursor-pointer transition hover:bg-gray-50"
+                        className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
                         title="Ouvrir le matching"
                       >
-                        <td className="px-4 py-2.5 font-medium text-gray-900">{analysis.companyInfos?.name ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-gray-600">{tp ?? '—'}</td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-gray-600">{formatDirectoryDate(activationDateOf(analysis))}</td>
+                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{analysis.companyInfos?.name ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{tp ?? '—'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(activationDateOf(analysis))}</td>
                         <td className="px-4 py-2.5">
                           <AbActiveBadge status={analysis.abStatus} />
                         </td>
@@ -717,7 +668,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                 </table>
               </div>
               {pageInfo?.hasNextPage && (
-                <p className="mt-3 text-xs text-gray-400">
+                <p className="mt-3 text-xs text-[var(--ds-text-subtle)]">
                   Liste limitée aux {DIRECTORY_PAGE_SIZE} premières analyses — affinez la recherche depuis la page Matching.
                 </p>
               )}
@@ -732,8 +683,12 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
 export default function DashboardRH() {
   const currentUser = useCurrentUser();
   const canViewAll = currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE;
+  // Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
+  // Réunion : Nord-Est/Ouest/Sud ; Annemasse : les 6 secteurs opérationnels.
+  const region = useRegionStore((s) => s.region);
+  const canonSectors = useMemo(() => userSecteursForRegion(region), [region]);
 
-  // Filtre secteur global : null = tous ; sinon 1, 2 ou 3 secteurs cumulés.
+  // Filtre secteur global : null = tous ; sinon les secteurs cochés cumulés.
   // Pilote à la fois les indicateurs candidats, les diagrammes et les KPI RH.
   // RH -> restreint à son secteur ; Admin/Resp -> libre (tous par défaut).
   const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(
@@ -753,7 +708,7 @@ export default function DashboardRH() {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s); else next.add(s);
       // Plus rien coché, ou tout coché = retour à « Tous ».
-      if (next.size === 0 || next.size === CANON_SECTORS.length) return null;
+      if (next.size === 0 || next.size === canonSectors.length) return null;
       return next;
     });
   const isSectorOn = (s: string) => !selectedSectors || selectedSectors.has(s);
@@ -817,21 +772,21 @@ export default function DashboardRH() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader2 className="animate-spin text-blue" size={36} />
+        <IconLoader className="animate-spin text-blue" width={36} height={36} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex h-96 flex-col items-center justify-center gap-3 text-danger">
-        <AlertCircle size={36} />
+      <div className="flex h-96 flex-col items-center justify-center gap-3 text-[var(--ds-danger)]">
+        <IconAlert width={36} height={36} />
         <p className="font-medium">Erreur de chargement des statistiques</p>
         <button
           onClick={refetch}
           className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
         >
-          <RefreshCw size={16} /> Réessayer
+          <IconRefresh width={16} height={16} /> Réessayer
         </button>
       </div>
     );
@@ -842,40 +797,31 @@ export default function DashboardRH() {
       <div className="flex items-center justify-between">
         <div>
           <h1>Tableau de bord RH</h1>
-          <p className="mt-1 text-gray-500">Vue d'ensemble des candidats</p>
+          <p className="mt-1 text-[var(--ds-text-subtle)]">Vue d'ensemble des candidats</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Filtre secteur global — réservé Admin/Resp ; RH voit uniquement son secteur. */}
           {canViewAll && (
-            <div className="flex items-center gap-1 rounded-[10px] border border-gray-100 bg-white p-0.5 shadow-sm">
-              <button
-                onClick={() => setSelectedSectors(null)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${!selectedSectors ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
-              >
-                Tous
-              </button>
-              {CANON_SECTORS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => toggleSector(s)}
-                  className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${selectedSectors && isSectorOn(s) ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            <ChipGroup
+              label="Secteurs affichés"
+              tone="accent"
+              selected={selectedSectors ? canonSectors.filter((s) => isSectorOn(s)) : []}
+              onSelectAll={() => setSelectedSectors(null)}
+              onToggle={toggleSector}
+              options={canonSectors.map((s) => ({ value: s, label: s }))}
+            />
           )}
           <button
             onClick={() => setShowCompanies(true)}
             className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
           >
-            <Building2 size={16} /> Entreprises
+            <IconCompany width={16} height={16} /> Entreprises
           </button>
           <button
             onClick={refetch}
-            className="flex items-center gap-2 rounded-md border border-gray-100 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+            className="flex items-center gap-2 rounded-md border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2 text-sm font-medium text-[var(--ds-text-muted)] shadow-sm transition hover:bg-[var(--ds-surface-sunken)]"
           >
-            <RefreshCw size={16} /> Actualiser
+            <IconRefresh width={16} height={16} /> Actualiser
           </button>
         </div>
       </div>
@@ -883,16 +829,16 @@ export default function DashboardRH() {
       <AbCallout />
 
       {/* KPI RH par semaine / mois / année — piloté par le filtre secteur global */}
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
         <RhKpiPanel sectors={sectorArray ?? null} hideSelector />
       </div>
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard icon={Users} label="Total candidats" value={stats?.total ?? 0} accent={COLORS.blue} />
-        <KpiCard icon={FileSignature} label="En contrat" value={contracted} accent={COLORS.success} />
-        <KpiCard icon={Search} label="En recherche" value={seeking} accent={COLORS.blue} />
-        <KpiCard icon={Briefcase} label="En immersion" value={immersing} accent={COLORS.pink} />
+        <KpiCard icon={IconUsers} label="Total candidats" value={stats?.total ?? 0} accent={COLORS.blue} />
+        <KpiCard icon={IconSignature} label="En contrat" value={contracted} accent={COLORS.success} />
+        <KpiCard icon={IconSearch} label="En recherche" value={seeking} accent={COLORS.blue} />
+        <KpiCard icon={IconJob} label="En immersion" value={immersing} accent={COLORS.pink} />
       </div>
 
       {/* Répartition par statut + par TP */}
@@ -998,7 +944,7 @@ export default function DashboardRH() {
 
 function EmptyChart() {
   return (
-    <div className="flex h-[300px] items-center justify-center text-gray-300">
+    <div className="flex h-[300px] items-center justify-center text-[var(--ds-text-subtle)]">
       Aucune donnée disponible
     </div>
   );

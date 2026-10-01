@@ -1,14 +1,5 @@
 import { useEffect } from 'react'
-import {
-  X,
-  Megaphone,
-  Sparkles,
-  Wrench,
-  TriangleAlert,
-  Bug,
-  ShieldCheck,
-  type LucideIcon,
-} from 'lucide-react'
+import { IconAnnounce, IconBug, IconClose, IconShieldCheck, IconSparkles, IconTools, IconWarning, type IconComponent } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import type { ChangeLogRelease, ChangeLogCategory } from '@/lib/changelog'
 
@@ -20,12 +11,12 @@ interface ChangeLogModalProps {
   onClose: () => void
 }
 
-const CATEGORY_META: Record<ChangeLogCategory, { icon: LucideIcon; label: string; chip: string }> = {
-  Added: { icon: Sparkles, label: 'Ajouts', chip: 'bg-green-50 text-green-700' },
-  Changed: { icon: Wrench, label: 'Modifications', chip: 'bg-blue-50 text-blue-700' },
-  Deprecated: { icon: TriangleAlert, label: 'Déprécié', chip: 'bg-amber-50 text-amber-700' },
-  Fixed: { icon: Bug, label: 'Corrections', chip: 'bg-red-50 text-red-700' },
-  Security: { icon: ShieldCheck, label: 'Sécurité', chip: 'bg-purple-50 text-purple-700' },
+const CATEGORY_META: Record<ChangeLogCategory, { icon: IconComponent; label: string; chip: string }> = {
+  Added: { icon: IconSparkles, label: 'Ajouts', chip: 'bg-[var(--ds-success-bg)] text-[var(--ds-success)]' },
+  Changed: { icon: IconTools, label: 'Modifications', chip: 'bg-[var(--ds-accent-soft)] text-[var(--ds-accent)]' },
+  Deprecated: { icon: IconWarning, label: 'Déprécié', chip: 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)]' },
+  Fixed: { icon: IconBug, label: 'Corrections', chip: 'bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]' },
+  Security: { icon: IconShieldCheck, label: 'Sécurité', chip: 'bg-purple-50 text-purple-700' },
 }
 
 const CATEGORY_ORDER: ChangeLogCategory[] = ['Added', 'Changed', 'Deprecated', 'Fixed', 'Security']
@@ -50,24 +41,24 @@ export default function ChangeLogModal({ releases, accent = '#60207E', onClose }
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl"
+        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-[var(--ds-surface)] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--ds-border)] px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-full text-white" style={{ backgroundColor: accent }}>
-              <Megaphone size={16} />
+              <IconAnnounce width={16} height={16} />
             </span>
-            <h2 className="text-base font-semibold text-gray-900">Nouveautés</h2>
+            <h2 className="text-base font-semibold text-[var(--ds-text)]">Nouveautés</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors" aria-label="Fermer">
-            <X size={20} />
+          <button onClick={onClose} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors" aria-label="Fermer">
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
         <div className="overflow-y-auto px-6 py-5">
           {releases.length === 0 ? (
-            <p className="py-10 text-center text-sm text-gray-400">Aucune nouveauté récente.</p>
+            <p className="py-10 text-center text-sm text-[var(--ds-text-subtle)]">Aucune nouveauté récente.</p>
           ) : (
             <div className="flex flex-col gap-8">
               {releases.map((release) => (
@@ -79,7 +70,7 @@ export default function ChangeLogModal({ releases, accent = '#60207E', onClose }
                     >
                       v{release.version}
                     </span>
-                    {release.date && <span className="text-xs font-medium text-gray-400">{formatDate(release.date)}</span>}
+                    {release.date && <span className="text-xs font-medium text-[var(--ds-text-subtle)]">{formatDate(release.date)}</span>}
                   </div>
 
                   {CATEGORY_ORDER.map((category) => {
@@ -91,11 +82,11 @@ export default function ChangeLogModal({ releases, accent = '#60207E', onClose }
                       <div key={category} className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
                           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${meta.chip}`}>
-                            <Icon size={12} />
+                            <Icon width={12} height={12} />
                             {meta.label}
                           </span>
                         </div>
-                        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[13.5px] leading-relaxed text-gray-700">
+                        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[13.5px] leading-relaxed text-[var(--ds-text-muted)]">
                           {items.map((item, index) => (
                             <li key={index}>{item}</li>
                           ))}
@@ -109,7 +100,7 @@ export default function ChangeLogModal({ releases, accent = '#60207E', onClose }
           )}
         </div>
 
-        <div className="flex shrink-0 justify-end border-t border-gray-100 px-6 py-4">
+        <div className="flex shrink-0 justify-end border-t border-[var(--ds-border)] px-6 py-4">
           <Button variant="secondary" size="sm" onClick={onClose}>
             Fermer
           </Button>

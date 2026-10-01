@@ -17,7 +17,7 @@ export const EXTERNAL_ACCESS_STATUS_BADGE: Record<ExternalAccessStatus, string> 
   AUTHENTICATED: 'bg-cyan-500 text-white',
   COMPLETED: 'bg-success text-white',
   LOCKED: 'bg-danger text-white',
-  EXPIRED: 'bg-gray-400 text-white',
+  EXPIRED: 'bg-[var(--ds-text-subtle)] text-white',
 }
 
 export const EXTERNAL_ACCESS_TYPE_LABELS: Record<ExternalAccessType, string> = {

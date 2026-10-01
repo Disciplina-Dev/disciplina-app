@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, FileText, Mail, PenLine, Save, X } from 'lucide-react'
+import { IconCheck, IconClose, IconEdit, IconFile, IconMail, IconSave } from '@/components/ui/icons'
 import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useCommercialMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchCommercialSignature, saveCommercialSignature } from '@/api/mailTemplates'
 import { cleanHtml } from '@/services/sanitizeHtml'
+import Tabs from '@/components/ui/Tabs'
 
 // Aperçu avant l'envoi en signature : le commercial vérifie les documents
 // (Analyse du Besoin + Mandat à signer + Catalogue à consulter) et peut MODIFIER
@@ -252,40 +253,44 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-[var(--ds-surface)] shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">Aperçu avant envoi en signature</h2>
-          <button onClick={onCancel} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-            <X size={20} />
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[var(--ds-text)]">Aperçu avant envoi en signature</h2>
+          <button onClick={onCancel} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]">
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-100 px-6 pt-3">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === t.key ? 'bg-blue-50 text-blue' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              <FileText size={15} />
-              {t.label}
-            </button>
-          ))}
+        <div className="px-6 pt-3 pb-1">
+          <Tabs
+            label="Contenu affiché"
+            tone="accent"
+            width="auto"
+            value={activeTab}
+            onChange={setActiveTab}
+            options={TABS.map((t) => ({
+              value: t.key,
+              label: (
+                <span className="flex items-center gap-1.5">
+                  <IconFile width={15} height={15} />
+                  {t.label}
+                </span>
+              ),
+            }))}
+          />
         </div>
 
         {/* Body : PDF + mail */}
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-6">
           {loadError ? (
-            <p className="rounded-lg border border-danger-bg bg-danger-bg px-4 py-2.5 text-sm text-danger">{loadError}</p>
+            <p className="rounded-lg border border-danger-bg bg-[var(--ds-danger-bg)] px-4 py-2.5 text-sm text-[var(--ds-danger)]">{loadError}</p>
           ) : (
-            <div className="min-h-[38vh] flex-1 overflow-hidden rounded-lg border border-gray-200">
+            <div className="min-h-[38vh] flex-1 overflow-hidden rounded-lg border border-[var(--ds-border)]">
               {activeUrl ? (
                 <iframe title={activeTab} src={activeUrl} className="h-full min-h-[38vh] w-full" />
               ) : (
-                <div className="flex h-full min-h-[38vh] items-center justify-center text-sm text-gray-400">
+                <div className="flex h-full min-h-[38vh] items-center justify-center text-sm text-[var(--ds-text-subtle)]">
                   Chargement du document…
                 </div>
               )}
@@ -293,10 +298,10 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
           )}
 
           {/* Mail éditable envoyé au responsable recrutement */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-                <Mail size={15} /> Mail envoyé au responsable recrutement
+              <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--ds-text-muted)]">
+                <IconMail width={15} height={15} /> IconMail envoyé au responsable recrutement
               </div>
               <button
                 type="button"
@@ -308,14 +313,14 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
 
             {availableTemplates.length > 0 && (
               <div className="mb-3 flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-gray-500">Modèle de mail</label>
+                <label className="text-xs font-medium text-[var(--ds-text-subtle)]">Modèle de mail</label>
                 <select
                   value={selectedTemplateId}
                   onChange={(e) => {
                     const template = availableTemplates.find((t) => t.id === e.target.value)
                     if (template) applyTemplate(template)
                   }}
-                  className="w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue"
+                  className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm text-[var(--ds-text)] outline-none focus:border-blue"
                 >
                   {availableTemplates.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -323,27 +328,27 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-[11px] text-[var(--ds-text-subtle)]">
                   Le modèle actuel reste sélectionné par défaut. Les commerciaux peuvent choisir un autre modèle personnel.
                 </p>
               </div>
             )}
 
             {/* Objet */}
-            <label className="mb-1 block text-xs font-medium text-gray-500">Objet</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--ds-text-subtle)]">Objet</label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               disabled={showPreview}
-              className="mb-3 w-full rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue disabled:bg-gray-100"
+              className="mb-3 w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm text-[var(--ds-text)] outline-none focus:border-blue disabled:bg-[var(--ds-surface-sunken)]"
             />
 
             {/* Corps : édition ou aperçu rendu */}
-            <label className="mb-1 block text-xs font-medium text-gray-500">Corps du mail</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--ds-text-subtle)]">Corps du mail</label>
             {showPreview ? (
               <div
-                className="prose prose-sm max-w-none rounded-[10px] border border-gray-200 bg-white p-4 text-sm text-gray-800"
+                className="prose prose-sm max-w-none rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 text-sm text-[var(--ds-text)]"
                 dangerouslySetInnerHTML={{ __html: cleanHtml(renderPreview(body, email?.variables ?? {})) }}
               />
             ) : (
@@ -351,79 +356,79 @@ export default function SignaturePreviewModal({ abId, onConfirm, onCancel }: Pro
             )}
 
             {/* Variables */}
-            <p className="mt-2 text-[11px] text-gray-400">
-              Variables : <code className="rounded bg-gray-200/70 px-1">{'{{entreprise}}'}</code>{' '}
-              <code className="rounded bg-gray-200/70 px-1">{'{{lien_signature}}'}</code>{' '}
-              <code className="rounded bg-gray-200/70 px-1">{'{{signature}}'}</code> — remplacées à l'envoi. Le lien de
+            <p className="mt-2 text-[11px] text-[var(--ds-text-subtle)]">
+              Variables : <code className="rounded bg-[var(--ds-surface-sunken)] px-1">{'{{entreprise}}'}</code>{' '}
+              <code className="rounded bg-[var(--ds-surface-sunken)] px-1">{'{{lien_signature}}'}</code>{' '}
+              <code className="rounded bg-[var(--ds-surface-sunken)] px-1">{'{{signature}}'}</code> — remplacées à l'envoi. Le lien de
               signature est ajouté automatiquement s'il manque.
             </p>
 
             {/* Enregistrer comme modèle */}
             {selectedTemplateId && (
-              <div className="mt-3 flex items-center gap-3 border-t border-gray-200 pt-3">
+              <div className="mt-3 flex items-center gap-3 border-t border-[var(--ds-border)] pt-3">
                 <button
                   type="button"
                   onClick={handleSaveTemplate}
                   disabled={savingTpl || !dirty || !selectedTemplateId}
-                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-blue hover:text-blue disabled:opacity-40">
-                  {savedTpl ? <Check size={13} /> : <Save size={13} />}
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--ds-text-muted)] transition-colors hover:border-blue hover:text-blue disabled:opacity-40">
+                  {savedTpl ? <IconCheck width={13} height={13} /> : <IconSave width={13} height={13} />}
                   {savedTpl ? 'Modèle enregistré' : 'Enregistrer comme modèle'}
                 </button>
-                <span className="text-[11px] text-gray-400">
+                <span className="text-[11px] text-[var(--ds-text-subtle)]">
                   {dirty ? 'Met à jour le modèle pour les prochains envois.' : 'Aucune modification à enregistrer.'}
                 </span>
-                {tplError && <span className="text-[11px] text-danger">{tplError}</span>}
+                {tplError && <span className="text-[11px] text-[var(--ds-danger)]">{tplError}</span>}
               </div>
             )}
           </div>
 
           {/* Signature commerciale — deuxième section ajoutée à la fin du mail */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-              <PenLine size={15} /> Signature du commercial
-              <span className="ml-1 text-[11px] font-normal text-gray-400">— ajoutée à la fin du mail, enregistrée par commercial</span>
+          <div className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-4">
+            <div className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-[var(--ds-text-muted)]">
+              <IconEdit width={15} height={15} /> Signature du commercial
+              <span className="ml-1 text-[11px] font-normal text-[var(--ds-text-subtle)]">— ajoutée à la fin du mail, enregistrée par commercial</span>
             </div>
 
             {sigLoading ? (
-              <p className="text-xs text-gray-400">Chargement de votre signature…</p>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Chargement de votre signature…</p>
             ) : showPreview ? (
               <div
-                className="prose prose-sm max-w-none rounded-[10px] border border-gray-200 bg-white p-4 text-sm text-gray-800"
+                className="prose prose-sm max-w-none rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 text-sm text-[var(--ds-text)]"
                 dangerouslySetInnerHTML={{ __html: cleanHtml(renderPreview(commercialSignature, email?.variables ?? {})) }}
               />
             ) : (
               <RichTextEditor value={commercialSignature} onChange={setCommercialSignature} minHeight="120px" />
             )}
 
-            <p className="mt-2 text-[11px] text-gray-400">
-              Variable : <code className="rounded bg-gray-200/70 px-1">{'{{signature}}'}</code> — votre image de signature.
-              Contenu par défaut : <code className="rounded bg-gray-200/70 px-1">Cordialement, Commercial Disciplina</code> + image.
+            <p className="mt-2 text-[11px] text-[var(--ds-text-subtle)]">
+              Variable : <code className="rounded bg-[var(--ds-surface-sunken)] px-1">{'{{signature}}'}</code> — votre image de signature.
+              Contenu par défaut : <code className="rounded bg-[var(--ds-surface-sunken)] px-1">Cordialement, Commercial Disciplina</code> + image.
               Cette signature est ajoutée automatiquement à la fin du mail à l'envoi.
             </p>
 
-            <div className="mt-3 flex items-center gap-3 border-t border-gray-200 pt-3">
+            <div className="mt-3 flex items-center gap-3 border-t border-[var(--ds-border)] pt-3">
               <button
                 type="button"
                 onClick={handleSaveCommercialSignature}
                 disabled={savingSig || !sigDirty || sigLoading}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-blue hover:text-blue disabled:opacity-40">
-                {sigSaved ? <Check size={13} /> : <Save size={13} />}
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--ds-text-muted)] transition-colors hover:border-blue hover:text-blue disabled:opacity-40">
+                {sigSaved ? <IconCheck width={13} height={13} /> : <IconSave width={13} height={13} />}
                 {sigSaved ? 'Signature enregistrée' : 'Enregistrer ma signature'}
               </button>
-              <span className="text-[11px] text-gray-400">
+              <span className="text-[11px] text-[var(--ds-text-subtle)]">
                 {sigDirty ? 'Modifications non enregistrées.' : 'Votre signature pour les prochains envois.'}
               </span>
-              {sigError && <span className="text-[11px] text-danger">{sigError}</span>}
+              {sigError && <span className="text-[11px] text-[var(--ds-danger)]">{sigError}</span>}
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4">
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--ds-border)] px-6 py-4">
           <Button variant="secondary" onClick={onCancel} disabled={sending}>
             Annuler (garder en brouillon)
           </Button>
-          <Button isLoading={sending} leftIcon={<PenLine size={16} />} onClick={handleConfirm}>
+          <Button isLoading={sending} leftIcon={<IconEdit width={16} height={16} />} onClick={handleConfirm}>
             Confirmer l'envoi en signature
           </Button>
         </div>

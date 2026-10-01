@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Briefcase, Users, ClipboardList, Calendar, Hash, BellOff, Bell } from 'lucide-react'
+import { IconBell, IconBellOff, IconCalendar, IconClose, IconHash, IconJob, IconTaskList, IconUsers } from '@/components/ui/icons'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis, useSetAbRelanceDisabled } from '@/graphql/hooks'
@@ -12,10 +12,10 @@ import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
-  EN_ATTENTE_SIGNATURE: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'En attente de signature' },
-  SIGNE:                { bg: 'bg-green-100',  text: 'text-green-700',  label: 'Signé' },
-  EXPIRE:               { bg: 'bg-red-100',    text: 'text-red-600',    label: 'Expiré' },
+  BROUILLON:            { bg: 'bg-[var(--ds-surface-sunken)]',   text: 'text-[var(--ds-text-muted)]',   label: 'Brouillon' },
+  EN_ATTENTE_SIGNATURE: { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'En attente de signature' },
+  SIGNE:                { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  label: 'Signé' },
+  EXPIRE:               { bg: 'bg-[var(--ds-danger-bg)]',    text: 'text-[var(--ds-danger)]',    label: 'Expiré' },
 }
 
 const LABELS: Record<string, Record<string, string>> = {
@@ -29,9 +29,9 @@ const LABELS: Record<string, Record<string, string>> = {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null
   return (
-    <div className="flex justify-between gap-4 py-2 border-b border-gray-100 last:border-0">
-      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide shrink-0">{label}</span>
-      <span className="text-sm text-gray-900 text-right">{value}</span>
+    <div className="flex justify-between gap-4 py-2 border-b border-[var(--ds-border)] last:border-0">
+      <span className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide shrink-0">{label}</span>
+      <span className="text-sm text-[var(--ds-text)] text-right">{value}</span>
     </div>
   )
 }
@@ -39,10 +39,10 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-2">
         {icon}{title}
       </p>
-      <div className="bg-gray-50 rounded-xl px-4 py-1">
+      <div className="bg-[var(--ds-surface-sunken)] rounded-xl px-4 py-1">
         {children}
       </div>
     </div>
@@ -83,16 +83,16 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative z-10 w-full max-w-3xl max-h-[88vh] flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-4"
+        className="relative z-10 w-full max-w-3xl max-h-[88vh] flex flex-col rounded-2xl bg-[var(--ds-surface)] shadow-2xl overflow-hidden my-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — responsive: title on top, actions wrap below to avoid overlap */}
-        <div className="flex flex-col gap-3 p-6 pb-4 border-b border-gray-100 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="flex flex-col gap-3 p-6 pb-4 border-b border-[var(--ds-border)] sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 flex-1">
-            {result.fetching && <p className="text-sm text-gray-400">Chargement...</p>}
+            {result.fetching && <p className="text-sm text-[var(--ds-text-subtle)]">Chargement...</p>}
             {ab && (
               <>
-                <h2 className="text-lg font-bold text-gray-900 truncate pr-8 sm:pr-0">
+                <h2 className="text-lg font-bold text-[var(--ds-text)] truncate pr-8 sm:pr-0">
                   {ab.positions?.map((p: { title?: string }) => p.title).filter(Boolean).join(' / ') || 'Analyse du besoin'}
                 </h2>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -102,12 +102,12 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                     </span>
                   )}
                   {ab.isRelanceDisabled && ab.status === 'EN_ATTENTE_SIGNATURE' && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                      <BellOff className="h-3 w-3" /> Relance désactivée
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-xs font-medium text-[var(--ds-text-muted)]">
+                      <IconBellOff className="h-3 w-3" /> Relance désactivée
                     </span>
                   )}
                   {ab.createdAt && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-[var(--ds-text-subtle)]">
                       Créé le {format(new Date(ab.createdAt), 'd MMM yyyy', { locale: fr })}
                     </span>
                   )}
@@ -120,7 +120,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               <button
                 type="button"
                 onClick={() => { onEdit(ab); onClose() }}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-blue hover:text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
+                className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-sm font-medium text-[var(--ds-text-muted)] transition-colors hover:border-blue hover:text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
               >
                 Modifier
               </button>
@@ -129,7 +129,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               <button
                 type="button"
                 onClick={() => { onDuplicate(ab); onClose() }}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-blue hover:text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
+                className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-sm font-medium text-[var(--ds-text-muted)] transition-colors hover:border-blue hover:text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
               >
                 Dupliquer
               </button>
@@ -138,7 +138,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                className="rounded-lg border border-[var(--ds-danger)] bg-[var(--ds-surface)] px-3 py-1.5 text-sm font-medium text-[var(--ds-danger)] transition-colors hover:bg-[var(--ds-danger-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
               >
                 Supprimer
               </button>
@@ -147,27 +147,27 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               type="button"
               onClick={onClose}
               aria-label="Fermer"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2 ml-auto sm:ml-0"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2 ml-auto sm:ml-0"
             >
-              <X className="h-5 w-5" />
+              <IconClose className="h-5 w-5" />
             </button>
           </div>
         </div>
 
         {confirmDelete && (
-          <div className="flex items-center justify-between gap-3 bg-red-50 px-6 py-3 border-b border-red-100">
-            <p className="text-sm text-red-700 font-medium">Supprimer cette analyse du besoin ?</p>
+          <div className="flex items-center justify-between gap-3 bg-[var(--ds-danger-bg)] px-6 py-3 border-b border-[var(--ds-danger)]">
+            <p className="text-sm text-[var(--ds-danger)] font-medium">Supprimer cette analyse du besoin ?</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
               >
                 Annuler
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleteResult.fetching}
-                className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                className="rounded-lg bg-[var(--ds-danger)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--ds-danger)] disabled:opacity-50"
               >
                 {deleteResult.fetching ? 'Suppression…' : 'Confirmer'}
               </button>
@@ -179,13 +179,13 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
         {ab && (
           <div className="overflow-y-auto flex-1 p-6 space-y-5">
             {ab.referents?.legalReferents?.function && (
-              <Section icon={<Users className="h-3.5 w-3.5" />} title="Représentant légal">
+              <Section icon={<IconUsers className="h-3.5 w-3.5" />} title="Représentant légal">
                 <Row label="Fonction" value={ab.referents.legalReferents.function} />
               </Section>
             )}
 
             {(ab.referents?.recruitmentReferents?.name || ab.referents?.recruitmentReferents?.email) && (
-              <Section icon={<Users className="h-3.5 w-3.5" />} title="Responsable recrutement">
+              <Section icon={<IconUsers className="h-3.5 w-3.5" />} title="Responsable recrutement">
                 <Row label="Nom"      value={ab.referents.recruitmentReferents.name} />
                 <Row label="Fonction" value={ab.referents.recruitmentReferents.function} />
                 <Row label="Tél"      value={ab.referents.recruitmentReferents.phone} />
@@ -194,7 +194,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
             )}
 
             {(ab.companyInfos?.activities?.length > 0 || ab.companyInfos?.description || ab.administrationType) && (
-              <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Entreprise">
+              <Section icon={<IconJob className="h-3.5 w-3.5" />} title="Entreprise">
                 {ab.companyInfos.activities?.length > 0 && (
                   <Row label="Secteurs" value={ab.companyInfos.activities.join(', ')} />
                 )}
@@ -203,7 +203,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               </Section>
             )}
 
-            <Section icon={<Briefcase className="h-3.5 w-3.5" />} title="Poste">
+            <Section icon={<IconJob className="h-3.5 w-3.5" />} title="Poste">
               <Row label="Postes"              value={`${ab.positionsCount} poste${ab.positionsCount > 1 ? 's' : ''}`} />
               <Row label="Méthode recrutement" value={LABELS.recruitmentMethod[ab.recruitmentMethod]} />
               <Row label="Immersion"           value={LABELS.immersionPeriod[ab.immersionPeriod]} />
@@ -214,7 +214,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
               return (
                 <Section
                   key={i}
-                  icon={<ClipboardList className="h-3.5 w-3.5" />}
+                  icon={<IconTaskList className="h-3.5 w-3.5" />}
                   title={arr.length > 1 ? `Poste ${i + 1}` : 'Détail du poste'}
                 >
                   <Row label="Intitulé"     value={p.title} />
@@ -224,7 +224,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                     <div className="py-2">
                       <ul className="list-disc list-inside space-y-0.5">
                         {p.missions.map((m: string) => (
-                          <li key={m} className="text-sm text-gray-900">{m}</li>
+                          <li key={m} className="text-sm text-[var(--ds-text)]">{m}</li>
                         ))}
                       </ul>
                     </div>
@@ -241,7 +241,7 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                     <Row label="Niveau d'études" value={LABELS.educationLevel[c.educationLevel]} />
                   )}
                   <Row label="Permis B"   value={c.drivingLicense == null ? null : c.drivingLicense ? 'Oui' : 'Optionnel'} />
-                  <div className="ml-3 pl-4 border-l-2 border-gray-100">
+                  <div className="ml-3 pl-4 border-l-2 border-[var(--ds-border)]">
                     <Row label="Véhiculé"   value={c.hasVehicle == null ? null : c.hasVehicle ? 'Oui' : 'Non'} />
                   </div>
                   <Row label="Expérience" value={c.experienceRequired == null ? null : c.experienceRequired ? 'Expérience obligatoire' : 'Débutant accepté'} />
@@ -259,25 +259,25 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
             })}
 
             {trainingDaysDisplay && (
-              <Section icon={<Calendar className="h-3.5 w-3.5" />} title="Jours de formation">
-                <div className="py-2 text-sm text-gray-900">{trainingDaysDisplay}</div>
+              <Section icon={<IconCalendar className="h-3.5 w-3.5" />} title="Jours de formation">
+                <div className="py-2 text-sm text-[var(--ds-text)]">{trainingDaysDisplay}</div>
               </Section>
             )}
 
             {ab.yousignSignatureRequestID && (
-              <Section icon={<Hash className="h-3.5 w-3.5" />} title="Signature électronique">
+              <Section icon={<IconHash className="h-3.5 w-3.5" />} title="Signature électronique">
                 <Row label="Référence" value={ab.yousignSignatureRequestID} />
               </Section>
             )}
 
             {ab.status === 'EN_ATTENTE_SIGNATURE' && (
-              <Section icon={<Bell className="h-3.5 w-3.5" />} title="Relance automatique">
+              <Section icon={<IconBell className="h-3.5 w-3.5" />} title="Relance automatique">
                 <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 space-y-1">
-                    <p className={`text-sm font-medium ${ab.isRelanceDisabled ? 'text-gray-600' : 'text-green-700'}`}>
+                    <p className={`text-sm font-medium ${ab.isRelanceDisabled ? 'text-[var(--ds-text-muted)]' : 'text-[var(--ds-success)]'}`}>
                       {ab.isRelanceDisabled ? 'Désactivée — aucun mail ne sera envoyé' : 'Activée — relance prévue 14 jours après envoi'}
                     </p>
-                    <p className="text-xs text-gray-500 leading-relaxed">
+                    <p className="text-xs text-[var(--ds-text-subtle)] leading-relaxed">
                       {ab.isRelanceDisabled
                         ? 'La relance est désactivée pour cette AB. L’AB et ses offres sont conservées.'
                         : 'Un mail de rappel sera envoyé automatiquement au responsable recrutement si l’AB n’est pas signée.'}
@@ -287,9 +287,9 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
                     type="button"
                     onClick={handleToggleRelance}
                     disabled={relanceResult.fetching}
-                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 shrink-0 self-start sm:self-center ${ab.isRelanceDisabled ? 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50 focus-visible:ring-blue' : 'border-amber-200 bg-white text-amber-700 hover:bg-amber-50 focus-visible:ring-amber-500'}`}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 shrink-0 self-start sm:self-center ${ab.isRelanceDisabled ? 'border-[var(--ds-accent)] bg-[var(--ds-surface)] text-[var(--ds-accent)] hover:bg-[var(--ds-accent-soft)] focus-visible:ring-blue' : 'border-[var(--ds-warning)] bg-[var(--ds-surface)] text-[var(--ds-warning)] hover:bg-[var(--ds-warning-bg)] focus-visible:ring-amber-500'}`}
                   >
-                    {ab.isRelanceDisabled ? <><Bell className="h-3.5 w-3.5" />Réactiver relance</> : <><BellOff className="h-3.5 w-3.5" />Désactiver relance</>}
+                    {ab.isRelanceDisabled ? <><IconBell className="h-3.5 w-3.5" />Réactiver relance</> : <><IconBellOff className="h-3.5 w-3.5" />Désactiver relance</>}
                   </button>
                 </div>
               </Section>

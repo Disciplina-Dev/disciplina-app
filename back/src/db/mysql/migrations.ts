@@ -389,6 +389,15 @@ const SECTOR_SETTINGS_DEFAULTS: { sector: string; location: string }[] = [
     { sector: 'Sud', location: 'Disciplina Sud — Saint-Pierre' },
 ];
 
+/**
+ * Lieu par défaut du tenant Annemasse (mono-secteur). Doit rester synchronisé
+ * avec ANNEMASSE_SECTOR dans utils/sector.ts (valeur en dur ici : les
+ * migrations ne doivent pas dépendre de la couche métier).
+ */
+const ANNEMASSE_SECTOR_SETTINGS_DEFAULTS: { sector: string; location: string }[] = [
+    { sector: 'Annemasse', location: 'Disciplina Annemasse' },
+];
+
 /** Défaut historique de `booking_settings.timezone`, avant le lot 1 multi-tenant. */
 const LEGACY_BOOKING_TIMEZONE = 'Indian/Reunion';
 
@@ -501,8 +510,19 @@ export async function runMysqlMigrations(
 
     // Seed des lieux de RDV par secteur. INSERT IGNORE : ne réécrit pas une valeur
     // déjà personnalisée par l'admin, crée seulement les lignes manquantes.
-    for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS) {
-        await dbQuery('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
+    // Le tenant est déduit du fuseau (un seul appel par base dans index.ts) :
+    // Annemasse est mono-secteur (« Annemasse »), les 3 zones Réunion copiées
+    // par l'init d'origine y sont en outre purgées (cf. GEO-11).
+    if (timezone === TENANT_TIMEZONE.annemasse) {
+        for (const { sector, location } of ANNEMASSE_SECTOR_SETTINGS_DEFAULTS) {
+            await dbQuery('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
+        }
+        await dbQuery("DELETE FROM sector_settings WHERE sector IN ('Nord-Est', 'Ouest', 'Sud')");
+    } else {
+        for (const { sector, location } of SECTOR_SETTINGS_DEFAULTS) {
+            await dbQuery('INSERT IGNORE INTO sector_settings (sector, location) VALUES (?, ?)', [sector, location]);
+        }
+        await dbQuery("DELETE FROM sector_settings WHERE sector = 'Annemasse'");
     }
 
     // Marqueur « fait passer les entretiens » (2026-07-09) : la liste « Entretien

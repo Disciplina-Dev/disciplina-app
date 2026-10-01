@@ -17,10 +17,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  Plus, GripVertical, Trash2, Pencil, X, Calendar, Bot,
-  ChevronDown, ChevronUp, Circle, Clock, CheckCircle2, UserRound, Folder,
-} from 'lucide-react'
+import { IconCalendar, IconCheckCircle, IconChevronDown, IconChevronUp, IconCircle, IconClock, IconClose, IconDrag, IconEdit, IconFolder, IconPlus, IconSparkles, IconTrash, IconUser } from '@/components/ui/icons'
 import { useAuthStore, fullName, UserRole, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import type { Todo, TodoStatus, TodoGroup } from './types'
@@ -43,12 +40,12 @@ function getDeadlineInfo(deadline: string | null): { label: string; cls: string 
   now.setHours(0, 0, 0, 0)
   d.setHours(0, 0, 0, 0)
   const diff = Math.round((d.getTime() - now.getTime()) / 86400000)
-  if (diff < 0) return { label: `Retard ${Math.abs(diff)}j`, cls: 'bg-red-100 text-red-700 border border-red-200' }
-  if (diff === 0) return { label: "Aujourd'hui", cls: 'bg-orange-100 text-orange-700 border border-orange-200' }
-  if (diff <= 3) return { label: `Dans ${diff}j`, cls: 'bg-amber-100 text-amber-700 border border-amber-200' }
+  if (diff < 0) return { label: `Retard ${Math.abs(diff)}j`, cls: 'bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] border border-[var(--ds-danger)]' }
+  if (diff === 0) return { label: "Aujourd'hui", cls: 'bg-orange-100 text-[var(--ds-warning)] border border-[var(--ds-warning)]' }
+  if (diff <= 3) return { label: `Dans ${diff}j`, cls: 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)] border border-[var(--ds-warning)]' }
   return {
     label: d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-    cls: 'bg-gray-100 text-gray-600 border border-gray-200',
+    cls: 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] border border-[var(--ds-border)]',
   }
 }
 
@@ -59,9 +56,9 @@ function useAccentColor() {
 }
 
 const COLUMNS: { status: TodoStatus; label: string; icon: React.ReactNode; bg: string }[] = [
-  { status: 'TODO',        label: 'À faire',  icon: <Circle size={14} />,       bg: 'bg-gray-50' },
-  { status: 'IN_PROGRESS', label: 'En cours', icon: <Clock size={14} />,        bg: 'bg-blue-50/50' },
-  { status: 'DONE',        label: 'Terminé',  icon: <CheckCircle2 size={14} />, bg: 'bg-green-50/50' },
+  { status: 'TODO',        label: 'À faire',  icon: <IconCircle width={14} height={14} />,       bg: 'bg-[var(--ds-surface-sunken)]' },
+  { status: 'IN_PROGRESS', label: 'En cours', icon: <IconClock width={14} height={14} />,        bg: 'bg-[var(--ds-accent-soft)]' },
+  { status: 'DONE',        label: 'Terminé',  icon: <IconCheckCircle width={14} height={14} />, bg: 'bg-[var(--ds-success-bg)]' },
 ]
 
 // ── Form modal ───────────────────────────────────────────────────────────────
@@ -107,51 +104,51 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">
+      <div className="bg-[var(--ds-surface)] rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-[var(--ds-border)]">
+          <h2 className="text-base font-bold text-[var(--ds-text)]">
             {initial ? 'Modifier la tâche' : 'Nouvelle tâche'}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X size={18} />
+          <button onClick={onClose} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors">
+            <IconClose width={18} height={18} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Titre *</label>
+            <label className="block text-xs font-semibold text-[var(--ds-text-muted)] mb-1">Titre *</label>
             <input
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Nom de la tâche…"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2"
+              className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm text-[var(--ds-text)] placeholder-gray-400 focus:outline-none focus:ring-2"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Description</label>
+            <label className="block text-xs font-semibold text-[var(--ds-text-muted)] mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Détails optionnels…"
               rows={3}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:ring-2"
+              className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm text-[var(--ds-text)] placeholder-gray-400 resize-none focus:outline-none focus:ring-2"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              <span className="flex items-center gap-1"><Calendar size={12} /> Échéance</span>
+            <label className="block text-xs font-semibold text-[var(--ds-text-muted)] mb-1">
+              <span className="flex items-center gap-1"><IconCalendar width={12} height={12} /> Échéance</span>
             </label>
             <input
               type="date"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2"
+              className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm text-[var(--ds-text)] focus:outline-none focus:ring-2"
             />
           </div>
           {/* Group selector — dropdown with search + + button */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              <span className="flex items-center gap-1"><Folder size={12} /> Groupe</span>
+            <label className="block text-xs font-semibold text-[var(--ds-text-muted)] mb-1">
+              <span className="flex items-center gap-1"><IconFolder width={12} height={12} /> Groupe</span>
             </label>
             <GroupSelector
               value={groupId}
@@ -159,17 +156,17 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
               forUserId={forUserId}
               accent={accent}
             />
-            <p className="text-[11px] text-gray-400 mt-1">Optionnel — créez un groupe avec +</p>
+            <p className="text-[11px] text-[var(--ds-text-subtle)] mt-1">Optionnel — créez un groupe avec +</p>
           </div>
           {!initial && (
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                <span className="flex items-center gap-1"><UserRound size={12} /> Assigné à</span>
+              <label className="block text-xs font-semibold text-[var(--ds-text-muted)] mb-1">
+                <span className="flex items-center gap-1"><IconUser width={12} height={12} /> Assigné à</span>
               </label>
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2"
+                className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm text-[var(--ds-text)] focus:outline-none focus:ring-2"
               >
                 {!directory[assigneeId] && (
                   <option value={assigneeId}>
@@ -183,7 +180,7 @@ function FormModal({ initial, accent, onSubmit, onClose }: FormModalProps) {
             </div>
           )}
           <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-[var(--ds-text-muted)] hover:text-[var(--ds-text)] transition-colors">
               Annuler
             </button>
             <button
@@ -226,31 +223,31 @@ function TodoCard({ todo, groupName, onEdit, onDelete, overlay = false }: TodoCa
 
   const card = (
     <div
-      className={`group bg-white rounded-xl border border-gray-100 shadow-sm p-3 transition-shadow ${
+      className={`group bg-[var(--ds-surface)] rounded-xl border border-[var(--ds-border)] shadow-sm p-3 transition-shadow ${
         overlay ? 'shadow-2xl rotate-1 scale-105' : 'hover:shadow-md'
       }`}
     >
       <div className="flex items-start gap-2">
         <button
           {...(overlay ? {} : { ...attributes, ...listeners })}
-          className="mt-0.5 cursor-grab text-gray-300 hover:text-gray-500 transition-colors active:cursor-grabbing touch-none flex-shrink-0"
+          className="mt-0.5 cursor-grab text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-subtle)] transition-colors active:cursor-grabbing touch-none flex-shrink-0"
           tabIndex={-1}
         >
-          <GripVertical size={14} />
+          <IconDrag width={14} height={14} />
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-1.5 flex-wrap">
-            <span className={`text-sm font-medium leading-snug ${todo.status === 'DONE' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+            <span className={`text-sm font-medium leading-snug ${todo.status === 'DONE' ? 'line-through text-[var(--ds-text-subtle)]' : 'text-[var(--ds-text)]'}`}>
               {todo.title}
             </span>
             {todo.source === 'SYSTEM' && (
               <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-600 border border-violet-200 flex-shrink-0">
-                <Bot size={9} /> Auto
+                <IconSparkles width={9} height={9} /> Auto
               </span>
             )}
             {groupName && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold text-gray-600 border border-gray-200 flex-shrink-0">
-                <Folder size={9} /> {groupName}
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ds-surface-sunken)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--ds-text-muted)] border border-[var(--ds-border)] flex-shrink-0">
+                <IconFolder width={9} height={9} /> {groupName}
               </span>
             )}
           </div>
@@ -258,20 +255,20 @@ function TodoCard({ todo, groupName, onEdit, onDelete, overlay = false }: TodoCa
           {todo.description && (
             <button
               onClick={() => setExpanded((p) => !p)}
-              className="flex items-center gap-1 mt-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex items-center gap-1 mt-1 text-xs text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors"
             >
-              {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              {expanded ? <IconChevronUp width={11} height={11} /> : <IconChevronDown width={11} height={11} />}
               {expanded ? 'Masquer' : 'Détail'}
             </button>
           )}
           {expanded && todo.description && (
-            <p className="mt-1 text-xs text-gray-500 leading-relaxed whitespace-pre-wrap">{todo.description}</p>
+            <p className="mt-1 text-xs text-[var(--ds-text-subtle)] leading-relaxed whitespace-pre-wrap">{todo.description}</p>
           )}
 
           {deadlineInfo && (
             <div className="mt-2">
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${deadlineInfo.cls}`}>
-                <Calendar size={9} />
+                <IconCalendar width={9} height={9} />
                 {deadlineInfo.label}
               </span>
             </div>
@@ -280,11 +277,11 @@ function TodoCard({ todo, groupName, onEdit, onDelete, overlay = false }: TodoCa
 
         {!overlay && (
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-            <button onClick={onEdit} className="p-1 text-gray-400 hover:text-gray-700 transition-colors rounded" title="Modifier">
-              <Pencil size={13} />
+            <button onClick={onEdit} className="p-1 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors rounded" title="Modifier">
+              <IconEdit width={13} height={13} />
             </button>
-            <button onClick={onDelete} className="p-1 text-gray-400 hover:text-red-600 transition-colors rounded" title="Supprimer">
-              <Trash2 size={13} />
+            <button onClick={onDelete} className="p-1 text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)] transition-colors rounded" title="Supprimer">
+              <IconTrash width={13} height={13} />
             </button>
           </div>
         )}
@@ -349,7 +346,7 @@ function KanbanColumn({ status, label, icon, bg, accent, todos, groupsById, onEd
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
           <span style={{ color: columnAccent }}>{icon}</span>
-          <span className="text-sm font-bold text-gray-700">{label}</span>
+          <span className="text-sm font-bold text-[var(--ds-text-muted)]">{label}</span>
           <span
             className="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white"
             style={{ backgroundColor: columnAccent }}
@@ -359,17 +356,17 @@ function KanbanColumn({ status, label, icon, bg, accent, todos, groupsById, onEd
         </div>
         <button
           onClick={() => onAddInColumn(status)}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="p-1 rounded-md text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] transition-colors"
           title="Ajouter dans cette colonne"
         >
-          <Plus size={14} />
+          <IconPlus width={14} height={14} />
         </button>
       </div>
 
       {/* Droppable area */}
       <div
         ref={setNodeRef}
-        className={`flex-1 rounded-xl ${bg} border border-gray-100 p-2 min-h-[200px]`}
+        className={`flex-1 rounded-xl ${bg} border border-[var(--ds-border)] p-2 min-h-[200px]`}
       >
         <SortableContext items={todos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
@@ -379,15 +376,15 @@ function KanbanColumn({ status, label, icon, bg, accent, todos, groupsById, onEd
                 <div key={String(groupKey)} className="space-y-2">
                   {groupName ? (
                     <div className="flex items-center gap-1.5 px-1">
-                      <Folder size={11} className="text-gray-400" />
-                      <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide truncate">{groupName}</span>
-                      <span className="text-[10px] text-gray-400">({groupTodos.length})</span>
+                      <IconFolder width={11} height={11} className="text-[var(--ds-text-subtle)]" />
+                      <span className="text-[11px] font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide truncate">{groupName}</span>
+                      <span className="text-[10px] text-[var(--ds-text-subtle)]">({groupTodos.length})</span>
                     </div>
                   ) : grouped.length > 1 ? (
                     <div className="flex items-center gap-1.5 px-1">
-                      <span className="w-2 h-2 rounded-full bg-gray-300" />
-                      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Sans groupe</span>
-                      <span className="text-[10px] text-gray-400">({groupTodos.length})</span>
+                      <span className="w-2 h-2 rounded-full bg-[var(--ds-border-strong)]" />
+                      <span className="text-[11px] font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide">Sans groupe</span>
+                      <span className="text-[10px] text-[var(--ds-text-subtle)]">({groupTodos.length})</span>
                     </div>
                   ) : null}
                   {groupTodos.map((todo) => (
@@ -403,7 +400,7 @@ function KanbanColumn({ status, label, icon, bg, accent, todos, groupsById, onEd
               )
             })}
             {todos.length === 0 && (
-              <div className="flex items-center justify-center h-20 text-xs text-gray-400">
+              <div className="flex items-center justify-center h-20 text-xs text-[var(--ds-text-subtle)]">
                 Glisser ici
               </div>
             )}
@@ -581,22 +578,22 @@ export default function TodoPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Mes tâches</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{totalCount} tâche{totalCount > 1 ? 's' : ''} au total{groups.length > 0 ? ` · ${groups.length} groupe${groups.length > 1 ? 's' : ''}` : ''}</p>
+          <h1 className="text-xl font-bold text-[var(--ds-text)]">Mes tâches</h1>
+          <p className="text-sm text-[var(--ds-text-subtle)] mt-0.5">{totalCount} tâche{totalCount > 1 ? 's' : ''} au total{groups.length > 0 ? ` · ${groups.length} groupe${groups.length > 1 ? 's' : ''}` : ''}</p>
         </div>
         <button
           onClick={() => { setDefaultStatus('TODO'); setShowForm(true) }}
           className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl shadow-sm transition-opacity hover:opacity-90 active:opacity-80"
           style={{ backgroundColor: accent }}
         >
-          <Plus size={16} />
+          <IconPlus width={16} height={16} />
           Nouvelle tâche
         </button>
       </div>
 
-      {fetching && <div className="text-center py-16 text-gray-400 text-sm">Chargement…</div>}
+      {fetching && <div className="text-center py-16 text-[var(--ds-text-subtle)] text-sm">Chargement…</div>}
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
+        <div className="rounded-xl bg-[var(--ds-danger-bg)] border border-[var(--ds-danger)] text-[var(--ds-danger)] text-sm px-4 py-3">
           Erreur : {error.message}
         </div>
       )}

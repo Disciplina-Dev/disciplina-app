@@ -1,4 +1,4 @@
-import { CalendarDays, KeyRound, User } from 'lucide-react'
+import { IconCalendar, IconKey, IconUser } from '@/components/ui/icons'
 import type { ExternalAccessRowData } from '@/api/externalAccess'
 import {
   EXTERNAL_ACCESS_STATUS_BADGE,
@@ -24,12 +24,12 @@ export default function ExternalAccessRow({ access, onChanged }: ExternalAccessR
   const canRevoke = access.status !== 'COMPLETED'
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="flex flex-col gap-3 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-700">
-              <KeyRound size={12} />
+            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 font-mono text-xs text-[var(--ds-text-muted)]">
+              <IconKey width={12} height={12} />
               {signatureShort}…
             </span>
             <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider ${EXTERNAL_ACCESS_STATUS_BADGE[access.status]}`}>
@@ -37,8 +37,8 @@ export default function ExternalAccessRow({ access, onChanged }: ExternalAccessR
             </span>
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-gray-900">
-              <User size={14} className="text-gray-400" />
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--ds-text)]">
+              <IconUser width={14} height={14} className="text-[var(--ds-text-subtle)]" />
               {access.external_first_name || '—'}
             </span>
             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${EXTERNAL_ACCESS_TYPE_BADGE[access.external_type]}`}>
@@ -53,9 +53,9 @@ export default function ExternalAccessRow({ access, onChanged }: ExternalAccessR
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-gray-500">
+      <div className="flex items-center gap-4 text-xs text-[var(--ds-text-subtle)]">
         <span className="inline-flex items-center gap-1">
-          <CalendarDays size={13} className="text-gray-400" />
+          <IconCalendar width={13} height={13} className="text-[var(--ds-text-subtle)]" />
           Créé le {access.created_at ? new Date(access.created_at).toLocaleDateString('fr-FR') : '—'}
         </span>
         {access.expires_at && (

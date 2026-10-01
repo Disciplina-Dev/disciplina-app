@@ -13,6 +13,7 @@ export interface MatchInvitation {
     link: string;
     rhEmail: string;
     companyEmail: string;
+    cc?: string[];
 }
 
 export class MatchMailService {
@@ -60,6 +61,7 @@ export class MatchMailService {
 
         await this.sendAs(rh, {
             to: invitation.companyEmail,
+            cc: invitation.cc?.length ? invitation.cc : undefined,
             subject: resolvedSubject,
             text: resolvedBody.replace(/<[^>]*>/g, ''),
             html: resolvedBody,
@@ -68,7 +70,7 @@ export class MatchMailService {
 
     private async sendAs(
         rh: User,
-        options: { to: string; subject: string; text: string; html: string },
+        options: { to: string; cc?: string[]; subject: string; text: string; html: string },
     ): Promise<void> {
         if (!rh?.oauthToken || !rh?.refreshToken) {
             logger.warn({ rhEmail: rh.email }, '[match] no Google credentials to send mail');

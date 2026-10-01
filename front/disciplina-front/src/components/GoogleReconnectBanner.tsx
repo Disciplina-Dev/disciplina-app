@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Loader2 } from 'lucide-react'
+import { IconLoader, IconWarning } from '@/components/ui/icons'
 import { useGoogleConnectionStatus } from '@/hooks/useGoogleConnectionStatus'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 
@@ -25,9 +25,11 @@ export default function GoogleReconnectBanner() {
   }
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-6 py-2.5">
-      <AlertTriangle size={18} className="shrink-0 text-amber-600" />
-      <span className="flex-1 text-[13px] font-medium text-amber-900">
+    // Bandeau volontairement discret : il informe en continu sans dominer
+    // l'ecran. Le bouton porte l'accent, pas la bande entiere.
+    <div className="ds-glass-flush flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--ds-glass-border)] px-6 py-2.5">
+      <IconWarning width={18} height={18} className="shrink-0 text-[var(--ds-warning)]" />
+      <span className="flex-1 text-[13px] font-medium text-[var(--ds-text-muted)]">
         Votre compte Google n'est plus connecté. Les envois de mail, le Drive et le
         calendrier sont indisponibles tant que vous ne vous reconnectez pas.
         {errorMsg && <span className="ml-2 font-bold">{errorMsg}</span>}
@@ -35,9 +37,9 @@ export default function GoogleReconnectBanner() {
       <button
         onClick={handleConnect}
         disabled={isLoading}
-        className="flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-3 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-70"
+        className="flex shrink-0 items-center gap-2 rounded-full bg-[var(--ds-warning)] px-3.5 py-1.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-accent)] disabled:cursor-not-allowed disabled:opacity-70"
       >
-        {isLoading && <Loader2 size={14} className="animate-spin" />}
+        {isLoading && <IconLoader width={14} height={14} className="animate-spin" />}
         {isLoading ? 'Connexion...' : 'Reconnecter Google'}
       </button>
     </div>

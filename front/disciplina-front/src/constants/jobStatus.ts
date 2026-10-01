@@ -9,11 +9,11 @@ export const JOB_STATUS_LABELS: Record<OfferStatus, string> = {
 }
 
 export const JOB_STATUS_BADGE_CLASS: Record<OfferStatus, string> = {
-  [OfferStatus.NOT_MATCHED]: 'bg-gray-100 text-gray-600',
+  [OfferStatus.NOT_MATCHED]: 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]',
   [OfferStatus.MATCHED]: 'bg-blue-light text-blue',
   [OfferStatus.CV_SEND]: 'bg-purple-light text-purple',
   [OfferStatus.IMMERSING]: 'bg-pink-light text-pink',
-  [OfferStatus.CONTRACT]: 'bg-success-bg text-success',
+  [OfferStatus.CONTRACT]: 'bg-[var(--ds-success-bg)] text-[var(--ds-success)]',
 }
 
 export const JOB_STATUS_ORDER: OfferStatus[] = [

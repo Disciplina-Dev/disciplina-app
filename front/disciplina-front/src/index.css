@@ -1,55 +1,342 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens
+   - Charte graphique inchangée : bleu #1130A7, violet #60207E, rose #B10F55.
+   - Les neutres suivent la maquette « soft UI » : fond gris, cartes blanches.
+   - Toute couleur exposée ici a une variante sombre définie plus bas.
+--------------------------------------------------------------------------- */
 @theme {
-  --font-sans: "Poppins", sans-serif;
+  --font-sans: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Outfit", system-ui, -apple-system, sans-serif;
 
-  --color-background: #FAF9F5;
-  --color-blue:       #1130A7;
-  --color-purple:     #60207E;
-  --color-pink:       #B10F55;
+  /* Couleurs de marque (identiques à la charte) */
+  --color-blue: #1130a7;
+  --color-purple: #60207e;
+  --color-pink: #b10f55;
 
-  --color-blue-light:   #E8EBFA;
-  --color-blue-dark:    #0C2180;
-  --color-purple-light: #F0E6F6;
-  --color-purple-dark:  #451760;
-  --color-pink-light:   #FAE4ED;
-  --color-pink-dark:    #870A3F;
+  --color-blue-light: #e8ebfa;
+  --color-blue-dark: #0c2180;
+  --color-purple-light: #f0e6f6;
+  --color-purple-dark: #451760;
+  --color-pink-light: #fae4ed;
+  --color-pink-dark: #870a3f;
 
-  --color-black:    #0D0D0D;
-  --color-gray-900: #1A1A1A;
-  --color-gray-700: #3D3D3D;
-  --color-gray-500: #6B6B6B;
-  --color-gray-300: #B0B0B0;
-  --color-gray-100: #E8E8E4;
-  --color-gray-50:  #F4F3EF;
+  /* Neutres de base (échelle brute, non thémée) */
+  --color-black: #10141a;
+  --color-gray-900: #1a1f27;
+  --color-gray-700: #3d434d;
+  --color-gray-500: #6b7280;
+  --color-gray-400: #8b929c;
+  --color-gray-300: #b0b6bf;
+  --color-gray-200: #d9dce1;
+  --color-gray-100: #e4e4e4;
+  --color-gray-50: #f4f4f5;
 
-  --color-success:    #1A7A4A;
-  --color-success-bg: #E6F4ED;
-  --color-warning:    #A65C00;
-  --color-warning-bg: #FEF3E2;
-  --color-danger:     #C0152A;
-  --color-danger-bg:  #FDEAEC;
+  /* Statuts */
+  --color-success: #1a7a4a;
+  --color-success-bg: #e6f4ed;
+  --color-warning: #a65c00;
+  --color-warning-bg: #fef3e2;
+  --color-danger: #c0152a;
+  --color-danger-bg: #fdeaec;
+  --color-info: #1130a7;
+  --color-info-bg: #e8ebfa;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  /* Alias sémantiques — pilotés par le thème, à préférer partout */
+  --color-background: var(--ds-bg);
+  --color-surface: var(--ds-surface);
+  --color-surface-raised: var(--ds-surface-raised);
+  --color-surface-sunken: var(--ds-surface-sunken);
+  --color-border: var(--ds-border);
+  --color-border-strong: var(--ds-border-strong);
+  --color-text: var(--ds-text);
+  --color-text-muted: var(--ds-text-muted);
+  --color-text-subtle: var(--ds-text-subtle);
+  --color-text-inverse: var(--ds-text-inverse);
+  --color-accent: var(--ds-accent);
+  --color-accent-soft: var(--ds-accent-soft);
+
+  /* Rayons — plus généreux, style « soft UI » */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 28px;
+
+  /* Ombres douces et diffuses plutôt que des traits durs */
+  --shadow-xs: 0 1px 2px rgba(16, 20, 26, 0.04);
+  --shadow-sm: 0 1px 3px rgba(16, 20, 26, 0.06), 0 1px 2px rgba(16, 20, 26, 0.04);
+  --shadow-md: 0 4px 12px rgba(16, 20, 26, 0.07), 0 1px 3px rgba(16, 20, 26, 0.05);
+  --shadow-lg: 0 12px 28px rgba(16, 20, 26, 0.1), 0 2px 6px rgba(16, 20, 26, 0.05);
+  --shadow-xl: 0 24px 48px rgba(16, 20, 26, 0.12), 0 4px 12px rgba(16, 20, 26, 0.06);
+}
+
+/* Thème clair (défaut, y compris sans attribut data-theme) */
+:root {
+  --ds-bg: #eeeef0;
+  --ds-surface: #ffffff;
+  --ds-surface-raised: #ffffff;
+  --ds-surface-sunken: #f4f4f5;
+  --ds-border: #e4e4e4;
+  --ds-border-strong: #d9dce1;
+  --ds-text: #10141a;
+  --ds-text-muted: #3d434d;
+  --ds-text-subtle: #6b7280;
+  --ds-text-inverse: #ffffff;
+  --ds-accent: #1130a7;
+  --ds-accent-soft: #e8ebfa;
+
+  /* Verre dépoli : fond translucide + liseré clair en haut pour simuler la
+     tranche éclairée d'une plaque de verre. */
+  --ds-glass-bg: rgba(252, 252, 253, 0.55);
+  --ds-glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --ds-glass-border: rgba(16, 20, 26, 0.07);
+  --ds-glass-highlight: rgba(255, 255, 255, 0.55);
+  --ds-glass-shadow: rgba(16, 20, 26, 0.05);
+  --ds-glass-blur: 20px;
+
+  /* Dégradé de fond : gris perle très doux, plus clair en haut à gauche. */
+  --ds-gradient:
+    radial-gradient(1400px 780px at 12% -12%, rgba(255, 255, 255, 0.75), transparent 62%),
+    radial-gradient(1100px 720px at 92% 0%, rgba(223, 228, 244, 0.42), transparent 66%),
+    radial-gradient(1200px 860px at 46% 116%, rgba(230, 220, 238, 0.3), transparent 64%),
+    linear-gradient(170deg, #f2f2f4 0%, #edecef 52%, #e7e7ea 100%);
+
+  --ds-success: #1a7a4a;
+  --ds-success-bg: #e6f4ed;
+  --ds-warning: #a65c00;
+  --ds-warning-bg: #fef3e2;
+  --ds-danger: #c0152a;
+  --ds-danger-bg: #fdeaec;
+
+  color-scheme: light;
+}
+
+/* Thème sombre — appliqué via data-theme="dark" sur <html> */
+[data-theme='dark'] {
+  --ds-bg: #0b0e13;
+  --ds-surface: #161b23;
+  --ds-surface-raised: #1d232d;
+  --ds-surface-sunken: #10141a;
+  --ds-border: #2a313c;
+  --ds-border-strong: #3a424f;
+  --ds-text: #f2f4f7;
+  --ds-text-muted: #c3c9d3;
+  --ds-text-subtle: #8b929c;
+  --ds-text-inverse: #10141a;
+  --ds-accent: #8fa6ec;
+  --ds-accent-soft: #1c2745;
+
+  --ds-glass-bg: rgba(24, 29, 38, 0.5);
+  --ds-glass-bg-strong: rgba(26, 32, 41, 0.9);
+  --ds-glass-border: rgba(255, 255, 255, 0.06);
+  --ds-glass-highlight: rgba(255, 255, 255, 0.07);
+  --ds-glass-shadow: rgba(0, 0, 0, 0.3);
+  --ds-glass-blur: 22px;
+
+  --ds-gradient:
+    radial-gradient(1400px 780px at 12% -12%, rgba(58, 71, 100, 0.34), transparent 62%),
+    radial-gradient(1100px 720px at 92% 0%, rgba(30, 41, 72, 0.4), transparent 66%),
+    radial-gradient(1200px 860px at 46% 116%, rgba(56, 32, 72, 0.26), transparent 64%),
+    linear-gradient(170deg, #11151d 0%, #0e121a 52%, #0c0f16 100%);
+
+  /* Statuts réhaussés pour rester lisibles sur fond sombre (WCAG AA) */
+  --ds-success: #4ade9a;
+  --ds-success-bg: #10291f;
+  --ds-warning: #f0b45e;
+  --ds-warning-bg: #2b1f0d;
+  --ds-danger: #f58a96;
+  --ds-danger-bg: #2d1116;
+
+  color-scheme: dark;
+}
+
+/* Les ombres portées ne se voient pas sur fond sombre : on les renforce. */
+[data-theme='dark'] {
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 @layer base {
   html {
     font-family: var(--font-sans);
-    background-color: var(--color-background);
-    color: var(--color-gray-900);
+    background-color: var(--ds-bg);
+    color: var(--ds-text);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  h1 { font-size: var(--text-3xl); font-weight: 800; color: var(--color-black); }
-  h2 { font-size: var(--text-2xl); font-weight: 700; color: var(--color-black); }
-  h3 { font-size: var(--text-xl);  font-weight: 700; color: var(--color-gray-900); }
-  h4 { font-size: var(--text-lg);  font-weight: 500; color: var(--color-gray-900); }
-  p  { font-size: var(--text-base); font-weight: 400; color: var(--color-gray-700); }
-  a  { color: var(--color-blue); transition: color 0.2s; }
+  /* Le dégradé est fixe et couvre le viewport : les zones qui défilent
+     glissent par-dessus sans le faire bouger. */
+  body {
+    background-color: var(--ds-bg);
+    background-image: var(--ds-gradient);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: cover;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    color: var(--ds-text);
+  }
+
+  h1 { font-size: var(--text-3xl); font-weight: 800; }
+  h2 { font-size: var(--text-2xl); font-weight: 700; }
+  h3 { font-size: var(--text-xl); font-weight: 600; }
+  h4 { font-size: var(--text-lg); font-weight: 600; }
+  p  { font-size: var(--text-base); font-weight: 400; color: var(--ds-text-muted); }
+
+  a { color: var(--ds-accent); transition: color 0.2s; }
   a:hover { color: var(--color-blue-dark); }
+  [data-theme='dark'] a:hover { color: #b9c8f5; }
+
+  /* Accessibilité : un anneau de focus visible et cohérent partout. */
+  :focus-visible {
+    outline: 2px solid var(--ds-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background-color: var(--ds-accent-soft);
+    color: var(--ds-text);
+  }
+}
+
+@layer utilities {
+  /* ── Verre dépoli ──────────────────────────────────────────────────────
+     `.ds-glass` pour les surfaces posées sur le dégradé (barres latérales,
+     en-têtes, modales, toasts). Réservé au « chrome » de l'application : les
+     tableaux denses restent opaques, la lisibilité prime sur l'effet.       */
+  .ds-glass {
+    background-color: var(--ds-glass-bg);
+    -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(150%);
+    backdrop-filter: blur(var(--ds-glass-blur)) saturate(150%);
+    border: 1px solid var(--ds-glass-border);
+    box-shadow:
+      0 4px 16px var(--ds-glass-shadow),
+      inset 0 1px 0 var(--ds-glass-highlight);
+  }
+
+  .ds-glass-strong {
+    background-color: var(--ds-glass-bg-strong);
+    -webkit-backdrop-filter: blur(calc(var(--ds-glass-blur) * 1.4)) saturate(180%);
+    backdrop-filter: blur(calc(var(--ds-glass-blur) * 1.4)) saturate(180%);
+    border: 1px solid var(--ds-glass-border);
+    box-shadow:
+      0 16px 48px var(--ds-glass-shadow),
+      inset 0 1px 0 var(--ds-glass-highlight);
+  }
+
+  /* Variante sans ombre portée, pour une surface collée à un bord. */
+  .ds-glass-flush {
+    background-color: var(--ds-glass-bg);
+    -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
+  }
+
+  /* Navigateur sans backdrop-filter : on repasse en surface opaque plutôt
+     que de laisser un fond semi-transparent illisible. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .ds-glass,
+    .ds-glass-strong,
+    .ds-glass-flush {
+      background-color: var(--ds-surface);
+    }
+  }
+
+  /* Réglage système « réduire la transparence » : même repli opaque. */
+  @media (prefers-reduced-transparency: reduce) {
+    .ds-glass,
+    .ds-glass-strong,
+    .ds-glass-flush {
+      background-color: var(--ds-surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  /* Carte : la brique visuelle de base du CRM. */
+  .ds-card {
+    background-color: var(--ds-surface);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .ds-card-flat {
+    background-color: var(--ds-surface);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--radius-lg);
+  }
+
+  /* Barres de défilement discrètes, accordées au thème. */
+  .ds-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ds-border-strong) transparent;
+  }
+  .ds-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .ds-scroll::-webkit-scrollbar-track { background: transparent; }
+  .ds-scroll::-webkit-scrollbar-thumb {
+    background-color: var(--ds-border-strong);
+    border-radius: 999px;
+  }
+
+  /* Saut au contenu principal — visible seulement au clavier. */
+  .ds-skip-link {
+    position: absolute;
+    left: -9999px;
+    z-index: 999;
+  }
+  .ds-skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--ds-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* Respect de « réduire les animations » du système. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Animations d'apparition ──────────────────────────────────────────────
+   Déclarées ici plutôt qu'en <style> inline : une balise de style au milieu
+   du balisage se retrouve dans le contenu textuel de l'élément qui la porte. */
+@keyframes ds-toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ds-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ds-search-progress {
+  from { left: -33%; }
+  to { left: 100%; }
+}
+
+@keyframes ds-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

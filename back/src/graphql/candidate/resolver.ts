@@ -12,7 +12,8 @@ import { camelToSnakeCase, candidateToGql, offerToMatchedOfferGql } from '../../
 import { logger } from '../../external/logger';
 import { decryptSsn } from '../../external/crypto/ssn-cipher';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
-import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
+import { driveFolderConfigService, driveRegionsForTenant, driveFolderKey } from '../../services/DriveFolderConfigService';
+import { getRegion } from '../../db/tenant';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import {
     CandidateFilters,
@@ -52,8 +53,10 @@ const candidateHistoryService = new CandidateHistoryService();
  * voient tout (filtre client respecté) ; sinon on re-fetch le user (le JWT ne
  * porte pas les secteurs) et on borne la demande à ses secteurs. Un user sans
  * secteur assigné n'est pas restreint (convention historique).
+ * Tenant Annemasse (mono-secteur) : pas de subdivision, tout le tenant.
  */
 async function statsSectors(context: any, requested?: string[]): Promise<string[] | undefined> {
+    if (getRegion() === 'annemasse') return undefined;
     if (canAccessAllSectors(context.user.permission)) return requested;
     const user = await userService.findById(Number(context.user.id));
     const own = sanitizeSectors(user?.sectors);
@@ -118,9 +121,10 @@ interface UpdateCandidateInput {
 function driveFolderConfigToGql(config: { rootFolderId: string | null; tpFolders: Record<string, string> }) {
     return {
         rootFolderId: config.rootFolderId ?? null,
-        // Toujours renvoyer une entrée par couple TP × région (même vide) pour piloter le formulaire.
+        // Une entrée par couple TP × région du tenant (même vide) pour piloter
+        // le formulaire (NORD/OUEST/SUD pour Réunion, ANNEMASSE unique).
         tpFolders: Object.values(TitleProfessionalType).flatMap((tp) =>
-            DRIVE_REGIONS.map((region) => ({
+            driveRegionsForTenant(getRegion()).map((region) => ({
                 tp,
                 region,
                 folderId: config.tpFolders[driveFolderKey(tp, region)] ?? null,

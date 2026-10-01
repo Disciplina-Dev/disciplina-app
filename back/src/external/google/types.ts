@@ -18,6 +18,8 @@ export interface DriveFile {
 
 export interface SendEmailOptions {
     to: string;
+    /** Copie carbone (visibles par tous les destinataires). Normalisés en minuscules côté appelant. */
+    cc?: string[];
     subject: string;
     html: string;
     text: string;

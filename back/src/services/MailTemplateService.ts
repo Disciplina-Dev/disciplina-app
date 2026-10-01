@@ -17,6 +17,7 @@ import { INTERVIEW_INVITATION_SUBJECT, INTERVIEW_INVITATION_BODY } from './inter
 import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
+import { sanitizeMailHtml } from './sanitizeMailHtml';
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
@@ -82,6 +83,8 @@ export interface MailTemplateDTO {
     pedaLevel: PedaLevel | null;
     /** Modèle système non supprimable (ex. `ab_signature`) ; null pour les modèles utilisateur. */
     kind: MailTemplateKind | null;
+    /** Couleur de cadre hex appliquée à l'envoi ; null = classique (pas d'enveloppe). */
+    theme: string | null;
     attachment: { filename: string; contentType: string } | null;
 }
 
@@ -91,6 +94,7 @@ export interface MailTemplateInput {
     subject: string;
     body: string;
     pedaLevel?: PedaLevel | null;
+    theme?: string | null;
 }
 
 function toDTO(t: MailTemplate): MailTemplateDTO {
@@ -101,6 +105,7 @@ function toDTO(t: MailTemplate): MailTemplateDTO {
         body: t.body,
         pedaLevel: t.peda_level ?? null,
         kind: t.kind ?? null,
+        theme: t.theme ?? null,
         attachment: t.attachment ? { filename: t.attachment.filename, contentType: t.attachment.contentType } : null,
     };
 }
@@ -194,8 +199,9 @@ export class MailTemplateService {
             scope,
             name: data.name,
             subject: data.subject,
-            body: data.body,
+            body: sanitizeMailHtml(data.body),
             peda_level: pedaLevel,
+            theme: data.theme ?? null,
             attachment: null,
             created_at: now,
             updated_at: now,
@@ -208,19 +214,22 @@ export class MailTemplateService {
         if (!existing || !this.canAccess(existing, userId)) throw new TemplateNotFoundError();
         const pedaLevel = this.pedaLevelFor(existing.scope, data.pedaLevel);
         await this.assertLevelFree(pedaLevel, id);
-        const doc = await getModels().MailTemplate.findOneAndUpdate(
-            { _id: id },
-            {
-                $set: {
-                    name: data.name,
-                    subject: data.subject,
-                    body: data.body,
-                    peda_level: pedaLevel,
-                    updated_at: new Date(),
+        const doc = await getModels()
+            .MailTemplate.findOneAndUpdate(
+                { _id: id },
+                {
+                    $set: {
+                        name: data.name,
+                        subject: data.subject,
+                        body: sanitizeMailHtml(data.body),
+                        peda_level: pedaLevel,
+                        theme: data.theme ?? null,
+                        updated_at: new Date(),
+                    },
                 },
-            },
-            { new: true },
-        ).lean<MailTemplate>();
+                { new: true },
+            )
+            .lean<MailTemplate>();
         if (!doc) throw new TemplateNotFoundError();
         return toDTO(doc);
     }
@@ -470,7 +479,7 @@ export class MailTemplateService {
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
-                name: 'Lien d\'accès externe',
+                name: "Lien d'accès externe",
                 subject: EXTERNAL_LINK_SUBJECT,
                 body: EXTERNAL_LINK_BODY,
                 peda_level: null,
@@ -592,7 +601,9 @@ export class MailTemplateService {
         const user = await this.userService.findById(userId);
         if (!user || !user.oauthToken) throw new GoogleNotConnectedError('Google Drive non connecté');
         const drive = await this.driveForUser(userId);
-        const existing = await getModels().MailSignature.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
+        const existing = await getModels()
+            .MailSignature.findOne({ user_id: userId, scope })
+            .lean<{ driveFileId: string }>();
         if (existing?.driveFileId) {
             try {
                 await drive.deleteFile(existing.driveFileId);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash2, Loader2, Search } from 'lucide-react'
+import { IconLoader, IconPlus, IconSearch, IconTrash } from '@/components/ui/icons'
 import { getMatchAddressCompletion } from '@/api/match'
 import { isoToZonedWallClock, zonedWallClockToIso } from '@/lib/timezone'
 
@@ -89,10 +89,10 @@ export default function InterviewProposalForm({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <p className="text-[13px] font-bold text-gray-800">Adresse de l'entretien</p>
+        <p className="text-[13px] font-bold text-[var(--ds-text)]">Adresse de l'entretien</p>
         <div className="relative">
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
-            <Search size={15} className="text-gray-400" />
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 py-2">
+            <IconSearch width={15} height={15} className="text-[var(--ds-text-subtle)]" />
             <input
               type="text"
               placeholder="Rechercher une adresse..."
@@ -107,13 +107,13 @@ export default function InterviewProposalForm({
               }}
               className="flex-1 bg-transparent text-[13px] outline-none"
             />
-            {locationLoading && <Loader2 size={14} className="animate-spin text-gray-400" />}
+            {locationLoading && <IconLoader width={14} height={14} className="animate-spin text-[var(--ds-text-subtle)]" />}
           </div>
 
-          {locationError && <p className="mt-1 text-[12px] text-danger">{locationError}</p>}
+          {locationError && <p className="mt-1 text-[12px] text-[var(--ds-danger)]">{locationError}</p>}
 
           {locationResults.length > 0 && !locationKO && (
-            <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-sm">
               {locationResults.map((loc, idx) => (
                 <button
                   key={idx}
@@ -122,7 +122,7 @@ export default function InterviewProposalForm({
                     setLocationSearch(loc)
                     setLocationResults([])
                   }}
-                  className="w-full px-3 py-2 text-left text-[13px] text-gray-700 first:rounded-t-lg last:rounded-b-lg hover:bg-gray-50"
+                  className="w-full px-3 py-2 text-left text-[13px] text-[var(--ds-text-muted)] first:rounded-t-lg last:rounded-b-lg hover:bg-[var(--ds-surface-sunken)]"
                 >
                   {loc}
                 </button>
@@ -133,7 +133,7 @@ export default function InterviewProposalForm({
       </div>
 
       <div className="flex flex-col gap-3">
-        <p className="text-[13px] font-bold text-gray-800">Créneaux d'entretien proposés</p>
+        <p className="text-[13px] font-bold text-[var(--ds-text)]">Créneaux d'entretien proposés</p>
         {slots.map((slot, index) => (
           <div key={index} className="flex items-center gap-2">
             <div className="flex flex-1 flex-col gap-1">
@@ -141,23 +141,23 @@ export default function InterviewProposalForm({
                 type="datetime-local"
                 value={toLocalInput(slot)}
                 onChange={(e) => updateSlot(index, e.target.value)}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple"
+                className="rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple"
               />
-              {slot && <p className="text-[12px] text-gray-500">{formatSlotPreview(slot, timezone)}</p>}
+              {slot && <p className="text-[12px] text-[var(--ds-text-subtle)]">{formatSlotPreview(slot, timezone)}</p>}
             </div>
             <button
               onClick={() => onChange(slots.filter((_, i) => i !== index))}
-              className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:border-danger hover:text-danger"
+              className="rounded-lg border border-[var(--ds-border)] p-2 text-[var(--ds-text-subtle)] hover:border-danger hover:text-[var(--ds-danger)]"
             >
-              <Trash2 size={15} />
+              <IconTrash width={15} height={15} />
             </button>
           </div>
         ))}
         <button
           onClick={() => onChange([...slots, ''])}
-          className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-[13px] font-bold text-gray-600 hover:border-purple hover:text-purple"
+          className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-dashed border-[var(--ds-border-strong)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] hover:border-purple hover:text-purple"
         >
-          <Plus size={15} /> Ajouter un créneau
+          <IconPlus width={15} height={15} /> Ajouter un créneau
         </button>
       </div>
     </div>

@@ -88,9 +88,9 @@ export default function SignaturePad({ value, onChange, label = 'Signature' }: P
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700">{label}</span>
+        <span className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</span>
         {hasContent && (
-          <button type="button" onClick={clear} className="text-xs text-red-500 hover:text-red-600">
+          <button type="button" onClick={clear} className="text-xs text-[var(--ds-danger)] hover:text-[var(--ds-danger)]">
             Effacer
           </button>
         )}
@@ -101,10 +101,10 @@ export default function SignaturePad({ value, onChange, label = 'Signature' }: P
         onPointerMove={move}
         onPointerUp={end}
         onPointerLeave={end}
-        className="h-40 w-full touch-none rounded-lg border border-gray-300 bg-white"
+        className="h-40 w-full touch-none rounded-lg border border-[var(--ds-border-strong)] bg-[var(--ds-surface)]"
         style={{ touchAction: 'none' }}
       />
-      <p className="mt-1 text-xs text-gray-400">Signez dans le cadre ci-dessus.</p>
+      <p className="mt-1 text-xs text-[var(--ds-text-subtle)]">Signez dans le cadre ci-dessus.</p>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Briefcase, Search, X } from 'lucide-react'
+import { IconClose, IconJob, IconSearch } from '@/components/ui/icons'
 import { offerGraphqlClient } from '@/graphql/client'
 import { GET_OFFERS } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
@@ -90,22 +90,27 @@ export default function JobSearchModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
-          <h2 className="text-base font-bold text-gray-900">Rechercher une offre</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50">
-            <X size={18} />
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] p-5">
+          <h2 className="text-base font-bold text-[var(--ds-text)]">Rechercher une offre</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]">
+            <IconClose width={18} height={18} />
           </button>
         </div>
 
-        <div className="border-b border-gray-100 p-5">
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
-            <Search size={16} className="text-gray-400" />
+        <div className="border-b border-[var(--ds-border)] p-5">
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 py-2">
+            <IconSearch width={16} height={16} className="text-[var(--ds-text-subtle)]" />
             <input
               type="text"
+              name="job-search"
               placeholder="Rechercher par nom d'entreprise..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="flex-1 bg-transparent outline-none text-sm"
             />
           </div>
@@ -119,14 +124,14 @@ export default function JobSearchModal({
           )}
 
           {!loading && error && (
-            <div className="text-center py-6 px-4 bg-danger-bg rounded-lg">
-              <p className="text-sm text-danger">{error}</p>
+            <div className="text-center py-6 px-4 bg-[var(--ds-danger-bg)] rounded-lg">
+              <p className="text-sm text-[var(--ds-danger)]">{error}</p>
             </div>
           )}
 
           {!loading && !error && visibleJobs.length === 0 && (
-            <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Aucune offre ne correspond à cette recherche.</p>
+            <div className="text-center py-6 px-4 bg-[var(--ds-surface-sunken)] rounded-lg">
+              <p className="text-sm text-[var(--ds-text-muted)]">Aucune offre ne correspond à cette recherche.</p>
             </div>
           )}
 
@@ -138,7 +143,7 @@ export default function JobSearchModal({
                   type="button"
                   onClick={() => toggleJob(job.id)}
                   className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
-                    selectedJobIds.has(job.id) ? 'border-blue bg-blue-light' : 'border-gray-100 hover:bg-gray-50'
+                    selectedJobIds.has(job.id) ? 'border-blue bg-blue-light' : 'border-[var(--ds-border)] hover:bg-[var(--ds-surface-sunken)]'
                   }`}
                 >
                   <input
@@ -149,24 +154,24 @@ export default function JobSearchModal({
                     onClick={(e) => e.stopPropagation()}
                   />
                   <span className="w-8 h-8 flex-shrink-0 rounded-md bg-blue-light text-blue flex items-center justify-center">
-                    <Briefcase className="w-4 h-4" />
+                    <IconJob className="w-4 h-4" />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{job.companyName || 'Entreprise'}</p>
+                    <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{job.companyName || 'Entreprise'}</p>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {(job.desiredTp ?? []).map(
                         (tp) =>
                           tp.tpType && (
                             <span
                               key={tp.tpType}
-                              className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                              className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]"
                             >
                               {TP_TYPE_LABELS[tp.tpType]}
                             </span>
                           ),
                       )}
                       {job.sector && (
-                        <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
+                        <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]">
                           {formatSector(job.sector)}
                         </span>
                       )}
@@ -181,7 +186,7 @@ export default function JobSearchModal({
                       {formatScheduleSlots(job.schedule).map((s) => (
                         <span
                           key={s}
-                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]"
                         >
                           {s}
                         </span>
@@ -194,10 +199,10 @@ export default function JobSearchModal({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-gray-100 p-4">
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--ds-border)] p-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--ds-border)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
           >
             Annuler
           </button>
@@ -205,7 +210,7 @@ export default function JobSearchModal({
             {onNonRenseigne && (
               <button
                 onClick={onNonRenseigne}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                className="rounded-lg border border-[var(--ds-border)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
               >
                 Non renseigné
               </button>
@@ -213,7 +218,7 @@ export default function JobSearchModal({
             {footerAction && (
               <button
                 onClick={footerAction.onClick}
-                className="text-sm font-semibold text-blue hover:text-blue-600"
+                className="text-sm font-semibold text-blue hover:text-[var(--ds-accent)]"
               >
                 {footerAction.label}
               </button>

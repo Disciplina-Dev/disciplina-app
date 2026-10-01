@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { User } from 'lucide-react'
+import { IconUser } from '@/components/ui/icons'
 import { apiFetch } from '@/api/httpClient'
 
 interface CandidateAvatarProps {
@@ -57,7 +57,7 @@ export default function CandidateAvatar({
   }
   return (
     <div className={`flex items-center justify-center bg-purple-light text-purple ${className}`}>
-      <User size={iconSize} />
+      <IconUser width={iconSize} height={iconSize} />
     </div>
   )
 }

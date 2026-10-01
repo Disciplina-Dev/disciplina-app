@@ -1,14 +1,15 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Globe2, Briefcase, ChevronRight } from 'lucide-react'
+import { IconChevronRight, IconGlobe, IconJob } from '@/components/ui/icons'
 
 import {
   fetchKpiCombined,
   fetchKpiLive,
-  KPI_SITES,
+  kpiSitesForRegion,
   type KpiMetricColumn,
   type KpiSiteOverview,
 } from '@/api/kpi'
+import { useRegionStore } from '@/store/regionStore'
 import { SITE_LABELS } from '../config'
 
 /** Compteurs mis en avant sur chaque carte commercial. */
@@ -36,28 +37,28 @@ function KpiSectorGrid({ sites, cardMetrics }: SectorGridProps) {
       {sites.map((site) => (
         <div
           key={site.site}
-          className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]"
+          className="rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]"
         >
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-[14px] font-bold text-gray-900">{SITE_LABELS[site.site]}</h3>
-            <span className="text-[12px] text-gray-400">
+            <h3 className="text-[14px] font-bold text-[var(--ds-text)]">{SITE_LABELS[site.site]}</h3>
+            <span className="text-[12px] text-[var(--ds-text-subtle)]">
               {site.totals.count_oui.toLocaleString('fr-FR')} Oui ·{' '}
               {site.totals.total_appels.toLocaleString('fr-FR')} appels
             </span>
           </div>
           <div className="space-y-2">
             {site.users.length === 0 && (
-              <p className="px-1 py-2 text-[12px] text-gray-400">Aucune donnée pour ce secteur.</p>
+              <p className="px-1 py-2 text-[12px] text-[var(--ds-text-subtle)]">Aucune donnée pour ce secteur.</p>
             )}
             {site.users.map((user) => {
               const cells = (
                 <span className="flex items-center gap-3">
                   {cardMetrics.map((m) => (
                     <span key={m.key} className="text-right">
-                      <span className="block text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                      <span className="block text-[10px] font-medium uppercase tracking-wide text-[var(--ds-text-subtle)]">
                         {m.label}
                       </span>
-                      <span className="block text-[13px] font-bold tabular-nums text-gray-900">
+                      <span className="block text-[13px] font-bold tabular-nums text-[var(--ds-text)]">
                         {user.totals[m.key].toLocaleString('fr-FR')}
                       </span>
                     </span>
@@ -68,20 +69,20 @@ function KpiSectorGrid({ sites, cardMetrics }: SectorGridProps) {
                 <Link
                   key={`${user.userId}`}
                   to={`/commercial/kpi/${user.userId}`}
-                  className="group flex items-center justify-between rounded-xl border border-gray-100 px-3 py-2.5 transition-colors hover:border-blue/40 hover:bg-blue/5"
+                  className="group flex items-center justify-between rounded-xl border border-[var(--ds-border)] px-3 py-2.5 transition-colors hover:border-blue/40 hover:bg-blue/5"
                 >
-                  <span className="text-[13px] font-semibold text-gray-900">{user.userName}</span>
+                  <span className="text-[13px] font-semibold text-[var(--ds-text)]">{user.userName}</span>
                   <span className="flex items-center gap-2">
                     {cells}
-                    <ChevronRight className="h-4 w-4 text-gray-300 transition-colors group-hover:text-blue" />
+                    <IconChevronRight className="h-4 w-4 text-[var(--ds-text-subtle)] transition-colors group-hover:text-blue" />
                   </span>
                 </Link>
               ) : (
                 <div
                   key={user.userName}
-                  className="flex items-center justify-between rounded-xl border border-gray-50 bg-gray-50/50 px-3 py-2.5"
+                  className="flex items-center justify-between rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] px-3 py-2.5"
                 >
-                  <span className="text-[13px] font-semibold text-gray-400">{user.userName}</span>
+                  <span className="text-[13px] font-semibold text-[var(--ds-text-subtle)]">{user.userName}</span>
                   {cells}
                 </div>
               )
@@ -96,7 +97,7 @@ function KpiSectorGrid({ sites, cardMetrics }: SectorGridProps) {
 function SectionShell({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
     <section>
-      <h2 className="mb-4 flex items-center gap-2 text-[17px] font-bold text-gray-900">
+      <h2 className="mb-4 flex items-center gap-2 text-[17px] font-bold text-[var(--ds-text)]">
         {icon}
         {title}
       </h2>
@@ -127,12 +128,12 @@ export function KpiLiveSection() {
     }
   }, [])
 
-  if (error) return <p className="text-[13px] text-danger">{error}</p>
+  if (error) return <p className="text-[13px] text-[var(--ds-danger)]">{error}</p>
   if (!sites) return null
 
   return (
     <SectionShell
-      icon={<Briefcase className="h-5 w-5 text-gray-400" />}
+      icon={<IconJob className="h-5 w-5 text-[var(--ds-text-subtle)]" />}
       title="Portefeuille — valeurs actuelles par secteur"
     >
       <KpiSectorGrid sites={sites} cardMetrics={LIVE_CARD_METRICS} />
@@ -145,19 +146,21 @@ export function KpiLiveSection() {
  * commerciaux regroupés par secteur, chaque carte renvoie vers la page profil.
  */
 export default function KpiOverviewSection({ year }: { year: number }) {
+  const region = useRegionStore((s) => s.region)
+  const tenantSites = useMemo(() => kpiSitesForRegion(region), [region])
   const [sites, setSites] = useState<KpiSiteOverview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    Promise.allSettled(KPI_SITES.map((site) => fetchKpiCombined(year, site)))
+    Promise.allSettled(tenantSites.map((site) => fetchKpiCombined(year, site)))
       .then((results) => {
         if (cancelled) return
         const sites: KpiSiteOverview[] = results
           .map((r, i) => {
             if (r.status === 'fulfilled') {
               return {
-                site: KPI_SITES[i],
+                site: tenantSites[i],
                 totals: r.value.summary.totals,
                 users: r.value.summary.users.map((u) => ({ userId: u.userId, userName: u.userName, totals: u.totals })),
               }
@@ -174,14 +177,14 @@ export default function KpiOverviewSection({ year }: { year: number }) {
     return () => {
       cancelled = true
     }
-  }, [year])
+  }, [year, tenantSites])
 
-  if (error) return <p className="text-[13px] text-danger">{error}</p>
+  if (error) return <p className="text-[13px] text-[var(--ds-danger)]">{error}</p>
   if (!sites || sites.every((s) => s.users.length === 0)) return null
 
   return (
     <SectionShell
-      icon={<Globe2 className="h-5 w-5 text-gray-400" />}
+      icon={<IconGlobe className="h-5 w-5 text-[var(--ds-text-subtle)]" />}
       title={`Vue globale par secteur — ${year}`}
     >
       <KpiSectorGrid sites={sites.filter((s) => s.users.length > 0)} cardMetrics={ANNUAL_CARD_METRICS} />

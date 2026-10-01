@@ -9,6 +9,8 @@ import { graphqlClient } from '@/graphql/client'
 import { installSessionGuard } from '@/lib/sessionGuard'
 import { AuthBootstrap } from '@/components/AuthBootstrap'
 import CookieBanner from '@/components/legal/CookieBanner'
+import Toaster from '@/components/ui/Toaster'
+import { initTheme } from '@/lib/theme'
 
 Sentry.init({
     // TODO: supprimer le fallback et ne garder que VITE_SENTRY_DSN dans .env en production
@@ -39,6 +41,10 @@ Sentry.init({
     debug: true,
 })
 
+// Applique le thème (clair/sombre) avant le premier rendu, pour éviter un
+// flash de thème clair au chargement.
+initTheme()
+
 // Intercept 401s (REST + GraphQL) → silent refresh or session end.
 installSessionGuard()
 
@@ -48,6 +54,7 @@ createRoot(document.getElementById('root')!).render(
         <AuthBootstrap>
           <RouterProvider router={router} />
           <CookieBanner />
+          <Toaster />
         </AuthBootstrap>
       </UrqlProvider>
   </StrictMode>,

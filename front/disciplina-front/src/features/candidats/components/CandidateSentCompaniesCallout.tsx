@@ -61,10 +61,10 @@ export default function CandidateSentCompaniesCallout({ candidateId }: { candida
       </div>
       <ul className="mt-2 flex flex-col gap-1.5">
         {companies.map((c) => (
-          <li key={c.offerId} className="flex items-center gap-2 flex-wrap text-sm text-gray-800">
+          <li key={c.offerId} className="flex items-center gap-2 flex-wrap text-sm text-[var(--ds-text)]">
             <span className="font-semibold">{c.companyName || 'Entreprise inconnue'}</span>
             {[c.title, c.jobRole].filter(Boolean).length > 0 && (
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-[var(--ds-text-subtle)]">
                 ({[c.title, c.jobRole].filter(Boolean).join(' · ')})
               </span>
             )}

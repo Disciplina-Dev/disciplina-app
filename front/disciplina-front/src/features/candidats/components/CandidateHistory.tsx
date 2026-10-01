@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, History, Trash2 } from 'lucide-react'
+import { IconChevronDown, IconHistory, IconTrash } from '@/components/ui/icons'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useAddCandidateHistoryEntry, useCandidateHistory, useDeleteCandidateHistoryEntry } from '@/graphql/hooks'
@@ -21,7 +21,7 @@ const HISTORY_TYPE_LABEL: Record<CandidateHistoryType, string> = {
 const HISTORY_TYPE_BADGE_CLASS: Record<CandidateHistoryType, string> = {
   [CandidateHistoryType.RH]: 'bg-blue-light text-blue',
   [CandidateHistoryType.CANDIDATE]: 'bg-purple/10 text-purple',
-  [CandidateHistoryType.COMPANY]: 'bg-success/10 text-success',
+  [CandidateHistoryType.COMPANY]: 'bg-success/10 text-[var(--ds-success)]',
 }
 
 interface CandidateHistoryProps {
@@ -51,10 +51,10 @@ export default function CandidateHistory({ candidateId }: CandidateHistoryProps)
   }
 
   return (
-    <div className="border-t border-gray-100 pt-6 mt-6">
+    <div className="border-t border-[var(--ds-border)] pt-6 mt-6">
       <div className="flex items-center gap-3 mb-4">
-        <History className="w-5 h-5 text-blue" />
-        <h3 className="text-lg font-semibold text-gray-900">Historique du candidat</h3>
+        <IconHistory className="w-5 h-5 text-blue" />
+        <h3 className="text-lg font-semibold text-[var(--ds-text)]">Historique du candidat</h3>
       </div>
 
       {!expanded ? (
@@ -63,7 +63,7 @@ export default function CandidateHistory({ candidateId }: CandidateHistoryProps)
           onClick={handleToggle}
           className="flex items-center gap-2 text-blue font-semibold text-sm py-2 px-3 rounded-lg border border-blue-light bg-blue-light/50 hover:bg-blue-light cursor-pointer transition-colors"
         >
-          <ChevronDown className="w-4 h-4" />
+          <IconChevronDown className="w-4 h-4" />
           Voir l'historique
         </button>
       ) : (
@@ -74,7 +74,7 @@ export default function CandidateHistory({ candidateId }: CandidateHistoryProps)
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Ajouter une note à l'historique..."
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue/20"
+              className="flex-1 rounded-lg border border-[var(--ds-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue/20"
             />
             <Button size="sm" onClick={handleAddNote} disabled={!note.trim()}>
               Ajouter
@@ -88,8 +88,8 @@ export default function CandidateHistory({ candidateId }: CandidateHistoryProps)
           )}
 
           {!loading && history.length === 0 && (
-            <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Aucun historique</p>
+            <div className="text-center py-6 px-4 bg-[var(--ds-surface-sunken)] rounded-lg">
+              <p className="text-sm text-[var(--ds-text-muted)]">Aucun historique</p>
             </div>
           )}
 
@@ -98,11 +98,11 @@ export default function CandidateHistory({ candidateId }: CandidateHistoryProps)
               {history.map((entry) => {
                 const canDelete = entry.ownerEmail !== null && entry.ownerEmail === currentUser?.email
                 return (
-                  <div key={entry.id} className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                  <div key={entry.id} className="bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{entry.description}</p>
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="text-sm font-medium text-[var(--ds-text)]">{entry.description}</p>
+                        <p className="text-xs text-[var(--ds-text-muted)] mt-1">
                           {formatDate(entry.createdAt)}
                           {' · '}
                           {entry.ownerEmail ? `par ${entry.ownerEmail}` : 'Auto'}
@@ -118,10 +118,10 @@ export default function CandidateHistory({ candidateId }: CandidateHistoryProps)
                           <button
                             type="button"
                             onClick={() => handleDelete(entry.id)}
-                            className="text-gray-400 hover:text-danger transition-colors cursor-pointer"
+                            className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)] transition-colors cursor-pointer"
                             aria-label="Supprimer cette entrée"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <IconTrash className="w-4 h-4" />
                           </button>
                         )}
                       </div>

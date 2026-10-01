@@ -174,6 +174,22 @@ export function usePersistedListView<TFilters extends object>(
     setCursorHistory([])
   }
 
+  // Effacement synchrone : annule le debounce en attente et écrit '' jusque dans
+  // l'état debouncé, pour que sessionStorage + `?v=` soient mis à jour dès le
+  // prochain rendu. Sans ça, quitter la page dans les 300 ms après un effacement
+  // persistait l'ancien terme, qui réapparaissait au retour (particulièrement
+  // visible sur Safari où les onglets vivent longtemps).
+  const clearSearch = () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    setSearchInput('')
+    setDebouncedSearch('')
+    setAfterCursor(undefined)
+    setCursorHistory([])
+  }
+
   const loadNextPage = (pageInfo: PageInfo | undefined) => {
     if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) return
     setCursorHistory((h) => [...h, afterCursor])
@@ -192,6 +208,7 @@ export function usePersistedListView<TFilters extends object>(
   return {
     searchInput,
     setSearchInput,
+    clearSearch,
     debouncedSearch,
     filters,
     setFilters,
