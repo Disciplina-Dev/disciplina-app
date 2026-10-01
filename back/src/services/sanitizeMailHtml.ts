@@ -12,12 +12,16 @@ const LENGTH_OR_AUTO_VALUE = /^(auto|\d{1,4}(px|%))$/;
 const KEYWORD_VALUE = /^[a-z-]+$/i;
 
 const OPTIONS: sanitizeHtml.IOptions = {
-    allowedTags: ['p', 'br', 'ul', 'ol', 'li', 'span', 'a', 'b', 'i', 'em', 'strong', 'u', 'h2', 'h3', 'img'],
+    allowedTags: ['p', 'br', 'ul', 'ol', 'li', 'span', 'a', 'b', 'i', 'em', 'strong', 'u', 'h2', 'h3', 'img', 'hr'],
     allowedAttributes: {
         a: ['href', 'target', 'rel', 'style'],
         img: ['src', 'alt', 'width', 'height', 'style'],
         span: ['style'],
         p: ['style'],
+        // `align` : attribut HTML historique (pas du CSS) toujours respecté nativement par
+        // <hr> — nécessaire car Gmail (entre autres) supprime `margin` en style inline sur
+        // ce tag, même autorisé ; sert de filet pour l'alignement gauche/centré/droite.
+        hr: ['style', 'align'],
     },
     allowedStyles: {
         '*': {
@@ -32,8 +36,15 @@ const OPTIONS: sanitizeHtml.IOptions = {
             // inline-block : nécessaire pour que le padding vertical du bouton CTA
             // s'applique réellement (un <a> reste inline sinon).
             display: [KEYWORD_VALUE],
+            // `border:none` : supprime la bordure native du <hr>, sinon elle se superpose
+            // au fond coloré utilisé pour dessiner la barre de séparation personnalisée.
+            border: [KEYWORD_VALUE],
             width: [LENGTH_OR_AUTO_VALUE],
             height: [LENGTH_OR_AUTO_VALUE],
+            // Alignement gauche/centré/droite de la barre de séparation (marges gauche/droite
+            // à `auto` ou `0` selon le côté — jamais de valeur négative ni de `calc()`).
+            'margin-left': [LENGTH_OR_AUTO_VALUE],
+            'margin-right': [LENGTH_OR_AUTO_VALUE],
         },
     },
     // `data:` reste nécessaire pour les images inline (mime.builder.ts les convertit en

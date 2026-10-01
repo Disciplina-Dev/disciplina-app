@@ -527,7 +527,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
             <div className="mx-auto max-w-[600px] bg-white shadow-sm">
               <div style={{ backgroundColor: themeColor ?? 'transparent', padding: themeColor ? 24 : 0 }}>
                 <div
-                  className="rounded-lg text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+                  className="rounded-lg text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_hr]:my-[1.5em] [&_hr]:border-gray-300"
                   style={{
                     backgroundColor: themePastelBg ?? '#ffffff',
                     padding: themeColor ? 24 : 0,

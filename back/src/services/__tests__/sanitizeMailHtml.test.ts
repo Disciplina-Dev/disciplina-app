@@ -60,4 +60,22 @@ describe('sanitizeMailHtml', () => {
         expect(out).toContain('background-color:rgb(17, 48, 167)');
         expect(out).toContain('color:rgb(255, 255, 255)');
     });
+
+    it('conserve une barre de séparation personnalisée (couleur, épaisseur, largeur)', () => {
+        const html = '<hr style="background-color:#1130A7;height:4px;width:50%;border:none;display:block;">';
+        const out = sanitizeMailHtml(html);
+        expect(out).toContain('background-color:#1130A7');
+        expect(out).toContain('height:4px');
+        expect(out).toContain('width:50%');
+        expect(out).toContain('border:none');
+        expect(out).toContain('display:block');
+    });
+
+    it("conserve l'alignement de la barre (margin CSS + attribut align, filet pour Gmail)", () => {
+        const html = '<hr align="center" style="width:40%;margin-left:auto;margin-right:auto;">';
+        const out = sanitizeMailHtml(html);
+        expect(out).toContain('align="center"');
+        expect(out).toContain('margin-left:auto');
+        expect(out).toContain('margin-right:auto');
+    });
 });

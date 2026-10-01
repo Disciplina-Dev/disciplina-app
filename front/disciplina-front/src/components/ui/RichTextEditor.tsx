@@ -8,12 +8,13 @@ import Link from '@tiptap/extension-link'
 import TextStyle from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import Image from '@tiptap/extension-image'
+import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import { useEffect, useCallback, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Heading2, Link2, Unlink, Palette, ImagePlus, MousePointerClick, ALargeSmall, Highlighter,
+  Heading2, Link2, Unlink, Palette, ImagePlus, MousePointerClick, ALargeSmall, Highlighter, Minus,
 } from 'lucide-react'
 
 
@@ -42,6 +43,45 @@ const ImageWithStyle = Image.extend({
     return {
       ...this.parent?.(),
       style: { default: null },
+    }
+  },
+})
+
+type HrAlign = 'left' | 'center' | 'right'
+
+const HR_DEFAULT_STYLE = { color: '#D1D5DB', thicknessPx: 1, widthPct: 100, align: 'left' as HrAlign }
+
+function hrAlignMargins(align: HrAlign): string {
+  // Un seul côté à `auto` suffit (l'autre reste au défaut 0) : le sanitizer backend
+  // n'autorise que `auto` ou une longueur pour margin-left/right, jamais `0` seul.
+  if (align === 'center') return 'margin-left:auto;margin-right:auto;'
+  if (align === 'right') return 'margin-left:auto;'
+  return 'margin-right:auto;'
+}
+
+function buildHrStyle({ color, thicknessPx, widthPct, align }: typeof HR_DEFAULT_STYLE): string {
+  return `background-color:${color};height:${thicknessPx}px;width:${widthPct}%;border:none;display:block;${hrAlignMargins(align)}`
+}
+
+// De nombreux clients mail (Gmail en tête) suppriment `margin` en CSS inline sur un <hr>,
+// même autorisé côté sanitizer — le CSS seul ne suffit donc pas à aligner la barre. L'attribut
+// HTML `align` (obsolète en CSS mais toujours supporté nativement par `<hr>`) sert de filet :
+// il survit à ce nettoyage là où `margin-left/right:auto` peut être silencieusement ignoré.
+function parseHrSettings(attrs: { style?: string | null; align?: string | null }): typeof HR_DEFAULT_STYLE {
+  const style = attrs.style
+  const color = (style && /background-color:\s*([^;]+)/.exec(style)?.[1]?.trim()) || HR_DEFAULT_STYLE.color
+  const thicknessPx = (style && Number(/height:\s*(\d+)px/.exec(style)?.[1])) || HR_DEFAULT_STYLE.thicknessPx
+  const widthPct = (style && Number(/width:\s*(\d+)%/.exec(style)?.[1])) || HR_DEFAULT_STYLE.widthPct
+  const align: HrAlign = attrs.align === 'center' || attrs.align === 'right' ? attrs.align : 'left'
+  return { color, thicknessPx, widthPct, align }
+}
+
+const HorizontalRuleWithStyle = HorizontalRule.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      style: { default: buildHrStyle(HR_DEFAULT_STYLE) },
+      align: { default: HR_DEFAULT_STYLE.align },
     }
   },
 })
@@ -154,6 +194,23 @@ const COLOR_SWATCHES = [
   { label: 'Succès', value: '#1A7A4A' },
   { label: 'Alerte', value: '#A65C00' },
 ]
+
+const HR_COLOR_SWATCHES = [
+  { label: 'Gris clair', value: '#D1D5DB' },
+  { label: 'Gris', value: '#9CA3AF' },
+  { label: 'Noir', value: '#0D0D0D' },
+  { label: 'Bleu', value: '#1130A7' },
+  { label: 'Violet', value: '#60207E' },
+  { label: 'Rose', value: '#B10F55' },
+]
+
+const HR_THICKNESS_OPTIONS = [
+  { label: 'Fin', value: 1 },
+  { label: 'Moyen', value: 2 },
+  { label: 'Épais', value: 4 },
+]
+
+const HR_WIDTH_OPTIONS = [25, 50, 75, 100]
 
 interface RichTextEditorProps {
   value: string
@@ -274,11 +331,16 @@ export default function RichTextEditor({
   const [highlightPanelOpen, setHighlightPanelOpen] = useDropdownPanel(highlightPanelRef)
   const sizePanelRef = useRef<HTMLDivElement>(null)
   const [sizePanelOpen, setSizePanelOpen] = useDropdownPanel(sizePanelRef)
+  const hrPanelRef = useRef<HTMLDivElement>(null)
+  const [hrPanelOpen, setHrPanelOpen] = useDropdownPanel(hrPanelRef)
+  const [hrSettings, setHrSettings] = useState(HR_DEFAULT_STYLE)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ bulletList: {}, orderedList: {}, heading: { levels: [2, 3] } }),
+      StarterKit.configure({
+        bulletList: {}, orderedList: {}, heading: { levels: [2, 3] }, horizontalRule: false,
+      }),
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder }),
@@ -292,6 +354,7 @@ export default function RichTextEditor({
       FontSize,
       HighlightColor,
       ImageWithStyle,
+      HorizontalRuleWithStyle,
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -362,6 +425,27 @@ export default function RichTextEditor({
       })
       .run()
   }, [editor])
+
+  const openHrPanel = () => {
+    if (!editor) return
+    if (!hrPanelOpen && editor.isActive('horizontalRule')) {
+      const attrs = editor.getAttributes('horizontalRule') as { style?: string | null; align?: string | null }
+      setHrSettings(parseHrSettings(attrs))
+    }
+    setHrPanelOpen((open) => !open)
+  }
+
+  const applyHr = (next: Partial<typeof HR_DEFAULT_STYLE>) => {
+    if (!editor) return
+    const merged = { ...hrSettings, ...next }
+    setHrSettings(merged)
+    const style = buildHrStyle(merged)
+    if (editor.isActive('horizontalRule')) {
+      editor.chain().focus().updateAttributes('horizontalRule', { style, align: merged.align }).run()
+    } else {
+      editor.chain().focus().insertContent({ type: 'horizontalRule', attrs: { style, align: merged.align } }).run()
+    }
+  }
 
   if (!editor) return null
 
@@ -463,6 +547,94 @@ export default function RichTextEditor({
         {btn('Titre', () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive('heading', { level: 2 }))}
         {btn('Liste', () => editor.chain().focus().toggleBulletList().run(), editor.isActive('bulletList'))}
         {btn('Liste numérotée', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'))}
+        <div className="relative" ref={hrPanelRef}>
+          <ToolbarButton
+            onClick={openHrPanel}
+            active={hrPanelOpen || editor.isActive('horizontalRule')}
+            title="Barre de séparation"
+          >
+            <Minus size={14} />
+          </ToolbarButton>
+          {hrPanelOpen && (
+            <div className="absolute left-0 top-full z-10 mt-1 w-56 rounded-md border border-gray-100 bg-white p-2 shadow-md">
+              <div className="mb-1.5 text-[11px] font-medium text-gray-500">Couleur</div>
+              <div className="mb-2 flex items-center gap-1">
+                {HR_COLOR_SWATCHES.map(({ label, value }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    title={label}
+                    onMouseDown={(e) => { e.preventDefault(); applyHr({ color: value }) }}
+                    className="h-5 w-5 rounded-full ring-1 ring-inset ring-black/10"
+                    style={{ backgroundColor: value }}
+                  />
+                ))}
+                <ColorWheelInput onPick={(v) => applyHr({ color: v })} onClose={() => {}} />
+              </div>
+              <div className="mb-1.5 text-[11px] font-medium text-gray-500">Épaisseur</div>
+              <div className="mb-2 flex gap-1">
+                {HR_THICKNESS_OPTIONS.map(({ label, value }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); applyHr({ thicknessPx: value }) }}
+                    className={[
+                      'rounded px-2 py-1 text-xs',
+                      hrSettings.thicknessPx === value
+                        ? 'bg-purple/10 text-purple'
+                        : 'text-gray-600 hover:bg-gray-100',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="mb-1.5 text-[11px] font-medium text-gray-500">Largeur</div>
+              <div className="mb-2 flex gap-1">
+                {HR_WIDTH_OPTIONS.map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); applyHr({ widthPct: pct }) }}
+                    className={[
+                      'rounded px-2 py-1 text-xs',
+                      hrSettings.widthPct === pct
+                        ? 'bg-purple/10 text-purple'
+                        : 'text-gray-600 hover:bg-gray-100',
+                    ].join(' ')}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+              <div className="mb-1.5 text-[11px] font-medium text-gray-500">Alignement</div>
+              <div className="flex gap-1">
+                {(
+                  [
+                    { align: 'left' as HrAlign, icon: AlignLeft, title: 'Gauche' },
+                    { align: 'center' as HrAlign, icon: AlignCenter, title: 'Centré' },
+                    { align: 'right' as HrAlign, icon: AlignRight, title: 'Droite' },
+                  ]
+                ).map(({ align, icon: Icon, title }) => (
+                  <button
+                    key={align}
+                    type="button"
+                    title={title}
+                    onMouseDown={(e) => { e.preventDefault(); applyHr({ align }) }}
+                    className={[
+                      'flex h-6 w-6 items-center justify-center rounded',
+                      hrSettings.align === align
+                        ? 'bg-purple/10 text-purple'
+                        : 'text-gray-600 hover:bg-gray-100',
+                    ].join(' ')}
+                  >
+                    <Icon size={13} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <Divider />
         <ToolbarButton onClick={() => imageInputRef.current?.click()} title="Insérer une image">
           <ImagePlus size={14} />
