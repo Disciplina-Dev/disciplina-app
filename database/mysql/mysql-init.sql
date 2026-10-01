@@ -518,6 +518,7 @@ INSERT IGNORE INTO sector_settings (sector, location) VALUES
     ('Ouest', 'Disciplina Ouest — Saint-Paul'),
     ('Sud', 'Disciplina Sud — Saint-Pierre');
 
--- Copie secteur Annemasse : doit suivre le seed disciplina ci-dessus.
-INSERT IGNORE INTO disciplina_annemasse.sector_settings (sector, location)
-    SELECT sector, location FROM disciplina.sector_settings;
+-- Lieu de RDV du tenant Annemasse (mono-secteur « Annemasse ») : volontairement
+-- PAS une copie des zones Réunion ci-dessus (cf. GEO-11).
+INSERT IGNORE INTO disciplina_annemasse.sector_settings (sector, location) VALUES
+    ('Annemasse', 'Disciplina Annemasse');
