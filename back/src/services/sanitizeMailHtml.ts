@@ -41,8 +41,9 @@ const OPTIONS: sanitizeHtml.IOptions = {
             border: [KEYWORD_VALUE],
             width: [LENGTH_OR_AUTO_VALUE],
             height: [LENGTH_OR_AUTO_VALUE],
-            // Alignement gauche/centré/droite de la barre de séparation (marges gauche/droite
-            // à `auto` ou `0` selon le côté — jamais de valeur négative ni de `calc()`).
+            // Alignement gauche/centré/droite de la barre de séparation : seul le côté "auto"
+            // est envoyé (l'autre est omis, 0 par défaut navigateur) - la regex n'accepte de
+            // toute façon pas un `0` nu, seulement `auto` ou une longueur avec unité.
             'margin-left': [LENGTH_OR_AUTO_VALUE],
             'margin-right': [LENGTH_OR_AUTO_VALUE],
         },

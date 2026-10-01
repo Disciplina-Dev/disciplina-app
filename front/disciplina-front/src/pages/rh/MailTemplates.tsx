@@ -9,6 +9,33 @@ import { cleanHtml } from '@/services/sanitizeHtml'
 const inputClass =
   'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
 
+// Cadre + fond pastel du thème (cf. back/src/services/mailTheme.ts : wrapWithTheme()) — partagé
+// entre la zone d'édition et l'aperçu pour qu'ils restent pixel pour pixel identiques.
+function ThemeFrame({
+  themeColor, themePastelBg, fallbackBg = 'transparent', className, children,
+}: {
+  themeColor: string | null
+  themePastelBg: string | null
+  fallbackBg?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{ backgroundColor: themeColor ?? 'transparent', padding: themeColor ? 24 : 0 }}>
+      <div
+        className={['rounded-lg', className].filter(Boolean).join(' ')}
+        style={{
+          backgroundColor: themePastelBg ?? fallbackBg,
+          padding: themeColor ? 24 : 0,
+          borderRadius: themeColor ? 8 : 0,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 interface FormState {
   name: string
   subject: string
@@ -331,28 +358,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">Corps du mail</label>
-              <div
-                className="transition-colors"
-                style={{
-                  backgroundColor: themeColor ?? 'transparent',
-                  padding: themeColor ? 24 : 0,
-                }}
-              >
-                <div
-                  className="rounded-lg transition-colors"
-                  style={{
-                    backgroundColor: themePastelBg ?? 'transparent',
-                    padding: themeColor ? 24 : 0,
-                  }}
-                >
+              <ThemeFrame themeColor={themeColor} themePastelBg={themePastelBg}>
                   <RichTextEditor
                     value={form.body}
                     onChange={(html) => setForm((f) => ({ ...f, body: html }))}
                     placeholder="Rédigez votre modèle ici..."
                     minHeight="280px"
                   />
-                </div>
-              </div>
+                </ThemeFrame>
             </div>
 
             {/* Variables disponibles */}
@@ -525,19 +538,18 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
             {/* Largeur max 600px centrée : même contrainte que wrapWithTheme() à l'envoi,
                 sinon le HTML s'étale sur toute la largeur de la boîte de réception. */}
             <div className="mx-auto max-w-[600px] bg-white shadow-sm">
-              <div style={{ backgroundColor: themeColor ?? 'transparent', padding: themeColor ? 24 : 0 }}>
+              <ThemeFrame
+                themeColor={themeColor}
+                themePastelBg={themePastelBg}
+                fallbackBg="#ffffff"
+                className="text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_hr]:my-[1.5em] [&_hr]:border-gray-300"
+              >
                 <div
-                  className="rounded-lg text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_hr]:my-[1.5em] [&_hr]:border-gray-300"
-                  style={{
-                    backgroundColor: themePastelBg ?? '#ffffff',
-                    padding: themeColor ? 24 : 0,
-                    borderRadius: themeColor ? 8 : 0,
-                  }}
                   dangerouslySetInnerHTML={{
                     __html: cleanHtml(form.body || '<p class="text-gray-400">Le corps du mail apparaîtra ici…</p>'),
                   }}
                 />
-              </div>
+              </ThemeFrame>
             </div>
           </div>
         </div>
