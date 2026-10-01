@@ -170,4 +170,8 @@ export {
   AlignLeft as IconAlignLeft,
   AlignCenter as IconAlignCenter,
   AlignRight as IconAlignRight,
+  Palette as IconPalette,
+  TextSize as IconTextSize,
+  FillColorSolid as IconHighlight,
+  CursorPointer as IconCursorClick,
 } from 'iconoir-react'
