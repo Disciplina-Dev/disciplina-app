@@ -34,7 +34,7 @@
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "date-fns": "^4.4.0",
-    "dompurify": "^3.4.10",
+    "dompurify": "^3.4.16",
     "iconoir-react": "^7.12.1",
     "lucide-react": "^1.47.0",
     "pdfjs-dist": "6.3.289",
