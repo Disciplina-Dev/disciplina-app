@@ -1,5 +1,5 @@
 import '@/lib/readableStreamAsyncIterator'
-import { useRef, useState } from 'react'
+import { Component, useRef, useState, type ReactNode } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -31,6 +31,41 @@ const OPTIONS = {
   cMapUrl: `${import.meta.env.BASE_URL}cmaps/`,
   standardFontDataUrl: `${import.meta.env.BASE_URL}standard_fonts/`,
   isEvalSupported: false,
+}
+
+// Le prop `error` de <Document> ne couvre que l'échec du chargement initial : une
+// exception levée pendant le rendu d'une page précise (fichier structurellement
+// valide en surface mais corrompu plus loin) remonte jusqu'à l'ErrorBoundary par
+// défaut de React Router et fait planter toute la page. Les error boundaries React
+// exigent une classe, pas d'équivalent hook.
+class PdfRenderBoundary extends Component<
+  { fileUrl: string; children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-3 p-8 text-sm text-red-600">
+          <FileWarning size={18} />
+          Impossible d'afficher ce PDF.
+          <a
+            href={this.props.fileUrl}
+            download
+            className="text-xs font-medium text-blue-600 underline hover:text-blue-700"
+          >
+            Télécharger le fichier brut
+          </a>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 function ToolbarButton({
@@ -133,23 +168,25 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
         </a>
       </div>
       <div className="min-h-0 flex-1 overflow-auto bg-gray-50">
-        <Document
-          file={fileUrl}
-          onLoadSuccess={onLoadSuccess}
-          options={OPTIONS}
-          loading={
-            <div className="flex items-center justify-center gap-2 p-8 text-sm text-gray-500">
-              <Loader2 size={18} className="animate-spin" /> Chargement du PDF…
-            </div>
-          }
-          error={
-            <div className="flex items-center justify-center gap-2 p-8 text-sm text-red-600">
-              <FileWarning size={18} /> Impossible d'afficher ce PDF.
-            </div>
-          }
-        >
-          <Page pageNumber={page} scale={scale} renderTextLayer renderAnnotationLayer />
-        </Document>
+        <PdfRenderBoundary fileUrl={fileUrl}>
+          <Document
+            file={fileUrl}
+            onLoadSuccess={onLoadSuccess}
+            options={OPTIONS}
+            loading={
+              <div className="flex items-center justify-center gap-2 p-8 text-sm text-gray-500">
+                <Loader2 size={18} className="animate-spin" /> Chargement du PDF…
+              </div>
+            }
+            error={
+              <div className="flex items-center justify-center gap-2 p-8 text-sm text-red-600">
+                <FileWarning size={18} /> Impossible d'afficher ce PDF.
+              </div>
+            }
+          >
+            <Page pageNumber={page} scale={scale} renderTextLayer renderAnnotationLayer />
+          </Document>
+        </PdfRenderBoundary>
       </div>
     </div>
   )
