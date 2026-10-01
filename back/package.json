@@ -68,7 +68,7 @@
     "@types/pdfkit": "^0.17.6",
     "@types/pino-http": "^5.8.4",
     "@types/sanitize-html": "^2.16.1",
-    "@vitest/coverage-v8": "^5.0.1",
+    "@vitest/coverage-v8": "^5.0.2",
     "oxlint": "^1.64.0",
     "prettier": "^3.9.8",
     "ts-node-dev": "^2.0.0",
