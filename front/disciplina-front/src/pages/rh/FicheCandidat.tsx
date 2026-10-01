@@ -353,6 +353,12 @@ export default function FicheCandidat() {
     }
     let objectUrl: string | null = null
     let cancelled = false
+    // Sans ça, l'ancienne blob: URL (déjà révoquée par le cleanup ci-dessous) reste
+    // dans previewUrl le temps du fetch suivant : en passant d'une image à un PDF,
+    // PdfViewer se montait avec cette URL morte → pdf.js échouait avec
+    // "Invalid PDF structure" (#841). Un PDF ouvert en premier ne reproduisait pas
+    // le bug : previewUrl valait encore null au premier rendu.
+    setPreviewUrl(null)
     setPreviewLoading(true)
     setPreviewError(null)
     apiFetch(`/api/candidates/${id}/drive-files/${selectedFile.id}/content`)
