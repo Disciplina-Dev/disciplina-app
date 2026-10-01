@@ -1,27 +1,30 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  Search, User, MapPin, Car, Calendar, Loader2, AlertCircle,
-  Plus, SlidersHorizontal, Trash2,
-  Phone, GraduationCap, Mail, Copy, Check, Camera
-} from 'lucide-react';
+import { IconAlert, IconCalendar, IconCamera, IconCar, IconCheck, IconCopy, IconLoader, IconMail, IconMapPin, IconPhone, IconPlus, IconSliders, IconTraining, IconTrash, IconUser } from '@/components/ui/icons'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal';
 import CandidateAvatar from '@/components/rh/CandidateAvatar';
 import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal';
 import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
+import {
+  communeSectionsForRegion,
+} from '@/features/matching/constants/regions';
+import { useRegionStore } from '@/store/regionStore';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { secteurLabelOfTrainingSite } from '@/constants/secteurs';
 import type { Candidate } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import MultiSelectField from '@/components/ui/MultiSelectField';
+import CandidateSearchBar from '@/components/rh/CandidateSearchBar';
 import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters, type CandidateSearchField } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
 import { graphqlClient } from '@/graphql/client';
 import { GET_RH_USERS } from '@/graphql/queries';
+import Tabs from '@/components/ui/Tabs'
+import Select from '@/components/ui/Select'
 
 // --- Helpers ---
 
@@ -43,7 +46,7 @@ const getTpTypeColors = (tpType: TitleProfessionalType) => {
       // Slate
       return 'bg-[#F1F5F9] text-[#334155] ring-[#334155]/20';
     default:
-      return 'bg-gray-100 text-gray-500 ring-gray-200';
+      return 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] ring-[var(--ds-border)]';
   }
 };
 
@@ -51,6 +54,12 @@ const formatTrainingSite = (site?: TrainingSite) => {
   if (!site) return 'Non renseigné';
   return secteurLabelOfTrainingSite(site) ?? site;
 };
+
+// --- Commune sections selon le tenant (3 zones Réunion, 6 secteurs Annemasse) ---
+function useCommuneSections(): { key: string; label: string; options: string[] }[] {
+  const region = useRegionStore((s) => s.region);
+  return useMemo(() => communeSectionsForRegion(region), [region]);
+}
 
 // --- Tabs ---
 
@@ -75,13 +84,6 @@ const PAGE_SIZE = 20;
 
 type DateMode = 'any' | 'before' | 'after' | 'between' | 'none';
 
-const SEARCH_FIELD_LABELS: Record<CandidateSearchField, string> = {
-  NAME: 'Nom',
-  PHONE: 'Tél.',
-  EMAIL: 'Mail',
-};
-
-const SEARCH_FIELD_OPTIONS: CandidateSearchField[] = ['NAME', 'PHONE', 'EMAIL'];
 
 interface CandidateFilterState {
   trainingSite: TrainingSite | '';
@@ -157,6 +159,7 @@ export default function ListeCandidats() {
   const {
     searchInput,
     setSearchInput,
+    clearSearch,
     debouncedSearch,
     filters,
     setFilters,
@@ -181,7 +184,12 @@ export default function ListeCandidats() {
   );
   const [capturePhotoFor, setCapturePhotoFor] = useState<Candidate | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  // Tenant Annemasse : pas de sites de formation — le filtre « Secteur »
+  // (sites Réunion) est masqué, la granularité passe par la mobilité
+  // (6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region);
+  const isAnnemasse = region === 'annemasse';
+  const communeSections = useCommuneSections();  const [showFilters, setShowFilters] = useState(false);
   const [searchField, setSearchField] = useState<CandidateSearchField>('NAME');
   const [activeTab, setActiveTab] = useState<CandidateTab>('all');
 
@@ -324,8 +332,8 @@ export default function ListeCandidats() {
   if (loading && localCandidates.length === 0) {
     return (
       <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-gray-500">
-          <Loader2 size={40} className="animate-spin text-purple" />
+        <div className="flex flex-col items-center gap-3 text-[var(--ds-text-subtle)]">
+          <IconLoader width={40} height={40} className="animate-spin text-purple" />
           <p className="text-sm font-medium">Chargement des candidats…</p>
         </div>
       </div>
@@ -337,11 +345,11 @@ export default function ListeCandidats() {
     return (
       <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-center max-w-sm">
-          <div className="w-12 h-12 rounded-full bg-danger-bg flex items-center justify-center">
-            <AlertCircle size={24} className="text-danger" />
+          <div className="w-12 h-12 rounded-full bg-[var(--ds-danger-bg)] flex items-center justify-center">
+            <IconAlert width={24} height={24} className="text-[var(--ds-danger)]" />
           </div>
-          <p className="font-semibold text-gray-900">Impossible de charger les candidats</p>
-          <p className="text-sm text-gray-500">{error}</p>
+          <p className="font-semibold text-[var(--ds-text)]">Impossible de charger les candidats</p>
+          <p className="text-sm text-[var(--ds-text-subtle)]">{error}</p>
           <Button variant="secondary" onClick={() => refetch()}>Réessayer</Button>
         </div>
       </div>
@@ -354,49 +362,36 @@ export default function ListeCandidats() {
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Candidats</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-3xl font-extrabold text-[var(--ds-text)] tracking-tight">Candidats</h1>
+          <p className="text-sm text-[var(--ds-text-subtle)] mt-1">
             {localCandidates.length} candidat{localCandidates.length !== 1 ? 's' : ''} trouvé{localCandidates.length !== 1 ? 's' : ''} sur {totalCount}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex items-stretch">
-            <select
-              id="candidate-search-field"
-              value={searchField}
-              onChange={(e) => setSearchField(e.target.value as CandidateSearchField)}
-              className="border border-r-0 border-gray-100 bg-white rounded-l-xl pl-3 pr-7 py-2.5 text-sm font-medium text-gray-600 focus:outline-none focus:border-purple focus:ring-2 focus:ring-purple/20 shadow-sm transition-all cursor-pointer"
-            >
-              {SEARCH_FIELD_OPTIONS.map(f => (
-                <option key={f} value={f}>{SEARCH_FIELD_LABELS[f]}</option>
-              ))}
-            </select>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Rechercher…"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-r-xl text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple/20 focus:border-purple shadow-sm transition-all"
-              />
-            </div>
-          </div>
+          <CandidateSearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            onClear={clearSearch}
+            field={searchField}
+            onFieldChange={setSearchField}
+            searching={searchInput.trim() !== debouncedSearch.trim() || (loading && !!debouncedSearch)}
+            resultCount={totalCount}
+          />
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${showFilters || activeFiltersCount > 0
                 ? 'bg-purple-light text-purple ring-1 ring-purple/20'
-                : 'bg-white text-gray-600 border border-gray-100 hover:border-gray-200 shadow-sm'
+                : 'bg-[var(--ds-surface)] text-[var(--ds-text-muted)] border border-[var(--ds-border)] hover:border-[var(--ds-border)] shadow-sm'
               }`}
           >
-            <SlidersHorizontal size={16} />
+            <IconSliders width={16} height={16} />
             Filtres {activeFiltersCount > 0 && <span className="bg-purple text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full ml-1">{activeFiltersCount}</span>}
           </button>
           <Button
             id="btn-nouveau-candidat"
             className="bg-purple hover:bg-purple-dark text-white shadow-sm h-[42px]"
-            leftIcon={<Plus size={18} />}
+            leftIcon={<IconPlus width={18} height={18} />}
             onClick={() => setShowCreateModal(true)}
           >
             Nouveau
@@ -404,73 +399,105 @@ export default function ListeCandidats() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 flex gap-1 rounded-xl bg-white border border-gray-100 p-1 shadow-sm">
-        {(Object.keys(TAB_LABELS) as CandidateTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => handleTabChange(tab)}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-              activeTab === tab
-                ? 'bg-purple text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-            }`}
-          >
-            {TAB_LABELS[tab]}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        className="mb-6"
+        label="Filtrer les candidats par statut"
+        tone="purple"
+        value={activeTab}
+        onChange={handleTabChange}
+        options={(Object.keys(TAB_LABELS) as CandidateTab[]).map((tab) => ({
+          value: tab,
+          label: TAB_LABELS[tab],
+        }))}
+      />
 
       {/* Filter Panel */}
       {showFilters && (
-        <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] animate-[fadeIn_0.15s_ease-out]">
+        <div className="mb-6 p-4 bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-2xl shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] animate-[fadeIn_0.15s_ease-out]">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
 
-            {/* Secteur */}
+            {/* Secteur (sites de formation Réunion — masqué sur Annemasse) */}
+            {!isAnnemasse && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Secteur</label>
-              <select value={filters.trainingSite} onChange={e => setFilters({ ...filters, trainingSite: e.target.value as TrainingSite })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
-                <option value="">Tous les secteurs</option>
-                {Object.values(TrainingSite).map(site => <option key={site} value={site}>{formatTrainingSite(site)}</option>)}
-              </select>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Secteur</label>
+              <Select
+                size="sm"
+                ariaLabel="Secteur"
+                value={filters.trainingSite}
+                onChange={(value) => setFilters({ ...filters, trainingSite: value as TrainingSite })}
+                placeholder="Tous les secteurs"
+                options={[
+                  { value: '', label: 'Tous les secteurs' },
+                  ...Object.values(TrainingSite).map((site) => ({ value: site, label: formatTrainingSite(site) })),
+                ]}
+              />
             </div>
+            )}
 
             {/* Statut */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Statut</label>
-              <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value as CandidateStatus })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
-                <option value="">Tous les statuts</option>
-                {Object.values(CandidateStatus).map(status => <option key={status} value={status}>{CANDIDATE_STATUS_LABELS[status]}</option>)}
-              </select>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Statut</label>
+              <Select
+                size="sm"
+                ariaLabel="Statut"
+                value={filters.status}
+                onChange={(value) => setFilters({ ...filters, status: value as CandidateStatus })}
+                placeholder="Tous les statuts"
+                options={[
+                  { value: '', label: 'Tous les statuts' },
+                  ...Object.values(CandidateStatus).map((status) => ({ value: status, label: CANDIDATE_STATUS_LABELS[status] })),
+                ]}
+              />
             </div>
 
             {/* Niveau BAC */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Niveau d'études</label>
-              <select value={filters.schoolLevel} onChange={e => setFilters({ ...filters, schoolLevel: e.target.value as SchoolLevel })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
-                <option value="">Tous les niveaux</option>
-                {Object.values(SchoolLevel).map(level => <option key={level} value={level}>{SCHOOL_LEVEL_LABELS[level]}</option>)}
-              </select>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Niveau d'études</label>
+              <Select
+                size="sm"
+                ariaLabel="Niveau scolaire"
+                value={filters.schoolLevel}
+                onChange={(value) => setFilters({ ...filters, schoolLevel: value as SchoolLevel })}
+                placeholder="Tous les niveaux"
+                options={[
+                  { value: '', label: 'Tous les niveaux' },
+                  ...Object.values(SchoolLevel).map((level) => ({ value: level, label: SCHOOL_LEVEL_LABELS[level] })),
+                ]}
+              />
             </div>
 
             {/* Permis B */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Permis B</label>
-              <select value={filters.permis} onChange={e => setFilters({ ...filters, permis: e.target.value as 'all' | 'yes' | 'no' })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
-                <option value="all">Indifférent</option>
-                <option value="yes">Oui</option>
-                <option value="no">Non</option>
-              </select>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Permis B</label>
+              <Select
+                size="sm"
+                ariaLabel="Permis B"
+                value={filters.permis}
+                onChange={(value) => setFilters({ ...filters, permis: value as 'all' | 'yes' | 'no' })}
+                placeholder="Indifférent"
+                options={[
+                  { value: 'all', label: 'Indifférent' },
+                  { value: 'yes', label: 'Oui' },
+                  { value: 'no', label: 'Non' },
+                ]}
+              />
             </div>
 
             {/* Sexe */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Sexe</label>
-              <select value={filters.sex} onChange={e => setFilters({ ...filters, sex: e.target.value as 'FILLE' | 'GARCON' | '' })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none">
-                <option value="">Tous les sexes</option>
-                <option value="FILLE">Femme</option>
-                <option value="GARCON">Homme</option>
-              </select>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Sexe</label>
+              <Select
+                size="sm"
+                ariaLabel="Sexe"
+                value={filters.sex}
+                onChange={(value) => setFilters({ ...filters, sex: value as 'FILLE' | 'GARCON' | '' })}
+                placeholder="Tous les sexes"
+                options={[
+                  { value: '', label: 'Tous les sexes' },
+                  { value: 'FILLE', label: 'Femme' },
+                  { value: 'GARCON', label: 'Homme' },
+                ]}
+              />
             </div>
 
             {/* Type TP */}
@@ -486,32 +513,32 @@ export default function ListeCandidats() {
 
             {/* Age Min */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Âge min</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Âge min</label>
               <input
                 type="number"
                 placeholder="Ex: 18"
                 value={filters.ageMin}
                 onChange={e => setFilters({ ...filters, ageMin: e.target.value ? Number(e.target.value) : '' })}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                className="w-full bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               />
             </div>
 
             {/* Age Max */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Âge max</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Âge max</label>
               <input
                 type="number"
                 placeholder="Ex: 25"
                 value={filters.ageMax}
                 onChange={e => setFilters({ ...filters, ageMax: e.target.value ? Number(e.target.value) : '' })}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                className="w-full bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               />
             </div>
 
           </div>
 
           {/* Mobilité géographique + secteurs souhaités (multi-sélection, OR) */}
-          <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="mt-4 pt-4 border-t border-[var(--ds-border)] grid grid-cols-1 sm:grid-cols-2 gap-4">
             <MultiSelectField
               variant="filter"
               id="filter-geographic-mobility"
@@ -521,6 +548,7 @@ export default function ListeCandidats() {
               onChange={vals => setFilters({ ...filters, geographicMobility: vals as Localisation[] })}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
               placeholder="Toutes les villes"
+              sections={communeSections}
             />
             <MultiSelectField
               variant="filter"
@@ -535,13 +563,13 @@ export default function ListeCandidats() {
           </div>
 
           {/* Filtre par date de création */}
-          <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
+          <div className="mt-4 pt-4 border-t border-[var(--ds-border)] flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
             <div className="flex flex-col gap-1.5 sm:w-56">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Date de création</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Date de création</label>
               <select
                 value={filters.dateMode}
                 onChange={e => setFilters({ ...filters, dateMode: e.target.value as DateMode })}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                className="w-full bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               >
                 <option value="any">Toutes les dates</option>
                 <option value="after">Après le…</option>
@@ -553,7 +581,7 @@ export default function ListeCandidats() {
 
             {(filters.dateMode === 'after' || filters.dateMode === 'between') && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
                   {filters.dateMode === 'between' ? 'Du' : 'Après le'}
                 </label>
                 <input
@@ -561,14 +589,14 @@ export default function ListeCandidats() {
                   value={filters.dateFrom}
                   max={filters.dateTo || undefined}
                   onChange={e => setFilters({ ...filters, dateFrom: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                  className="w-full bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
                 />
               </div>
             )}
 
             {(filters.dateMode === 'before' || filters.dateMode === 'between') && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
                   {filters.dateMode === 'between' ? 'Au' : 'Avant le'}
                 </label>
                 <input
@@ -576,20 +604,20 @@ export default function ListeCandidats() {
                   value={filters.dateTo}
                   min={filters.dateFrom || undefined}
                   onChange={e => setFilters({ ...filters, dateTo: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                  className="w-full bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
                 />
               </div>
             )}
           </div>
 
           {/* Filtre par entretien fait par */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="mt-4 pt-4 border-t border-[var(--ds-border)]">
             <div className="flex flex-col gap-1.5 sm:w-72">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Entretien fait par</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Entretien fait par</label>
               <select
                 value={filters.interviewedBy}
                 onChange={e => setFilters({ ...filters, interviewedBy: e.target.value })}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
+                className="w-full bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] rounded-lg px-3 py-2 text-sm focus:border-purple focus:ring-purple/20 outline-none"
               >
                 <option value="">Tous les RH</option>
                 {rhUsers.map(u => {
@@ -604,9 +632,9 @@ export default function ListeCandidats() {
             <div className="mt-4 flex justify-end">
               <button
                 onClick={handleResetFilters}
-                className="flex items-center gap-1.5 text-xs font-semibold text-danger hover:text-pink-dark transition-colors"
+                className="flex items-center gap-1.5 text-xs font-semibold text-[var(--ds-danger)] hover:text-pink-dark transition-colors"
               >
-                <Trash2 size={14} />
+                <IconTrash width={14} height={14} />
                 Réinitialiser les filtres
               </button>
             </div>
@@ -620,7 +648,7 @@ export default function ListeCandidats() {
           <div
             key={candidate._id}
             onClick={() => navigate(`/rh/candidats/${candidate._id}`)}
-            className="group relative bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-purple/30 transition-all cursor-pointer flex flex-col h-full overflow-hidden"
+            className="group relative bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-purple/30 transition-all cursor-pointer flex flex-col h-full overflow-hidden"
           >
             {candidate.status === CandidateStatus.TEST_FAILED && candidate.test_failure_pending && (
               <div className="absolute top-0 left-0 px-3 py-1 rounded-br-xl text-[9px] font-bold uppercase tracking-wider bg-orange-500 text-white z-10">
@@ -646,7 +674,7 @@ export default function ListeCandidats() {
             </div>
             {candidate.status === CandidateStatus.CONTRACT && candidate.contract_company_name && (
               <div
-                className="absolute top-8 right-0 px-4 py-0.5 text-[10px] font-medium text-gray-500 text-right max-w-[60%] truncate z-10"
+                className="absolute top-8 right-0 px-4 py-0.5 text-[10px] font-medium text-[var(--ds-text-subtle)] text-right max-w-[60%] truncate z-10"
                 title={candidate.contract_company_name}
               >
                 {candidate.contract_company_name}
@@ -676,14 +704,14 @@ export default function ListeCandidats() {
                   }}
                   className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-purple text-white flex items-center justify-center ring-2 ring-white hover:bg-purple/90"
                 >
-                  <Camera size={12} />
+                  <IconCamera width={12} height={12} />
                 </button>
               </div>
             </div>
 
             {/* Card Body: Info */}
             <div className="mb-4 flex-1">
-              <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-purple transition-colors">
+              <h3 className="text-lg font-bold text-[var(--ds-text)] mb-1 group-hover:text-purple transition-colors">
                 {candidate.identity.full_name}
               </h3>
               <div className="mb-4 mt-1 flex gap-2 flex-wrap">
@@ -699,8 +727,8 @@ export default function ListeCandidats() {
                 )}
               </div>
               <div className="space-y-2 mt-2">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Mail size={16} className="text-gray-400 shrink-0" />
+                <div className="flex items-center gap-2 text-sm text-[var(--ds-text-muted)]">
+                  <IconMail width={16} height={16} className="text-[var(--ds-text-subtle)] shrink-0" />
                   {candidate.identity.email ? (
                     <>
                       <span className="truncate flex-1">{candidate.identity.email}</span>
@@ -713,15 +741,15 @@ export default function ListeCandidats() {
                         }}
                         className={`p-1 rounded transition-all flex items-center justify-center ${
                           copiedId === candidate._id
-                            ? 'text-success bg-success/10 opacity-100'
-                            : 'md:opacity-0 focus:opacity-100 group-hover:opacity-100 text-gray-400 hover:text-purple hover:bg-purple-light'
+                            ? 'text-[var(--ds-success)] bg-success/10 opacity-100'
+                            : 'md:opacity-0 focus:opacity-100 group-hover:opacity-100 text-[var(--ds-text-subtle)] hover:text-purple hover:bg-purple-light'
                         }`}
                         title="Copier l'email"
                       >
                         {copiedId === candidate._id ? (
-                          <Check size={14} className="animate-[ping__.3s_ease-in-out_1]" />
+                          <IconCheck width={14} height={14} className="animate-[ping__.3s_ease-in-out_1]" />
                         ) : (
-                          <Copy size={14} />
+                          <IconCopy width={14} height={14} />
                         )}
                       </button>
                     </>
@@ -729,38 +757,38 @@ export default function ListeCandidats() {
                     <span className="truncate flex-1">-</span>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Phone size={16} className="text-gray-400 shrink-0" />
+                <div className="flex items-center gap-2 text-sm text-[var(--ds-text-muted)]">
+                  <IconPhone width={16} height={16} className="text-[var(--ds-text-subtle)] shrink-0" />
                   <span className="truncate">{candidate.identity.phone || '-'}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <GraduationCap size={16} className="text-gray-400 shrink-0" />
+                <div className="flex items-center gap-2 text-sm text-[var(--ds-text-muted)]">
+                  <IconTraining width={16} height={16} className="text-[var(--ds-text-subtle)] shrink-0" />
                   <span className="truncate">{candidate.education?.school_level ? SCHOOL_LEVEL_LABELS[candidate.education.school_level] : (candidate.background?.last_diploma || '-')}</span>
                 </div>
-                <div className="flex items-center justify-between gap-2 text-sm text-gray-600">
+                <div className="flex items-center justify-between gap-2 text-sm text-[var(--ds-text-muted)]">
                   <div className="flex items-center gap-2 shrink-0">
-                    <Calendar size={16} className="text-gray-400 shrink-0" />
+                    <IconCalendar width={16} height={16} className="text-[var(--ds-text-subtle)] shrink-0" />
                     <span>{candidate.identity.age ? `${candidate.identity.age} ans` : '-'}</span>
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
-                    <MapPin size={16} className="text-gray-400 shrink-0" />
+                    <IconMapPin width={16} height={16} className="text-[var(--ds-text-subtle)] shrink-0" />
                     <span className="truncate">{formatCommune(candidate.identity.city)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Car size={16} className="text-gray-400 shrink-0" />
+                <div className="flex items-center gap-2 text-sm text-[var(--ds-text-muted)]">
+                  <IconCar width={16} height={16} className="text-[var(--ds-text-subtle)] shrink-0" />
                   <span>Permis B: {candidate.identity.driving_license_b ? 'Oui' : 'Non'}</span>
                 </div>
 
                 {candidate.profile?.qualities && candidate.profile.qualities.length > 0 && (
-                  <div className="pt-3 mt-3 border-t border-gray-100 flex flex-wrap gap-1.5">
+                  <div className="pt-3 mt-3 border-t border-[var(--ds-border)] flex flex-wrap gap-1.5">
                     {candidate.profile.qualities.slice(0, 3).map((q, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-md whitespace-nowrap truncate max-w-full">
+                      <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-[11px] font-medium rounded-md whitespace-nowrap truncate max-w-full">
                         {q}
                       </span>
                     ))}
                     {candidate.profile.qualities.length > 3 && (
-                      <span className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[11px] font-medium rounded-md whitespace-nowrap">
+                      <span className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] text-[11px] font-medium rounded-md whitespace-nowrap">
                         +{candidate.profile.qualities.length - 3}
                       </span>
                     )}
@@ -768,16 +796,16 @@ export default function ListeCandidats() {
                 )}
 
                 {(candidate.created_at || candidate.owner?.name) && (
-                  <div className="pt-3 mt-3 border-t border-gray-100 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
+                  <div className="pt-3 mt-3 border-t border-[var(--ds-border)] flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--ds-text-subtle)]">
                     {candidate.created_at && (
                       <span className="inline-flex items-center gap-1">
-                        <Calendar size={12} className="shrink-0" />
+                        <IconCalendar width={12} height={12} className="shrink-0" />
                         Créé le {new Date(candidate.created_at).toLocaleDateString('fr-FR')}
                       </span>
                     )}
                     {candidate.owner?.name && (
                       <span className="inline-flex items-center gap-1 min-w-0">
-                        <User size={12} className="shrink-0" />
+                        <IconUser width={12} height={12} className="shrink-0" />
                         <span className="truncate">par {candidate.owner.name}</span>
                       </span>
                     )}
@@ -788,9 +816,9 @@ export default function ListeCandidats() {
           </div>
         ))}
         {localCandidates.length === 0 && (
-          <div className="col-span-full py-12 flex flex-col items-center justify-center text-gray-500 bg-white rounded-2xl border border-dashed border-gray-200">
-            <User size={48} className="text-gray-300 mb-4" />
-            <p className="text-lg font-medium text-gray-900">Aucun candidat trouvé</p>
+          <div className="col-span-full py-12 flex flex-col items-center justify-center text-[var(--ds-text-subtle)] bg-[var(--ds-surface)] rounded-2xl border border-dashed border-[var(--ds-border)]">
+            <IconUser width={48} height={48} className="text-[var(--ds-text-subtle)] mb-4" />
+            <p className="text-lg font-medium text-[var(--ds-text)]">Aucun candidat trouvé</p>
             <p className="text-sm">Essayez de modifier votre recherche ou vos filtres.</p>
           </div>
         )}
@@ -798,12 +826,12 @@ export default function ListeCandidats() {
 
       {/* Pagination */}
       {!hidePagination && (
-        <div className="mt-8 flex items-center justify-between rounded-xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
+        <div className="mt-8 flex items-center justify-between rounded-xl bg-[var(--ds-surface)] border border-[var(--ds-border)] px-5 py-4 shadow-sm">
           <button
             type="button"
             onClick={loadPrevPage}
             disabled={cursorHistory.length === 0 || loading}
-            className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             ← Page précédente
           </button>
@@ -811,7 +839,7 @@ export default function ListeCandidats() {
             type="button"
             onClick={() => loadNextPage(pageInfo)}
             disabled={!pageInfo?.hasNextPage || loading}
-            className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Page suivante →
           </button>
@@ -853,21 +881,21 @@ export default function ListeCandidats() {
       {/* Immersion date modal */}
       {immersionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModal(null)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
-            <p className="mt-1 text-sm text-gray-500">Renseigne les dates de début et de fin de l'immersion.</p>
+          <div className="w-full max-w-sm rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Passage en immersion</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Renseigne les dates de début et de fin de l'immersion.</p>
             <div className="mt-4 space-y-3">
               <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="imm-start-list">Date de début</label>
-                <input id="imm-start-list" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={immersionStart} onChange={e => setImmersionStart(e.target.value)} />
+                <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="imm-start-list">Date de début</label>
+                <input id="imm-start-list" type="date" className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue mt-1" value={immersionStart} onChange={e => setImmersionStart(e.target.value)} />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="imm-end-list">Date de fin</label>
-                <input id="imm-end-list" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={immersionEnd} min={immersionStart || undefined} onChange={e => setImmersionEnd(e.target.value)} />
+                <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="imm-end-list">Date de fin</label>
+                <input id="imm-end-list" type="date" className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue mt-1" value={immersionEnd} min={immersionStart || undefined} onChange={e => setImmersionEnd(e.target.value)} />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setImmersionModal(null)} className="rounded-xl border border-gray-100 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-200">Annuler</button>
+              <button onClick={() => setImmersionModal(null)} className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:border-[var(--ds-border)]">Annuler</button>
               <button onClick={confirmImmersion} disabled={!immersionStart || !immersionEnd} className="rounded-xl bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirmer</button>
             </div>
           </div>
@@ -877,15 +905,15 @@ export default function ListeCandidats() {
       {/* Unavailable date modal */}
       {unavailableModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setUnavailableModal(null)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Indisponible jusqu'au</h3>
-            <p className="mt-1 text-sm text-gray-500">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
+          <div className="w-full max-w-sm rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Indisponible jusqu'au</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
             <div className="mt-4">
-              <label className="text-sm font-medium text-gray-700" htmlFor="avail-date">Date de disponibilité</label>
-              <input id="avail-date" type="date" className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 pl-4 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue mt-1" value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="avail-date">Date de disponibilité</label>
+              <input id="avail-date" type="date" className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue mt-1" value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
             </div>
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setUnavailableModal(null)} className="rounded-xl border border-gray-100 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-200">Annuler</button>
+              <button onClick={() => setUnavailableModal(null)} className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:border-[var(--ds-border)]">Annuler</button>
               <button onClick={confirmUnavailable} disabled={!availabilityDate} className="rounded-xl bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirmer</button>
             </div>
           </div>

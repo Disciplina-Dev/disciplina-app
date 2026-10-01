@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, RefreshCw, AlertTriangle, Plus, Check, UserCheck, Search, ChevronDown, Info, Eye } from 'lucide-react'
+import { IconCheck, IconChevronDown, IconEye, IconInfo, IconJob, IconPlus, IconRefresh, IconSearch, IconUserCheck, IconWarning } from '@/components/ui/icons'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { MATCH_CANDIDATE } from '@/graphql/queries'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
@@ -72,11 +72,11 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
   }
 
   return (
-    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <section className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6 shadow-sm">
       <div className={`flex items-center justify-between gap-3 ${expanded ? 'mb-4' : ''}`}>
         <div className="flex items-center gap-3">
-          <Briefcase className="w-5 h-5 text-blue" />
-          <h2 className="text-base font-semibold text-gray-800">Offres correspondantes</h2>
+          <IconJob className="w-5 h-5 text-blue" />
+          <h2 className="text-base font-semibold text-[var(--ds-text)]">Offres correspondantes</h2>
           {expanded && !loading && !error && (
             <span className="inline-flex items-center text-xs font-semibold py-1 px-2.5 rounded-full bg-blue-light text-blue">
               {jobs.length} offre{jobs.length > 1 ? 's' : ''}
@@ -90,7 +90,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
               onClick={() => setShowJobSearch(true)}
               className="flex items-center gap-1.5 text-sm font-medium text-blue hover:text-blue/80 transition-colors cursor-pointer"
             >
-              <Search className="w-4 h-4" />
+              <IconSearch className="w-4 h-4" />
               Proposer des offres
             </button>
           )}
@@ -99,9 +99,9 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
               type="button"
               onClick={fetchMatches}
               disabled={loading}
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 text-sm text-[var(--ds-text-subtle)] hover:text-[var(--ds-text)] transition-colors disabled:opacity-50 cursor-pointer"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <IconRefresh className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Rafraîchir
             </button>
           )}
@@ -114,7 +114,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                 : 'py-2 px-3 rounded-lg border border-blue-light bg-blue-light/50 hover:bg-blue-light'
             }`}
           >
-            {!expanded && <ChevronDown className="w-4 h-4" />}
+            {!expanded && <IconChevronDown className="w-4 h-4" />}
             {expanded ? 'Réduire' : 'Voir les offres'}
           </button>
         </div>
@@ -127,15 +127,15 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
       )}
 
       {expanded && !loading && error && (
-        <div className="text-center py-6 px-4 bg-danger-bg rounded-lg">
-          <p className="text-sm text-danger">{error}</p>
+        <div className="text-center py-6 px-4 bg-[var(--ds-danger-bg)] rounded-lg">
+          <p className="text-sm text-[var(--ds-danger)]">{error}</p>
         </div>
       )}
 
       {expanded && !loading && !error && jobs.length === 0 && (
-        <div className="text-center py-6 px-4 bg-gray-50 rounded-lg">
-          <AlertTriangle className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600">Aucune offre ne correspond à ce profil pour le moment.</p>
+        <div className="text-center py-6 px-4 bg-[var(--ds-surface-sunken)] rounded-lg">
+          <IconWarning className="w-6 h-6 text-[var(--ds-text-subtle)] mx-auto mb-2" />
+          <p className="text-sm text-[var(--ds-text-muted)]">Aucune offre ne correspond à ce profil pour le moment.</p>
         </div>
       )}
 
@@ -144,15 +144,15 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
           {jobs.map(job => (
             <div
               key={job.id}
-              className="bg-white border border-gray-100 rounded-lg px-4 py-3 flex items-center gap-3"
+              className="bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-lg px-4 py-3 flex items-center gap-3"
             >
               <span className="w-8 h-8 flex-shrink-0 rounded-md bg-blue-light text-blue flex items-center justify-center">
-                <Briefcase className="w-4 h-4" />
+                <IconJob className="w-4 h-4" />
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{job.companyName || 'Entreprise'}</p>
+                <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{job.companyName || 'Entreprise'}</p>
                 {(job.title || job.jobRole) && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                  <p className="text-xs text-[var(--ds-text-subtle)] truncate mt-0.5">
                     {[job.title, job.jobRole].filter(Boolean).join(' · ')}
                   </p>
                 )}
@@ -162,14 +162,14 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                       tp.tpType && (
                         <span
                           key={tp.tpType}
-                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600"
+                          className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]"
                         >
                           {TP_TYPE_LABELS[tp.tpType]}
                         </span>
                       ),
                   )}
                   {job.sector && (
-                    <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-gray-100 text-gray-600">
+                    <span className="inline-flex items-center text-xs font-medium py-0.5 px-2 rounded-full bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]">
                       {formatSector(job.sector)}
                     </span>
                   )}
@@ -188,28 +188,28 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                   <button
                     type="button"
                     onClick={() => setAbDetailId(job.needsAnalysisId!)}
-                    className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue transition-colors"
+                    className="flex items-center gap-1 text-xs font-medium text-[var(--ds-text-subtle)] hover:text-blue transition-colors"
                     title="Voir l'AB"
                   >
-                    <Eye className="w-3.5 h-3.5" />
+                    <IconEye className="w-3.5 h-3.5" />
                     Voir l'AB
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setCompanyInfoOfferId(job.id)}
-                  className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue transition-colors"
+                  className="flex items-center gap-1 text-xs font-medium text-[var(--ds-text-subtle)] hover:text-blue transition-colors"
                   title="Voir toutes les infos de l'offre"
                 >
-                  <Info className="w-3.5 h-3.5" />
+                  <IconInfo className="w-3.5 h-3.5" />
                 </button>
                 {confirmedJobIds?.has(job.id) ? (
-                  <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${(job.status && MATCHED_CANDIDATE_STATUS_BADGE_CLASS[job.status as MatchedCandidateStatus]) ?? 'bg-success-bg text-success'}`}>
-                    <UserCheck className="w-3.5 h-3.5" /> {(job.status && MATCHED_CANDIDATE_STATUS_LABELS[job.status as MatchedCandidateStatus]) ?? 'Matché'}
+                  <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${(job.status && MATCHED_CANDIDATE_STATUS_BADGE_CLASS[job.status as MatchedCandidateStatus]) ?? 'bg-[var(--ds-success-bg)] text-[var(--ds-success)]'}`}>
+                    <IconUserCheck className="w-3.5 h-3.5" /> {(job.status && MATCHED_CANDIDATE_STATUS_LABELS[job.status as MatchedCandidateStatus]) ?? 'Matché'}
                   </span>
                 ) : addedJobIds.has(job.id) ? (
-                  <span className="flex items-center gap-1 text-xs font-medium text-success">
-                    <Check className="w-3.5 h-3.5" /> Ajouté
+                  <span className="flex items-center gap-1 text-xs font-medium text-[var(--ds-success)]">
+                    <IconCheck className="w-3.5 h-3.5" /> Ajouté
                   </span>
                 ) : (
                   <button
@@ -217,7 +217,7 @@ export default function MatchedJobsList({ candidateId, confirmedJobIds, candidat
                     onClick={() => setModalJobId(job.id)}
                     className="flex items-center gap-1 text-xs font-medium text-blue hover:text-blue/80 transition-colors disabled:opacity-50"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <IconPlus className="w-3.5 h-3.5" />
                     Ajouter
                   </button>
                 )}

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Loader2, Upload, CheckCircle, AlertCircle } from 'lucide-react'
+import { IconAlert, IconCheckCircle, IconLoader, IconUpload } from '@/components/ui/icons'
 import { getExternalProfile, uploadExternalCv, completeExternalCv, ExternalAuthError, type ExternalProfile } from '@/api/external'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 
@@ -68,11 +68,11 @@ export default function ExternalCvUpload() {
 
   if (loadError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <AlertCircle size={32} className="text-danger" />
-          <p className="text-[15px] font-bold text-gray-800">Erreur</p>
-          <p className="text-[13px] text-gray-500">{loadError}</p>
+          <IconAlert width={32} height={32} className="text-[var(--ds-danger)]" />
+          <p className="text-[15px] font-bold text-[var(--ds-text)]">Erreur</p>
+          <p className="text-[13px] text-[var(--ds-text-subtle)]">{loadError}</p>
         </div>
       </div>
     )
@@ -80,19 +80,19 @@ export default function ExternalCvUpload() {
 
   if (!profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <Loader2 size={28} className="animate-spin text-purple" />
+      <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">
+        <IconLoader width={28} height={28} className="animate-spin text-purple" />
       </div>
     )
   }
 
   if (uploaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-sm rounded-2xl border border-gray-100 bg-white p-6 text-center shadow-sm">
-          <CheckCircle size={48} className="mx-auto text-green-500" />
-          <h2 className="mt-4 text-[18px] font-extrabold text-gray-900">CV importé avec succès</h2>
-          <p className="mt-2 text-[13px] text-gray-500">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">
+        <div className="w-full max-w-sm rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6 text-center shadow-sm">
+          <IconCheckCircle width={48} height={48} className="mx-auto text-[var(--ds-success)]" />
+          <h2 className="mt-4 text-[18px] font-extrabold text-[var(--ds-text)]">CV importé avec succès</h2>
+          <p className="mt-2 text-[13px] text-[var(--ds-text-subtle)]">
             Votre CV a bien été transmis à votre conseiller.
           </p>
         </div>
@@ -101,11 +101,11 @@ export default function ExternalCvUpload() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6 shadow-sm">
         <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
-        <h1 className="mt-1 text-[20px] font-extrabold text-gray-900">Import de votre CV</h1>
-        <p className="mt-1 text-[13px] text-gray-500">{profile.externalEmail}</p>
+        <h1 className="mt-1 text-[20px] font-extrabold text-[var(--ds-text)]">Import de votre CV</h1>
+        <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">{profile.externalEmail}</p>
         <ExternalExpiryNotice expiresAt={profile.expiresAt} />
 
         <div className="mt-6">
@@ -115,15 +115,15 @@ export default function ExternalCvUpload() {
             onDragLeave={handleDragLeave}
             onClick={() => inputRef.current?.click()}
             className={`flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors ${
-              dragOver ? 'border-purple bg-purple/5' : 'border-gray-200 hover:border-gray-300'
+              dragOver ? 'border-purple bg-purple/5' : 'border-[var(--ds-border)] hover:border-[var(--ds-border-strong)]'
             }`}
           >
-            <Upload size={32} className={dragOver ? 'text-purple' : 'text-gray-300'} />
+            <IconUpload width={32} height={32} className={dragOver ? 'text-purple' : 'text-[var(--ds-text-subtle)]'} />
             <div className="text-center">
-              <p className="text-[13px] font-semibold text-gray-700">
+              <p className="text-[13px] font-semibold text-[var(--ds-text-muted)]">
                 Cliquez ou déposez votre CV ici
               </p>
-              <p className="mt-1 text-[11px] text-gray-400">PDF, JPG ou PNG</p>
+              <p className="mt-1 text-[11px] text-[var(--ds-text-subtle)]">PDF, JPG ou PNG</p>
             </div>
           </div>
           <input
@@ -137,12 +137,12 @@ export default function ExternalCvUpload() {
 
         {uploading && (
           <div className="mt-4 flex items-center justify-center gap-2 text-[13px] text-purple">
-            <Loader2 size={16} className="animate-spin" />
+            <IconLoader width={16} height={16} className="animate-spin" />
             Import en cours...
           </div>
         )}
 
-        {uploadError && <p className="mt-3 text-center text-[12px] text-danger">{uploadError}</p>}
+        {uploadError && <p className="mt-3 text-center text-[12px] text-[var(--ds-danger)]">{uploadError}</p>}
       </div>
     </div>
   )

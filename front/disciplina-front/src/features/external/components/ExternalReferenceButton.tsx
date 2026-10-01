@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { IconExternalLink } from '@/components/ui/icons'
 
 interface ExternalReferenceButtonProps {
   referenceId: number
@@ -28,7 +28,7 @@ export default function ExternalReferenceButton({ referenceId, referenceKey }: E
       title="Ouvrir l'objet référencé"
       className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-purple hover:bg-purple-light/50 transition-colors"
     >
-      <ExternalLink size={14} />
+      <IconExternalLink width={14} height={14} />
       Voir
     </button>
   )

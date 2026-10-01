@@ -20,8 +20,23 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
  * `proposition_candidat` = mail d'invitation à la sélection de candidats (scope rh).
  * `interview_invitation`  = mail d'invitation à la réservation d'un créneau d'entretien (scope rh).
  */
-export const MAIL_TEMPLATE_KINDS = ['ab_signature', 'ab_relance', 'proposition_candidat', 'external_link', 'interview_invitation'] as const;
+export const MAIL_TEMPLATE_KINDS = [
+    'ab_signature',
+    'ab_relance',
+    'proposition_candidat',
+    'external_link',
+    'interview_invitation',
+] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
+
+/**
+ * Couleur de cadre (hex `#rrggbb`) appliquée au mail à l'envoi — cf. services/mailTheme.ts.
+ * `null` = classique (pas d'enveloppe). Le fond pastel qui l'accompagne est dérivé
+ * automatiquement de cette couleur, pas stocké séparément.
+ */
+export function isMailThemeColor(value: unknown): value is string {
+    return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+}
 
 /** Libellés affichés (front + logs). */
 export const PEDA_LEVEL_LABELS: Record<PedaLevel, string> = {
@@ -49,6 +64,8 @@ export interface MailTemplate {
     peda_level: PedaLevel | null;
     /** Modèle système (ex. `ab_signature`) ; null pour les modèles créés par l'utilisateur. */
     kind: MailTemplateKind | null;
+    /** Couleur de cadre hex appliquée à l'envoi ; null = classique (pas d'enveloppe). */
+    theme: string | null;
     attachment: MailTemplateAttachment | null;
     created_at: Date;
     updated_at: Date;

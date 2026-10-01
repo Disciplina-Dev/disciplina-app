@@ -1,15 +1,45 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Pencil, Trash2, X, Mail, Paperclip, Loader2, Save } from 'lucide-react'
+import {
+  IconAttachment, IconClose, IconEdit, IconLoader, IconMail, IconPlus, IconSave, IconTrash,
+  IconEye, IconEyeOff,
+} from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useMailTemplatesStore, type MailTemplate, type MailTemplatesScope } from '@/store/mailTemplatesStore'
 import { useRegionStore } from '@/store/regionStore'
 import { regionTimezone } from '@/lib/timezone'
-import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel } from '@/api/mailTemplates'
+import { PEDA_LEVELS, PEDA_LEVEL_LABELS, PEDA_LEVEL_HINTS, type PedaLevel, pastelizeThemeColor } from '@/api/mailTemplates'
 import { cleanHtml } from '@/services/sanitizeHtml'
 
 const inputClass =
-  'w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors'
+  'w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] outline-none focus:border-purple transition-colors'
+
+// Cadre + fond pastel du thème (cf. back/src/services/mailTheme.ts : wrapWithTheme()) — partagé
+// entre la zone d'édition et l'aperçu pour qu'ils restent pixel pour pixel identiques.
+function ThemeFrame({
+  themeColor, themePastelBg, fallbackBg = 'transparent', className, children,
+}: {
+  themeColor: string | null
+  themePastelBg: string | null
+  fallbackBg?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{ backgroundColor: themeColor ?? 'transparent', padding: themeColor ? 24 : 0 }}>
+      <div
+        className={['rounded-lg', className].filter(Boolean).join(' ')}
+        style={{
+          backgroundColor: themePastelBg ?? fallbackBg,
+          padding: themeColor ? 24 : 0,
+          borderRadius: themeColor ? 8 : 0,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
 
 interface FormState {
   name: string
@@ -17,6 +47,8 @@ interface FormState {
   body: string
   // Niveau de relance (scope peda uniquement) ; '' = non rattaché.
   pedaLevel: PedaLevel | ''
+  // Couleur de cadre hex appliquée à l'envoi ; null = pas d'enveloppe.
+  theme: string | null
   // PJ déjà stockée sur Drive (métadonnées) ; null si aucune ou supprimée.
   existingAttachment: { filename: string; contentType: string } | null
   // Nouveau fichier à uploader (remplace l'existant) ; null sinon.
@@ -24,7 +56,7 @@ interface FormState {
   removeExisting: boolean
 }
 
-const EMPTY_FORM: FormState = { name: '', subject: '', body: '', pedaLevel: '', existingAttachment: null, newFile: null, removeExisting: false }
+const EMPTY_FORM: FormState = { name: '', subject: '', body: '', pedaLevel: '', theme: null, existingAttachment: null, newFile: null, removeExisting: false }
 
 // Le fichier est zippé côté serveur puis stocké sur Drive — on tolère des PJ plus lourdes que l'ancien localStorage.
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -96,6 +128,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
   // Le modèle système « AB à signer » a ses propres variables.
   const editingKind = editing && editing !== 'new' ? editing.kind : null
   const templateVars =
@@ -135,10 +168,13 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   }
 
   function openEdit(t: MailTemplate) {
-    setForm({ name: t.name, subject: t.subject, body: t.body, pedaLevel: t.pedaLevel ?? '', existingAttachment: t.attachment, newFile: null, removeExisting: false })
+    setForm({ name: t.name, subject: t.subject, body: t.body, pedaLevel: t.pedaLevel ?? '', theme: t.theme ?? null, existingAttachment: t.attachment, newFile: null, removeExisting: false })
     setEditing(t)
     setError(null)
   }
+
+  const themeColor = form.theme
+  const themePastelBg = themeColor ? pastelizeThemeColor(themeColor) : null
 
   const assignedLevels = new Set(templates.map((t) => t.pedaLevel).filter(Boolean) as PedaLevel[])
   const missingLevels = PEDA_LEVELS.filter((l) => !assignedLevels.has(l))
@@ -167,6 +203,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
   function closeForm() {
     setEditing(null)
     setError(null)
+    setPreviewOpen(false)
   }
 
   async function handleSave() {
@@ -182,6 +219,7 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
         subject: form.subject,
         body: form.body,
         pedaLevel: scope === 'peda' ? (form.pedaLevel || null) : null,
+        theme: form.theme,
       }
       if (editing === 'new') {
         await add(data, form.newFile)
@@ -205,8 +243,8 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Modèles de mail</h2>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <h2 className="text-xl font-semibold text-[var(--ds-text)]">Modèles de mail</h2>
+            <p className="text-sm text-[var(--ds-text-subtle)] mt-0.5">
               {scope === 'rh'
                 ? 'Modèles communs à toute l’équipe RH · enregistrés sur le serveur'
                 : scope === 'peda'
@@ -214,35 +252,49 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                   : 'Créez vos propres modèles réutilisables · enregistrés sur le serveur'}
             </p>
           </div>
-          <Button size="sm" leftIcon={<Plus size={15} />} onClick={openNew}>
+          <Button size="sm" leftIcon={<IconPlus width={15} height={15} />} onClick={openNew}>
             Nouveau modèle
           </Button>
         </div>
 
-        {storeError && <p className="text-xs text-red-500">{storeError}</p>}
+        {storeError && <p className="text-xs text-[var(--ds-danger)]">{storeError}</p>}
 
         {/* Un niveau sans modèle = aucun brouillon généré pour les absences correspondantes. */}
         {scope === 'peda' && loaded && missingLevels.length > 0 && (
-          <p className="rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="rounded-[10px] border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] px-3 py-2 text-xs text-[var(--ds-warning)]">
             Aucun modèle rattaché à : {missingLevels.map((l) => PEDA_LEVEL_LABELS[l]).join(', ')}. Les cases
-            « Mail niv » correspondantes ne généreront aucun brouillon.
+            « IconMail niv » correspondantes ne généreront aucun brouillon.
           </p>
         )}
 
         {/* Form */}
         {editing && (
-          <div className="rounded-2xl border border-purple/20 bg-white p-6 flex flex-col gap-4 shadow-sm">
+          <div className="rounded-2xl border border-purple/20 bg-[var(--ds-surface)] p-6 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">
+              <h3 className="text-sm font-semibold text-[var(--ds-text)]">
                 {editing === 'new' ? 'Nouveau modèle' : `Modifier · ${(editing as MailTemplate).name}`}
               </h3>
-              <button onClick={closeForm} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen((o) => !o)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    previewOpen
+                      ? 'border-purple bg-purple/5 text-purple'
+                      : 'border-[var(--ds-border)] text-[var(--ds-text-subtle)] hover:border-[var(--ds-border-strong)]'
+                  }`}
+                >
+                  {previewOpen ? <IconEyeOff width={13} height={13} /> : <IconEye width={13} height={13} />}
+                  Aperçu du mail
+                </button>
+                <button onClick={closeForm} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors">
+                  <IconClose width={18} height={18} />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Nom du modèle</label>
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]">Nom du modèle</label>
               <input
                 type="text"
                 value={form.name}
@@ -252,9 +304,42 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
               />
             </div>
 
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Thème visuel</label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, theme: null }))}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    form.theme === null
+                      ? 'border-purple bg-purple/5 text-purple'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  Aucune couleur
+                </button>
+                <label
+                  title="Choisir une couleur"
+                  className="h-7 w-7 shrink-0 cursor-pointer overflow-hidden rounded-full border border-black/10"
+                  style={{
+                    background: themeColor ?? 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
+                  }}
+                >
+                  <input
+                    type="color"
+                    value={themeColor ?? '#1130A7'}
+                    className="h-full w-full cursor-pointer opacity-0"
+                    onInput={(e) => setForm((f) => ({ ...f, theme: (e.target as HTMLInputElement).value }))}
+                    onChange={(e) => setForm((f) => ({ ...f, theme: e.target.value }))}
+                  />
+                </label>
+                {themeColor && <code className="text-xs text-gray-500">{themeColor}</code>}
+              </div>
+            </div>
+
             {scope === 'peda' && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Niveau de relance</label>
+                <label className="text-sm font-medium text-[var(--ds-text-muted)]">Niveau de relance</label>
                 <select
                   value={form.pedaLevel}
                   onChange={(e) => setForm((f) => ({ ...f, pedaLevel: e.target.value as PedaLevel | '' }))}
@@ -268,15 +353,15 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-[11px] text-[var(--ds-text-subtle)]">
                   C’est ce niveau — et non le nom du modèle — qui détermine le mail envoyé quand une case
-                  « Mail niv » est cochée dans le Google Sheet.
+                  « IconMail niv » est cochée dans le Google Sheet.
                 </p>
               </div>
             )}
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Objet</label>
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]">Objet</label>
               <input
                 type="text"
                 value={form.subject}
@@ -287,19 +372,21 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Corps du mail</label>
-              <RichTextEditor
-                value={form.body}
-                onChange={(html) => setForm((f) => ({ ...f, body: html }))}
-                placeholder="Rédigez votre modèle ici..."
-                minHeight="280px"
-              />
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]">Corps du mail</label>
+              <ThemeFrame themeColor={themeColor} themePastelBg={themePastelBg}>
+                <RichTextEditor
+                  value={form.body}
+                  onChange={(html) => setForm((f) => ({ ...f, body: html }))}
+                  placeholder="Rédigez votre modèle ici..."
+                  minHeight="280px"
+                />
+              </ThemeFrame>
             </div>
 
             {/* Variables disponibles */}
-            <div className="rounded-[10px] border border-gray-100 bg-gray-50/60 p-3">
-              <p className="text-xs font-semibold text-gray-700">Variables disponibles</p>
-              <p className="mt-0.5 text-[11px] text-gray-400">
+            <div className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3">
+              <p className="text-xs font-semibold text-[var(--ds-text-muted)]">Variables disponibles</p>
+              <p className="mt-0.5 text-[11px] text-[var(--ds-text-subtle)]">
                 Insérez-les dans l’objet ou le corps : elles seront remplacées à l’envoi. Cliquez pour copier.
               </p>
               <div className="mt-2 flex flex-col gap-1">
@@ -308,49 +395,49 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                     key={v.token}
                     type="button"
                     onClick={() => copyToken(v.token)}
-                    className={`group flex items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-white ${v.date ? 'ring-1 ring-purple/15' : ''}`}
+                    className={`group flex items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--ds-surface)] ${v.date ? 'ring-1 ring-purple/15' : ''}`}
                     title="Copier"
                   >
-                    <code className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${v.date ? 'bg-purple/10 text-purple' : 'bg-gray-200/70 text-gray-600'}`}>
+                    <code className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${v.date ? 'bg-purple/10 text-purple' : 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]'}`}>
                       {`{{${v.token}}}`}
                     </code>
-                    <span className="text-[11px] text-gray-500">{v.label}</span>
-                    <span className="ml-auto truncate text-[11px] italic text-gray-300 group-hover:text-gray-400">
+                    <span className="text-[11px] text-[var(--ds-text-subtle)]">{v.label}</span>
+                    <span className="ml-auto truncate text-[11px] italic text-[var(--ds-text-subtle)] group-hover:text-[var(--ds-text-subtle)]">
                       {copiedToken === v.token ? 'Copié !' : `ex : ${v.example}`}
                     </span>
                   </button>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] text-gray-400">
+              <p className="mt-2 text-[11px] text-[var(--ds-text-subtle)]">
                 <span className="inline-block h-2 w-2 rounded-full bg-purple/40 align-middle" /> Paramètres de date pour personnaliser finement.
               </p>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Pièce jointe (optionnelle)</label>
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]">Pièce jointe (optionnelle)</label>
               {attachmentLabel ? (
-                <div className="flex items-center gap-2 rounded-[10px] border border-gray-100 px-4 py-2.5">
-                  <Paperclip size={15} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-700 flex-1 truncate">{attachmentLabel}</span>
+                <div className="flex items-center gap-2 rounded-[10px] border border-[var(--ds-border)] px-4 py-2.5">
+                  <IconAttachment width={15} height={15} className="text-[var(--ds-text-subtle)] shrink-0" />
+                  <span className="text-sm text-[var(--ds-text-muted)] flex-1 truncate">{attachmentLabel}</span>
                   {form.newFile && <span className="text-[11px] text-purple shrink-0">nouveau</span>}
-                  <button onClick={clearAttachment} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={15} />
+                  <button onClick={clearAttachment} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)] transition-colors">
+                    <IconTrash width={15} height={15} />
                   </button>
                 </div>
               ) : (
-                <label className="flex items-center gap-2 cursor-pointer rounded-[10px] border border-dashed border-gray-200 px-4 py-2.5 text-sm text-gray-400 hover:border-blue hover:text-blue transition-colors">
-                  <Paperclip size={15} />
+                <label className="flex items-center gap-2 cursor-pointer rounded-[10px] border border-dashed border-[var(--ds-border)] px-4 py-2.5 text-sm text-[var(--ds-text-subtle)] hover:border-blue hover:text-blue transition-colors">
+                  <IconAttachment width={15} height={15} />
                   Joindre un document au modèle (max 10 Mo)
                   <input type="file" className="hidden" onChange={(e) => handleAttachmentFile(e.target.files?.[0])} />
                 </label>
               )}
             </div>
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && <p className="text-xs text-[var(--ds-danger)]">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={closeForm} disabled={saving}>Annuler</Button>
-              <Button size="sm" leftIcon={<Save size={15} />} isLoading={saving} onClick={handleSave}>
+              <Button size="sm" leftIcon={<IconSave width={15} height={15} />} isLoading={saving} onClick={handleSave}>
                 Sauvegarder
               </Button>
             </div>
@@ -359,14 +446,14 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
 
         {/* Liste */}
         {loading && templates.length === 0 ? (
-          <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-purple" /></div>
+          <div className="flex justify-center py-16"><IconLoader width={24} height={24} className="animate-spin text-purple" /></div>
         ) : templates.length === 0 && !editing ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 py-16 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <Mail size={22} className="text-gray-400" />
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--ds-border)] py-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--ds-surface-sunken)]">
+              <IconMail width={22} height={22} className="text-[var(--ds-text-subtle)]" />
             </div>
-            <p className="text-sm text-gray-500">{loaded ? "Aucun modèle pour l'instant" : 'Chargement…'}</p>
-            <Button size="sm" variant="secondary" leftIcon={<Plus size={15} />} onClick={openNew}>
+            <p className="text-sm text-[var(--ds-text-subtle)]">{loaded ? "Aucun modèle pour l'instant" : 'Chargement…'}</p>
+            <Button size="sm" variant="secondary" leftIcon={<IconPlus width={15} height={15} />} onClick={openNew}>
               Créer un modèle
             </Button>
           </div>
@@ -375,24 +462,24 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
             {templates.map((t) => (
               <div
                 key={t.id}
-                className="group rounded-xl border border-gray-100 bg-white p-5 flex flex-col gap-2 hover:border-purple/20 transition-colors"
+                className="group rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 flex flex-col gap-2 hover:border-purple/20 transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-gray-900 truncate">{t.name}</p>
+                      <p className="font-semibold text-[var(--ds-text)] truncate">{t.name}</p>
                       {t.pedaLevel && (
                         <span className="shrink-0 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-700">
                           {PEDA_LEVEL_LABELS[t.pedaLevel]}
                         </span>
                       )}
                       {t.kind === 'ab_signature' && (
-                        <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue">
+                        <span className="shrink-0 rounded-full bg-[var(--ds-accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-blue">
                           Signature AB
                         </span>
                       )}
                       {t.kind === 'ab_relance' && (
-                        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+                        <span className="shrink-0 rounded-full bg-[var(--ds-warning-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--ds-warning)]">
                           Relance signature
                         </span>
                       )}
@@ -407,33 +494,33 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-400 truncate">{t.subject}</p>
+                    <p className="text-sm text-[var(--ds-text-subtle)] truncate">{t.subject}</p>
                   </div>
                   <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => openEdit(t)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)] transition-colors"
                     >
-                      <Pencil size={15} />
+                      <IconEdit width={15} height={15} />
                     </button>
                     {/* Un modèle système (kind) ne se supprime pas, seulement s'édite. */}
                     {!t.kind && (
                       <button
                         onClick={() => remove(t.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-danger-bg)] hover:text-[var(--ds-danger)] transition-colors"
                       >
-                        <Trash2 size={15} />
+                        <IconTrash width={15} height={15} />
                       </button>
                     )}
                   </div>
                 </div>
                 <p
-                  className="text-xs text-gray-400 line-clamp-2"
+                  className="text-xs text-[var(--ds-text-subtle)] line-clamp-2"
                   dangerouslySetInnerHTML={{ __html: cleanHtml(t.body) }}
                 />
                 {t.attachment && (
-                  <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                    <Paperclip size={12} />
+                  <span className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)]">
+                    <IconAttachment width={12} height={12} />
                     {t.attachment.filename}
                   </span>
                 )}
@@ -442,6 +529,46 @@ export default function MailTemplates({ scope = 'rh' }: { scope?: MailTemplatesS
           </div>
         )}
       </section>
+
+      {editing && previewOpen && (
+        <div
+          className="fixed right-0 top-0 z-50 flex h-full w-full max-w-3xl flex-col border-l border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-2xl"
+          role="dialog"
+          aria-label="Aperçu du mail"
+        >
+          <div className="flex items-center justify-between border-b border-[var(--ds-border)] px-4 py-3">
+            <p className="text-sm font-semibold text-[var(--ds-text)]">Aperçu du mail</p>
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(false)}
+              className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors"
+            >
+              <IconClose width={18} height={18} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+            <p className="mb-3 truncate text-sm text-gray-500">
+              <span className="font-medium text-gray-700">Objet :</span> {form.subject || '(sans objet)'}
+            </p>
+            {/* Largeur max 600px centrée : même contrainte que wrapWithTheme() à l'envoi,
+                sinon le HTML s'étale sur toute la largeur de la boîte de réception. */}
+            <div className="mx-auto max-w-[600px] bg-white shadow-sm">
+              <ThemeFrame
+                themeColor={themeColor}
+                themePastelBg={themePastelBg}
+                fallbackBg="#ffffff"
+                className="text-sm text-gray-800 [&_*]:max-w-full [&_p]:my-[1em] [&_h2]:my-[0.83em] [&_h3]:my-[1em] [&_ul]:my-[1em] [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-[1em] [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_hr]:my-[1.5em] [&_hr]:border-gray-300"
+              >
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: cleanHtml(form.body || '<p class="text-gray-400">Le corps du mail apparaîtra ici…</p>'),
+                  }}
+                />
+              </ThemeFrame>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

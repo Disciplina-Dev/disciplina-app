@@ -1,6 +1,31 @@
-export type KpiSite = 'NORD' | 'OUEST' | 'SUD';
+export type KpiSite = 'NORD' | 'OUEST' | 'SUD' | AnnemasseKpiSite;
 
 export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
+
+/**
+ * Site KPI unique du tenant Annemasse : le pilotage commercial se fait à la
+ * maille du tenant, pas par secteur opérationnel (comme le dossier Drive).
+ * Les 6 secteurs restent le vocabulaire entreprise (companies.sector).
+ */
+export type AnnemasseKpiSite = 'ANNEMASSE';
+
+export const ANNEMASSE_KPI_SITES: AnnemasseKpiSite[] = ['ANNEMASSE'];
+
+/** Tous les sites KPI acceptés (validation globale, bases étanches par tenant). */
+export const ALL_KPI_SITES: KpiSite[] = [...KPI_SITES, ...ANNEMASSE_KPI_SITES];
+
+/** Sites KPI proposés selon le tenant (region null → Réunion par défaut). */
+export function kpiSitesForTenant(region?: string | null): KpiSite[] {
+    return region === 'annemasse' ? [...ANNEMASSE_KPI_SITES] : [...KPI_SITES];
+}
+
+/** Libellés d'affichage des sites KPI. */
+export const KPI_SITE_LABELS: Record<KpiSite, string> = {
+    NORD: 'Nord-Est',
+    OUEST: 'Ouest',
+    SUD: 'Sud',
+    ANNEMASSE: 'Annemasse',
+};
 
 export interface KpiRow {
     user_id: number | null;

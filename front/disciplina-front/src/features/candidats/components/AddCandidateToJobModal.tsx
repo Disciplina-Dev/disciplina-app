@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Building2, CalendarClock, Handshake } from 'lucide-react'
+import { IconClose, IconCompany, IconPortfolio, IconSchedule } from '@/components/ui/icons'
 import { offerGraphqlClient } from '@/graphql/client'
 import {
   ADD_CANDIDATE_TO_OFFER,
@@ -91,16 +91,16 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] p-5">
           <div>
-            <h2 className="text-base font-bold text-gray-900">
+            <h2 className="text-base font-bold text-[var(--ds-text)]">
               {job.companyName ?? 'Entreprise'}
             </h2>
-            {progressLabel && <p className="mt-0.5 text-xs text-gray-500">{progressLabel}</p>}
+            {progressLabel && <p className="mt-0.5 text-xs text-[var(--ds-text-subtle)]">{progressLabel}</p>}
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50">
-            <X size={18} />
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]">
+            <IconClose width={18} height={18} />
           </button>
         </div>
 
@@ -109,24 +109,24 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => setChoice('company')}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 rounded-lg border border-[var(--ds-border)] px-4 py-3 text-left text-sm hover:bg-[var(--ds-surface-sunken)] transition-colors"
               >
-                <Building2 size={18} className="text-blue" />
-                <span className="font-medium text-gray-900">Pré-sélectionné le candidat</span>
+                <IconCompany width={18} height={18} className="text-blue" />
+                <span className="font-medium text-[var(--ds-text)]">Pré-sélectionné le candidat</span>
               </button>
               <button
                 onClick={() => setChoice('interview')}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 rounded-lg border border-[var(--ds-border)] px-4 py-3 text-left text-sm hover:bg-[var(--ds-surface-sunken)] transition-colors"
               >
-                <CalendarClock size={18} className="text-blue" />
-                <span className="font-medium text-gray-900">Programmer un entretien</span>
+                <IconSchedule width={18} height={18} className="text-blue" />
+                <span className="font-medium text-[var(--ds-text)]">Programmer un entretien</span>
               </button>
               <button
                 onClick={() => setChoice('immersion')}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 rounded-lg border border-[var(--ds-border)] px-4 py-3 text-left text-sm hover:bg-[var(--ds-surface-sunken)] transition-colors"
               >
-                <Handshake size={18} className="text-blue" />
-                <span className="font-medium text-gray-900">Proposer une immersion</span>
+                <IconPortfolio width={18} height={18} className="text-blue" />
+                <span className="font-medium text-[var(--ds-text)]">Proposer une immersion</span>
               </button>
             </div>
           )}
@@ -135,21 +135,21 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
             <div className="flex flex-col gap-4">
               <LocationAutocompleteInput label="Lieu de l'entretien" value={interviewLocation} onChange={setInterviewLocation} />
               <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-800">Date</label>
+                <label className="block mb-2 text-sm font-semibold text-[var(--ds-text)]">Date</label>
                 <input
                   type="date"
                   value={interviewDate}
                   onChange={(e) => setInterviewDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue"
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
               </div>
               <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-800">Heure</label>
+                <label className="block mb-2 text-sm font-semibold text-[var(--ds-text)]">Heure</label>
                 <input
                   type="time"
                   value={interviewHour}
                   onChange={(e) => setInterviewHour(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue"
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
               </div>
             </div>
@@ -159,33 +159,33 @@ export default function AddCandidateToJobModal({ job, candidateId, onSubmit, onC
             <div className="flex flex-col gap-4">
               <LocationAutocompleteInput label="Lieu de l'immersion" value={immersionLocation} onChange={setImmersionLocation} />
               <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-800">Date de début</label>
+                <label className="block mb-2 text-sm font-semibold text-[var(--ds-text)]">Date de début</label>
                 <input
                   type="date"
                   value={immersionStartDate}
                   onChange={(e) => setImmersionStartDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue"
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
               </div>
               <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-800">Date de fin</label>
+                <label className="block mb-2 text-sm font-semibold text-[var(--ds-text)]">Date de fin</label>
                 <input
                   type="date"
                   value={immersionEndDate}
                   onChange={(e) => setImmersionEndDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue"
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
               </div>
             </div>
           )}
 
-          {error && <p className="mt-4 text-xs text-danger">{error}</p>}
+          {error && <p className="mt-4 text-xs text-[var(--ds-danger)]">{error}</p>}
         </div>
 
-        <div className="flex justify-between gap-2 border-t border-gray-100 p-4">
+        <div className="flex justify-between gap-2 border-t border-[var(--ds-border)] p-4">
           <button
             onClick={() => (choice === null ? onClose() : setChoice(null))}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--ds-border)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
           >
             {choice === null ? 'Annuler' : 'Retour'}
           </button>

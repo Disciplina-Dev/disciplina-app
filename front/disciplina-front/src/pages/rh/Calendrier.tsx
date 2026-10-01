@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
-import {
-  ChevronLeft, ChevronRight, ChevronDown, Layers, Loader2, AlertCircle, CalendarDays,
-  MapPin, Video, Plus, Trash2, X, Pencil, LinkIcon, Share2, Copy, Check,
-  Mail, UserCheck, UserX, User as UserIcon, Search, Settings,
-} from 'lucide-react'
+import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconMail, IconMapPin, IconPlus, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
 import {
   fetchMyBookingSettings, updateMyBookingSettings, bookingPublicUrl,
   type BookingSettings, type WorkingHours,
@@ -25,6 +21,7 @@ import {
   CalendarNotConnectedError, EVENT_COLORS, DEFAULT_EVENT_HEX, eventHex, ownerColor,
   type CalendarEvent, type CalendarEventInput, type CalendarUser, type Attendance,
 } from '@/api/calendar'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 type View = 'month' | 'week'
 /** Event enrichi de son propriétaire (pour vue multi-agendas). */
@@ -375,38 +372,38 @@ export default function Calendrier() {
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight text-gray-900">Calendrier</h1>
-          <p className="text-[13px] font-medium capitalize text-gray-400">{headerLabel}</p>
+          <h1 className="text-[22px] font-extrabold tracking-tight text-[var(--ds-text)]">Calendrier</h1>
+          <p className="text-[13px] font-medium capitalize text-[var(--ds-text-subtle)]">{headerLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* View toggle */}
-          <div className="flex rounded-[10px] border border-gray-200 bg-white p-0.5">
-            {(['month', 'week'] as View[]).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${view === v ? 'bg-purple text-white' : 'text-gray-500 hover:text-gray-800'}`}
-              >
-                {v === 'month' ? 'Mois' : 'Semaine'}
-              </button>
-            ))}
-          </div>
-          <button onClick={goToday} className="rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-[13px] font-bold text-gray-700 transition-colors hover:bg-gray-50">
+          <SegmentedControl
+            label="Affichage du calendrier"
+            tone="purple"
+            size="sm"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'month' as View, label: 'Mois' },
+              { value: 'week' as View, label: 'Semaine' },
+            ]}
+          />
+          <button onClick={goToday} className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
             Aujourd'hui
           </button>
           <div className="flex items-center gap-1">
-            <button onClick={() => shift(-1)} className="rounded-[10px] border border-gray-200 bg-white p-2 text-gray-600 transition-colors hover:bg-gray-50" aria-label="Précédent">
-              <ChevronLeft size={18} />
+            <button onClick={() => shift(-1)} className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] p-2 text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]" aria-label="Précédent">
+              <IconChevronLeft width={18} height={18} />
             </button>
-            <button onClick={() => shift(1)} className="rounded-[10px] border border-gray-200 bg-white p-2 text-gray-600 transition-colors hover:bg-gray-50" aria-label="Suivant">
-              <ChevronRight size={18} />
+            <button onClick={() => shift(1)} className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] p-2 text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]" aria-label="Suivant">
+              <IconChevronRight width={18} height={18} />
             </button>
           </div>
-          <button onClick={() => setShowBooking(true)} className="flex items-center gap-1.5 rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-[13px] font-bold text-gray-700 transition-colors hover:bg-gray-50">
-            <Share2 size={16} /> Partager mon agenda
+          <button onClick={() => setShowBooking(true)} className="flex items-center gap-1.5 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
+            <IconShare width={16} height={16} /> Partager mon agenda
           </button>
           <button onClick={() => openCreate(new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 9, 0))} className="flex items-center gap-1.5 rounded-[10px] bg-purple px-3 py-2 text-[13px] font-bold text-white transition-colors hover:bg-purple-dark">
-            <Plus size={16} /> Créneau
+            <IconPlus width={16} height={16} /> Créneau
           </button>
         </div>
       </div>
@@ -414,14 +411,14 @@ export default function Calendrier() {
       {(notConnected || selfDisconnected) ? (
         <ConnectPrompt onConnect={connectGoogle} isConnecting={isConnecting} onDone={loadUsers} />
       ) : error ? (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-bg p-3 text-[13px] text-danger">
-          <AlertCircle size={16} /> {error}
+        <div className="flex items-center gap-2 rounded-xl bg-[var(--ds-danger-bg)] p-3 text-[13px] text-[var(--ds-danger)]">
+          <IconAlert width={16} height={16} /> {error}
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {unavailableIds.length > 0 && dismissedKey !== unavailableKey && (
-            <div className="flex items-center gap-2 rounded-xl bg-warning-bg p-3 text-[13px] font-semibold text-warning">
-              <AlertCircle size={16} className="flex-shrink-0" />
+            <div className="flex items-center gap-2 rounded-xl bg-[var(--ds-warning-bg)] p-3 text-[13px] font-semibold text-[var(--ds-warning)]">
+              <IconAlert width={16} height={16} className="flex-shrink-0" />
               <span className="flex-1">
                 {(() => {
                   const names = unavailableIds
@@ -435,64 +432,64 @@ export default function Calendrier() {
               </span>
               <button
                 onClick={() => setDismissedKey(unavailableKey)}
-                className="flex-shrink-0 rounded-lg p-1 text-warning transition-colors hover:bg-warning/10"
+                className="flex-shrink-0 rounded-lg p-1 text-[var(--ds-warning)] transition-colors hover:bg-warning/10"
                 aria-label="Fermer l'avertissement"
               >
-                <X size={15} />
+                <IconClose width={15} height={15} />
               </button>
             </div>
           )}
           {/* Recherche par email invité */}
           <div ref={searchRef} className="relative w-full max-w-sm self-start">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-2 focus-within:border-purple">
-              <Search size={16} className="flex-shrink-0 text-gray-400" />
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-2 focus-within:border-purple">
+              <IconSearch width={16} height={16} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
               <input
                 value={emailQuery}
                 onChange={(e) => { setEmailQuery(e.target.value); setShowMatches(true) }}
                 onFocus={() => { if (normalizedQuery) setShowMatches(true) }}
                 placeholder="Rechercher par email invité…"
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-gray-400"
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-[var(--ds-text-subtle)]"
                 aria-label="Rechercher par email"
               />
               {emailQuery && (
                 <button
                   onClick={() => { setEmailQuery(''); setShowMatches(false) }}
-                  className="rounded p-0.5 text-gray-400 hover:text-gray-600"
+                  className="rounded p-0.5 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
                   aria-label="Effacer la recherche"
                 >
-                  <X size={14} />
+                  <IconClose width={14} height={14} />
                 </button>
               )}
               {normalizedQuery && !searchLoading && matchedEvents.length > 0 && (
-                <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                <span className="flex-shrink-0 rounded-full bg-[var(--ds-warning-bg)] px-2 py-0.5 text-[11px] font-bold text-[var(--ds-warning)]">
                   {matchedEvents.length}
                 </span>
               )}
               {searchLoading && normalizedQuery && (
-                <Loader2 size={14} className="flex-shrink-0 animate-spin text-gray-400" />
+                <IconLoader width={14} height={14} className="flex-shrink-0 animate-spin text-[var(--ds-text-subtle)]" />
               )}
               <div className="relative flex-shrink-0">
                 <button
                   onClick={() => setShowScopeMenu((v) => !v)}
-                  className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-bold text-gray-600 hover:bg-gray-50"
+                  className="flex items-center gap-1 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1 text-[11px] font-bold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
                   aria-label="Configurer la portée de recherche"
                   title="Portée de recherche"
                 >
-                  <Settings size={12} />
+                  <IconSettings width={12} height={12} />
                   <span className="hidden sm:inline">{searchScope === 'week' ? 'Semaine' : searchScope === 'month' ? 'Mois' : 'Année'}</span>
-                  <ChevronDown size={12} className={`transition-transform ${showScopeMenu ? 'rotate-180' : ''}`} />
+                  <IconChevronDown width={12} height={12} className={`transition-transform ${showScopeMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showScopeMenu && (
-                  <div className="absolute right-0 z-40 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
-                    <p className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Portée</p>
+                  <div className="absolute right-0 z-40 mt-2 w-44 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-1 shadow-lg">
+                    <p className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Portée</p>
                     {(['week', 'month', 'year'] as const).map((scope) => (
                       <button
                         key={scope}
                         onClick={() => { setSearchScope(scope); setShowScopeMenu(false); if (normalizedQuery) setShowMatches(true) }}
-                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold ${searchScope === scope ? 'bg-purple text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold ${searchScope === scope ? 'bg-purple text-white' : 'text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]'}`}
                       >
                         {scope === 'week' ? 'Semaine' : scope === 'month' ? 'Mois' : 'Année'}
-                        {searchScope === scope && <Check size={14} />}
+                        {searchScope === scope && <IconCheck width={14} height={14} />}
                       </button>
                     ))}
                   </div>
@@ -500,13 +497,13 @@ export default function Calendrier() {
               </div>
             </div>
             {showMatches && normalizedQuery && (
-              <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+              <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg">
                 {searchLoading ? (
-                  <div className="flex items-center justify-center gap-2 px-4 py-6 text-[13px] text-gray-400">
-                    <Loader2 size={16} className="animate-spin" /> Recherche…
+                  <div className="flex items-center justify-center gap-2 px-4 py-6 text-[13px] text-[var(--ds-text-subtle)]">
+                    <IconLoader width={16} height={16} className="animate-spin" /> Recherche…
                   </div>
                 ) : matchedEvents.length === 0 ? (
-                  <p className="px-4 py-3 text-[13px] text-gray-400">Aucun résultat sur {searchScope === 'week' ? 'la semaine' : searchScope === 'month' ? 'le mois' : "l'année"}</p>
+                  <p className="px-4 py-3 text-[13px] text-[var(--ds-text-subtle)]">Aucun résultat sur {searchScope === 'week' ? 'la semaine' : searchScope === 'month' ? 'le mois' : "l'année"}</p>
                 ) : (
                   matchedEvents.map((e) => {
                     const start = new Date(e.start)
@@ -516,13 +513,13 @@ export default function Calendrier() {
                       <button
                         key={`${e.ownerId}-${e.id}`}
                         onClick={() => jumpToEvent(e)}
-                        className="flex w-full flex-col gap-0.5 border-b border-gray-50 px-4 py-2.5 text-left last:border-0 hover:bg-amber-50"
+                        className="flex w-full flex-col gap-0.5 border-b border-[var(--ds-border)] px-4 py-2.5 text-left last:border-0 hover:bg-[var(--ds-warning-bg)]"
                       >
-                        <span className="truncate text-[13px] font-semibold text-gray-800">{e.summary}</span>
-                        <span className="truncate text-[12px] text-gray-500">
+                        <span className="truncate text-[13px] font-semibold text-[var(--ds-text)]">{e.summary}</span>
+                        <span className="truncate text-[12px] text-[var(--ds-text-subtle)]">
                           {e.attendeeEmail} • {start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} {formatTime(e.start)} – {formatTime(e.end)}
                         </span>
-                        <span className="text-[11px] text-gray-400">{ownerLabel}</span>
+                        <span className="text-[11px] text-[var(--ds-text-subtle)]">{ownerLabel}</span>
                       </button>
                     )
                   })
@@ -532,10 +529,10 @@ export default function Calendrier() {
           </div>
           <div className="flex min-h-0 flex-1 gap-4">
           <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} onToggleGroup={toggleGroup} />
-          <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white">
+          <div className="relative flex-1 overflow-hidden rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)]">
             {loading && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
-                <Loader2 size={26} className="animate-spin text-purple" />
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--ds-surface)] backdrop-blur-[1px]">
+                <IconLoader width={26} height={26} className="animate-spin text-purple" />
               </div>
             )}
             {view === 'month'
@@ -661,16 +658,16 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[17px] font-extrabold text-gray-900">Partager mon agenda</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+          <h2 className="text-[17px] font-extrabold text-[var(--ds-text)]">Partager mon agenda</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]"><IconClose width={18} height={18} /></button>
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-purple" /></div>
+          <div className="flex justify-center py-10"><IconLoader width={24} height={24} className="animate-spin text-purple" /></div>
         ) : !settings ? (
-          <p className="text-[13px] text-danger">{err ?? 'Erreur de chargement'}</p>
+          <p className="text-[13px] text-[var(--ds-danger)]">{err ?? 'Erreur de chargement'}</p>
         ) : (
           <div className="space-y-4">
             {/* Lien public */}
@@ -678,12 +675,12 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
               <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-purple">Lien public</p>
               <div className="flex items-center gap-2">
                 <input readOnly value={bookingPublicUrl(settings.slug)}
-                  className="flex-1 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 text-[12px] text-gray-600 outline-none" />
+                  className="flex-1 truncate rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[12px] text-[var(--ds-text-muted)] outline-none" />
                 <button onClick={copyLink} className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-2 text-[12px] font-bold text-white hover:bg-purple-dark">
-                  {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copié' : 'Copier'}
+                  {copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />} {copied ? 'Copié' : 'Copier'}
                 </button>
               </div>
-              <label className="mt-2 flex items-center gap-2 text-[12px] font-semibold text-gray-600">
+              <label className="mt-2 flex items-center gap-2 text-[12px] font-semibold text-[var(--ds-text-muted)]">
                 <input type="checkbox" checked={settings.enabled} onChange={(e) => patch({ enabled: e.target.checked })} />
                 Réservation activée
               </label>
@@ -712,9 +709,9 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Mail de confirmation */}
-            <div className="rounded-xl border border-gray-100 p-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                <Mail size={13} /> Mail de confirmation
+            <div className="rounded-xl border border-[var(--ds-border)] p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
+                <IconMail width={13} height={13} /> IconMail de confirmation
               </p>
               <select
                 value={
@@ -730,7 +727,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                 }}
                 className={inputCls}
               >
-                <option value="">Mail par défaut</option>
+                <option value="">IconMail par défaut</option>
                 {settings.confirmationBody && !mailTemplates.some((t) => t.body === settings.confirmationBody) && (
                   <option value="__custom">Modèle enregistré (introuvable)</option>
                 )}
@@ -738,7 +735,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
                 Modèles gérés dans « Modèles de mail ». Variables disponibles :{' '}
                 <code>{'{{nom}}'}</code> <code>{'{{date}}'}</code> <code>{'{{jour}}'}</code>{' '}
                 <code>{'{{date_longue}}'}</code> <code>{'{{date_courte}}'}</code> <code>{'{{heure}}'}</code>{' '}
@@ -747,9 +744,9 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Mail de proposition d'entretien */}
-            <div className="rounded-xl border border-gray-100 p-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                <Mail size={13} /> Mail de proposition d'entretien
+            <div className="rounded-xl border border-[var(--ds-border)] p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
+                <IconMail width={13} height={13} /> IconMail de proposition d'entretien
               </p>
               <select
                 value={
@@ -765,7 +762,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                 }}
                 className={inputCls}
               >
-                <option value="">Mail par défaut</option>
+                <option value="">IconMail par défaut</option>
                 {settings.propositionBody && !mailTemplates.some((t) => t.body === settings.propositionBody) && (
                   <option value="__custom">Modèle enregistré (introuvable)</option>
                 )}
@@ -773,7 +770,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
                 Envoyé au candidat via « Proposer un entretien ». Variable :{' '}
                 <code>{'{{lien}}'}</code> (lien de réservation). Sans cette variable, le lien est ajouté en bas.
               </p>
@@ -781,24 +778,24 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
 
             {/* Plages horaires */}
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Disponibilités hebdomadaires</p>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Disponibilités hebdomadaires</p>
               <div className="space-y-1.5">
                 {ISO_DAYS.map(({ key, label }) => {
                   const windows = settings.workingHours[key] ?? []
                   return (
                     <div key={key} className="flex items-start gap-2">
-                      <span className="w-20 flex-shrink-0 pt-1.5 text-[12px] font-bold text-gray-600">{label}</span>
+                      <span className="w-20 flex-shrink-0 pt-1.5 text-[12px] font-bold text-[var(--ds-text-muted)]">{label}</span>
                       <div className="flex flex-1 flex-wrap items-center gap-1.5">
-                        {windows.length === 0 && <span className="py-1 text-[12px] text-gray-300">Indisponible</span>}
+                        {windows.length === 0 && <span className="py-1 text-[12px] text-[var(--ds-text-subtle)]">Indisponible</span>}
                         {windows.map((w, i) => (
-                          <div key={i} className="flex items-center gap-1 rounded-lg border border-gray-200 px-1.5 py-1">
+                          <div key={i} className="flex items-center gap-1 rounded-lg border border-[var(--ds-border)] px-1.5 py-1">
                             <input type="time" value={w[0]} onChange={(e) => setWindow(key, i, 0, e.target.value)} className="text-[12px] outline-none" />
-                            <span className="text-gray-300">–</span>
+                            <span className="text-[var(--ds-text-subtle)]">–</span>
                             <input type="time" value={w[1]} onChange={(e) => setWindow(key, i, 1, e.target.value)} className="text-[12px] outline-none" />
-                            <button onClick={() => removeWindow(key, i)} className="text-gray-300 hover:text-danger"><X size={13} /></button>
+                            <button onClick={() => removeWindow(key, i)} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)]"><IconClose width={13} height={13} /></button>
                           </div>
                         ))}
-                        <button onClick={() => addWindow(key)} className="rounded-lg p-1 text-purple hover:bg-purple-light"><Plus size={15} /></button>
+                        <button onClick={() => addWindow(key)} className="rounded-lg p-1 text-purple hover:bg-purple-light"><IconPlus width={15} height={15} /></button>
                       </div>
                     </div>
                   )
@@ -806,11 +803,11 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {err && <p className="text-[12px] text-danger">{err}</p>}
+            {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
             <div className="flex items-center gap-2 pt-1">
-              <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-gray-400 hover:text-gray-700">Annuler</button>
+              <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Annuler</button>
               <button onClick={save} disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
-                {busy && <Loader2 size={15} className="animate-spin" />} Enregistrer
+                {busy && <IconLoader width={15} height={15} className="animate-spin" />} Enregistrer
               </button>
             </div>
           </div>
@@ -820,7 +817,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple'
+const inputCls = 'w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple'
 
 const CUSTOM_LOCATION = '__custom'
 
@@ -869,8 +866,8 @@ function LocationPicker({ value, onChange, autoDefault }: {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-        <MapPin size={15} className="flex-shrink-0 text-gray-400" />
+      <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+        <IconMapPin width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
         <select value={selectValue} onChange={(e) => pick(e.target.value)} className="w-full bg-transparent py-2 text-[13px] outline-none">
           <option value="">Aucun lieu</option>
           {options.map((s) => (
@@ -895,7 +892,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <label className={`flex flex-col gap-1 ${className ?? ''}`}>
-      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">{label}</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">{label}</span>
       {children}
     </label>
   )
@@ -907,9 +904,9 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId, hi
 }) {
   return (
     <>
-      <div className="grid grid-cols-7 border-b border-gray-100">
+      <div className="grid grid-cols-7 border-b border-[var(--ds-border)]">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-400">{d}</div>
+          <div key={d} className="py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">{d}</div>
         ))}
       </div>
       <div className="grid h-[calc(100%-41px)] grid-cols-7 grid-rows-6">
@@ -918,8 +915,8 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId, hi
           const isToday = sameDay(day, today)
           const dayEvents = eventsByDay.get(day.toDateString()) ?? []
           return (
-            <div key={day.toISOString()} className={`flex flex-col gap-1 overflow-hidden border-b border-r border-gray-100 p-1.5 ${inMonth ? 'bg-white' : 'bg-gray-50/50'}`}>
-              <span className={`mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-bold ${isToday ? 'bg-purple text-white' : inMonth ? 'text-gray-700' : 'text-gray-300'}`}>
+            <div key={day.toISOString()} className={`flex flex-col gap-1 overflow-hidden border-b border-r border-[var(--ds-border)] p-1.5 ${inMonth ? 'bg-[var(--ds-surface)]' : 'bg-[var(--ds-surface-sunken)]'}`}>
+              <span className={`mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-bold ${isToday ? 'bg-purple text-white' : inMonth ? 'text-[var(--ds-text-muted)]' : 'text-[var(--ds-text-subtle)]'}`}>
                 {day.getDate()}
               </span>
               <div className="flex flex-col gap-1 overflow-hidden">
@@ -936,7 +933,7 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId, hi
                     </button>
                   )
                 })}
-                {dayEvents.length > 3 && <span className="px-1.5 text-[10px] font-bold text-gray-400">+{dayEvents.length - 3} autres</span>}
+                {dayEvents.length > 3 && <span className="px-1.5 text-[10px] font-bold text-[var(--ds-text-subtle)]">+{dayEvents.length - 3} autres</span>}
               </div>
             </div>
           )
@@ -956,14 +953,14 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlight
   return (
     <div className="flex h-full flex-col">
       {/* Day headers */}
-      <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
+      <div className="grid border-b border-[var(--ds-border)]" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
         <div />
         {days.map((d) => {
           const isToday = sameDay(d, today)
           return (
-            <div key={d.toISOString()} className="border-l border-gray-100 py-2 text-center">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400">{WEEKDAYS[mondayIndex(d)]}</div>
-              <div className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold ${isToday ? 'bg-purple text-white' : 'text-gray-700'}`}>{d.getDate()}</div>
+            <div key={d.toISOString()} className="border-l border-[var(--ds-border)] py-2 text-center">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">{WEEKDAYS[mondayIndex(d)]}</div>
+              <div className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold ${isToday ? 'bg-purple text-white' : 'text-[var(--ds-text-muted)]'}`}>{d.getDate()}</div>
             </div>
           )
         })}
@@ -975,7 +972,7 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlight
           {/* Hour labels */}
           <div className="relative" style={{ height: HOURS.length * HOUR_PX }}>
             {HOURS.map((h) => (
-              <div key={h} className="absolute -translate-y-1/2 pr-2 text-right text-[10px] font-semibold text-gray-400" style={{ top: h * HOUR_PX, right: 0 }}>
+              <div key={h} className="absolute -translate-y-1/2 pr-2 text-right text-[10px] font-semibold text-[var(--ds-text-subtle)]" style={{ top: h * HOUR_PX, right: 0 }}>
                 {h > 0 ? `${String(h).padStart(2, '0')}:00` : ''}
               </div>
             ))}
@@ -986,11 +983,11 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlight
             const dayEvents = (eventsByDay.get(day.toDateString()) ?? []).filter((e) => !e.allDay)
             const positioned = layoutDay(dayEvents)
             return (
-              <div key={day.toISOString()} className="relative border-l border-gray-100" style={{ height: HOURS.length * HOUR_PX }}>
+              <div key={day.toISOString()} className="relative border-l border-[var(--ds-border)]" style={{ height: HOURS.length * HOUR_PX }}>
                 {/* Hour lines + click-to-create */}
                 {HOURS.map((h) => (
                   <div key={h} onClick={() => onSlot(new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, 0))}
-                    className="cursor-pointer border-b border-gray-50 hover:bg-purple-light/40" style={{ height: HOUR_PX }} />
+                    className="cursor-pointer border-b border-[var(--ds-border)] hover:bg-purple-light/40" style={{ height: HOUR_PX }} />
                 ))}
                 {/* Events */}
                 {positioned.map(({ event, col, cols }) => {
@@ -1005,7 +1002,7 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlight
                       className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-left transition-opacity hover:opacity-90 ${isHighlighted ? 'z-10 ring-2 ring-amber-400 ring-offset-0 shadow-md' : ''}`}
                       style={{ top, height, width, left, backgroundColor: isHighlighted ? `${hex}40` : `${hex}26`, borderLeft: `3px solid ${hex}`, ...(isHighlighted ? { boxShadow: '0 0 0 1px #f59e0b, 0 2px 6px rgba(0,0,0,0.12)' } : {}) }}>
                       <div className="truncate text-[11px] font-bold" style={{ color: hex }}>{event.summary}</div>
-                      {height > 30 && <div className="truncate text-[10px] font-medium text-gray-500">{formatTime(event.start)} – {formatTime(event.end)}</div>}
+                      {height > 30 && <div className="truncate text-[10px] font-medium text-[var(--ds-text-subtle)]">{formatTime(event.start)} – {formatTime(event.end)}</div>}
                     </button>
                   )
                 })}
@@ -1028,22 +1025,22 @@ function AgendaRow({ user, selfId, visible, onToggle }: {
       onClick={() => user.connected && onToggle(user.id)}
       disabled={!user.connected}
       title={user.connected ? '' : 'Google Calendar non connecté'}
-      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${user.connected ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-50'}`}
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${user.connected ? 'hover:bg-[var(--ds-surface-sunken)]' : 'cursor-not-allowed opacity-50'}`}
     >
       <span
         className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2"
         style={{ borderColor: hex, backgroundColor: checked ? hex : 'transparent' }}
       >
-        {checked && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
+        {checked && <span className="h-1.5 w-1.5 rounded-sm bg-[var(--ds-surface)]" />}
       </span>
       <span className="flex min-w-0 items-center gap-1">
-        <span className="truncate text-[13px] font-semibold text-gray-700">
-          {`${user.firstName} ${user.lastName}`.trim()}{user.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
+        <span className="truncate text-[13px] font-semibold text-[var(--ds-text-muted)]">
+          {`${user.firstName} ${user.lastName}`.trim()}{user.isSelf && <span className="ml-1 text-[11px] font-medium text-[var(--ds-text-subtle)]">(moi)</span>}
         </span>
         {user.sectors.length > 1 && (
-          <Layers className="h-3 w-3 flex-shrink-0 text-gray-300" aria-label={`Agenda partagé entre ${user.sectors.join(', ')}`}>
+          <IconUsers className="h-3 w-3 flex-shrink-0 text-[var(--ds-text-subtle)]" aria-label={`Agenda partagé entre ${user.sectors.join(', ')}`}>
             <title>{`Agenda partagé entre ${user.sectors.join(', ')}`}</title>
-          </Layers>
+          </IconUsers>
         )}
       </span>
     </button>
@@ -1059,10 +1056,10 @@ function GroupCheckbox({ connectedIds, visible, onToggleGroup }: {
     <button
       onClick={(e) => { e.stopPropagation(); onToggleGroup(connectedIds) }}
       disabled={connectedIds.length === 0}
-      className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${connectedIds.length === 0 ? 'cursor-not-allowed border-gray-200' : 'border-gray-300'} ${isAllSelected || isSomeSelected ? 'border-purple bg-purple' : ''}`}
+      className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${connectedIds.length === 0 ? 'cursor-not-allowed border-[var(--ds-border)]' : 'border-[var(--ds-border-strong)]'} ${isAllSelected || isSomeSelected ? 'border-purple bg-purple' : ''}`}
     >
-      {isAllSelected && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
-      {isSomeSelected && <span className="h-0.5 w-2 rounded-sm bg-white" />}
+      {isAllSelected && <span className="h-1.5 w-1.5 rounded-sm bg-[var(--ds-surface)]" />}
+      {isSomeSelected && <span className="h-0.5 w-2 rounded-sm bg-[var(--ds-surface)]" />}
     </button>
   )
 }
@@ -1081,10 +1078,10 @@ function AgendaGroup({ label, users, selfId, visible, onToggle, onToggleGroup, d
         <GroupCheckbox connectedIds={connectedIds} visible={visible} onToggleGroup={onToggleGroup} />
         <button
           onClick={() => setIsCollapsed((prev) => !prev)}
-          className="flex flex-1 items-center justify-between gap-1 text-gray-400 hover:text-gray-600"
+          className="flex flex-1 items-center justify-between gap-1 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
         >
           <span className="truncate text-[10px] font-bold uppercase tracking-wider">{label} ({ordered.length})</span>
-          <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+          <IconChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
         </button>
       </div>
       {!isCollapsed && (
@@ -1101,7 +1098,7 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
 }) {
   const withoutSector = users.filter((u) => u.sectors.length === 0)
   return (
-    <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
+    <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-3">
       {SECTEUR_VALUES.map((sector) => (
         <AgendaGroup
           key={sector}
@@ -1123,7 +1120,7 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
         onToggleGroup={onToggleGroup}
         defaultCollapsed={false}
       />
-      {users.length === 0 && <p className="px-1 text-[12px] text-gray-400">Aucun agenda</p>}
+      {users.length === 0 && <p className="px-1 text-[12px] text-[var(--ds-text-subtle)]">Aucun agenda</p>}
     </aside>
   )
 }
@@ -1135,17 +1132,17 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
     try { await onConnect(); onDone() } catch (e: any) { setErr(e?.message || 'Erreur de connexion') }
   }
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-gray-100 bg-white">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-light text-purple"><CalendarDays size={28} /></div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)]">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-light text-purple"><IconCalendar width={28} height={28} /></div>
       <div className="text-center">
-        <p className="text-[15px] font-bold text-gray-900">Google Calendar non connecté</p>
-        <p className="text-[13px] text-gray-400">Connectez votre compte Google pour afficher votre agenda.</p>
+        <p className="text-[15px] font-bold text-[var(--ds-text)]">Google Calendar non connecté</p>
+        <p className="text-[13px] text-[var(--ds-text-subtle)]">Connectez votre compte Google pour afficher votre agenda.</p>
       </div>
       <button onClick={handle} disabled={isConnecting} className="flex items-center gap-2 rounded-xl bg-purple px-4 py-2.5 text-[14px] font-bold text-white transition-all hover:bg-purple-dark disabled:opacity-70">
-        {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <CalendarDays size={18} />}
+        {isConnecting ? <IconLoader width={18} height={18} className="animate-spin" /> : <IconCalendar width={18} height={18} />}
         {isConnecting ? 'Connexion...' : 'Connecter Google'}
       </button>
-      {err && <p className="text-[12px] text-danger">{err}</p>}
+      {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
     </div>
   )
 }
@@ -1179,60 +1176,60 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-start gap-3">
           <div className="mt-1.5 h-3 w-3 flex-shrink-0 rounded-full" style={{ backgroundColor: hex }} />
-          <h2 className="flex-1 text-[17px] font-extrabold leading-snug text-gray-900">{event.summary}</h2>
-          <button onClick={onEdit} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-purple" title="Modifier"><Pencil size={16} /></button>
+          <h2 className="flex-1 text-[17px] font-extrabold leading-snug text-[var(--ds-text)]">{event.summary}</h2>
+          <button onClick={onEdit} className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-purple" title="Modifier"><IconEdit width={16} height={16} /></button>
         </div>
-        <div className="space-y-2 text-[13px] text-gray-600">
+        <div className="space-y-2 text-[13px] text-[var(--ds-text-muted)]">
           {!isOwn && ownerName && (
             <p className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ backgroundColor: `${hex}22`, color: hex }}>
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: hex }} /> {ownerName}
             </p>
           )}
-          <p className="font-semibold capitalize text-gray-800">{dateLabel}</p>
+          <p className="font-semibold capitalize text-[var(--ds-text)]">{dateLabel}</p>
           <p>{timeLabel}</p>
-          {event.location && <p className="flex items-center gap-2"><MapPin size={14} className="text-gray-400" /> {event.location}</p>}
+          {event.location && <p className="flex items-center gap-2"><IconMapPin width={14} height={14} className="text-[var(--ds-text-subtle)]" /> {event.location}</p>}
           {event.attendeeEmail && (
-            <p className="flex items-center gap-2"><Mail size={14} className="text-gray-400" /> {event.attendeeEmail}</p>
+            <p className="flex items-center gap-2"><IconMail width={14} height={14} className="text-[var(--ds-text-subtle)]" /> {event.attendeeEmail}</p>
           )}
           {event.description && (
-            <div className="pt-1 text-gray-500 [&_a]:font-semibold [&_a]:text-purple [&_a]:underline [&_a:hover]:text-purple-dark"
+            <div className="pt-1 text-[var(--ds-text-subtle)] [&_a]:font-semibold [&_a]:text-purple [&_a]:underline [&_a:hover]:text-purple-dark"
               dangerouslySetInnerHTML={{ __html: cleanHtml(event.description) }} />
           )}
         </div>
 
         {/* Présence : venu / pas venu, disponible sur tout créneau (entretien ou non), impacte les KPI. */}
-        <div className="mt-4 rounded-xl bg-gray-50 p-3">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Présence</p>
+        <div className="mt-4 rounded-xl bg-[var(--ds-surface-sunken)] p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Présence</p>
           <div className="flex items-center gap-2">
             <button onClick={() => mark('arrived')} disabled={savingAtt !== null}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-success-bg text-success' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
-              {savingAtt === 'arrived' ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />} Venu
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-[var(--ds-success-bg)] text-[var(--ds-success)]' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]'}`}>
+              {savingAtt === 'arrived' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserCheck width={14} height={14} />} Venu
             </button>
             <button onClick={() => mark('noshow')} disabled={savingAtt !== null}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-danger-bg text-danger' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
-              {savingAtt === 'noshow' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />} Pas venu
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]'}`}>
+              {savingAtt === 'noshow' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserRemove width={14} height={14} />} Pas venu
             </button>
           </div>
           {event.isInterview && event.attendance === 'noshow' && (
-            <p className="mt-2 text-[12px] text-gray-500">Un mail de proposition de rendez-vous a été envoyé.</p>
+            <p className="mt-2 text-[12px] text-[var(--ds-text-subtle)]">Un mail de proposition de rendez-vous a été envoyé.</p>
           )}
           {!isPast && event.attendance == null && (
-            <p className="mt-2 text-[12px] text-gray-400">Le rendez-vous n'a pas encore eu lieu.</p>
+            <p className="mt-2 text-[12px] text-[var(--ds-text-subtle)]">Le rendez-vous n'a pas encore eu lieu.</p>
           )}
-          {attErr && <p className="mt-2 text-[12px] text-danger">{attErr}</p>}
+          {attErr && <p className="mt-2 text-[12px] text-[var(--ds-danger)]">{attErr}</p>}
         </div>
 
         <div className="mt-5 flex items-center gap-2">
           {(event.meetingLink || event.hangoutLink) && (
-            <a href={event.meetingLink || event.hangoutLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-2 text-[13px] font-bold text-white hover:bg-purple-dark"><Video size={15} /> Rejoindre</a>
+            <a href={event.meetingLink || event.hangoutLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-2 text-[13px] font-bold text-white hover:bg-purple-dark"><IconVideo width={15} height={15} /> Rejoindre</a>
           )}
           {event.htmlLink && (
-            <a href={event.htmlLink} target="_blank" rel="noreferrer" className="rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-bold text-gray-700 hover:bg-gray-50">Ouvrir dans Google</a>
+            <a href={event.htmlLink} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]">Ouvrir dans Google</a>
           )}
-          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-gray-400 hover:text-gray-700">Fermer</button>
+          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Fermer</button>
         </div>
       </div>
     </div>
@@ -1383,20 +1380,20 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[17px] font-extrabold text-gray-900">{isEdit ? 'Modifier le créneau' : 'Nouveau créneau'}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+          <h2 className="text-[17px] font-extrabold text-[var(--ds-text)]">{isEdit ? 'Modifier le créneau' : 'Nouveau créneau'}</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]"><IconClose width={18} height={18} /></button>
         </div>
 
         <div className="space-y-3">
           <input autoFocus value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Titre"
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[14px] font-semibold outline-none focus:border-purple" />
+            className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[14px] font-semibold outline-none focus:border-purple" />
 
           {/* Agenda cible : choix du RH à la création, figé en édition. */}
           {!isEdit ? (
-            <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-              <UserIcon size={15} className="flex-shrink-0 text-gray-400" />
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+              <IconUser width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
               <select
                 value={targetId}
                 onChange={(e) => setTargetId(Number(e.target.value))}
@@ -1411,32 +1408,32 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
             </div>
           ) : ownerId != null && ownerId !== selfId && ownerName ? (
             <div className="flex items-center gap-2 rounded-lg bg-purple-light px-3 py-2 text-[12px] font-semibold text-purple">
-              <UserIcon size={14} /> Agenda de {ownerName}
+              <IconUser width={14} height={14} /> Agenda de {ownerName}
             </div>
           ) : null}
 
           <div className="flex gap-2">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
-            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-lg border border-gray-200 px-2 py-2 text-[13px] outline-none focus:border-purple" />
-            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-lg border border-gray-200 px-2 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
           </div>
 
           <LocationPicker value={location} onChange={setLocation} autoDefault={!isEdit} />
 
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-            <Mail size={15} className="flex-shrink-0 text-gray-400" />
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+            <IconMail width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
             <input type="email" value={attendeeEmail} onChange={(e) => setAttendeeEmail(e.target.value)} placeholder="Email de l'invité (envoie une confirmation)"
               className="w-full bg-transparent py-2 text-[13px] outline-none" />
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-            <LinkIcon size={15} className="flex-shrink-0 text-gray-400" />
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+            <IconLink width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
             <input type="url" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="Lien du rendez-vous (visio, optionnel)"
               className="w-full bg-transparent py-2 text-[13px] outline-none" />
           </div>
 
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optionnel)" rows={2}
-            className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
+            className="w-full resize-none rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
 
           {/* Color picker */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -1449,17 +1446,18 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
           </div>
 
           <div className="pt-1">
-            <p className="mb-1.5 text-[12px] font-semibold text-gray-500">Type de créneau</p>
+            <p className="mb-1.5 text-[12px] font-semibold text-[var(--ds-text-subtle)]">Type de créneau</p>
             <div className="flex gap-2">
               {([['entretien', 'Entretien'], ['autre', 'Autre']] as const).map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
+                  aria-pressed={slotType === key}
                   onClick={() => pickType(key)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
+                  className={`flex-1 rounded-full border px-3 py-2 text-[13px] font-semibold transition-colors ${
                     slotType === key
                       ? 'border-purple bg-purple/10 text-purple'
-                      : 'border-gray-200 text-gray-500 hover:border-purple'
+                      : 'border-[var(--ds-border)] text-[var(--ds-text-subtle)] hover:border-purple'
                   }`}
                 >
                   {label}
@@ -1467,42 +1465,42 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
               ))}
             </div>
             {isInterview && (
-              <p className="mt-1 text-[11px] text-gray-400">Compté dans les KPI RH.</p>
+              <p className="mt-1 text-[11px] text-[var(--ds-text-subtle)]">Compté dans les KPI RH.</p>
             )}
           </div>
 
           {/* Proposer un entretien : envoie le lien de réservation par mail au candidat. */}
           {!isEdit && (
-          <div className="rounded-lg border border-gray-200 p-3">
-            <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700">
+          <div className="rounded-lg border border-[var(--ds-border)] p-3">
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-[var(--ds-text-muted)]">
               <input type="checkbox" checked={propose} onChange={(e) => setPropose(e.target.checked)} className="accent-purple" />
               Proposer un entretien (envoyer le lien de réservation)
             </label>
             {propose && (
               <div className="mt-3 space-y-2">
-                <p className="text-[12px] text-gray-500">
+                <p className="text-[12px] text-[var(--ds-text-subtle)]">
                   Le lien de votre emploi du temps sera envoyé à l'email de l'invité saisi ci-dessus.
                 </p>
                 <textarea value={proposeNote} onChange={(e) => setProposeNote(e.target.value)} placeholder="Message personnalisé (optionnel)" rows={2}
-                  className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
+                  className="w-full resize-none rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
               </div>
             )}
           </div>
           )}
 
-          {err && <p className="text-[12px] text-danger">{err}</p>}
-          {sent && <p className="text-[12px] font-semibold text-success">Proposition envoyée ✓</p>}
+          {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
+          {sent && <p className="text-[12px] font-semibold text-[var(--ds-success)]">Proposition envoyée ✓</p>}
         </div>
 
         <div className="mt-5 flex items-center gap-2">
           {isEdit && (
-            <button onClick={remove} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-[13px] font-bold text-danger hover:bg-danger/10 disabled:opacity-60">
-              <Trash2 size={15} /> Supprimer
+            <button onClick={remove} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-danger/30 bg-[var(--ds-danger-bg)] px-3 py-2 text-[13px] font-bold text-[var(--ds-danger)] hover:bg-danger/10 disabled:opacity-60">
+              <IconTrash width={15} height={15} /> Supprimer
             </button>
           )}
-          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-gray-400 hover:text-gray-700">Annuler</button>
+          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Annuler</button>
           <button onClick={submit} disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
-            {busy && <Loader2 size={15} className="animate-spin" />} {propose ? 'Envoyer la proposition' : isEdit ? 'Enregistrer' : 'Créer'}
+            {busy && <IconLoader width={15} height={15} className="animate-spin" />} {propose ? 'Envoyer la proposition' : isEdit ? 'Enregistrer' : 'Créer'}
           </button>
         </div>
       </div>

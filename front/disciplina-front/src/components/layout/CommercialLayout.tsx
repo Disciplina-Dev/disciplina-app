@@ -1,13 +1,32 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Building2, LogOut, User, Users, UserPlus, Search, CheckCircle, X, Mail, Bell, ShieldOff, ShieldAlert, ListTodo, Settings, GraduationCap, FolderCog } from 'lucide-react'
+import {
+  IconBell,
+  IconCheckCircle,
+  IconClose,
+  IconCompany,
+  IconDashboard,
+  IconFolderSettings,
+  IconLogout,
+  IconMail,
+  IconSearch,
+  IconSettings,
+  IconShieldAlert,
+  IconShieldOff,
+  IconTaskList,
+  IconUser,
+} from '@/components/ui/icons'
 import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
-import { GoogleDriveConnect } from '@/components/GoogleDriveConnect'
 import { useAbSignedNotification } from '@/hooks/useAbSignedNotification'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
-import LegalLinks from './LegalLinks'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+import CollapsibleSidebar, { SidebarLabel, SidebarSectionTitle } from './CollapsibleSidebar'
+import SpaceSwitcher from './SpaceSwitcher'
+import SidebarPinButton from './SidebarPinButton'
 import RegionBadge from './RegionBadge'
 import GoogleReconnectBanner from '@/components/GoogleReconnectBanner'
+import Logo from '@/components/ui/Logo'
+import AppFooter from './AppFooter'
 
 function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; label: string; end?: boolean }) {
   return (
@@ -16,15 +35,17 @@ function NavItem({ to, icon, label, end }: { to: string; icon: React.ReactNode; 
       end={end}
       className={({ isActive }) =>
         [
-          'flex items-center gap-3 rounded-[10px] py-2.5 px-3 text-[14px] transition-all duration-150 cursor-pointer no-underline',
+          'group flex items-center gap-3 overflow-hidden rounded-full px-[14px] py-2.5 text-[14px] no-underline',
+          'transition-colors duration-150',
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-accent)]',
           isActive
-            ? 'bg-blue-light text-blue font-bold shadow-[0_1px_2px_rgba(17,48,167,0.05)]'
-            : 'text-gray-500 font-medium hover:bg-gray-50 hover:text-gray-900',
+            ? 'bg-[var(--ds-accent)] text-[var(--ds-text-inverse)] font-semibold shadow-[var(--shadow-xs)]'
+            : 'text-[var(--ds-text-subtle)] font-medium hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]',
         ].join(' ')
       }
     >
-      {icon}
-      {label}
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
+      <SidebarLabel>{label}</SidebarLabel>
     </NavLink>
   )
 }
@@ -40,124 +61,129 @@ export default function CommercialLayout() {
     navigate('/')
   }
 
+  const isManager =
+    currentUser?.role === 'AD' ||
+    currentUser?.role === 'GESTION' ||
+    currentUser?.permission === Permission.RESPONSABLE ||
+    currentUser?.permission === Permission.ADMIN
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
-      <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
-        {/* Module Header */}
-        <div className="shrink-0 flex items-center gap-3 p-6 pb-4">
-          <span className="flex items-center gap-3 after:content-[''] after:h-6 after:w-px after:bg-gray-200">
-            <img src="/icon-logo.png" alt="Disciplina" className="h-8 w-8" />
-          </span>
-          <p className="whitespace-nowrap text-[16px] font-extrabold text-gray-900 tracking-tight">Espace Commercial</p>
-        </div>
+    <div className="relative flex h-screen overflow-hidden">
+      {/* Le premier arrêt de tabulation permet d'atteindre le contenu sans
+          parcourir toute la navigation latérale. */}
+      <a href="#contenu-principal" className="ds-skip-link">
+        Aller au contenu principal
+      </a>
+
+      <CollapsibleSidebar label="Navigation de l'espace commercial">
+        <SpaceSwitcher current="commercial" mark={<Logo variant="mark" className="h-8 w-8" />} />
 
         <RegionBadge />
 
-        {/* Scrollable nav */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
-        {/* Main nav */}
-        <nav className="mt-2 flex flex-col gap-1 px-3">
-          <NavItem to="/commercial" end icon={<LayoutDashboard size={18} />} label="Tableau de bord" />
-          <NavItem to="/commercial/portefeuille" icon={<Building2 size={18} />} label="Portefeuille" />
-          <NavItem to="/commercial/liste-noire" icon={<ShieldOff size={18} />} label="Liste noire" />
-          <NavItem to="/commercial/sourcing" icon={<Search size={18} />} label="Sourcing SIRET" />
-          <NavItem to="/commercial/mail" icon={<Mail size={18} />} label="Modèles mail" />
-          <NavItem to="/commercial/relance" icon={<Bell size={18} />} label="Relances" />
-          <NavItem to="/commercial/todos" icon={<ListTodo size={18} />} label="Mes tâches" />
-        </nav>
+        <div className="ds-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
+          <nav aria-label="Navigation principale" className="mt-2 flex flex-col gap-1 px-3">
+            <NavItem to="/commercial" end icon={<IconDashboard width={18} height={18} />} label="Tableau de bord" />
+            <NavItem to="/commercial/portefeuille" icon={<IconCompany width={18} height={18} />} label="Portefeuille" />
+            <NavItem to="/commercial/liste-noire" icon={<IconShieldOff width={18} height={18} />} label="Liste noire" />
+            <NavItem to="/commercial/sourcing" icon={<IconSearch width={18} height={18} />} label="Sourcing SIRET" />
+            <NavItem to="/commercial/mail" icon={<IconMail width={18} height={18} />} label="Modèles mail" />
+            <NavItem to="/commercial/relance" icon={<IconBell width={18} height={18} />} label="Relances" />
+            <NavItem to="/commercial/todos" icon={<IconTaskList width={18} height={18} />} label="Mes tâches" />
+          </nav>
 
-        {/* Administration Nav */}
-        {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION' || currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
-          <>
-            <div className="mx-3 my-4 border-t border-gray-100" />
-            <div className="px-5 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Administration</div>
-            <nav className="flex flex-col gap-1 px-3">
-              <NavItem to="/commercial/quarantaine" icon={<ShieldAlert size={18} />} label="Quarantaine" />
-              <NavItem to="/commercial/config-drive" icon={<FolderCog size={18} />} label="Dossiers Drive" />
-              <NavItem to="/rh" icon={<Users size={18} />} label="Espace RH" />
-              {(currentUser?.role === 'AD' || currentUser?.role === 'GESTION') && (
-                <>
-                  <NavItem to="/peda" icon={<GraduationCap size={18} />} label="Espace Péda" />
-                  <NavItem to="/admin/utilisateurs" icon={<UserPlus size={18} />} label="Administration" />
-                </>
-              )}
-            </nav>
-          </>
-        )}
+          {isManager && (
+            <>
+              <SidebarSectionTitle>Administration</SidebarSectionTitle>
+              <nav aria-label="Administration" className="flex flex-col gap-1 px-3">
+                <NavItem to="/commercial/quarantaine" icon={<IconShieldAlert width={18} height={18} />} label="Quarantaine" />
+                <NavItem to="/commercial/config-drive" icon={<IconFolderSettings width={18} height={18} />} label="Dossiers Drive" />
+              </nav>
+            </>
+          )}
         </div>
 
-        {/* Profile Footer */}
-        <div className="shrink-0 border-t border-gray-100 p-4 flex flex-col gap-4">
-          <GoogleDriveConnect theme="blue" />
-          <div className="h-px w-full bg-gray-100" />
-          <div className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-gray-50 transition-colors">
-            <div
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
-              style={{ backgroundColor: '#1130A7' }}
-            >
-              <User size={18} />
+        {/* Pied de colonne : compte et liens légaux */}
+        <div className="shrink-0 border-t border-[var(--ds-border)] p-3 flex flex-col gap-3">
+          <SidebarPinButton />
+
+
+          <div className="flex items-center gap-3 overflow-hidden rounded-[var(--radius-md)] p-1 transition-colors hover:bg-[var(--ds-surface-sunken)]">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-blue)] text-[12px] font-bold text-white">
+              <IconUser width={18} height={18} />
             </div>
-            <div className="min-w-0 flex-1">
+            <SidebarLabel className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <p className="truncate text-[13px] font-bold text-gray-900 leading-tight">{`${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim()}</p>
+                <p className="truncate text-[13px] font-bold leading-tight text-[var(--ds-text)]">
+                  {`${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}`.trim()}
+                </p>
                 {(currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN) && (
-                  <span className="shrink-0 rounded-full bg-blue-light px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue">Resp.</span>
+                  <span className="shrink-0 rounded-full bg-[var(--ds-accent-soft)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--ds-accent)]">
+                    Resp.
+                  </span>
                 )}
               </div>
-              <p className="truncate text-[11px] font-medium text-gray-400 capitalize">{currentUser?.role?.toLowerCase()}</p>
-            </div>
-            <div className="flex items-center gap-0.5">
+              <p className="truncate text-[11px] font-medium capitalize text-[var(--ds-text-subtle)]">
+                {currentUser?.role?.toLowerCase()}
+              </p>
+            </SidebarLabel>
+            <div className="invisible flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-data-[open=true]/sidebar:visible group-data-[open=true]/sidebar:opacity-100">
               <button
                 onClick={() => navigate('/commercial/profil')}
-                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue hover:bg-blue-50 rounded-md transition-colors"
+                className="flex-shrink-0 rounded-full p-1.5 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-accent-soft)] hover:text-[var(--ds-accent)]"
+                aria-label="Mon profil"
                 title="Mon profil"
               >
-                <Settings size={16} />
+                <IconSettings width={16} height={16} />
               </button>
               <button
                 onClick={handleLogout}
-                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                className="flex-shrink-0 rounded-full p-1.5 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-danger-bg)] hover:text-[var(--ds-danger)]"
+                aria-label="Se déconnecter"
                 title="Se déconnecter"
               >
-                <LogOut size={16} />
+                <IconLogout width={16} height={16} />
               </button>
             </div>
           </div>
-
-          <LegalLinks />
         </div>
-      </aside>
+      </CollapsibleSidebar>
 
-      {/* Main Content Area */}
+      {/* Zone de contenu */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white px-6">
-          <RouteBreadcrumb accent="#1130A7" />
-          <NotificationBell accent="#1130A7" />
+        <header className="ds-glass-flush relative z-30 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-[var(--ds-glass-border)] px-6">
+          <RouteBreadcrumb accent="var(--ds-accent)" />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <NotificationBell accent="var(--ds-accent)" />
+          </div>
         </header>
         <GoogleReconnectBanner />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        <main id="contenu-principal" tabIndex={-1} className="ds-scroll flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
+        <AppFooter />
       </div>
 
-      {/* AB signed toast notifications */}
+      {/* Notifications « AB signée » — pile dédiée, distincte des toasts
+          applicatifs car chaque entrée reste tant qu'elle n'est pas acquittée. */}
       {notifications.length > 0 && (
-        <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
+        <div aria-live="polite" className="fixed bottom-5 right-5 z-[150] flex flex-col gap-2">
           {notifications.map((n) => (
             <div
               key={n.abId}
-              className="flex items-start gap-3 rounded-xl bg-white border border-green-200 shadow-lg px-4 py-3 min-w-[280px] max-w-sm"
+              className="ds-glass-strong flex min-w-[280px] max-w-sm items-start gap-3 rounded-[var(--radius-lg)] px-4 py-3 ring-1 ring-[var(--ds-success)]/25"
             >
-              <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">AB signée !</p>
-                <p className="text-xs text-gray-500 truncate mt-0.5">{n.jobTitle}</p>
+              <IconCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ds-success)]" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-[var(--ds-text)]">AB signée</p>
+                <p className="mt-0.5 truncate text-xs text-[var(--ds-text-subtle)]">{n.jobTitle}</p>
               </div>
               <button
                 onClick={() => dismiss(n.abId)}
-                className="text-gray-400 hover:text-gray-600 shrink-0"
+                aria-label="Masquer cette notification"
+                className="shrink-0 rounded-full p-1 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]"
               >
-                <X className="h-4 w-4" />
+                <IconClose width={16} height={16} />
               </button>
             </div>
           ))}

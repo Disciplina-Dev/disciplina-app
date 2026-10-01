@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { getRegion } from '../db/tenant';
 import { TitleProfessionalType, TrainingSite } from '../types/candidate.types';
 import {
     DriveFolderConfig,
@@ -6,8 +7,17 @@ import {
 } from '../repositories/mongo/DriveFolderConfigRepository';
 
 // Régions disponibles (un dossier Drive par couple TP × Région).
+// Réunion : NORD/OUEST/SUD. Annemasse : une seule région « ANNEMASSE ».
 export const DRIVE_REGIONS = ['NORD', 'OUEST', 'SUD'] as const;
-export type DriveRegion = (typeof DRIVE_REGIONS)[number];
+export const ANNEMASSE_DRIVE_REGION = 'ANNEMASSE' as const;
+export const ALL_DRIVE_REGIONS = [...DRIVE_REGIONS, ANNEMASSE_DRIVE_REGION] as const;
+export type DriveRegion = (typeof ALL_DRIVE_REGIONS)[number];
+
+/** Régions Drive proposées selon le tenant (region null → Réunion par défaut). */
+export function driveRegionsForTenant(region?: string | null): DriveRegion[] {
+    const tenant = region ?? getRegion();
+    return tenant === 'annemasse' ? [ANNEMASSE_DRIVE_REGION] : [...DRIVE_REGIONS];
+}
 
 // Le site de formation du candidat détermine sa région.
 const SITE_TO_REGION: Record<TrainingSite, DriveRegion> = {
@@ -59,10 +69,11 @@ export class DriveFolderConfigService {
         region?: DriveRegion,
     ): Promise<string | undefined> {
         const config = await this.repo.get();
-        // Secteur du créateur > région du site de formation > NORD par défaut.
-        // → un user sans secteur classe le candidat dans le dossier TP du Nord.
+        // Secteur du créateur > région du site de formation > défaut du tenant
+        // (NORD pour Réunion, ANNEMASSE pour Annemasse).
+        const tenantDefault: DriveRegion = getRegion() === 'annemasse' ? ANNEMASSE_DRIVE_REGION : 'NORD';
         const resolvedRegion: DriveRegion =
-            region ?? (trainingSite ? SITE_TO_REGION[trainingSite as TrainingSite] : undefined) ?? 'NORD';
+            region ?? (trainingSite ? SITE_TO_REGION[trainingSite as TrainingSite] : undefined) ?? tenantDefault;
 
         if (tp && resolvedRegion) {
             const id = config.tpFolders[driveFolderKey(tp, resolvedRegion)];

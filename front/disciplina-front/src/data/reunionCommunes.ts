@@ -114,6 +114,81 @@ export function cityFromPostalCode(postalCode: string): string | undefined {
   return REUNION_POSTAL_TO_CITY[code] ?? ANNEMASSE_POSTAL_TO_CITY[code]
 }
 
+/**
+ * Communes de Haute-Savoie (tenant Annemasse) pour la recherche SIRENE
+ * multicritère (page Sourcing). Même convention que la liste Réunion de
+ * `pages/commercial/sourcing.tsx` : slugs minuscules — `denormalizeCommune` les repasse en
+ * libellés pour `libelleCommuneEtablissement`. Regroupées par secteur
+ * opérationnel (Genève / frontière, Genevois, Arve, Faucigny, Annecy, Chablais).
+ */
+export const ANNEMASSE_COMMUNES: string[] = [
+  // Genève / frontière
+  'annemasse',
+  'ambilly',
+  'gaillard',
+  'ville-la-grand',
+  'vetraz-monthoux',
+  'etrembieres',
+  'cranves-sales',
+  'saint-cergues',
+  'juvigny',
+  'bonne',
+  'machilly',
+  'douvaine',
+  'veigy-foncenex',
+  'bons-en-chablais',
+  'sciez',
+  'thonon-les-bains',
+  'evian-les-bains',
+  // Saint-Julien / Genevois
+  'saint-julien-en-genevois',
+  'archamps',
+  'neydens',
+  'collonges-sous-saleve',
+  'presilly',
+  'beaumont',
+  'feigeres',
+  'viry',
+  'valleiry',
+  'vulbens',
+  'chenex',
+  // Arve
+  'reignier-esery',
+  'arenthon',
+  'contamine-sur-arve',
+  'bonneville',
+  'ayse',
+  'marignier',
+  'vougy',
+  'cluses',
+  'scionzier',
+  'marnaz',
+  // Faucigny / La Roche
+  'la-roche-sur-foron',
+  'amancy',
+  'saint-pierre-en-faucigny',
+  'eteaux',
+  'cornier',
+  'pers-jussy',
+  'scientrier',
+  'arbusigny',
+  // Annecy
+  'annecy',
+  'pringy',
+  'epagny-metz-tessy',
+  'poisy',
+  'meythet',
+  'seynod',
+  'cran-gevrier',
+  'argonay',
+  // Chablais
+  'perrignier',
+  'boege',
+  'fillinges',
+  'viuz-en-sallaz',
+  'saint-jeoire',
+]
+
 /** Libellés FR des communes de La Réunion et de Haute-Savoie (Annemasse), indexés par l'enum `Localisation` (mobilité géographique). */
 export const LOCALISATION_LABELS: Record<Localisation, string> = {
   [Localisation.SAINT_DENIS]: 'Saint-Denis',

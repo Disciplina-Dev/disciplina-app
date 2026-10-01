@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Save, CheckCircle } from 'lucide-react'
+import { IconArrowLeft, IconCheckCircle, IconPlus, IconSave, IconTrash } from '@/components/ui/icons'
 import InputField from '@/components/ui/InputField'
 import MultiSelectField from '@/components/ui/MultiSelectField'
 import Button from '@/components/ui/Button'
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes'
+import { communeSectionsForRegion } from '@/features/matching/constants/regions'
+import { useRegionStore } from '@/store/regionStore'
 import { SkillLevel, TitleProfessionalType, TrainingSite, Localisation } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
 import { useCandidateFull } from '@/graphql/hooks'
@@ -256,8 +258,8 @@ function toGqlInput(f: FormState) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-      <h2 className="mb-5 text-base font-semibold text-gray-800 border-b border-gray-100 pb-3">{title}</h2>
+    <section className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6 shadow-sm">
+      <h2 className="mb-5 text-base font-semibold text-[var(--ds-text)] border-b border-[var(--ds-border)] pb-3">{title}</h2>
       <div className="space-y-4">{children}</div>
     </section>
   )
@@ -272,7 +274,7 @@ function RadioGroup({
 }) {
   return (
     <div>
-      <p className="mb-2 text-sm font-medium text-gray-700">{label}</p>
+      <p className="mb-2 text-sm font-medium text-[var(--ds-text-muted)]">{label}</p>
       <div className="flex flex-wrap gap-4">
         {options.map(opt => (
           <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
@@ -284,7 +286,7 @@ function RadioGroup({
               onChange={() => onChange(opt.value)}
               className="accent-blue-600"
             />
-            <span className="text-sm text-gray-700">{opt.label}</span>
+            <span className="text-sm text-[var(--ds-text-muted)]">{opt.label}</span>
           </label>
         ))}
       </div>
@@ -295,12 +297,12 @@ function RadioGroup({
 function Textarea({ label, value, onChange, rows = 3 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</label>
       <textarea
         rows={rows}
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 resize-none"
+        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-[var(--ds-accent)] resize-none"
       />
     </div>
   )
@@ -311,7 +313,7 @@ function CheckGroup({ label, options, selected, onToggle, renderLabel }: {
 }) {
   return (
     <div>
-      <p className="mb-2 text-sm font-medium text-gray-700">{label}</p>
+      <p className="mb-2 text-sm font-medium text-[var(--ds-text-muted)]">{label}</p>
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
         {options.map(opt => (
           <label key={opt} className="flex items-center gap-2 cursor-pointer">
@@ -321,7 +323,7 @@ function CheckGroup({ label, options, selected, onToggle, renderLabel }: {
               onChange={() => onToggle(opt)}
               className="accent-blue-600 h-4 w-4 rounded"
             />
-            <span className="text-sm text-gray-700">{renderLabel ? renderLabel(opt) : opt}</span>
+            <span className="text-sm text-[var(--ds-text-muted)]">{renderLabel ? renderLabel(opt) : opt}</span>
           </label>
         ))}
       </div>
@@ -340,6 +342,9 @@ export default function QuestionnaireAB() {
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [driveStatus, setDriveStatus] = useState<string | null>(null)
+  // Sections de mobilité selon le tenant (3 zones Réunion, 6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region)
+  const communeSections = useMemo(() => communeSectionsForRegion(region), [region])
 
   useEffect(() => {
     if (candidate) setForm(initForm(candidate))
@@ -436,14 +441,14 @@ export default function QuestionnaireAB() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-r-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--ds-accent)] border-r-transparent" />
       </div>
     )
   }
 
   if (error || !form || !template) {
     return (
-      <div className="p-8 text-center text-sm text-red-500">
+      <div className="p-8 text-center text-sm text-[var(--ds-danger)]">
         {error ?? 'Candidat introuvable'}
       </div>
     )
@@ -457,13 +462,13 @@ export default function QuestionnaireAB() {
       <div className="mb-8 flex items-start gap-4">
         <button
           onClick={() => navigate(-1)}
-          className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+          className="mt-0.5 flex items-center gap-1.5 text-sm text-[var(--ds-text-subtle)] hover:text-[var(--ds-text)] transition-colors"
         >
-          <ArrowLeft size={16} /> Retour
+          <IconArrowLeft width={16} height={16} /> Retour
         </button>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Analyse du besoin – {form.full_name}</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-[var(--ds-text)]">Analyse du besoin – {form.full_name}</h1>
+          <p className="mt-0.5 text-sm text-[var(--ds-text-subtle)]">
             {form.tp_types.map(t => TP_TYPE_LABELS[t]).join(' · ')}
           </p>
         </div>
@@ -499,7 +504,7 @@ export default function QuestionnaireAB() {
             onChange={v => set('driving_license_b', v)}
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]}
           />
-          <div className="ml-3 pl-4 border-l-2 border-gray-100">
+          <div className="ml-3 pl-4 border-l-2 border-[var(--ds-border)]">
             <RadioGroup
               label="Véhiculé"
               name="has_vehicle"
@@ -521,7 +526,7 @@ export default function QuestionnaireAB() {
         {/* 3. Parcours et prérequis */}
         <Section title="Parcours et prérequis">
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">Niveau de formation</p>
+            <p className="mb-2 text-sm font-medium text-[var(--ds-text-muted)]">Niveau de formation</p>
             <div className="space-y-2">
               {template.schoolLevels.map(opt => (
                 <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
@@ -533,7 +538,7 @@ export default function QuestionnaireAB() {
                     onChange={() => set('school_level', opt.value)}
                     className="accent-blue-600"
                   />
-                  <span className="text-sm text-gray-700">{opt.label}</span>
+                  <span className="text-sm text-[var(--ds-text-muted)]">{opt.label}</span>
                 </label>
               ))}
             </div>
@@ -543,7 +548,7 @@ export default function QuestionnaireAB() {
 
         {/* 4. Site(s) de formation — choix multiple */}
         <Section title="Positionnement sur les sites de formation">
-          <p className="mb-2 text-sm text-gray-500">Plusieurs sites possibles.</p>
+          <p className="mb-2 text-sm text-[var(--ds-text-subtle)]">Plusieurs sites possibles.</p>
           <div className="space-y-2">
             {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([value, label]) => (
               <label key={value} className="flex items-center gap-2 cursor-pointer">
@@ -562,7 +567,7 @@ export default function QuestionnaireAB() {
                   }
                   className="accent-blue-600 h-4 w-4"
                 />
-                <span className="text-sm text-gray-700">{label}</span>
+                <span className="text-sm text-[var(--ds-text-muted)]">{label}</span>
               </label>
             ))}
           </div>
@@ -609,16 +614,16 @@ export default function QuestionnaireAB() {
           <Textarea label="Formations suivies auparavant" value={form.previous_trainings} onChange={v => set('previous_trainings', v)} />
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700">Expériences professionnelles</p>
-              <button type="button" onClick={addExperience} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
-                <Plus size={14} /> Ajouter
+              <p className="text-sm font-medium text-[var(--ds-text-muted)]">Expériences professionnelles</p>
+              <button type="button" onClick={addExperience} className="flex items-center gap-1 text-xs text-[var(--ds-accent)] hover:text-blue-800">
+                <IconPlus width={14} height={14} /> Ajouter
               </button>
             </div>
             <div className="space-y-4">
               {form.experiences.map((exp, i) => (
-                <div key={i} className="rounded-lg border border-gray-100 p-4 relative">
-                  <button type="button" onClick={() => removeExperience(i)} className="absolute top-3 right-3 text-gray-300 hover:text-red-500">
-                    <Trash2 size={14} />
+                <div key={i} className="rounded-lg border border-[var(--ds-border)] p-4 relative">
+                  <button type="button" onClick={() => removeExperience(i)} className="absolute top-3 right-3 text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)]">
+                    <IconTrash width={14} height={14} />
                   </button>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <InputField id={`exp_position_${i}`} label="Poste occupé" value={exp.position} onChange={e => updateExperience(i, 'position', e.target.value)} />
@@ -629,7 +634,7 @@ export default function QuestionnaireAB() {
                 </div>
               ))}
               {form.experiences.length === 0 && (
-                <p className="text-sm text-gray-400 italic">Aucune expérience ajoutée</p>
+                <p className="text-sm text-[var(--ds-text-subtle)] italic">Aucune expérience ajoutée</p>
               )}
             </div>
           </div>
@@ -646,7 +651,7 @@ export default function QuestionnaireAB() {
             <InputField id="other_languages" label="Autres langues maîtrisées (séparées par virgule)" value={form.other_languages} onChange={e => set('other_languages', e.target.value)} />
           </div>
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">Qualités (3 maximum)</p>
+            <p className="mb-2 text-sm font-medium text-[var(--ds-text-muted)]">Qualités (3 maximum)</p>
             <div className="grid grid-cols-3 gap-3">
               <InputField id="quality1" label="1" value={form.quality1} onChange={e => set('quality1', e.target.value)} />
               <InputField id="quality2" label="2" value={form.quality2} onChange={e => set('quality2', e.target.value)} />
@@ -654,7 +659,7 @@ export default function QuestionnaireAB() {
             </div>
           </div>
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">Défauts (3 maximum)</p>
+            <p className="mb-2 text-sm font-medium text-[var(--ds-text-muted)]">Défauts (3 maximum)</p>
             <div className="grid grid-cols-3 gap-3">
               <InputField id="defect1" label="1" value={form.defect1} onChange={e => set('defect1', e.target.value)} />
               <InputField id="defect2" label="2" value={form.defect2} onChange={e => set('defect2', e.target.value)} />
@@ -682,26 +687,26 @@ export default function QuestionnaireAB() {
 
         {/* 10. Analyse des compétences */}
         <Section title="Analyse des compétences en début de formation">
-          <p className="text-xs text-gray-400 mb-3">
+          <p className="text-xs text-[var(--ds-text-subtle)] mb-3">
             Acquis (A) / En cours d'acquisition (ECA) / Non acquis (NA) / Non évalué (NE)
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="pb-2 pr-4 text-left font-medium text-gray-700">Compétence professionnelle</th>
-                  <th className="pb-2 w-44 text-left font-medium text-gray-700">Notation</th>
+                <tr className="border-b border-[var(--ds-border)]">
+                  <th className="pb-2 pr-4 text-left font-medium text-[var(--ds-text-muted)]">Compétence professionnelle</th>
+                  <th className="pb-2 w-44 text-left font-medium text-[var(--ds-text-muted)]">Notation</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {form.skills.map((skill, i) => (
                   <tr key={i} className="py-2">
-                    <td className="py-3 pr-4 text-gray-700">{skill.competence}</td>
+                    <td className="py-3 pr-4 text-[var(--ds-text-muted)]">{skill.competence}</td>
                     <td className="py-3">
                       <select
                         value={skill.level}
                         onChange={e => updateSkillLevel(i, e.target.value as SkillLevel)}
-                        className="w-full rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                        className="w-full rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-sm outline-none focus:border-[var(--ds-accent)]"
                       >
                         {Object.entries(SKILL_LEVEL_LABELS).map(([val, label]) => (
                           <option key={val} value={val}>{val} – {label}</option>
@@ -725,6 +730,7 @@ export default function QuestionnaireAB() {
               id="geographic_mobility"
               label="Mobilité géographique"
               options={Object.values(Localisation)}
+              sections={communeSections}
               value={form.geographic_mobility}
               onChange={vals => set('geographic_mobility', vals as Localisation[])}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
@@ -759,7 +765,7 @@ export default function QuestionnaireAB() {
         {/* 13. Découverte */}
         <Section title="Informations supplémentaires">
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">Comment avez-vous eu connaissance de notre établissement ?</p>
+            <p className="mb-2 text-sm font-medium text-[var(--ds-text-muted)]">Comment avez-vous eu connaissance de notre établissement ?</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
               {Object.entries(DISCOVERY_SOURCE_LABELS).map(([value, label]) => (
                 <label key={value} className="flex items-center gap-2 cursor-pointer">
@@ -771,7 +777,7 @@ export default function QuestionnaireAB() {
                     onChange={() => set('discovery_source', value)}
                     className="accent-blue-600"
                   />
-                  <span className="text-sm text-gray-700">{label}</span>
+                  <span className="text-sm text-[var(--ds-text-muted)]">{label}</span>
                 </label>
               ))}
             </div>
@@ -786,7 +792,7 @@ export default function QuestionnaireAB() {
           <Textarea label="Besoins particuliers" value={form.special_needs} onChange={v => set('special_needs', v)} />
 
           <div>
-            <p className="mb-3 text-sm font-medium text-gray-700">Préconisations pédagogiques</p>
+            <p className="mb-3 text-sm font-medium text-[var(--ds-text-muted)]">Préconisations pédagogiques</p>
             <div className="space-y-2">
               {([
                 ['officeToolsReinforcement', 'Renforcement en bureautique et outils numériques'],
@@ -807,7 +813,7 @@ export default function QuestionnaireAB() {
                     onChange={() => togglePeda(key)}
                     className="accent-blue-600 h-4 w-4"
                   />
-                  <span className="text-sm text-gray-700">{label}</span>
+                  <span className="text-sm text-[var(--ds-text-muted)]">{label}</span>
                 </label>
               ))}
             </div>
@@ -831,18 +837,18 @@ export default function QuestionnaireAB() {
         </Section>
 
         {/* Save bar */}
-        <div className="sticky bottom-0 bg-white/90 backdrop-blur border-t border-gray-100 -mx-4 px-4 py-4 flex items-center justify-between gap-4">
+        <div className="sticky bottom-0 bg-[var(--ds-surface)] backdrop-blur border-t border-[var(--ds-border)] -mx-4 px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex flex-col gap-0.5">
-            {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+            {saveError && <p className="text-sm text-[var(--ds-danger)]">{saveError}</p>}
             {saved && (
-              <span className="flex items-center gap-1.5 text-sm text-green-600">
-                <CheckCircle size={16} /> Sauvegardé
+              <span className="flex items-center gap-1.5 text-sm text-[var(--ds-success)]">
+                <IconCheckCircle width={16} height={16} /> Sauvegardé
               </span>
             )}
-            {driveStatus && <span className="text-xs text-gray-500">{driveStatus}</span>}
+            {driveStatus && <span className="text-xs text-[var(--ds-text-subtle)]">{driveStatus}</span>}
             {!saved && !saveError && !driveStatus && <span />}
           </div>
-          <Button type="submit" isLoading={saving} leftIcon={<Save size={16} />}>
+          <Button type="submit" isLoading={saving} leftIcon={<IconSave width={16} height={16} />}>
             Sauvegarder
           </Button>
         </div>

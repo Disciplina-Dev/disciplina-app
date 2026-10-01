@@ -1,3 +1,4 @@
+import '@/lib/readableStreamAsyncIterator'
 import { useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
@@ -15,7 +16,10 @@ import {
   ZoomOut,
 } from 'lucide-react'
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
+// ?v=2 : l'URL du worker ne change pas tant que son contenu est identique, et
+// les navigateurs gardaient en cache la version servie en octet-stream avant le
+// correctif MIME .mjs de nginx.conf. Incrémenter pour forcer un re-téléchargement.
+pdfjs.GlobalWorkerOptions.workerSrc = `${workerSrc}?v=2`
 
 // Rendu PDF via pdf.js (canvas) plutôt qu'une iframe : le viewer natif de Chrome
 // refuse de charger dans une iframe sandboxée (« This page has been blocked by

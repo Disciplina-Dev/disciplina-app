@@ -1,4 +1,4 @@
-import { Building2, ChevronRight, Trash2, UserPlus } from 'lucide-react'
+import { IconChevronRight, IconCompany, IconTrash, IconUserPlus } from '@/components/ui/icons'
 import type { Entreprise, SirenGroup } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
 import { Permission } from '@/store/authStore'
@@ -50,11 +50,11 @@ function EstablishmentRow({ entreprise, currentUser, onOpen, onClaim, onDelete }
       className="group/row flex items-center gap-3 px-5 py-3 cursor-pointer transition-colors hover:bg-blue-light/40"
     >
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-gray-900 truncate group-hover/row:text-blue">
+        <p className="text-[13px] font-medium text-[var(--ds-text)] truncate group-hover/row:text-blue">
           {entreprise.nom_commercial ?? '—'}
         </p>
         {entreprise.adresse && (
-          <p className="text-[11px] text-gray-400 truncate">{entreprise.adresse}</p>
+          <p className="text-[11px] text-[var(--ds-text-subtle)] truncate">{entreprise.adresse}</p>
         )}
       </div>
 
@@ -65,9 +65,9 @@ function EstablishmentRow({ entreprise, currentUser, onOpen, onClaim, onDelete }
 
       <span className="shrink-0 w-24 text-right text-[12px] truncate">
         {entreprise.commercial ? (
-          <span className="text-gray-600">{entreprise.commercial}</span>
+          <span className="text-[var(--ds-text-muted)]">{entreprise.commercial}</span>
         ) : (
-          <span className="italic text-gray-300">Non attribué</span>
+          <span className="italic text-[var(--ds-text-subtle)]">Non attribué</span>
         )}
       </span>
 
@@ -77,19 +77,19 @@ function EstablishmentRow({ entreprise, currentUser, onOpen, onClaim, onDelete }
           title="Récupérer le dossier"
           className="shrink-0 flex h-6 w-6 items-center justify-center rounded-md text-blue transition-colors hover:bg-blue hover:text-white"
         >
-          <UserPlus className="h-3.5 w-3.5" />
+          <IconUserPlus className="h-3.5 w-3.5" />
         </button>
       ) : (
-        <ChevronRight className="shrink-0 h-4 w-4 text-gray-300 group-hover/row:text-blue" />
+        <IconChevronRight className="shrink-0 h-4 w-4 text-[var(--ds-text-subtle)] group-hover/row:text-blue" />
       )}
       {canDelete && (
         <button
           onClick={handleDelete}
           title="Supprimer l'entreprise"
           aria-label="Supprimer l'entreprise"
-          className="shrink-0 flex h-6 w-6 items-center justify-center rounded-md text-gray-300 hover:bg-danger-bg hover:text-danger transition-colors"
+          className="shrink-0 flex h-6 w-6 items-center justify-center rounded-md text-[var(--ds-text-subtle)] hover:bg-[var(--ds-danger-bg)] hover:text-[var(--ds-danger)] transition-colors"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <IconTrash className="h-3.5 w-3.5" />
         </button>
       )}
     </div>
@@ -100,19 +100,19 @@ export function SirenGroupCard({ group, currentUser, onOpen, onClaim, onDelete }
   const raisonSociale = group.entreprises[0]?.nom_commercial ?? '—'
 
   return (
-    <article className="flex flex-col rounded-xl bg-white border border-gray-100 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] overflow-hidden">
-      <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-        <h4 className="text-[15px] font-semibold text-gray-900 truncate">{raisonSociale}</h4>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-400">
+    <article className="flex flex-col rounded-xl bg-[var(--ds-surface)] border border-[var(--ds-border)] shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] overflow-hidden">
+      <div className="px-5 pt-4 pb-3 border-b border-[var(--ds-border)]">
+        <h4 className="text-[15px] font-semibold text-[var(--ds-text)] truncate">{raisonSociale}</h4>
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--ds-text-subtle)]">
           <span className="font-mono tracking-wide">SIREN {formatSiren(group.siren)}</span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-500">
-            <Building2 className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ds-surface-sunken)] px-2 py-0.5 font-medium text-[var(--ds-text-subtle)]">
+            <IconCompany className="h-3 w-3" />
             {group.count} établissement{group.count > 1 ? 's' : ''}
           </span>
         </div>
       </div>
 
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-[var(--ds-border)]">
         {group.entreprises.map((entreprise) => (
           <EstablishmentRow
             key={entreprise.id}

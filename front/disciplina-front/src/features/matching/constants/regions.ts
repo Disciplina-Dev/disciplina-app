@@ -1,6 +1,7 @@
 import { Localisation } from './jobEnums'
 import { SECTEUR_LABELS, SECTEUR_KEY_BY_LABEL } from '@/constants/secteurs'
 import type { Secteur, SecteurKey } from '@/constants/secteurs'
+import type { Region as TenantRegion } from '@/store/regionStore'
 
 export type Region = SecteurKey
 
@@ -139,4 +140,51 @@ export const ANNEMASSE_REGION_LABELS: Record<AnnemasseRegion, string> = {
   FAUCIGNY: 'Faucigny / La Roche',
   ANNECY: 'Annecy',
   CHABLAIS: 'Chablais',
+}
+
+export interface CommuneSection {
+  key: string
+  label: string
+  options: string[]
+}
+
+const REUNION_REGION_KEYS: Region[] = ['NORD', 'OUEST', 'SUD']
+
+export const ANNEMASSE_REGION_KEYS: AnnemasseRegion[] = [
+  'GENEVE_FRONTIERE',
+  'GENEVOIS',
+  'ARVE',
+  'FAUCIGNY',
+  'ANNECY',
+  'CHABLAIS',
+]
+
+/**
+ * Sections de communes pour les sélecteurs de mobilité (3 zones Réunion +
+ * 6 secteurs Annemasse). Les deux enums `Localisation` (candidat et matching)
+ * partagent les mêmes valeurs string — passage par `string[]`.
+ */
+export const ALL_COMMUNE_SECTIONS: CommuneSection[] = [
+  ...REUNION_REGION_KEYS.map((r) => ({
+    key: r,
+    label: REGION_LABELS[r],
+    options: [...(REGION_COMMUNES[r] as unknown as string[])],
+  })),
+  ...ANNEMASSE_REGION_KEYS.map((r) => ({
+    key: r,
+    label: ANNEMASSE_REGION_LABELS[r],
+    options: [...(ANNEMASSE_REGION_COMMUNES[r] as unknown as string[])],
+  })),
+]
+
+const REUNION_SECTION_KEYS: string[] = [...REUNION_REGION_KEYS]
+const ANNEMASSE_SECTION_KEYS: string[] = [...ANNEMASSE_REGION_KEYS]
+
+/**
+ * Sections de communes selon le tenant : Réunion ne voit que ses 3 zones,
+ * Annemasse ses 6 secteurs (region null → Réunion par défaut).
+ */
+export function communeSectionsForRegion(region: TenantRegion | null | undefined): CommuneSection[] {
+  const keys = region === 'annemasse' ? ANNEMASSE_SECTION_KEYS : REUNION_SECTION_KEYS
+  return ALL_COMMUNE_SECTIONS.filter((s) => keys.includes(s.key))
 }

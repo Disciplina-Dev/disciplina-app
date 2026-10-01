@@ -1,5 +1,6 @@
-import { MapPin } from 'lucide-react'
+import { IconMapPin } from '@/components/ui/icons'
 import { useRegionStore } from '@/store/regionStore'
+import { SidebarLabel } from './CollapsibleSidebar'
 
 const REGION_STYLES = {
   reunion: { label: 'La Réunion', color: '#1130A7', background: 'var(--color-blue-light)' },
@@ -25,14 +26,14 @@ export default function RegionBadge({ tone = 'light' }: { tone?: 'light' | 'dark
 
   return (
     <div
-      className="mx-5 mb-3 flex items-center gap-2 rounded-[8px] px-2.5 py-1.5"
+      className="mx-4 mb-3 flex items-center gap-2 overflow-hidden rounded-full px-[9px] py-1.5"
       style={{ background: style.background }}
       title={`Région active : ${label}`}
     >
-      <MapPin size={14} style={{ color: style.color }} />
-      <span className="text-[12px] font-bold tracking-tight" style={{ color: style.color }}>
+      <IconMapPin width={14} height={14} className="shrink-0" style={{ color: style.color }} />
+      <SidebarLabel className="text-[12px] font-bold tracking-tight" style={{ color: style.color }}>
         {label}
-      </span>
+      </SidebarLabel>
     </div>
   )
 }

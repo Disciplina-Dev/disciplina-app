@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileEdit } from 'lucide-react'
+import { IconEditDocument } from '@/components/ui/icons'
 import { useCompanyBySiret } from '@/graphql/hooks'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import type { AppUser } from '@/store/authStore'
@@ -84,10 +84,10 @@ export function EditNeedsAnalysisButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center justify-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-blue/20 hover:text-blue hover:bg-blue-light/30 md:px-4"
+        className="flex items-center justify-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue/20 hover:text-blue hover:bg-blue-light/30 md:px-4"
         title="Modifier l'analyse du besoin"
       >
-        <FileEdit size={16} />
+        <IconEditDocument width={16} height={16} />
         <span className="hidden md:inline">Modifier l'AB</span>
       </button>
 

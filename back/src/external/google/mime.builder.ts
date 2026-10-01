@@ -104,6 +104,11 @@ export function buildRawMessage(options: SendEmailOptions): string {
     const text = options.text?.trim() ? options.text : undefined;
     const headers = ['MIME-Version: 1.0', `To: ${sanitizeHeaderValue(options.to)}`, `Subject: ${subject}`];
 
+    const cc = (options.cc ?? []).map((c) => sanitizeHeaderValue(c)).filter(Boolean);
+    if (cc.length > 0) {
+        headers.push(`Cc: ${cc.join(', ')}`);
+    }
+
     if (options.replyTo) {
         headers.push(`Reply-To: ${sanitizeHeaderValue(options.replyTo)}`);
     }

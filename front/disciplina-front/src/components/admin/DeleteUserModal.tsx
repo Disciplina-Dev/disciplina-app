@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, AlertTriangle, Loader2 } from 'lucide-react'
+import { IconClose, IconLoader, IconWarning } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import type { ManagedUser } from '@/components/admin/UserEditModal'
 import { apiJson } from '@/api/httpClient'
@@ -42,24 +42,24 @@ export default function DeleteUserModal({ user, replacements, onClose, onDeleted
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md bg-white rounded-[20px] p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-md bg-[var(--ds-surface)] rounded-[20px] p-6 shadow-xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold text-gray-900">Supprimer l'utilisateur</h3>
+          <h3 className="text-lg font-bold text-[var(--ds-text)]">Supprimer l'utilisateur</h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 transition-colors"
+            className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors"
             aria-label="Fermer"
           >
-            <X size={20} />
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
         <div className="flex items-start gap-3 rounded-[10px] bg-danger/5 border border-danger/20 p-3 mb-4">
-          <AlertTriangle size={18} className="text-danger shrink-0 mt-0.5" />
-          <p className="text-sm text-gray-700">
+          <IconWarning width={18} height={18} className="text-[var(--ds-danger)] shrink-0 mt-0.5" />
+          <p className="text-sm text-[var(--ds-text-muted)]">
             <span className="font-semibold">
               {user.firstName} {user.lastName}
             </span>{' '}
@@ -67,7 +67,7 @@ export default function DeleteUserModal({ user, replacements, onClose, onDeleted
           </p>
         </div>
 
-        <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1 mb-4">
+        <ul className="text-sm text-[var(--ds-text-muted)] list-disc pl-5 space-y-1 mb-4">
           <li>Ses entreprises et fiches liées sont transférées au remplaçant choisi ci-dessous.</li>
           <li>
             Sans remplaçant, elles sont détachées mais conservées (l'entreprise reste vivante sans commercial
@@ -78,7 +78,7 @@ export default function DeleteUserModal({ user, replacements, onClose, onDeleted
         </ul>
 
         <div className="flex flex-col gap-1.5 mb-4">
-          <label htmlFor="delete-replacement" className="text-sm font-medium text-gray-700">
+          <label htmlFor="delete-replacement" className="text-sm font-medium text-[var(--ds-text-muted)]">
             Remplaçant ({replacements.length > 0 ? 'même rôle' : 'aucun disponible'})
           </label>
           <select
@@ -86,7 +86,7 @@ export default function DeleteUserModal({ user, replacements, onClose, onDeleted
             value={replacementId}
             onChange={(e) => setReplacementId(e.target.value)}
             disabled={replacements.length === 0 || deleting}
-            className="w-full px-4 py-2.5 bg-white border border-gray-100 rounded-[10px] text-sm text-gray-900 focus:border-blue outline-none transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400"
+            className="w-full px-4 py-2.5 bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[10px] text-sm text-[var(--ds-text)] focus:border-blue outline-none transition-colors appearance-none disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
           >
             <option value="">Aucun — détacher les relations</option>
             {replacements.map((r) => (
@@ -97,7 +97,7 @@ export default function DeleteUserModal({ user, replacements, onClose, onDeleted
           </select>
         </div>
 
-        {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
+        {error && <p className="text-sm text-[var(--ds-danger)] mb-4">{error}</p>}
 
         <div className="flex items-center justify-end gap-2 pt-2">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={deleting}>
@@ -106,7 +106,7 @@ export default function DeleteUserModal({ user, replacements, onClose, onDeleted
           <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
             {deleting ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={14} className="animate-spin" /> Suppression…
+                <IconLoader width={14} height={14} className="animate-spin" /> Suppression…
               </span>
             ) : (
               'Supprimer'

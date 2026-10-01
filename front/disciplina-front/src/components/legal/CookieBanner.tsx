@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { IconClose } from '@/components/ui/icons'
 
 const ACK_KEY = 'legal-cookie-notice-ack'
 
@@ -26,17 +26,17 @@ export default function CookieBanner() {
     <div
       role="region"
       aria-label="Information sur les cookies"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-100 bg-white px-4 py-3 shadow-lg"
+      className="ds-glass-flush fixed inset-x-0 bottom-0 z-50 border-t border-[var(--ds-glass-border)] px-4 py-3"
     >
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center">
-        <p className="text-[13px] text-gray-700">
+        <p className="text-[13px] text-[var(--ds-text-muted)]">
           Cette application dépose des cookies strictement nécessaires à votre connexion
           et utilise un outil de supervision technique pour détecter les erreurs.{' '}
           <a
             href="/legal/cookies"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-purple underline hover:text-purple-dark"
+            className="text-purple underline hover:text-purple-dark dark:text-[#c79ede]"
           >
             En savoir plus
           </a>
@@ -44,7 +44,7 @@ export default function CookieBanner() {
         <button
           type="button"
           onClick={acknowledge}
-          className="rounded bg-purple px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-purple-dark"
+          className="rounded-full bg-purple px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-purple-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-accent)]"
         >
           J'ai compris
         </button>
@@ -52,9 +52,9 @@ export default function CookieBanner() {
           type="button"
           onClick={acknowledge}
           aria-label="Fermer"
-          className="text-gray-300 transition-colors hover:text-gray-700"
+          className="rounded-full p-1 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]"
         >
-          <X size={16} />
+          <IconClose width={16} height={16} />
         </button>
       </div>
     </div>

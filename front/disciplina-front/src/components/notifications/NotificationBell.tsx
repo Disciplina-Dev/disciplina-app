@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Check, CheckCheck } from 'lucide-react'
+import { IconBell, IconCheck, IconCheckDouble } from '@/components/ui/icons'
 import { useNotifications, type AppNotification, type NotificationLevel, type NotificationCategory } from '@/hooks/useNotifications'
 import { useChangeLog } from '@/hooks/useChangeLog'
 import { type ChangeLogRelease } from '@/lib/changelog'
 import ChangeLogModal from '@/components/notifications/ChangeLogModal'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 const LEVEL_DOT: Record<NotificationLevel, string> = {
-  info: 'bg-blue-500',
-  success: 'bg-green-500',
-  warning: 'bg-amber-500',
-  error: 'bg-red-500',
+  info: 'bg-[var(--ds-accent)]',
+  success: 'bg-[var(--ds-success)]',
+  warning: 'bg-[var(--ds-warning)]',
+  error: 'bg-[var(--ds-danger)]',
 }
 
 function timeAgo(iso: string): string {
@@ -23,6 +25,9 @@ function timeAgo(iso: string): string {
   const d = Math.floor(h / 24)
   return `Il y a ${d} j`
 }
+
+/** Valeur du segment « Toutes » : le filtre lui-même utilise `null`. */
+const ALL_CATEGORIES = 'all'
 
 const CATEGORIES: { key: NotificationCategory | null; label: string }[] = [
   { key: null, label: 'Toutes' },
@@ -37,9 +42,29 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
   const [changeLogOpen, setChangeLogOpen] = useState(false)
   const [changeLogReleases, setChangeLogReleases] = useState<ChangeLogRelease[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Position du panneau, recalculée à l'ouverture et au redimensionnement.
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null)
   const navigate = useNavigate()
 
   const badgeCount = unreadCount + (changeLog.hasNew ? 1 : 0)
+
+  /** Ancre le panneau sous la cloche, en coordonnées de fenêtre. */
+  const place = () => {
+    const rect = buttonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setAnchor({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+  }
+
+  const togglePanel = () => {
+    if (open) {
+      setOpen(false)
+      return
+    }
+    place()
+    setOpen(true)
+  }
 
   const openChangeLog = () => {
     setChangeLogReleases(changeLog.newReleases)
@@ -53,11 +78,20 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
 
   useEffect(() => {
     if (!open) return
+
     const onClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      // Le panneau vit dans un portail : il n'est plus un descendant du
+      // conteneur, il faut donc le tester séparément.
+      if (containerRef.current?.contains(target) || panelRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    window.addEventListener('resize', place)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      window.removeEventListener('resize', place)
+    }
   }, [open])
 
   const handleClick = (n: AppNotification) => {
@@ -71,77 +105,87 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
   return (
     <div ref={containerRef} className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        ref={buttonRef}
+        onClick={togglePanel}
+        className="relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)] transition-colors"
         title="Notifications"
         aria-label="Notifications"
       >
-        <Bell size={19} />
+        <IconBell width={19} height={19} />
         {badgeCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--ds-danger)] px-1 text-[10px] font-bold text-white">
             {badgeCount > 9 ? '9+' : badgeCount}
           </span>
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-100 bg-white shadow-lg z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <span className="text-sm font-bold text-gray-900">Notifications</span>
+      {open && anchor && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: 'fixed', top: anchor.top, right: anchor.right }}
+          className="ds-glass-strong z-[200] w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-[var(--radius-lg)] motion-safe:animate-[ds-menu-in_160ms_ease-out]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--ds-glass-border)]">
+            <span className="text-sm font-bold text-[var(--ds-text)]">Notifications</span>
             {unreadCount > 0 && (
               <button
                 onClick={() => void markAllRead()}
                 className="flex items-center gap-1 text-[11px] font-semibold hover:underline"
                 style={{ color: accent }}
               >
-                <CheckCheck size={13} /> Tout marquer lu
+                <IconCheckDouble width={13} height={13} /> Tout marquer lu
               </button>
             )}
           </div>
 
-          <div className="flex gap-1 px-3 py-2 border-b border-gray-100">
-            {CATEGORIES.map(({ key, label }) => {
-              const count = key ? unreadByCategory(key) : unreadCount
-              const active = selectedCategory === key
-              return (
-                <button
-                  key={label}
-                  onClick={() => setSelectedCategory(key)}
-                  className={[
-                    'flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
-                    active
-                      ? 'bg-gray-800 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                  ].join(' ')}
-                >
-                  {label}
-                  {count > 0 && (
-                    <span className={[
-                      'flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-1 text-[10px] font-bold',
-                      active ? 'bg-white/25 text-white' : 'bg-red-500 text-white',
-                    ].join(' ')}>
-                      {count > 9 ? '9+' : count}
+          <div className="border-b border-[var(--ds-glass-border)] px-3 py-2">
+            <SegmentedControl
+              label="Filtrer les notifications"
+              size="sm"
+              // `ALL_CATEGORIES` porte le cas « Toutes », que le filtre
+              // représente par `null`.
+              value={selectedCategory ?? ALL_CATEGORIES}
+              onChange={(key) =>
+                setSelectedCategory(key === ALL_CATEGORIES ? null : (key as NotificationCategory))
+              }
+              options={CATEGORIES.map(({ key, label }) => {
+                const count = key ? unreadByCategory(key) : unreadCount
+                const active = (selectedCategory ?? ALL_CATEGORIES) === (key ?? ALL_CATEGORIES)
+                return {
+                  value: key ?? ALL_CATEGORIES,
+                  label: (
+                    <span className="flex items-center gap-1">
+                      {label}
+                      {count > 0 && (
+                        <span
+                          className={[
+                            'flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-1 text-[10px] font-bold',
+                            active ? 'bg-[var(--ds-text-inverse)] text-[var(--ds-text)]' : 'bg-[var(--ds-danger)] text-white',
+                          ].join(' ')}
+                        >
+                          {count > 9 ? '9+' : count}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </button>
-              )
-            })}
+                  ),
+                }
+              })}
+            />
           </div>
 
           <div className="max-h-96 overflow-y-auto">
             {filteredNotifications.length === 0 && !changeLog.hasNew ? (
-              <div className="px-4 py-10 text-center text-sm text-gray-400">Aucune notification</div>
+              <div className="px-4 py-10 text-center text-sm text-[var(--ds-text-subtle)]">Aucune notification</div>
             ) : (
               <>
                 {changeLog.hasNew && (
                   <button
                     onClick={openChangeLog}
-                    className="flex w-full items-start gap-3 px-4 py-3 text-left border-b border-gray-50 transition-colors hover:bg-gray-50 bg-gray-50/60"
+                    className="flex w-full items-start gap-3 border-b border-[var(--ds-glass-border)] bg-[var(--ds-surface-sunken)] px-4 py-3 text-left transition-colors hover:bg-[var(--ds-surface-sunken)]"
                   >
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-bold text-gray-900">Nouveautés</p>
-                      <p className="mt-0.5 line-clamp-2 text-[12px] text-gray-500">
+                      <p className="text-[13px] font-bold text-[var(--ds-text)]">Nouveautés</p>
+                      <p className="mt-0.5 line-clamp-2 text-[12px] text-[var(--ds-text-subtle)]">
                         Découvrez les changements depuis votre dernière visite
                       </p>
                     </div>
@@ -152,17 +196,18 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
                     key={n.id}
                     onClick={() => handleClick(n)}
                     className={[
-                      'flex w-full items-start gap-3 px-4 py-3 text-left border-b border-gray-50 transition-colors hover:bg-gray-50',
-                      n.read ? 'bg-white' : 'bg-blue-50/60',
+                      'flex w-full items-start gap-3 border-b border-[var(--ds-glass-border)] px-4 py-3 text-left',
+                      'transition-colors hover:bg-[var(--ds-surface-sunken)]',
+                      n.read ? '' : 'bg-[var(--ds-accent-soft)]',
                     ].join(' ')}
                   >
                     <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${LEVEL_DOT[n.level] ?? LEVEL_DOT.info}`} />
                     <div className="min-w-0 flex-1">
-                      <p className={`truncate text-[13px] ${n.read ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
+                      <p className={`truncate text-[13px] ${n.read ? 'font-medium text-[var(--ds-text-muted)]' : 'font-bold text-[var(--ds-text)]'}`}>
                         {n.title}
                       </p>
-                      {n.message && <p className="mt-0.5 line-clamp-2 text-[12px] text-gray-500">{n.message}</p>}
-                      <p className="mt-1 text-[11px] text-gray-400">{timeAgo(n.createdAt)}</p>
+                      {n.message && <p className="mt-0.5 line-clamp-2 text-[12px] text-[var(--ds-text-subtle)]">{n.message}</p>}
+                      <p className="mt-1 text-[11px] text-[var(--ds-text-subtle)]">{timeAgo(n.createdAt)}</p>
                     </div>
                     {!n.read && (
                       <span
@@ -170,10 +215,10 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
                           e.stopPropagation()
                           void markRead(n.id)
                         }}
-                        className="mt-0.5 shrink-0 rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600"
+                        className="mt-0.5 shrink-0 rounded p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
                         title="Marquer comme lu"
                       >
-                        <Check size={14} />
+                        <IconCheck width={14} height={14} />
                       </span>
                     )}
                   </button>
@@ -181,7 +226,8 @@ export default function NotificationBell({ accent = '#60207E' }: { accent?: stri
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {changeLogOpen && (
