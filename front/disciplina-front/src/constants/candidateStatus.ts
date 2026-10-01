@@ -13,7 +13,7 @@ export const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
 
 export const CANDIDATE_STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
     [CandidateStatus.SEEKING]: 'bg-blue text-white',
-    [CandidateStatus.NOT_SEEKING]: 'bg-gray-400 text-white',
+    [CandidateStatus.NOT_SEEKING]: 'bg-[var(--ds-text-subtle)] text-white',
     [CandidateStatus.UNAVAILABLE]: 'bg-warning text-white',
     [CandidateStatus.TEST_FAILED]: 'bg-orange-500 text-white',
     [CandidateStatus.CANCELLED]: 'bg-warning text-white',

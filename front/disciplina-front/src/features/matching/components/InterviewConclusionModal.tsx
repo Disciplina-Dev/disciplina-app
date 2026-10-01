@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { IconClose } from '@/components/ui/icons'
 import { INTERVIEW_CONCLUSION_LABELS, InterviewConclusion } from '@/constants/interviewConclusion'
 
 interface InterviewConclusionModalProps {
@@ -32,11 +32,11 @@ export default function InterviewConclusionModal({ candidateName, onSubmit, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
-          <h2 className="text-base font-bold text-gray-900">Conclure l'entretien{candidateName ? ` — ${candidateName}` : ''}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50">
-            <X size={18} />
+      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] p-5">
+          <h2 className="text-base font-bold text-[var(--ds-text)]">Conclure l'entretien{candidateName ? ` — ${candidateName}` : ''}</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]">
+            <IconClose width={18} height={18} />
           </button>
         </div>
 
@@ -47,7 +47,7 @@ export default function InterviewConclusionModal({ candidateName, onSubmit, onCl
                 key={option}
                 onClick={() => setConclusion(option)}
                 className={`rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
-                  conclusion === option ? 'border-blue bg-blue/5 text-blue' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                  conclusion === option ? 'border-blue bg-blue/5 text-blue' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]'
                 }`}
               >
                 {INTERVIEW_CONCLUSION_LABELS[option]}
@@ -58,31 +58,31 @@ export default function InterviewConclusionModal({ candidateName, onSubmit, onCl
           {isImmersing && (
             <div className="flex flex-col gap-3">
               <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-800">Date de début d'immersion</label>
+                <label className="block mb-2 text-sm font-semibold text-[var(--ds-text)]">Date de début d'immersion</label>
                 <input
                   type="date"
                   value={immersionStartDate}
                   onChange={(e) => setImmersionStartDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue"
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
               </div>
               <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-800">Date de fin d'immersion</label>
+                <label className="block mb-2 text-sm font-semibold text-[var(--ds-text)]">Date de fin d'immersion</label>
                 <input
                   type="date"
                   value={immersionEndDate}
                   onChange={(e) => setImmersionEndDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue"
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex justify-between gap-2 border-t border-gray-100 p-4">
+        <div className="flex justify-between gap-2 border-t border-[var(--ds-border)] p-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--ds-border)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
           >
             Annuler
           </button>

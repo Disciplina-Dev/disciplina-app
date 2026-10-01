@@ -17,6 +17,8 @@ import { MailTemplateService } from '../../services/MailTemplateService';
 import { BulkRelanceService } from '../../services/BulkRelanceService';
 import { ExternalAccessService } from '../../services/ExternalAccessService';
 import { renderTemplate, usesVariable } from '../../services/renderTemplate';
+import { sanitizeMailHtml } from '../../services/sanitizeMailHtml';
+import { wrapWithTheme } from '../../services/mailTheme';
 
 const mailTemplateService = new MailTemplateService();
 const bulkRelanceService = new BulkRelanceService();
@@ -83,7 +85,7 @@ export async function sendCompanyMailRelance(req: AuthRequest, res: Response): P
         const signatureHtml = await mailTemplateService.getSignatureHtml(user.id, 'commercial').catch(() => '');
         await gmailService.sendEmail(
             { access_token: user.oauthToken, refresh_token: user.refreshToken },
-            { to, subject, html: (html ?? '') + signatureHtml, text: text ?? '', attachments },
+            { to, subject, html: sanitizeMailHtml(html ?? '') + signatureHtml, text: text ?? '', attachments },
             userService.googleTokenPersister(user.id),
         );
     } catch (err) {
@@ -339,7 +341,7 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
                 {
                     to: candidate.identity.email!,
                     subject: resolvedSubject,
-                    html: `${resolvedBody}${signatureHtml}`,
+                    html: `${wrapWithTheme(resolvedBody, template.theme)}${signatureHtml}`,
                     text: htmlToText(resolvedBody),
                     listUnsubscribe,
                     attachments,

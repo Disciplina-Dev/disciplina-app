@@ -11,7 +11,7 @@ import PublicLegalFooter from './PublicLegalFooter'
  */
 export default function PublicPortalLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    <div className="flex min-h-screen flex-col bg-[var(--ds-surface-sunken)]">
       <Outlet />
       <PublicLegalFooter />
     </div>

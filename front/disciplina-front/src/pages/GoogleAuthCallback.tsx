@@ -19,7 +19,7 @@ export default function GoogleAuthCallback() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <p className="text-gray-500">Fermeture de la fenêtre...</p>
+      <p className="text-[var(--ds-text-subtle)]">Fermeture de la fenêtre...</p>
     </div>
   )
 }

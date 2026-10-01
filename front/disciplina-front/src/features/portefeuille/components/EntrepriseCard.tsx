@@ -1,17 +1,4 @@
-import {
-  Copy,
-  Check,
-  Phone,
-  Mail,
-  User,
-  UserPlus,
-  MessageSquare,
-  FileText,
-  Hash,
-  Bell,
-  MapPin,
-  Trash2,
-} from 'lucide-react'
+import { IconBell, IconCheck, IconCopy, IconFile, IconHash, IconMail, IconMapPin, IconMessage, IconPhone, IconTrash, IconUser, IconUserPlus } from '@/components/ui/icons'
 import { useState } from 'react'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
@@ -47,9 +34,9 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
       today.setHours(0, 0, 0, 0)
       const diffDays = Math.round((d.getTime() - today.getTime()) / 86400000)
       const formatted = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-      if (diffDays < -2) return { text: formatted, color: 'text-danger', bg: 'bg-danger-bg border-danger/20' }
-      if (diffDays <= 2) return { text: formatted, color: 'text-warning', bg: 'bg-warning-bg border-warning/20' }
-      return { text: formatted, color: 'text-gray-400', bg: 'bg-gray-50 border-gray-100' }
+      if (diffDays < -2) return { text: formatted, color: 'text-[var(--ds-danger)]', bg: 'bg-[var(--ds-danger-bg)] border-danger/20' }
+      if (diffDays <= 2) return { text: formatted, color: 'text-[var(--ds-warning)]', bg: 'bg-[var(--ds-warning-bg)] border-warning/20' }
+      return { text: formatted, color: 'text-[var(--ds-text-subtle)]', bg: 'bg-[var(--ds-surface-sunken)] border-[var(--ds-border)]' }
     } catch { return null }
   })()
 
@@ -82,8 +69,8 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
     <article
       onClick={onClick}
       className={[
-        'group relative flex flex-col cursor-pointer rounded-xl bg-white',
-        'border border-gray-100 transition-all duration-200',
+        'group relative flex flex-col cursor-pointer rounded-xl bg-[var(--ds-surface)]',
+        'border border-[var(--ds-border)] transition-all duration-200',
         'hover:border-blue/25 hover:-translate-y-0.5',
         'hover:shadow-[0_8px_32px_-8px_rgba(17,48,167,0.10),0_2px_8px_-2px_rgba(0,0,0,0.04)]',
       ].join(' ')}
@@ -93,12 +80,12 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
         <div className="flex items-start justify-between gap-3 mb-3">
           {/* Company name */}
           <div className="min-w-0 flex-1">
-            <h4 className="text-[15px] font-semibold leading-snug text-gray-900 line-clamp-2 group-hover:text-blue transition-colors duration-150">
+            <h4 className="text-[15px] font-semibold leading-snug text-[var(--ds-text)] line-clamp-2 group-hover:text-blue transition-colors duration-150">
               {entreprise.nom_commercial ?? '—'}
             </h4>
             {entreprise.secteur && (
               <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-blue-light px-2 py-0.5 text-[11px] font-medium text-blue">
-                <MapPin className="h-3 w-3" />
+                <IconMapPin className="h-3 w-3" />
                 {entreprise.secteur}
               </span>
             )}
@@ -118,9 +105,9 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
                 onClick={handleDelete}
                 title="Supprimer l'entreprise"
                 aria-label="Supprimer l'entreprise"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-300 hover:bg-danger-bg hover:text-danger transition-colors"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-danger-bg)] hover:text-[var(--ds-danger)] transition-colors"
               >
-                <Trash2 className="h-4 w-4" />
+                <IconTrash className="h-4 w-4" />
               </button>
             )}
           </div>
@@ -128,13 +115,13 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
 
         {/* ── Commercial ── */}
         <div className="flex items-center gap-2 mb-3.5">
-          <User className="h-3.5 w-3.5 shrink-0 text-gray-300" />
+          <IconUser className="h-3.5 w-3.5 shrink-0 text-[var(--ds-text-subtle)]" />
           {entreprise.commercial ? (
-            <span className="text-[13px] font-medium text-gray-600">
+            <span className="text-[13px] font-medium text-[var(--ds-text-muted)]">
               {entreprise.commercial}
             </span>
           ) : (
-            <span className="text-[13px] italic text-gray-300">Non attribué</span>
+            <span className="text-[13px] italic text-[var(--ds-text-subtle)]">Non attribué</span>
           )}
         </div>
 
@@ -142,8 +129,8 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
         <div className="space-y-2">
           {entreprise.telephone && (
             <div className="flex items-center gap-2">
-              <Phone className="h-3.5 w-3.5 shrink-0 text-gray-300" />
-              <span className="text-[13px] text-gray-600 truncate">
+              <IconPhone className="h-3.5 w-3.5 shrink-0 text-[var(--ds-text-subtle)]" />
+              <span className="text-[13px] text-[var(--ds-text-muted)] truncate">
                 {entreprise.telephone}
               </span>
             </div>
@@ -151,8 +138,8 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
 
           {entreprise.email && (
             <div className="flex items-center gap-2">
-              <Mail className="h-3.5 w-3.5 shrink-0 text-gray-300" />
-              <span className="text-[13px] text-gray-600 truncate flex-1 min-w-0">
+              <IconMail className="h-3.5 w-3.5 shrink-0 text-[var(--ds-text-subtle)]" />
+              <span className="text-[13px] text-[var(--ds-text-muted)] truncate flex-1 min-w-0">
                 {entreprise.email}
               </span>
               <button
@@ -160,15 +147,15 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
                 title="Copier l'adresse e-mail"
                 className={[
                   'ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md',
-                  'text-gray-300 transition-all duration-150',
+                  'text-[var(--ds-text-subtle)] transition-all duration-150',
                   'hover:bg-blue-light hover:text-blue',
-                  copied ? 'text-success!' : '',
+                  copied ? 'text-[var(--ds-success)]!' : '',
                 ].join(' ')}
               >
                 {copied ? (
-                  <Check className="h-3.5 w-3.5 text-success" />
+                  <IconCheck className="h-3.5 w-3.5 text-[var(--ds-success)]" />
                 ) : (
-                  <Copy className="h-3.5 w-3.5" />
+                  <IconCopy className="h-3.5 w-3.5" />
                 )}
               </button>
             </div>
@@ -178,15 +165,15 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
 
       {/* ─── Suivi block ──────────────────────────────────────── */}
       {hasSuivi && (
-        <div className="mx-3 mb-3 rounded-lg bg-gray-50 border border-gray-100 px-3.5 py-3 space-y-2.5">
+        <div className="mx-3 mb-3 rounded-lg bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] px-3.5 py-3 space-y-2.5">
           {hasNote && (
             <div className="flex gap-2.5">
-              <FileText className="h-3.5 w-3.5 shrink-0 text-gray-300 mt-[1px]" />
+              <IconFile className="h-3.5 w-3.5 shrink-0 text-[var(--ds-text-subtle)] mt-[1px]" />
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ds-text-subtle)] mb-0.5">
                   Note
                 </p>
-                <p className="text-[13px] leading-relaxed text-gray-600 line-clamp-2">
+                <p className="text-[13px] leading-relaxed text-[var(--ds-text-muted)] line-clamp-2">
                   {entreprise.note}
                 </p>
               </div>
@@ -195,12 +182,12 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
 
           {hasConclusion && (
             <div className="flex gap-2.5">
-              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-gray-300 mt-[1px]" />
+              <IconMessage className="h-3.5 w-3.5 shrink-0 text-[var(--ds-text-subtle)] mt-[1px]" />
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ds-text-subtle)] mb-0.5">
                   Conclusion
                 </p>
-                <p className="text-[13px] leading-relaxed text-gray-600 line-clamp-2">
+                <p className="text-[13px] leading-relaxed text-[var(--ds-text-muted)] line-clamp-2">
                   {entreprise.conclusion}
                 </p>
               </div>
@@ -213,7 +200,7 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
       {relanceLabel && (
         <div className="mx-3 mb-2">
           <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${relanceLabel.bg}`}>
-            <Bell className={`h-3 w-3 shrink-0 ${relanceLabel.color}`} />
+            <IconBell className={`h-3 w-3 shrink-0 ${relanceLabel.color}`} />
             <span className={`text-[11px] font-medium ${relanceLabel.color}`}>
               Relance {relanceLabel.text}
             </span>
@@ -239,13 +226,13 @@ export default function EntrepriseCard({ entreprise, currentUser, onClick, onCla
                 'transition-all duration-150 hover:bg-blue hover:text-white hover:border-blue',
               ].join(' ')}
             >
-              <UserPlus className="h-3.5 w-3.5" />
+              <IconUserPlus className="h-3.5 w-3.5" />
               Récupérer le dossier
             </button>
           ) : entreprise.siret ? (
-            <div className="flex items-center gap-1.5 pt-1 border-t border-gray-100">
-              <Hash className="h-3 w-3 text-gray-200" />
-              <span className="text-[11px] font-mono text-gray-300 tracking-wide">
+            <div className="flex items-center gap-1.5 pt-1 border-t border-[var(--ds-border)]">
+              <IconHash className="h-3 w-3 text-[var(--ds-text-subtle)]" />
+              <span className="text-[11px] font-mono text-[var(--ds-text-subtle)] tracking-wide">
                 {entreprise.siret}
               </span>
             </div>

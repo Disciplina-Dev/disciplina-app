@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, XCircle, Loader2, AlertCircle, LogOut } from 'lucide-react'
+import { IconAlert, IconCheckCircle, IconErrorCircle, IconLoader, IconLogout } from '@/components/ui/icons'
 import { useAuthStore } from '@/store/authStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { apiJson } from '@/api/httpClient'
@@ -47,13 +47,13 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white py-2.5 px-3">
+      <div className="flex items-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3">
         <GoogleLogo size={22} />
-        <span className="flex-1 text-[14px] font-bold text-gray-800">Google</span>
+        <span className="flex-1 text-[14px] font-bold text-[var(--ds-text)]">Google</span>
         {isConnected ? (
-          <CheckCircle2 size={18} className="text-success" />
+          <IconCheckCircle width={18} height={18} className="text-[var(--ds-success)]" />
         ) : (
-          <XCircle size={18} className="text-danger" />
+          <IconErrorCircle width={18} height={18} className="text-[var(--ds-danger)]" />
         )}
       </div>
 
@@ -61,12 +61,12 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
         <button
           onClick={handleDisconnect}
           disabled={isDisconnecting}
-          className="flex items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger-bg py-2.5 px-4 text-danger hover:bg-danger/10 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
+          className="flex items-center justify-center gap-2 rounded-xl border border-danger/30 bg-[var(--ds-danger-bg)] py-2.5 px-4 text-[var(--ds-danger)] hover:bg-danger/10 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {isDisconnecting ? (
-            <Loader2 size={18} className="animate-spin" />
+            <IconLoader width={18} height={18} className="animate-spin" />
           ) : (
-            <LogOut size={18} />
+            <IconLogout width={18} height={18} />
           )}
           <span className="text-[14px] font-bold">
             {isDisconnecting ? 'Déconnexion...' : 'Déconnecter Google'}
@@ -81,7 +81,7 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
           }`}
         >
           {isLoading ? (
-            <Loader2 size={18} className="animate-spin" />
+            <IconLoader width={18} height={18} className="animate-spin" />
           ) : (
             <GoogleLogo size={18} />
           )}
@@ -92,8 +92,8 @@ export function GoogleDriveConnect({ theme = 'blue' }: { theme?: 'blue' | 'purpl
       )}
 
       {errorMsg && (
-        <div className="flex items-start gap-2 text-danger text-[12px] mt-1 bg-danger-bg p-2 rounded-md">
-          <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+        <div className="flex items-start gap-2 text-[var(--ds-danger)] text-[12px] mt-1 bg-[var(--ds-danger-bg)] p-2 rounded-md">
+          <IconAlert width={14} height={14} className="mt-0.5 flex-shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}

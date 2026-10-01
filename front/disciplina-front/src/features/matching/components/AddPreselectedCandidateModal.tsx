@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, X, Loader2 } from 'lucide-react'
+import { IconClose, IconLoader, IconSearch } from '@/components/ui/icons'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATES_PAGE } from '@/graphql/queries'
 import TpFilterDropdown from './TpFilterDropdown'
@@ -78,22 +78,22 @@ export default function AddPreselectedCandidateModal({ job, onSubmit, onClose }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
-          <h2 className="text-base font-bold text-gray-900">Ajouter un candidat pré-sélectionné</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-50">
-            <X size={18} />
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] p-5">
+          <h2 className="text-base font-bold text-[var(--ds-text)]">Ajouter un candidat pré-sélectionné</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]">
+            <IconClose width={18} height={18} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
           <div className="mb-4">
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Type de TP</label>
+            <label className="mb-1.5 block text-sm font-medium text-[var(--ds-text-muted)]">Type de TP</label>
             <TpFilterDropdown value={selectedTps} onChange={setSelectedTps} />
           </div>
 
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
-            <Search size={16} className="text-gray-400" />
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 py-2">
+            <IconSearch width={16} height={16} className="text-[var(--ds-text-subtle)]" />
             <input
               type="text"
               placeholder="Rechercher un candidat..."
@@ -103,17 +103,17 @@ export default function AddPreselectedCandidateModal({ job, onSubmit, onClose }:
             />
           </div>
 
-          {searchError && <p className="mb-3 text-xs text-danger">{searchError}</p>}
+          {searchError && <p className="mb-3 text-xs text-[var(--ds-danger)]">{searchError}</p>}
 
           <div className="flex flex-col gap-2">
             {isSearching && candidateSearch.length > 0 && (
               <div className="flex items-center justify-center py-8">
-                <Loader2 size={20} className="animate-spin text-blue" />
+                <IconLoader width={20} height={20} className="animate-spin text-blue" />
               </div>
             )}
 
             {candidates.length === 0 && !isSearching && candidateSearch.length > 0 && (
-              <p className="text-center py-4 text-xs text-gray-400">Aucun candidat trouvé</p>
+              <p className="text-center py-4 text-xs text-[var(--ds-text-subtle)]">Aucun candidat trouvé</p>
             )}
 
             {candidates.map((c) => (
@@ -125,10 +125,10 @@ export default function AddPreselectedCandidateModal({ job, onSubmit, onClose }:
                 className={`rounded-lg border px-4 py-2.5 text-left text-sm transition-colors ${
                   selectedCandidate?.id === c.id
                     ? 'border-blue bg-blue-light/30 ring-1 ring-blue/20'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    : 'border-[var(--ds-border)] hover:bg-[var(--ds-surface-sunken)]'
                 }`}
               >
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-[var(--ds-text)]">
                   {c.fullName}, {c.tpType}
                 </p>
               </button>
@@ -136,26 +136,26 @@ export default function AddPreselectedCandidateModal({ job, onSubmit, onClose }:
           </div>
 
           {selectedCandidate && (
-            <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50/50 p-3">
-              <p className="text-xs font-semibold text-gray-800 mb-1">Candidat sélectionné</p>
-              <p className="text-sm text-gray-600 mb-3">{selectedCandidate.fullName}</p>
+            <div className="mt-4 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3">
+              <p className="text-xs font-semibold text-[var(--ds-text)] mb-1">Candidat sélectionné</p>
+              <p className="text-sm text-[var(--ds-text-muted)] mb-3">{selectedCandidate.fullName}</p>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={hasAccepted}
                   onChange={(e) => setHasAccepted(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue focus:ring-blue"
+                  className="h-4 w-4 rounded border-[var(--ds-border-strong)] text-blue focus:ring-blue"
                 />
-                <span className="text-sm text-gray-700">Le candidat a accepté</span>
+                <span className="text-sm text-[var(--ds-text-muted)]">Le candidat a accepté</span>
               </label>
             </div>
           )}
         </div>
 
-        <div className="flex justify-between gap-2 border-t border-gray-100 p-4">
+        <div className="flex justify-between gap-2 border-t border-[var(--ds-border)] p-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--ds-border)] px-4 py-2 text-sm font-semibold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
           >
             Annuler
           </button>

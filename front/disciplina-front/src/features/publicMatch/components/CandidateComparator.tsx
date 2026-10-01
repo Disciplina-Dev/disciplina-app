@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, FileWarning, Download } from 'lucide-react'
+import { IconDownload, IconFileMissing, IconLoader } from '@/components/ui/icons'
 import { getMatchCv, type ProposedCandidateView } from '@/api/match'
 
 function base64ToBlobUrl(content: string, contentType: string): string {
@@ -33,28 +33,28 @@ function CvViewer({ signature, candidateId }: { signature: string; candidateId: 
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-purple" />
+        <IconLoader width={24} height={24} className="animate-spin text-purple" />
       </div>
     )
   }
   if (error || !blobUrl) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-[13px] text-gray-400">
-        <FileWarning size={28} className="text-danger" />
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-[13px] text-[var(--ds-text-subtle)]">
+        <IconFileMissing width={28} height={28} className="text-[var(--ds-danger)]" />
         CV indisponible.
       </div>
     )
   }
   return (
     <div className="flex h-full flex-col">
-      <object data={blobUrl} type="application/pdf" className="h-full w-full rounded-lg border border-gray-200">
+      <object data={blobUrl} type="application/pdf" className="h-full w-full rounded-lg border border-[var(--ds-border)]">
         <div className="flex h-full items-center justify-center">
           <a
             href={blobUrl}
             download={filename}
             className="inline-flex items-center gap-2 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white"
           >
-            <Download size={15} /> Télécharger le CV
+            <IconDownload width={15} height={15} /> Télécharger le CV
           </a>
         </div>
       </object>
@@ -71,17 +71,17 @@ export default function CandidateComparator({
 }) {
   return (
     <div className="grid h-[70vh] gap-4 md:grid-cols-2">
-      <div className="h-full overflow-hidden rounded-xl border border-gray-100 bg-white p-2 shadow-sm">
+      <div className="h-full overflow-hidden rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-2 shadow-sm">
         <CvViewer key={candidate.id} signature={signature} candidateId={candidate.id} />
       </div>
-      <div className="h-full overflow-y-auto rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <h2 className="text-[18px] font-extrabold text-gray-900">{candidate.fullName ?? 'Candidat'}</h2>
-        <div className="mt-1 flex flex-wrap gap-3 text-[13px] text-gray-500">
+      <div className="h-full overflow-y-auto rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
+        <h2 className="text-[18px] font-extrabold text-[var(--ds-text)]">{candidate.fullName ?? 'Candidat'}</h2>
+        <div className="mt-1 flex flex-wrap gap-3 text-[13px] text-[var(--ds-text-subtle)]">
           {candidate.age != null && <span>{candidate.age} ans</span>}
           {candidate.city && <span>{candidate.city}</span>}
         </div>
         <p className="mt-4 text-[12px] font-bold uppercase tracking-wider text-purple">Note du conseiller</p>
-        <p className="mt-1 whitespace-pre-wrap text-[14px] leading-relaxed text-gray-700">
+        <p className="mt-1 whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--ds-text-muted)]">
           {candidate.description || 'Aucune note.'}
         </p>
       </div>

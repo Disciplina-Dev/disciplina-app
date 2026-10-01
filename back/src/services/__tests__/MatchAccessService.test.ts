@@ -94,6 +94,45 @@ describe('MatchAccessService', () => {
         expect(session.link).toContain(`/external/authenticate?sig=${session.signature}`);
     });
 
+    it('passes cc recipients through to the session credentials (mail only, not stored)', async () => {
+        const suffix = Date.now();
+        const rh = await createRhUser(suffix);
+        const offerId = `job-matchaccess-cc-${suffix}`;
+        const candidateId = `cand-matchaccess-cc-${suffix}`;
+        await seedCandidateDoc(candidateId, suffix, true);
+
+        await seedOffer({
+            _id: offerId,
+            company_name: `MatchAccess Corp ${suffix}`,
+            status: OfferStatus.CV_SEND,
+            candidates: [
+                {
+                    id: candidateId,
+                    full_name: `Candidate ${suffix}`,
+                    email: `candidate-matchaccess-cc-${suffix}@test.local`,
+                    age: 20,
+                    sex: Sex.NONE,
+                    status: MatchedCandidateStatus.ACCEPTED,
+                },
+            ],
+        });
+
+        const service = new MatchAccessService();
+        const session = await service.createSession({
+            offerId,
+            rhUserId: rh.id,
+            rhEmail: rh.email,
+            companyEmail: `company-${suffix}@test.local`,
+            cc: [`copy-${suffix}@test.local`],
+            candidates: [{ id: candidateId }],
+        });
+
+        expect(session.cc).toEqual([`copy-${suffix}@test.local`]);
+        // La session reste adressée au destinataire principal uniquement.
+        const row = await new ExternalAccessRepository().findBySignature(session.signature);
+        expect(row?.external_email).toBe(`company-${suffix}@test.local`);
+    });
+
     it('writes the interview pool at the job level and creates an external_access row (reference 3) + invitation email for accepted candidates', async () => {
         const suffix = Date.now();
         const rh = await createRhUser(suffix);

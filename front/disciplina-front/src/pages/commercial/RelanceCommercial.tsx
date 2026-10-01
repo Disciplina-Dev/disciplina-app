@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from 'react'
-import { Bell, Mail, Building2, CalendarClock, Phone, PhoneCall, Send, CheckCircle, XCircle } from 'lucide-react'
+import { IconBell, IconCheckCircle, IconCompany, IconErrorCircle, IconMail, IconPhone, IconSchedule, IconSend } from '@/components/ui/icons'
 import { addDays, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
@@ -31,7 +31,7 @@ function groupByType(list: Entreprise[]) {
 
 type DateMode = 'all' | 'days' | 'exact' | 'range'
 
-const FIELD = 'rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700'
+const FIELD = 'rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm text-[var(--ds-text-muted)]'
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return null
@@ -203,14 +203,14 @@ export default function RelanceCommercial() {
               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${type.badge.bg} ${type.badge.text}`}>
                 {type.label}
               </span>
-              <span className="text-xs text-gray-400">{type.description}</span>
+              <span className="text-xs text-[var(--ds-text-subtle)]">{type.description}</span>
             </>
           ) : (
-            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500">
+            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]">
               Sans type
             </span>
           )}
-          <span className="ml-auto text-xs text-gray-400">{count}</span>
+          <span className="ml-auto text-xs text-[var(--ds-text-subtle)]">{count}</span>
         </div>
         {children}
       </div>
@@ -220,28 +220,28 @@ export default function RelanceCommercial() {
   function Row({ ent, isDue }: { ent: Entreprise; isDue: boolean }) {
     const channel = ent.relance_channel ?? (ent.email ? 'MAIL' : 'PHONE')
     return (
-      <div className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white px-5 py-4 hover:border-blue/20 transition-colors">
+      <div className="flex items-center gap-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-5 py-4 hover:border-blue/20 transition-colors">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-light">
-          <Building2 className="h-5 w-5 text-blue" />
+          <IconCompany className="h-5 w-5 text-blue" />
         </div>
         <div className="min-w-0 flex-1">
           <button
             onClick={() => navigate(`/commercial/portefeuille/${toSlug(ent.nom_commercial ?? ent.id)}`, { state: { entreprise: ent } })}
-            className="font-semibold text-gray-900 truncate hover:text-blue transition-colors text-left"
+            className="font-semibold text-[var(--ds-text)] truncate hover:text-blue transition-colors text-left"
           >
             {ent.nom_commercial ?? 'Entreprise sans nom'}
           </button>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className={`inline-flex items-center gap-1 text-xs font-medium ${isDue ? 'text-red-600' : 'text-gray-500'}`}>
-              <CalendarClock className="h-3.5 w-3.5" />
+            <span className={`inline-flex items-center gap-1 text-xs font-medium ${isDue ? 'text-[var(--ds-danger)]' : 'text-[var(--ds-text-subtle)]'}`}>
+              <IconSchedule className="h-3.5 w-3.5" />
               {formatDate(ent.date_relance)}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              {channel === 'MAIL' ? <><Mail className="h-3 w-3" /> Mail</> : <><Phone className="h-3 w-3" /> Téléphone</>}
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-xs font-medium text-[var(--ds-text-muted)]">
+              {channel === 'MAIL' ? <><IconMail className="h-3 w-3" /> IconMail</> : <><IconPhone className="h-3 w-3" /> Téléphone</>}
             </span>
             {channel === 'MAIL' && !ent.email && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                <Mail className="h-3 w-3" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ds-warning-bg)] px-2 py-0.5 text-xs font-medium text-[var(--ds-warning)]">
+                <IconMail className="h-3 w-3" />
                 E-mail manquant
               </span>
             )}
@@ -252,7 +252,7 @@ export default function RelanceCommercial() {
             <Button
               size="sm"
               variant="primary"
-              leftIcon={<Mail className="h-3.5 w-3.5" />}
+              leftIcon={<IconMail className="h-3.5 w-3.5" />}
               disabled={!ent.email}
               onClick={() => setMailFor(ent)}
               title={ent.email ? 'Préparer et envoyer le mail de relance' : 'Pas d’email renseigné'}
@@ -263,7 +263,7 @@ export default function RelanceCommercial() {
           <Button
             size="sm"
             variant="secondary"
-            leftIcon={<PhoneCall className="h-3.5 w-3.5" />}
+            leftIcon={<IconPhone className="h-3.5 w-3.5" />}
             onClick={() => setContactFor(ent)}
             title="Enregistrer une prise de contact"
           >
@@ -278,8 +278,8 @@ export default function RelanceCommercial() {
     <div className="mx-auto max-w-4xl px-4 py-8 flex flex-col gap-8">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Relances entreprises</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-xl font-semibold text-[var(--ds-text)]">Relances entreprises</h1>
+          <p className="text-sm text-[var(--ds-text-subtle)] mt-0.5">
             {bulkMode ? 'Mode groupé : sélectionne les entreprises et choisis un modèle de mail' : 'Prépare les brouillons de relance — le mail part dans tes brouillons Gmail, à toi de l\'envoyer'}
           </p>
         </div>
@@ -287,7 +287,7 @@ export default function RelanceCommercial() {
           <Button
             size="sm"
             variant={bulkMode ? 'primary' : 'secondary'}
-            leftIcon={<Send className="h-3.5 w-3.5" />}
+            leftIcon={<IconSend className="h-3.5 w-3.5" />}
             onClick={() => { setBulkMode(!bulkMode); setBulkResult(null); setBulkError(null) }}
           >
             {bulkMode ? 'Mode individuel' : 'Relance groupée'}
@@ -319,7 +319,7 @@ export default function RelanceCommercial() {
           </select>
 
           {dateMode === 'days' && (
-            <label className="flex items-center gap-2 text-sm text-gray-500">
+            <label className="flex items-center gap-2 text-sm text-[var(--ds-text-subtle)]">
               <input
                 type="number"
                 min={1}
@@ -338,7 +338,7 @@ export default function RelanceCommercial() {
           {dateMode === 'range' && (
             <>
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={FIELD} title="Du" />
-              <span className="text-sm text-gray-400">→</span>
+              <span className="text-sm text-[var(--ds-text-subtle)]">→</span>
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={FIELD} title="Au" />
             </>
           )}
@@ -346,16 +346,16 @@ export default function RelanceCommercial() {
       </div>
 
       {bulkMode && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-4">
+        <div className="flex flex-col gap-3 rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="bulk-template" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <label htmlFor="bulk-template" className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide">
               Modèle de mail
             </label>
             <select
               id="bulk-template"
               value={selectedTemplateId}
               onChange={(e) => setSelectedTemplateId(e.target.value)}
-              className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple transition-colors"
+              className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple transition-colors"
             >
               <option value="">— Choisir un modèle —</option>
               {templates.map((t) => (
@@ -366,47 +366,47 @@ export default function RelanceCommercial() {
             </select>
           </div>
           {template && (
-            <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-sm text-gray-600">
-              <span className="text-xs text-gray-400">
-                Objet : <strong className="text-gray-700">{template.subject}</strong>
+            <div className="rounded-xl bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] px-4 py-3 text-sm text-[var(--ds-text-muted)]">
+              <span className="text-xs text-[var(--ds-text-subtle)]">
+                Objet : <strong className="text-[var(--ds-text-muted)]">{template.subject}</strong>
                 {template.attachment ? ` · PJ : ${template.attachment.filename}` : ''}
               </span>
               <div
-                className="prose prose-sm max-w-none text-gray-700 line-clamp-4 mt-1"
+                className="prose prose-sm max-w-none text-[var(--ds-text-muted)] line-clamp-4 mt-1"
                 dangerouslySetInnerHTML={{ __html: cleanHtml(template.body) }}
               />
             </div>
           )}
           {bulkResult && (
-            <div className="rounded-xl border border-green-100 bg-green-50 px-5 py-3 flex items-center gap-2 text-sm text-green-700">
-              <CheckCircle size={16} />
+            <div className="rounded-xl border border-green-100 bg-[var(--ds-success-bg)] px-5 py-3 flex items-center gap-2 text-sm text-[var(--ds-success)]">
+              <IconCheckCircle width={16} height={16} />
               <span>{bulkResult.message}</span>
             </div>
           )}
           {bulkError && (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600">{bulkError}</div>
+            <div className="rounded-xl border border-[var(--ds-danger)] bg-[var(--ds-danger-bg)] px-5 py-3 text-sm text-[var(--ds-danger)]">{bulkError}</div>
           )}
         </div>
       )}
 
       {loading && companies.length === 0 ? (
-        <p className="text-sm text-gray-400">Chargement...</p>
+        <p className="text-sm text-[var(--ds-text-subtle)]">Chargement...</p>
       ) : (
         <>
           {bulkMode ? (
-            <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-4">
-              <h3 className="text-sm font-semibold text-gray-700">Mode d'envoi</h3>
+            <div className="flex flex-col gap-3 rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4">
+              <h3 className="text-sm font-semibold text-[var(--ds-text-muted)]">Mode d'envoi</h3>
               <div className="flex gap-3">
                 <button
                   onClick={() => setSendMode('all')}
                   className={`flex-1 rounded-xl border-2 px-4 py-3 text-left transition-all ${
                     sendMode === 'all'
                       ? 'border-purple bg-purple-light/10 ring-2 ring-purple/20'
-                      : 'border-gray-100 hover:border-gray-200'
+                      : 'border-[var(--ds-border)] hover:border-[var(--ds-border)]'
                   }`}
                 >
-                  <p className="text-sm font-semibold text-gray-900">Toutes les entreprises</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-sm font-semibold text-[var(--ds-text)]">Toutes les entreprises</p>
+                  <p className="text-xs text-[var(--ds-text-subtle)] mt-0.5">
                     Envoyer le mail à l'intégralité des {companies.length} entreprises de la base
                   </p>
                 </button>
@@ -415,11 +415,11 @@ export default function RelanceCommercial() {
                   className={`flex-1 rounded-xl border-2 px-4 py-3 text-left transition-all ${
                     sendMode === 'specific'
                       ? 'border-purple bg-purple-light/10 ring-2 ring-purple/20'
-                      : 'border-gray-100 hover:border-gray-200'
+                      : 'border-[var(--ds-border)] hover:border-[var(--ds-border)]'
                   }`}
                 >
-                  <p className="text-sm font-semibold text-gray-900">Entreprises spécifiques</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-sm font-semibold text-[var(--ds-text)]">Entreprises spécifiques</p>
+                  <p className="text-xs text-[var(--ds-text-subtle)] mt-0.5">
                     Rechercher et sélectionner des entreprises une par une
                   </p>
                 </button>
@@ -433,24 +433,24 @@ export default function RelanceCommercial() {
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="Rechercher une entreprise par nom, email ou SIRET..."
-                      className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-purple transition-colors"
+                      className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] outline-none focus:border-purple transition-colors"
                     />
                     {searchTerm && filteredSearch.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-xl border border-gray-100 bg-white shadow-lg max-h-60 overflow-y-auto">
+                      <div className="absolute z-10 mt-1 w-full rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg max-h-60 overflow-y-auto">
                         {filteredSearch.slice(0, 20).map((c) => (
                           <button
                             key={c.id}
                             onClick={() => addCompany(c)}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-light/20 transition-colors border-b border-gray-50 last:border-b-0"
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-light/20 transition-colors border-b border-[var(--ds-border)] last:border-b-0"
                           >
-                            <span className="font-medium text-gray-900">{c.nom_commercial ?? 'Sans nom'}</span>
-                            <span className="text-gray-400 ml-2">{c.email}</span>
+                            <span className="font-medium text-[var(--ds-text)]">{c.nom_commercial ?? 'Sans nom'}</span>
+                            <span className="text-[var(--ds-text-subtle)] ml-2">{c.email}</span>
                           </button>
                         ))}
                       </div>
                     )}
                     {searchTerm && filteredSearch.length === 0 && (
-                      <p className="text-xs text-gray-400 mt-1">Aucune entreprise trouvée</p>
+                      <p className="text-xs text-[var(--ds-text-subtle)] mt-1">Aucune entreprise trouvée</p>
                     )}
                   </div>
 
@@ -461,17 +461,17 @@ export default function RelanceCommercial() {
                           key={c.id}
                           className="inline-flex items-center gap-1.5 rounded-full bg-purple-light/30 px-3 py-1.5 text-xs font-medium text-purple"
                         >
-                          <Building2 size={12} />
+                          <IconCompany width={12} height={12} />
                           {c.nom_commercial ?? 'Sans nom'}
-                          <button onClick={() => removeCompany(c.id)} className="hover:text-red-500 transition-colors ml-1">
-                            <XCircle size={14} />
+                          <button onClick={() => removeCompany(c.id)} className="hover:text-[var(--ds-danger)] transition-colors ml-1">
+                            <IconErrorCircle width={14} height={14} />
                           </button>
                         </span>
                       ))}
                     </div>
                   )}
 
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-[var(--ds-text-subtle)]">
                     {manuallySelected.length > 0
                       ? `${manuallySelected.length} entreprise${manuallySelected.length > 1 ? 's' : ''} sélectionnée${manuallySelected.length > 1 ? 's' : ''}`
                       : 'Aucune entreprise sélectionnée'}
@@ -481,7 +481,7 @@ export default function RelanceCommercial() {
 
               {sendMode === 'all' && (
                 <div className="flex flex-col gap-2 mt-1">
-                  <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-700">
+                  <div className="rounded-xl bg-[var(--ds-warning-bg)] border border-amber-100 px-4 py-3 text-sm text-[var(--ds-warning)]">
                     <p className="font-medium">Attention</p>
                     <p className="text-xs mt-0.5">
                       Le mail sera envoyé à toutes les entreprises disposant d'une adresse email dans la base ({companies.filter((c) => c.email).length} entreprises). L'envoi peut prendre plusieurs minutes.
@@ -494,12 +494,12 @@ export default function RelanceCommercial() {
             <>
               {/* À relancer */}
               <section className="flex flex-col gap-3">
-                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-widest flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-red-500" />
+                <h2 className="text-sm font-semibold text-[var(--ds-text-muted)] uppercase tracking-widest flex items-center gap-2">
+                  <IconBell className="h-4 w-4 text-[var(--ds-danger)]" />
                   À relancer ({due.length})
                 </h2>
                 {due.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-400">
+                  <div className="rounded-xl border border-dashed border-[var(--ds-border)] py-10 text-center text-sm text-[var(--ds-text-subtle)]">
                     Aucune relance en retard 🎉
                   </div>
                 ) : (
@@ -513,12 +513,12 @@ export default function RelanceCommercial() {
 
               {/* À venir */}
               <section className="flex flex-col gap-3">
-                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-widest flex items-center gap-2">
-                  <CalendarClock className="h-4 w-4 text-blue" />
+                <h2 className="text-sm font-semibold text-[var(--ds-text-muted)] uppercase tracking-widest flex items-center gap-2">
+                  <IconSchedule className="h-4 w-4 text-blue" />
                   À venir ({upcoming.length})
                 </h2>
                 {upcoming.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-400">
+                  <div className="rounded-xl border border-dashed border-[var(--ds-border)] py-10 text-center text-sm text-[var(--ds-text-subtle)]">
                     Aucune relance planifiée
                   </div>
                 ) : (
@@ -556,16 +556,16 @@ export default function RelanceCommercial() {
       )}
 
       {bulkMode && (
-        <div className="fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/95 backdrop-blur px-4 py-3 z-40">
-          <div className="mx-auto max-w-4xl flex items-center justify-between gap-4">
-            <span className="text-sm text-gray-500">
+        <div className="sticky bottom-4 z-30 ds-glass-strong rounded-2xl px-4 py-3 shadow-[var(--shadow-sm)]">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <span className="text-sm text-[var(--ds-text-subtle)]">
               {sendMode === 'all' ? (
                 <>
-                  Envoi à <strong className="text-gray-900">toutes les entreprises</strong> ({companies.filter((c) => !!c.email).length} avec email)
+                  Envoi à <strong className="text-[var(--ds-text)]">toutes les entreprises</strong> ({companies.filter((c) => !!c.email).length} avec email)
                 </>
               ) : manuallySelected.length > 0 ? (
                 <>
-                  <strong className="text-gray-900">{manuallySelected.length}</strong> entreprise
+                  <strong className="text-[var(--ds-text)]">{manuallySelected.length}</strong> entreprise
                   {manuallySelected.length > 1 ? 's' : ''} sélectionnée{manuallySelected.length > 1 ? 's' : ''}
                 </>
               ) : (
@@ -573,7 +573,7 @@ export default function RelanceCommercial() {
               )}
             </span>
             <Button
-              leftIcon={<Send size={16} />}
+              leftIcon={<IconSend width={16} height={16} />}
               disabled={!canSend || !selectedTemplateId}
               isLoading={sending}
               onClick={handleBulkSend}
