@@ -36,6 +36,16 @@ function detectImageMime(bytes: Buffer): string | null {
     return IMAGE_SIGNATURES.find((signature) => signature.matches(bytes))?.mime ?? null;
 }
 
+// Même principe pour les PDF uploadés (CV, pièces jointes Drive) : un fichier mal nommé/tronqué
+// stocké avec un Content-Type application/pdf non vérifié fait planter le viewer pdf.js côté
+// front (InvalidPDFException), qui valide la structure bien plus strictement que l'ancien aperçu
+// en iframe Google Drive.
+const PDF_SIGNATURE = Buffer.from('%PDF-', 'ascii');
+
+function isRealPdf(bytes: Buffer): boolean {
+    return bytes.subarray(0, 5).equals(PDF_SIGNATURE);
+}
+
 export const router: Router = express.Router();
 
 const candidateService = new CandidateService();
@@ -163,6 +173,11 @@ router.post(
 
         if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
             res.status(400).json({ error: 'File body required' });
+            return;
+        }
+
+        if (mimeType === 'application/pdf' && !isRealPdf(fileBuffer)) {
+            res.status(400).json({ error: "Ce fichier n'est pas un PDF valide" });
             return;
         }
 
@@ -438,6 +453,12 @@ router.post('/:id/drive-upload', authenticate, upload.array('files', 20), async 
         return;
     }
 
+    const invalidPdf = files.find((f) => f.mimetype === 'application/pdf' && !isRealPdf(f.buffer));
+    if (invalidPdf) {
+        res.status(400).json({ error: `"${invalidPdf.originalname}" n'est pas un PDF valide` });
+        return;
+    }
+
     try {
         const candidate = await candidateService.findById(id);
         if (!candidate) {
@@ -652,7 +673,9 @@ router.get('/:id/avatar', async (req, res: Response) => {
         }
         assertConsent(candidate, [ConsentType.PHOTO_PROCESSING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
 
-        const avatar = await getModels().CandidateAvatar.findOne({ candidate_id: req.params.id as string }).lean();
+        const avatar = await getModels()
+            .CandidateAvatar.findOne({ candidate_id: req.params.id as string })
+            .lean();
         if (!avatar) {
             res.status(404).end();
             return;
