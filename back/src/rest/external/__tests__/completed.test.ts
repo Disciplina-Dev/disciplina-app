@@ -3,7 +3,8 @@ import { env } from '../../../config/env';
 import { ExternalAccessRepository } from '../../../repositories/mysql/ExternalAccessRepository';
 import { UserRepository } from '../../../repositories/mysql/UserRepository';
 import { signAccessToken, ACCESS_TOKEN_COOKIE } from '../../middleware/tokenAuth';
-import { GuestRole, Permission } from '../../../types/user.types';
+import { GuestRole, JobRole, Permission } from '../../../types/user.types';
+import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 
 const BASE = `http://localhost:${env.API_PORT}/api/external`;
@@ -113,6 +114,69 @@ describe('External access completion flow', () => {
                 headers: { Cookie: guestCookie(sig) },
             });
             expect(res.status).toBe(401);
+        });
+    });
+
+    describe('POST /:signature/close (staff)', () => {
+        it('marks the session COMPLETED and is idempotent on repeat calls', async () => {
+            const sig = signature('sig-close');
+            await createRow(sig);
+
+            const auth = mintAuthCookies({
+                id: 1,
+                email: 'rh-close@test.local',
+                role: JobRole.RH,
+                permission: Permission.EMPLOYEE,
+            });
+
+            const first = await fetch(`${BASE}/${sig}/close`, {
+                method: 'POST',
+                headers: { Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            });
+            expect(first.status).toBe(200);
+            await expect(first.json()).resolves.toEqual({ success: true });
+            expect((await repository.findBySignature(sig))?.status).toBe('COMPLETED');
+
+            const second = await fetch(`${BASE}/${sig}/close`, {
+                method: 'POST',
+                headers: { Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            });
+            expect(second.status).toBe(200);
+            expect((await repository.findBySignature(sig))?.status).toBe('COMPLETED');
+        });
+
+        it('returns 404 for an unknown signature', async () => {
+            const auth = mintAuthCookies({
+                id: 1,
+                email: 'rh-close-unknown@test.local',
+                role: JobRole.RH,
+                permission: Permission.EMPLOYEE,
+            });
+
+            const res = await fetch(`${BASE}/unknown-close-signature/close`, {
+                method: 'POST',
+                headers: { Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            });
+            expect(res.status).toBe(404);
+        });
+
+        it('closes a LOCKED session (revoked then closed)', async () => {
+            const sig = signature('sig-close-locked');
+            await createRow(sig, { status: 'LOCKED' });
+
+            const auth = mintAuthCookies({
+                id: 1,
+                email: 'rh-close-locked@test.local',
+                role: JobRole.RH,
+                permission: Permission.EMPLOYEE,
+            });
+
+            const res = await fetch(`${BASE}/${sig}/close`, {
+                method: 'POST',
+                headers: { Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            });
+            expect(res.status).toBe(200);
+            expect((await repository.findBySignature(sig))?.status).toBe('COMPLETED');
         });
     });
 

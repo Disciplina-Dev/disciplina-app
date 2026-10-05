@@ -4,14 +4,6 @@ import { IconAlert, IconLoader } from '@/components/ui/icons'
 import { openExternalLink } from '@/api/external'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
 
-function formatExpiryDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
-}
-
 type LinkState =
   | 'loading'
   | 'invalid'
@@ -24,13 +16,13 @@ const STATE_MESSAGES: Record<LinkState, { title: string; text: string }> = {
   invalid: { title: 'Lien inconnu', text: "Cette invitation n'existe pas." },
   blocked: {
     title: 'Lien indisponible',
-    text: 'Ce lien a été bloqué. Contactez votre conseiller.',
+    text: 'Ce lien a été bloqué ou clôturé. Contactez votre conseiller.',
   },
   expired: {
     title: 'Lien expiré',
-    text: 'Ce lien était valable 7 jours après sa première ouverture. Contactez votre conseiller pour en recevoir un nouveau.',
+    text: 'Ce lien historique à durée limitée a expiré, ou il a été clôturé. Contactez votre conseiller pour en recevoir un nouveau.',
   },
-  completed: { title: 'Démarche déjà finalisée', text: 'Vous avez déjà réalisé cette démarche.' },
+  completed: { title: 'Démarche déjà finalisée', text: 'Ce lien a été clôturé, vous avez déjà réalisé cette démarche.' },
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -93,14 +85,7 @@ export default function ExternalAuthenticate() {
         )}
 
         <div className="mt-5 border-t border-[var(--ds-border)] pt-3 text-center">
-          {expiresAt ? (
-            <p className="text-[12px] text-[var(--ds-text-subtle)]">
-              Ce lien est valable 7 jours après sa première ouverture — il expire le{' '}
-              {formatExpiryDate(expiresAt)}.
-            </p>
-          ) : (
-            <ExternalExpiryNotice />
-          )}
+          <ExternalExpiryNotice expiresAt={expiresAt} />
         </div>
       </div>
     </Centered>
