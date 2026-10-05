@@ -291,8 +291,8 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
     // Désabonnement pointant vers la boîte du RH émetteur (Gmail bulk sender rules).
     const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
 
-    // Un lien d'import CV (lien magique sans code, valable 7 jours après sa
-    // première ouverture) n'est généré que si le modèle le référence, pour ne
+    // Un lien d'import CV (lien magique sans code, à durée illimitée)
+    // n'est généré que si le modèle le référence, pour ne
     // pas créer de session externe sur des relances qui n'en ont pas besoin.
     // Les éventuels {{code}} laissés par d'anciens modèles sont retirés par
     // renderTemplate (clés inconnues → chaîne vide).
