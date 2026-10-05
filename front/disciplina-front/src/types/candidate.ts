@@ -321,6 +321,16 @@ export interface CandidateConsentments {
     consent_version: string;
 }
 
+export interface CandidateRelanceEntry {
+    sent_at: string; // date d'envoi (ISO)
+    kind: 'availability' | 'template';
+    template_id?: string;
+    subject?: string;
+    sent_by?: number;
+    response_at?: string; // réponse du candidat (ISO)
+    answer?: string; // 'oui' | 'non'
+}
+
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
@@ -361,6 +371,8 @@ export interface Candidate {
     created_at?: string;
     last_relance_at?: string;      // dernière relance de disponibilité envoyée
     relance_response_at?: string;  // date de réponse du candidat à la relance
+    relance_count?: number;        // nombre de relances reçues
+    relance_history?: CandidateRelanceEntry[]; // historique des relances (envois + réponses)
 }
 
 export enum CandidateHistoryType {

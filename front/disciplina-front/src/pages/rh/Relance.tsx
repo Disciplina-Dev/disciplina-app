@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { IconCheckCircle, IconClock, IconErrorCircle, IconMail, IconMapPin, IconSend, IconUsers } from '@/components/ui/icons'
+import { IconCheckCircle, IconClock, IconErrorCircle, IconHistory, IconMail, IconMapPin, IconSend, IconUsers } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { useCandidates } from '@/graphql/hooks'
 import { CandidateStatus, TitleProfessionalType } from '@/types/candidate'
@@ -86,8 +86,22 @@ function hasFreshResponse(c: Candidate): boolean {
   return new Date(c.relance_response_at).getTime() >= new Date(c.last_relance_at).getTime()
 }
 
+/** Nombre de relances reçues (compteur backend, repli historique / ancien horodatage). */
+function relanceCountOf(c: Candidate): number {
+  if (typeof c.relance_count === 'number') return c.relance_count
+  if (c.relance_history) return c.relance_history.length
+  return c.last_relance_at ? 1 : 0
+}
+
+/** Historique trié du plus récent au plus ancien. */
+function relanceHistoryOf(c: Candidate) {
+  return [...(c.relance_history ?? [])].sort(
+    (a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+  )
+}
+
 export default function Relance() {
-  const { candidates, loading } = useCandidates()
+  const { candidates, loading, refetch } = useCandidates()
   const templates = useRhMailTemplatesStore((s) => s.templates)
   const loadTemplates = useRhMailTemplatesStore((s) => s.load)
   const region = useRegionStore((s) => s.region)
@@ -99,6 +113,7 @@ export default function Relance() {
   const [zoneFilter, setZoneFilter] = useState<Set<ZoneKey>>(new Set())
   const [showRelanced, setShowRelanced] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [openHistory, setOpenHistory] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -166,6 +181,15 @@ export default function Relance() {
     setSelected(allSelected ? new Set() : new Set(ids))
   }
 
+  function toggleHistory(id: string) {
+    setOpenHistory((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   async function handleSend() {
     if (selectedIds.length === 0 || sending) return
     if (sendType !== AVAILABILITY && !selectedTemplate) {
@@ -186,6 +210,7 @@ export default function Relance() {
       })
       setResult(data)
       setSelected(new Set())
+      refetch()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -424,18 +449,20 @@ export default function Relance() {
               const relanceDate = formatDate(c.last_relance_at)
               const responseDate = responded ? formatDate(c.relance_response_at) : null
               const zone = ZONE_LABEL[zoneOf(c, region)]
+              const relanceCount = relanceCountOf(c)
+              const history = relanceHistoryOf(c)
+              const historyOpen = openHistory.has(c._id)
               return (
-                <button
+                <div
                   key={c._id}
-                  type="button"
                   onClick={() => toggle(c._id)}
-                  className={`text-left rounded-2xl border p-4 flex flex-col gap-3 transition-all ${
+                  className={`text-left rounded-2xl border p-4 flex flex-col gap-3 transition-all cursor-pointer ${
                     isSelected
                       ? 'border-purple ring-2 ring-purple/20 bg-purple-light/30'
                       : 'border-[var(--ds-border)] bg-[var(--ds-surface)] hover:border-[var(--ds-border)] hover:shadow-sm'
                   }`}
                 >
-                  {/* Ligne titre + checkbox */}
+                  {/* Ligne titre + checkbox + compteur */}
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -448,6 +475,14 @@ export default function Relance() {
                       <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{c.identity.full_name}</p>
                       <p className="text-xs text-[var(--ds-text-subtle)] truncate">{c.identity.email}</p>
                     </div>
+                    {relanceCount > 0 && (
+                      <span
+                        title={`${relanceCount} relance${relanceCount > 1 ? 's' : ''} reçue${relanceCount > 1 ? 's' : ''}`}
+                        className="flex items-center gap-1 shrink-0 rounded-full bg-purple-light px-2 py-0.5 text-[11px] font-semibold text-purple"
+                      >
+                        <IconSend width={10} height={10} /> {relanceCount}
+                      </span>
+                    )}
                   </div>
 
                   {/* Badges métier + zone */}
@@ -488,7 +523,58 @@ export default function Relance() {
                       )}
                     </div>
                   </div>
-                </button>
+
+                  {/* Historique des relances */}
+                  {history.length > 0 && (
+                    <div className="pt-1 border-t border-[var(--ds-border)]" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => toggleHistory(c._id)}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--ds-text-subtle)] hover:text-purple transition-colors"
+                      >
+                        <IconHistory width={11} height={11} />
+                        Historique ({history.length})
+                        <span aria-hidden>{historyOpen ? '▾' : '▸'}</span>
+                      </button>
+                      {historyOpen && (
+                        <ul className="mt-1.5 flex flex-col gap-1.5">
+                          {history.map((h, i) => {
+                            const sentDate = formatDate(h.sent_at)
+                            const answeredDate = h.response_at ? formatDate(h.response_at) : null
+                            return (
+                              <li
+                                key={`${h.sent_at}-${i}`}
+                                className="rounded-lg bg-[var(--ds-surface-sunken)] px-2.5 py-1.5 text-[11px] leading-relaxed"
+                              >
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-[var(--ds-text-muted)]">
+                                    {h.kind === 'template' ? 'Modèle' : 'Disponibilité'}
+                                  </span>
+                                  <span className="text-[var(--ds-text-subtle)]">· {sentDate ?? '—'}</span>
+                                </div>
+                                {h.kind === 'template' && h.subject && (
+                                  <p className="text-[var(--ds-text-muted)] truncate" title={h.subject}>
+                                    {h.subject}
+                                  </p>
+                                )}
+                                {answeredDate ? (
+                                  <p className="flex items-center gap-1 font-medium text-[var(--ds-success)]">
+                                    <IconCheckCircle width={10} height={10} />
+                                    Répondu{h.answer ? ` ${h.answer}` : ''} le {answeredDate}
+                                  </p>
+                                ) : (
+                                  <p className="flex items-center gap-1 font-medium text-amber-500">
+                                    <IconClock width={10} height={10} /> Sans réponse
+                                  </p>
+                                )}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>

@@ -1,6 +1,11 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { CandidateRepository, CandidateFilters, CandidateSearchField, CandidateStats } from '../repositories/mongo/CandidateRepository';
-import { Candidate, CandidateStatus } from '../types/candidate.types';
+import {
+    CandidateRepository,
+    CandidateFilters,
+    CandidateSearchField,
+    CandidateStats,
+} from '../repositories/mongo/CandidateRepository';
+import { Candidate, CandidateRelanceEntry, CandidateStatus } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
 import { getModels } from '../db/mongo/tenant';
@@ -196,7 +201,11 @@ export class CandidateService {
         if (existing) {
             if (data.status === CandidateStatus.IMMERSING && existing.status !== CandidateStatus.IMMERSING) {
                 data.immersion_agreement = true;
-            } else if (existing.status === CandidateStatus.IMMERSING && data.status && data.status !== CandidateStatus.IMMERSING) {
+            } else if (
+                existing.status === CandidateStatus.IMMERSING &&
+                data.status &&
+                data.status !== CandidateStatus.IMMERSING
+            ) {
                 data.immersion_agreement = false;
             }
         }
@@ -232,6 +241,16 @@ export class CandidateService {
             }
         }
         return updated;
+    }
+
+    /** Enregistre une relance envoyée (compteur + historique + `last_relance_at`). */
+    async recordRelanceSent(id: string, entry: CandidateRelanceEntry): Promise<void> {
+        await this.repository.recordRelanceSent(id, entry);
+    }
+
+    /** Rattache la réponse du candidat (Oui/Non) à sa dernière relance sans réponse. */
+    async recordRelanceResponse(id: string, answer: string, at: Date): Promise<void> {
+        await this.repository.recordRelanceResponse(id, answer, at);
     }
 
     // Quand un candidat passe en contrat, toutes les offres qui lui sont liées

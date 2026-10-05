@@ -518,6 +518,16 @@ function fromGql(c: any): Candidate {
     created_at: c.createdAt,
     last_relance_at: c.lastRelanceAt ?? undefined,
     relance_response_at: c.relanceResponseAt ?? undefined,
+    relance_count: c.relanceCount ?? undefined,
+    relance_history: c.relanceHistory?.map((e: any) => ({
+      sent_at: e.sentAt,
+      kind: e.kind,
+      template_id: e.templateId ?? undefined,
+      subject: e.subject ?? undefined,
+      sent_by: e.sentBy ?? undefined,
+      response_at: e.responseAt ?? undefined,
+      answer: e.answer ?? undefined,
+    })),
     emergency_contact: c.emergencyContact
       ? {
           last_name: c.emergencyContact.lastName ?? undefined,
