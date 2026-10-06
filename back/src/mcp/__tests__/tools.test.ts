@@ -42,8 +42,18 @@ describe('MCP tools (static admin key)', () => {
     it('registers the audit-driven tools', async () => {
         const parsed = await rpc('tools/list');
         const names: string[] = parsed.result.tools.map((t: { name: string }) => t.name);
-        expect(names).toEqual(expect.arrayContaining(['list_users', 'list_offer_history', 'list_company_conflicts']));
-        expect(names).toHaveLength(29);
+        expect(names).toEqual(
+            expect.arrayContaining([
+                'list_users',
+                'list_offer_history',
+                'list_company_conflicts',
+                'company_stats',
+                'kpi_live',
+                'kpi_monthly_detail',
+                'kpi_weekly_detail',
+            ]),
+        );
+        expect(names).toHaveLength(33);
     });
 
     it('masks the SSN and serializes dates as ISO strings on get_candidate', async () => {
@@ -148,5 +158,21 @@ describe('MCP tools (static admin key)', () => {
     it('list_company_conflicts is callable by an admin', async () => {
         const conflicts = await callTool<unknown[]>('list_company_conflicts', {});
         expect(Array.isArray(conflicts)).toBe(true);
+    });
+
+    it('exposes company stats and KPI live/monthly/weekly views', async () => {
+        const year = new Date().getFullYear();
+        const stats = await callTool('company_stats', { year });
+        expect(Array.isArray(stats.current)).toBe(true);
+        expect(Array.isArray(stats.years)).toBe(true);
+
+        const live = await callTool('kpi_live');
+        expect(live).toHaveProperty('totals');
+        expect(Array.isArray(live.sites)).toBe(true);
+
+        const monthly = await callTool('kpi_monthly_detail', { year, site: 'NORD' });
+        expect(Array.isArray(monthly.months)).toBe(true);
+        const weekly = await callTool('kpi_weekly_detail', { year, site: 'NORD' });
+        expect(Array.isArray(weekly.weeks)).toBe(true);
     });
 });
