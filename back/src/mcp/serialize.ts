@@ -8,7 +8,7 @@
  */
 
 const SENSITIVE_KEY =
-    /(password|passwd|secret|token|hash|salt|credential|apikey|api_key|privatekey|private_key|encryptionkey)/i;
+    /(password|passwd|secret|credential|api_?key|private_?key|encryptionkey|token$|_token($|_)|(^|_)hash(ed)?($|_)|(^|_)salt($|_))/i;
 
 function scrub(value: unknown): unknown {
     if (value instanceof Date) return value.toISOString();

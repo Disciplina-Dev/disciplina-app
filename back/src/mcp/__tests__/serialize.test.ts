@@ -14,3 +14,19 @@ describe('toolResult', () => {
         expect(parse({ name: 'a', password: 'x', apiKey: 'y' })).toEqual({ name: 'a' });
     });
 });
+
+describe('toolResult sensitive keys', () => {
+    it('strips token/hash/salt variants but keeps unrelated keys', () => {
+        const out = parse({
+            accessToken: 'a',
+            reset_token: 'b',
+            passwordHash: 'c',
+            password_hash: 'd',
+            salt: 'e',
+            hashtag: 'keep',
+            tokenCount: 3,
+            hashed: 'f',
+        });
+        expect(out).toEqual({ hashtag: 'keep', tokenCount: 3 });
+    });
+});
