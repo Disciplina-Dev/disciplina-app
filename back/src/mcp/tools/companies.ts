@@ -7,6 +7,7 @@ import { CompanyConflictService } from '../../services/CompanyConflictService';
 import { RelanceHistoryRepository } from '../../repositories/mysql/RelanceHistoryRepository';
 import { toBlacklistedCompany, toCompanyConflict, toRelanceHistory } from '../../services/mappers/company.mapper';
 import { toolResult } from '../serialize';
+import { currentMcpUser } from '../context';
 import { readTool } from '../tool';
 import { mcpToolScope } from '../rbac';
 import { JobRole, Permission } from '../../types/user.types';
@@ -136,5 +137,18 @@ export function registerCompanyTools(server: McpServer): void {
                     search,
                 ).map(toCompanyConflict),
             ),
+    );
+
+    readTool(
+        server,
+        'company_stats',
+        "Statistiques du portefeuille entreprises pour une année : répartition actuelle par commercial et statut, détail par semaine/mois, années disponibles. Un COMMERCIAL ne voit que ses propres chiffres ; RESPONSABLE et ADMIN voient toute l'équipe.",
+        { year: z.number().int().describe('Année (ex: 2026)') },
+        COMPANY_SCOPE,
+        async ({ year }) => {
+            const me = currentMcpUser();
+            const restrictedTo = me?.role === JobRole.COMMERCIAL ? me.id : null;
+            return toolResult(await companies.getStats(year, restrictedTo));
+        },
     );
 }
