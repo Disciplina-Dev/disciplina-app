@@ -48,7 +48,7 @@ export function registerKpiTools(server: McpServer): void {
     readTool(
         server,
         'kpi_activity',
-        "Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.",
+        'Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.',
         {
             year: z.number().int().describe('Année'),
             site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
