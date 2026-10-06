@@ -10,6 +10,8 @@ import { NotificationModel } from './schemas/notification.schema';
 import { MailSignatureModel, MailTemplateModel } from './schemas/mailTemplate.schema';
 import { CommercialSignatureModel } from './schemas/commercialSignature.schema';
 import { CandidateHistoryModel } from './schemas/candidateHistory.schema';
+import { AlternantModel } from './schemas/alternant.schema';
+import { AlternantSequenceModel } from './schemas/alternant-sequence.schema';
 import { AbDriveConfigModel } from './schemas/abDriveConfig.schema';
 import { DriveFolderConfigModel } from './schemas/driveFolderConfig.schema';
 import { getAnnemasseConnection } from './connection';
@@ -39,6 +41,8 @@ export function getModels() {
         MailSignature: modelOn(region, MailSignatureModel),
         CommercialSignature: modelOn(region, CommercialSignatureModel),
         CandidateHistory: modelOn(region, CandidateHistoryModel),
+        Alternant: modelOn(region, AlternantModel),
+        AlternantSequence: modelOn(region, AlternantSequenceModel),
         AbDriveConfig: modelOn(region, AbDriveConfigModel),
         DriveFolderConfig: modelOn(region, DriveFolderConfigModel),
     };

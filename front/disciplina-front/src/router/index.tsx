@@ -44,6 +44,8 @@ import ExternalAccesPage from "@/pages/rh/ExternalAccesPage";
 
 import PedaLayout from "@/components/layout/PedaLayout";
 import SuiviAbsences from "@/pages/peda/SuiviAbsences";
+import ListeAlternants from "@/pages/peda/ListeAlternants";
+import FicheAlternant from "@/pages/peda/FicheAlternant";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -196,6 +198,8 @@ export const router = createBrowserRouter([
     handle: { crumb: "Espace Pédagogique" },
     children: [
       { index: true, element: <SuiviAbsences />, handle: { crumb: "Suivi absences" } },
+      { path: "alternants", element: <ListeAlternants />, handle: { crumb: "Alternants" } },
+      { path: "alternants/:id", element: <FicheAlternant />, handle: { crumb: "Fiche alternant" } },
       { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
       { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
