@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { IconLogout, IconMail, IconSettings, IconSpreadsheet, IconUser, IconUsers } from '@/components/ui/icons'
+import { IconDashboard, IconLogout, IconMail, IconSettings, IconSpreadsheet, IconUser, IconUsers } from '@/components/ui/icons'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
@@ -60,6 +60,7 @@ export default function PedaLayout() {
         {/* Scrollable nav */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-2">
           <nav className="mt-2 flex flex-col gap-1 px-3">
+            <NavItem to="/peda/dashboard" icon={<IconDashboard width={18} height={18} />} label="Tableau de bord" />
             <NavItem to="/peda" end icon={<IconSpreadsheet width={18} height={18} />} label="Suivi absences" />
             <NavItem to="/peda/alternants" icon={<IconUsers width={18} height={18} />} label="Alternants" />
             <NavItem to="/peda/mail" icon={<IconMail width={18} height={18} />} label="Modèles mail" />
