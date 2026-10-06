@@ -2,7 +2,11 @@ import { Response } from 'express';
 import { InvalidGrantError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { OAuthServerProvider, AuthorizationParams } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import type { OAuthClientInformationFull, OAuthTokens, OAuthTokenRevocationRequest } from '@modelcontextprotocol/sdk/shared/auth.js';
+import type {
+    OAuthClientInformationFull,
+    OAuthTokens,
+    OAuthTokenRevocationRequest,
+} from '@modelcontextprotocol/sdk/shared/auth.js';
 import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 import { sha256Hex } from '../../external/crypto/hash';
@@ -74,12 +78,17 @@ export class McpOAuthProvider implements OAuthServerProvider {
         const submittedRegion = loginRegion ?? '';
 
         if (!email || !password) {
-            res.status(200).send(renderConsentPage(client, params, 'E-mail et mot de passe requis.', email, env.DB_DEFAULT_TENANT));
+            res.status(200).send(
+                renderConsentPage(client, params, 'E-mail et mot de passe requis.', email, env.DB_DEFAULT_TENANT),
+            );
             return;
         }
 
         if (submittedRegion !== '' && !isRegion(submittedRegion)) {
-            logger.warn({ ip: res.req.ip, clientId: client.client_id, submittedRegion }, 'MCP OAuth: invalid consent region');
+            logger.warn(
+                { ip: res.req.ip, clientId: client.client_id, submittedRegion },
+                'MCP OAuth: invalid consent region',
+            );
             res.status(200).send(renderConsentPage(client, params, 'Région invalide.', email, env.DB_DEFAULT_TENANT));
             return;
         }
@@ -107,7 +116,10 @@ export class McpOAuthProvider implements OAuthServerProvider {
         res.redirect(302, buildRedirectUri(params.redirectUri, params, code));
     }
 
-    async challengeForAuthorizationCode(client: OAuthClientInformationFull, authorizationCode: string): Promise<string> {
+    async challengeForAuthorizationCode(
+        client: OAuthClientInformationFull,
+        authorizationCode: string,
+    ): Promise<string> {
         const payload = verifyAuthCode(authorizationCode);
         if (!payload || payload.clientId !== client.client_id) {
             throw new InvalidGrantError('Invalid authorization code');

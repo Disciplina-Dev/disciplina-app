@@ -21,8 +21,13 @@ export function registerNeedsAnalysisTools(server: McpServer): void {
         async ({ id }) => toolResult(await needsAnalysis.findById(id)),
     );
 
-    readTool(server, 'list_needs_analysis', 'Liste toutes les Analyses du Besoin (AB) du CRM.', {}, NEEDS_ANALYSIS_SCOPE, async () =>
-        toolResult(await needsAnalysis.findAll()),
+    readTool(
+        server,
+        'list_needs_analysis',
+        'Liste toutes les Analyses du Besoin (AB) du CRM.',
+        {},
+        NEEDS_ANALYSIS_SCOPE,
+        async () => toolResult(await needsAnalysis.findAll()),
     );
 
     readTool(

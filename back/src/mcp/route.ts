@@ -38,10 +38,7 @@ router.post(
         });
 
         // Audit : trace tout accès authentifié au CRM (méthode JSON-RPC + IP).
-        logger.info(
-            { ip: req.ip, method: req.body?.method, mcpToolName: req.body?.params?.name },
-            'MCP request',
-        );
+        logger.info({ ip: req.ip, method: req.body?.method, mcpToolName: req.body?.params?.name }, 'MCP request');
 
         try {
             await runWithMcpUser(mcpUser, () =>

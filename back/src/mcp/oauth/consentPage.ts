@@ -19,7 +19,12 @@ export function escapeHtml(input: string): string {
 
 // Construit l'URL de retour vers le client OAuth (code émis ou erreur), en
 // reportant `state` reçu. Utilisé pour le lien « Refuser » et le redirect 302.
-export function buildRedirectUri(redirectUri: string, params: AuthorizationParams, code?: string, error?: string): string {
+export function buildRedirectUri(
+    redirectUri: string,
+    params: AuthorizationParams,
+    code?: string,
+    error?: string,
+): string {
     const url = new URL(redirectUri);
     if (code) url.searchParams.set('code', code);
     if (error) url.searchParams.set('error', error);
