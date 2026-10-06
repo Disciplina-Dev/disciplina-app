@@ -3,8 +3,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CompaniesService } from '../../services/CompaniesService';
 import { ContactLogService } from '../../services/ContactLogService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { CompanyConflictService } from '../../services/CompanyConflictService';
 import { RelanceHistoryRepository } from '../../repositories/mysql/RelanceHistoryRepository';
-import { toBlacklistedCompany, toRelanceHistory } from '../../services/mappers/company.mapper';
+import { toBlacklistedCompany, toCompanyConflict, toRelanceHistory } from '../../services/mappers/company.mapper';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
 import { mcpToolScope } from '../rbac';
@@ -26,11 +27,15 @@ function paginateSearch<T extends { id: number }>(
 }
 
 // Fiches entreprises : donnée commerciale (miroir des guards GraphQL company).
+// Conflits d'entreprises (doublons à arbitrer) : réservé RESPONSABLE+ (miroir du guard GraphQL).
+const CONFLICT_SCOPE = mcpToolScope(Permission.RESPONSABLE, []);
+
 const COMPANY_SCOPE = mcpToolScope(Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
 
 const companies = new CompaniesService();
 const contactLogs = new ContactLogService();
 const blacklist = new CompaniesBlacklistService();
+const conflicts = new CompanyConflictService();
 const relanceRepo = new RelanceHistoryRepository();
 
 export function registerCompanyTools(server: McpServer): void {
@@ -108,6 +113,28 @@ export function registerCompanyTools(server: McpServer): void {
                 paginateSearch(await blacklist.findAll(first ?? 50, after, search), first ?? 50, after, search).map(
                     toBlacklistedCompany,
                 ),
+            ),
+    );
+
+    readTool(
+        server,
+        'list_company_conflicts',
+        "Conflits d'entreprises (doublons détectés à l'import, à arbitrer). Filtrable par type de conflit. Pagination cursor-based.",
+        {
+            search: z.string().optional(),
+            conflictType: z.string().optional().describe('Type de conflit'),
+            first: z.number().int().positive().max(200).optional(),
+            after: z.string().optional(),
+        },
+        CONFLICT_SCOPE,
+        async ({ search, conflictType, first, after }) =>
+            toolResult(
+                paginateSearch(
+                    await conflicts.findAll(first ?? 50, after, search, conflictType),
+                    first ?? 50,
+                    after,
+                    search,
+                ).map(toCompanyConflict),
             ),
     );
 }
