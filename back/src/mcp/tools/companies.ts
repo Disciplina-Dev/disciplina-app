@@ -8,6 +8,21 @@ import { toolResult } from '../serialize';
 import { readTool } from '../tool';
 import { mcpToolScope } from '../rbac';
 import { JobRole, Permission } from '../../types/user.types';
+import { decodeCursor } from '../../services/pagination';
+
+// Avec `search`, les repositories renvoient tout (sans LIMIT) : on applique le
+// curseur et la limite ici, comme le chemin sans recherche (first + 1 lignes, id > after).
+function paginateSearch<T extends { id: number }>(
+    rows: T[],
+    first: number,
+    after: string | undefined,
+    search?: string,
+): T[] {
+    if (!search?.trim()) return rows;
+    const afterId = after ? Math.floor(Number(decodeCursor(after))) : null;
+    const remaining = afterId === null ? rows : rows.filter((row) => row.id > afterId);
+    return remaining.slice(0, first + 1);
+}
 
 // Fiches entreprises : donnée commerciale (miroir des guards GraphQL company).
 const COMPANY_SCOPE = mcpToolScope(Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
@@ -37,7 +52,8 @@ export function registerCompanyTools(server: McpServer): void {
             after: z.string().optional().describe('Cursor de pagination'),
         },
         COMPANY_SCOPE,
-        async ({ search, first, after }) => toolResult(await companies.findAll(first ?? 50, after, search)),
+        async ({ search, first, after }) =>
+            toolResult(paginateSearch(await companies.findAll(first ?? 50, after, search), first ?? 50, after, search)),
     );
 
     readTool(
@@ -86,6 +102,7 @@ export function registerCompanyTools(server: McpServer): void {
             after: z.string().optional(),
         },
         COMPANY_SCOPE,
-        async ({ search, first, after }) => toolResult(await blacklist.findAll(first ?? 50, after, search)),
+        async ({ search, first, after }) =>
+            toolResult(paginateSearch(await blacklist.findAll(first ?? 50, after, search), first ?? 50, after, search)),
     );
 }
