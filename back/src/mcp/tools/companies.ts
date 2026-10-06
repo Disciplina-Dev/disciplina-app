@@ -4,6 +4,7 @@ import { CompaniesService } from '../../services/CompaniesService';
 import { ContactLogService } from '../../services/ContactLogService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
 import { RelanceHistoryRepository } from '../../repositories/mysql/RelanceHistoryRepository';
+import { toBlacklistedCompany, toRelanceHistory } from '../../services/mappers/company.mapper';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
 import { mcpToolScope } from '../rbac';
@@ -89,7 +90,7 @@ export function registerCompanyTools(server: McpServer): void {
         'Historique des relances (mail/téléphone) envoyées à une entreprise.',
         { companyId: z.number().int().describe("Id de l'entreprise") },
         COMPANY_SCOPE,
-        async ({ companyId }) => toolResult(await relanceRepo.findByCompanyId(companyId)),
+        async ({ companyId }) => toolResult((await relanceRepo.findByCompanyId(companyId)).map(toRelanceHistory)),
     );
 
     readTool(
@@ -103,6 +104,10 @@ export function registerCompanyTools(server: McpServer): void {
         },
         COMPANY_SCOPE,
         async ({ search, first, after }) =>
-            toolResult(paginateSearch(await blacklist.findAll(first ?? 50, after, search), first ?? 50, after, search)),
+            toolResult(
+                paginateSearch(await blacklist.findAll(first ?? 50, after, search), first ?? 50, after, search).map(
+                    toBlacklistedCompany,
+                ),
+            ),
     );
 }
