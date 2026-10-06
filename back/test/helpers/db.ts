@@ -3,6 +3,8 @@ import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
 import { NeedsAnalysisModel } from '../../src/db/mongo/schemas/needsAnalysis.schema';
 import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
+import { AlternantModel } from '../../src/db/mongo/schemas/alternant.schema';
+import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-sequence.schema';
 
 const CLEARED_TABLES = [
     'external_access',
@@ -56,6 +58,8 @@ export async function dropMongo(): Promise<void> {
     await CandidateModel.deleteMany({});
     await NeedsAnalysisModel.deleteMany({});
     await OfferModel.deleteMany({});
+    await AlternantModel.deleteMany({});
+    await AlternantSequenceModel.deleteMany({});
     // Buckets KPI (ex-tables MySQL commercial_kpi / rh_kpi) : vidés comme elles
     // l'étaient pour isoler chaque test.
     await KpiModel.deleteMany({});

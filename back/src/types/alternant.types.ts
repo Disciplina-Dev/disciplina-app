@@ -1,0 +1,58 @@
+/**
+ * Types domaine Alternant (pédagogie). Comme `candidate.types.ts`, ces types
+ * sont en snake_case et miroient le document Mongo — la conversion camelCase
+ * se fait au resolver (cf. `services/mappers/alternant.mapper.ts`).
+ */
+
+export interface AlternantCompany {
+    name?: string | null;
+    address?: string | null;
+    mentor_name?: string | null;
+    start_date: Date | string;
+    end_date?: Date | string | null;
+}
+
+export interface Alternant {
+    _id: string;
+    first_name: string;
+    last_name: string;
+    /** Session du jeune (texte libre — les groupes Sessions arriveront plus tard). */
+    session: string;
+    email?: string | null;
+    phone?: string | null;
+    /** Lien optionnel vers la fiche candidat d'origine (auto-remplissage). */
+    candidate_id?: string | null;
+    /** `null` = le jeune n'a plus d'entreprise (cf. `removeCompany`). */
+    company: AlternantCompany | null;
+    linked_alternant_ids: string[];
+    created_at: Date | string;
+    updated_at: Date | string;
+}
+
+export enum AlternantSequenceStatus {
+    PENDING = 'pending',
+    DONE = 'done',
+    NOT_DONE = 'not_done',
+}
+
+export interface AlternantSequenceContacts {
+    mentor: boolean;
+    alternant: boolean;
+    formateur: boolean;
+}
+
+export interface AlternantSequence {
+    _id: string;
+    alternant_id: string;
+    /** Numéro de SA, auto-incrémenté par alternant. */
+    numero: number;
+    prevue_le: Date | string;
+    status: AlternantSequenceStatus;
+    contacts: AlternantSequenceContacts;
+    /** Date de réalisation effective, posée à la validation manuelle (3/3 + date). */
+    realisee_le?: Date | string | null;
+    /** `true` si générée automatiquement (planning J+15 / 10 semaines / 4 mois). */
+    auto_generated: boolean;
+    created_at: Date | string;
+    updated_at: Date | string;
+}
