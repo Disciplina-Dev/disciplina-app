@@ -7,9 +7,11 @@
  * a secret".
  */
 
-const SENSITIVE_KEY = /(password|passwd|secret|token|hash|salt|credential|apikey|api_key|privatekey|private_key|encryptionkey)/i;
+const SENSITIVE_KEY =
+    /(password|passwd|secret|token|hash|salt|credential|apikey|api_key|privatekey|private_key|encryptionkey)/i;
 
 function scrub(value: unknown): unknown {
+    if (value instanceof Date) return value.toISOString();
     if (Array.isArray(value)) return value.map(scrub);
     if (value && typeof value === 'object') {
         const out: Record<string, unknown> = {};
