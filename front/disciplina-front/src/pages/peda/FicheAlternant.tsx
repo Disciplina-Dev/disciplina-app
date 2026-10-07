@@ -237,6 +237,10 @@ export default function FicheAlternant() {
     if (!id) return
     const created = await declareRupture({ alternantId: id, ...input })
     setRuptures((prev) => [created, ...prev])
+    // Une rupture « quitte la formation » archive l'alternant et ses SA côté backend.
+    const [fresh, freshSeqs] = await Promise.all([fetchAlternant(id), fetchSequences(id)])
+    if (fresh) setAlternant(fresh)
+    setSequences(freshSeqs)
   }
 
   async function handleDeleteRupture(ruptureId: string) {
@@ -245,6 +249,12 @@ export default function FicheAlternant() {
       await deleteRupture(ruptureId)
       setRuptures((prev) => prev.filter((r) => r.id !== ruptureId))
       setConfirmDeleteRuptureId(null)
+      // La suppression d'une rupture « quitte » peut désarchiver l'alternant.
+      if (id) {
+        const [fresh, freshSeqs] = await Promise.all([fetchAlternant(id), fetchSequences(id)])
+        if (fresh) setAlternant(fresh)
+        setSequences(freshSeqs)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Suppression impossible')
     } finally {
@@ -395,18 +405,25 @@ export default function FicheAlternant() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-[var(--ds-text)]">{alternant.fullName}</h1>
-            {alternant.sessionId ? (
-              <Link
-                to={`/peda/sessions/${alternant.sessionId}`}
-                className="mt-0.5 inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20 hover:opacity-80"
-              >
-                {alternant.session}
-              </Link>
-            ) : (
-              <span className="mt-0.5 inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
-                {alternant.session}
-              </span>
-            )}
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              {alternant.sessionId ? (
+                <Link
+                  to={`/peda/sessions/${alternant.sessionId}`}
+                  className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20 hover:opacity-80"
+                >
+                  {alternant.session}
+                </Link>
+              ) : (
+                <span className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
+                  {alternant.session}
+                </span>
+              )}
+              {alternant.archived && (
+                <span className="inline-flex items-center rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-[var(--ds-text-subtle)] ring-1 ring-inset ring-[var(--ds-border)]">
+                  Archivé — a quitté la formation
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -415,6 +432,14 @@ export default function FicheAlternant() {
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-[var(--ds-danger)]/30 bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)]">
           <IconAlert width={16} height={16} className="shrink-0" />
           {error}
+        </div>
+      )}
+
+      {alternant.archived && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] px-4 py-3 text-sm text-[var(--ds-text-muted)]">
+          <IconAlert width={16} height={16} className="shrink-0" />
+          Cet alternant a quitté la formation : sa fiche et ses SA sont archivées et n'apparaissent plus dans le tableau
+          de bord ni dans les groupes de sessions.
         </div>
       )}
 

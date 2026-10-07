@@ -24,6 +24,7 @@ const alternantSchema = new Schema<Alternant & Document>(
         candidate_id: { type: String, default: null },
         company: { type: companySchema, default: null },
         linked_alternant_ids: { type: [String], default: [] },
+        archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },
     },

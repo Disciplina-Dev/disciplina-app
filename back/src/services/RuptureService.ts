@@ -1,4 +1,5 @@
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
+import { AlternantSequenceRepository } from '../repositories/mongo/AlternantSequenceRepository';
 import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
 import { Alternant } from '../types/alternant.types';
 import {
@@ -42,6 +43,30 @@ export interface RuptureReportRow {
 export class RuptureService {
     private ruptures = new RuptureRepository();
     private alternants = new AlternantRepository();
+    private sequences = new AlternantSequenceRepository();
+
+    /**
+     * L'état d'archive suit les ruptures « quitte la formation » :
+     * tant qu'il reste au moins une rupture avec `poursuit_formation: false`,
+     * l'alternant et ses SA restent archivés, sinon ils sont actifs.
+     */
+    private async syncArchiveStatus(alternantId: string): Promise<void> {
+        const all = await this.ruptures.findByAlternantId(alternantId);
+        const quits = all.some((r) => r.poursuit_formation === false);
+        if (quits) {
+            const now = new Date();
+            await this.sequences.setArchivedByAlternantId(alternantId, now);
+            await this.alternants.setArchived(alternantId, now);
+            logger.info({ alternantId }, 'Alternant archivé (rupture « quitte la formation »)');
+        } else {
+            const current = await this.alternants.findById(alternantId);
+            if (current?.archived_at != null) {
+                await this.sequences.setArchivedByAlternantId(alternantId, null);
+                await this.alternants.setArchived(alternantId, null);
+                logger.info({ alternantId }, 'Alternant désarchivé (plus aucune rupture « quitte »)');
+            }
+        }
+    }
 
     async findByAlternantId(alternantId: string): Promise<Rupture[]> {
         return this.ruptures.findByAlternantId(alternantId);
@@ -75,6 +100,7 @@ export class RuptureService {
             poursuit_formation: input.poursuitFormation,
         });
         logger.info({ alternantId: alternant._id, ruptureId: created._id }, 'Rupture déclarée');
+        await this.syncArchiveStatus(alternant._id);
         return created;
     }
 
@@ -94,12 +120,17 @@ export class RuptureService {
         }
         const updated = await this.ruptures.update(id, patch);
         logger.info({ ruptureId: id }, 'Rupture modifiée');
+        await this.syncArchiveStatus(existing.alternant_id);
         return updated;
     }
 
     async delete(id: string): Promise<boolean> {
+        const existing = await this.ruptures.findById(id);
         const deleted = await this.ruptures.delete(id);
-        if (deleted) logger.info({ ruptureId: id }, 'Rupture supprimée');
+        if (deleted) {
+            logger.info({ ruptureId: id }, 'Rupture supprimée');
+            if (existing) await this.syncArchiveStatus(existing.alternant_id);
+        }
         return deleted;
     }
 }

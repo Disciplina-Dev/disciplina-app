@@ -3,31 +3,44 @@ import { getModels } from '../../db/mongo/tenant';
 import { Alternant } from '../../types/alternant.types';
 
 export class AlternantRepository {
-    async findAll(search?: string): Promise<Alternant[]> {
-        const filter = search?.trim()
-            ? {
-                  $or: [
-                      { first_name: { $regex: search.trim(), $options: 'i' } },
-                      { last_name: { $regex: search.trim(), $options: 'i' } },
-                      { session: { $regex: search.trim(), $options: 'i' } },
-                      { 'company.name': { $regex: search.trim(), $options: 'i' } },
-                  ],
-              }
-            : {};
+    /**
+     * Par défaut seuls les actifs sont retournés (`archived_at: null`) pour que
+     * le dashboard, les sessions et les recherches n'incluent pas les archivés.
+     * `includeArchived = true` retourne actifs + archivés (onglet « Archivé »).
+     */
+    async findAll(search?: string, includeArchived = false): Promise<Alternant[]> {
+        const clauses: Record<string, unknown>[] = [];
+        if (search?.trim()) {
+            const needle = search.trim();
+            clauses.push({
+                $or: [
+                    { first_name: { $regex: needle, $options: 'i' } },
+                    { last_name: { $regex: needle, $options: 'i' } },
+                    { session: { $regex: needle, $options: 'i' } },
+                    { 'company.name': { $regex: needle, $options: 'i' } },
+                ],
+            });
+        }
+        if (!includeArchived) clauses.push({ archived_at: null });
+        const filter = clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
         return getModels().Alternant.find(filter).sort({ created_at: -1 }).lean();
     }
 
-    async count(search?: string): Promise<number> {
-        const filter = search?.trim()
-            ? {
-                  $or: [
-                      { first_name: { $regex: search.trim(), $options: 'i' } },
-                      { last_name: { $regex: search.trim(), $options: 'i' } },
-                      { session: { $regex: search.trim(), $options: 'i' } },
-                      { 'company.name': { $regex: search.trim(), $options: 'i' } },
-                  ],
-              }
-            : {};
+    async count(search?: string, includeArchived = false): Promise<number> {
+        const clauses: Record<string, unknown>[] = [];
+        if (search?.trim()) {
+            const needle = search.trim();
+            clauses.push({
+                $or: [
+                    { first_name: { $regex: needle, $options: 'i' } },
+                    { last_name: { $regex: needle, $options: 'i' } },
+                    { session: { $regex: needle, $options: 'i' } },
+                    { 'company.name': { $regex: needle, $options: 'i' } },
+                ],
+            });
+        }
+        if (!includeArchived) clauses.push({ archived_at: null });
+        const filter = clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
         return getModels().Alternant.countDocuments(filter);
     }
 
@@ -42,8 +55,10 @@ export class AlternantRepository {
             .lean();
     }
 
-    async findBySessionId(sessionId: string): Promise<Alternant[]> {
-        return getModels().Alternant.find({ session_id: sessionId }).sort({ last_name: 1, first_name: 1 }).lean();
+    async findBySessionId(sessionId: string, includeArchived = false): Promise<Alternant[]> {
+        const filter: Record<string, unknown> = { session_id: sessionId };
+        if (!includeArchived) filter.archived_at = null;
+        return getModels().Alternant.find(filter).sort({ last_name: 1, first_name: 1 }).lean();
     }
 
     /** Recherche par email (exact, insensible à la casse + espaces) pour la détection de doublons. */
@@ -84,6 +99,17 @@ export class AlternantRepository {
             .Alternant.findOneAndUpdate(
                 { _id: id },
                 { $set: { company, updated_at: new Date() } },
+                { returnDocument: 'after', runValidators: true, context: 'query' },
+            )
+            .lean();
+    }
+
+    /** Archive (`date` non nulle) ou désarchive (`null`) un alternant. */
+    async setArchived(id: string, date: Date | null): Promise<Alternant | null> {
+        return getModels()
+            .Alternant.findOneAndUpdate(
+                { _id: id },
+                { $set: { archived_at: date, updated_at: new Date() } },
                 { returnDocument: 'after', runValidators: true, context: 'query' },
             )
             .lean();

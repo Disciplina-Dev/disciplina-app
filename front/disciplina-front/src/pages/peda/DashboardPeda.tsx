@@ -81,9 +81,12 @@ export default function DashboardPeda() {
       const collected: DashboardRow[] = []
       let beyond = 0
       alternants.forEach((alternant, index) => {
+        // Les archivés (rupture « quitte la formation ») sont exclus du tableau de bord.
+        if (alternant.archived) return
         for (const sequence of byAlternant[index] ?? []) {
           // Seules les SA en attente alimentent le tableau de bord.
           if (sequence.status !== 'pending') continue
+          if (sequence.archived) continue
           const diffDays = diffDaysFromToday(sequence.prevueLe)
           if (bucketOf(diffDays) === null) {
             beyond += 1

@@ -27,9 +27,13 @@ async function sessionWithCount(id: string): Promise<object | null> {
 
 export const resolvers = {
     Query: {
-        alternants: async (_: unknown, { search }: { search?: string }, context: any) => {
+        alternants: async (
+            _: unknown,
+            { search, includeArchived }: { search?: string; includeArchived?: boolean },
+            context: any,
+        ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
-            const alternants = await alternantService.findAll(search);
+            const alternants = await alternantService.findAll(search, includeArchived ?? false);
             return alternants.map(alternantToGql);
         },
         alternant: async (_: unknown, { id }: { id: string }, context: any) => {
@@ -119,6 +123,16 @@ export const resolvers = {
         unlinkAlternant: async (_: unknown, { id, otherId }: { id: string; otherId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const updated = await alternantService.unlinkAlternant(id, otherId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        archiveAlternant: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const updated = await alternantService.archive(id);
+            return updated ? alternantToGql(updated) : null;
+        },
+        unarchiveAlternant: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const updated = await alternantService.unarchive(id);
             return updated ? alternantToGql(updated) : null;
         },
         createSequence: async (
