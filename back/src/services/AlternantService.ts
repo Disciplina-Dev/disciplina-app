@@ -116,12 +116,12 @@ export class AlternantService {
     private ruptures = new RuptureRepository();
     private sessions = new SessionRepository();
 
-    async findAll(search?: string): Promise<Alternant[]> {
-        return this.alternants.findAll(search);
+    async findAll(search?: string, includeArchived = false): Promise<Alternant[]> {
+        return this.alternants.findAll(search, includeArchived);
     }
 
-    async count(search?: string): Promise<number> {
-        return this.alternants.count(search);
+    async count(search?: string, includeArchived = false): Promise<number> {
+        return this.alternants.count(search, includeArchived);
     }
 
     async findById(id: string): Promise<Alternant | null> {
@@ -136,8 +136,8 @@ export class AlternantService {
         return this.sequences.findByAlternantId(alternantId);
     }
 
-    async findBySessionId(sessionId: string): Promise<Alternant[]> {
-        return this.alternants.findBySessionId(sessionId);
+    async findBySessionId(sessionId: string, includeArchived = false): Promise<Alternant[]> {
+        return this.alternants.findBySessionId(sessionId, includeArchived);
     }
 
     async create(input: CreateAlternantInput): Promise<Alternant> {
@@ -297,6 +297,30 @@ export class AlternantService {
             });
         }
         return this.alternants.findById(id);
+    }
+
+    /**
+     * Archive un alternant et toutes ses SA (rupture « quitte la formation »).
+     * Les SA archivées n'alimentent plus le dashboard ni les compteurs.
+     */
+    async archive(id: string): Promise<Alternant | null> {
+        const existing = await this.alternants.findById(id);
+        if (!existing) return null;
+        const now = new Date();
+        await this.sequences.setArchivedByAlternantId(id, now);
+        const updated = await this.alternants.setArchived(id, now);
+        logger.info({ alternantId: id }, 'Alternant archivé');
+        return updated;
+    }
+
+    /** Désarchive un alternant et toutes ses SA. */
+    async unarchive(id: string): Promise<Alternant | null> {
+        const existing = await this.alternants.findById(id);
+        if (!existing) return null;
+        await this.sequences.setArchivedByAlternantId(id, null);
+        const updated = await this.alternants.setArchived(id, null);
+        logger.info({ alternantId: id }, 'Alternant désarchivé');
+        return updated;
     }
 
     async createManualSequence(alternantId: string, prevueLe: string): Promise<AlternantSequence> {

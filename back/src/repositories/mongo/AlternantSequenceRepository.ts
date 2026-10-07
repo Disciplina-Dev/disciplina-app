@@ -93,6 +93,15 @@ export class AlternantSequenceRepository {
         return res.deletedCount ?? 0;
     }
 
+    /** Archive (`date` non nulle) ou désarchive (`null`) toutes les SA d'un alternant. */
+    async setArchivedByAlternantId(alternantId: string, date: Date | null): Promise<number> {
+        const res = await getModels().AlternantSequence.updateMany(
+            { alternant_id: alternantId },
+            { $set: { archived_at: date, updated_at: new Date() } },
+        );
+        return res.modifiedCount ?? 0;
+    }
+
     async delete(id: string): Promise<boolean> {
         return (await getModels().AlternantSequence.deleteOne({ _id: id })).deletedCount > 0;
     }

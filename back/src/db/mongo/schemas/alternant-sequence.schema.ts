@@ -24,6 +24,7 @@ const alternantSequenceSchema = new Schema<AlternantSequence & Document>(
         realisee_le: { type: Date, default: null },
         contacts: { type: contactsSchema, default: () => ({}) },
         auto_generated: { type: Boolean, default: false },
+        archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },
     },

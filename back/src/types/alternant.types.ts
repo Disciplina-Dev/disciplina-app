@@ -27,6 +27,8 @@ export interface Alternant {
     /** `null` = le jeune n'a plus d'entreprise (cf. `removeCompany`). */
     company: AlternantCompany | null;
     linked_alternant_ids: string[];
+    /** `null` = actif ; date posée = archivé (rupture « quitte la formation »). */
+    archived_at?: Date | string | null;
     created_at: Date | string;
     updated_at: Date | string;
 }
@@ -55,6 +57,8 @@ export interface AlternantSequence {
     realisee_le?: Date | string | null;
     /** `true` si générée automatiquement (planning J+15 / 10 semaines / 4 mois). */
     auto_generated: boolean;
+    /** `null` = active ; date posée = archivée avec son alternant. */
+    archived_at?: Date | string | null;
     created_at: Date | string;
     updated_at: Date | string;
 }

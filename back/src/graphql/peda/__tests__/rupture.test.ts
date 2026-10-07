@@ -182,4 +182,80 @@ describe('GraphQL peda ruptures', () => {
         const res = await gqlFetch(auth, `query { ruptures(year: 2026, month: 13) { id } }`);
         expect(res.errors).toBeDefined();
     });
+
+    it('archives the alternant and its SAs on a "quitte la formation" rupture', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const alternant = (await gqlFetch(auth, CREATE, { input: createInput(`${suffix}d`) })).data.createAlternant;
+
+        const seqsBefore = await gqlFetch(
+            auth,
+            `query($alternantId: ID!) { alternantSequences(alternantId: $alternantId) { id archived } }`,
+            { alternantId: alternant.id },
+        );
+        expect(seqsBefore.errors).toBeUndefined();
+        expect(seqsBefore.data.alternantSequences.length).toBeGreaterThan(0);
+        expect(seqsBefore.data.alternantSequences.every((s: { archived: boolean }) => !s.archived)).toBe(true);
+
+        // Rupture « poursuit » : pas d'archive.
+        const poursuit = (
+            await gqlFetch(auth, DECLARE, {
+                input: {
+                    alternantId: alternant.id,
+                    dateRupture: '2026-10-07',
+                    motif: MOTIF_45_JOURS,
+                    poursuitFormation: true,
+                },
+            })
+        ).data.declareRupture;
+        const stillActive = await gqlFetch(auth, `query($id: ID!) { alternant(id: $id) { archived } }`, {
+            id: alternant.id,
+        });
+        expect(stillActive.data.alternant.archived).toBe(false);
+        await gqlFetch(auth, `mutation($id: ID!) { deleteRupture(id: $id) }`, { id: poursuit.id });
+
+        // Rupture « quitte » : alternant + SA archivés, exclus par défaut.
+        const quitte = (
+            await gqlFetch(auth, DECLARE, {
+                input: {
+                    alternantId: alternant.id,
+                    dateRupture: '2026-10-08',
+                    motif: MOTIF_COMMUN_ACCORD,
+                    poursuitFormation: false,
+                },
+            })
+        ).data.declareRupture;
+        expect(quitte.poursuitFormation).toBe(false);
+
+        const archived = await gqlFetch(auth, `query($id: ID!) { alternant(id: $id) { archived archivedAt } }`, {
+            id: alternant.id,
+        });
+        expect(archived.data.alternant.archived).toBe(true);
+        expect(archived.data.alternant.archivedAt).not.toBeNull();
+
+        const seqsAfter = await gqlFetch(
+            auth,
+            `query($alternantId: ID!) { alternantSequences(alternantId: $alternantId) { id archived } }`,
+            { alternantId: alternant.id },
+        );
+        expect(seqsAfter.data.alternantSequences.every((s: { archived: boolean }) => s.archived)).toBe(true);
+
+        const listDefault = await gqlFetch(auth, `{ alternants { id } }`);
+        expect(listDefault.data.alternants.map((a: { id: string }) => a.id)).not.toContain(alternant.id);
+        const listWithArchived = await gqlFetch(auth, `{ alternants(includeArchived: true) { id } }`);
+        expect(listWithArchived.data.alternants.map((a: { id: string }) => a.id)).toContain(alternant.id);
+
+        // Suppression de la rupture « quitte » : l'alternant redevient actif.
+        await gqlFetch(auth, `mutation($id: ID!) { deleteRupture(id: $id) }`, { id: quitte.id });
+        const restored = await gqlFetch(auth, `query($id: ID!) { alternant(id: $id) { archived } }`, {
+            id: alternant.id,
+        });
+        expect(restored.data.alternant.archived).toBe(false);
+        const seqsRestored = await gqlFetch(
+            auth,
+            `query($alternantId: ID!) { alternantSequences(alternantId: $alternantId) { id archived } }`,
+            { alternantId: alternant.id },
+        );
+        expect(seqsRestored.data.alternantSequences.every((s: { archived: boolean }) => !s.archived)).toBe(true);
+    });
 });

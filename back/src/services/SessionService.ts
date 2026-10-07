@@ -98,9 +98,9 @@ export class SessionService {
         if (nextFin) patch.date_fin = nextFin;
 
         const updated = await this.sessions.update(id, patch);
-        // Le nom est dénormalisé sur les alternants : on le resynchronise.
+        // Le nom est dénormalisé sur les alternants : on le resynchronise (archivés inclus).
         if (updated && patch.nom !== undefined) {
-            const members = await this.alternants.findBySessionId(id);
+            const members = await this.alternants.findBySessionId(id, true);
             for (const member of members) {
                 await this.alternants.update(member._id, { session: updated.nom });
             }
@@ -112,8 +112,8 @@ export class SessionService {
     async delete(id: string): Promise<boolean> {
         const existing = await this.sessions.findById(id);
         if (!existing) return false;
-        // Les alternants gardent leur libellé `session` mais sont désassignés.
-        const members = await this.alternants.findBySessionId(id);
+        // Les alternants gardent leur libellé `session` mais sont désassignés (archivés inclus).
+        const members = await this.alternants.findBySessionId(id, true);
         for (const member of members) {
             await this.alternants.update(member._id, { session_id: null });
         }
