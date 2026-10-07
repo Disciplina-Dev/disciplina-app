@@ -12,6 +12,7 @@ import { CommercialSignatureModel } from './schemas/commercialSignature.schema';
 import { CandidateHistoryModel } from './schemas/candidateHistory.schema';
 import { AlternantModel } from './schemas/alternant.schema';
 import { AlternantSequenceModel } from './schemas/alternant-sequence.schema';
+import { RuptureModel } from './schemas/rupture.schema';
 import { SessionModel } from './schemas/session.schema';
 import { AbDriveConfigModel } from './schemas/abDriveConfig.schema';
 import { DriveFolderConfigModel } from './schemas/driveFolderConfig.schema';
@@ -44,6 +45,7 @@ export function getModels() {
         CandidateHistory: modelOn(region, CandidateHistoryModel),
         Alternant: modelOn(region, AlternantModel),
         AlternantSequence: modelOn(region, AlternantSequenceModel),
+        Rupture: modelOn(region, RuptureModel),
         Session: modelOn(region, SessionModel),
         AbDriveConfig: modelOn(region, AbDriveConfigModel),
         DriveFolderConfig: modelOn(region, DriveFolderConfigModel),

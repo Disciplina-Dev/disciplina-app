@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { IconDashboard, IconLogout, IconMail, IconSettings, IconSpreadsheet, IconTraining, IconUser, IconUsers } from '@/components/ui/icons'
+import { IconDashboard, IconLogout, IconMail, IconSettings, IconSpreadsheet, IconTraining, IconUnlink, IconUser, IconUsers } from '@/components/ui/icons'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
@@ -64,6 +64,7 @@ export default function PedaLayout() {
             <NavItem to="/peda" end icon={<IconSpreadsheet width={18} height={18} />} label="Suivi absences" />
             <NavItem to="/peda/alternants" icon={<IconUsers width={18} height={18} />} label="Alternants" />
             <NavItem to="/peda/sessions" icon={<IconTraining width={18} height={18} />} label="Sessions" />
+            <NavItem to="/peda/ruptures" icon={<IconUnlink width={18} height={18} />} label="Ruptures" />
             <NavItem to="/peda/mail" icon={<IconMail width={18} height={18} />} label="Modèles mail" />
           </nav>
 

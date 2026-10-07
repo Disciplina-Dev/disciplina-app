@@ -19,10 +19,12 @@ import {
   IconUser,
 } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
 import Card, { CardHeader } from '@/components/ui/Card'
 import InputField from '@/components/ui/InputField'
 import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
 import AlternantCompanyModal from '@/components/peda/AlternantCompanyModal'
+import RuptureModal from '@/components/peda/RuptureModal'
 import {
   changeAlternantCompany,
   completeSequence,
@@ -40,8 +42,10 @@ import {
   updateSequenceContacts,
   type CompanyForm,
 } from '@/api/alternants'
+import { declareRupture, deleteRupture, fetchAlternantRuptures } from '@/api/ruptures'
 import { fetchSessions } from '@/api/sessions'
 import type { Alternant, AlternantSequence, SequenceContacts } from '@/types/alternant'
+import { formatRuptureDate, poursuiteLabel, type Rupture } from '@/types/rupture'
 import type { Session } from '@/types/session'
 
 function formatDate(iso: string | null): string {
@@ -97,13 +101,16 @@ export default function FicheAlternant() {
   const navigate = useNavigate()
   const [alternant, setAlternant] = useState<Alternant | null>(null)
   const [sequences, setSequences] = useState<AlternantSequence[]>([])
+  const [ruptures, setRuptures] = useState<Rupture[]>([])
   const [linkedNames, setLinkedNames] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [showEdit, setShowEdit] = useState(false)
   const [showCompany, setShowCompany] = useState(false)
+  const [showRupture, setShowRupture] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'delete' | 'removeCompany' | null>(null)
+  const [confirmDeleteRuptureId, setConfirmDeleteRuptureId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
   const [newSaDate, setNewSaDate] = useState('')
@@ -119,8 +126,8 @@ export default function FicheAlternant() {
   useEffect(() => {
     if (!id) return
     let alive = true
-    Promise.all([fetchAlternant(id), fetchSequences(id), fetchAlternants(), fetchSessions()]).then(
-      ([a, seqs, all, sess]) => {
+    Promise.all([fetchAlternant(id), fetchSequences(id), fetchAlternants(), fetchSessions(), fetchAlternantRuptures(id)]).then(
+      ([a, seqs, all, sess, rups]) => {
         if (!alive) return
         if (!a) {
           setError('Alternant introuvable.')
@@ -129,6 +136,7 @@ export default function FicheAlternant() {
         }
         setAlternant(a)
         setSequences(seqs)
+        setRuptures(rups)
         const names: Record<string, string> = {}
         for (const other of all) names[other.id] = other.fullName
         setLinkedNames(names)
@@ -216,6 +224,31 @@ export default function FicheAlternant() {
     if (updated) {
       setAlternant(updated)
       setSequences(await fetchSequences(id))
+    }
+  }
+
+  async function handleDeclareRupture(input: {
+    dateRupture: string
+    entreprise: string | null
+    motif: string
+    detail: string | null
+    poursuitFormation: boolean
+  }) {
+    if (!id) return
+    const created = await declareRupture({ alternantId: id, ...input })
+    setRuptures((prev) => [created, ...prev])
+  }
+
+  async function handleDeleteRupture(ruptureId: string) {
+    setActionLoading(true)
+    try {
+      await deleteRupture(ruptureId)
+      setRuptures((prev) => prev.filter((r) => r.id !== ruptureId))
+      setConfirmDeleteRuptureId(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Suppression impossible')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -530,6 +563,46 @@ export default function FicheAlternant() {
           </Card>
 
           <Card>
+            <CardHeader title={`Ruptures (${ruptures.length})`} description="Ruptures de contrat déclarées pour ce jeune" />
+            {ruptures.length === 0 ? (
+              <p className="text-sm italic text-[var(--ds-text-subtle)]">Aucune rupture déclarée.</p>
+            ) : (
+              <ul className="space-y-2">
+                {ruptures.map((r) => (
+                  <li key={r.id} className="rounded-xl border border-[var(--ds-border)] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-[var(--ds-text)]">Rupture le {formatRuptureDate(r.dateRupture)}</p>
+                      <Badge tone={r.poursuitFormation ? 'success' : 'danger'}>{poursuiteLabel(r.poursuitFormation)}</Badge>
+                    </div>
+                    {r.entreprise && <p className="mt-1 text-[13px] text-[var(--ds-text-muted)]">{r.entreprise}</p>}
+                    <p className="mt-1 text-[12px] italic text-[var(--ds-text-subtle)]">{r.motif}</p>
+                    {r.detail && <p className="mt-1 text-[12px] text-[var(--ds-text-muted)]">{r.detail}</p>}
+                    {confirmDeleteRuptureId === r.id ? (
+                      <div className="mt-2 flex gap-2">
+                        <Button variant="danger" size="sm" onClick={() => handleDeleteRupture(r.id)} isLoading={actionLoading}>
+                          Confirmer
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteRuptureId(null)}>
+                          Annuler
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteRuptureId(r.id)}
+                        title="Supprimer cette rupture"
+                        className="mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-semibold text-[var(--ds-text-subtle)] hover:bg-[var(--ds-danger-bg)] hover:text-[var(--ds-danger)]"
+                      >
+                        <IconTrash width={13} height={13} /> Supprimer
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card>
             <CardHeader title="Gestion" />
             <div className="flex flex-col gap-2">
               <Button variant="secondary" size="sm" leftIcon={<IconEdit width={14} height={14} />} onClick={() => setShowEdit(true)}>
@@ -561,8 +634,7 @@ export default function FicheAlternant() {
                 variant="secondary"
                 size="sm"
                 leftIcon={<IconAlert width={14} height={14} />}
-                disabled
-                title="Disponible avec l’issue feat-peda-rupture (bientôt)."
+                onClick={() => setShowRupture(true)}
               >
                 Déclarer une rupture
               </Button>
@@ -740,6 +812,9 @@ export default function FicheAlternant() {
       )}
       {showCompany && (
         <AlternantCompanyModal initial={alternant.company} onClose={() => setShowCompany(false)} onSubmit={handleChangeCompany} />
+      )}
+      {showRupture && (
+        <RuptureModal alternant={alternant} onClose={() => setShowRupture(false)} onSubmit={handleDeclareRupture} />
       )}
     </div>
   )

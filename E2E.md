@@ -174,7 +174,7 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Chaîne** : `peda/controller.ts` → `PedaService`, `PedaDraftService` (lit Google Sheets, rédige des brouillons de relance d'absence). Scheduler en arrière-plan : `scheduler/pedaDraftScheduler.ts` + `immersionEndScheduler.ts` (`setInterval`, démarrés dans `startServer`).
 - **Résultat attendu** : brouillons générés à partir des absences ; adresses email normalisées correctement.
 - **External** : ⚠️ Google Sheets, Gmail.
-- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`.
+- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`, `graphql/peda/__tests__/rupture.test.ts` (déclaration + rapport mensuel).
 - **Statut** : _à remplir_
 
 ### 3.15 Notifications & Todos
