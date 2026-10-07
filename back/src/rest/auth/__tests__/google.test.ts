@@ -29,10 +29,7 @@ async function insertUser(region: string, email: string): Promise<void> {
 }
 
 async function tokens(region: string, id: number): Promise<{ oauth_token: string | null }[]> {
-    const [rows] = await getPool(region).execute(
-        'SELECT oauth_token FROM users WHERE id = ?',
-        [id],
-    );
+    const [rows] = await getPool(region).execute('SELECT oauth_token FROM users WHERE id = ?', [id]);
     return rows as { oauth_token: string | null }[];
 }
 
@@ -67,6 +64,59 @@ describe('signGoogleState / verifyGoogleState', () => {
     });
 });
 
+describe('GoogleOAuthClient per-tenant credentials', () => {
+    const saved = {
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        redirectUri: env.GOOGLE_REDIRECT_URI,
+        annemasseClientId: env.GOOGLE_ANNEMASSE_CLIENT_ID,
+        annemasseClientSecret: env.GOOGLE_ANNEMASSE_CLIENT_SECRET,
+        annemasseRedirectUri: env.GOOGLE_ANNEMASSE_REDIRECT_URI,
+    };
+
+    afterEach(() => {
+        env.GOOGLE_CLIENT_ID = saved.clientId;
+        env.GOOGLE_CLIENT_SECRET = saved.clientSecret;
+        env.GOOGLE_REDIRECT_URI = saved.redirectUri;
+        env.GOOGLE_ANNEMASSE_CLIENT_ID = saved.annemasseClientId;
+        env.GOOGLE_ANNEMASSE_CLIENT_SECRET = saved.annemasseClientSecret;
+        env.GOOGLE_ANNEMASSE_REDIRECT_URI = saved.annemasseRedirectUri;
+    });
+
+    function clientIdOf(url: string): string | null {
+        // `URL` est shadowé par la constante du fichier → passer par globalThis.
+        return new globalThis.URL(url).searchParams.get('client_id');
+    }
+
+    it('reunion utilise le client GCP partagé', () => {
+        env.GOOGLE_CLIENT_ID = 'reunion-client-id';
+        expect(googleOAuth.credentialsFor('reunion').clientId).toBe('reunion-client-id');
+        expect(clientIdOf(googleOAuth.generateAuthUrl('9:reunion:sig', 'reunion'))).toBe('reunion-client-id');
+    });
+
+    it('annemasse retombe sur le client partagé quand ses vars sont vides', () => {
+        env.GOOGLE_CLIENT_ID = 'reunion-client-id';
+        env.GOOGLE_ANNEMASSE_CLIENT_ID = undefined;
+        env.GOOGLE_ANNEMASSE_CLIENT_SECRET = undefined;
+        expect(googleOAuth.credentialsFor('annemasse').clientId).toBe('reunion-client-id');
+        expect(clientIdOf(googleOAuth.generateAuthUrl('9:annemasse:sig', 'annemasse'))).toBe('reunion-client-id');
+    });
+
+    it('annemasse utilise son propre client GCP quand ses vars sont renseignées', () => {
+        env.GOOGLE_CLIENT_ID = 'reunion-client-id';
+        env.GOOGLE_ANNEMASSE_CLIENT_ID = 'annemasse-client-id';
+        env.GOOGLE_ANNEMASSE_CLIENT_SECRET = 'annemasse-secret';
+        env.GOOGLE_ANNEMASSE_REDIRECT_URI = 'https://app-annemasse.example/auth/google';
+        const creds = googleOAuth.credentialsFor('annemasse');
+        expect(creds.clientId).toBe('annemasse-client-id');
+        expect(creds.clientSecret).toBe('annemasse-secret');
+        expect(creds.redirectUri).toBe('https://app-annemasse.example/auth/google');
+        expect(clientIdOf(googleOAuth.generateAuthUrl('9:annemasse:sig', 'annemasse'))).toBe('annemasse-client-id');
+        // reunion reste sur le client partagé.
+        expect(clientIdOf(googleOAuth.generateAuthUrl('9:reunion:sig', 'reunion'))).toBe('reunion-client-id');
+    });
+});
+
 describe('Google OAuth handleGoogleToken route vers la bonne région', () => {
     beforeEach(async () => {
         await clearUsers(DEFAULT);
@@ -79,7 +129,7 @@ describe('Google OAuth handleGoogleToken route vers la bonne région', () => {
         vi.restoreAllMocks();
     });
 
-    it("écrit les tokens dans la base annemasse quand le state porte la région annemasse", async () => {
+    it('écrit les tokens dans la base annemasse quand le state porte la région annemasse', async () => {
         vi.spyOn(googleOAuth, 'exchangeCode').mockResolvedValue({
             access_token: 'access-token',
             refresh_token: 'refresh-token',
@@ -96,7 +146,7 @@ describe('Google OAuth handleGoogleToken route vers la bonne région', () => {
         expect((await tokens(DEFAULT, 1))[0].oauth_token).toBeNull();
     });
 
-    it("écrit les tokens dans la base par défaut quand le state porte la région reunion", async () => {
+    it('écrit les tokens dans la base par défaut quand le state porte la région reunion', async () => {
         vi.spyOn(googleOAuth, 'exchangeCode').mockResolvedValue({
             access_token: 'access-token',
             refresh_token: 'refresh-token',
