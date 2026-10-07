@@ -21,11 +21,24 @@ export const typeDefs = gql`
         lastName: String!
         fullName: String!
         session: String!
+        sessionId: String
         email: String
         phone: String
         candidateId: String
         company: AlternantCompany
         linkedAlternantIds: [String!]!
+        createdAt: String
+        updatedAt: String
+    }
+
+    type Session {
+        id: ID!
+        nom: String!
+        filiere: String
+        jourCours: String
+        dateDebut: String!
+        dateFin: String!
+        alternantCount: Int!
         createdAt: String
         updatedAt: String
     }
@@ -62,6 +75,7 @@ export const typeDefs = gql`
         firstName: String!
         lastName: String!
         session: String!
+        sessionId: String
         email: String
         phone: String
         candidateId: String
@@ -73,9 +87,26 @@ export const typeDefs = gql`
         firstName: String
         lastName: String
         session: String
+        sessionId: String
         email: String
         phone: String
         candidateId: String
+    }
+
+    input CreateSessionInput {
+        nom: String!
+        filiere: String
+        jourCours: String
+        dateDebut: String!
+        dateFin: String!
+    }
+
+    input UpdateSessionInput {
+        nom: String
+        filiere: String
+        jourCours: String
+        dateDebut: String
+        dateFin: String
     }
 
     input AlternantSequenceContactsInput {
@@ -95,6 +126,9 @@ export const typeDefs = gql`
         alternant(id: ID!): Alternant
         alternantSequences(alternantId: ID!): [AlternantSequence!]!
         alternantByEmail(email: String!): AlternantEmailCheck!
+        sessions(search: String): [Session!]!
+        session(id: ID!): Session
+        sessionAlternants(sessionId: ID!): [Alternant!]!
     }
 
     type Mutation {
@@ -110,5 +144,10 @@ export const typeDefs = gql`
         completeSequence(id: ID!, realiseeLe: String!): AlternantSequence
         markSequence(id: ID!, status: AlternantSequenceStatus!): AlternantSequence
         deleteSequence(id: ID!): Boolean!
+        createSession(input: CreateSessionInput!): Session!
+        updateSession(id: ID!, input: UpdateSessionInput!): Session
+        deleteSession(id: ID!): Boolean!
+        assignAlternantToSession(sessionId: ID!, alternantId: ID!): Session
+        removeAlternantFromSession(sessionId: ID!, alternantId: ID!): Session
     }
 `;

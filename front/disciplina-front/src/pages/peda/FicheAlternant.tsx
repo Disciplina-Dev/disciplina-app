@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   IconAlert,
   IconArrowLeft,
@@ -36,10 +36,13 @@ import {
   markSequence,
   removeAlternantCompany,
   unlinkAlternant,
+  updateAlternant,
   updateSequenceContacts,
   type CompanyForm,
 } from '@/api/alternants'
+import { fetchSessions } from '@/api/sessions'
 import type { Alternant, AlternantSequence, SequenceContacts } from '@/types/alternant'
+import type { Session } from '@/types/session'
 
 function formatDate(iso: string | null): string {
   if (!iso) return '-'
@@ -107,6 +110,8 @@ export default function FicheAlternant() {
   const [saLoading, setSaLoading] = useState(false)
   const [linkPickerOpen, setLinkPickerOpen] = useState(false)
   const [allAlternants, setAllAlternants] = useState<Alternant[]>([])
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [sessionSaving, setSessionSaving] = useState(false)
   const [pendingCompletionId, setPendingCompletionId] = useState<string | null>(null)
   const [completionDate, setCompletionDate] = useState('')
   const [completing, setCompleting] = useState(false)
@@ -114,8 +119,8 @@ export default function FicheAlternant() {
   useEffect(() => {
     if (!id) return
     let alive = true
-    Promise.all([fetchAlternant(id), fetchSequences(id), fetchAlternants()]).then(
-      ([a, seqs, all]) => {
+    Promise.all([fetchAlternant(id), fetchSequences(id), fetchAlternants(), fetchSessions()]).then(
+      ([a, seqs, all, sess]) => {
         if (!alive) return
         if (!a) {
           setError('Alternant introuvable.')
@@ -128,6 +133,7 @@ export default function FicheAlternant() {
         for (const other of all) names[other.id] = other.fullName
         setLinkedNames(names)
         setAllAlternants(all)
+        setSessions(sess)
         setLoading(false)
       },
       (e: unknown) => {
@@ -309,6 +315,21 @@ export default function FicheAlternant() {
     }
   }
 
+  async function handleChangeSession(nextSessionId: string | null) {
+    if (!id || !alternant) return
+    setSessionSaving(true)
+    try {
+      const updated = nextSessionId
+        ? await updateAlternant(id, { sessionId: nextSessionId })
+        : await updateAlternant(id, { sessionId: null })
+      if (updated) setAlternant(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Changement de session impossible')
+    } finally {
+      setSessionSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-[var(--ds-text-subtle)]">
@@ -341,9 +362,18 @@ export default function FicheAlternant() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-[var(--ds-text)]">{alternant.fullName}</h1>
-            <span className="mt-0.5 inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
-              {alternant.session}
-            </span>
+            {alternant.sessionId ? (
+              <Link
+                to={`/peda/sessions/${alternant.sessionId}`}
+                className="mt-0.5 inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20 hover:opacity-80"
+              >
+                {alternant.session}
+              </Link>
+            ) : (
+              <span className="mt-0.5 inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
+                {alternant.session}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -375,6 +405,34 @@ export default function FicheAlternant() {
                 <dd>{alternant.phone || '-'}</dd>
               </div>
             </dl>
+
+            <h4 className="mb-2 mt-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
+              Session
+            </h4>
+            {alternant.sessionId && (
+              <p className="mb-2 text-sm">
+                <Link to={`/peda/sessions/${alternant.sessionId}`} className="font-semibold text-teal-700 hover:underline">
+                  Voir le groupe « {alternant.session} »
+                </Link>
+              </p>
+            )}
+            <select
+              value={alternant.sessionId ?? ''}
+              disabled={sessionSaving}
+              onChange={(e) => handleChangeSession(e.target.value || null)}
+              aria-label="Changer de session"
+              className="w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2 pl-3 pr-3 text-sm text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)] disabled:opacity-60"
+            >
+              <option value="">Hors groupe ({alternant.session})</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nom}{s.filiere ? ` · ${s.filiere}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+              Assigner ce jeune à une session met à jour son libellé automatiquement.
+            </p>
 
             <h4 className="mb-2 mt-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
               <IconCompany width={14} height={14} /> Entreprise

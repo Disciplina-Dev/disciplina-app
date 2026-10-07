@@ -3,7 +3,9 @@ import { IconAlert, IconCheck, IconClose, IconLink, IconSearch, IconUnlink, Icon
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { createAlternant, checkAlternantEmail, fetchAlternants, lookupCandidateByEmail, updateAlternant } from '@/api/alternants'
+import { fetchSessions } from '@/api/sessions'
 import type { Alternant } from '@/types/alternant'
+import type { Session } from '@/types/session'
 
 interface AlternantCreateModalProps {
   /** Mode édition (bouton Modifier de la fiche) : seule l'identité est éditable. */
@@ -24,6 +26,8 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
   const [firstName, setFirstName] = useState(initial?.firstName ?? '')
   const [lastName, setLastName] = useState(initial?.lastName ?? '')
   const [session, setSession] = useState(initial?.session ?? '')
+  const [sessionId, setSessionId] = useState<string | null>(initial?.sessionId ?? null)
+  const [sessions, setSessions] = useState<Session[]>([])
   const [email, setEmail] = useState(initial?.email ?? '')
   const [phone, setPhone] = useState(initial?.phone ?? '')
   const [candidateId, setCandidateId] = useState<string | null>(initial?.candidateId ?? null)
@@ -75,6 +79,21 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
     fetchAlternants().then(setAllAlternants).catch(() => {})
   }, [isEdit])
 
+  // Sessions existantes pour rattacher le jeune à un groupe (page Sessions).
+  useEffect(() => {
+    fetchSessions().then((rows) => {
+      setSessions(rows)
+      // En édition d'un libellé libre qui matche une session, présélectionne-la.
+      if (isEdit && !initial?.sessionId && initial?.session) {
+        const match = rows.find((s) => s.nom === initial.session)
+        if (match) {
+          setSessionId(match.id)
+          setSession(match.nom)
+        }
+      }
+    }).catch(() => {})
+  }, [isEdit, initial?.sessionId, initial?.session])
+
   const filteredAlternants = useMemo(() => {
     const q = linkSearch.trim().toLowerCase()
     return allAlternants
@@ -119,7 +138,13 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
       setError('Le prénom et le nom sont obligatoires.')
       return
     }
-    if (!session.trim()) {
+    const selectedSession = sessionId ? sessions.find((s) => s.id === sessionId) ?? null : null
+    if (sessionId && !selectedSession) {
+      setError('La session sélectionnée est introuvable.')
+      return
+    }
+    const sessionLabel = selectedSession ? selectedSession.nom : session.trim()
+    if (!sessionLabel) {
       setError('La session est obligatoire.')
       return
     }
@@ -142,7 +167,11 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
         const updated = await updateAlternant(initial.id, {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          session: session.trim(),
+          // Session liée prioritaire (le libellé suit le nom) ; sinon libellé
+          // libre + désassignation explicite pour sortir d'un groupe.
+          ...(selectedSession
+            ? { sessionId: selectedSession.id }
+            : { sessionId: null, session: sessionLabel }),
           email: email.trim() || null,
           phone: phone.trim() || null,
         })
@@ -154,7 +183,8 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
       const created = await createAlternant({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        session: session.trim(),
+        session: sessionLabel,
+        sessionId: selectedSession ? selectedSession.id : null,
         email: email.trim() || null,
         phone: phone.trim() || null,
         candidateId,
@@ -248,15 +278,48 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
                 placeholder="Ex : Martin"
               />
             </div>
-            <InputField
-              id="alt-session"
-              label="Session"
-              required
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-              placeholder="Ex : SIO-2026 (groupes Sessions à venir)"
-              hint="Champ libre pour l’instant — remplacé par les groupes Sessions."
-            />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="alt-session" className="text-[13px] font-semibold text-[var(--ds-text-muted)]">
+                Session
+                <span className="ml-1 text-[var(--ds-danger)]" aria-hidden="true">
+                  *
+                </span>
+              </label>
+              <select
+                id="alt-session"
+                required
+                value={sessionId ?? ''}
+                onChange={(e) => {
+                  const next = e.target.value || null
+                  setSessionId(next)
+                  const found = sessions.find((s) => s.id === next)
+                  if (found) setSession(found.nom)
+                }}
+                className="w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-4 text-sm text-[var(--ds-text)] outline-none transition-[border-color,box-shadow] duration-150 focus:border-[var(--ds-accent)] focus:ring-2 focus:ring-[var(--ds-accent)]/15"
+              >
+                <option value="">Libellé libre (hors groupe)…</option>
+                {sessions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nom}{s.filiere ? ` · ${s.filiere}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--ds-text-subtle)]">
+                {sessions.length === 0
+                  ? 'Aucune session pour l’instant — saisissez un libellé ou créez une session depuis la page Sessions.'
+                  : 'Choisissez un groupe Sessions, ou gardez un libellé libre.'}
+              </p>
+            </div>
+            {!sessionId && (
+              <InputField
+                id="alt-session-free"
+                label="Libellé de session"
+                required
+                value={session}
+                onChange={(e) => setSession(e.target.value)}
+                placeholder="Ex : BTS MCO 2025 Groupe A"
+              />
+            )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <InputField

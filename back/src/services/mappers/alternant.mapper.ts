@@ -7,6 +7,7 @@ export function alternantToGql(a: Alternant): object {
         lastName: a.last_name,
         fullName: `${a.first_name} ${a.last_name}`.trim(),
         session: a.session,
+        sessionId: a.session_id ?? null,
         email: a.email ?? null,
         phone: a.phone ?? null,
         candidateId: a.candidate_id ?? null,

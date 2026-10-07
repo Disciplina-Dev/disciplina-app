@@ -11,8 +11,10 @@ export interface Alternant {
   firstName: string
   lastName: string
   fullName: string
-  /** Session du jeune (texte libre — les groupes Sessions arriveront plus tard). */
+  /** Libellé de la session du jeune (suit le nom de la Session liée). */
   session: string
+  /** Session liée (page Sessions) — `null` = libellé libre, hors groupe. */
+  sessionId: string | null
   email: string | null
   phone: string | null
   candidateId: string | null
@@ -49,6 +51,7 @@ export interface CreateAlternantInput {
   firstName: string
   lastName: string
   session: string
+  sessionId?: string | null
   email?: string | null
   phone?: string | null
   candidateId?: string | null
