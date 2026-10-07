@@ -121,6 +121,40 @@ export const typeDefs = gql`
         fullName: String
     }
 
+    type Rupture {
+        id: ID!
+        alternantId: ID!
+        firstName: String
+        lastName: String
+        fullName: String!
+        session: String!
+        sessionId: String
+        dateRupture: String!
+        entreprise: String
+        motif: String!
+        detail: String
+        poursuitFormation: Boolean!
+        createdAt: String
+        updatedAt: String
+    }
+
+    input DeclareRuptureInput {
+        alternantId: ID!
+        dateRupture: String!
+        entreprise: String
+        motif: String!
+        detail: String
+        poursuitFormation: Boolean!
+    }
+
+    input UpdateRuptureInput {
+        dateRupture: String
+        entreprise: String
+        motif: String
+        detail: String
+        poursuitFormation: Boolean
+    }
+
     type Query {
         alternants(search: String): [Alternant!]!
         alternant(id: ID!): Alternant
@@ -129,6 +163,8 @@ export const typeDefs = gql`
         sessions(search: String): [Session!]!
         session(id: ID!): Session
         sessionAlternants(sessionId: ID!): [Alternant!]!
+        ruptures(year: Int!, month: Int!): [Rupture!]!
+        alternantRuptures(alternantId: ID!): [Rupture!]!
     }
 
     type Mutation {
@@ -149,5 +185,8 @@ export const typeDefs = gql`
         deleteSession(id: ID!): Boolean!
         assignAlternantToSession(sessionId: ID!, alternantId: ID!): Session
         removeAlternantFromSession(sessionId: ID!, alternantId: ID!): Session
+        declareRupture(input: DeclareRuptureInput!): Rupture!
+        updateRupture(id: ID!, input: UpdateRuptureInput!): Rupture
+        deleteRupture(id: ID!): Boolean!
     }
 `;

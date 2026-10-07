@@ -1,5 +1,6 @@
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { AlternantSequenceRepository } from '../repositories/mongo/AlternantSequenceRepository';
+import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
 import { SessionRepository } from '../repositories/mongo/SessionRepository';
 import {
     Alternant,
@@ -112,6 +113,7 @@ function requireValidDate(iso: string | undefined, field: string): Date {
 export class AlternantService {
     private alternants = new AlternantRepository();
     private sequences = new AlternantSequenceRepository();
+    private ruptures = new RuptureRepository();
     private sessions = new SessionRepository();
 
     async findAll(search?: string): Promise<Alternant[]> {
@@ -230,6 +232,7 @@ export class AlternantService {
         const existing = await this.alternants.findById(id);
         if (!existing) return false;
         await this.sequences.deleteByAlternantId(id);
+        await this.ruptures.deleteByAlternantId(id);
         // Retire le jeune des listes de suivi commun des autres.
         const linked = await this.alternants.findByIds(existing.linked_alternant_ids);
         for (const other of linked) {
