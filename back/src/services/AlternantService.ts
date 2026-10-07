@@ -1,5 +1,6 @@
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { AlternantSequenceRepository } from '../repositories/mongo/AlternantSequenceRepository';
+import { SessionRepository } from '../repositories/mongo/SessionRepository';
 import {
     Alternant,
     AlternantCompany,
@@ -51,6 +52,8 @@ export interface CreateAlternantInput {
     firstName: string;
     lastName: string;
     session: string;
+    /** Assigne le jeune à une Session existante (le libellé suit le nom). */
+    sessionId?: string | null;
     email?: string | null;
     phone?: string | null;
     candidateId?: string | null;
@@ -68,6 +71,8 @@ export interface UpdateAlternantInput {
     firstName?: string;
     lastName?: string;
     session?: string;
+    /** `null` = désassigner (garde le libellé), chaîne vide ignorée. */
+    sessionId?: string | null;
     email?: string | null;
     phone?: string | null;
     candidateId?: string | null;
@@ -107,6 +112,7 @@ function requireValidDate(iso: string | undefined, field: string): Date {
 export class AlternantService {
     private alternants = new AlternantRepository();
     private sequences = new AlternantSequenceRepository();
+    private sessions = new SessionRepository();
 
     async findAll(search?: string): Promise<Alternant[]> {
         return this.alternants.findAll(search);
@@ -128,10 +134,23 @@ export class AlternantService {
         return this.sequences.findByAlternantId(alternantId);
     }
 
+    async findBySessionId(sessionId: string): Promise<Alternant[]> {
+        return this.alternants.findBySessionId(sessionId);
+    }
+
     async create(input: CreateAlternantInput): Promise<Alternant> {
         const firstName = requireNonBlank(input.firstName, 'Le prénom');
         const lastName = requireNonBlank(input.lastName, 'Le nom');
-        const session = requireNonBlank(input.session, 'La session');
+        // Si une Session est choisie, le libellé suit son nom (prioritaire).
+        let sessionId: string | null = null;
+        let session = input.session?.trim() ?? '';
+        if (input.sessionId?.trim()) {
+            const linked = await this.sessions.findById(input.sessionId.trim());
+            if (!linked) throw new Error('Session introuvable');
+            sessionId = linked._id;
+            session = linked.nom;
+        }
+        session = requireNonBlank(session, 'La session');
         const startDate = requireValidDate(input.company?.startDate, "La date d'entrée en entreprise");
         const endDate = input.company?.endDate ? requireValidDate(input.company.endDate, 'La date de fin') : null;
         if (endDate && endDate.getTime() < startDate.getTime()) {
@@ -154,6 +173,7 @@ export class AlternantService {
             first_name: firstName,
             last_name: lastName,
             session,
+            session_id: sessionId,
             email,
             phone: input.phone?.trim() || null,
             candidate_id: input.candidateId ?? null,
@@ -180,7 +200,19 @@ export class AlternantService {
         const patch: Record<string, unknown> = {};
         if (input.firstName !== undefined) patch.first_name = requireNonBlank(input.firstName, 'Le prénom');
         if (input.lastName !== undefined) patch.last_name = requireNonBlank(input.lastName, 'Le nom');
-        if (input.session !== undefined) patch.session = requireNonBlank(input.session, 'La session');
+        if (input.sessionId !== undefined) {
+            if (input.sessionId === null) {
+                patch.session_id = null;
+            } else if (input.sessionId.trim()) {
+                const linked = await this.sessions.findById(input.sessionId.trim());
+                if (!linked) throw new Error('Session introuvable');
+                patch.session_id = linked._id;
+                patch.session = linked.nom;
+            }
+        }
+        if (input.session !== undefined && patch.session === undefined) {
+            patch.session = requireNonBlank(input.session, 'La session');
+        }
         if (input.email !== undefined) {
             const nextEmail = input.email?.trim() || null;
             if (nextEmail) {

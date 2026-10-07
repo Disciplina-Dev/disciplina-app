@@ -16,8 +16,10 @@ export interface Alternant {
     _id: string;
     first_name: string;
     last_name: string;
-    /** Session du jeune (texte libre — les groupes Sessions arriveront plus tard). */
+    /** Libellé de la session du jeune (dénormalisé depuis la Session si liée). */
     session: string;
+    /** Référence vers la Session (page Sessions) — `null` = hors session / libellé libre. */
+    session_id?: string | null;
     email?: string | null;
     phone?: string | null;
     /** Lien optionnel vers la fiche candidat d'origine (auto-remplissage). */

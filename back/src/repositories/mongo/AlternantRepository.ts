@@ -42,6 +42,10 @@ export class AlternantRepository {
             .lean();
     }
 
+    async findBySessionId(sessionId: string): Promise<Alternant[]> {
+        return getModels().Alternant.find({ session_id: sessionId }).sort({ last_name: 1, first_name: 1 }).lean();
+    }
+
     /** Recherche par email (exact, insensible à la casse + espaces) pour la détection de doublons. */
     async findByEmail(email: string): Promise<Alternant | null> {
         const normalized = email.trim();

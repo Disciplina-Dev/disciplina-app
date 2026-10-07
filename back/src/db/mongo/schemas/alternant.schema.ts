@@ -18,6 +18,7 @@ const alternantSchema = new Schema<Alternant & Document>(
         first_name: { type: String, required: true },
         last_name: { type: String, required: true },
         session: { type: String, required: true },
+        session_id: { type: String, default: null, index: true },
         email: { type: String, default: null },
         phone: { type: String, default: null },
         candidate_id: { type: String, default: null },

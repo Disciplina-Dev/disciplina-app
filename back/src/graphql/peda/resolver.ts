@@ -8,8 +8,18 @@ import {
 } from '../../services/AlternantService';
 import { AlternantSequenceContacts, AlternantSequenceStatus } from '../../types/alternant.types';
 import { alternantToGql, sequenceToGql } from '../../services/mappers/alternant.mapper';
+import { sessionToGql } from '../../services/mappers/session.mapper';
+import { CreateSessionInput, SessionService, UpdateSessionInput } from '../../services/SessionService';
 
 const alternantService = new AlternantService();
+const sessionService = new SessionService();
+
+async function sessionWithCount(id: string): Promise<object | null> {
+    const session = await sessionService.findById(id);
+    if (!session) return null;
+    const count = await sessionService.countAlternants(id);
+    return sessionToGql(session, count);
+}
 
 export const resolvers = {
     Query: {
@@ -35,6 +45,22 @@ export const resolvers = {
             return existing
                 ? { exists: true, id: existing._id, fullName: `${existing.first_name} ${existing.last_name}`.trim() }
                 : { exists: false, id: null, fullName: null };
+        },
+        sessions: async (_: unknown, { search }: { search?: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const sessions = await sessionService.findAll(search);
+            return Promise.all(sessions.map(async (s) => sessionToGql(s, await sessionService.countAlternants(s._id))));
+        },
+        session: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            return sessionWithCount(id);
+        },
+        sessionAlternants: async (_: unknown, { sessionId }: { sessionId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const session = await sessionService.findById(sessionId);
+            if (!session) throw new Error('Session introuvable');
+            const members = await alternantService.findBySessionId(sessionId);
+            return members.map(alternantToGql);
         },
     },
     Mutation: {
@@ -115,6 +141,41 @@ export const resolvers = {
         deleteSequence: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             return alternantService.deleteSequence(id);
+        },
+        createSession: async (_: unknown, { input }: { input: CreateSessionInput }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const created = await sessionService.create(input);
+            return sessionToGql(created, 0);
+        },
+        updateSession: async (_: unknown, { id, input }: { id: string; input: UpdateSessionInput }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const updated = await sessionService.update(id, input);
+            if (!updated) return null;
+            return sessionToGql(updated, await sessionService.countAlternants(id));
+        },
+        deleteSession: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            return sessionService.delete(id);
+        },
+        assignAlternantToSession: async (
+            _: unknown,
+            { sessionId, alternantId }: { sessionId: string; alternantId: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const updated = await sessionService.assignAlternant(sessionId, alternantId);
+            if (!updated) return null;
+            return sessionToGql(updated, await sessionService.countAlternants(sessionId));
+        },
+        removeAlternantFromSession: async (
+            _: unknown,
+            { sessionId, alternantId }: { sessionId: string; alternantId: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const updated = await sessionService.unassignAlternant(sessionId, alternantId);
+            if (!updated) return null;
+            return sessionToGql(updated, await sessionService.countAlternants(sessionId));
         },
     },
 };

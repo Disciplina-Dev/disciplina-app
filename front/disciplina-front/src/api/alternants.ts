@@ -10,6 +10,7 @@ const ALTERNANT_FIELDS = gql`
     lastName
     fullName
     session
+    sessionId
     email
     phone
     candidateId
@@ -213,7 +214,14 @@ export async function createAlternant(input: CreateAlternantInput): Promise<Alte
 
 export async function updateAlternant(
   id: string,
-  input: { firstName?: string; lastName?: string; session?: string; email?: string | null; phone?: string | null },
+  input: {
+    firstName?: string
+    lastName?: string
+    session?: string
+    sessionId?: string | null
+    email?: string | null
+    phone?: string | null
+  },
 ): Promise<Alternant | null> {
   const res = await pedaGraphqlClient.mutation(UPDATE_ALTERNANT, { id, input })
   return unwrap<{ updateAlternant: Alternant | null }>(res).updateAlternant
