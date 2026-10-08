@@ -10,7 +10,7 @@ import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
 import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate, useAddCandidateHistoryEntry } from '@/graphql/hooks'
 import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_CANDIDATE_SENT_COMPANIES, GET_COMPANY_OPTIONS, MATCH_OFFER, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
 import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
@@ -18,6 +18,7 @@ import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
 import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
+import type { ScheduleSlot } from '@/types/needsAnalysis'
 import { computeAge, isSenior } from '@/utils/age'
 import { gateThresholdForTps } from '@/utils/testGateThreshold'
 import Button from '@/components/ui/Button'
@@ -216,6 +217,65 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   )
 }
 
+const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+
+// Éditeur compact des horaires d'immersion (jours activables + créneau début/fin).
+// Même forme que ScheduleSlot (day/startHour/endHour) : seuls les jours activés sont persistés.
+function ImmersionScheduleEditor({ value, onChange }: {
+  value: ScheduleSlot[]
+  onChange: (slots: ScheduleSlot[]) => void
+}) {
+  const slotFor = (day: string) => value.find((s) => s.day === day)
+  const setHour = (day: string, field: 'startHour' | 'endHour', hour: string) => {
+    onChange(value.map((s) => (s.day === day ? { ...s, [field]: hour } : s)))
+  }
+  const setEnabled = (day: string, on: boolean) => {
+    const others = value.filter((s) => s.day !== day)
+    onChange(on ? [...others, { day, startHour: '08:00', endHour: '17:00' }] : others)
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      {IMMERSION_DAYS.map((day) => {
+        const slot = slotFor(day)
+        const enabled = !!slot
+        return (
+          <div key={day} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEnabled(day, !enabled)}
+              className={[
+                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors',
+                enabled ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]',
+              ].join(' ')}
+              aria-label={`${enabled ? 'Désactiver' : 'Activer'} ${day}`}
+            >
+              {enabled && <span className="text-[11px] font-bold text-white">✓</span>}
+            </button>
+            <span className={enabled ? 'w-20 text-sm font-medium text-[var(--ds-text)]' : 'w-20 text-sm text-[var(--ds-text-subtle)]'}>
+              {day}
+            </span>
+            <input
+              type="time"
+              disabled={!enabled}
+              value={slot?.startHour ?? ''}
+              onChange={(e) => setHour(day, 'startHour', e.target.value)}
+              className="w-28 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm text-[var(--ds-text)] outline-none focus:border-blue disabled:cursor-not-allowed disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
+            />
+            <span className="text-xs text-[var(--ds-text-subtle)]">→</span>
+            <input
+              type="time"
+              disabled={!enabled}
+              value={slot?.endHour ?? ''}
+              onChange={(e) => setHour(day, 'endHour', e.target.value)}
+              className="w-28 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm text-[var(--ds-text)] outline-none focus:border-blue disabled:cursor-not-allowed disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FicheCandidat() {
@@ -273,6 +333,8 @@ export default function FicheCandidat() {
   const [immersionStart, setImmersionStart] = useState('')
   const [immersionEnd, setImmersionEnd] = useState('')
   const [immersionCompanyId, setImmersionCompanyId] = useState('')
+  const [immersionConventionNumber, setImmersionConventionNumber] = useState('')
+  const [immersionSchedule, setImmersionSchedule] = useState<ScheduleSlot[]>([])
   const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([])
   const [companyQuery, setCompanyQuery] = useState('')
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
@@ -553,20 +615,58 @@ export default function FicheCandidat() {
 
   const handleStatusChange = async (newStatus: CandidateStatus) => {
     if (!formData) return
-    // Passage en immersion : demander les dates de début/fin via un modal avant d'enregistrer.
+    // Passage en immersion : demander entreprise, convention, horaires et dates via un modal.
     if (newStatus === CandidateStatus.IMMERSING) {
       setImmersionStart(formData.immersion_start_date?.slice(0, 10) ?? '')
       setImmersionEnd(formData.immersion_end_date?.slice(0, 10) ?? '')
       setImmersionCompanyId(formData.immersion_company_id != null ? String(formData.immersion_company_id) : '')
-      setCompanyQuery(formData.immersion_company_name ?? '')
+      setImmersionConventionNumber(formData.immersion_convention_number ?? '')
+      setImmersionSchedule(formData.immersion_schedule ?? [])
+      const initialCompanyName = formData.immersion_company_name ?? ''
+      setCompanyQuery(initialCompanyName)
       setCompanyListOpen(false)
       // Charge la liste des entreprises (MySQL) une seule fois pour le sélecteur.
-      if (companyOptions.length === 0) {
-        graphqlClient.query(GET_COMPANY_OPTIONS, {}).toPromise().then((res) => {
-          if (res.data?.companyOptions) setCompanyOptions(res.data.companyOptions as { id: number; name: string }[])
-        })
+      let options = companyOptions
+      if (options.length === 0) {
+        try {
+          const res = await graphqlClient.query(GET_COMPANY_OPTIONS, {}).toPromise()
+          if (res.data?.companyOptions) {
+            options = res.data.companyOptions as { id: number; name: string }[]
+            setCompanyOptions(options)
+          }
+        } catch { /* best-effort */ }
       }
       setImmersionModalOpen(true)
+      // Auto-remplissage de l'entreprise (+ horaires) depuis le matching si vide :
+      // 1ère entreprise où le candidat a été envoyé, avec les horaires de l'offre.
+      if (!initialCompanyName && id) {
+        try {
+          const sentRes = await offerGraphqlClient.query(GET_CANDIDATE_SENT_COMPANIES, { candidateId: id }).toPromise()
+          const sent = sentRes.data?.candidateSentCompanies as { offerId: string; companyName: string | null }[] | undefined
+          const first = sent?.[0]
+          let matchedByName = false
+          if (first?.companyName) {
+            setCompanyQuery(first.companyName)
+            const matchByName = options.find(c => c.name?.toLowerCase() === first.companyName!.toLowerCase())
+            if (matchByName) {
+              setImmersionCompanyId(String(matchByName.id))
+              matchedByName = true
+            }
+          }
+          if (first?.offerId && (formData.immersion_schedule ?? []).length === 0) {
+            const offerRes = await offerGraphqlClient.query(MATCH_OFFER, { id: first.offerId }).toPromise()
+            const offer = offerRes.data?.matchOffer
+            if (offer) {
+              if (!matchedByName && offer.companyInfos?.id) {
+                setImmersionCompanyId(String(offer.companyInfos.id))
+                if (offer.companyInfos?.name) setCompanyQuery(offer.companyInfos.name)
+              }
+              const schedule = (offer.schedule as ScheduleSlot[] | undefined)?.filter(s => s?.day) ?? []
+              if (schedule.length > 0) setImmersionSchedule(schedule)
+            }
+          }
+        } catch { /* best-effort : l'utilisateur renseigne manuellement */ }
+      }
       return
     }
     // Passage en indisponible : demander une date de disponibilité avant d'enregistrer.
@@ -599,7 +699,9 @@ export default function FicheCandidat() {
   const confirmImmersion = async () => {
     if (!formData) return
     const companyIdNum = immersionCompanyId ? Number(immersionCompanyId) : undefined
-    const companyName = companyOptions.find(c => c.id === companyIdNum)?.name
+    // Le nom peut venir du sélecteur (options) ou d'un auto-remplissage libre (matching) :
+    // on retombe sur le texte saisi pour ne jamais perdre l'entreprise affichée.
+    const companyName = companyOptions.find(c => c.id === companyIdNum)?.name ?? (companyQuery.trim() || undefined)
     await persistStatus({
       ...formData,
       status: CandidateStatus.IMMERSING,
@@ -607,6 +709,8 @@ export default function FicheCandidat() {
       immersion_end_date: immersionEnd || undefined,
       immersion_company_id: companyIdNum,
       immersion_company_name: companyName,
+      immersion_convention_number: immersionConventionNumber.trim() || undefined,
+      immersion_schedule: immersionSchedule.length > 0 ? immersionSchedule : undefined,
     })
     setImmersionModalOpen(false)
   }
@@ -815,6 +919,7 @@ export default function FicheCandidat() {
                   ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_company_name || formData.immersion_start_date || formData.immersion_end_date) ? (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       Immersion{formData.immersion_company_name ? ` chez ${formData.immersion_company_name}` : ''} : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
+                      {formData.immersion_convention_number ? ` · Conv. ${formData.immersion_convention_number}` : ''}
                     </span>
                   ) : formData.status === CandidateStatus.CONTRACT && (formData.contract_company_name || formData.contract_start_date) && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
@@ -1963,9 +2068,9 @@ export default function FicheCandidat() {
 
       {immersionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModalOpen(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-[var(--ds-text)]">Passage en immersion</h3>
-            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Renseigne l'entreprise et les dates de début et de fin de l'immersion.</p>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Renseigne l'entreprise, le numéro de convention, les horaires et les dates de l'immersion.</p>
             <div className="mt-4 space-y-3">
               <div className="relative">
                 <label className={labelCls} htmlFor="imm-company">Entreprise</label>
@@ -2000,6 +2105,23 @@ export default function FicheCandidat() {
                     </ul>
                   )
                 })()}
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="imm-convention">Numéro de convention</label>
+                <input
+                  id="imm-convention"
+                  type="text"
+                  className={inputCls}
+                  placeholder="N° de convention…"
+                  value={immersionConventionNumber}
+                  onChange={e => setImmersionConventionNumber(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={labelCls}>Horaires</span>
+                <div className="mt-1">
+                  <ImmersionScheduleEditor value={immersionSchedule} onChange={setImmersionSchedule} />
+                </div>
               </div>
               <div>
                 <label className={labelCls} htmlFor="imm-start">Date de début</label>

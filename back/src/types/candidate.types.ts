@@ -244,6 +244,12 @@ export interface CandidateRelanceEntry {
     answer?: string; // 'oui' | 'non' (relance disponibilité uniquement)
 }
 
+export interface ImmersionScheduleSlot {
+    day?: string | null;
+    start_hour?: string | null;
+    end_hour?: string | null;
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -263,6 +269,8 @@ export interface Candidate {
     immersion_end_date?: Date;
     immersion_company_id?: number; // entreprise d'immersion (réf MySQL companies)
     immersion_company_name?: string; // snapshot du nom au moment du choix
+    immersion_convention_number?: string; // numéro de convention d'immersion (saisie libre)
+    immersion_schedule?: ImmersionScheduleSlot[]; // horaires d'immersion (créneaux par jour)
     immersion_end_notified_at?: Date; // date d'émission de la notif « immersion terminée » (dédup)
     contract_offer_id?: string; // offre (Mongo offers) liée au contrat signé
     contract_company_id?: number; // entreprise du contrat (réf MySQL companies)
