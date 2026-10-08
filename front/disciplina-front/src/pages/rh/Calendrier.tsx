@@ -18,7 +18,7 @@ import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal
 import {
   fetchCalendarEvents, fetchCalendarUsers, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   setEventAttendance,
-  CalendarNotConnectedError, EVENT_COLORS, DEFAULT_EVENT_HEX, eventHex, ownerColor,
+  CalendarNotConnectedError, calendarHex,
   type CalendarEvent, type CalendarEventInput, type CalendarUser, type Attendance,
 } from '@/api/calendar'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -27,13 +27,10 @@ type View = 'month' | 'week'
 /** Event enrichi de son propriétaire (pour vue multi-agendas). */
 type OwnedEvent = CalendarEvent & { ownerId: number }
 
-/** Couleur des cases selon la présence : vert = venu, rouge = pas venu, orange = reporté, gris = décliné (sinon couleur normale). */
-const ATTENDANCE_HEX: Record<Attendance, string> = { arrived: '#1A7A4A', noshow: '#C0152A', postponed: '#B45309', declined: '#6B7280' }
-
-/** Couleur d'affichage : présence (vert/rouge/orange/gris) prioritaire, sinon colorId (self) ou couleur du propriétaire. */
-function displayHex(e: OwnedEvent, selfId: number): string {
-  if (e.attendance) return ATTENDANCE_HEX[e.attendance]
-  return e.ownerId === selfId ? eventHex(e.colorId) : ownerColor(e.ownerId)
+/** Couleur des cases déterminée uniquement par le statut : rouge = pas venu, vert = venu,
+ * violet = reporté, noir = décliné, bleu = défaut. */
+function displayHex(e: OwnedEvent): string {
+  return calendarHex(e.attendance)
 }
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -528,7 +525,7 @@ export default function Calendrier() {
             )}
           </div>
           <div className="flex min-h-0 flex-1 gap-4">
-          <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} onToggleGroup={toggleGroup} />
+          <AgendasPanel users={users} visible={visible} onToggle={toggleUser} onToggleGroup={toggleGroup} />
           <div className="relative flex-1 overflow-hidden rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)]">
             {loading && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--ds-surface)] backdrop-blur-[1px]">
@@ -536,8 +533,8 @@ export default function Calendrier() {
               </div>
             )}
             {view === 'month'
-              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} selfId={selfId} highlightedIds={matchedIds} />
-              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} selfId={selfId} highlightedIds={matchedIds} />}
+              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} highlightedIds={matchedIds} />
+              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} highlightedIds={matchedIds} />}
           </div>
           </div>
         </div>
@@ -900,8 +897,8 @@ function Field({ label, className, children }: { label: string; className?: stri
   )
 }
 
-function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId, highlightedIds }: {
-  cells: Date[]; cursorMonth: number; today: Date; selfId: number
+function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, highlightedIds }: {
+  cells: Date[]; cursorMonth: number; today: Date
   eventsByDay: Map<string, OwnedEvent[]>; onEvent: (e: OwnedEvent) => void; highlightedIds?: Set<string>
 }) {
   return (
@@ -923,7 +920,7 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId, hi
               </span>
               <div className="flex flex-col gap-1 overflow-hidden">
                 {dayEvents.slice(0, 3).map((e) => {
-                  const hex = displayHex(e, selfId)
+                  const hex = displayHex(e)
                   const isHighlighted = highlightedIds?.has(e.id) ?? false
                   return (
                     <button key={e.id} onClick={() => onEvent(e)} title={e.summary}
@@ -945,8 +942,8 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId, hi
   )
 }
 
-function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlightedIds }: {
-  days: Date[]; today: Date; eventsByDay: Map<string, OwnedEvent[]>; selfId: number
+function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds }: {
+  days: Date[]; today: Date; eventsByDay: Map<string, OwnedEvent[]>
   onEvent: (e: OwnedEvent) => void; onSlot: (start: Date) => void; highlightedIds?: Set<string>
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -995,7 +992,7 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlight
                 {positioned.map(({ event, col, cols }) => {
                   const top = (minutesSinceMidnight(event.start) / 60) * HOUR_PX
                   const height = Math.max(18, ((minutesSinceMidnight(event.end) - minutesSinceMidnight(event.start)) / 60) * HOUR_PX - 2)
-                  const hex = displayHex(event, selfId)
+                  const hex = displayHex(event)
                   const width = `calc(${100 / cols}% - 4px)`
                   const left = `calc(${(100 / cols) * col}% + 2px)`
                   const isHighlighted = highlightedIds?.has(event.id) ?? false
@@ -1017,10 +1014,10 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId, highlight
   )
 }
 
-function AgendaRow({ user, selfId, visible, onToggle }: {
-  user: CalendarUser; selfId: number; visible: Set<number>; onToggle: (id: number) => void
+function AgendaRow({ user, visible, onToggle }: {
+  user: CalendarUser; visible: Set<number>; onToggle: (id: number) => void
 }) {
-  const hex = user.id === selfId ? DEFAULT_EVENT_HEX : ownerColor(user.id)
+  const hex = calendarHex(undefined)
   const checked = visible.has(user.id)
   return (
     <button
@@ -1066,8 +1063,8 @@ function GroupCheckbox({ connectedIds, visible, onToggleGroup }: {
   )
 }
 
-function AgendaGroup({ label, users, selfId, visible, onToggle, onToggleGroup, defaultCollapsed }: {
-  label: string; users: CalendarUser[]; selfId: number; visible: Set<number>
+function AgendaGroup({ label, users, visible, onToggle, onToggleGroup, defaultCollapsed }: {
+  label: string; users: CalendarUser[]; visible: Set<number>
   onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void; defaultCollapsed: boolean
 }) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
@@ -1088,15 +1085,15 @@ function AgendaGroup({ label, users, selfId, visible, onToggle, onToggleGroup, d
       </div>
       {!isCollapsed && (
         <div className="flex flex-col gap-0.5">
-          {ordered.map((u) => <AgendaRow key={u.id} user={u} selfId={selfId} visible={visible} onToggle={onToggle} />)}
+          {ordered.map((u) => <AgendaRow key={u.id} user={u} visible={visible} onToggle={onToggle} />)}
         </div>
       )}
     </div>
   )
 }
 
-function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
-  users: CalendarUser[]; visible: Set<number>; selfId: number; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
+function AgendasPanel({ users, visible, onToggle, onToggleGroup }: {
+  users: CalendarUser[]; visible: Set<number>; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
 }) {
   const region = useRegionStore((s) => s.region)
   const sectors = userSecteursForRegion(region)
@@ -1108,7 +1105,6 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
           key={sector}
           label={sector}
           users={users.filter((u) => u.sectors.some((s) => normalizeUserSecteurForRegion(s, region) === sector))}
-          selfId={selfId}
           visible={visible}
           onToggle={onToggle}
           onToggleGroup={onToggleGroup}
@@ -1118,7 +1114,6 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
       <AgendaGroup
         label="Sans secteur"
         users={withoutSector}
-        selfId={selfId}
         visible={visible}
         onToggle={onToggle}
         onToggleGroup={onToggleGroup}
@@ -1159,7 +1154,7 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
   const start = new Date(event.start)
   const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
   const timeLabel = event.allDay ? 'Toute la journée' : `${formatTime(event.start)} – ${formatTime(event.end)}`
-  const hex = isOwn ? eventHex(event.colorId) : ownerColor(event.ownerId)
+  const hex = calendarHex(event.attendance)
 
   const [savingAtt, setSavingAtt] = useState<Attendance | null>(null)
   const [attErr, setAttErr] = useState<string | null>(null)
@@ -1217,12 +1212,12 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
               {savingAtt === 'noshow' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserRemove width={14} height={14} />} Pas venu
             </button>
             <button onClick={() => mark('postponed')} disabled={savingAtt !== null}
-              style={event.attendance === 'postponed' ? { borderColor: '#B45309', backgroundColor: '#B4530914', color: '#B45309' } : undefined}
+              style={event.attendance === 'postponed' ? { borderColor: '#60207E', backgroundColor: '#60207E14', color: '#60207E' } : undefined}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance !== 'postponed' ? 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]' : ''}`}>
               {savingAtt === 'postponed' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconRepeat width={14} height={14} />} Reporté
             </button>
             <button onClick={() => mark('declined')} disabled={savingAtt !== null}
-              style={event.attendance === 'declined' ? { borderColor: '#6B7280', backgroundColor: '#6B728014', color: '#6B7280' } : undefined}
+              style={event.attendance === 'declined' ? { borderColor: '#111827', backgroundColor: '#11182714', color: '#111827' } : undefined}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance !== 'declined' ? 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]' : ''}`}>
               {savingAtt === 'declined' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconClose width={14} height={14} />} Décliné
             </button>
@@ -1281,7 +1276,6 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
   const [attendeeEmail, setAttendeeEmail] = useState(event?.attendeeEmail ?? '')
   const [meetingLink, setMeetingLink] = useState(event?.meetingLink ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
-  const [colorId, setColorId] = useState<string | undefined>(event?.colorId)
   // Type de créneau : pilote le flag "entretien" (compté KPI RH).
   const [slotType, setSlotType] = useState<'entretien' | 'autre'>(event?.isInterview ? 'entretien' : 'autre')
   const isInterview = slotType === 'entretien'
@@ -1368,7 +1362,6 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
       attendeeEmail: email || undefined,
       meetingLink: link || undefined,
       description: description.trim() || undefined,
-      colorId,
       isInterview,
     }
     if (new Date(input.end) <= new Date(input.start)) { setErr('Fin doit suivre le début'); return }
@@ -1448,16 +1441,6 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
 
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optionnel)" rows={2}
             className="w-full resize-none rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
-
-          {/* Color picker */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button type="button" onClick={() => setColorId(undefined)} title="Défaut"
-              className={`h-6 w-6 rounded-full ring-offset-2 transition-all ${colorId === undefined ? 'ring-2 ring-gray-400' : ''}`} style={{ backgroundColor: DEFAULT_EVENT_HEX }} />
-            {Object.entries(EVENT_COLORS).map(([id, c]) => (
-              <button key={id} type="button" onClick={() => setColorId(id)} title={c.name}
-                className={`h-6 w-6 rounded-full ring-offset-2 transition-all ${colorId === id ? 'ring-2 ring-gray-400' : ''}`} style={{ backgroundColor: c.hex }} />
-            ))}
-          </div>
 
           <div className="pt-1">
             <p className="mb-1.5 text-[12px] font-semibold text-[var(--ds-text-subtle)]">Type de créneau</p>
