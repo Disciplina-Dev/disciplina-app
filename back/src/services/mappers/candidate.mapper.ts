@@ -58,6 +58,11 @@ export function candidateToGql(candidate: Candidate): any {
         contractCompanyId: candidate.contract_company_id ?? null,
         contractCompanyName: candidate.contract_company_name ?? null,
         contractStartDate: candidate.contract_start_date ? new Date(candidate.contract_start_date).toISOString() : null,
+        contractTrialEndDate: candidate.contract_trial_end_date
+            ? new Date(candidate.contract_trial_end_date).toISOString()
+            : null,
+        contractSessionId: candidate.contract_session_id ?? null,
+        contractSessionName: candidate.contract_session_name ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
         identity: candidate.identity

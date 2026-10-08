@@ -332,6 +332,9 @@ export const typeDefs = gql`
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -501,6 +504,9 @@ export const typeDefs = gql`
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -533,6 +539,9 @@ export const typeDefs = gql`
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput

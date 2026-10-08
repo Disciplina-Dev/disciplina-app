@@ -268,6 +268,9 @@ export interface Candidate {
     contract_company_id?: number; // entreprise du contrat (réf MySQL companies)
     contract_company_name?: string; // snapshot du nom au moment du choix
     contract_start_date?: Date;
+    contract_trial_end_date?: Date; // fin de période d'essai (45 jours ouvrés depuis le début, éditable)
+    contract_session_id?: string; // session pédagogique (réf Mongo sessions)
+    contract_session_name?: string; // snapshot du nom au moment du choix
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

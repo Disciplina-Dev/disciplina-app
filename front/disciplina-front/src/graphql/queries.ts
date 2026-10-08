@@ -417,6 +417,13 @@ const CANDIDATE_FIELDS = gql`
     tpTypes
     trainingSite
     trainingSites
+    contractOfferId
+    contractCompanyId
+    contractCompanyName
+    contractStartDate
+    contractTrialEndDate
+    contractSessionId
+    contractSessionName
     skillsAssessment {
       competence
       level
@@ -613,6 +620,9 @@ export const GET_CANDIDATE_BY_ID = gql`
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -749,6 +759,9 @@ export const UPDATE_CANDIDATE = gql`
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -931,6 +944,9 @@ export const GET_CANDIDATE_FULL = gql`
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1068,6 +1084,9 @@ export const UPDATE_CANDIDATE_FULL = gql`
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {

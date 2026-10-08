@@ -353,6 +353,9 @@ export interface Candidate {
     contract_company_id?: number;
     contract_company_name?: string;
     contract_start_date?: string;
+    contract_trial_end_date?: string;
+    contract_session_id?: string;
+    contract_session_name?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;
