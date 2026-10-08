@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
@@ -16,8 +16,8 @@ import {
 import { IconAlert, IconBell, IconChevronDown, IconClose, IconCompany, IconJob, IconLoader, IconRefresh, IconSearch, IconSignature, IconUsers } from '@/components/ui/icons'
 import { useCurrentUser, Permission } from '@/store/authStore';
 import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
-import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY } from '@/graphql/queries';
-import { offerGraphqlClient } from '@/graphql/client';
+import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY, GET_OFFERS_IMMERSION_MAP, GET_IMMERSING_CANDIDATES_MAP } from '@/graphql/queries';
+import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
@@ -364,6 +364,7 @@ interface DirectoryHistoryEntry {
   id: string;
   firstName?: string | null;
   lastName?: string | null;
+  ownerEmail?: string | null;
   text: string;
   createdAt: string;
 }
@@ -432,9 +433,119 @@ function AbActiveBadge({ status }: { status?: string | null }) {
  * Annuaire des entreprises issues des analyses de besoin.
  * Tri : TP (ordre canonique AD, CC, NTC, REM, SA) puis date d'activation croissante.
  */
+
+/** Localisations uniques d'une AB (postes), libellées pour affichage. */
+function analysisLocalisations(analysis: NeedsAnalysis): string[] {
+  const raw = (analysis.positions ?? []).flatMap((p) => p.localisation ?? []);
+  return [...new Set(raw.filter(Boolean) as string[])].sort();
+}
+
+function formatLocalisationCell(analysis: NeedsAnalysis): string {
+  const locs = analysisLocalisations(analysis).map((l) => formatEnumLabel(l));
+  const commune = analysis.companyInfos?.commune?.trim();
+  if (commune && !locs.some((l) => l.toLowerCase() === commune.toLowerCase())) {
+    locs.push(commune);
+  }
+  return locs.length > 0 ? locs.join(', ') : '—';
+}
+
+function commercialLabel(analysis: NeedsAnalysis): string {
+  return analysis.salerInfo?.email?.trim() || '—';
+}
+
 function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { items, pageInfo, loading, error, refetch } = useNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
+  // Candidats en immersion par analyse de besoin (Oui/Non + noms).
+  // Source 1 : offres liées (statut IMMERSING côté matching).
+  // Source 2 : fiches candidats en immersion rattachées via immersionCompanyId.
+  const [immersionByAnalysis, setImmersionByAnalysis] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadImmersions = async () => {
+      try {
+        const [offersResult, candidatesResult] = await Promise.all([
+          offerGraphqlClient.query(GET_OFFERS_IMMERSION_MAP, {}).toPromise(),
+          candidateGraphqlClient.query(GET_IMMERSING_CANDIDATES_MAP, { first: 500 }).toPromise(),
+        ]);
+        if (cancelled) return;
+        const byAnalysis = new Map<string, Map<string, string>>();
+        const addName = (analysisId: string | null | undefined, id: string | null | undefined, fullName: string | null | undefined) => {
+          if (!analysisId || !fullName) return;
+          const names = byAnalysis.get(analysisId) ?? new Map<string, string>();
+          if (id) {
+            if (!names.has(id)) names.set(id, fullName);
+          } else if (![...names.values()].includes(fullName)) {
+            names.set(fullName, fullName);
+          }
+          byAnalysis.set(analysisId, names);
+        };
+        const offers = (offersResult.data?.offers ?? []) as {
+          needsAnalysisId?: string | null;
+          proposedCandidate?: { id?: string | null; fullName?: string | null; status?: string | null }[] | null;
+          matchedCandidate?: { id?: string | null; fullName?: string | null; status?: string | null }[] | null;
+        }[];
+        for (const offer of offers) {
+          const all = [...(offer.proposedCandidate ?? []), ...(offer.matchedCandidate ?? [])];
+          for (const c of all) {
+            if (c.status === 'IMMERSING') addName(offer.needsAnalysisId, c.id, c.fullName);
+          }
+        }
+        // Index des AB par identifiant d'entreprise MySQL pour le rattachement direct.
+        const analysisIdsByCompanyId = new Map<number, string[]>();
+        const analysisIdsByCompanyName = new Map<string, string[]>();
+        for (const item of items) {
+          const companyId = item.companyInfos?.id;
+          if (companyId != null) {
+            const list = analysisIdsByCompanyId.get(companyId) ?? [];
+            list.push(item.id);
+            analysisIdsByCompanyId.set(companyId, list);
+          }
+          const name = item.companyInfos?.name?.trim().toLowerCase();
+          if (name) {
+            const list = analysisIdsByCompanyName.get(name) ?? [];
+            list.push(item.id);
+            analysisIdsByCompanyName.set(name, list);
+          }
+        }
+        const edges = (candidatesResult.data?.candidatesPage?.edges ?? []) as {
+          node: {
+            id: string;
+            immersionCompanyId?: number | null;
+            immersionCompanyName?: string | null;
+            identity?: { fullName?: string | null } | null;
+          };
+        }[];
+        for (const { node } of edges) {
+          const fullName = node.identity?.fullName ?? null;
+          if (!fullName) continue;
+          if (node.immersionCompanyId != null) {
+            for (const analysisId of analysisIdsByCompanyId.get(node.immersionCompanyId) ?? []) {
+              addName(analysisId, node.id, fullName);
+            }
+          }
+          // Repli sur le nom (snapshot) quand l'ID est absent.
+          if (node.immersionCompanyName?.trim()) {
+            const key = node.immersionCompanyName.trim().toLowerCase();
+            for (const analysisId of analysisIdsByCompanyName.get(key) ?? []) {
+              addName(analysisId, node.id, fullName);
+            }
+          }
+        }
+        const merged: Record<string, string[]> = {};
+        for (const [analysisId, names] of byAnalysis) {
+          merged[analysisId] = [...names.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+        }
+        setImmersionByAnalysis(merged);
+      } catch {
+        if (!cancelled) setImmersionByAnalysis({});
+      }
+    };
+    void loadImmersions();
+    return () => { cancelled = true; };
+  }, [items]);
+
 
   const [selectedTps, setSelectedTps] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
@@ -493,7 +604,9 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
             .toPromise();
           if (historyResult.error) throw new Error(historyResult.error.message);
           const entries = (historyResult.data?.offerHistory ?? []) as DirectoryHistoryEntry[];
-          latestByOffer[offer.id] = entries[0] ?? null;
+          // Dernière note manuelle : on ignore les entrées système/auto
+          // (firstName/lastName/ownerEmail à null côté backend).
+          latestByOffer[offer.id] = entries.find((e) => e.ownerEmail || e.firstName || e.lastName) ?? null;
         }),
       );
       setHistoryByAnalysis((prev) => ({
@@ -663,7 +776,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                 )}
               </div>
             ) : (
-              <p className="text-xs text-[var(--ds-text-subtle)]">Aucune entrée pour cette offre.</p>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Aucune note manuelle pour cette offre.</p>
             )}
           </>
         )}
@@ -674,7 +787,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Liste des entreprises">
       <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
-      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
+      <div className="relative flex max-h-[85vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-5 py-4">
           <div>
             <h2 className="text-base font-bold text-[var(--ds-text)]">Entreprises</h2>
@@ -794,13 +907,18 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Entreprise</th>
                       <th className="px-4 py-2.5 font-semibold">TP</th>
+                      <th className="px-4 py-2.5 font-semibold">Localisation</th>
+                      <th className="px-4 py-2.5 font-semibold">Commercial</th>
+                      <th className="px-4 py-2.5 font-semibold">Immersion</th>
                       <th className="px-4 py-2.5 font-semibold">Date d'activation</th>
                       <th className="px-4 py-2.5 font-semibold">Statut</th>
                       <th className="px-4 py-2.5 font-semibold">Historique</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--ds-border)]">
-                    {rows.map(({ analysis, tp }) => (
+                    {rows.map(({ analysis, tp }) => {
+                      const immersingNames = immersionByAnalysis[analysis.id] ?? [];
+                      return (
                       <tr
                         key={analysis.id}
                         onClick={() => navigate(`/rh/matching?needsAnalysis=${analysis.id}`)}
@@ -809,6 +927,28 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                       >
                         <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{analysis.companyInfos?.name ?? '—'}</td>
                         <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{tp ?? '—'}</td>
+                        <td className="max-w-48 px-4 py-2.5 text-[var(--ds-text-muted)]" title={formatLocalisationCell(analysis)}>
+                          <span className="line-clamp-2">{formatLocalisationCell(analysis)}</span>
+                        </td>
+                        <td className="max-w-48 truncate px-4 py-2.5 text-[var(--ds-text-muted)]" title={commercialLabel(analysis)}>
+                          {commercialLabel(analysis)}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {immersingNames.length > 0 ? (
+                            <span title={immersingNames.join(', ')}>
+                              <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
+                                Oui
+                              </span>
+                              <span className="ml-1.5 line-clamp-2 max-w-40 text-xs text-[var(--ds-text-muted)]">
+                                {immersingNames.join(', ')}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]">
+                              Non
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(activationDateOf(analysis))}</td>
                         <td className="px-4 py-2.5">
                           <AbActiveBadge status={analysis.abStatus} />
@@ -817,7 +957,8 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                           {renderHistoryCell(analysis)}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

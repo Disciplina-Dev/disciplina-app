@@ -1763,12 +1763,18 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
           lastActiveAt
           administrationType
           driveFolderUrl
+          immersionPeriod
+          salerInfo {
+            id
+            email
+          }
           companyInfos {
             name
             siret
             sector
             activities
             commune
+            postalCode
           }
           positions {
             jobRole
@@ -1786,6 +1792,25 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         hasPreviousPage
         startCursor
         endCursor
+      }
+    }
+  }
+`
+
+export const GET_OFFERS_IMMERSION_MAP = gql`
+  query GetOffersImmersionMap {
+    offers {
+      id
+      needsAnalysisId
+      proposedCandidate {
+        id
+        fullName
+        status
+      }
+      matchedCandidate {
+        id
+        fullName
+        status
       }
     }
   }
@@ -2057,6 +2082,24 @@ export const NEEDS_ANALYSES_FOR_DASHBOARD = gql`
         status
       }
       totalCount
+    }
+  }
+`
+
+export const GET_IMMERSING_CANDIDATES_MAP = gql`
+  query GetImmersingCandidatesMap($first: Int) {
+    candidatesPage(first: $first, filters: { status: IMMERSING }) {
+      edges {
+        node {
+          id
+          status
+          immersionCompanyId
+          immersionCompanyName
+          identity {
+            fullName
+          }
+        }
+      }
     }
   }
 `
