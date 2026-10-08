@@ -214,7 +214,7 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
 
             <div className="rounded-lg border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-3">
               <p className="text-xs text-[var(--ds-warning)]">
-                Ce lien est valable 7 jours après sa première ouverture, sans code : l'entreprise accède directement à la sélection.
+                Ce lien reste valable sans limite de durée, sans code : l'entreprise accède directement à la sélection, jusqu'à sa clôture.
               </p>
             </div>
           </div>

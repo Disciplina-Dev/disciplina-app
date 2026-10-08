@@ -37,7 +37,8 @@ export async function requireExternalGuest(
         res.status(401).json({ error: 'Link is locked' });
         return;
     }
-    // Lien magique : expiré 7 jours après sa première ouverture.
+    // Liens à durée illimitée : seuls les statuts EXPIRED historiques (ou un
+    // `expires_at` passé hérité d'avant le passage en illimité) sont rejetés.
     if (row.status === 'EXPIRED' || (row.expires_at && new Date(row.expires_at).getTime() < Date.now())) {
         if (row.status !== 'EXPIRED') {
             await externalAccessRepository.setStatus(req.params.signature, 'EXPIRED');

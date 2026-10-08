@@ -23,6 +23,7 @@ import {
     CandidateOwner,
     EmergencyContact,
     CandidateConsentments,
+    CandidateRelanceEntry,
 } from '../../../types/candidate.types';
 import { Localisation } from '../../../types/matching.types';
 
@@ -247,6 +248,19 @@ const classMarkerResultSchema = new Schema<ClassMarkerResult>(
     { _id: false },
 );
 
+const candidateRelanceSchema = new Schema<CandidateRelanceEntry>(
+    {
+        sent_at: { type: Date, required: true },
+        kind: { type: String, enum: ['availability', 'template'], required: true },
+        template_id: { type: String },
+        subject: { type: String },
+        sent_by: { type: Number },
+        response_at: { type: Date },
+        answer: { type: String },
+    },
+    { _id: false },
+);
+
 const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
@@ -294,6 +308,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         created_at: { type: Date },
         last_relance_at: { type: Date },
         relance_response_at: { type: Date },
+        relance_count: { type: Number, default: 0 },
+        relance_history: { type: [candidateRelanceSchema], default: undefined },
         classmarker_history: { type: [classMarkerResultSchema], default: undefined },
     },
     { collection: 'candidates' },

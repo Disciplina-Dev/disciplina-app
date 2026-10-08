@@ -457,6 +457,16 @@ const CANDIDATE_FIELDS = gql`
     createdAt
     lastRelanceAt
     relanceResponseAt
+    relanceCount
+    relanceHistory {
+      sentAt
+      kind
+      templateId
+      subject
+      sentBy
+      responseAt
+      answer
+    }
   }
 `
 

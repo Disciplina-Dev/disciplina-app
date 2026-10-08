@@ -2,7 +2,7 @@ import './config/env'; // validate env vars at startup
 import './instrumentation'; // OpenTelemetry SDK (must be before any module that uses pino, express, etc.)
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
-import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from './graphql/server';
+import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI, PedaAPI } from './graphql/server';
 import { expressMiddleware } from '@as-integrations/express5';
 import { jwtContext, graphqlRegionMiddleware } from './graphql/context';
 import { connectMySQL, getPool } from './db/mysql/connection';
@@ -39,6 +39,7 @@ import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
+import { startSaNotificationScheduler } from './scheduler/saNotificationScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
 import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
@@ -231,6 +232,9 @@ export async function createApp(): Promise<express.Express> {
     await NeedsAnalysisAPI.start();
     app.use('/api/graphql/needs-analysis', expressMiddleware(NeedsAnalysisAPI, { context: jwtContext }));
 
+    await PedaAPI.start();
+    app.use('/api/graphql/peda', expressMiddleware(PedaAPI, { context: jwtContext }));
+
     return app;
 }
 
@@ -282,6 +286,7 @@ export async function startServer(): Promise<http.Server> {
         .catch((err) => logger.error({ err }, 'external-link: seed du modèle système échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
+    startSaNotificationScheduler();
     startUnavailableExpiryScheduler();
     startAbSignatureRelanceScheduler();
     startExpiredAccessScheduler();

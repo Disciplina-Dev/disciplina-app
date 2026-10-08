@@ -228,6 +228,22 @@ export interface CandidateConsentments {
     consent_version: string; // version du corpus légal au moment du consentement
 }
 
+/**
+ * Une relance reçue par un candidat : un envoi (disponibilité Oui/Non ou
+ * modèle RH) horodaté, avec la réponse éventuelle du candidat rattachée.
+ * Append-only dans `relance_history` (cf. `classmarker_history`) ; le compteur
+ * `relance_count` est incrémenté à chaque envoi.
+ */
+export interface CandidateRelanceEntry {
+    sent_at: Date;
+    kind: 'availability' | 'template';
+    template_id?: string;
+    subject?: string;
+    sent_by?: number; // id du RH émetteur
+    response_at?: Date;
+    answer?: string; // 'oui' | 'non' (relance disponibilité uniquement)
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -273,6 +289,11 @@ export interface Candidate {
     // Relance de disponibilité : date du dernier envoi et date de la réponse du candidat.
     last_relance_at?: Date;
     relance_response_at?: Date;
+    // Compteur de relances reçues (incrémenté à chaque envoi, tout type confondu).
+    relance_count?: number;
+    // Historique complet : une entrée par relance envoyée (append-only). `last_relance_at`
+    // reste la date du dernier envoi pour compat ; ici on garde la trace de tous.
+    relance_history?: CandidateRelanceEntry[];
     // Historique complet : un entrée par test passé (append-only). `classmarker`
     // reste le dernier résultat pour compat ; ici on garde la trace de tous.
     classmarker_history?: ClassMarkerResult[];
