@@ -43,7 +43,13 @@ import SectorSettings from "@/pages/rh/SectorSettings";
 import ExternalAccesPage from "@/pages/rh/ExternalAccesPage";
 
 import PedaLayout from "@/components/layout/PedaLayout";
+import DashboardPeda from "@/pages/peda/DashboardPeda";
 import SuiviAbsences from "@/pages/peda/SuiviAbsences";
+import ListeAlternants from "@/pages/peda/ListeAlternants";
+import FicheAlternant from "@/pages/peda/FicheAlternant";
+import ListeSessions from "@/pages/peda/ListeSessions";
+import FicheSession from "@/pages/peda/FicheSession";
+import Ruptures from "@/pages/peda/Ruptures";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -196,6 +202,12 @@ export const router = createBrowserRouter([
     handle: { crumb: "Espace Pédagogique" },
     children: [
       { index: true, element: <SuiviAbsences />, handle: { crumb: "Suivi absences" } },
+      { path: "dashboard", element: <DashboardPeda />, handle: { crumb: "Tableau de bord" } },
+      { path: "alternants", element: <ListeAlternants />, handle: { crumb: "Alternants" } },
+      { path: "alternants/:id", element: <FicheAlternant />, handle: { crumb: "Fiche alternant" } },
+      { path: "sessions", element: <ListeSessions />, handle: { crumb: "Sessions" } },
+      { path: "sessions/:id", element: <FicheSession />, handle: { crumb: "Fiche session" } },
+      { path: "ruptures", element: <Ruptures />, handle: { crumb: "Ruptures" } },
       { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
       { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],

@@ -5,6 +5,12 @@ export enum CompanyRegion {
     NORD = 'NORD',
     OUEST = 'OUEST',
     SUD = 'SUD',
+    GENEVE_FRONTIERE = 'GENEVE_FRONTIERE',
+    GENEVOIS = 'GENEVOIS',
+    ARVE = 'ARVE',
+    FAUCIGNY = 'FAUCIGNY',
+    ANNECY = 'ANNECY',
+    CHABLAIS = 'CHABLAIS',
 }
 
 export enum Opco {

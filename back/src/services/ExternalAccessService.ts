@@ -16,9 +16,12 @@ import { signAccessToken } from '../rest/middleware/tokenAuth';
 import { Permission, GuestRole } from '../types/user.types';
 import { appendRegion } from '../db/tenant';
 
-// Durée de vie d'un lien externe : 7 jours à compter de sa première ouverture
-// (premier clic). Tant que le lien n'a jamais été ouvert, `expires_at` reste à
-// null et le lien ne périme pas.
+// Durée de vie d'un lien externe : illimitée. `expires_at` reste à null et le
+// lien ne périme jamais ; il le reste jusqu'à clôture explicite (COMPLETED,
+// via le bouton « Clôturer le lien » côté guest ou staff) ou révocation
+// (LOCKED). Le statut EXPIRED n'est conservé que pour les lignes historiques
+// déjà expirées avant le passage en illimité.
+// TODO: supprimer EXTERNAL_LINK_TTL_MS une fois les lignes historiques purgées.
 export const EXTERNAL_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type OpenLinkResult =
@@ -26,7 +29,7 @@ export type OpenLinkResult =
     | { status: 'COMPLETED'; httpCode: 200; message: string }
     | { status: 'BLOCKED'; httpCode: 200; message: string }
     | { status: 'EXPIRED'; httpCode: 410; message: string }
-    | { status: 'OK'; httpCode: 200; message: string; token: string; referenceId: number; expiresAt: Date };
+    | { status: 'OK'; httpCode: 200; message: string; token: string; referenceId: number; expiresAt: Date | null };
 
 export interface GenerateInput {
     userId: number;
@@ -153,9 +156,11 @@ export class ExternalAccessService {
     }
 
     /**
-     * Ouverture d'un lien magique (sans code) : la première ouverture arme
-     * l'expiration à J+7, puis un cookie invité est émis. Idempotent : les
-     * ouvertures suivantes réémettent un cookie tant que le lien n'a pas expiré.
+     * Ouverture d'un lien magique (sans code, durée illimitée) : un cookie
+     * invité est émis. Idempotent : les ouvertures suivantes réémettent un
+     * cookie tant que le lien n'est ni clôturé (COMPLETED) ni bloqué (LOCKED).
+     * Les lignes historiques déjà marquées EXPIRED (ou avec un `expires_at`
+     * passé) restent rejetées en 410 pour compatibilité.
      */
     async openLink(signature: string): Promise<OpenLinkResult> {
         const row = await this.repository.findBySignature(signature);
@@ -179,12 +184,10 @@ export class ExternalAccessService {
             return { status: 'EXPIRED', httpCode: 410, message: 'KO signature expired' };
         }
 
-        // Première ouverture : le lien devient valable 7 jours.
-        let expiresAt = row.expires_at ? new Date(row.expires_at) : null;
-        if (!expiresAt) {
-            expiresAt = new Date(Date.now() + EXTERNAL_LINK_TTL_MS);
-            await this.repository.setExpiresAt(signature, expiresAt);
-        }
+        // Durée illimitée : aucune expiration n'est armée, `expires_at` reste à
+        // null pour les nouveaux liens. Les lignes historiques conservent leur
+        // `expires_at` tel quel (affiché à titre indicatif).
+        const expiresAt = row.expires_at ? new Date(row.expires_at) : null;
 
         const token = signAccessToken({
             role: GuestRole.EXTERNAL_GUEST,
@@ -214,6 +217,25 @@ export class ExternalAccessService {
 
         if (!row) {
             return { success: false, error: 'KO signature does not exist' };
+        }
+
+        if (row.status !== 'COMPLETED') {
+            await this.repository.setStatus(signature, 'COMPLETED');
+        }
+
+        return { success: true };
+    }
+
+    /**
+     * Clôture explicite d'un lien par le staff (bouton « Clôturer le lien »).
+     * Idempotent : un lien déjà COMPLETED reste accepté sans erreur. Refusé
+     * uniquement si la signature est introuvable.
+     */
+    async close(signature: string): Promise<{ success: boolean; error?: string }> {
+        const row = await this.repository.findBySignature(signature);
+
+        if (!row) {
+            return { success: false, error: 'Signature introuvable' };
         }
 
         if (row.status !== 'COMPLETED') {

@@ -14,6 +14,7 @@ import {
 import { getExternalProfile } from '@/api/external'
 import { REGION_TIMEZONE } from '@/lib/timezone'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
+import ExternalGuestCloseButton from '@/features/external/components/ExternalGuestCloseButton'
 import CandidateComparator from '@/features/publicMatch/components/CandidateComparator'
 import AnswerControls from '@/features/publicMatch/components/AnswerControls'
 import InterviewProposalForm from '@/features/publicMatch/components/InterviewProposalForm'
@@ -169,12 +170,14 @@ export default function MatchComparator() {
   return (
     <div className="min-h-screen bg-[var(--ds-surface-sunken)] px-4 py-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h1 className="text-[20px] font-extrabold text-[var(--ds-text)]">Candidats proposés</h1>
             <ExternalExpiryNotice expiresAt={expiresAt} />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 pt-1">
+            <ExternalGuestCloseButton signature={signature} onClosed={() => setDone(true)} />
+            <div className="flex items-center gap-2">
             <button
               onClick={goPrev}
               disabled={index === 0}
@@ -196,6 +199,7 @@ export default function MatchComparator() {
             >
               <IconChevronRight width={20} height={20} />
             </button>
+            </div>
           </div>
         </div>
 

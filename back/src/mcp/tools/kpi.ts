@@ -48,7 +48,7 @@ export function registerKpiTools(server: McpServer): void {
     readTool(
         server,
         'kpi_activity',
-        "Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.",
+        'Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.',
         {
             year: z.number().int().describe('Année'),
             site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
@@ -65,5 +65,38 @@ export function registerKpiTools(server: McpServer): void {
         { year: z.number().int().describe('Année') },
         RH_KPI_SCOPE,
         async ({ year }) => toolResult(await rhKpi.getReport(year)),
+    );
+
+    readTool(
+        server,
+        'kpi_live',
+        'Instantané temps réel des KPI commerciaux, calculé depuis le portefeuille et les contact logs : totaux + vue par site (tous commerciaux).',
+        {},
+        COMMERCIAL_KPI_SCOPE,
+        async () => toolResult(await kpi.getLiveSnapshot()),
+    );
+
+    readTool(
+        server,
+        'kpi_monthly_detail',
+        "Détail mensuel des KPI commerciaux d'un site pour une année.",
+        {
+            year: z.number().int().describe('Année'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
+        },
+        COMMERCIAL_KPI_SCOPE,
+        async ({ year, site }) => toolResult(await kpi.getMonthlyDetail(year, site)),
+    );
+
+    readTool(
+        server,
+        'kpi_weekly_detail',
+        "Détail hebdomadaire des KPI commerciaux d'un site pour une année.",
+        {
+            year: z.number().int().describe('Année'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
+        },
+        COMMERCIAL_KPI_SCOPE,
+        async ({ year, site }) => toolResult(await kpi.getWeeklyDetail(year, site)),
     );
 }

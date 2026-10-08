@@ -299,6 +299,17 @@ export const typeDefs = gql`
         consentVersion: String!
     }
 
+    "Une relance reçue par un candidat (envoi + réponse éventuelle)."
+    type CandidateRelance {
+        sentAt: String
+        kind: String
+        templateId: String
+        subject: String
+        sentBy: Int
+        responseAt: String
+        answer: String
+    }
+
     type Candidate {
         id: String!
         owner: CandidateOwner
@@ -340,6 +351,8 @@ export const typeDefs = gql`
         createdAt: String
         lastRelanceAt: String
         relanceResponseAt: String
+        relanceCount: Int
+        relanceHistory: [CandidateRelance!]
     }
 
     input IdentityInput {

@@ -17,7 +17,7 @@ const SLOTS = {
 const AUTH_OK = {
     success: true,
     user: { role: 'EXTERNAL_GUEST', permission: 'GUEST', referenceId: 3 },
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: null,
 };
 
 // Conteneur des créneaux dans la page ExternalInterview (les boutons du layout
@@ -34,7 +34,7 @@ test.describe('3.8 Entretiens @external', () => {
         await expect(page).toHaveURL(/\/external\/interview\/mock$/);
         await expect(page.getByRole('heading', { name: "Choisissez votre créneau d'entretien" })).toBeVisible();
         await expect(page.getByText('Saint-Denis, 12 rue des Tests')).toBeVisible();
-        await expect(page.getByText(/7 jours après sa première ouverture/)).toBeVisible();
+        await expect(page.getByText(/sans limite de durée/)).toBeVisible();
         await expect(page.locator(slotList)).toHaveCount(1);
     });
 
