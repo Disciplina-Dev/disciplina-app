@@ -139,10 +139,7 @@ async function exchangeTokens(clientId: string, verifier: string, code: string) 
 }
 
 // Appel MCP générique (tools/list ou tools/call) avec un Bearer.
-async function mcpCall(
-    payload: Record<string, unknown>,
-    token?: string,
-): Promise<Response> {
+async function mcpCall(payload: Record<string, unknown>, token?: string): Promise<Response> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Accept: 'application/json, text/event-stream',
@@ -175,7 +172,10 @@ async function toolCall(token: string, name: string, args: Record<string, unknow
     return parsed;
 }
 
-async function grantedToken(clientId: string, user: ConsentUser): Promise<{ access_token: string; refresh_token: string }> {
+async function grantedToken(
+    clientId: string,
+    user: ConsentUser,
+): Promise<{ access_token: string; refresh_token: string }> {
     const { verifier, code } = await gate(clientId, user);
     const tokens = await exchangeTokens(clientId, verifier, code);
     return { access_token: tokens.access_token, refresh_token: tokens.refresh_token };
@@ -335,7 +335,10 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         const { access_token } = await grantedToken(clientId, defaultUser);
 
         const listRes = await mcpCall({ jsonrpc: '2.0', method: 'tools/list', id: 'oc-test' }, access_token);
-        const list = (await mcpResult(listRes)) as { result?: { tools?: { name: string }[] }; error?: { message: string } };
+        const list = (await mcpResult(listRes)) as {
+            result?: { tools?: { name: string }[] };
+            error?: { message: string };
+        };
         const tools = list.result?.tools;
         if (!tools) {
             throw new Error(`tools/list OAuth returned ${listRes.status}: ${JSON.stringify(list).slice(0, 400)}`);

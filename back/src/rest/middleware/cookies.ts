@@ -30,7 +30,7 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
 
 // Session guest externe : même cookie d'accès que le personnel — le middleware
 // authenticate rejette déjà les rôles guest (403), les deux restent isolés.
-// Pas de refresh token : le lien magique reste rouvrable 7 jours après son premier clic.
+// Pas de refresh token : le lien magique reste rouvrable sans limite de durée, jusqu'à clôture.
 export function setGuestCookies(res: Response, accessToken: string, csrfToken: string): void {
     res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
         httpOnly: true,

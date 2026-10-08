@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SectorSettingsService } from '../../services/SectorSettingsService';
 import { NotificationService } from '../../services/NotificationService';
+import { UserService } from '../../services/UserService';
+import { toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
 import { mcpToolScope, PERMISSION_DENIED_MSG } from '../rbac';
@@ -19,6 +21,7 @@ const SECTOR_SETTINGS_SCOPE = mcpToolScope(Permission.EMPLOYEE, [
 
 const sectorSettings = new SectorSettingsService();
 const notifications = new NotificationService();
+const users = new UserService();
 
 export function registerMiscTools(server: McpServer): void {
     readTool(
@@ -28,6 +31,15 @@ export function registerMiscTools(server: McpServer): void {
         {},
         SECTOR_SETTINGS_SCOPE,
         async () => toolResult(await sectorSettings.list()),
+    );
+
+    readTool(
+        server,
+        'list_users',
+        'Annuaire des collaborateurs (id, prénom, nom, métier, niveau de permission) : permet de résoudre un `userID` / `owner` / `sent_by` en nom. Aucun email ni credential.',
+        {},
+        mcpToolScope(Permission.EMPLOYEE, []),
+        async () => toolResult((await users.findAll()).map(toDirectoryEntry)),
     );
 
     readTool(

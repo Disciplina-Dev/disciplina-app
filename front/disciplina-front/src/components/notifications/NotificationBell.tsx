@@ -33,6 +33,7 @@ const CATEGORIES: { key: NotificationCategory | null; label: string }[] = [
   { key: null, label: 'Toutes' },
   { key: 'candidate', label: 'Candidat' },
   { key: 'company', label: 'Entreprise' },
+  { key: 'peda', label: 'Pédagogie' },
 ]
 
 export default function NotificationBell({ accent = '#60207E' }: { accent?: string }) {

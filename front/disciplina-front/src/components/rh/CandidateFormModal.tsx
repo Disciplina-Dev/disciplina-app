@@ -509,6 +509,9 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   const isEdit = !!candidate;
   // Sections de mobilité selon le tenant (3 zones Réunion, 6 secteurs Annemasse).
   const region = useRegionStore((s) => s.region);
+  // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — la
+  // section Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) est masquée.
+  const isAnnemasse = region === 'annemasse';
   const communeSections = useMemo(() => communeSectionsForRegion(region), [region]);
   // Clé de brouillon : par candidat en édition, unique en création.
   const draftKey = candidate ? editDraftKey(candidate._id) : CREATE_DRAFT_KEY;
@@ -1162,7 +1165,9 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           </div>
           <InputField id="cn-justif" label="Justificatif" value={form.schoolJustification} onChange={e => set('schoolJustification', e.target.value)} />
 
-          {/* Site(s) de formation — choix multiple */}
+          {/* Site(s) de formation — choix multiple (Réunion uniquement, masqué sur Annemasse) */}
+          {!isAnnemasse && (
+          <>
           <ABSectionTitle title="Site de formation DISCIPLINA" />
           <div className="space-y-2">
             {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([val, label]) => (
@@ -1186,6 +1191,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </label>
             ))}
           </div>
+          </>
+          )}
 
           {/* Accompagnement */}
           <ABSectionTitle title="Accompagnement et dispositifs" />

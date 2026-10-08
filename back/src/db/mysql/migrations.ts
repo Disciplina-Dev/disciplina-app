@@ -170,7 +170,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
     {
         // Table unifiée des liens signés remplaçant interview_access, match_link et external_link.
         // Chaque ligne représente un lien magique envoyé à un guest (candidat ou entreprise) :
-        // signature 128 chars (512 bits), sans code, valable 7 jours après sa première ouverture.
+        // signature 128 chars (512 bits), sans code, à durée illimitée (actif jusqu'à clôture).
         table: 'external_access',
         ddl: `CREATE TABLE IF NOT EXISTS external_access (
             signature VARCHAR(191) PRIMARY KEY,

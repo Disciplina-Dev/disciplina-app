@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import { externalRateLimiter } from '../middleware/rateLimiter';
 import { requireExternalGuest } from './guard';
 import { sendCvImportMail, uploadCv } from './cvImport.controller';
-import { openAccess, generate, regenerate, complete, listAccess, revokeAccess, getProfile } from './externalAccess.controller';
+import { openAccess, generate, regenerate, complete, listAccess, revokeAccess, closeAccess, getProfile } from './externalAccess.controller';
 import {
     getCandidates,
     getCv,
@@ -26,8 +26,9 @@ router.use(express.json());
 
 router.post('/generate', authenticateStaff, generate);
 
-// Gestion staff : lister et révoquer les accès externes.
+// Gestion staff : lister, clôturer et révoquer les accès externes.
 router.get('/', authenticateStaff, listAccess);
+router.post('/:signature/close', authenticateStaff, closeAccess);
 router.post('/:signature/revoke', authenticateStaff, revokeAccess);
 
 router.post('/:signature/authenticate', externalRateLimiter, resolveExternalRegion, openAccess);

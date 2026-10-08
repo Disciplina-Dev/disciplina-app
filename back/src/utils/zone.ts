@@ -48,8 +48,8 @@ export function zonesFromTrainingSites(sites: (string | undefined)[] | undefined
 export function offerZones(offer: { company_infos?: { sector?: CompanyRegion | null }; localisation?: Localisation[] }): Set<Zone> {
     const set = new Set<Zone>();
     if (offer.company_infos?.sector) {
-        const sector = offer.company_infos.sector as unknown as Zone;
-        if (sector === 'NORD' || sector === 'OUEST' || sector === 'SUD') set.add(sector);
+        // CompanyRegion partage ses valeurs avec Zone (Réunion + Annemasse).
+        set.add(offer.company_infos.sector as unknown as Zone);
     }
     for (const z of zonesFromCommunes(offer.localisation)) set.add(z);
     return set;

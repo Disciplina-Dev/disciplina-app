@@ -54,11 +54,10 @@ export function verifyAuthCode(token: string): McpAuthCodePayload | null {
 // lookup DB (idéal serveur persistant comme serverless). sub = users.id de la
 // région `region` : c'est l'identité qui permettra de scoper les outils.
 export function signMcpAccessToken(clientId: string, sub: number, region: Region): string {
-    return jwt.sign(
-        { typ: MCP_ACCESS_TOKEN_TYPE, clientId, sub, region, scope: [MCP_SCOPE] },
-        env.JWT_SECRET,
-        { expiresIn: MCP_ACCESS_TOKEN_TTL_SECONDS, algorithm: 'HS256' },
-    );
+    return jwt.sign({ typ: MCP_ACCESS_TOKEN_TYPE, clientId, sub, region, scope: [MCP_SCOPE] }, env.JWT_SECRET, {
+        expiresIn: MCP_ACCESS_TOKEN_TTL_SECONDS,
+        algorithm: 'HS256',
+    });
 }
 
 export interface VerifiedAccessToken {

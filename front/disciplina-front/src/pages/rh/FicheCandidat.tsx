@@ -30,6 +30,7 @@ import PdfViewer from '@/components/rh/PdfViewer'
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
+import { useRegionStore } from '@/store/regionStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -229,6 +230,12 @@ export default function FicheCandidat() {
   const { result: testResult } = useClassMarkerResult(id)
   const testPassed =
     !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
+
+  // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — les
+  // badges et champs Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) sont
+  // masqués, la granularité passe par la mobilité (6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region)
+  const isAnnemasse = region === 'annemasse'
 
   // Modèles RH (chargés une fois, dédupés par le store) : sert à préremplir le
   // mail d'import CV avec le modèle « Import CV » par défaut.
@@ -813,7 +820,7 @@ export default function FicheCandidat() {
                       {formData.contract_start_date ? ` depuis le ${new Date(formData.contract_start_date).toLocaleDateString('fr-FR')}` : ''}
                     </span>
                   )}
-                  {(() => {
+                  {!isAnnemasse && (() => {
                     const sites = formData.training_sites?.length
                       ? formData.training_sites
                       : formData.training_site
@@ -1218,6 +1225,7 @@ export default function FicheCandidat() {
                     } : prev)} />
                 ) : <p className={valueCls}>{formData.background?.previous_trainings || '—'}</p>}
               </Field>
+              {!isAnnemasse && (
               <Field label="Site(s) de formation">
                 {isEditing ? (
                   <div className="flex flex-col gap-1.5">
@@ -1243,6 +1251,7 @@ export default function FicheCandidat() {
                   return <p className={valueCls}>{sites.length ? sites.map(s => TRAINING_SITE_LABELS[s]).join(' · ') : '—'}</p>
                 })()}
               </Field>
+              )}
             </div>
           </Card>
 
