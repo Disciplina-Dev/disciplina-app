@@ -145,15 +145,25 @@ export default function RuptureModal({ alternant, initial, onClose, onSubmit }: 
             </legend>
             <div className="flex gap-2">
               {[
-                { value: true, label: 'Oui — poursuit la formation' },
-                { value: false, label: 'Non — quitte la formation' },
+                {
+                  value: true,
+                  label: 'Oui — poursuit la formation',
+                  selectedClasses: 'border-teal-700/50 bg-teal-700/5',
+                  radioClasses: 'accent-teal-700',
+                },
+                {
+                  value: false,
+                  label: 'Non — quitte la formation',
+                  selectedClasses: 'border-[var(--ds-danger)]/50 bg-[var(--ds-danger-bg)]',
+                  radioClasses: 'accent-[var(--ds-danger)]',
+                },
               ].map((opt) => (
                 <label
                   key={opt.label}
                   className={[
                     'flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition-colors',
                     poursuit === opt.value
-                      ? 'border-teal-700/50 bg-teal-700/5 text-[var(--ds-text)]'
+                      ? `${opt.selectedClasses} text-[var(--ds-text)]`
                       : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:border-teal-700/30',
                   ].join(' ')}
                 >
@@ -162,7 +172,7 @@ export default function RuptureModal({ alternant, initial, onClose, onSubmit }: 
                     name="rupt-poursuit"
                     checked={poursuit === opt.value}
                     onChange={() => setPoursuit(opt.value)}
-                    className="h-4 w-4 accent-teal-700"
+                    className={`h-4 w-4 ${opt.radioClasses}`}
                   />
                   {opt.label}
                 </label>
