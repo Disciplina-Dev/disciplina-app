@@ -1255,10 +1255,17 @@ function buildAlternantSequenceHtml(data: ResolvedSequenceDocument, logoDataUrl:
         ? `<img src="${logoDataUrl}" style="height:60px;display:block;margin-bottom:14px;" />`
         : '';
 
-    const partBlock = (title: string, html: string | null, signature: string | null): string => `
+    const partBlock = (title: string, html: string | null): string => `
 ${sh(title)}
-<div class="text-area">${html && html.trim() ? html : '&nbsp;'}</div>
-${signature ? `<div class="signature-row"><span class="field-label">Signature :</span><br/><img src="${signature}" class="signature-img" /></div>` : ''}`;
+<div class="text-area">${html && html.trim() ? html : '&nbsp;'}</div>`;
+
+    // Signatures groupées à la fin (comme le tableau final des Word d'origine),
+    // pas une par partie — un seul bloc 3 colonnes avant la fermeture.
+    const signatureCell = (title: string, signature: string | null): string => `
+<div class="signature-cell">
+  <span class="field-label">${title}</span>
+  ${signature ? `<img src="${signature}" class="signature-img" />` : '<div class="signature-empty">Non signé</div>'}
+</div>`;
 
     return `<!DOCTYPE html>
 <html lang="fr">
@@ -1274,8 +1281,10 @@ ${signature ? `<div class="signature-row"><span class="field-label">Signature :<
   .field-value { font-weight: normal; }
   .text-area { min-height: 36px; border: 1px solid #ccc; border-radius: 4px; padding: 10px; font-size: 10.5pt; line-height: 1.6; }
   .text-area p:first-child { margin-top: 0; }
-  .signature-row { margin-top: 8px; }
-  .signature-img { max-height: 60px; margin-top: 4px; }
+  .signatures { display: flex; gap: 16px; margin-top: 24px; }
+  .signature-cell { flex: 1; border-top: 1px solid #888; padding-top: 8px; }
+  .signature-img { max-height: 60px; margin-top: 4px; display: block; }
+  .signature-empty { font-size: 9pt; color: #888; font-style: italic; margin-top: 4px; min-height: 60px; }
 </style>
 </head>
 <body>
@@ -1288,9 +1297,16 @@ ${fr('Session :', header.session)}
 ${fr("Maître d'apprentissage :", header.mentorName)}
 ${periode ? fr('Période en entreprise :', periode) : ''}
 
-${partBlock("Maître d'apprentissage", data.maitreApprentissage, data.signatureMaitreApprentissage)}
-${partBlock('Alternant', data.alternant, data.signatureAlternant)}
-${partBlock('Formateur', data.formateur, data.signatureFormateur)}
+${partBlock("Maître d'apprentissage", data.maitreApprentissage)}
+${partBlock('Alternant', data.alternant)}
+${partBlock('Formateur', data.formateur)}
+
+${sh('Signatures')}
+<div class="signatures">
+${signatureCell("Maître d'apprentissage", data.signatureMaitreApprentissage)}
+${signatureCell('Alternant', data.signatureAlternant)}
+${signatureCell('Formateur', data.signatureFormateur)}
+</div>
 </body>
 </html>`;
 }
