@@ -9,11 +9,12 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import Image from '@tiptap/extension-image'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
+import Paragraph from '@tiptap/extension-paragraph'
 import { useEffect, useCallback, useRef, useState } from 'react'
 import {
   IconAlignCenter, IconAlignLeft, IconAlignRight, IconBold, IconHeading, IconItalic,
   IconLink, IconList, IconListOrdered, IconUnderline, IconUnlink,
-  IconPalette, IconTextSize, IconHighlight, IconCursorClick, IconImagePlus, IconMinus,
+  IconPalette, IconTextSize, IconHighlight, IconCursorClick, IconImagePlus, IconMinus, IconFrame,
 } from '@/components/ui/icons'
 
 
@@ -81,6 +82,27 @@ const HorizontalRuleWithStyle = HorizontalRule.extend({
       ...this.parent?.(),
       style: { default: buildHrStyle(HR_DEFAULT_STYLE) },
       align: { default: HR_DEFAULT_STYLE.align },
+    }
+  },
+})
+
+// Cadre de réponse (ex. modèles de SA Péda) : un fond clair + coins arrondis sur
+// tout le paragraphe plutôt qu'une vraie bordure CSS — `border` avec largeur/
+// couleur n'est pas autorisé par le sanitizer backend (juste des mots-clés comme
+// `none`), alors que `background-color`/`padding`/`border-radius` le sont déjà
+// (réutilisés tels quels, pas de changement sanitizer nécessaire pour ce bouton).
+const FRAME_STYLE = 'background-color:#F3F4F6;border-radius:8px;padding:10px 14px;display:block'
+
+const ParagraphWithFrame = Paragraph.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      style: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('style'),
+        renderHTML: (attributes: { style?: string | null }) =>
+          attributes.style ? { style: attributes.style } : {},
+      },
     }
   },
 })
@@ -338,8 +360,9 @@ export default function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        bulletList: {}, orderedList: {}, heading: { levels: [2, 3] }, horizontalRule: false,
+        bulletList: {}, orderedList: {}, heading: { levels: [2, 3] }, horizontalRule: false, paragraph: false,
       }),
+      ParagraphWithFrame,
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder }),
@@ -456,6 +479,7 @@ export default function RichTextEditor({
       {label === 'Titre' && <IconHeading width={14} height={14} />}
       {label === 'Liste' && <IconList width={14} height={14} />}
       {label === 'Liste numérotée' && <IconListOrdered width={14} height={14} />}
+      {label === 'Cadre de réponse' && <IconFrame width={14} height={14} />}
       {label === 'Gauche' && <IconAlignLeft width={14} height={14} />}
       {label === 'Centre' && <IconAlignCenter width={14} height={14} />}
       {label === 'Droite' && <IconAlignRight width={14} height={14} />}
@@ -546,6 +570,14 @@ export default function RichTextEditor({
         {btn('Titre', () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive('heading', { level: 2 }))}
         {btn('Liste', () => editor.chain().focus().toggleBulletList().run(), editor.isActive('bulletList'))}
         {btn('Liste numérotée', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'))}
+        {btn(
+          'Cadre de réponse',
+          () => {
+            const isFramed = editor.isActive('paragraph', { style: FRAME_STYLE })
+            editor.chain().focus().updateAttributes('paragraph', { style: isFramed ? null : FRAME_STYLE }).run()
+          },
+          editor.isActive('paragraph', { style: FRAME_STYLE }),
+        )}
         <div className="relative" ref={hrPanelRef}>
           <ToolbarButton
             onClick={openHrPanel}

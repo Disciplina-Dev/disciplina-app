@@ -5,8 +5,8 @@ import RichTextEditor from '@/components/ui/RichTextEditor'
 import SignaturePad from '@/components/ui/SignaturePad'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { apiFetch } from '@/api/httpClient'
-import { fetchSequenceDocument, saveSequenceDocument } from '@/api/alternantDocumentTemplates'
-import type { AlternantSequenceDocument } from '@/types/alternantDocumentTemplate'
+import { fetchAlternantDocumentTemplates, fetchSequenceDocument, saveSequenceDocument } from '@/api/alternantDocumentTemplates'
+import type { AlternantDocumentTemplate, AlternantSequenceDocument } from '@/types/alternantDocumentTemplate'
 
 type Part = 'maitreApprentissage' | 'alternant' | 'formateur'
 
@@ -43,6 +43,10 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
   const [saving, setSaving] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Tous les modèles (système + périodiques) : pour pouvoir en choisir un
+  // manuellement ici, pas seulement celui résolu automatiquement (`doc.template`).
+  const [templates, setTemplates] = useState<AlternantDocumentTemplate[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   useEffect(() => {
     fetchSequenceDocument(sequenceId)
@@ -61,7 +65,22 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
       .finally(() => setLoading(false))
+    fetchAlternantDocumentTemplates().then(setTemplates).catch(() => setTemplates([]))
   }, [sequenceId])
+
+  // Applique le modèle choisi aux 3 parties en mémoire (pas encore enregistré) —
+  // utile quand le modèle résolu automatiquement par Session ne convient pas à
+  // cette SA précise (ex. alternant sur un titre professionnel différent).
+  function handleApplyTemplate(templateId: string) {
+    setSelectedTemplateId(templateId)
+    const template = templates.find((t) => t.id === templateId)
+    if (!template) return
+    setContent({
+      maitreApprentissage: template.maitreApprentissage,
+      alternant: template.alternant,
+      formateur: template.formateur,
+    })
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -83,12 +102,13 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
     }
   }
 
-  // Repart du modèle vierge pour la partie affichée uniquement — en mémoire,
-  // rien n'est perdu côté serveur tant qu'on ne clique pas "Enregistrer".
+  // Repart du modèle vierge pour le texte de la partie affichée uniquement —
+  // en mémoire, rien n'est perdu côté serveur tant qu'on ne clique pas
+  // "Enregistrer". Ne touche plus la signature : les signatures sont
+  // regroupées à la fin, indépendantes du texte de chaque partie.
   function handleResetToTemplate() {
     if (!doc?.template) return
     setContent((prev) => ({ ...prev, [activePart]: doc.template![activePart] ?? '' }))
-    setSignature((prev) => ({ ...prev, [activePart]: '' }))
   }
 
   async function handleDownloadPdf() {
@@ -121,6 +141,21 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
           <h2 className="flex items-center gap-2 text-lg font-bold text-[var(--ds-text)]">
             <IconFile width={20} height={20} className="text-teal-700" />
             Document de séquence
+            {doc && (
+              <span
+                className={[
+                  'rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                  doc.isSnapshotted ? 'bg-teal-700/10 text-teal-700' : 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]',
+                ].join(' ')}
+                title={
+                  doc.isSnapshotted
+                    ? 'Déjà rempli et enregistré pour cet alternant — un modèle modifié depuis ne change plus ce contenu.'
+                    : "Encore le modèle par défaut, rien n'a été enregistré pour cette SA."
+                }
+              >
+                {doc.isSnapshotted ? 'Modèle personnalisé' : 'Modèle par défaut'}
+              </span>
+            )}
           </h2>
           <button
             onClick={onClose}
@@ -153,6 +188,25 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
               </div>
             )}
 
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="sa-apply-template" className="text-xs font-medium text-[var(--ds-text-muted)]">
+                Appliquer un modèle (remplace les 3 parties, non enregistré avant "Enregistrer")
+              </label>
+              <select
+                id="sa-apply-template"
+                value={selectedTemplateId}
+                onChange={(e) => handleApplyTemplate(e.target.value)}
+                className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2 px-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-teal-700"
+              >
+                <option value="">— Choisir un modèle —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-2">
               <SegmentedControl
                 label="Partie du document"
@@ -184,15 +238,21 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
               />
             </div>
 
-            <SignaturePad
-              // `SignaturePad` ne lit `value` qu'au montage (dessin initial sur
-              // canvas) — une `key` par partie force un vrai remount au lieu
-              // d'un remplacement silencieux qui garderait l'ancien tracé.
-              key={activePart}
-              label={`Signature — ${PART_LABELS[activePart]}`}
-              value={signature[activePart] || null}
-              onChange={(dataUrl) => setSignature((prev) => ({ ...prev, [activePart]: dataUrl }))}
-            />
+            {/* Signatures regroupées à la fin (comme le tableau final des Word
+                d'origine), pas une par partie — indépendantes de l'onglet actif. */}
+            <div className="space-y-3 border-t border-[var(--ds-border)] pt-4">
+              <h3 className="text-sm font-semibold text-[var(--ds-text)]">Signatures</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {(['maitreApprentissage', 'alternant', 'formateur'] as Part[]).map((part) => (
+                  <SignaturePad
+                    key={part}
+                    label={PART_LABELS[part]}
+                    value={signature[part] || null}
+                    onChange={(dataUrl) => setSignature((prev) => ({ ...prev, [part]: dataUrl }))}
+                  />
+                ))}
+              </div>
+            </div>
 
             {error && (
               <p className="rounded-xl border border-[var(--ds-danger)]/30 bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)]">

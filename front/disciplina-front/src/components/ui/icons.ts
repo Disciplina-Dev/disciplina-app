@@ -174,4 +174,5 @@ export {
   TextSize as IconTextSize,
   FillColorSolid as IconHighlight,
   CursorPointer as IconCursorClick,
+  Box as IconFrame,
 } from 'iconoir-react'
