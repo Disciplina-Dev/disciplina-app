@@ -39,6 +39,7 @@ import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
+import { startSaNotificationScheduler } from './scheduler/saNotificationScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
 import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
@@ -285,6 +286,7 @@ export async function startServer(): Promise<http.Server> {
         .catch((err) => logger.error({ err }, 'external-link: seed du modèle système échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
+    startSaNotificationScheduler();
     startUnavailableExpiryScheduler();
     startAbSignatureRelanceScheduler();
     startExpiredAccessScheduler();

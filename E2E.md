@@ -171,10 +171,10 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 ### 3.14 Peda / absences
 
 - **Étapes** : PEDA configure le suivi (`GET/PUT/DELETE /api/peda/config*`) → lance une passe (`POST /api/peda/run`).
-- **Chaîne** : `peda/controller.ts` → `PedaService`, `PedaDraftService` (lit Google Sheets, rédige des brouillons de relance d'absence). Scheduler en arrière-plan : `scheduler/pedaDraftScheduler.ts` + `immersionEndScheduler.ts` (`setInterval`, démarrés dans `startServer`).
-- **Résultat attendu** : brouillons générés à partir des absences ; adresses email normalisées correctement.
+- **Chaîne** : `peda/controller.ts` → `PedaService`, `PedaDraftService` (lit Google Sheets, rédige des brouillons de relance d'absence). Schedulers en arrière-plan : `scheduler/pedaDraftScheduler.ts` + `immersionEndScheduler.ts` + `saNotificationScheduler.ts` (`setInterval`, démarrés dans `startServer`).
+- **Résultat attendu** : brouillons générés à partir des absences ; adresses email normalisées correctement ; notif Peda à la déclaration d'une rupture et au premier passage d'une SA « En cours » / « En retard ».
 - **External** : ⚠️ Google Sheets, Gmail.
-- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`, `graphql/peda/__tests__/rupture.test.ts` (déclaration + rapport mensuel).
+- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`, `services/__tests__/saNotification.test.ts` (SA en cours/en retard + notif rupture), `graphql/peda/__tests__/rupture.test.ts` (déclaration + rapport mensuel).
 - **Statut** : _à remplir_
 
 ### 3.15 Notifications & Todos
@@ -239,7 +239,7 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.11 Email/relance | (pattern documenté) | **oui** |
 | 3.12 Classmarker | `webhookSignature` (garde) | flux PDF/Drive |
 | 3.13 KPI | — | **oui** |
-| 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification` | flux `run` complet |
+| 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification`, `saNotification`, `rupture` | flux `run` complet (drafts) |
 | 3.15 Notifs/Todos | `authBoundary` (SSE) | flux nominal |
 | 3.16 Admin users | `directory`, `sensitive-fields` | — |
 

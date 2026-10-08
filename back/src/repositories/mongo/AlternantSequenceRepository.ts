@@ -87,6 +87,43 @@ export class AlternantSequenceRepository {
         return later.length;
     }
 
+    /**
+     * SA en attente entrées dans la fenêtre « En cours » et pas encore notifiées.
+     * Fenêtre alignée sur le dashboard Peda : [startOfToday, startOfToday + 14 jours[.
+     */
+    async findSoonUnnotified(startOfToday: Date, soonUpper: Date): Promise<AlternantSequence[]> {
+        return getModels()
+            .AlternantSequence.find({
+                status: 'pending',
+                archived_at: null,
+                prevue_le: { $gte: startOfToday, $lt: soonUpper },
+                soon_notified_at: null,
+            })
+            .lean();
+    }
+
+    /** SA en attente dont la date prévue est dépassée et pas encore notifiées. */
+    async findLateUnnotified(startOfToday: Date): Promise<AlternantSequence[]> {
+        return getModels()
+            .AlternantSequence.find({
+                status: 'pending',
+                archived_at: null,
+                prevue_le: { $lt: startOfToday },
+                late_notified_at: null,
+            })
+            .lean();
+    }
+
+    /** Marque la notification « SA en cours » comme émise (dédup scheduler). */
+    async markSoonNotified(id: string, at: Date): Promise<void> {
+        await getModels().AlternantSequence.updateOne({ _id: id }, { $set: { soon_notified_at: at } });
+    }
+
+    /** Marque la notification « SA en retard » comme émise (dédup scheduler). */
+    async markLateNotified(id: string, at: Date): Promise<void> {
+        await getModels().AlternantSequence.updateOne({ _id: id }, { $set: { late_notified_at: at } });
+    }
+
     /** Supprime toutes les SA d'un alternant (ex. perte d'entreprise). */
     async deleteByAlternantId(alternantId: string): Promise<number> {
         const res = await getModels().AlternantSequence.deleteMany({ alternant_id: alternantId });

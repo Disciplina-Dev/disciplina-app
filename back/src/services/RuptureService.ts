@@ -1,7 +1,10 @@
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { AlternantSequenceRepository } from '../repositories/mongo/AlternantSequenceRepository';
 import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
+import { UserRepository } from '../repositories/mysql/UserRepository';
+import { NotificationService } from './NotificationService';
 import { Alternant } from '../types/alternant.types';
+import { UserRowJoined } from '../types/db-rows.types';
 import {
     DeclareRuptureInput,
     RUPTURE_MOTIFS,
@@ -44,6 +47,8 @@ export class RuptureService {
     private ruptures = new RuptureRepository();
     private alternants = new AlternantRepository();
     private sequences = new AlternantSequenceRepository();
+    private userRepository = new UserRepository();
+    private notificationService = new NotificationService();
 
     /**
      * L'état d'archive suit les ruptures « quitte la formation » :
@@ -101,7 +106,53 @@ export class RuptureService {
         });
         logger.info({ alternantId: alternant._id, ruptureId: created._id }, 'Rupture déclarée');
         await this.syncArchiveStatus(alternant._id);
+        await this.notifyPedaOnDeclare(alternant, created);
         return created;
+    }
+
+    /**
+     * Notifie l'équipe pédagogique (rôle PEDA + RESPONSABLE / ADMIN) qu'une
+     * rupture vient d'être déclarée. Best-effort : un échec ne fait jamais
+     * échouer la déclaration elle-même.
+     */
+    private async notifyPedaOnDeclare(alternant: Alternant, rupture: Rupture): Promise<void> {
+        try {
+            const [byRole, byPermission] = await Promise.all([
+                this.userRepository.findByRoleIds([3]), // PEDA
+                this.userRepository.findByPermissionIds([2, 3]), // RESPONSABLE, ADMIN
+            ]);
+            const map = new Map<number, UserRowJoined>();
+            for (const u of byRole) map.set(u.id, u);
+            for (const u of byPermission) map.set(u.id, u);
+            const recipients = [...map.values()];
+            if (recipients.length === 0) {
+                logger.warn('rupture: aucun destinataire Peda, notification ignorée');
+                return;
+            }
+            const name = `${alternant.first_name} ${alternant.last_name}`.trim() || 'Un alternant';
+            const date = new Date(rupture.date_rupture).toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+            });
+            const devenir = rupture.poursuit_formation ? 'poursuit la formation' : 'quitte la formation';
+            const entreprise = rupture.entreprise ? ` (${rupture.entreprise})` : '';
+            await Promise.all(
+                recipients.map((user) =>
+                    this.notificationService.create({
+                        userId: user.id,
+                        type: 'rupture_declared',
+                        category: 'peda',
+                        level: 'warning',
+                        title: 'Rupture déclarée',
+                        message: `Rupture déclarée pour ${name}${entreprise} le ${date} — ${devenir}.`,
+                        link: `/peda/alternants/${alternant._id}`,
+                    }),
+                ),
+            );
+        } catch (err) {
+            logger.error({ err, alternantId: alternant._id }, 'rupture: échec notification Peda');
+        }
     }
 
     async update(id: string, input: UpdateRuptureInput): Promise<Rupture | null> {

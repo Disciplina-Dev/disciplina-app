@@ -57,6 +57,10 @@ export interface AlternantSequence {
     realisee_le?: Date | string | null;
     /** `true` si générée automatiquement (planning J+15 / 10 semaines / 4 mois). */
     auto_generated: boolean;
+    /** Horodatage de la notif « SA en cours » (entrée dans les 14 jours) — dédup scheduler. */
+    soon_notified_at?: Date | string | null;
+    /** Horodatage de la notif « SA en retard » (date prévue dépassée) — dédup scheduler. */
+    late_notified_at?: Date | string | null;
     /** `null` = active ; date posée = archivée avec son alternant. */
     archived_at?: Date | string | null;
     created_at: Date | string;
