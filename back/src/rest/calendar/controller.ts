@@ -1,7 +1,12 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
-import { GoogleCalendarService, CalendarEventInput, Attendance } from '../../external/google/calendar.service';
+import {
+    GoogleCalendarService,
+    CalendarEventInput,
+    Attendance,
+    ATTENDANCES,
+} from '../../external/google/calendar.service';
 import { JobRole, Permission, User } from '../../types/user.types';
 import { logger } from '../../external/logger';
 import { env } from '../../config/env';
@@ -18,18 +23,28 @@ const rhKpiService = new RhKpiService();
 
 /**
  * Delta KPI pour une transition de présence old→next.
- * Le « venu » crédite un entretien réalisé (interviews_attended) ; le
- * « pas venu » crédite un no-show. Le venu peut aussi venir de la création
+ * Chaque statut crédite son compteur : « venu » (interviews_attended),
+ * « pas venu » (interviews_noshow), « reporté » (interviews_postponed),
+ * « décliné » (interviews_declined). Le venu peut aussi venir de la création
  * d'un dossier candidat (cf. resolver createCandidate), les deux sont
  * cumulatifs (l'un n'exclut pas l'autre).
  */
+export const ATTENDANCE_KPI_COLUMN: Record<Attendance, string> = {
+    arrived: 'interviews_attended',
+    noshow: 'interviews_noshow',
+    postponed: 'interviews_postponed',
+    declined: 'interviews_declined',
+};
+
 function attendanceDelta(old: Attendance | undefined, next: Attendance): Record<string, number> {
     if (old === next) return {};
     const delta: Record<string, number> = {};
-    if (old === 'arrived') delta.interviews_attended = (delta.interviews_attended ?? 0) - 1;
-    if (next === 'arrived') delta.interviews_attended = (delta.interviews_attended ?? 0) + 1;
-    if (old === 'noshow') delta.interviews_noshow = (delta.interviews_noshow ?? 0) - 1;
-    if (next === 'noshow') delta.interviews_noshow = (delta.interviews_noshow ?? 0) + 1;
+    if (old) {
+        const col = ATTENDANCE_KPI_COLUMN[old];
+        if (col) delta[col] = (delta[col] ?? 0) - 1;
+    }
+    const nextCol = ATTENDANCE_KPI_COLUMN[next];
+    if (nextCol) delta[nextCol] = (delta[nextCol] ?? 0) + 1;
     return delta;
 }
 
@@ -273,11 +288,11 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
     }
 }
 
-/** PATCH /api/calendar/events/:id/attendance — body { status: 'arrived' | 'noshow' } */
+/** PATCH /api/calendar/events/:id/attendance — body { status: 'arrived' | 'noshow' | 'postponed' | 'declined' } */
 export async function setAttendance(req: AuthRequest, res: Response): Promise<void> {
     const status = (req.body ?? {}).status;
-    if (status !== 'arrived' && status !== 'noshow') {
-        res.status(400).json({ error: 'status doit être "arrived" ou "noshow"' });
+    if (!ATTENDANCES.includes(status)) {
+        res.status(400).json({ error: 'status doit être "arrived", "noshow", "postponed" ou "declined"' });
         return;
     }
     const owner = await resolveOwner(req, res);
@@ -287,7 +302,7 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         const calendar = calendarForUser(owner);
         const before = await calendar.getEvent(req.params.id as string);
         const event = await calendar.setAttendance(req.params.id as string, status);
-        // KPI : venu / pas venu (tout créneau, entretien ou non), attribué à l'acteur.
+        // KPI : venu / pas venu / reporté / décliné (tout créneau, entretien ou non), attribué à l'acteur.
         if (actor) {
             const delta = attendanceDelta(before.attendance, status);
             if (Object.keys(delta).length) {
@@ -334,9 +349,9 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
                 if (input.isInterview)
                     await rhKpiService.bump(actor.id, sector, new Date(input.start), { interviews_placed: 1 });
             }
-            // KPI : un déplacement de date déplace aussi les compteurs venu / pas venu (tout créneau).
+            // KPI : un déplacement de date déplace aussi les compteurs de présence (tout créneau).
             if (dayMoved && before.attendance) {
-                const popped = before.attendance === 'arrived' ? 'interviews_attended' : 'interviews_noshow';
+                const popped = ATTENDANCE_KPI_COLUMN[before.attendance];
                 await rhKpiService.bump(actor.id, sector, new Date(before.start), { [popped]: -1 });
                 await rhKpiService.bump(actor.id, sector, new Date(input.start), { [popped]: 1 });
             }
@@ -356,12 +371,14 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
     try {
         const before = await calendar.getEvent(req.params.id as string);
         await calendar.deleteEvent(req.params.id as string);
-        // KPI : on retire les compteurs portés par ce créneau (placé pour les entretiens, venu + no-show pour tous), acteur.
+        // KPI : on retire les compteurs portés par ce créneau (placé pour les entretiens, présence pour tous), acteur.
         if (actor) {
             const delta: Record<string, number> = {};
             if (before.isInterview) delta.interviews_placed = -1;
-            if (before.attendance === 'arrived') delta.interviews_attended = -1;
-            if (before.attendance === 'noshow') delta.interviews_noshow = -1;
+            if (before.attendance) {
+                const col = ATTENDANCE_KPI_COLUMN[before.attendance];
+                if (col) delta[col] = -1;
+            }
             if (Object.keys(delta).length) {
                 await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(before.start), delta);
             }

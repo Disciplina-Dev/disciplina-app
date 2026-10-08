@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
-import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconMail, IconMapPin, IconPlus, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
+import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconMail, IconMapPin, IconPlus, IconRepeat, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
 import {
   fetchMyBookingSettings, updateMyBookingSettings, bookingPublicUrl,
   type BookingSettings, type WorkingHours,
@@ -27,12 +27,12 @@ type View = 'month' | 'week'
 /** Event enrichi de son propriétaire (pour vue multi-agendas). */
 type OwnedEvent = CalendarEvent & { ownerId: number }
 
-/** Couleur des cases selon la présence : vert = arrivé, rouge = pas venu (sinon couleur normale). */
-const ATTENDANCE_HEX: Record<'arrived' | 'noshow', string> = { arrived: '#1A7A4A', noshow: '#C0152A' }
+/** Couleur des cases selon la présence : vert = venu, rouge = pas venu, orange = reporté, gris = décliné (sinon couleur normale). */
+const ATTENDANCE_HEX: Record<Attendance, string> = { arrived: '#1A7A4A', noshow: '#C0152A', postponed: '#B45309', declined: '#6B7280' }
 
-/** Couleur d'affichage : présence (vert/rouge) prioritaire, sinon colorId (self) ou couleur du propriétaire. */
+/** Couleur d'affichage : présence (vert/rouge/orange/gris) prioritaire, sinon colorId (self) ou couleur du propriétaire. */
 function displayHex(e: OwnedEvent, selfId: number): string {
-  if (e.attendance === 'arrived' || e.attendance === 'noshow') return ATTENDANCE_HEX[e.attendance]
+  if (e.attendance) return ATTENDANCE_HEX[e.attendance]
   return e.ownerId === selfId ? eventHex(e.colorId) : ownerColor(e.ownerId)
 }
 
@@ -1204,10 +1204,10 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
           )}
         </div>
 
-        {/* Présence : venu / pas venu, disponible sur tout créneau (entretien ou non), impacte les KPI. */}
+        {/* Présence : venu / pas venu / reporté / décliné, disponible sur tout créneau (entretien ou non), impacte les KPI. */}
         <div className="mt-4 rounded-xl bg-[var(--ds-surface-sunken)] p-3">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Présence</p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => mark('arrived')} disabled={savingAtt !== null}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-[var(--ds-success-bg)] text-[var(--ds-success)]' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]'}`}>
               {savingAtt === 'arrived' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserCheck width={14} height={14} />} Venu
@@ -1215,6 +1215,16 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
             <button onClick={() => mark('noshow')} disabled={savingAtt !== null}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]'}`}>
               {savingAtt === 'noshow' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserRemove width={14} height={14} />} Pas venu
+            </button>
+            <button onClick={() => mark('postponed')} disabled={savingAtt !== null}
+              style={event.attendance === 'postponed' ? { borderColor: '#B45309', backgroundColor: '#B4530914', color: '#B45309' } : undefined}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance !== 'postponed' ? 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]' : ''}`}>
+              {savingAtt === 'postponed' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconRepeat width={14} height={14} />} Reporté
+            </button>
+            <button onClick={() => mark('declined')} disabled={savingAtt !== null}
+              style={event.attendance === 'declined' ? { borderColor: '#6B7280', backgroundColor: '#6B728014', color: '#6B7280' } : undefined}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance !== 'declined' ? 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]' : ''}`}>
+              {savingAtt === 'declined' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconClose width={14} height={14} />} Décliné
             </button>
           </div>
           {event.isInterview && event.attendance === 'noshow' && (

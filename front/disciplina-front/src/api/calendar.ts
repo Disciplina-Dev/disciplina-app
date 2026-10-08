@@ -17,13 +17,13 @@ export interface CalendarEvent {
   meetingLink?: string;
   /** Email de l'invité (confirmation / relance). */
   attendeeEmail?: string;
-  /** Présence : 'arrived' (venu) ou 'noshow' (pas venu). */
+  /** Présence : 'arrived' (venu), 'noshow' (pas venu), 'postponed' (reporté), 'declined' (décliné). */
   attendance?: Attendance;
   /** Marqué comme entretien (compté dans les KPI RH). */
   isInterview?: boolean;
 }
 
-export type Attendance = 'arrived' | 'noshow';
+export type Attendance = 'arrived' | 'noshow' | 'postponed' | 'declined';
 
 export interface CalendarEventInput {
   summary: string;
@@ -75,7 +75,8 @@ export interface CalendarUser {
 
 /**
  * Palette pour distinguer les agendas par personne (couleur déterministe par id).
- * Rouge et vert sont réservés à la présence (venu / pas venu) : on les exclut ici,
+ * Les couleurs de présence (vert venu, rouge pas venu, orange reporté, gris
+ * décliné) sont réservées : on les exclut ici,
  * et chaque teinte est franchement distincte des autres (aucune nuance proche).
  */
 const OWNER_PALETTE = [

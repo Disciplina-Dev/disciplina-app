@@ -318,7 +318,7 @@ Weekly/monthly KPI counter buckets. Replaces the former MySQL tables `commercial
 Typed union on the application side:
 
 - `kind: commercial` → `count_oui`, `count_oui_of`, `count_non`, `count_ne_repond_pas`, `count_a_reflechir`, `count_relance`, `total_appels`, `total_trie`, `nbre_ent_ferme`, `nbre_ent_ouvert`, `visites_terrain`
-- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `immersions`, `contracts`, `ruptures`
+- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `interviews_postponed`, `interviews_declined`, `immersions`, `contracts`, `ruptures`
 
 All values are non-negative integers; unknown keys are ignored at read time (metrics may grow over time without schema change).
 
