@@ -53,14 +53,31 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('fr-FR')
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+/** Seuil « En cours » : SA prévue dans moins de 14 jours (aligné sur DashboardPeda). */
+const SOON_THRESHOLD_DAYS = 14
+
+function diffDaysFromNow(prevueLe: string): number {
+  return Math.ceil((new Date(prevueLe).getTime() - Date.now()) / DAY_MS)
+}
+
 function daysLabel(prevueLe: string, status: string, realiseeLe: string | null): string {
   if (status === 'done') return realiseeLe ? `Réalisée le ${formatDate(realiseeLe)}` : 'Réalisée'
   if (status === 'not_done') return 'Non réalisée'
-  const diff = Math.ceil((new Date(prevueLe).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+  const diff = diffDaysFromNow(prevueLe)
   if (diff > 1) return `Dans ${diff} jours`
   if (diff === 1) return 'Demain'
   if (diff === 0) return "Aujourd’hui"
   return `En retard de ${-diff} jour${-diff > 1 ? 's' : ''}`
+}
+
+/** Couleur du délai : rouge si en retard, jaune si prévu dans moins de 14 jours. */
+function daysLabelClassName(prevueLe: string, status: string): string {
+  if (status !== 'pending') return 'text-teal-700'
+  const diff = diffDaysFromNow(prevueLe)
+  if (diff < 0) return 'text-[var(--ds-danger)]'
+  if (diff < SOON_THRESHOLD_DAYS) return 'text-[var(--ds-warning)]'
+  return 'text-teal-700'
 }
 
 function ContactCheckbox({
@@ -726,7 +743,7 @@ export default function FicheAlternant() {
                     <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[var(--ds-text-muted)]">
                       <IconCalendar width={14} height={14} className="text-[var(--ds-text-subtle)]" />
                       Prévu le : {formatDate(seq.prevueLe)}
-                      <span className="font-semibold text-teal-700">· {daysLabel(seq.prevueLe, seq.status, seq.realiseeLe)}</span>
+                      <span className={`font-semibold ${daysLabelClassName(seq.prevueLe, seq.status)}`}>· {daysLabel(seq.prevueLe, seq.status, seq.realiseeLe)}</span>
                     </p>
                     {linkedOthers.length > 0 && seq.status === 'pending' && (
                       <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[var(--ds-text-subtle)]">
