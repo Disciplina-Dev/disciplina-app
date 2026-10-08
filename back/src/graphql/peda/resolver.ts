@@ -6,17 +6,23 @@ import {
     CreateAlternantInput,
     UpdateAlternantInput,
 } from '../../services/AlternantService';
-import { AlternantSequenceContacts, AlternantSequenceStatus } from '../../types/alternant.types';
+import { AlternantSequenceContacts, AlternantSequenceStatus, AlternantSequenceType } from '../../types/alternant.types';
 import { alternantToGql, sequenceToGql } from '../../services/mappers/alternant.mapper';
 import { ruptureToGql } from '../../services/mappers/rupture.mapper';
 import { sessionToGql } from '../../services/mappers/session.mapper';
+import { templateToGql, resolvedDocumentToGql } from '../../services/mappers/alternantDocumentTemplate.mapper';
 import { CreateSessionInput, SessionService, UpdateSessionInput } from '../../services/SessionService';
+import {
+    AlternantDocumentTemplateInput,
+    AlternantDocumentTemplateService,
+} from '../../services/AlternantDocumentTemplateService';
 import { RuptureService } from '../../services/RuptureService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
 
 const alternantService = new AlternantService();
 const sessionService = new SessionService();
 const ruptureService = new RuptureService();
+const documentTemplateService = new AlternantDocumentTemplateService();
 
 async function sessionWithCount(id: string): Promise<object | null> {
     const session = await sessionService.findById(id);
@@ -80,6 +86,16 @@ export const resolvers = {
             const alternant = await alternantService.findById(alternantId);
             const ruptures = await ruptureService.findByAlternantId(alternantId);
             return ruptures.map((r) => ruptureToGql(r, alternant));
+        },
+        alternantDocumentTemplates: async (_: unknown, { type }: { type?: AlternantSequenceType }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const templates = await documentTemplateService.findAll(type);
+            return templates.map(templateToGql);
+        },
+        alternantSequenceDocument: async (_: unknown, { sequenceId }: { sequenceId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const resolved = await alternantService.resolveSequenceDocument(sequenceId);
+            return resolvedDocumentToGql(resolved);
         },
     },
     Mutation: {
@@ -212,11 +228,7 @@ export const resolvers = {
             const alternant = await alternantService.findById(created.alternant_id);
             return ruptureToGql(created, alternant);
         },
-        updateRupture: async (
-            _: unknown,
-            { id, input }: { id: string; input: UpdateRuptureInput },
-            context: any,
-        ) => {
+        updateRupture: async (_: unknown, { id, input }: { id: string; input: UpdateRuptureInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const updated = await ruptureService.update(id, input);
             if (!updated) return null;
@@ -226,6 +238,50 @@ export const resolvers = {
         deleteRupture: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             return ruptureService.delete(id);
+        },
+        createAlternantDocumentTemplate: async (
+            _: unknown,
+            { input }: { input: AlternantDocumentTemplateInput },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const created = await documentTemplateService.create(input);
+            return templateToGql(created);
+        },
+        updateAlternantDocumentTemplate: async (
+            _: unknown,
+            { id, input }: { id: string; input: AlternantDocumentTemplateInput },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const updated = await documentTemplateService.update(id, input);
+            return templateToGql(updated);
+        },
+        deleteAlternantDocumentTemplate: async (_: unknown, { id }: { id: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            return documentTemplateService.delete(id);
+        },
+        saveAlternantSequenceDocument: async (
+            _: unknown,
+            {
+                sequenceId,
+                input,
+            }: {
+                sequenceId: string;
+                input: {
+                    maitreApprentissage: string;
+                    alternant: string;
+                    formateur: string;
+                    signatureMaitreApprentissage?: string | null;
+                    signatureAlternant?: string | null;
+                    signatureFormateur?: string | null;
+                };
+            },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const resolved = await alternantService.saveSequenceDocument(sequenceId, input);
+            return resolvedDocumentToGql(resolved);
         },
     },
 };

@@ -6,6 +6,7 @@ import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { MASKED_SSN } from '../external/crypto/ssn-cipher';
+import { ResolvedSequenceDocument } from './AlternantService';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // On utilise le Chromium natif du système (installé dans l'image Docker via apt)
@@ -1245,6 +1246,55 @@ function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
 
 // ─── PdfService ───────────────────────────────────────────────────────────────
 
+// ─── SA (Séquence d'Accompagnement) PDF (#888) ─────────────────────────────────
+
+function buildAlternantSequenceHtml(data: ResolvedSequenceDocument, logoDataUrl: string): string {
+    const { header } = data;
+    const periode = [fmtDate(header.companyStartDate), fmtDate(header.companyEndDate)].filter(Boolean).join(' au ');
+    const logoHtml = logoDataUrl
+        ? `<img src="${logoDataUrl}" style="height:60px;display:block;margin-bottom:14px;" />`
+        : '';
+
+    const partBlock = (title: string, html: string | null, signature: string | null): string => `
+${sh(title)}
+<div class="text-area">${html && html.trim() ? html : '&nbsp;'}</div>
+${signature ? `<div class="signature-row"><span class="field-label">Signature :</span><br/><img src="${signature}" class="signature-img" /></div>` : ''}`;
+
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #000; background: #fff; padding: 24px; }
+  h1.main-title { font-size: 15pt; font-weight: bold; margin-bottom: 16px; }
+  .section-header { background: #EBEBEB; border: 1px solid #888; padding: 5px 10px; font-weight: bold; font-size: 10.5pt; margin: 18px 0 12px; }
+  .field-row { margin-bottom: 10px; }
+  .field-label { font-weight: bold; }
+  .field-value { font-weight: normal; }
+  .text-area { min-height: 36px; border: 1px solid #ccc; border-radius: 4px; padding: 10px; font-size: 10.5pt; line-height: 1.6; }
+  .text-area p:first-child { margin-top: 0; }
+  .signature-row { margin-top: 8px; }
+  .signature-img { max-height: 60px; margin-top: 4px; }
+</style>
+</head>
+<body>
+${logoHtml}
+<h1 class="main-title">Séquence d'accompagnement</h1>
+
+${sh('Informations générales')}
+${fr('Alternant :', header.alternantFullName)}
+${fr('Session :', header.session)}
+${fr("Maître d'apprentissage :", header.mentorName)}
+${periode ? fr('Période en entreprise :', periode) : ''}
+
+${partBlock("Maître d'apprentissage", data.maitreApprentissage, data.signatureMaitreApprentissage)}
+${partBlock('Alternant', data.alternant, data.signatureAlternant)}
+${partBlock('Formateur', data.formateur, data.signatureFormateur)}
+</body>
+</html>`;
+}
+
 export class PdfService {
     static generateClassMarkerPdf(candidate: Candidate): Promise<Buffer> {
         return new Promise((resolve, reject) => {
@@ -1311,5 +1361,26 @@ export class PdfService {
         }
 
         return dynamicPdfBytes;
+    }
+
+    static async generateAlternantSequencePdf(data: ResolvedSequenceDocument): Promise<Buffer> {
+        const logoDataUrl = getLogoDataUrl();
+        const html = buildAlternantSequenceHtml(data, logoDataUrl);
+
+        const browser = await launchBrowser();
+        let pdfBytes: Buffer;
+        try {
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'domcontentloaded' });
+            const pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
+            });
+            pdfBytes = Buffer.from(pdfBuffer);
+        } finally {
+            await browser.close();
+        }
+        return pdfBytes;
     }
 }

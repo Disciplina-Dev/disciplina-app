@@ -1,4 +1,5 @@
 import { Alternant, AlternantSequence } from '../../types/alternant.types';
+import { inferLegacyType } from '../AlternantService';
 
 export function alternantToGql(a: Alternant): object {
     return {
@@ -35,6 +36,7 @@ export function sequenceToGql(s: AlternantSequence): object {
         id: s._id,
         alternantId: s.alternant_id,
         numero: s.numero,
+        type: inferLegacyType(s),
         prevueLe: s.prevue_le ? new Date(s.prevue_le).toISOString() : null,
         status: s.status,
         realiseeLe: s.realisee_le ? new Date(s.realisee_le).toISOString() : null,

@@ -1,17 +1,30 @@
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { AlternantSequenceRepository } from '../repositories/mongo/AlternantSequenceRepository';
+import { AlternantDocumentTemplateRepository } from '../repositories/mongo/AlternantDocumentTemplateRepository';
 import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
 import { SessionRepository } from '../repositories/mongo/SessionRepository';
+import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import {
     Alternant,
     AlternantCompany,
     AlternantSequence,
     AlternantSequenceContacts,
+    AlternantSequenceDocument,
     AlternantSequenceStatus,
+    AlternantSequenceType,
 } from '../types/alternant.types';
+import { sanitizeMailHtml } from './sanitizeMailHtml';
 import { logger } from '../external/logger';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Clé app_settings : les SA existant avant #888 ont déjà reçu un `type` explicite. */
+export const ALTERNANT_SEQUENCE_TYPES_BACKFILLED_KEY = 'alternant_sequence_types_backfilled_v1';
+
+export interface SaDate {
+    date: Date;
+    type: AlternantSequenceType;
+}
 
 /**
  * Planning automatique des séquences d'accompagnement :
@@ -19,16 +32,23 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * - fin de période d'essai à 10 semaines (70 jours),
  * - puis tous les 4 mois jusqu'à la date de fin en entreprise (incluse).
  * Sans date de fin, on génère les 3 premières (J+15, 10 semaines, +4 mois).
+ * Chaque date est tagguée de son `type` (#888) dès ici : un contrat court peut
+ * ne produire aucune J15/J10W (coupées par `within()`), donc le type ne peut
+ * pas être redéduit après coup par position dans le tableau.
  */
-export function buildSaDates(startDate: Date, endDate?: Date | null): Date[] {
+export function buildSaDates(startDate: Date, endDate?: Date | null): SaDate[] {
     const start = new Date(startDate);
     start.setHours(12, 0, 0, 0);
     const end = endDate ? new Date(endDate) : null;
     if (end) end.setHours(23, 59, 59, 999);
     const within = (d: Date): boolean => !end || d.getTime() <= end.getTime();
-    const dates: Date[] = [];
-    for (const candidate of [new Date(start.getTime() + 15 * DAY_MS), new Date(start.getTime() + 70 * DAY_MS)]) {
-        if (within(candidate)) dates.push(candidate);
+    const dates: SaDate[] = [];
+    const milestones: [Date, AlternantSequenceType][] = [
+        [new Date(start.getTime() + 15 * DAY_MS), AlternantSequenceType.J15],
+        [new Date(start.getTime() + 70 * DAY_MS), AlternantSequenceType.J10W],
+    ];
+    for (const [candidate, type] of milestones) {
+        if (within(candidate)) dates.push({ date: candidate, type });
     }
     let cursor = new Date(start.getTime() + 70 * DAY_MS);
     for (;;) {
@@ -37,16 +57,32 @@ export function buildSaDates(startDate: Date, endDate?: Date | null): Date[] {
         if (end) {
             if (!within(cursor)) break;
             // Évite un doublon quand la fin tombe exactement sur une échéance.
-            if (dates.some((d) => d.getTime() === cursor.getTime())) break;
-            dates.push(new Date(cursor));
+            if (dates.some((d) => d.date.getTime() === cursor.getTime())) break;
+            dates.push({ date: new Date(cursor), type: AlternantSequenceType.PERIODIQUE });
         } else {
             if (dates.length >= 3) break;
-            dates.push(new Date(cursor));
+            dates.push({ date: new Date(cursor), type: AlternantSequenceType.PERIODIQUE });
         }
         // Garde-fou : jamais plus de 25 échéances auto.
         if (dates.length >= 25) break;
     }
     return dates;
+}
+
+/**
+ * Heuristique de rattrapage pour les SA créées avant #888 (`type` absent en
+ * base) : reproduit l'ancienne déduction par position, utilisée au mapper
+ * (lecture défensive) et au backfill one-shot (écriture, cf. `AlternantService.backfillLegacySequenceTypes`).
+ */
+export function inferLegacyType(seq: {
+    type?: AlternantSequenceType;
+    numero: number;
+    auto_generated: boolean;
+}): AlternantSequenceType {
+    if (seq.type) return seq.type;
+    if (seq.auto_generated && seq.numero === 1) return AlternantSequenceType.J15;
+    if (seq.auto_generated && seq.numero === 2) return AlternantSequenceType.J10W;
+    return AlternantSequenceType.PERIODIQUE;
 }
 
 export interface CreateAlternantInput {
@@ -113,6 +149,7 @@ function requireValidDate(iso: string | undefined, field: string): Date {
 export class AlternantService {
     private alternants = new AlternantRepository();
     private sequences = new AlternantSequenceRepository();
+    private documentTemplates = new AlternantDocumentTemplateRepository();
     private ruptures = new RuptureRepository();
     private sessions = new SessionRepository();
 
@@ -331,10 +368,14 @@ export class AlternantService {
         return this.sequences.create({
             alternant_id: alternantId,
             numero,
+            // Une SA créée à la main est toujours un suivi périodique classique
+            // (#888) — J15/J10W restent des jalons exclusivement auto-générés.
+            type: AlternantSequenceType.PERIODIQUE,
             prevue_le: date,
             status: AlternantSequenceStatus.PENDING,
             contacts: { mentor: false, alternant: false, formateur: false },
             auto_generated: false,
+            document: null,
         });
     }
 
@@ -389,16 +430,183 @@ export class AlternantService {
 
     private async generateAutoSequences(alternantId: string, start: Date, end: Date | null): Promise<void> {
         const dates = buildSaDates(start, end);
-        for (const date of dates) {
+        for (const { date, type } of dates) {
             const numero = await this.sequences.nextNumero(alternantId);
             await this.sequences.create({
                 alternant_id: alternantId,
                 numero,
+                type,
                 prevue_le: date,
                 status: AlternantSequenceStatus.PENDING,
                 contacts: { mentor: false, alternant: false, formateur: false },
                 auto_generated: true,
+                document: null,
             });
         }
     }
+
+    /**
+     * Résout le document d'une SA (#888) : si un contenu a déjà été sauvegardé,
+     * le renvoie tel quel (snapshot figé, jamais réécrit par un modèle modifié
+     * depuis) ; sinon résout le modèle applicable (système pour J15/J10W, celui
+     * choisi sur la Session pour le périodique) et renvoie son contenu comme
+     * point de départ. Les champs d'en-tête (nom, session, maître d'apprentissage,
+     * dates) sont toujours lus en direct — jamais stockés sur la SA.
+     */
+    async resolveSequenceDocument(sequenceId: string): Promise<ResolvedSequenceDocument> {
+        const seq = await this.sequences.findById(sequenceId);
+        if (!seq) throw new Error('Séquence introuvable');
+        const alternant = await this.alternants.findById(seq.alternant_id);
+        if (!alternant) throw new Error('Alternant introuvable');
+
+        const header: ResolvedSequenceDocumentHeader = {
+            alternantFullName: `${alternant.first_name} ${alternant.last_name}`.trim(),
+            session: alternant.session ?? null,
+            mentorName: alternant.company?.mentor_name ?? null,
+            companyStartDate: alternant.company?.start_date ?? null,
+            companyEndDate: alternant.company?.end_date ?? null,
+        };
+
+        // Résolu systématiquement (même si un snapshot existe déjà) : sert de
+        // base à "Réinitialiser au modèle vierge" côté front sans dupliquer
+        // cette logique de résolution J15/J10W/périodique-par-session.
+        const type = inferLegacyType(seq);
+        let resolvedTemplate: Awaited<ReturnType<AlternantDocumentTemplateRepository['findSystemTemplate']>> = null;
+        if (type === AlternantSequenceType.PERIODIQUE) {
+            const sessionId = alternant.session_id;
+            const session = sessionId ? await this.sessions.findById(sessionId) : null;
+            resolvedTemplate = session?.document_template_id
+                ? await this.documentTemplates.findById(session.document_template_id)
+                : null;
+        } else {
+            resolvedTemplate = await this.documentTemplates.findSystemTemplate(type);
+        }
+        const template: ResolvedSequenceDocumentParts | null = resolvedTemplate
+            ? {
+                  maitreApprentissage: resolvedTemplate.maitre_apprentissage,
+                  alternant: resolvedTemplate.alternant,
+                  formateur: resolvedTemplate.formateur,
+              }
+            : null;
+
+        if (seq.document) {
+            return {
+                sequenceId,
+                header,
+                maitreApprentissage: seq.document.maitre_apprentissage,
+                alternant: seq.document.alternant,
+                formateur: seq.document.formateur,
+                signatureMaitreApprentissage: seq.document.signature_maitre_apprentissage,
+                signatureAlternant: seq.document.signature_alternant,
+                signatureFormateur: seq.document.signature_formateur,
+                isSnapshotted: true,
+                template,
+            };
+        }
+
+        return {
+            sequenceId,
+            header,
+            maitreApprentissage: template?.maitreApprentissage ?? null,
+            alternant: template?.alternant ?? null,
+            formateur: template?.formateur ?? null,
+            signatureMaitreApprentissage: null,
+            signatureAlternant: null,
+            signatureFormateur: null,
+            isSnapshotted: false,
+            template,
+        };
+    }
+
+    /**
+     * Sauvegarde les 3 parties (texte + signature) d'une SA ensemble (snapshot
+     * atomique, #888) — pas de sauvegarde partie par partie, pour éviter un état
+     * ambigu où une seule partie serait figée pendant que les autres restent
+     * liées au modèle. Signatures : images informelles (PNG data-URL), aucune
+     * valeur légale recherchée — juste une vérification de format légère.
+     */
+    async saveSequenceDocument(
+        sequenceId: string,
+        input: {
+            maitreApprentissage: string;
+            alternant: string;
+            formateur: string;
+            signatureMaitreApprentissage?: string | null;
+            signatureAlternant?: string | null;
+            signatureFormateur?: string | null;
+        },
+    ): Promise<ResolvedSequenceDocument> {
+        const seq = await this.sequences.findById(sequenceId);
+        if (!seq) throw new Error('Séquence introuvable');
+        const cleanSignature = (s: string | null | undefined): string | null =>
+            s && s.startsWith('data:image') ? s : null;
+        const document: AlternantSequenceDocument = {
+            maitre_apprentissage: sanitizeMailHtml(input.maitreApprentissage ?? ''),
+            alternant: sanitizeMailHtml(input.alternant ?? ''),
+            formateur: sanitizeMailHtml(input.formateur ?? ''),
+            signature_maitre_apprentissage: cleanSignature(input.signatureMaitreApprentissage),
+            signature_alternant: cleanSignature(input.signatureAlternant),
+            signature_formateur: cleanSignature(input.signatureFormateur),
+        };
+        await this.sequences.update(sequenceId, { document });
+        return this.resolveSequenceDocument(sequenceId);
+    }
+
+    /**
+     * Rattrapage one-shot (#888) : écrit un `type` explicite sur les SA créées
+     * avant ce champ, avec la même heuristique positionnelle que l'ancien
+     * comportement (`inferLegacyType`). Idempotent via flag app_settings.
+     */
+    async backfillLegacySequenceTypes(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(ALTERNANT_SEQUENCE_TYPES_BACKFILLED_KEY)) return;
+
+        const updates: { filter: Record<string, unknown>; type: AlternantSequenceType }[] = [
+            { filter: { type: { $exists: false }, auto_generated: true, numero: 1 }, type: AlternantSequenceType.J15 },
+            { filter: { type: { $exists: false }, auto_generated: true, numero: 2 }, type: AlternantSequenceType.J10W },
+            {
+                filter: {
+                    type: { $exists: false },
+                    $or: [{ auto_generated: false }, { numero: { $gte: 3 } }],
+                },
+                type: AlternantSequenceType.PERIODIQUE,
+            },
+        ];
+        let total = 0;
+        for (const { filter, type } of updates) {
+            total += await this.sequences.updateManyType(filter, type);
+        }
+        logger.info({ total }, 'alternant-sequences: backfill des types legacy effectué');
+        await settings.set(ALTERNANT_SEQUENCE_TYPES_BACKFILLED_KEY, '1');
+    }
+}
+
+export interface ResolvedSequenceDocumentHeader {
+    alternantFullName: string;
+    session: string | null;
+    mentorName: string | null;
+    companyStartDate: Date | string | null;
+    companyEndDate: Date | string | null;
+}
+
+export interface ResolvedSequenceDocumentParts {
+    maitreApprentissage: string | null;
+    alternant: string | null;
+    formateur: string | null;
+}
+
+export interface ResolvedSequenceDocument {
+    sequenceId: string;
+    header: ResolvedSequenceDocumentHeader;
+    maitreApprentissage: string | null;
+    alternant: string | null;
+    formateur: string | null;
+    signatureMaitreApprentissage: string | null;
+    signatureAlternant: string | null;
+    signatureFormateur: string | null;
+    /** `true` si le contenu vient d'un snapshot déjà sauvegardé, `false` si c'est encore le modèle résolu. */
+    isSnapshotted: boolean;
+    /** Contenu brut du modèle résolu (J15/J10W système ou périodique de la Session), indépendant
+     *  du snapshot déjà sauvegardé — sert au bouton "Réinitialiser au modèle vierge" côté front. */
+    template: ResolvedSequenceDocumentParts | null;
 }

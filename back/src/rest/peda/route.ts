@@ -1,7 +1,15 @@
 import express, { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
-import { getConfig, putSheet, deleteSheet, getDraftHour, putDraftHour, runNow } from './controller';
+import {
+    getConfig,
+    putSheet,
+    deleteSheet,
+    getDraftHour,
+    putDraftHour,
+    runNow,
+    downloadSequencePdf,
+} from './controller';
 
 export const router: Router = Router();
 
@@ -19,3 +27,6 @@ router.put('/config/hour', ...access, json, putDraftHour);
 
 // Déclenchement manuel du job (tous les Pedas)
 router.post('/run', ...access, runNow);
+
+// Document de SA (#888) : export PDF
+router.get('/alternant-sequences/:id/pdf', ...access, downloadSequencePdf);

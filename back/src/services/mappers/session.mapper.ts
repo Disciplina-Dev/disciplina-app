@@ -6,6 +6,7 @@ export function sessionToGql(s: Session, alternantCount?: number): object {
         nom: s.nom,
         filiere: s.filiere ?? null,
         jourCours: s.jour_cours ?? null,
+        documentTemplateId: s.document_template_id ?? null,
         dateDebut: s.date_debut ? new Date(s.date_debut).toISOString() : null,
         dateFin: s.date_fin ? new Date(s.date_fin).toISOString() : null,
         alternantCount: alternantCount ?? 0,

@@ -39,10 +39,38 @@ export enum AlternantSequenceStatus {
     NOT_DONE = 'not_done',
 }
 
+/**
+ * Type de séquence — détermine quel modèle de document s'applique (#888).
+ * J15/J10W sont les deux jalons auto-générés uniques ; PERIODIQUE couvre à la
+ * fois les suivis réguliers auto-générés (tous les 4 mois) et toute SA créée
+ * manuellement (cf. `AlternantService.createManualSequence`).
+ */
+export enum AlternantSequenceType {
+    J15 = 'j15',
+    J10W = 'j10w',
+    PERIODIQUE = 'periodique',
+}
+
 export interface AlternantSequenceContacts {
     mentor: boolean;
     alternant: boolean;
     formateur: boolean;
+}
+
+/**
+ * Contenu réellement rédigé pour une SA donnée. Tant qu'il vaut `null`, l'UI
+ * affiche le modèle résolu (système pour J15/J10W, celui de la Session pour
+ * PERIODIQUE) sans le persister — dès la première sauvegarde, ce snapshot est
+ * figé : un modèle modifié plus tard n'altère jamais une SA déjà remplie.
+ */
+export interface AlternantSequenceDocument {
+    maitre_apprentissage: string | null;
+    alternant: string | null;
+    formateur: string | null;
+    /** Signature dessinée (PNG en data-URL), informelle — aucune valeur légale recherchée. */
+    signature_maitre_apprentissage: string | null;
+    signature_alternant: string | null;
+    signature_formateur: string | null;
 }
 
 export interface AlternantSequence {
@@ -50,6 +78,8 @@ export interface AlternantSequence {
     alternant_id: string;
     /** Numéro de SA, auto-incrémenté par alternant. */
     numero: number;
+    /** Fixé à la création (auto ou manuelle), jamais recalculé. */
+    type: AlternantSequenceType;
     prevue_le: Date | string;
     status: AlternantSequenceStatus;
     contacts: AlternantSequenceContacts;
@@ -57,6 +87,7 @@ export interface AlternantSequence {
     realisee_le?: Date | string | null;
     /** `true` si générée automatiquement (planning J+15 / 10 semaines / 4 mois). */
     auto_generated: boolean;
+    document: AlternantSequenceDocument | null;
     /** `null` = active ; date posée = archivée avec son alternant. */
     archived_at?: Date | string | null;
     created_at: Date | string;

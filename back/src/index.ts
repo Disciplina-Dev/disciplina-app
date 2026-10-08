@@ -43,6 +43,8 @@ import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpirySc
 import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
+import { AlternantDocumentTemplateService } from './services/AlternantDocumentTemplateService';
+import { AlternantService } from './services/AlternantService';
 import { router as mcpRouter } from './mcp/route';
 import { buildMcpOAuthRouter } from './mcp/oauth/router';
 import { errorHandler } from './rest/middleware/errorHandler';
@@ -194,7 +196,10 @@ export async function createApp(): Promise<express.Express> {
     // drop. Best-effort : en cas d'échec les tables sont conservées et le
     // retry repart au prochain boot ; ne doit jamais bloquer le démarrage.
     try {
-        const legacy = await migrateLegacyKpiTables({ all: (sql, params) => query(sql as never, params) }, { dropAfter: true });
+        const legacy = await migrateLegacyKpiTables(
+            { all: (sql, params) => query(sql as never, params) },
+            { dropAfter: true },
+        );
         if (legacy.commercial || legacy.rh || legacy.dropped.length > 0) {
             logger.info(
                 { commercial: legacy.commercial, rh: legacy.rh, dropped: legacy.dropped },
@@ -283,6 +288,16 @@ export async function startServer(): Promise<http.Server> {
     mailTemplateService
         .seedExternalLinkDefault()
         .catch((err) => logger.error({ err }, 'external-link: seed du modèle système échoué'));
+
+    // Documents de SA (#888) : modèles système J15/J10W + rattrapage du `type` legacy.
+    const alternantDocumentTemplateService = new AlternantDocumentTemplateService();
+    alternantDocumentTemplateService
+        .seedSystemDefaults()
+        .catch((err) => logger.error({ err }, 'alternant-document-templates: seed des modèles système échoué'));
+    new AlternantService()
+        .backfillLegacySequenceTypes()
+        .catch((err) => logger.error({ err }, 'alternant-sequences: backfill des types legacy échoué'));
+
     startPedaDraftScheduler();
     startImmersionEndScheduler();
     startUnavailableExpiryScheduler();

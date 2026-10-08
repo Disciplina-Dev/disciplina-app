@@ -3,9 +3,12 @@ import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
 import { PedaService, InvalidSheetLinkError, InvalidHourError } from '../../services/PedaService';
 import { PedaDraftService } from '../../services/PedaDraftService';
+import { AlternantService } from '../../services/AlternantService';
+import { PdfService } from '../../services/PdfService';
 
 const pedaService = new PedaService();
 const draftService = new PedaDraftService();
+const alternantService = new AlternantService();
 
 function handleError(err: unknown, res: Response): void {
     if (err instanceof InvalidSheetLinkError || err instanceof InvalidHourError) {
@@ -81,6 +84,20 @@ export async function runNow(req: AuthRequest, res: Response): Promise<void> {
                 ? await draftService.runForAllPedas()
                 : await draftService.runForUser(Number(req.user.id));
         res.json({ report });
+    } catch (err) {
+        handleError(err, res);
+    }
+}
+
+// ── Document de SA (#888) : export PDF ─────────────────────────────────────
+export async function downloadSequencePdf(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const resolved = await alternantService.resolveSequenceDocument(req.params.id as string);
+        const buffer = await PdfService.generateAlternantSequencePdf(resolved);
+        const filename = `SA_${resolved.header.alternantFullName.replace(/\s+/g, '_')}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
     } catch (err) {
         handleError(err, res);
     }

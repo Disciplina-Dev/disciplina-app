@@ -1,12 +1,16 @@
 import { SessionRepository } from '../repositories/mongo/SessionRepository';
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
+import { AlternantDocumentTemplateRepository } from '../repositories/mongo/AlternantDocumentTemplateRepository';
 import { JOURS_COURS, Session } from '../types/session.types';
+import { AlternantSequenceType } from '../types/alternant.types';
 import { logger } from '../external/logger';
 
 export interface CreateSessionInput {
     nom: string;
     filiere?: string | null;
     jourCours?: string | null;
+    /** Modèle de document (type périodique) pour les SA périodiques de cette session (#888). */
+    documentTemplateId?: string | null;
     dateDebut: string;
     dateFin: string;
 }
@@ -15,6 +19,7 @@ export interface UpdateSessionInput {
     nom?: string;
     filiere?: string | null;
     jourCours?: string | null;
+    documentTemplateId?: string | null;
     dateDebut?: string;
     dateFin?: string;
 }
@@ -44,6 +49,7 @@ function normalizeJourCours(value: string | null | undefined): string | null {
 export class SessionService {
     private sessions = new SessionRepository();
     private alternants = new AlternantRepository();
+    private documentTemplates = new AlternantDocumentTemplateRepository();
 
     async findAll(search?: string): Promise<Session[]> {
         return this.sessions.findAll(search);
@@ -51,6 +57,16 @@ export class SessionService {
 
     async findById(id: string): Promise<Session | null> {
         return this.sessions.findById(id);
+    }
+
+    /** Vérifie que le modèle choisi existe et est bien un modèle périodique (#888). */
+    private async validateDocumentTemplateId(id: string | null | undefined): Promise<string | null> {
+        if (!id) return null;
+        const template = await this.documentTemplates.findById(id);
+        if (!template || template.type !== AlternantSequenceType.PERIODIQUE) {
+            throw new Error('Modèle de document invalide');
+        }
+        return id;
     }
 
     async create(input: CreateSessionInput): Promise<Session> {
@@ -62,11 +78,13 @@ export class SessionService {
         }
         const duplicate = await this.sessions.findByNom(nom);
         if (duplicate) throw new Error('Une session existe déjà avec ce nom');
+        const documentTemplateId = await this.validateDocumentTemplateId(input.documentTemplateId);
 
         const created = await this.sessions.create({
             nom,
             filiere: input.filiere?.trim() || null,
             jour_cours: normalizeJourCours(input.jourCours),
+            document_template_id: documentTemplateId,
             date_debut: dateDebut,
             date_fin: dateFin,
         });
@@ -86,6 +104,9 @@ export class SessionService {
         }
         if (input.filiere !== undefined) patch.filiere = input.filiere?.trim() || null;
         if (input.jourCours !== undefined) patch.jour_cours = normalizeJourCours(input.jourCours);
+        if (input.documentTemplateId !== undefined) {
+            patch.document_template_id = await this.validateDocumentTemplateId(input.documentTemplateId);
+        }
 
         const nextDebut = input.dateDebut !== undefined ? requireValidDate(input.dateDebut, 'La date de début') : null;
         const nextFin = input.dateFin !== undefined ? requireValidDate(input.dateFin, 'La date de fin') : null;

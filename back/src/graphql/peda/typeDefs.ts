@@ -7,6 +7,12 @@ export const typeDefs = gql`
         not_done
     }
 
+    enum AlternantSequenceType {
+        j15
+        j10w
+        periodique
+    }
+
     type AlternantCompany {
         name: String
         address: String
@@ -38,6 +44,7 @@ export const typeDefs = gql`
         nom: String!
         filiere: String
         jourCours: String
+        documentTemplateId: String
         dateDebut: String!
         dateFin: String!
         alternantCount: Int!
@@ -55,6 +62,7 @@ export const typeDefs = gql`
         id: ID!
         alternantId: ID!
         numero: Int!
+        type: AlternantSequenceType!
         prevueLe: String!
         status: AlternantSequenceStatus!
         realiseeLe: String
@@ -101,6 +109,7 @@ export const typeDefs = gql`
         nom: String!
         filiere: String
         jourCours: String
+        documentTemplateId: String
         dateDebut: String!
         dateFin: String!
     }
@@ -109,6 +118,7 @@ export const typeDefs = gql`
         nom: String
         filiere: String
         jourCours: String
+        documentTemplateId: String
         dateDebut: String
         dateFin: String
     }
@@ -117,6 +127,65 @@ export const typeDefs = gql`
         mentor: Boolean
         alternant: Boolean
         formateur: Boolean
+    }
+
+    "Modèle de document pour une SA (#888). j15/j10w : 2 lignes système permanentes. periodique : créables/supprimables, choisies par Session."
+    type AlternantDocumentTemplate {
+        id: ID!
+        type: AlternantSequenceType!
+        label: String!
+        maitreApprentissage: String!
+        alternant: String!
+        formateur: String!
+        createdAt: String
+        updatedAt: String
+    }
+
+    input AlternantDocumentTemplateInput {
+        label: String!
+        maitreApprentissage: String!
+        alternant: String!
+        formateur: String!
+    }
+
+    type AlternantSequenceDocumentHeader {
+        alternantFullName: String!
+        session: String
+        mentorName: String
+        companyStartDate: String
+        companyEndDate: String
+    }
+
+    "Les 3 parties d'un document (texte riche), sans en-tête ni signatures — contenu brut d'un modèle."
+    type AlternantSequenceDocumentParts {
+        maitreApprentissage: String
+        alternant: String
+        formateur: String
+    }
+
+    "Document résolu d'une SA : le contenu déjà sauvegardé (isSnapshotted=true), ou sinon le modèle applicable comme point de départ."
+    type AlternantSequenceDocument {
+        sequenceId: ID!
+        header: AlternantSequenceDocumentHeader!
+        maitreApprentissage: String
+        alternant: String
+        formateur: String
+        "Signature dessinée par partie (PNG en data-URL) — usage informel, aucune valeur légale."
+        signatureMaitreApprentissage: String
+        signatureAlternant: String
+        signatureFormateur: String
+        isSnapshotted: Boolean!
+        "Contenu brut du modèle résolu, indépendant du snapshot déjà sauvegardé — pour le bouton Réinitialiser au modèle vierge."
+        template: AlternantSequenceDocumentParts
+    }
+
+    input SaveAlternantSequenceDocumentInput {
+        maitreApprentissage: String!
+        alternant: String!
+        formateur: String!
+        signatureMaitreApprentissage: String
+        signatureAlternant: String
+        signatureFormateur: String
     }
 
     type AlternantEmailCheck {
@@ -169,6 +238,8 @@ export const typeDefs = gql`
         sessionAlternants(sessionId: ID!): [Alternant!]!
         ruptures(year: Int!, month: Int!): [Rupture!]!
         alternantRuptures(alternantId: ID!): [Rupture!]!
+        alternantDocumentTemplates(type: AlternantSequenceType): [AlternantDocumentTemplate!]!
+        alternantSequenceDocument(sequenceId: ID!): AlternantSequenceDocument!
     }
 
     type Mutation {
@@ -194,5 +265,12 @@ export const typeDefs = gql`
         declareRupture(input: DeclareRuptureInput!): Rupture!
         updateRupture(id: ID!, input: UpdateRuptureInput!): Rupture
         deleteRupture(id: ID!): Boolean!
+        createAlternantDocumentTemplate(input: AlternantDocumentTemplateInput!): AlternantDocumentTemplate!
+        updateAlternantDocumentTemplate(id: ID!, input: AlternantDocumentTemplateInput!): AlternantDocumentTemplate!
+        deleteAlternantDocumentTemplate(id: ID!): Boolean!
+        saveAlternantSequenceDocument(
+            sequenceId: ID!
+            input: SaveAlternantSequenceDocumentInput!
+        ): AlternantSequenceDocument!
     }
 `;

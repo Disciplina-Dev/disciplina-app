@@ -7,6 +7,7 @@ const sessionSchema = new Schema<Session & Document>(
         nom: { type: String, required: true, trim: true },
         filiere: { type: String, default: null },
         jour_cours: { type: String, default: null },
+        document_template_id: { type: String, default: null },
         date_debut: { type: Date, required: true },
         date_fin: { type: Date, required: true },
         created_at: { type: Date },

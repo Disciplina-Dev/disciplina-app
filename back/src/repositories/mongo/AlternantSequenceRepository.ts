@@ -105,4 +105,10 @@ export class AlternantSequenceRepository {
     async delete(id: string): Promise<boolean> {
         return (await getModels().AlternantSequence.deleteOne({ _id: id })).deletedCount > 0;
     }
+
+    /** Backfill (#888) : écrit `type` sur toutes les SA matchant `filter` qui ne l'ont pas encore. */
+    async updateManyType(filter: Record<string, unknown>, type: string): Promise<number> {
+        const res = await getModels().AlternantSequence.updateMany(filter, { $set: { type } });
+        return res.modifiedCount ?? 0;
+    }
 }

@@ -14,6 +14,8 @@ export interface Session {
     nom: string;
     filiere?: string | null;
     jour_cours?: string | null;
+    /** Modèle de document (type PERIODIQUE) appliqué aux SA périodiques de cette session (#888). */
+    document_template_id?: string | null;
     date_debut: Date | string;
     date_fin: Date | string;
     created_at: Date | string;
