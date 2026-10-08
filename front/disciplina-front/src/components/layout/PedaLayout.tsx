@@ -66,6 +66,7 @@ export default function PedaLayout() {
             <NavItem to="/peda/ruptures" icon={<IconUnlink width={18} height={18} />} label="Ruptures" />
             <NavItem to="/peda" end icon={<IconSpreadsheet width={18} height={18} />} label="Suivi absences" />
             <NavItem to="/peda/mail" icon={<IconMail width={18} height={18} />} label="Modèles mail" />
+            <NavItem to="/peda/reglages" icon={<IconSettings width={18} height={18} />} label="Réglages" />
           </nav>
 
           {/* Le changement d'espace se fait par le sélecteur en tête de barre. */}

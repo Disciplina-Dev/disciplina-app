@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IconClose, IconTraining } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { createSession, updateSession } from '@/api/sessions'
+import { fetchPeriodicTemplates } from '@/api/alternantDocumentTemplates'
 import { JOURS_COURS, type Session } from '@/types/session'
+import type { AlternantDocumentTemplate } from '@/types/alternantDocumentTemplate'
 
 interface SessionFormModalProps {
   /** Mode édition : pré-remplit le formulaire. */
@@ -17,11 +19,17 @@ export default function SessionFormModal({ initial, onClose, onSaved }: SessionF
   const [nom, setNom] = useState(initial?.nom ?? '')
   const [filiere, setFiliere] = useState(initial?.filiere ?? '')
   const [jourCours, setJourCours] = useState(initial?.jourCours ?? '')
+  const [documentTemplateId, setDocumentTemplateId] = useState(initial?.documentTemplateId ?? '')
   const [dateDebut, setDateDebut] = useState(initial?.dateDebut ? initial.dateDebut.slice(0, 10) : '')
   const [dateFin, setDateFin] = useState(initial?.dateFin ? initial.dateFin.slice(0, 10) : '')
 
+  const [documentTemplates, setDocumentTemplates] = useState<AlternantDocumentTemplate[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetchPeriodicTemplates().then(setDocumentTemplates).catch(() => setDocumentTemplates([]))
+  }, [])
 
   async function handleSubmit(e?: { preventDefault: () => void }) {
     e?.preventDefault()
@@ -49,6 +57,7 @@ export default function SessionFormModal({ initial, onClose, onSaved }: SessionF
         nom: nom.trim(),
         filiere: filiere.trim() || null,
         jourCours: jourCours || null,
+        documentTemplateId: documentTemplateId || null,
         dateDebut,
         dateFin,
       }
@@ -116,6 +125,28 @@ export default function SessionFormModal({ initial, onClose, onSaved }: SessionF
                 </option>
               ))}
             </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="session-document-template" className="text-[13px] font-semibold text-[var(--ds-text-muted)]">
+              Modèle de document (SA périodiques)
+            </label>
+            <select
+              id="session-document-template"
+              value={documentTemplateId}
+              onChange={(e) => setDocumentTemplateId(e.target.value)}
+              className="w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-4 text-sm text-[var(--ds-text)] outline-none transition-[border-color,box-shadow] duration-150 focus:border-[var(--ds-accent)] focus:ring-2 focus:ring-[var(--ds-accent)]/15"
+            >
+              <option value="">— Choisir —</option>
+              {documentTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-[var(--ds-text-subtle)]">
+              Appliqué aux séquences d'accompagnement périodiques (tous les 4 mois) des alternants
+              de cette session. Gérable depuis Réglages.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <InputField

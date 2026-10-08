@@ -9,6 +9,7 @@ const SESSION_FIELDS = gql`
     nom
     filiere
     jourCours
+    documentTemplateId
     dateDebut
     dateFin
     alternantCount

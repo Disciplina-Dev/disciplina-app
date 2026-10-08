@@ -50,6 +50,7 @@ import FicheAlternant from "@/pages/peda/FicheAlternant";
 import ListeSessions from "@/pages/peda/ListeSessions";
 import FicheSession from "@/pages/peda/FicheSession";
 import Ruptures from "@/pages/peda/Ruptures";
+import DocumentTemplatesSettings from "@/pages/peda/DocumentTemplatesSettings";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -209,6 +210,7 @@ export const router = createBrowserRouter([
       { path: "sessions/:id", element: <FicheSession />, handle: { crumb: "Fiche session" } },
       { path: "ruptures", element: <Ruptures />, handle: { crumb: "Ruptures" } },
       { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
+      { path: "reglages", element: <DocumentTemplatesSettings />, handle: { crumb: "Réglages" } },
       { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
   },

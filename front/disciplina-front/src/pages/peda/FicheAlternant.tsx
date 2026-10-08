@@ -25,6 +25,7 @@ import InputField from '@/components/ui/InputField'
 import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
 import AlternantCompanyModal from '@/components/peda/AlternantCompanyModal'
 import RuptureModal from '@/components/peda/RuptureModal'
+import SequenceDocumentModal from '@/components/peda/SequenceDocumentModal'
 import {
   changeAlternantCompany,
   completeSequence,
@@ -139,6 +140,7 @@ export default function FicheAlternant() {
   const [pendingCompletionId, setPendingCompletionId] = useState<string | null>(null)
   const [completionDate, setCompletionDate] = useState('')
   const [completing, setCompleting] = useState(false)
+  const [documentSeqId, setDocumentSeqId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -757,8 +759,7 @@ export default function FicheAlternant() {
                       variant="ghost"
                       size="sm"
                       leftIcon={<IconFile width={14} height={14} />}
-                      disabled
-                      title="Modèle PDF à venir (transmis au service informatique)."
+                      onClick={() => setDocumentSeqId(seq.id)}
                     >
                       Document
                     </Button>
@@ -857,6 +858,9 @@ export default function FicheAlternant() {
       )}
       {showRupture && (
         <RuptureModal alternant={alternant} onClose={() => setShowRupture(false)} onSubmit={handleDeclareRupture} />
+      )}
+      {documentSeqId && (
+        <SequenceDocumentModal sequenceId={documentSeqId} onClose={() => setDocumentSeqId(null)} />
       )}
     </div>
   )
