@@ -24,6 +24,10 @@ const alternantSequenceSchema = new Schema<AlternantSequence & Document>(
         realisee_le: { type: Date, default: null },
         contacts: { type: contactsSchema, default: () => ({}) },
         auto_generated: { type: Boolean, default: false },
+        // Horodatages d'envoi des notifs « SA en cours » / « SA en retard » :
+        // évitent de re-notifier chaque jour une fois l'échéance atteinte (dédup scheduler).
+        soon_notified_at: { type: Date, default: null },
+        late_notified_at: { type: Date, default: null },
         archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },
