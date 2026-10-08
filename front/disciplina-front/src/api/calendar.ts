@@ -40,26 +40,20 @@ export interface CalendarEventInput {
   isInterview?: boolean;
 }
 
-/** Couleurs Google Calendar (event colorId → hex officiel). */
-export const EVENT_COLORS: Record<string, { name: string; hex: string }> = {
-  '1': { name: 'Lavande', hex: '#7986cb' },
-  '2': { name: 'Sauge', hex: '#33b679' },
-  '3': { name: 'Raisin', hex: '#8e24aa' },
-  '4': { name: 'Flamant', hex: '#e67c73' },
-  '5': { name: 'Banane', hex: '#f6bf26' },
-  '6': { name: 'Mandarine', hex: '#f4511e' },
-  '7': { name: 'Paon', hex: '#039be5' },
-  '8': { name: 'Graphite', hex: '#616161' },
-  '9': { name: 'Myrtille', hex: '#3f51b5' },
-  '10': { name: 'Basilic', hex: '#0b8043' },
-  '11': { name: 'Tomate', hex: '#d50000' },
+/** Couleur d'un créneau déterminée uniquement par le statut d'entretien.
+ * RED pas venu, GREEN venu, PURPLE reporté, BLACK décliné, BLUE par défaut. */
+export const CALENDAR_STATUS_HEX: Record<Attendance, string> = {
+  noshow: '#C0152A',
+  arrived: '#1A7A4A',
+  postponed: '#60207E',
+  declined: '#111827',
 };
 
-/** Couleur par défaut (charte violet Disciplina) quand l'event n'a pas de colorId. */
-export const DEFAULT_EVENT_HEX = '#60207E';
+/** BLUE par défaut (aucun statut). */
+export const DEFAULT_CALENDAR_HEX = '#1130A7';
 
-export function eventHex(colorId?: string): string {
-  return (colorId && EVENT_COLORS[colorId]?.hex) || DEFAULT_EVENT_HEX;
+export function calendarHex(attendance?: Attendance): string {
+  return (attendance && CALENDAR_STATUS_HEX[attendance]) || DEFAULT_CALENDAR_HEX;
 }
 
 export interface CalendarUser {
@@ -71,26 +65,6 @@ export interface CalendarUser {
   sectors: string[];
   connected: boolean;
   isSelf: boolean;
-}
-
-/**
- * Palette pour distinguer les agendas par personne (couleur déterministe par id).
- * Les couleurs de présence (vert venu, rouge pas venu, orange reporté, gris
- * décliné) sont réservées : on les exclut ici,
- * et chaque teinte est franchement distincte des autres (aucune nuance proche).
- */
-const OWNER_PALETTE = [
-  '#1130A7', // indigo
-  '#B10F55', // magenta
-  '#E67E22', // orange
-  '#00A3C4', // cyan
-  '#F9A825', // ambre
-  '#5D4037', // brun
-  '#455A64', // ardoise
-]
-
-export function ownerColor(userId: number): string {
-  return OWNER_PALETTE[userId % OWNER_PALETTE.length]
 }
 
 export class CalendarNotConnectedError extends Error {}
