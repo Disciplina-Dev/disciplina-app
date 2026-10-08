@@ -807,6 +807,8 @@ export default function FicheCandidat() {
                         <>
                           En contrat{placement.companyName ? ` avec ${placement.companyName}` : ''}
                           {placement.since ? ` depuis le ${new Date(placement.since).toLocaleDateString('fr-FR')}` : ''}
+                          {formData.contract_trial_end_date ? ` (fin de période d'essai le ${new Date(formData.contract_trial_end_date).toLocaleDateString('fr-FR')})` : ''}
+                          {formData.contract_session_name ? ` · Session ${formData.contract_session_name}` : ''}
                         </>
                       )}
                     </span>
@@ -818,6 +820,8 @@ export default function FicheCandidat() {
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       En contrat{formData.contract_company_name ? ` avec ${formData.contract_company_name}` : ''}
                       {formData.contract_start_date ? ` depuis le ${new Date(formData.contract_start_date).toLocaleDateString('fr-FR')}` : ''}
+                      {formData.contract_trial_end_date ? ` (fin de période d'essai le ${new Date(formData.contract_trial_end_date).toLocaleDateString('fr-FR')})` : ''}
+                      {formData.contract_session_name ? ` · Session ${formData.contract_session_name}` : ''}
                     </span>
                   )}
                   {!isAnnemasse && (() => {

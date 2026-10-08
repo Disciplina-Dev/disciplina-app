@@ -395,6 +395,9 @@ function fromGql(c: any): Candidate {
     contract_company_id: c.contractCompanyId ?? undefined,
     contract_company_name: c.contractCompanyName ?? undefined,
     contract_start_date: c.contractStartDate ?? undefined,
+    contract_trial_end_date: c.contractTrialEndDate ?? undefined,
+    contract_session_id: c.contractSessionId ?? undefined,
+    contract_session_name: c.contractSessionName ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -567,6 +570,9 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
     ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
     ...(c.contract_start_date !== undefined && { contractStartDate: c.contract_start_date }),
+    ...(c.contract_trial_end_date !== undefined && { contractTrialEndDate: c.contract_trial_end_date }),
+    ...(c.contract_session_id !== undefined && { contractSessionId: c.contract_session_id }),
+    ...(c.contract_session_name !== undefined && { contractSessionName: c.contract_session_name }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
