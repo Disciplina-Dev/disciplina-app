@@ -310,6 +310,19 @@ export const typeDefs = gql`
         answer: String
     }
 
+    "Créneau horaire d'immersion (jour + début/fin)."
+    type ImmersionScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
+    input ImmersionScheduleSlotInput {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
     type Candidate {
         id: String!
         owner: CandidateOwner
@@ -328,6 +341,8 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlot]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
@@ -500,6 +515,8 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlotInput]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
@@ -535,6 +552,8 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlotInput]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String

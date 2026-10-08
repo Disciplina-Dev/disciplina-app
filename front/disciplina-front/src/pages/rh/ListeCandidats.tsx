@@ -21,8 +21,9 @@ import CandidateSearchBar from '@/components/rh/CandidateSearchBar';
 import { useCandidatesPage, useUpdateCandidate, type CandidateServerFilters, type CandidateSearchField } from '@/graphql/hooks';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus';
 import { usePersistedListView } from '@/hooks/usePersistedListView';
-import { graphqlClient } from '@/graphql/client';
-import { GET_RH_USERS } from '@/graphql/queries';
+import { graphqlClient, offerGraphqlClient } from '@/graphql/client';
+import { GET_CANDIDATE_SENT_COMPANIES, GET_COMPANY_OPTIONS, GET_RH_USERS, MATCH_OFFER } from '@/graphql/queries';
+import type { ScheduleSlot } from '@/types/needsAnalysis';
 import Tabs from '@/components/ui/Tabs'
 import Select from '@/components/ui/Select'
 
@@ -62,6 +63,64 @@ function useCommuneSections(): { key: string; label: string; options: string[] }
 }
 
 // --- Tabs ---
+
+const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+
+// Éditeur compact des horaires d'immersion (jours activables + créneau début/fin).
+function ImmersionScheduleEditor({ value, onChange }: {
+  value: ScheduleSlot[]
+  onChange: (slots: ScheduleSlot[]) => void
+}) {
+  const slotFor = (day: string) => value.find((s) => s.day === day)
+  const setHour = (day: string, field: 'startHour' | 'endHour', hour: string) => {
+    onChange(value.map((s) => (s.day === day ? { ...s, [field]: hour } : s)))
+  }
+  const setEnabled = (day: string, on: boolean) => {
+    const others = value.filter((s) => s.day !== day)
+    onChange(on ? [...others, { day, startHour: '08:00', endHour: '17:00' }] : others)
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      {IMMERSION_DAYS.map((day) => {
+        const slot = slotFor(day)
+        const enabled = !!slot
+        return (
+          <div key={day} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEnabled(day, !enabled)}
+              className={[
+                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors',
+                enabled ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]',
+              ].join(' ')}
+              aria-label={`${enabled ? 'Désactiver' : 'Activer'} ${day}`}
+            >
+              {enabled && <span className="text-[11px] font-bold text-white">✓</span>}
+            </button>
+            <span className={enabled ? 'w-20 text-sm font-medium text-[var(--ds-text)]' : 'w-20 text-sm text-[var(--ds-text-subtle)]'}>
+              {day}
+            </span>
+            <input
+              type="time"
+              disabled={!enabled}
+              value={slot?.startHour ?? ''}
+              onChange={(e) => setHour(day, 'startHour', e.target.value)}
+              className="w-28 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm text-[var(--ds-text)] outline-none focus:border-blue disabled:cursor-not-allowed disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
+            />
+            <span className="text-xs text-[var(--ds-text-subtle)]">→</span>
+            <input
+              type="time"
+              disabled={!enabled}
+              value={slot?.endHour ?? ''}
+              onChange={(e) => setHour(day, 'endHour', e.target.value)}
+              className="w-28 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm text-[var(--ds-text)] outline-none focus:border-blue disabled:cursor-not-allowed disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 type CandidateTab = 'all' | 'active' | 'archived' | 'inactive'
 
@@ -238,6 +297,12 @@ export default function ListeCandidats() {
   const [immersionModal, setImmersionModal] = useState<{ id: string; candidate: Candidate } | null>(null);
   const [immersionStart, setImmersionStart] = useState('');
   const [immersionEnd, setImmersionEnd] = useState('');
+  const [immersionCompanyId, setImmersionCompanyId] = useState('');
+  const [immersionConventionNumber, setImmersionConventionNumber] = useState('');
+  const [immersionSchedule, setImmersionSchedule] = useState<ScheduleSlot[]>([]);
+  const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([]);
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [companyListOpen, setCompanyListOpen] = useState(false);
 
   // Modal state for UNAVAILABLE
   const [unavailableModal, setUnavailableModal] = useState<{ id: string; candidate: Candidate } | null>(null);
@@ -253,7 +318,52 @@ export default function ListeCandidats() {
     if (newStatus === CandidateStatus.IMMERSING) {
       setImmersionStart(candidate.immersion_start_date?.slice(0, 10) ?? '');
       setImmersionEnd(candidate.immersion_end_date?.slice(0, 10) ?? '');
+      setImmersionCompanyId(candidate.immersion_company_id != null ? String(candidate.immersion_company_id) : '');
+      setImmersionConventionNumber(candidate.immersion_convention_number ?? '');
+      setImmersionSchedule(candidate.immersion_schedule ?? []);
+      const initialCompanyName = candidate.immersion_company_name ?? '';
+      setCompanyQuery(initialCompanyName);
+      setCompanyListOpen(false);
       setImmersionModal({ id, candidate });
+      // Charge les entreprises une seule fois, puis auto-remplit depuis le matching si vide.
+      let options = companyOptions;
+      if (options.length === 0) {
+        try {
+          const res = await graphqlClient.query(GET_COMPANY_OPTIONS, {}).toPromise();
+          if (res.data?.companyOptions) {
+            options = res.data.companyOptions as { id: number; name: string }[];
+            setCompanyOptions(options);
+          }
+        } catch { /* best-effort */ }
+      }
+      if (!initialCompanyName) {
+        try {
+          const sentRes = await offerGraphqlClient.query(GET_CANDIDATE_SENT_COMPANIES, { candidateId: id }).toPromise();
+          const sent = sentRes.data?.candidateSentCompanies as { offerId: string; companyName: string | null }[] | undefined;
+          const first = sent?.[0];
+          let matchedByName = false;
+          if (first?.companyName) {
+            setCompanyQuery(first.companyName);
+            const matchByName = options.find(c => c.name?.toLowerCase() === first.companyName!.toLowerCase());
+            if (matchByName) {
+              setImmersionCompanyId(String(matchByName.id));
+              matchedByName = true;
+            }
+          }
+          if (first?.offerId && (candidate.immersion_schedule ?? []).length === 0) {
+            const offerRes = await offerGraphqlClient.query(MATCH_OFFER, { id: first.offerId }).toPromise();
+            const offer = offerRes.data?.matchOffer;
+            if (offer) {
+              if (!matchedByName && offer.companyInfos?.id) {
+                setImmersionCompanyId(String(offer.companyInfos.id));
+                if (offer.companyInfos?.name) setCompanyQuery(offer.companyInfos.name);
+              }
+              const schedule = (offer.schedule as ScheduleSlot[] | undefined)?.filter(s => s?.day) ?? [];
+              if (schedule.length > 0) setImmersionSchedule(schedule);
+            }
+          }
+        } catch { /* best-effort */ }
+      }
       return;
     }
 
@@ -280,11 +390,17 @@ export default function ListeCandidats() {
   const confirmImmersion = async () => {
     if (!immersionModal) return;
     const { id, candidate } = immersionModal;
+    const companyIdNum = immersionCompanyId ? Number(immersionCompanyId) : undefined;
+    const companyName = companyOptions.find(c => c.id === companyIdNum)?.name ?? (companyQuery.trim() || undefined);
     const updated = {
       ...candidate,
       status: CandidateStatus.IMMERSING,
       immersion_start_date: immersionStart || undefined,
       immersion_end_date: immersionEnd || undefined,
+      immersion_company_id: companyIdNum,
+      immersion_company_name: companyName,
+      immersion_convention_number: immersionConventionNumber.trim() || undefined,
+      immersion_schedule: immersionSchedule.length > 0 ? immersionSchedule : undefined,
     };
     setLocalCandidates(prev => prev.map(c => c._id === id ? updated : c));
     setImmersionModal(null);
@@ -878,13 +994,57 @@ export default function ListeCandidats() {
         />
       )}
 
-      {/* Immersion date modal */}
+      {/* Immersion modal */}
       {immersionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModal(null)}>
-          <div className="w-full max-w-sm rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-[var(--ds-text)]">Passage en immersion</h3>
-            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Renseigne les dates de début et de fin de l'immersion.</p>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Renseigne l'entreprise, le numéro de convention, les horaires et les dates de l'immersion.</p>
             <div className="mt-4 space-y-3">
+              <div className="relative">
+                <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="imm-company-list">Entreprise</label>
+                <input
+                  id="imm-company-list"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="Rechercher une entreprise…"
+                  className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue mt-1"
+                  value={companyQuery}
+                  onChange={e => { setCompanyQuery(e.target.value); setImmersionCompanyId(''); setCompanyListOpen(true); }}
+                  onFocus={() => setCompanyListOpen(true)}
+                />
+                {companyListOpen && (() => {
+                  const filtered = companyOptions.filter(c => c.name?.toLowerCase().includes(companyQuery.toLowerCase()));
+                  return (
+                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg">
+                      {filtered.slice(0, 50).map(c => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--ds-surface-sunken)]"
+                            onClick={() => { setImmersionCompanyId(String(c.id)); setCompanyQuery(c.name); setCompanyListOpen(false); }}
+                          >
+                            {c.name}
+                          </button>
+                        </li>
+                      ))}
+                      {filtered.length === 0 && (
+                        <li className="px-3 py-1.5 text-sm text-[var(--ds-text-subtle)]">Aucune entreprise</li>
+                      )}
+                    </ul>
+                  );
+                })()}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="imm-conv-list">Numéro de convention</label>
+                <input id="imm-conv-list" type="text" placeholder="N° de convention…" className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue mt-1" value={immersionConventionNumber} onChange={e => setImmersionConventionNumber(e.target.value)} />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-[var(--ds-text-muted)]">Horaires</span>
+                <div className="mt-1">
+                  <ImmersionScheduleEditor value={immersionSchedule} onChange={setImmersionSchedule} />
+                </div>
+              </div>
               <div>
                 <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="imm-start-list">Date de début</label>
                 <input id="imm-start-list" type="date" className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 pl-4 pr-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue mt-1" value={immersionStart} onChange={e => setImmersionStart(e.target.value)} />

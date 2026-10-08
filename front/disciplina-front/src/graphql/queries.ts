@@ -616,6 +616,8 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -755,6 +757,8 @@ export const UPDATE_CANDIDATE = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -940,6 +944,8 @@ export const GET_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -1080,6 +1086,8 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -2095,6 +2103,8 @@ export const GET_IMMERSING_CANDIDATES_MAP = gql`
           status
           immersionCompanyId
           immersionCompanyName
+          immersionConventionNumber
+          immersionSchedule { day startHour endHour }
           identity {
             fullName
           }
