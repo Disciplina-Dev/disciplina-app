@@ -8,11 +8,13 @@ import { logger } from '../external/logger/logger';
 
 const auditStore = new McpAuditStore();
 
-// Nombre d'enregistrements sortis : taille du tableau racine, sinon 1 (fiche) / 0 (null).
+// Nombre d'enregistrements sortis : taille du tableau racine (ou de `items` d'une page), sinon 1 (fiche) / 0 (null).
 function countRecords(result: ToolResult): number {
     try {
         const parsed: unknown = JSON.parse(result.content[0]?.text ?? 'null');
         if (Array.isArray(parsed)) return parsed.length;
+        const items = (parsed as { items?: unknown } | null)?.items;
+        if (Array.isArray(items)) return items.length;
         return parsed === null ? 0 : 1;
     } catch {
         return 0;

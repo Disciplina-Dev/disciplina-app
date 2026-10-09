@@ -267,4 +267,14 @@ describe('MCP tools (static admin key)', () => {
         }
         expect(candidate.classmarker.percentage).toBe(80);
     });
+    it('pagine list_offers et list_needs_analysis', async () => {
+        for (const tool of ['list_offers', 'list_needs_analysis']) {
+            const page = await callTool(tool);
+            expect(page).toMatchObject({ total: expect.any(Number), offset: 0 });
+            expect(Array.isArray(page.items)).toBe(true);
+            expect(page.items.length).toBeLessThanOrEqual(50);
+            const rejected = await rpc('tools/call', { name: tool, arguments: { first: 51 } });
+            expect(rejected.error ?? rejected.result?.isError).toBeTruthy();
+        }
+    });
 });
