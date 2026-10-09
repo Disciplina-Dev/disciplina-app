@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { OfferService } from '../../services/OfferService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { toolResult } from '../serialize';
+import { filterOfferCandidates } from '../candidateExposure';
 import { readTool } from '../tool';
 import { mcpToolScope } from '../rbac';
 import { JobRole, Permission } from '../../types/user.types';
@@ -24,7 +25,7 @@ export function registerOfferTools(server: McpServer): void {
         'Liste toutes les offres / postes (MongoDB) avec leurs critères de matching et statut.',
         {},
         OFFER_SCOPE,
-        async () => toolResult(await offerService.findAll(true)),
+        async () => toolResult(await filterOfferCandidates(await offerService.findAll(true))),
     );
 
     readTool(
@@ -33,7 +34,7 @@ export function registerOfferTools(server: McpServer): void {
         'Récupère une offre par id, avec les candidats suggérés par le matching automatique selon ses critères.',
         { id: z.string().describe("Id de l'offre") },
         OFFER_SCOPE,
-        async ({ id }) => toolResult(await offerService.find(id)),
+        async ({ id }) => toolResult(await filterOfferCandidates(await offerService.find(id))),
     );
 
     readTool(

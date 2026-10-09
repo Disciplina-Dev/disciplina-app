@@ -73,7 +73,7 @@ describe('MCP tools (static admin key)', () => {
             consentments: {
                 data_processing: true,
                 data_sharing: false,
-                ai_processing: false,
+                ai_processing: true,
                 photo_processing: false,
                 consent_date: new Date('2026-01-02T03:04:05.000Z'),
                 consent_version: '1',
@@ -200,5 +200,71 @@ describe('MCP tools (static admin key)', () => {
         expect(parsed.result.content[0].text).toContain('Quota');
         const [rows] = await pool.query<any[]>("SELECT COUNT(*) AS n FROM mcp_audit_log WHERE status = 'quota'");
         expect(Number(rows[0].n)).toBe(1);
+    });
+    it('ne renvoie pas un candidat sans consentement ai_processing', async () => {
+        const id = `cand-noconsent-${Date.now()}`;
+        await new CandidateService().create({
+            _id: id,
+            candidate_id: id,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: 'Sans Consentement', email: `${id}@test.local`, phone: '0692000004' } as any,
+            consentments: {
+                data_processing: true,
+                data_sharing: true,
+                ai_processing: false,
+                photo_processing: true,
+                consent_date: new Date(),
+                consent_version: '1',
+            },
+        } as any);
+
+        expect(await callTool('get_candidate', { id })).toBeNull();
+        expect(await callTool('get_candidate_by_email', { email: `${id}@test.local` })).toBeNull();
+        expect(await callTool('list_candidate_history', { candidateId: id })).toBeNull();
+        const list = await callTool<any[]>('search_candidates', { search: 'Sans Consentement' });
+        expect(list).toHaveLength(0);
+    });
+
+    it("retire santé, contact d'urgence, réponses de tests et photo sans consentement photo", async () => {
+        const id = `cand-redact-${Date.now()}`;
+        await new CandidateService().create({
+            _id: id,
+            candidate_id: id,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: 'Candidat Redact',
+                email: `${id}@test.local`,
+                phone: '0692000005',
+                psh_referral_request: true,
+            } as any,
+            emergency_contact: { full_name: 'Tiers Urgence', phone: '0692999999' },
+            synthesis: { special_needs: 'amenagement', pedagogical_recommendations: { psh_specific_support: true } },
+            classmarker: { percentage: 80, questions: [{ question: 'Q?', user_response: 'secret' }] },
+            photo_link: 'https://photo.test/p.png',
+            consentments: {
+                data_processing: true,
+                data_sharing: false,
+                ai_processing: true,
+                photo_processing: false,
+                consent_date: new Date(),
+                consent_version: '1',
+            },
+        } as any);
+
+        const candidate = await callTool('get_candidate', { id });
+        const json = JSON.stringify(candidate);
+        for (const leaked of [
+            'psh_',
+            'special_needs',
+            'emergency_contact',
+            'Tiers Urgence',
+            'user_response',
+            'photo.test',
+        ]) {
+            expect(json).not.toContain(leaked);
+        }
+        expect(candidate.classmarker.percentage).toBe(80);
     });
 });
