@@ -804,6 +804,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
       if (!p.criteria.hasVehicle) return 'Sélectionnez si le véhicule est requis.'
       if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
+      if (p.criteria.ageMin !== '' && p.criteria.ageMax !== '') {
+        const min = Number(p.criteria.ageMin)
+        const max = Number(p.criteria.ageMax)
+        if (Number.isFinite(min) && Number.isFinite(max) && max < min)
+          return "L'âge maximum ne peut pas être inférieur à l'âge minimum."
+      }
       return ''
     })
     setPosteErrors(errs)
@@ -1328,11 +1334,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                         Âge souhaité <span className="text-[var(--ds-text-subtle)]">(optionnel)</span>
                       </label>
                       <div className="grid grid-cols-2 gap-3">
-                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={99} placeholder="18"
+                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={poste.criteria.ageMax !== '' ? Number(poste.criteria.ageMax) : 99} placeholder="18"
                           value={poste.criteria.ageMin}
                           onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMin: e.target.value } })} />
-                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={15} max={99} placeholder="29"
+                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={poste.criteria.ageMin !== '' ? Number(poste.criteria.ageMin) : 15} max={99} placeholder="29"
                           value={poste.criteria.ageMax}
+                          error={poste.criteria.ageMin !== '' && poste.criteria.ageMax !== '' && Number(poste.criteria.ageMax) < Number(poste.criteria.ageMin) ? "L'âge maximum ne peut pas être inférieur à l'âge minimum." : undefined}
                           onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMax: e.target.value } })} />
                       </div>
                     </div>

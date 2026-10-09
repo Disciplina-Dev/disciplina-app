@@ -663,6 +663,7 @@ export class NeedsAnalysisService {
         if (!companyID) {
             throw new Error(`Company with ID ${companyID} not found`);
         }
+        this.validateData(merged);
         const before = await this.getAbStatus(id);
         const company = await this.companiesService.findById(companyID);
         if (!company) {
@@ -800,6 +801,14 @@ export class NeedsAnalysisService {
         }
         if (!data.positions?.[0]?.title) {
             throw new Error('Job title is required');
+        }
+        for (const position of data.positions ?? []) {
+            const criteria = (position as any).criteria ?? {};
+            const ageMin = criteria.age_min ?? criteria.ageMin ?? null;
+            const ageMax = criteria.age_max ?? criteria.ageMax ?? null;
+            if (ageMin != null && ageMax != null && ageMax < ageMin) {
+                throw new Error("L'âge maximum ne peut pas être inférieur à l'âge minimum.");
+            }
         }
     }
 }
