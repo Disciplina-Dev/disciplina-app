@@ -12,7 +12,7 @@ import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, us
 import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_CANDIDATE_SENT_COMPANIES, GET_COMPANY_OPTIONS, MATCH_OFFER, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
 import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
-import { apiFetch } from '@/api/httpClient'
+import { apiFetch, apiJson } from '@/api/httpClient'
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
@@ -21,6 +21,12 @@ import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/t
 import type { ScheduleSlot } from '@/types/needsAnalysis'
 import { computeAge, isSenior } from '@/utils/age'
 import { gateThresholdForTps } from '@/utils/testGateThreshold'
+import {
+  TEST_FAILURE_NO_SHARE_VALUE,
+  TEST_FAILURE_ORIENTATION_OPTIONS,
+  buildTestFailureComment,
+  buildTestFailureRedirectionBody,
+} from '@/constants/testFailureOrientation'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
@@ -350,9 +356,79 @@ export default function FicheCandidat() {
   const [ssnError, setSsnError] = useState<string | null>(null)
   const [showPendingComment, setShowPendingComment] = useState(false)
   const [pendingComment, setPendingComment] = useState('')
+  const [pendingOrientations, setPendingOrientations] = useState<string[]>([])
+  const [sendPendingMail, setSendPendingMail] = useState(false)
+  const [pendingMailError, setPendingMailError] = useState<string | null>(null)
+  const [pendingCommentSaved, setPendingCommentSaved] = useState(false)
   const [pendingCommentLoading, setPendingCommentLoading] = useState(false)
   const [pendingCommentError, setPendingCommentError] = useState<string | null>(null)
   const { addHistoryEntry } = useAddCandidateHistoryEntry()
+
+  const togglePendingOrientation = (value: string) =>
+    setPendingOrientations((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
+
+  const openPendingComment = () => {
+    setPendingComment('')
+    setPendingOrientations([])
+    setSendPendingMail(false)
+    setPendingMailError(null)
+    setPendingCommentSaved(false)
+    setPendingCommentError(null)
+    setShowPendingComment(true)
+  }
+
+  const handlePendingCommentSubmit = async () => {
+    if (!pendingComment.trim() || !id || !formData) return
+    setPendingCommentLoading(true)
+    setPendingCommentError(null)
+    setPendingMailError(null)
+    try {
+      // Évite un doublon d'historique si l'envoi du mail a échoué au premier
+      // essai et que l'utilisateur réessaie sans fermer le modal.
+      if (!pendingCommentSaved) {
+        const addRes = await addHistoryEntry(id, buildTestFailureComment(pendingComment, pendingOrientations))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((addRes as any)?.error) throw new Error(((addRes as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'))
+        setPendingCommentSaved(true)
+      }
+      if (sendPendingMail) {
+        const to = formData.identity.email?.trim() ?? ''
+        if (!to) {
+          setPendingMailError('Aucun email candidat : le mail de redirection n’a pas été envoyé.')
+          return
+        }
+        if (pendingOrientations.includes(TEST_FAILURE_NO_SHARE_VALUE)) {
+          setPendingMailError('Le candidat ne souhaite pas que sa candidature soit partagée : aucun mail envoyé.')
+          return
+        }
+        const firstName = formData.identity.full_name.split(' ')[0] ?? ''
+        try {
+          await apiJson('/api/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to,
+              subject: 'Votre candidature a été redirigée',
+              body: buildTestFailureRedirectionBody(firstName, pendingOrientations),
+            }),
+          })
+        } catch (err) {
+          setPendingMailError(err instanceof Error ? err.message : 'Échec de l’envoi du mail.')
+          return
+        }
+      }
+      const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id, input: { testFailurePending: false } })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((upd as any)?.error) throw new Error(((upd as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'))
+      setFormData(prev => prev ? { ...prev, test_failure_pending: false } as Candidate : prev)
+      setShowPendingComment(false)
+      setPendingComment('')
+    } catch (err) {
+      setPendingCommentError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement')
+    } finally {
+      setPendingCommentLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -1014,7 +1090,7 @@ export default function FicheCandidat() {
               Moyenne calculée à partir de l’épreuve écrite ({formData.written_test_score ?? '—'} / 20) et du score ClassMarker. Vous pouvez compléter à tout moment.
             </p>
             <div>
-              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white" onClick={() => setShowPendingComment(true)}>
+              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white" onClick={openPendingComment}>
                 Ajouter le commentaire
               </Button>
             </div>
@@ -2194,30 +2270,36 @@ export default function FicheCandidat() {
             <div className="mt-4">
               <textarea className={inputCls + ' resize-none'} rows={4} value={pendingComment} onChange={e => setPendingComment(e.target.value)} placeholder="Ex: Candidat informé de l’échec, proposé atelier de remise à niveau, suivi prévu..." />
             </div>
+            <div className="mt-4 flex flex-col gap-1.5">
+              <span id="pending-orientation-label" className="text-sm font-medium text-[var(--ds-text-muted)]">Orientation vers…</span>
+              <div role="group" aria-labelledby="pending-orientation-label" className="flex flex-col gap-2 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2.5">
+                {TEST_FAILURE_ORIENTATION_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 h-4 w-4"
+                      checked={pendingOrientations.includes(opt.value)}
+                      onChange={() => togglePendingOrientation(opt.value)}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="mt-4 flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4"
+                checked={sendPendingMail}
+                onChange={(e) => setSendPendingMail(e.target.checked)}
+              />
+              Envoyer un mail au candidat (« Votre candidature a été redirigée vers… »)
+            </label>
+            {pendingMailError && <p className="mt-2 text-xs text-[var(--ds-warning)]">{pendingMailError}</p>}
             {pendingCommentError && <p className="mt-2 text-xs text-[var(--ds-danger)]">{pendingCommentError}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setShowPendingComment(false)}>Annuler</Button>
-              <Button size="sm" isLoading={pendingCommentLoading} disabled={!pendingComment.trim()} onClick={async () => {
-                if (!pendingComment.trim() || !id) return;
-                setPendingCommentLoading(true);
-                setPendingCommentError(null);
-                try {
-                  const addRes = await addHistoryEntry(id, pendingComment.trim());
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  if ((addRes as any)?.error) throw new Error(((addRes as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'));
-                  // also try to read new history to confirm
-                  const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id, input: { testFailurePending: false } });
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  if ((upd as any)?.error) throw new Error(((upd as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'));
-                  setFormData(prev => prev ? { ...prev, test_failure_pending: false } as Candidate : prev);
-                  setShowPendingComment(false);
-                  setPendingComment('');
-                } catch (err) {
-                  setPendingCommentError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement');
-                } finally {
-                  setPendingCommentLoading(false);
-                }
-              }} className="bg-purple hover:bg-purple-dark text-white">
+              <Button size="sm" isLoading={pendingCommentLoading} disabled={!pendingComment.trim()} onClick={handlePendingCommentSubmit} className="bg-purple hover:bg-purple-dark text-white">
                 Enregistrer
               </Button>
             </div>
