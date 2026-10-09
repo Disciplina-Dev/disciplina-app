@@ -6,6 +6,7 @@ import { CandidateService } from '../../services/CandidateService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
+import { DAILY_CALL_LIMIT } from '../limits';
 import { encodeCursor } from '../../services/pagination';
 import { CandidateStatus, TitleProfessionalType } from '../../types/candidate.types';
 
@@ -174,5 +175,30 @@ describe('MCP tools (static admin key)', () => {
         expect(Array.isArray(monthly.months)).toBe(true);
         const weekly = await callTool('kpi_weekly_detail', { year, site: 'NORD' });
         expect(Array.isArray(weekly.weeks)).toBe(true);
+    });
+    it('rejects a page size above the MCP cap', async () => {
+        const parsed = await rpc('tools/call', { name: 'search_candidates', arguments: { first: 51 } });
+        expect(parsed.error ?? parsed.result?.isError).toBeTruthy();
+    });
+
+    it('journalise chaque appel (outil, fiche, volume) sans PII', async () => {
+        await callTool('list_users');
+        await callTool('get_company', { id: 424242 }).catch(() => undefined);
+        const [rows] = await pool.query<any[]>('SELECT * FROM mcp_audit_log ORDER BY id');
+        const listUsers = rows.find((r) => r.tool === 'list_users');
+        expect(listUsers).toMatchObject({ user_id: 0, status: 'ok', client_id: null });
+        const company = rows.find((r) => r.tool === 'get_company');
+        expect(company?.subject_ref).toBe('id:424242');
+        expect(company?.args_hash).toHaveLength(32);
+    });
+
+    it('bloque les appels au-delà du quota quotidien', async () => {
+        const values = Array.from({ length: DAILY_CALL_LIMIT }, () => "(0, 'list_users', 'h', 1, 'ok')").join(',');
+        await pool.query(`INSERT INTO mcp_audit_log (user_id, tool, args_hash, result_count, status) VALUES ${values}`);
+        const parsed = await rpc('tools/call', { name: 'list_users', arguments: {} });
+        expect(parsed.result.isError).toBe(true);
+        expect(parsed.result.content[0].text).toContain('Quota');
+        const [rows] = await pool.query<any[]>("SELECT COUNT(*) AS n FROM mcp_audit_log WHERE status = 'quota'");
+        expect(Number(rows[0].n)).toBe(1);
     });
 });

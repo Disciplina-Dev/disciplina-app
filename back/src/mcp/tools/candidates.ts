@@ -5,6 +5,7 @@ import { CandidateHistoryService } from '../../services/CandidateHistoryService'
 import { OfferService } from '../../services/OfferService';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
+import { MAX_PAGE_SIZE } from '../limits';
 import { mcpToolScope } from '../rbac';
 import { JobRole, Permission } from '../../types/user.types';
 import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
@@ -39,7 +40,7 @@ export function registerCandidateTools(server: McpServer): void {
         'Liste / recherche les candidats (nom, email…). Pagination cursor-based.',
         {
             search: z.string().optional().describe('Terme de recherche'),
-            first: z.number().int().positive().max(200).optional().describe('Nombre max (défaut 50)'),
+            first: z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)'),
             after: z.string().optional().describe('Cursor de pagination'),
         },
         CANDIDATE_SCOPE,

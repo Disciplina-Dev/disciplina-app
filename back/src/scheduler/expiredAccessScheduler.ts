@@ -1,6 +1,7 @@
 import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
 import { RefreshTokenRepository } from '../repositories/mysql/RefreshTokenRepository';
 import { runForAllRegions, getRegion } from '../db/tenant';
+import { McpAuditStore, AUDIT_RETENTION_DAYS } from '../mcp/auditStore';
 import { logger } from '../external/logger/logger';
 
 // Tick quotidien : la granularité « jour » suffit pour de la purge de rétention.
@@ -28,6 +29,7 @@ const GRACE_DAYS = 7;
 export function startExpiredAccessScheduler(): NodeJS.Timeout {
     const externalAccessRepository = new ExternalAccessRepository();
     const refreshTokenRepository = new RefreshTokenRepository();
+    const mcpAuditStore = new McpAuditStore();
     let running = false;
 
     const tick = async () => {
@@ -41,10 +43,12 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
                 try {
                     const externalAccess = await externalAccessRepository.deleteExpired(GRACE_DAYS);
                     const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
-                    const total = externalAccess + refreshTokens;
+                    // Journal d'accès MCP : rétention 1 an (politique de confidentialité).
+                    const mcpAudit = await mcpAuditStore.deleteOlderThan(AUDIT_RETENTION_DAYS);
+                    const total = externalAccess + refreshTokens + mcpAudit;
                     if (total > 0) {
                         logger.info(
-                            { region, externalAccess, refreshTokens, total },
+                            { region, externalAccess, refreshTokens, mcpAudit, total },
                             'expired-access: accès expirés purgés',
                         );
                     }

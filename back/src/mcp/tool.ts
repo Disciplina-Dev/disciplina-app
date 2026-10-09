@@ -2,6 +2,22 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { currentMcpUser } from './context';
 import { checkToolScope, McpToolScope } from './rbac';
+import { McpAuditStore, hashArgs, subjectRef } from './auditStore';
+import { DAILY_CALL_LIMIT, DAILY_RECORD_LIMIT } from './limits';
+import { logger } from '../external/logger/logger';
+
+const auditStore = new McpAuditStore();
+
+// Nombre d'enregistrements sortis : taille du tableau racine, sinon 1 (fiche) / 0 (null).
+function countRecords(result: ToolResult): number {
+    try {
+        const parsed: unknown = JSON.parse(result.content[0]?.text ?? 'null');
+        if (Array.isArray(parsed)) return parsed.length;
+        return parsed === null ? 0 : 1;
+    } catch {
+        return 0;
+    }
+}
 
 type Shape = Record<string, z.ZodTypeAny>;
 type Args<S extends Shape> = { [K in keyof S]: z.infer<S[K]> };
@@ -32,11 +48,50 @@ export function readTool<S extends Shape>(
         name,
         { description, inputSchema } as never,
         (async (args: Args<S>) => {
-            const denied = checkToolScope(currentMcpUser(), scope);
+            const user = currentMcpUser();
+            const entry = {
+                userId: user?.id ?? 0,
+                clientId: user?.clientId ?? null,
+                tool: name,
+                subjectRef: subjectRef(args),
+                argsHash: hashArgs(args),
+            };
+            // Le journal ne doit jamais casser un appel d'outil : échec = log d'erreur seulement.
+            const audit = async (resultCount: number, status: 'ok' | 'error' | 'denied' | 'quota') => {
+                try {
+                    await auditStore.record({ ...entry, resultCount, status });
+                } catch (err) {
+                    logger.error({ err }, 'MCP audit log write failed');
+                }
+            };
+
+            const denied = checkToolScope(user, scope);
             if (denied) {
+                await audit(0, 'denied');
                 return { content: [{ type: 'text', text: denied }], isError: true };
             }
-            return handler(args);
+
+            try {
+                const usage = await auditStore.usageLast24h(entry.userId);
+                if (usage.calls >= DAILY_CALL_LIMIT || usage.records >= DAILY_RECORD_LIMIT) {
+                    await audit(0, 'quota');
+                    return {
+                        content: [{ type: 'text', text: 'Quota quotidien MCP atteint : réessayez dans 24 h.' }],
+                        isError: true,
+                    };
+                }
+            } catch (err) {
+                logger.error({ err }, 'MCP quota check failed');
+            }
+
+            try {
+                const result = await handler(args);
+                await audit(countRecords(result), 'ok');
+                return result;
+            } catch (err) {
+                await audit(0, 'error');
+                throw err;
+            }
         }) as never,
     );
 }

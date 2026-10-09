@@ -36,12 +36,12 @@ function mcpAdminUser(): McpUser {
 // Résout l'utilisateur derrière un access token OAuth, dans la région portée par
 // le token. Le lookup par requête garantit un RBAC/secteurs frais (un user
 // démote ou désactivé perd l'accès au prochain appel). Id=0 impossible en base.
-function resolveMcpOAuthUser(userId: number, region: Region): Promise<McpUser | null> {
+function resolveMcpOAuthUser(userId: number, region: Region, clientId: string): Promise<McpUser | null> {
     return syncWithRegion(region, async () => {
         const row = await new UserRepository().findById(userId);
         if (!row) return null;
         const user: User = toUser(row);
-        return { id: user.id, role: user.role, permission: user.permission, sectors: user.sectors, region };
+        return { id: user.id, role: user.role, permission: user.permission, sectors: user.sectors, region, clientId };
     });
 }
 
@@ -87,7 +87,7 @@ export async function mcpAuth(req: Request, res: Response, next: NextFunction): 
 
         const oauth = provided ? verifyMcpAccessToken(provided) : null;
         if (oauth) {
-            const user = await resolveMcpOAuthUser(oauth.userId, oauth.region);
+            const user = await resolveMcpOAuthUser(oauth.userId, oauth.region, oauth.clientId);
             if (!user) {
                 logger.warn(
                     { ip: req.ip, userId: oauth.userId, region: oauth.region },
