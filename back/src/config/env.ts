@@ -221,6 +221,9 @@ const data = {
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
     MCP_API_KEY: optionalString('MCP_API_KEY'),
+    // La clé statique est un accès ADMIN anonyme (RGPD, MCP_RGPD_AUDIT.md M7) : ignorée en
+    // production sauf opt-in explicite. L'OAuth (comptes nominatifs) reste toujours actif.
+    MCP_STATIC_KEY_ENABLED: process.env.MCP_STATIC_KEY_ENABLED === 'true',
 
     // URL publique HTTPS de l'authorization server OAuth MCP (claude.ai web). Le
     // SDK exige https sans fragment ni query ; le défaut localhost sert au dev/test.

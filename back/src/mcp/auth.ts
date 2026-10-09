@@ -59,30 +59,35 @@ function resolveMcpOAuthUser(userId: number, region: Region, clientId: string): 
  */
 export async function mcpAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const configured = env.MCP_API_KEY;
-        if (!configured) {
-            res.status(404).json({ error: 'MCP endpoint disabled' });
-            return;
-        }
-
-        // Clé configurée mais trop faible : fail-closed, on refuse de servir le CRM
-        // plutôt que d'accepter une clé devinable.
-        if (configured.length < MIN_KEY_LENGTH) {
-            logger.error(
-                { keyLength: configured.length, min: MIN_KEY_LENGTH },
-                'MCP_API_KEY too short — endpoint disabled (use `openssl rand -hex 32`)',
-            );
-            res.status(404).json({ error: 'MCP endpoint disabled' });
-            return;
-        }
-
+        const staticKeyAllowed = env.NODE_ENV !== 'production' || env.MCP_STATIC_KEY_ENABLED;
         const header = req.header('authorization') ?? '';
         const provided = header.startsWith('Bearer ') ? header.slice(7) : '';
 
-        if (provided && secureEquals(provided, configured)) {
-            res.locals.mcpUser = mcpAdminUser();
-            next();
-            return;
+        if (staticKeyAllowed) {
+            const configured = env.MCP_API_KEY;
+            if (!configured) {
+                res.status(404).json({ error: 'MCP endpoint disabled' });
+                return;
+            }
+
+            // Clé configurée mais trop faible : fail-closed, on refuse de servir le CRM
+            // plutôt que d'accepter une clé devinable.
+            if (configured.length < MIN_KEY_LENGTH) {
+                logger.error(
+                    { keyLength: configured.length, min: MIN_KEY_LENGTH },
+                    'MCP_API_KEY too short — endpoint disabled (use `openssl rand -hex 32`)',
+                );
+                res.status(404).json({ error: 'MCP endpoint disabled' });
+                return;
+            }
+
+            if (provided && secureEquals(provided, configured)) {
+                // Accès non nominatif (user_id 0) : tracé à chaque usage, cf. mcp_audit_log.
+                logger.warn({ ip: req.ip }, 'MCP static key used (anonymous ADMIN access)');
+                res.locals.mcpUser = mcpAdminUser();
+                next();
+                return;
+            }
         }
 
         const oauth = provided ? verifyMcpAccessToken(provided) : null;
