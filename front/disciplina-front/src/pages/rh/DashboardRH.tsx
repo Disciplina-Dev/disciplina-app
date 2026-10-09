@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
@@ -15,7 +16,7 @@ import {
 } from 'recharts';
 import { IconAlert, IconBell, IconChevronDown, IconClose, IconCompany, IconJob, IconLoader, IconRefresh, IconSearch, IconSignature, IconUsers } from '@/components/ui/icons'
 import { useCurrentUser, Permission } from '@/store/authStore';
-import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, useUpdateNeedsAnalysisIndicator, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
 import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY, GET_OFFERS_IMMERSION_MAP, GET_IMMERSING_CANDIDATES_MAP } from '@/graphql/queries';
 import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import type { NeedsAnalysis } from '@/types/needsAnalysis';
@@ -453,6 +454,152 @@ function commercialLabel(analysis: NeedsAnalysis): string {
   return analysis.salerInfo?.email?.trim() || '—';
 }
 
+type IndicatorColor = 'WHITE' | 'YELLOW' | 'GREEN' | 'ORANGE' | 'RED';
+
+const INDICATOR_ORDER: IndicatorColor[] = ['WHITE', 'YELLOW', 'GREEN', 'ORANGE', 'RED'];
+
+const INDICATOR_DOT: Record<IndicatorColor, string> = {
+  WHITE: 'bg-white border-gray-300',
+  YELLOW: 'bg-yellow-400 border-yellow-500',
+  GREEN: 'bg-green-500 border-green-600',
+  ORANGE: 'bg-orange-400 border-orange-500',
+  RED: 'bg-red-500 border-red-600',
+};
+
+const INDICATOR_LABELS: Record<IndicatorColor, string> = {
+  WHITE: 'Défaut',
+  YELLOW: 'Mandat signé',
+  GREEN: 'Immersion en cours',
+  ORANGE: 'À surveiller',
+  RED: 'Urgent',
+};
+
+/** Couleur automatique : immersion en cours → vert, mandat signé → jaune, sinon blanc. */
+function autoIndicatorColor(status?: string | null, hasImmersion = false): IndicatorColor {
+  if (hasImmersion) return 'GREEN';
+  if (status === 'SIGNE') return 'YELLOW';
+  return 'WHITE';
+}
+
+/**
+ * Pastille de suivi devant le nom de l'entreprise. Affiche la couleur manuelle
+ * posée, sinon la couleur automatique dérivée. Un clic ouvre la palette de
+ * choix (5 couleurs + retour à l'automatique), partagée avec toute l'équipe.
+ */
+function CompanyIndicatorDot({
+  analysisId,
+  status,
+  serverIndicator,
+  hasImmersion,
+}: {
+  analysisId: string;
+  status?: string | null;
+  serverIndicator?: string | null;
+  hasImmersion: boolean;
+}) {
+  const { updateIndicator } = useUpdateNeedsAnalysisIndicator();
+  // `undefined` = suit la valeur serveur ; sinon valeur optimiste en attente.
+  const [override, setOverride] = useState<IndicatorColor | null | undefined>(undefined);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [saveError, setSaveError] = useState(false);
+
+  const server = (serverIndicator as IndicatorColor | null) ?? null;
+  // Pas d'effet de resynchronisation : le parent remonte ce composant via
+  // `key` quand la valeur serveur change (refetch, collègue), ce qui
+  // réinitialise l'optimiste sans setState dans un effet.
+
+  const manual = override !== undefined ? override : server;
+  const auto = autoIndicatorColor(status, hasImmersion);
+  const effective = manual ?? auto;
+
+  useEffect(() => {
+    if (!menuPos) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuPos(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuPos]);
+
+  const choose = (color: IndicatorColor | null) => {
+    setMenuPos(null);
+    setOverride(color);
+    setSaveError(false);
+    updateIndicator(analysisId, color).then((res) => {
+      if (res.error) {
+        setOverride(undefined);
+        setSaveError(true);
+      }
+    });
+  };
+
+  const openMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({
+      top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 330)),
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 248)),
+    });
+  };
+
+  const hint = `${INDICATOR_LABELS[effective]}${manual ? ' (manuel)' : ' (automatique)'} — cliquer pour changer${saveError ? ' — échec d’enregistrement, réessayez' : ''}`;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={openMenu}
+        title={hint}
+        aria-label={`Pastille de suivi : ${hint}`}
+        className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 shadow-sm transition hover:scale-125 ${INDICATOR_DOT[effective]}${saveError ? ' outline-2 outline-offset-1 outline-red-500' : ''}`}
+      />
+      {menuPos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[60] cursor-default" onClick={() => setMenuPos(null)} />
+          <div
+            role="menu"
+            aria-label="Choisir la pastille de suivi"
+            onClick={(e) => e.stopPropagation()}
+            style={{ top: menuPos.top, left: menuPos.left }}
+            className="fixed z-[61] w-60 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-2 shadow-xl"
+          >
+            <p className="px-2 pb-1 pt-1 text-xs font-bold text-[var(--ds-text)]">Pastille de suivi</p>
+            <p className="px-2 pb-2 text-[11px] text-[var(--ds-text-subtle)]">Manuelle — visible par toute l’équipe.</p>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => choose(null)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[var(--ds-surface-sunken)]"
+            >
+              <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 border-dashed border-gray-400 ${manual ? '' : 'ring-2 ring-blue ring-offset-1'}`} title="Automatique" />
+              <span className="min-w-0 flex-1">
+                <span className={`block font-semibold text-[var(--ds-text)] ${manual ? '' : 'underline underline-offset-2'}`}>Automatique</span>
+                <span className="block truncate text-[11px] text-[var(--ds-text-subtle)]">Actuellement : {INDICATOR_LABELS[auto]}</span>
+              </span>
+            </button>
+            {INDICATOR_ORDER.map((color) => (
+              <button
+                key={color}
+                type="button"
+                role="menuitem"
+                onClick={() => choose(color)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[var(--ds-surface-sunken)]"
+              >
+                <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${INDICATOR_DOT[color]} ${manual === color ? 'ring-2 ring-blue ring-offset-1' : ''}`} />
+                <span className={`min-w-0 flex-1 truncate text-[var(--ds-text-muted)] ${manual === color ? 'font-bold text-[var(--ds-text)] underline underline-offset-2' : ''}`}>
+                  {INDICATOR_LABELS[color]}
+                </span>
+              </button>
+            ))}
+            {saveError && (
+              <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-[var(--ds-danger)]">Échec d’enregistrement — réessayez.</p>
+            )}
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { items, pageInfo, loading, error, refetch } = useNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
@@ -878,6 +1025,16 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
               </button>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Pastille :</span>
+            {INDICATOR_ORDER.map((color) => (
+              <span key={color} className="inline-flex items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
+                <span className={`inline-block h-2.5 w-2.5 rounded-full border ${INDICATOR_DOT[color]}`} />
+                {INDICATOR_LABELS[color]}
+              </span>
+            ))}
+            <span className="text-[11px] text-[var(--ds-text-subtle)]">— cliquez sur la pastille d’une entreprise pour changer sa couleur.</span>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -925,7 +1082,18 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                         className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
                         title="Ouvrir le matching"
                       >
-                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{analysis.companyInfos?.name ?? '—'}</td>
+                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">
+                          <span className="flex items-center gap-2">
+                            <CompanyIndicatorDot
+                              key={`${analysis.id}:${analysis.companyIndicator ?? 'auto'}`}
+                              analysisId={analysis.id}
+                              status={analysis.status}
+                              serverIndicator={analysis.companyIndicator}
+                              hasImmersion={immersingNames.length > 0}
+                            />
+                            <span>{analysis.companyInfos?.name ?? '—'}</span>
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{tp ?? '—'}</td>
                         <td className="max-w-48 px-4 py-2.5 text-[var(--ds-text-muted)]" title={formatLocalisationCell(analysis)}>
                           <span className="line-clamp-2">{formatLocalisationCell(analysis)}</span>

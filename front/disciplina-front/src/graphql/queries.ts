@@ -1771,6 +1771,7 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
           lastActiveAt
           administrationType
           driveFolderUrl
+          companyIndicator
           immersionPeriod
           salerInfo {
             id
@@ -2033,6 +2034,15 @@ export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
     updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
       id
       abStatus
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_INDICATOR = gql`
+  mutation UpdateNeedsAnalysisIndicator($id: ID!, $indicator: CompanyIndicator) {
+    updateNeedsAnalysisIndicator(id: $id, indicator: $indicator) {
+      id
+      companyIndicator
     }
   }
 `

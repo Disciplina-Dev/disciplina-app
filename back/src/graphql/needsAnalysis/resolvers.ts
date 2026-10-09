@@ -8,6 +8,7 @@ import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../servic
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
 import { OfferAbFilter, AbStatus } from '../../types/offer.types';
+import { CompanyIndicator } from '../../types/needsAnalysisNoSql.types';
 import {
     abDriveConfigService,
     abDriveConfigToGql,
@@ -60,19 +61,28 @@ export const resolvers = {
                         : null;
                     let drive: InstanceType<typeof GoogleDriveService> | null = null;
                     if (tokens) {
-                        drive = GoogleDriveService.fromTokens(
-                            tokens,
-                            async (refreshed) => {
-                                if (creatorId) await userService.updateGoogleTokens(Number(creatorId), refreshed.access_token ?? null, refreshed.refresh_token ?? null);
-                            },
-                        );
+                        drive = GoogleDriveService.fromTokens(tokens, async (refreshed) => {
+                            if (creatorId)
+                                await userService.updateGoogleTokens(
+                                    Number(creatorId),
+                                    refreshed.access_token ?? null,
+                                    refreshed.refresh_token ?? null,
+                                );
+                        });
                     } else {
                         const fallback = await userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
                         if (fallback?.oauthToken) {
                             drive = GoogleDriveService.fromTokens(
-                                { access_token: fallback.oauthToken, refresh_token: fallback.refreshToken ?? undefined },
+                                {
+                                    access_token: fallback.oauthToken,
+                                    refresh_token: fallback.refreshToken ?? undefined,
+                                },
                                 async (refreshed) => {
-                                    await userService.updateGoogleTokens(Number(fallback.id), refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+                                    await userService.updateGoogleTokens(
+                                        Number(fallback.id),
+                                        refreshed.access_token ?? null,
+                                        refreshed.refresh_token ?? null,
+                                    );
                                 },
                             );
                         }
@@ -193,6 +203,14 @@ export const resolvers = {
                 }
             }
             return needsAnalysisService.setRelanceDisabled(id, disabled);
+        },
+        updateNeedsAnalysisIndicator: async (
+            _: unknown,
+            { id, indicator }: { id: string; indicator?: CompanyIndicator | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.setIndicator(id, indicator ?? null);
         },
     },
 };

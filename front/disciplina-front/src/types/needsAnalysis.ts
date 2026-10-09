@@ -102,4 +102,6 @@ export interface NeedsAnalysis {
   lastActiveAt?: string | null
   /** URL Drive du dossier contenant le mandat signé (uniquement si SIGNE). */
   driveFolderUrl?: string | null
+  /** Pastille couleur manuelle du suivi entreprise (annuaire RH). Null = automatique. */
+  companyIndicator?: string | null
 }
