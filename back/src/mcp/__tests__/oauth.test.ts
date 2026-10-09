@@ -548,4 +548,24 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         expect(res.status).toBe(200);
         expect(await res.text()).toContain('Région invalide.');
     });
+    // Doit rester le dernier test : le plafond par IP est partagé par tout le fichier.
+    it('limite les échecs de saisie du mot de passe sur /authorize (par compte puis par IP)', async () => {
+        const { clientId } = await registerClient();
+        const { challenge } = pkce();
+        const attempt = (email: string) =>
+            fetch(`${BASE}/authorize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(
+                    `${authorizeParams(clientId, challenge)}&email=${encodeURIComponent(email)}&password=wrong&region=reunion`,
+                ).toString(),
+                redirect: 'manual',
+            });
+
+        // Même compte : 429 au plus tard à la 11e tentative, quelle que soit l'IP.
+        const statuses: number[] = [];
+        for (let i = 0; i < 11; i++) statuses.push((await attempt('victim@test.local')).status);
+        expect(statuses.slice(0, 10).every((s) => s === 200 || s === 429)).toBe(true);
+        expect(statuses[10]).toBe(429);
+    });
 });
