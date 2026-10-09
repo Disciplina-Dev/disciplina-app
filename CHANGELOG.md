@@ -30,6 +30,69 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-09
+
+### Added
+
+- Espace Peda alternance (#878, #882) : pages `ListeAlternants`/`FicheAlternant` (modale de création, modale entreprise, timeline de séquences), service `AlternantService` et schémas Mongo `alternant`/`alternant-sequence`.
+- Dashboard de suivi SA (#876, #884) : `DashboardPeda` avec compteurs et listes de suivi.
+- Sessions d'alternance (#877, #885) : modèle `Session` + pages `ListeSessions`/`FicheSession` (`SessionFormModal`), liaison alternant↔session.
+- Ruptures (#879, #886) : modèle/service `Rupture`, page `Ruptures` et `RuptureModal` sur la fiche alternant.
+- Archivage alternants/SA (#881, #887) : flags `archived`, onglet archive et règles d'archivage à la clôture rupture/session.
+- Notifications SA en retard/à venir et rupture déclarée (#890, #893) : `SaNotificationService` + scheduler dédié, intégration à la cloche de notifications.
+- Éditeur de templates mail enrichi (#747) : couleurs texte/surlignage (picker libre + presets), tailles en px, bouton CTA, images pleine largeur non déformées, barre de séparation personnalisable (couleur, épaisseur, largeur, alignement), thèmes prédéfinis, largeur mail 600 px, sanitisation HTML côté serveur (`sanitizeMailHtml`) et aperçu in-app aligné sur l'éditeur.
+- Thème clair/sombre, toasts globaux et sidebar repliable/épinglable (#551) : `themeStore` + `ThemeToggle`, `toastStore` + `Toaster`, `sidebarStore` + `CollapsibleSidebar`/`SpaceSwitcher`/`AppFooter`.
+- Fuseaux horaires par tenant (#801, #802) : `TENANT_TIMEZONE` central (back, via ALS) + `lib/timezone.ts` (front), `GET /:signature/profile.timezone`, Annemasse sur `Europe/Paris` au lieu d'`Indian/Reunion`.
+- Compteurs et historique complet des relances (#855, #860) : schéma/repo/contrôleur back et refonte de `Relance.tsx`.
+- Période d'essai candidat (#898, #906) : date de fin calculée (`trialPeriod.ts`), saisie dans `ContractModal`, modale d'alerte sur le dashboard RH.
+- Champs immersion enrichis (#900, #910) : n° de convention, horaires et entreprise dans la modale immersion.
+- Garde d'âge min-max sur les AB (#908, #911) : `NeedsAnalysisModal` bloque la sauvegarde hors tranche d'âge du candidat.
+- Indicateur couleur entreprise sur le dashboard RH (#907, #912) : vert/orange/rouge/gris dans la modale entreprise (GraphQL `needsAnalysis`).
+- Orientation des candidats en échec de test (#902, #913) : choix de redirection et mail d'orientation (`testFailureOrientation`, `MailTemplateService`).
+- Nouveaux statuts d'entretien du calendrier (#896, #904) : propagés aux KPI (`RhKpiPanel`).
+- Colonnes de la modale entreprise RH et filtre des entrées d'historique manuelles (#899, #909).
+- CC sur le mail d'envoi aux entreprises (#826, #829) : `SendToCompanyModal`, MIME Gmail et resolver GraphQL `offers`.
+- Groupes de communes dans les filtres candidats (#830, #831) : Nord/Est/Ouest/Sud + Hors Réunion.
+- Communes (#765, #805) et secteurs (#832, #835) d'Annemasse : référentiels, matching, offres, AB et KPI.
+- Nouveaux outils MCP (#875, #880) : `list_offer_history`, `list_users`, `list_company_conflicts`, exposition de `lastRelanceAt`/`signedAt` des AB.
+- Script de suppression de liste SIRET en prod (`scripts/delete_companies.py`) et addendum `HOWTODEPLOY.md` (#777).
+- Dependabot npm + actions GitHub (#769, #770).
+- Bouton d'affichage du NIR (requête GraphQL `unmaskSSN`) et CGU Disciplina (#523, #537).
+
+### Changed
+
+- Refonte UI/UX du front (#551) : couleurs de marque (boutons primaires, nav active), chrome glass, `Tabs`/`SegmentedControl` coulissants, nouvelle librairie `Button`/`Card`/`Badge`/`Select`/`Tooltip`/`Spinner`/`EmptyState`/`PageHeader`/`Logo`, barre de recherche candidat, barre d'actions relance sticky, layouts refactorés (~150 fichiers).
+- Visuel peda (#889, #891) : réorganisation des onglets, couleurs SA en retard/à venir, bouton rupture.
+- Couleurs des entrées calendrier simplifiées et centralisées (#897, #905).
+- Page de proposition externe en grille (#901, #914) et boutons « candidat suivant » plus visibles (#781, #783).
+- Boutons de clôture des liens externes en remplacement du délai d'expiration (#854, #857).
+- Message d'aide au survol pour le choix de région sur la page de connexion (#780, #784).
+- Nettoyage des scripts : 19 scripts obsolètes supprimés (imports/migrations ponctuels), `delete_companies.py` conservé (#778, #785).
+- Audit des dépendances front/back (#764, #768) et audit des écarts multi-tenant Annemasse (`AUDIT_MULTITENANT.md`, #799, #800).
+
+### Fixed
+
+- CSP de la route OAuth (flux consentement/popup) (#762, #763).
+- Note de test notée sur 10 au lieu de 20 (#766, #771).
+- Spam de mails à la signature d'AB : déduplication/throttle du webhook YouSign (#779, #782).
+- Spam notif/mail/sauvegarde sur les AB brouillon : flag `needsAnalysis` + garde d'archivage Drive (#774, #776).
+- Recherche SIRET : dispatch SIREN vs SIRET vers le contrôleur sourcing (#804, #806).
+- MIME Nginx pour PDF.js (`.mjs`/wasm) en prod (#807, #808).
+- Compatibilité Safari de PDF.js (`readableStreamAsyncIterator`) (#825, #827).
+- PDF invalides : plus de crash de route (`PdfRenderBoundary` + fallback téléchargement), upload rejeté sans magic bytes `%PDF-` (400) (#841, #848).
+- Appel « non » + relance comptés 2 KPI (#828, #833).
+- Effacement du champ de recherche persisté (`usePersistedListView`) (#834, #836).
+- Lieu de formation Annemasse (formulaire, fiche, questionnaire AB) (#852, #853).
+- Mappers région/zone/secteur des offres côté back (#856, #858).
+- Secteur de réunion Annemasse (migration MySQL + calendrier) (#839, #844).
+- Lieux de poste Annemasse/Réunion séparés sur la modale AB (#837, #838).
+- Mentions légales : placeholders remplacés par le contenu final (#778, #785).
+- Filtre des types TP candidats (#499, #538).
+
+### Security
+
+- Masquage du NIR dans les outils MCP candidats et resserrement du scrub des clés sensibles (#875, #880).
+
 ## [1.3.0] - 2026-09-18
 
 ### Added
