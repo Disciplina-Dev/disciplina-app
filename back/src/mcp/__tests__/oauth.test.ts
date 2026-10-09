@@ -242,6 +242,8 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         expect(page).toContain('Disciplina Connector');
         expect(page).toContain('E-mail du compte Disciplina');
         expect(page).toContain('mcp:call');
+        expect(page).toContain('modèle d&rsquo;IA hébergé par un tiers');
+        expect(page).toContain('/legal/confidentialite');
         expect(page).toContain('lecture seule');
         expect(page).toContain('La Réunion');
 
