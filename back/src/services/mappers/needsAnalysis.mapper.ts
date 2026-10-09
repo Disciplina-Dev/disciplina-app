@@ -249,7 +249,7 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
                             email: doc.referents.legal_referents.email ?? null,
                             function: doc.referents.legal_referents.function ?? null,
                         }
-                      : null
+                      : null;
                   const recruit = doc.referents.recruitment_referents
                       ? {
                             name: doc.referents.recruitment_referents.name ?? null,
@@ -257,20 +257,20 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
                             email: doc.referents.recruitment_referents.email ?? null,
                             function: doc.referents.recruitment_referents.function ?? null,
                         }
-                      : null
-                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
-                  const actuallySame = !hasRecruit || (
-                      (recruit?.name ?? null) === (legal?.name ?? null) &&
-                      (recruit?.phone ?? null) === (legal?.phone ?? null) &&
-                      (recruit?.email ?? null) === (legal?.email ?? null) &&
-                      (recruit?.function ?? null) === (legal?.function ?? null)
-                  )
-                  const isSame = actuallySame ? (doc.referents.is_same ?? actuallySame) : false
+                      : null;
+                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function);
+                  const actuallySame =
+                      !hasRecruit ||
+                      ((recruit?.name ?? null) === (legal?.name ?? null) &&
+                          (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+                          (recruit?.email ?? null) === (legal?.email ?? null) &&
+                          (recruit?.function ?? null) === (legal?.function ?? null));
+                  const isSame = actuallySame ? (doc.referents.is_same ?? actuallySame) : false;
                   return {
                       isSame,
                       legalReferents: legal,
                       recruitmentReferents: recruit,
-                  }
+                  };
               })()
             : null,
         positionsCount: positions.reduce((sum, p) => sum + (p.count ?? 1), 0),
@@ -285,6 +285,10 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         signedAt: doc.signed_at ? new Date(doc.signed_at).toISOString() : null,
         status: doc.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: doc.tags ?? [],
+        // Pastille manuelle : absente (`null`) = couleur automatique côté front.
+        // Volontairement non repris dans `toNeedsAnalysisDocument` : la mise à
+        // jour générique `update()` ne doit jamais réinitialiser ce champ.
+        companyIndicator: (doc as any).company_indicator ?? null,
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
         updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
         lastActiveAt: doc.last_active_at ? new Date(doc.last_active_at).toISOString() : null,

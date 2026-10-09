@@ -6,6 +6,7 @@ import {
     NeedsAnalysis as NeedsAnalysisNoSql,
     NeedsAnalysisWriteInput,
     NeedsAnalysisStatus,
+    CompanyIndicator,
 } from '../types/needsAnalysisNoSql.types';
 import { toNeedsAnalysis, toNeedsAnalysisDocument, NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { buildOffers, mergeOfferIdentity } from './mappers/offer.mapper';
@@ -239,6 +240,30 @@ export class NeedsAnalysisService {
         // Relecture : le stamp d'activation a pu modifier le document après `update`.
         const final = await this.repository.findById(id);
         return toNeedsAnalysis(final ?? updated);
+    }
+
+    /**
+     * Pose la pastille couleur manuelle du suivi entreprise (annuaire RH).
+     * `null` réinitialise la couleur automatique dérivée (immersion → vert,
+     * mandat signé → jaune, sinon blanc).
+     */
+    async setIndicator(id: string, indicator: CompanyIndicator | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (indicator !== null && !Object.values(CompanyIndicator).includes(indicator)) {
+            throw new Error('Invalid company indicator');
+        }
+        const updated = await this.repository.update(id, { company_indicator: indicator ?? null });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, indicator }, '[NeedsAnalysis] company indicator updated');
+        return toNeedsAnalysis(updated);
     }
 
     /**

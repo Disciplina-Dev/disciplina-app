@@ -32,6 +32,7 @@ import {
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS_AB_STATUS,
+  UPDATE_NEEDS_ANALYSIS_INDICATOR,
   SET_AB_RELANCE_DISABLED,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
@@ -1001,6 +1002,16 @@ export function useUpdateNeedsAnalysisAbStatus() {
   }
 
   return { updateAbStatus, result }
+}
+
+export function useUpdateNeedsAnalysisIndicator() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_INDICATOR)
+
+  const updateIndicator = (id: string, indicator: string | null) => {
+    return executeMutation({ id, indicator }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateIndicator, result }
 }
 
 export function useDeleteNeedsAnalysis() {

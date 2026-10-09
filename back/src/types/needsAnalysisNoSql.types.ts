@@ -75,6 +75,17 @@ export enum AdministrationType {
     ADMINISTRATION_PRIVEE = 'ADMINISTRATION_PRIVEE',
 }
 
+// Pastille couleur du suivi entreprise (annuaire du tableau de bord RH).
+// `null` (absent) = automatique : vert si immersion en cours, jaune si mandat
+// signé, blanc par défaut. Une valeur posée fige la couleur manuellement.
+export enum CompanyIndicator {
+    WHITE = 'WHITE',
+    YELLOW = 'YELLOW',
+    GREEN = 'GREEN',
+    ORANGE = 'ORANGE',
+    RED = 'RED',
+}
+
 export interface CompanyInfos {
     id?: number;
     name?: string;
@@ -202,6 +213,12 @@ export interface NeedsAnalysis {
     is_deleted?: boolean;
     /** Type d'administration de l'entreprise : publique, privée ou non renseigné (défaut rétrocompat). */
     administration_type?: AdministrationType | null;
+    /**
+     * Pastille couleur manuelle du suivi entreprise (annuaire RH).
+     * `null`/absent = couleur automatique dérivée (immersion → vert,
+     * mandat signé → jaune, sinon blanc).
+     */
+    company_indicator?: CompanyIndicator | null;
     created_at?: Date;
     updated_at?: Date;
 }
