@@ -54,6 +54,15 @@ export class CandidateService {
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
+    /** Lecture pure (MCP) : sans `refreshAvailability`, donc sans écriture ni notification. */
+    async findByIdReadOnly(id: string): Promise<Candidate | null> {
+        return this.repository.findById(id);
+    }
+
+    async findPageReadOnly(first: number, after?: string, search?: string): Promise<Candidate[]> {
+        return this.repository.findPage(first, after, search);
+    }
+
     async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
         return this.repository.countPage(search, filters, searchField);
     }

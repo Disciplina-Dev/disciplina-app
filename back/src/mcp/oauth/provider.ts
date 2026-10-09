@@ -28,6 +28,19 @@ import {
 
 const REFRESH_GRACE_DAYS = 30;
 
+// Codes d'autorisation consommés (usage unique, RFC 6749 §4.1.2) : le code est un JWT
+// stateless, on retient son jti jusqu'à son expiration. En mémoire : suffisant pour une
+// instance unique ; en multi-instance, il faudra un stockage partagé.
+const consumedAuthCodes = new Map<string, number>();
+
+function consumeAuthCode(jti: string | undefined, expSeconds: number | undefined): boolean {
+    const now = Date.now();
+    for (const [id, exp] of consumedAuthCodes) if (exp < now) consumedAuthCodes.delete(id);
+    if (!jti || consumedAuthCodes.has(jti)) return false;
+    consumedAuthCodes.set(jti, (expSeconds ?? Math.floor(now / 1000) + 300) * 1000);
+    return true;
+}
+
 /**
  * Fournisseur OAuth 2.1 du SDK MCP, adossé à notre CRM :
  * - DCR persistant en MySQL (clients enregistrés par claude.ai)
@@ -130,10 +143,18 @@ export class McpOAuthProvider implements OAuthServerProvider {
     async exchangeAuthorizationCode(
         client: OAuthClientInformationFull,
         authorizationCode: string,
+        _codeVerifier?: string,
+        redirectUri?: string,
     ): Promise<OAuthTokens> {
         const payload = verifyAuthCode(authorizationCode);
         if (!payload || payload.clientId !== client.client_id) {
             throw new InvalidGrantError('Invalid authorization code');
+        }
+        if (redirectUri && redirectUri !== payload.redirectUri) {
+            throw new InvalidGrantError('redirect_uri mismatch');
+        }
+        if (!consumeAuthCode(payload.jti, payload.exp)) {
+            throw new InvalidGrantError('Authorization code already used');
         }
         return this.issueTokens(client.client_id, payload.userId, payload.region);
     }
@@ -142,6 +163,15 @@ export class McpOAuthProvider implements OAuthServerProvider {
         const tokenHash = sha256Hex(refreshToken);
         const row = await this.refreshTokenStore.findValidByHash(client.client_id, tokenHash);
         if (!row) {
+            // Rejeu d'un jeton déjà consommé = vol probable : on coupe toute la session.
+            const replayed = await this.refreshTokenStore.findRevokedByHash(client.client_id, tokenHash);
+            if (replayed?.user_id) {
+                await this.refreshTokenStore.revokeAllForUser(client.client_id, replayed.user_id);
+                logger.warn(
+                    { clientId: client.client_id, userId: replayed.user_id },
+                    'MCP OAuth: refresh token replay, session revoked',
+                );
+            }
             throw new InvalidGrantError('Invalid refresh token');
         }
         // Rotation : l'ancien jeton est révoqué, un nouveau est émis.

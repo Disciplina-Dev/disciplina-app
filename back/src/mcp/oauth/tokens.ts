@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { env } from '../../config/env';
 import type { Region } from '../../types/tenant';
 
@@ -28,14 +28,17 @@ export interface McpAuthCodePayload {
     region: Region;
     codeChallenge: string;
     redirectUri: string;
+    /** identifiant unique : permet l'usage unique du code (cf. provider). */
+    jti?: string;
+    exp?: number;
 }
 
 // Code d'autorisation stateless : signé JWT, zéro persistance (les cold starts /
 // redémarrages de container ne peuvent pas le perdre). Le challenge PKCE y est
 // encapsulé pour être re-exposé par `challengeForAuthorizationCode`, et
 // l'identité (userId + region issue du consentement) y transite jusqu'à l'échange.
-export function signAuthCode(payload: Omit<McpAuthCodePayload, 'typ'>): string {
-    return jwt.sign({ typ: MCP_AUTH_CODE_TYPE, ...payload }, env.JWT_SECRET, {
+export function signAuthCode(payload: Omit<McpAuthCodePayload, 'typ' | 'jti' | 'exp'>): string {
+    return jwt.sign({ typ: MCP_AUTH_CODE_TYPE, jti: randomUUID(), ...payload }, env.JWT_SECRET, {
         expiresIn: MCP_AUTH_CODE_TTL_SECONDS,
         algorithm: 'HS256',
     });

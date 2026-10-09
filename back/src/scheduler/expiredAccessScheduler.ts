@@ -1,6 +1,8 @@
 import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
 import { RefreshTokenRepository } from '../repositories/mysql/RefreshTokenRepository';
 import { runForAllRegions, getRegion } from '../db/tenant';
+import { McpOAuthClientStore } from '../mcp/oauth/clientStore';
+import { McpOAuthRefreshTokenStore } from '../mcp/oauth/refreshTokenStore';
 import { McpAuditStore, AUDIT_RETENTION_DAYS } from '../mcp/auditStore';
 import { logger } from '../external/logger/logger';
 
@@ -16,6 +18,9 @@ const FIRST_RUN_MS = 60_000;
 // un lien périmé signalé par un RH avant que la ligne ne disparaisse.
 const GRACE_DAYS = 7;
 
+// Clients OAuth MCP (DCR) sans activité depuis 90 jours : réenregistrés au besoin par le client.
+const MCP_CLIENT_INACTIVE_DAYS = 90;
+
 /**
  * Planificateur de purge des accès éphémères : supprime les liens signés et les
  * refresh tokens expirés depuis plus de GRACE_DAYS jours.
@@ -30,6 +35,8 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
     const externalAccessRepository = new ExternalAccessRepository();
     const refreshTokenRepository = new RefreshTokenRepository();
     const mcpAuditStore = new McpAuditStore();
+    const mcpClientStore = new McpOAuthClientStore();
+    const mcpRefreshStore = new McpOAuthRefreshTokenStore();
     let running = false;
 
     const tick = async () => {
@@ -45,10 +52,14 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
                     const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
                     // Journal d'accès MCP : rétention 1 an (politique de confidentialité).
                     const mcpAudit = await mcpAuditStore.deleteOlderThan(AUDIT_RETENTION_DAYS);
-                    const total = externalAccess + refreshTokens + mcpAudit;
+                    // Sessions OAuth MCP : jetons expirés/révoqués et clients DCR inactifs depuis 90 j.
+                    const mcpOauth =
+                        (await mcpRefreshStore.deleteExpired(GRACE_DAYS)) +
+                        (await mcpClientStore.deleteInactive(MCP_CLIENT_INACTIVE_DAYS));
+                    const total = externalAccess + refreshTokens + mcpAudit + mcpOauth;
                     if (total > 0) {
                         logger.info(
-                            { region, externalAccess, refreshTokens, mcpAudit, total },
+                            { region, externalAccess, refreshTokens, mcpAudit, mcpOauth, total },
                             'expired-access: accès expirés purgés',
                         );
                     }

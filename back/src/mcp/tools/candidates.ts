@@ -24,7 +24,7 @@ export function registerCandidateTools(server: McpServer): void {
         'Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.',
         { id: z.string().describe('Id du candidat (ObjectId Mongo)') },
         CANDIDATE_SCOPE,
-        async ({ id }) => toolResult(exposeCandidate(await candidates.findById(id))),
+        async ({ id }) => toolResult(exposeCandidate(await candidates.findByIdReadOnly(id))),
     );
 
     readTool(
@@ -38,7 +38,7 @@ export function registerCandidateTools(server: McpServer): void {
         },
         CANDIDATE_SCOPE,
         async ({ search, first, after }) =>
-            toolResult(exposeCandidates(await candidates.findPage(first ?? 50, after, search))),
+            toolResult(exposeCandidates(await candidates.findPageReadOnly(first ?? 50, after, search))),
     );
 
     readTool(
