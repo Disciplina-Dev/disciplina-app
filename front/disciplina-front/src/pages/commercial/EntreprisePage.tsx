@@ -46,6 +46,7 @@ const STATUS_CONFIG: Record<EntrepriseStatus, { bg: string; text: string; dot: s
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-[var(--ds-surface-sunken)]',   text: 'text-[var(--ds-text-muted)]',   label: 'Brouillon' },
+  NON_ENVOYEE:          { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'Non envoyée' },
   EN_ATTENTE_SIGNATURE: { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'En attente de signature' },
   SIGNE:                { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  label: 'Signé' },
   EXPIRE:               { bg: 'bg-[var(--ds-danger-bg)]',    text: 'text-[var(--ds-danger)]',    label: 'Expiré' },
@@ -622,7 +623,9 @@ export default function EntreprisePage() {
             {abList.length > 0 && (
               <ul className="space-y-2">
                 {abList.map((ab: any) => {
-                  const badge = STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']
+                  const badge = ab.status === 'BROUILLON' && ab.isVisibleInMatching
+                    ? STATUS_BADGE['NON_ENVOYEE']
+                    : (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON'])
                   const isSelected = selectedAbIds.has(ab.id)
                   return (
                     <li

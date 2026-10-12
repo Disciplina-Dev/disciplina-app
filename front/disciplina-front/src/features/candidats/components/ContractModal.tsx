@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IconClose, IconJob, IconLoader } from '@/components/ui/icons'
 import { offerGraphqlClient, needsAnalysisGraphqlClient } from '@/graphql/client'
 import {
@@ -14,6 +14,9 @@ import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 import { CompanySearchModal } from '@/features/matching/components/CompanySearchModal'
 import { useCurrentUser } from '@/store/authStore'
 import { useUpdateCandidate } from '@/graphql/hooks'
+import { fetchSessions } from '@/api/sessions'
+import type { Session } from '@/types/session'
+import { TRIAL_PERIOD_BUSINESS_DAYS, defaultTrialEndDate } from '@/utils/trialPeriod'
 import { CandidateStatus, type Candidate, type MatchedOffer } from '@/types/candidate'
 import JobSearchModal from './JobSearchModal'
 
@@ -33,8 +36,34 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
   const [selectedOffer, setSelectedOffer] = useState<MatchedOffer | null>(null)
   const [isNonRenseigne, setIsNonRenseigne] = useState(false)
   const [startDate, setStartDate] = useState('')
+  const [trialEndDate, setTrialEndDate] = useState('')
+  const [trialTouched, setTrialTouched] = useState(false)
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+  const [selectedSessionId, setSelectedSessionId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Fin de période d'essai : pré-remplie à début + 45 jours ouvrés (lun–ven).
+  // Recalculée dans `handleStartDateChange` tant que l'utilisateur ne l'a pas
+  // modifiée manuellement (reste éditable dans tous les cas).
+  const handleStartDateChange = (value: string) => {
+    setStartDate(value)
+    if (!trialTouched) setTrialEndDate(value ? defaultTrialEndDate(value) : '')
+  }
+
+  // Liste des sessions pédagogiques (endpoint peda, accessible à tout EMPLOYEE).
+  useEffect(() => {
+    fetchSessions()
+      .then((list) => {
+        setSessions(list)
+        setSessionsLoading(false)
+      })
+      .catch(() => {
+        setSessions([])
+        setSessionsLoading(false)
+      })
+  }, [])
 
   const candidateTpTypes = candidate.tp_types ?? []
 
@@ -69,6 +98,12 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
     if (!selectedOffer && !isNonRenseigne) return
     setLoading(true)
     setError('')
+    const selectedSession = sessions.find((s) => s.id === selectedSessionId) ?? null
+    const contractExtras = {
+      contract_trial_end_date: trialEndDate || undefined,
+      contract_session_id: selectedSession?.id ?? undefined,
+      contract_session_name: selectedSession?.nom ?? undefined,
+    }
     try {
       if (isNonRenseigne || !selectedOffer) {
         const updated: Candidate = {
@@ -78,6 +113,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
           contract_company_id: undefined,
           contract_company_name: 'Non renseigné',
           contract_start_date: startDate || undefined,
+          ...contractExtras,
         }
         await persistCandidate(candidate._id, updated)
         onSuccess(updated)
@@ -101,6 +137,7 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
         contract_company_id: selectedOffer.companyInfos?.id,
         contract_company_name: selectedOffer.companyInfos?.name ?? selectedOffer.companyName,
         contract_start_date: startDate || undefined,
+        ...contractExtras,
       }
       await persistCandidate(candidate._id, updated)
       onSuccess(updated)
@@ -192,9 +229,40 @@ export default function ContractModal({ candidate, onSuccess, onClose }: Contrac
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
                   className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
                 />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[var(--ds-text)]">Date de fin de période d'essai</label>
+                <input
+                  type="date"
+                  value={trialEndDate}
+                  min={startDate || undefined}
+                  onChange={(e) => { setTrialEndDate(e.target.value); setTrialTouched(true) }}
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue"
+                />
+                <p className="mt-1 text-xs text-[var(--ds-text-subtle)]">
+                  Calculée automatiquement : +{TRIAL_PERIOD_BUSINESS_DAYS} jours ouvrés (lun–ven) depuis le début — modifiable.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[var(--ds-text)]">Session</label>
+                <select
+                  value={selectedSessionId}
+                  onChange={(e) => setSelectedSessionId(e.target.value)}
+                  disabled={sessionsLoading}
+                  className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-sm outline-none focus:border-blue disabled:opacity-50"
+                >
+                  <option value="">— Aucune —</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nom}{s.filiere ? ` · ${s.filiere}` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             </>
           )}

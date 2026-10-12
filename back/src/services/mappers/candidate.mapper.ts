@@ -54,10 +54,25 @@ export function candidateToGql(candidate: Candidate): any {
         immersionEndDate: candidate.immersion_end_date ? new Date(candidate.immersion_end_date).toISOString() : null,
         immersionCompanyId: candidate.immersion_company_id ?? null,
         immersionCompanyName: candidate.immersion_company_name ?? null,
+        immersionConventionNumber: (candidate as any).immersion_convention_number ?? null,
+        immersionSchedule: ((candidate as any).immersion_schedule ?? []).map((s: any) =>
+            typeof s === 'string'
+                ? { day: null, startHour: s, endHour: null }
+                : {
+                      day: s?.day ?? null,
+                      startHour: s?.start_hour ?? (s as any)?.startHour ?? null,
+                      endHour: s?.end_hour ?? (s as any)?.endHour ?? null,
+                  },
+        ),
         contractOfferId: candidate.contract_offer_id ?? null,
         contractCompanyId: candidate.contract_company_id ?? null,
         contractCompanyName: candidate.contract_company_name ?? null,
         contractStartDate: candidate.contract_start_date ? new Date(candidate.contract_start_date).toISOString() : null,
+        contractTrialEndDate: candidate.contract_trial_end_date
+            ? new Date(candidate.contract_trial_end_date).toISOString()
+            : null,
+        contractSessionId: candidate.contract_session_id ?? null,
+        contractSessionName: candidate.contract_session_name ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
         identity: candidate.identity

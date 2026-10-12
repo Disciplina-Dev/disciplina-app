@@ -8,7 +8,7 @@ import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
 import { candidateGraphqlClient, graphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS, ADD_CANDIDATE_HISTORY_ENTRY } from '@/graphql/queries';
-import { apiFetch } from '@/api/httpClient';
+import { apiFetch, apiJson } from '@/api/httpClient';
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import { communeSectionsForRegion } from '@/features/matching/constants/regions';
@@ -16,6 +16,12 @@ import { useRegionStore } from '@/store/regionStore';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS, TP_TYPE_LABELS } from '@/data/candidateTemplates';
 import { gateThresholdForTp } from '@/utils/testGateThreshold';
+import {
+  TEST_FAILURE_NO_SHARE_VALUE,
+  TEST_FAILURE_ORIENTATION_OPTIONS,
+  buildTestFailureComment,
+  buildTestFailureRedirectionBody,
+} from '@/constants/testFailureOrientation';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 import SignaturePad from '@/components/ui/SignaturePad';
@@ -590,6 +596,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     return '';
   });
   const [failureComment, setFailureComment] = useState('');
+  const [failureOrientations, setFailureOrientations] = useState<string[]>([]);
+  const [sendFailureMail, setSendFailureMail] = useState(false);
+  const [failureMailError, setFailureMailError] = useState<string | null>(null);
+  const [failureCommentSaved, setFailureCommentSaved] = useState(false);
   const [gateError, setGateError] = useState<string | null>(null);
   const [gateLoading, setGateLoading] = useState(false);
   const [failedCandidateId, setFailedCandidateId] = useState<string | null>(null);
@@ -718,16 +728,52 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     setGateStep('form');
   };
 
+  const toggleFailureOrientation = (value: string) =>
+    setFailureOrientations(prev => (prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]));
+
   const handleFailureCommentSubmit = async () => {
     if (!failureComment.trim() || !failedCandidateId) return;
     setGateLoading(true);
     setGateError(null);
+    setFailureMailError(null);
     try {
-      const addRes = await candidateGraphqlClient.mutation(ADD_CANDIDATE_HISTORY_ENTRY, {
-        candidateId: failedCandidateId,
-        description: failureComment.trim(),
-      });
-      if (addRes.error) throw new Error(addRes.error.message.replace(/^\[GraphQL\]\s*/, ''));
+      // Évite un doublon d'historique si l'envoi du mail a échoué au premier
+      // essai et que l'utilisateur réessaie sans fermer le modal.
+      if (!failureCommentSaved) {
+        const fullComment = buildTestFailureComment(failureComment, failureOrientations);
+        const addRes = await candidateGraphqlClient.mutation(ADD_CANDIDATE_HISTORY_ENTRY, {
+          candidateId: failedCandidateId,
+          description: fullComment,
+        });
+        if (addRes.error) throw new Error(addRes.error.message.replace(/^\[GraphQL\]\s*/, ''));
+        setFailureCommentSaved(true);
+      }
+      if (sendFailureMail) {
+        const to = form.email.trim();
+        if (!to) {
+          setFailureMailError('Aucun email candidat : le mail de redirection n’a pas été envoyé.');
+          return;
+        }
+        if (failureOrientations.includes(TEST_FAILURE_NO_SHARE_VALUE)) {
+          setFailureMailError('Le candidat ne souhaite pas que sa candidature soit partagée : aucun mail envoyé.');
+          return;
+        }
+        const firstName = (failedCandidateName || form.fullName).split(' ')[0] ?? '';
+        try {
+          await apiJson('/api/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to,
+              subject: 'Votre candidature a été redirigée',
+              body: buildTestFailureRedirectionBody(firstName, failureOrientations),
+            }),
+          });
+        } catch (err) {
+          setFailureMailError(err instanceof Error ? err.message : 'Échec de l’envoi du mail.');
+          return;
+        }
+      }
       // Lève le flag pending
       const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, {
         id: failedCandidateId,
@@ -1019,8 +1065,36 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <label htmlFor="gate-comment" className="text-sm font-medium text-[var(--ds-text-muted)]">Commentaire — actions prises *</label>
               <textarea id="gate-comment" rows={4} value={failureComment} onChange={e => setFailureComment(e.target.value)} placeholder="Ex: Candidat recontacté, proposé remédiation, orientation..." className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-purple resize-none" />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <span id="gate-orientation-label" className="text-sm font-medium text-[var(--ds-text-muted)]">Orientation vers…</span>
+              <div role="group" aria-labelledby="gate-orientation-label" className="flex flex-col gap-2 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2.5">
+                {TEST_FAILURE_ORIENTATION_OPTIONS.map(opt => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 h-4 w-4"
+                      checked={failureOrientations.includes(opt.value)}
+                      onChange={() => toggleFailureOrientation(opt.value)}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4"
+                checked={sendFailureMail}
+                onChange={e => setSendFailureMail(e.target.checked)}
+              />
+              Envoyer un mail au candidat (« Votre candidature a été redirigée vers… »)
+            </label>
+            {failureMailError && (
+              <p className="text-xs text-[var(--ds-warning)]">{failureMailError}</p>
+            )}
             <div className="flex justify-end gap-3">
-              <Button variant="secondary" type="button" onClick={() => { onSaved(); if (failedCandidateId && onCreated) onCreated(failedCandidateId); onClose(); }}>IconPlus tard</Button>
+              <Button variant="secondary" type="button" onClick={() => { onSaved(); if (failedCandidateId && onCreated) onCreated(failedCandidateId); onClose(); }}>Plus tard</Button>
               <Button type="button" isLoading={gateLoading} disabled={!failureComment.trim()} onClick={handleFailureCommentSubmit} className="bg-purple hover:bg-purple-dark text-white">Enregistrer le commentaire</Button>
             </div>
             <p className="text-xs text-[var(--ds-text-subtle)]">Vous pourrez revenir sur la fiche candidat pour compléter ce commentaire tant qu’il n’a pas été saisi.</p>

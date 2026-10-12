@@ -261,6 +261,15 @@ const candidateRelanceSchema = new Schema<CandidateRelanceEntry>(
     { _id: false },
 );
 
+const immersionScheduleSlotSchema = new Schema(
+    {
+        day: { type: String, default: null },
+        start_hour: { type: String, default: null },
+        end_hour: { type: String, default: null },
+    },
+    { _id: false },
+);
+
 const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
@@ -281,6 +290,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         immersion_end_date: { type: Date },
         immersion_company_id: { type: Number },
         immersion_company_name: { type: String },
+        immersion_convention_number: { type: String },
+        immersion_schedule: { type: [immersionScheduleSlotSchema], default: undefined },
         // Horodatage de l'envoi de la notification « immersion terminée » : évite
         // de re-notifier chaque jour une fois la date de fin passée (dédup scheduler).
         immersion_end_notified_at: { type: Date },
@@ -288,6 +299,9 @@ const candidateSchema = new Schema<Candidate & Document>(
         contract_company_id: { type: Number },
         contract_company_name: { type: String },
         contract_start_date: { type: Date },
+        contract_trial_end_date: { type: Date },
+        contract_session_id: { type: String },
+        contract_session_name: { type: String },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
         education: { type: educationSchema },
