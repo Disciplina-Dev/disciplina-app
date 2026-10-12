@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCalendar, IconCheckCircle, IconCompany, IconLoader, IconRefresh, IconSearch } from '@/components/ui/icons'
+import { IconCalendar, IconCheckCircle, IconCompany, IconLoader, IconRefresh, IconSearch, IconTraining } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
@@ -8,7 +8,9 @@ import EmptyState from '@/components/ui/EmptyState'
 import PageHeader from '@/components/ui/PageHeader'
 import Tabs from '@/components/ui/Tabs'
 import { fetchAlternants, fetchSequences } from '@/api/alternants'
+import { fetchSessions } from '@/api/sessions'
 import type { Alternant, AlternantSequence } from '@/types/alternant'
+import type { Session } from '@/types/session'
 
 type Bucket = 'late' | 'soon' | 'upcoming'
 
@@ -66,6 +68,7 @@ export default function DashboardPeda() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Bucket>('late')
   const [rows, setRows] = useState<DashboardRow[]>([])
+  const [sessionsById, setSessionsById] = useState<Record<string, Session>>({})
   const [beyondCount, setBeyondCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -75,9 +78,16 @@ export default function DashboardPeda() {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const alternants = await fetchAlternants()
+      const [alternants, sessions] = await Promise.all([
+        fetchAlternants(),
+        // Le jour de formation (jourCours) est optionnel : un échec ne doit pas bloquer le tableau de bord.
+        fetchSessions().catch(() => [] as Session[]),
+      ])
       const byAlternant = await Promise.all(alternants.map((a) => fetchSequences(a.id)))
       if (!alive) return
+      const byId: Record<string, Session> = {}
+      for (const s of sessions) byId[s.id] = s
+      setSessionsById(byId)
       const collected: DashboardRow[] = []
       let beyond = 0
       alternants.forEach((alternant, index) => {
@@ -123,13 +133,16 @@ export default function DashboardPeda() {
     const needle = search.trim().toLowerCase()
     const current = buckets[tab]
     if (!needle) return current
-    return current.filter(
-      ({ alternant }) =>
+    return current.filter(({ alternant }) => {
+      const jourCours = (alternant.sessionId && sessionsById[alternant.sessionId]?.jourCours) || ''
+      return (
         alternant.fullName.toLowerCase().includes(needle) ||
         alternant.session.toLowerCase().includes(needle) ||
-        (alternant.company?.name ?? '').toLowerCase().includes(needle),
-    )
-  }, [buckets, tab, search])
+        jourCours.toLowerCase().includes(needle) ||
+        (alternant.company?.name ?? '').toLowerCase().includes(needle)
+      )
+    })
+  }, [buckets, tab, search, sessionsById])
 
   const distinctAlternants = useMemo(() => new Set(filtered.map((r) => r.alternant.id)).size, [filtered])
 
@@ -222,47 +235,59 @@ export default function DashboardPeda() {
             />
           ) : (
             <ul className="space-y-3">
-              {filtered.map(({ alternant, sequence, diffDays }) => (
-                <li key={sequence.id}>
-                  <Card className="transition-colors hover:border-teal-700/30">
-                    <div className="flex flex-wrap items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/peda/alternants/${alternant.id}`)}
-                        title={`Ouvrir la fiche de ${alternant.fullName}`}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
-                      >
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-700/10 text-sm font-bold text-teal-700">
-                          {(alternant.firstName[0] ?? '?').toUpperCase()}
-                          {(alternant.lastName[0] ?? '').toUpperCase()}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate font-bold text-[var(--ds-text)] hover:text-teal-700">
-                            {alternant.fullName}
+              {filtered.map(({ alternant, sequence, diffDays }) => {
+                const jourCours =
+                  (alternant.sessionId && sessionsById[alternant.sessionId]?.jourCours) || null
+                // Les entrées « En retard » affichent toujours le jour de formation (quitte à afficher « - »).
+                const showJourCours = diffDays < 0 || jourCours !== null
+                return (
+                  <li key={sequence.id}>
+                    <Card className="transition-colors hover:border-teal-700/30">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/peda/alternants/${alternant.id}`)}
+                          title={`Ouvrir la fiche de ${alternant.fullName}`}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+                        >
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-700/10 text-sm font-bold text-teal-700">
+                            {(alternant.firstName[0] ?? '?').toUpperCase()}
+                            {(alternant.lastName[0] ?? '').toUpperCase()}
                           </span>
-                          <span className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-[var(--ds-text-subtle)]">
-                            <span className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
-                              {alternant.session}
+                          <span className="min-w-0">
+                            <span className="block truncate font-bold text-[var(--ds-text)] hover:text-teal-700">
+                              {alternant.fullName}
                             </span>
-                            <span className="inline-flex items-center gap-1">
-                              <IconCompany width={12} height={12} />
-                              {alternant.company?.name || 'Sans entreprise'}
+                            <span className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-[var(--ds-text-subtle)]">
+                              <span className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
+                                {alternant.session}
+                              </span>
+                              {showJourCours && (
+                                <span className="inline-flex items-center gap-1">
+                                  <IconTraining width={12} height={12} />
+                                  Jour de formation : {jourCours ?? '-'}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1">
+                                <IconCompany width={12} height={12} />
+                                {alternant.company?.name || 'Sans entreprise'}
+                              </span>
                             </span>
                           </span>
+                        </button>
+                        <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                          <span className="font-semibold text-[var(--ds-text)]">SA n°{sequence.numero}</span>
+                          <span className="inline-flex items-center gap-1.5 text-[var(--ds-text-muted)]">
+                            <IconCalendar width={14} height={14} className="text-[var(--ds-text-subtle)]" />
+                            Prévue le {formatDate(sequence.prevueLe)}
+                          </span>
+                          <DelayBadge diffDays={diffDays} />
                         </span>
-                      </button>
-                      <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                        <span className="font-semibold text-[var(--ds-text)]">SA n°{sequence.numero}</span>
-                        <span className="inline-flex items-center gap-1.5 text-[var(--ds-text-muted)]">
-                          <IconCalendar width={14} height={14} className="text-[var(--ds-text-subtle)]" />
-                          Prévue le {formatDate(sequence.prevueLe)}
-                        </span>
-                        <DelayBadge diffDays={diffDays} />
-                      </span>
-                    </div>
-                  </Card>
-                </li>
-              ))}
+                      </div>
+                    </Card>
+                  </li>
+                )
+              })}
             </ul>
           )}
 
