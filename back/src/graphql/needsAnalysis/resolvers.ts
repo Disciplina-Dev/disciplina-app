@@ -204,6 +204,20 @@ export const resolvers = {
             }
             return needsAnalysisService.setRelanceDisabled(id, disabled);
         },
+        setNeedsAnalysisMatchingVisibility: async (
+            _: unknown,
+            { id, visible }: { id: string; visible: boolean },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            if (context.user.role === JobRole.COMMERCIAL) {
+                const existing = await needsAnalysisService.findById(id);
+                if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
+                    throw new Error('Forbidden: You can only change matching visibility on your own needs analyses');
+                }
+            }
+            return needsAnalysisService.setMatchingVisibility(id, visible);
+        },
         updateNeedsAnalysisIndicator: async (
             _: unknown,
             { id, indicator }: { id: string; indicator?: CompanyIndicator | null },

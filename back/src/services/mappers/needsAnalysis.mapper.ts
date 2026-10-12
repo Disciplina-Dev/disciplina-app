@@ -168,6 +168,7 @@ export function toNeedsAnalysisDocument(
         signature_request_id: data.yousignSignatureRequestID ?? null,
         status: data.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: data.tags ?? [],
+        is_visible_in_matching: data.isVisibleInMatching ?? false,
         administration_type: data.administrationType ?? AdministrationType.NON_RENSEIGNE,
         created_at: data.createdAt ? new Date(data.createdAt) : now,
         updated_at: now,
@@ -285,6 +286,7 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         signedAt: doc.signed_at ? new Date(doc.signed_at).toISOString() : null,
         status: doc.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: doc.tags ?? [],
+        isVisibleInMatching: !!(doc as any).is_visible_in_matching,
         // Pastille manuelle : absente (`null`) = couleur automatique côté front.
         // Volontairement non repris dans `toNeedsAnalysisDocument` : la mise à
         // jour générique `update()` ne doit jamais réinitialiser ce champ.
