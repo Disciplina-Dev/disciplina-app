@@ -654,6 +654,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
+  // Publication du brouillon dans le matching (sans envoi en signature) :
+  // l'AB reste BROUILLON (affichée « Non envoyée ») mais se matche comme
+  // une AB non signée. Prérempli en duplication/édition d'un brouillon publié.
+  const [publishToMatching, setPublishToMatching] = useState<boolean>(
+    initialData?.status === 'BROUILLON' ? (initialData?.isVisibleInMatching ?? false) : false,
+  )
   // Quelle action a déclenché la soumission : enregistrer seul, télécharger le PDF
   // ou envoyer en signature.
   const intentRef = useRef<'download' | 'sign' | 'save'>('download')
@@ -804,6 +810,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
       if (!p.criteria.hasVehicle) return 'Sélectionnez si le véhicule est requis.'
       if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
+      if (p.criteria.ageMin !== '' && p.criteria.ageMax !== '') {
+        const min = Number(p.criteria.ageMin)
+        const max = Number(p.criteria.ageMax)
+        if (Number.isFinite(min) && Number.isFinite(max) && max < min)
+          return "L'âge maximum ne peut pas être inférieur à l'âge minimum."
+      }
       return ''
     })
     setPosteErrors(errs)
@@ -913,6 +925,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       recruitmentMethod:      data.recruitmentMethod,
       immersionPeriod:        data.immersionPeriod,
       trainingDays:           trainingDaysJson,
+      isVisibleInMatching:    publishToMatching,
     }
 
     let response
@@ -1000,7 +1013,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           }}
         />
       )}
-      <div className="relative flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-[var(--ds-bg)] shadow-xl">
+      {/* La boîte du modal ne doit jamais défiler elle-même : `overflow-hidden`
+          resterait un conteneur de défilement (scroll focus / ancrage au
+          changement de contenu, ex. case « responsable différent »), ce qui
+          fait remonter l'en-tête et le pied hors de vue. `overflow-clip`
+          interdit tout défilement ; seul le contenu central défile. */}
+      <div className="relative flex max-h-[95vh] w-full max-w-3xl flex-col overflow-clip rounded-xl bg-[var(--ds-bg)] shadow-xl">
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--ds-border)] px-6 py-4">
@@ -1014,8 +1032,8 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         </div>
 
         {/* Form — single scrollable page */}
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-clip">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="flex flex-col gap-8">
 
               {/* ── Identité de l'entreprise ─────────────────────────────────── */}
@@ -1328,11 +1346,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                         Âge souhaité <span className="text-[var(--ds-text-subtle)]">(optionnel)</span>
                       </label>
                       <div className="grid grid-cols-2 gap-3">
-                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={99} placeholder="18"
+                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={poste.criteria.ageMax !== '' ? Number(poste.criteria.ageMax) : 99} placeholder="18"
                           value={poste.criteria.ageMin}
                           onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMin: e.target.value } })} />
-                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={15} max={99} placeholder="29"
+                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={poste.criteria.ageMin !== '' ? Number(poste.criteria.ageMin) : 15} max={99} placeholder="29"
                           value={poste.criteria.ageMax}
+                          error={poste.criteria.ageMin !== '' && poste.criteria.ageMax !== '' && Number(poste.criteria.ageMax) < Number(poste.criteria.ageMin) ? "L'âge maximum ne peut pas être inférieur à l'âge minimum." : undefined}
                           onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMax: e.target.value } })} />
                       </div>
                     </div>
@@ -1413,6 +1432,30 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   </div>
                 </div>
               </section>
+
+              {(!isEditing || initialData?.status === 'BROUILLON') && (
+                <section className="flex flex-col gap-4">
+                  <SectionTitle>Matching</SectionTitle>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 hover:border-blue-light">
+                    <div className={['mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors', publishToMatching ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]'].join(' ')}>
+                      {publishToMatching && <IconCheck width={12} height={12} className="text-white" strokeWidth={3} />}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={publishToMatching}
+                      onChange={(e) => setPublishToMatching(e.target.checked)}
+                    />
+                    <span className="text-sm text-[var(--ds-text-muted)]">
+                      <span className="font-medium text-[var(--ds-text)]">Rendre visible dans le matching sans envoi par mail</span>
+                      <span className="mt-1 block text-[var(--ds-text-subtle)]">
+                        L'AB restera à l'état brouillon (affichée « Non envoyée ») mais ses offres
+                        seront matchables comme celles d'une AB non signée.
+                      </span>
+                    </span>
+                  </label>
+                </section>
+              )}
 
               {submitError && (
                 <p className="rounded-lg border border-danger-bg bg-[var(--ds-danger-bg)] px-4 py-2.5 text-sm text-[var(--ds-danger)]">

@@ -19,14 +19,17 @@ export interface CalendarEvent {
     meetingLink?: string;
     /** Email de l'invité (pour confirmation / relance). */
     attendeeEmail?: string;
-    /** Présence de l'invité : 'arrived' (venu) ou 'noshow' (pas venu). */
+    /** Présence de l'invité : 'arrived' (venu), 'noshow' (pas venu), 'postponed' (reporté) ou 'declined' (décliné). */
     attendance?: Attendance;
     /** Marqué comme entretien (compté dans les KPI RH). */
     isInterview?: boolean;
 }
 
 /** Statut de présence stocké sur l'event. */
-export type Attendance = 'arrived' | 'noshow';
+export type Attendance = 'arrived' | 'noshow' | 'postponed' | 'declined';
+
+/** Tous les statuts de présence reconnus (les valeurs inconnues sont ignorées à la lecture). */
+export const ATTENDANCES: readonly Attendance[] = ['arrived', 'noshow', 'postponed', 'declined'];
 
 export interface CalendarEventInput {
     summary: string;
@@ -155,6 +158,12 @@ function toRequestBody(input: CalendarEventInput): calendar_v3.Schema$Event {
     };
 }
 
+function parseAttendance(raw: unknown): Attendance | undefined {
+    return typeof raw === 'string' && (ATTENDANCES as readonly string[]).includes(raw)
+        ? (raw as Attendance)
+        : undefined;
+}
+
 function toCalendarEvent(e: calendar_v3.Schema$Event): CalendarEvent {
     const allDay = Boolean(e.start?.date);
     return {
@@ -162,15 +171,15 @@ function toCalendarEvent(e: calendar_v3.Schema$Event): CalendarEvent {
         summary: e.summary ?? '(Sans titre)',
         description: e.description ?? undefined,
         location: e.location ?? undefined,
-        start: (e.start?.dateTime ?? e.start?.date) ?? '',
-        end: (e.end?.dateTime ?? e.end?.date) ?? '',
+        start: e.start?.dateTime ?? e.start?.date ?? '',
+        end: e.end?.dateTime ?? e.end?.date ?? '',
         allDay,
         colorId: e.colorId ?? undefined,
         htmlLink: e.htmlLink ?? undefined,
         hangoutLink: e.hangoutLink ?? undefined,
         meetingLink: e.extendedProperties?.private?.[MEETING_LINK_KEY] || undefined,
         attendeeEmail: e.extendedProperties?.private?.[ATTENDEE_EMAIL_KEY] || undefined,
-        attendance: (e.extendedProperties?.private?.[ATTENDANCE_KEY] as Attendance) || undefined,
+        attendance: parseAttendance(e.extendedProperties?.private?.[ATTENDANCE_KEY]),
         isInterview: e.extendedProperties?.private?.[IS_INTERVIEW_KEY] === '1',
     };
 }

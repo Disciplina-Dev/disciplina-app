@@ -279,6 +279,9 @@ export async function startServer(): Promise<http.Server> {
         .seedInterviewInvitationDefault()
         .catch((err) => logger.error({ err }, 'interview-invitation: seed du modèle système échoué'));
     mailTemplateService
+        .seedTestFailureRedirectionDefault()
+        .catch((err) => logger.error({ err }, 'test-failure-redirection: seed du modèle système échoué'));
+    mailTemplateService
         .refreshNoCodeRHTemplates()
         .catch((err) => logger.error({ err }, 'mail-template: refresh des modèles sans code échoué'));
     mailTemplateService

@@ -191,6 +191,7 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | training_days | string | — | JSON string of per-day availability (not parsed) |
 | signature_request_id | string | — | DocuSeal submission id (e-signature) |
 | status | string | — | enum: NeedsAnalysisStatus |
+| is_visible_in_matching | bool | — | Draft published to matching without signature (shown « Non envoyée », matched like unsigned) |
 | last_active_at | date | — | Last transition to effective ACTIVE (creation, then reactivations) |
 | created_at | date | — | Creation date |
 | updated_at | date | — | Last update date |
@@ -318,7 +319,7 @@ Weekly/monthly KPI counter buckets. Replaces the former MySQL tables `commercial
 Typed union on the application side:
 
 - `kind: commercial` → `count_oui`, `count_oui_of`, `count_non`, `count_ne_repond_pas`, `count_a_reflechir`, `count_relance`, `total_appels`, `total_trie`, `nbre_ent_ferme`, `nbre_ent_ouvert`, `visites_terrain`
-- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `immersions`, `contracts`, `ruptures`
+- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `interviews_postponed`, `interviews_declined`, `immersions`, `contracts`, `ruptures`
 
 All values are non-negative integers; unknown keys are ignored at read time (metrics may grow over time without schema change).
 

@@ -417,6 +417,13 @@ const CANDIDATE_FIELDS = gql`
     tpTypes
     trainingSite
     trainingSites
+    contractOfferId
+    contractCompanyId
+    contractCompanyName
+    contractStartDate
+    contractTrialEndDate
+    contractSessionId
+    contractSessionName
     skillsAssessment {
       competence
       level
@@ -609,10 +616,15 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -745,10 +757,15 @@ export const UPDATE_CANDIDATE = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -927,10 +944,15 @@ export const GET_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1064,10 +1086,15 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day startHour endHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1724,6 +1751,7 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
       }
       positionsCount
       status
+      isVisibleInMatching
       isRelanceDisabled
       createdAt
     }
@@ -1738,18 +1766,26 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         node {
           id
           status
+          isVisibleInMatching
           abStatus
           positionsCount
           createdAt
           lastActiveAt
           administrationType
           driveFolderUrl
+          companyIndicator
+          immersionPeriod
+          salerInfo {
+            id
+            email
+          }
           companyInfos {
             name
             siret
             sector
             activities
             commune
+            postalCode
           }
           positions {
             jobRole
@@ -1767,6 +1803,25 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         hasPreviousPage
         startCursor
         endCursor
+      }
+    }
+  }
+`
+
+export const GET_OFFERS_IMMERSION_MAP = gql`
+  query GetOffersImmersionMap {
+    offers {
+      id
+      needsAnalysisId
+      proposedCandidate {
+        id
+        fullName
+        status
+      }
+      matchedCandidate {
+        id
+        fullName
+        status
       }
     }
   }
@@ -1898,6 +1953,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      isVisibleInMatching
       abStatus
       isRelanceDisabled
       administrationType
@@ -1985,12 +2041,31 @@ export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
   }
 `
 
+export const UPDATE_NEEDS_ANALYSIS_INDICATOR = gql`
+  mutation UpdateNeedsAnalysisIndicator($id: ID!, $indicator: CompanyIndicator) {
+    updateNeedsAnalysisIndicator(id: $id, indicator: $indicator) {
+      id
+      companyIndicator
+    }
+  }
+`
+
 export const SET_AB_RELANCE_DISABLED = gql`
   mutation SetAbRelanceDisabled($id: ID!, $disabled: Boolean!) {
     setAbRelanceDisabled(id: $id, disabled: $disabled) {
       id
       status
       isRelanceDisabled
+    }
+  }
+`
+
+export const SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY = gql`
+  mutation SetNeedsAnalysisMatchingVisibility($id: ID!, $visible: Boolean!) {
+    setNeedsAnalysisMatchingVisibility(id: $id, visible: $visible) {
+      id
+      status
+      isVisibleInMatching
     }
   }
 `
@@ -2038,6 +2113,26 @@ export const NEEDS_ANALYSES_FOR_DASHBOARD = gql`
         status
       }
       totalCount
+    }
+  }
+`
+
+export const GET_IMMERSING_CANDIDATES_MAP = gql`
+  query GetImmersingCandidatesMap($first: Int) {
+    candidatesPage(first: $first, filters: { status: IMMERSING }) {
+      edges {
+        node {
+          id
+          status
+          immersionCompanyId
+          immersionCompanyName
+          immersionConventionNumber
+          immersionSchedule { day startHour endHour }
+          identity {
+            fullName
+          }
+        }
+      }
     }
   }
 `
